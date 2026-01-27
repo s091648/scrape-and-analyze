@@ -1,0 +1,7 @@
+我想要從頭開發一個新的應用程式，其目的是透過爬蟲建立跟數位孿生(digital twins)相關的資料集以進行市場趨勢分析等。
+
+技術棧部分，目前僅需要架構一個定期的爬蟲服務即可，目前可能會使用Python的beautifulsoup進行主要爬蟲任務。會需要從科技新聞RSS (TechCrunch跟VentureBeat), arXiv.org API, IoT World today RSS的來源透過digital twins的關鍵字進行每日一次的爬蟲。另外還會從NVIDIA Blog, Siemens Digital Industries, AWS IoT Blog, Azure IoT Blog一樣透過digital twins的關鍵字進行每周一次的爬蟲。在程式開發部分需要遵循TDD原則，並且需要針對可能發生的錯誤(爬蟲被擋/爬蟲目標的server crash或是AWS自己的一些問題等)進行一些error handling (如dead letter queue等)。
+
+雲端服務方面會想要使用AWS，並且採取serverless的架構。其主要架構為透過Eventbridge的cronjob觸發爬蟲Lambda，Lambda使用beautifulsoup進行爬蟲後，將存下的資訊(包含metadata)儲存至DynamoDB中。在爬蟲Lambda結束後透過SQS發送訊息觸發第二個Lambda，在第二個Lambda中會透過LLM (目前可能是使用claude的API，但是希望在架構設計上能夠維持切換不同model的彈性)去解析本文，並且請其給出一些特定的tag，同時給出痛點、洞見、創新等方面的總結。這些總結和tag會儲存到第二個DynamoDB的table裡面，並且與第一個table的item以id做連結(類似關聯性資料庫的foreign key)。
+
+DevOps部分，雲端資源的IaC會想要使用CDK，搭配typescript進行配置。而CICD則是想要透過Github actions進行部署，可能是在上tag或是merge作為trigger。因此在IaC設計時需要考慮給予Github actions足夠的權限以進行操作 (least privilidge為佳)。
