@@ -1,0 +1,19 @@
+# requirements.txt
+# Core
+sqlalchemy>=2.0
+psycopg2-binary
+beautifulsoup4
+requests
+feedparser
+anthropic
+tenacity
+structlog
+lxml
+
+# Testing
+pytest
+pytest-cov
+responses
+
+# Optional
+sentry-sdk
