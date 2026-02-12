@@ -1,0 +1,13 @@
+# Dockerfile.dev
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# src/ and migrations/ are volume-mounted, not copied
+# This keeps the image identical to production but allows live edits
+
+CMD ["python", "-m", "src.main", "daily"]
