@@ -1,5 +1,7 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+from datetime import datetime, timedelta, timezone
+import uuid
 
 
 def test_engine_uses_nullpool():
@@ -21,3 +23,50 @@ def test_get_session_returns_session():
         session = get_session()
         assert isinstance(session, Session)
         session.close()
+
+
+def test_has_analysis_returns_true_when_exists():
+    """has_analysis should return True when analysis exists"""
+    from src.database import has_analysis
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter_by.return_value.first.return_value = MagicMock()
+
+    result = has_analysis(mock_session, uuid.uuid4())
+    assert result is True
+
+
+def test_has_analysis_returns_false_when_not_exists():
+    """has_analysis should return False when no analysis"""
+    from src.database import has_analysis
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter_by.return_value.first.return_value = None
+
+    result = has_analysis(mock_session, uuid.uuid4())
+    assert result is False
+
+
+def test_find_recent_failures_filters_by_time():
+    """find_recent_failures should filter by time window"""
+    from src.database import find_recent_failures
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = []
+
+    result = find_recent_failures(mock_session, hours=24)
+
+    mock_session.query.return_value.filter.assert_called()
+    assert result == []
+
+
+def test_find_missing_analyses_returns_articles_without_analysis():
+    """find_missing_analyses should return articles that have no analysis"""
+    from src.database import find_missing_analyses
+
+    mock_session = MagicMock()
+    mock_article = MagicMock()
+    mock_session.query.return_value.outerjoin.return_value.filter.return_value.all.return_value = [mock_article]
+
+    result = find_missing_analyses(mock_session)
+    assert len(result) == 1
