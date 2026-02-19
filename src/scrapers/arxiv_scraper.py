@@ -68,7 +68,7 @@ class ArxivScraper(BaseScraper):
             id_elem = entry.find(f'{ATOM_NS}id')
 
             title = title_elem.text.strip() if title_elem is not None else ''
-            summary = summary_elem.text.strip() if summary_elem is not None else ''
+            summary = (summary_elem.text or '').strip() if summary_elem is not None else ''
             published = published_elem.text if published_elem is not None else ''
             arxiv_id = id_elem.text if id_elem is not None else ''
 

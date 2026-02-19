@@ -95,3 +95,104 @@ def test_arxiv_scraper_handles_api_error():
     articles = scraper.scrape()
 
     assert articles == []
+
+
+@responses.activate
+def test_arxiv_scraper_extracts_authors():
+    """ArxivScraper should extract multiple authors"""
+    from src.scrapers.arxiv_scraper import ArxivScraper
+    from datetime import datetime, timedelta, timezone
+
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    atom_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2401.00001v1</id>
+        <title>Digital Twins Research</title>
+        <summary>Abstract text</summary>
+        <published>{recent_date}</published>
+        <author><name>John Doe</name></author>
+        <author><name>Jane Smith</name></author>
+        <author><name>Bob Johnson</name></author>
+        <link href="http://arxiv.org/abs/2401.00001v1" rel="alternate" type="text/html"/>
+      </entry>
+    </feed>'''
+
+    responses.add(
+        responses.GET,
+        "http://export.arxiv.org/api/query",
+        body=atom_response,
+        status=200
+    )
+
+    scraper = ArxivScraper()
+    articles = scraper.scrape()
+
+    assert len(articles) == 1
+    assert articles[0].metadata['authors'] == ['John Doe', 'Jane Smith', 'Bob Johnson']
+
+
+@responses.activate
+def test_arxiv_scraper_filters_old_papers():
+    """ArxivScraper should filter papers older than days_back"""
+    from src.scrapers.arxiv_scraper import ArxivScraper
+    from datetime import datetime, timedelta, timezone
+
+    old_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    atom_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2401.00001v1</id>
+        <title>Old Paper</title>
+        <summary>Abstract</summary>
+        <published>{old_date}</published>
+        <link href="http://arxiv.org/abs/2401.00001v1" rel="alternate"/>
+      </entry>
+    </feed>'''
+
+    responses.add(
+        responses.GET,
+        "http://export.arxiv.org/api/query",
+        body=atom_response,
+        status=200
+    )
+
+    scraper = ArxivScraper(days_back=7)
+    articles = scraper.scrape()
+
+    assert len(articles) == 0  # Should be filtered out
+
+
+@responses.activate
+def test_arxiv_scraper_handles_missing_fields():
+    """ArxivScraper should handle entries with missing optional fields"""
+    from src.scrapers.arxiv_scraper import ArxivScraper
+    from datetime import datetime, timedelta, timezone
+
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    atom_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2401.00001v1</id>
+        <title>Minimal Entry</title>
+        <summary></summary>
+        <published>{recent_date}</published>
+      </entry>
+    </feed>'''
+
+    responses.add(
+        responses.GET,
+        "http://export.arxiv.org/api/query",
+        body=atom_response,
+        status=200
+    )
+
+    scraper = ArxivScraper()
+    articles = scraper.scrape()
+
+    assert len(articles) == 1
+    assert articles[0].title == "Minimal Entry"
+    assert articles[0].content == ""
