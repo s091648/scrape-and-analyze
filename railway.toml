@@ -8,3 +8,7 @@ dockerfilePath = "Dockerfile"
 startCommand = "python -m src.main daily"
 # Batch job: exits after completion — do not restart.
 restartPolicyType = "never"
+
+[deploy.envs]
+LLM_PROVIDER = "claude" 
+LLM_MODEL = "claude-sonnet-4-20250514"

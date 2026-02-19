@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.analyzers.llm_provider import AnalysisResult, LLMProvider
@@ -16,8 +16,7 @@ class GeminiProvider(LLMProvider):
     """LLM Provider using Google AI Studio's Gemini API"""
 
     def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
-        genai.configure(api_key=api_key)
-        self.client = genai.GenerativeModel(model)
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model
 
     @retry(
@@ -28,7 +27,10 @@ class GeminiProvider(LLMProvider):
     def _call_api(self, content: str, prompt: str):
         """Call Gemini API with retry logic"""
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
-        return self.client.generate_content(full_prompt)
+        return self.client.models.generate_content(
+            model=self.model_name,
+            contents=full_prompt,
+        )
 
     def _parse_response_text(self, text: str) -> dict:
         """Strip markdown code fences if present, then parse JSON"""
