@@ -713,44 +713,107 @@
         </mxGraphModel>
     </diagram>
     <diagram id="phase12" name="Phase 12 - Observability">
-        <mxGraphModel dx="800" dy="600" grid="0" gridSize="10" guides="0" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+        <mxGraphModel dx="541" dy="435" grid="0" gridSize="10" guides="0" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-
-                <!-- Observability group -->
-                <mxCell id="obs_group" value="Observability" style="swimlane;fontSize=13;fontStyle=1;fillColor=#F3E5F5;strokeColor=#9C27B0;" vertex="1" parent="1">
+                <mxCell id="obs_group" value="Observability" style="swimlane;fontSize=13;fontStyle=1;fillColor=#F3E5F5;strokeColor=#9C27B0;" parent="1" vertex="1">
                     <mxGeometry x="40" y="40" width="500" height="200" as="geometry"/>
                 </mxCell>
-                <mxCell id="structlog_box" value="structlog JSON&#xa;─────────────────&#xa;configure_logging()&#xa;get_logger()&#xa;bind_correlation_id()&#xa;log_execution_summary()&#xa;log_llm_metrics()" style="rounded=1;fillColor=#9C27B0;fontColor=#fff;strokeColor=#9C27B0;fontSize=11;align=left;" vertex="1" parent="obs_group">
+                <mxCell id="structlog_box" value="structlog JSON&#xa;─────────────────&#xa;configure_logging()&#xa;get_logger()&#xa;bind_correlation_id()&#xa;log_execution_summary()&#xa;log_llm_metrics()" style="rounded=1;fillColor=#9C27B0;fontColor=#fff;strokeColor=#9C27B0;fontSize=11;align=left;" parent="obs_group" vertex="1">
                     <mxGeometry x="20" y="40" width="210" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="sentry_box" value="Sentry SDK&#xa;─────────────────&#xa;traces_sample_rate=0.1&#xa;(optional: set SENTRY_DSN)" style="rounded=1;fillColor=#362D59;fontColor=#fff;strokeColor=#362D59;fontSize=11;align=left;" vertex="1" parent="obs_group">
+                <mxCell id="sentry_box" value="Sentry SDK&#xa;─────────────────&#xa;traces_sample_rate=0.1&#xa;(optional: set SENTRY_DSN)" style="rounded=1;fillColor=#362D59;fontColor=#fff;strokeColor=#362D59;fontSize=11;align=left;" parent="obs_group" vertex="1">
                     <mxGeometry x="270" y="40" width="210" height="140" as="geometry"/>
                 </mxCell>
-
-                <!-- Outputs group -->
-                <mxCell id="out_group" value="Outputs" style="swimlane;fontSize=13;fontStyle=1;fillColor=#E8F5E9;strokeColor=#4CAF50;" vertex="1" parent="1">
+                <mxCell id="out_group" value="Outputs" style="swimlane;fontSize=13;fontStyle=1;fillColor=#E8F5E9;strokeColor=#4CAF50;" parent="1" vertex="1">
                     <mxGeometry x="40" y="280" width="500" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="railway_logs" value="Railway Logs&#xa;(stdout JSON lines)" style="rounded=1;fillColor=#4CAF50;fontColor=#fff;strokeColor=#4CAF50;fontSize=11;" vertex="1" parent="out_group">
+                <mxCell id="railway_logs" value="Railway Logs&#xa;(stdout JSON lines)" style="rounded=1;fillColor=#4CAF50;fontColor=#fff;strokeColor=#4CAF50;fontSize=11;" parent="out_group" vertex="1">
                     <mxGeometry x="20" y="35" width="200" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="sentry_dash" value="Sentry Dashboard&#xa;(errors + traces)" style="rounded=1;fillColor=#362D59;fontColor=#fff;strokeColor=#362D59;fontSize=11;" vertex="1" parent="out_group">
+                <mxCell id="sentry_dash" value="Sentry Dashboard&#xa;(errors + traces)" style="rounded=1;fillColor=#362D59;fontColor=#fff;strokeColor=#362D59;fontSize=11;" parent="out_group" vertex="1">
                     <mxGeometry x="280" y="35" width="200" height="60" as="geometry"/>
                 </mxCell>
-
-                <!-- Edges -->
-                <mxCell id="e1" value="JSON lines" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="structlog_box" target="railway_logs" parent="1">
+                <mxCell id="e1" value="JSON lines" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="structlog_box" target="railway_logs" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e2" value="errors + traces" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="sentry_box" target="sentry_dash" parent="1">
+                <mxCell id="e2" value="errors + traces" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="sentry_box" target="sentry_dash" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-
-                <!-- correlation_id note -->
-                <mxCell id="note1" value="correlation_id injected via ContextVar&#xa;into every log event in same async context" style="text;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=left;" vertex="1" parent="1">
+                <mxCell id="note1" value="correlation_id injected via ContextVar&#xa;into every log event in same async context" style="text;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;align=left;" parent="1" vertex="1">
                     <mxGeometry x="580" y="80" width="300" height="50" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase13" name="Phase 13 - Deployment">
+        <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Phase 13: Deployment — Railway Infrastructure" style="text;fontSize=18;fontStyle=1;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="20" width="700" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="railway" value="Railway Platform" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="80" width="1000" height="560" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron_daily" value="Cron Job: Daily&#xa;0 8 * * *&#xa;python -m src.main daily" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="railway" vertex="1">
+                    <mxGeometry x="40" y="60" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron_weekly" value="Cron Job: Weekly&#xa;0 8 * * 1&#xa;python -m src.main weekly" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="railway" vertex="1">
+                    <mxGeometry x="40" y="180" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="cron_remediate" value="Cron Job: Remediate&#xa;0 9 * * *&#xa;python -m src.main remediate" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="railway" vertex="1">
+                    <mxGeometry x="40" y="300" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="app" value="App Container&#xa;(Python 3.12-slim)&#xa;&#xa;src/main.py&#xa;  run_daily_scrape()&#xa;  run_weekly_scrape()&#xa;  run_remediate()" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="railway" vertex="1">
+                    <mxGeometry x="290" y="120" width="200" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="postgres" value="PostgreSQL&#xa;(Railway Plugin)&#xa;&#xa;articles&#xa;analyses&#xa;failed_tasks" style="shape=cylinder3;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" parent="railway" vertex="1">
+                    <mxGeometry x="700" y="150" width="160" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="env_vars" value="Environment Variables&#xa;&#xa;DATABASE_URL (auto)&#xa;LLM_API_KEY&#xa;LLM_PROVIDER&#xa;LLM_MODEL&#xa;SENTRY_DSN (opt)" style="rounded=0;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" parent="railway" vertex="1">
+                    <mxGeometry x="290" y="380" width="200" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_daily" style="edgeStyle=orthogonalEdgeStyle;" parent="railway" source="cron_daily" target="app" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_weekly" style="edgeStyle=orthogonalEdgeStyle;" parent="railway" source="cron_weekly" target="app" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_remediate" style="edgeStyle=orthogonalEdgeStyle;" parent="railway" source="cron_remediate" target="app" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_db" style="edgeStyle=orthogonalEdgeStyle;" parent="railway" source="app" target="postgres" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="claude_api" value="Claude API&#xa;(Anthropic)&#xa;&#xa;claude-sonnet-4-20250514" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="900" y="300" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="rss_sources" value="RSS Sources&#xa;(IEEE, ACM, etc.)" style="rounded=1;fillColor=#f0f0f0;strokeColor=#888888;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="680" width="180" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arxiv" value="arXiv API" style="rounded=1;fillColor=#f0f0f0;strokeColor=#888888;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="680" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="blogs" value="Blog Sites&#xa;(HTML scraping)" style="rounded=1;fillColor=#f0f0f0;strokeColor=#888888;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="680" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_claude" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="claude_api" target="railway" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_rss" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss_sources" target="railway" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_arxiv" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="arxiv" target="railway" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="edge_blogs" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="blogs" target="railway" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="migration_note" value="Migration: railway run psql $DATABASE_URL -f migrations/001_initial.sql" style="text;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="680" width="400" height="40" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
