@@ -21,8 +21,6 @@ from src.database import get_session, has_analysis
 from src.scrapers.rss_scraper import RssScraper
 from src.scrapers.arxiv_scraper import ArxivScraper
 from src.scrapers.blog_scraper import BlogScraper
-from src.analyzers.claude import ClaudeProvider
-from src.analyzers.gemini import GeminiProvider
 from src.models.article import Article
 from src.models.analysis import Analysis
 from src.models.failed_task import FailedTask
@@ -39,9 +37,11 @@ _shutdown_requested = False
 
 
 def build_analyzer():
-    """Instantiate the configured LLM provider"""
+    """Instantiate the configured LLM provider (lazy import — only loads the selected SDK)"""
     if LLM_PROVIDER == 'gemini':
+        from src.analyzers.gemini import GeminiProvider
         return GeminiProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    from src.analyzers.claude import ClaudeProvider
     return ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
 
 

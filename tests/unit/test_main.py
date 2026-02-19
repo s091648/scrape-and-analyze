@@ -65,7 +65,7 @@ def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session):
     mock_rss_scraper.return_value = mock_scraper_instance
 
     with patch('src.main.ArxivScraper') as mock_arxiv, \
-         patch('src.main.ClaudeProvider'), \
+         patch('src.main.build_analyzer'), \
          patch('src.main.load_prompt', return_value='prompt'):
         mock_arxiv.return_value.scrape.return_value = []
 

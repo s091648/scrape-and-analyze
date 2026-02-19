@@ -44,7 +44,7 @@ def test_record_failure_with_article_id():
 
 
 @patch('src.main.get_session')
-@patch('src.main.ClaudeProvider')
+@patch('src.main.build_analyzer')
 @patch('src.main.load_prompt')
 def test_run_remediate_retries_failed_analyses(mock_prompt, mock_provider, mock_get_session):
     """run_remediate should retry failed analysis tasks"""
