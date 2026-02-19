@@ -90,3 +90,72 @@ def test_get_correlation_id_returns_current_value():
 
     bind_correlation_id("retrievable-id")
     assert get_correlation_id() == "retrievable-id"
+
+
+def test_log_execution_summary_includes_all_metrics(capsys):
+    """log_execution_summary should include all required metrics"""
+    from src.utils.logging import log_execution_summary, configure_logging
+
+    configure_logging()
+    log_execution_summary(
+        total_articles=100,
+        success_count=95,
+        failure_count=5,
+        duration_seconds=120.5,
+        total_tokens=50000
+    )
+
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out.strip())
+
+    assert parsed["event"] == "execution_summary"
+    assert parsed["total_articles"] == 100
+    assert parsed["success_count"] == 95
+    assert parsed["failure_count"] == 5
+    assert parsed["duration_seconds"] == 120.5
+    assert parsed["total_tokens"] == 50000
+    assert "articles_per_second" in parsed
+
+
+def test_log_execution_summary_handles_zero_duration(capsys):
+    """log_execution_summary should handle zero duration without division error"""
+    from src.utils.logging import log_execution_summary, configure_logging
+
+    configure_logging()
+    log_execution_summary(
+        total_articles=10,
+        success_count=10,
+        failure_count=0,
+        duration_seconds=0,
+        total_tokens=1000
+    )
+
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out.strip())
+
+    assert parsed["articles_per_second"] == 10.0  # Uses max(duration, 1)
+
+
+def test_log_llm_metrics_includes_all_fields(capsys):
+    """log_llm_metrics should include tokens and latency"""
+    from src.utils.logging import log_llm_metrics, configure_logging
+
+    configure_logging()
+    log_llm_metrics(
+        article_id="test-article-id",
+        model="claude-sonnet-4-20250514",
+        input_tokens=1500,
+        output_tokens=300,
+        latency_ms=2500
+    )
+
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out.strip())
+
+    assert parsed["event"] == "llm_analysis_metrics"
+    assert parsed["article_id"] == "test-article-id"
+    assert parsed["model"] == "claude-sonnet-4-20250514"
+    assert parsed["input_tokens"] == 1500
+    assert parsed["output_tokens"] == 300
+    assert parsed["total_tokens"] == 1800
+    assert parsed["latency_ms"] == 2500

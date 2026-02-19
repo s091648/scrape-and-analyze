@@ -41,3 +41,44 @@ def configure_logging() -> None:
 def get_logger(name: str):
     """Get configured structlog logger"""
     return structlog.get_logger(name)
+
+
+def log_execution_summary(
+    total_articles: int,
+    success_count: int,
+    failure_count: int,
+    duration_seconds: float,
+    total_tokens: int = 0
+) -> None:
+    """Log execution summary metrics for monitoring dashboards"""
+    logger = get_logger(__name__)
+    logger.info(
+        "execution_summary",
+        total_articles=total_articles,
+        success_count=success_count,
+        failure_count=failure_count,
+        duration_seconds=round(duration_seconds, 2),
+        total_tokens=total_tokens,
+        articles_per_second=round(total_articles / max(duration_seconds, 1), 2),
+        success_rate=round(success_count / max(total_articles, 1) * 100, 1)
+    )
+
+
+def log_llm_metrics(
+    article_id: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    latency_ms: int
+) -> None:
+    """Log LLM metrics for cost monitoring and performance tracking"""
+    logger = get_logger(__name__)
+    logger.info(
+        "llm_analysis_metrics",
+        article_id=article_id,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=input_tokens + output_tokens,
+        latency_ms=latency_ms
+    )

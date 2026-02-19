@@ -8,7 +8,15 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import RSS_SOURCES, BLOG_SOURCES, LLM_API_KEY, LLM_MODEL
+from src.config import RSS_SOURCES, BLOG_SOURCES, LLM_API_KEY, LLM_MODEL, SENTRY_DSN
+
+# Initialize Sentry if configured
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=0.1,
+    )
 from src.database import get_session, has_analysis
 from src.scrapers.rss_scraper import RssScraper
 from src.scrapers.arxiv_scraper import ArxivScraper
