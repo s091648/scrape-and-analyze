@@ -245,7 +245,7 @@
         </mxGraphModel>
     </diagram>
     <diagram id="phase5" name="Phase 5 - arXiv Scraper">
-        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+        <mxGraphModel dx="541" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -258,7 +258,7 @@
                 <mxCell id="rss" value="RssScraper" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
                     <mxGeometry x="20" y="110" width="155" height="40" as="geometry"/>
                 </mxCell>
-                <mxCell id="arxiv" value="ArxivScraper&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;+ scrape()&#xa;+ _build_query()&#xa;max_results: 100&#xa;days_back: 7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                <mxCell id="arxiv" value="ArxivScraper&#xa;─────────&#xa;+ scrape()&#xa;+ _build_query()&#xa;max_results: 100&#xa;days_back: 7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
                     <mxGeometry x="205" y="100" width="155" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="external_group" value="External" style="swimlane;startSize=25;fillColor=#fff3e0;strokeColor=#FF5722;fontColor=#333333;" parent="1" vertex="1">
@@ -280,6 +280,113 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_arxiv_api" value="search_query params" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="arxiv" target="arxiv_api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase6" name="Phase 6 - Complete Scraper Layer">
+        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="scraper_layer" value="Scraper Layer" style="swimlane;startSize=25;fillColor=#fce4ec;strokeColor=#E91E63;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="380" height="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="base" value="BaseScraper (ABC)&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;+ scrape() -&gt; List[ScrapedArticle]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="40" width="340" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="scraped" value="ScrapedArticle (dataclass)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F48FB1;strokeColor=#E91E63;fontColor=#000000;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="110" width="340" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="rss" value="RssScraper&#xa;keyword filtering" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="165" width="100" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="arxiv" value="ArxivScraper&#xa;Atom XML + date filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="140" y="165" width="100" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="blog" value="BlogScraper&#xa;CSS selectors&#xa;robots.txt check&#xa;rate_limit: 2.0s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="260" y="155" width="100" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="config_group" value="Config" style="swimlane;startSize=25;fillColor=#eceff1;strokeColor=#607D8B;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="20" width="280" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="config" value="config.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;RSS_SOURCES: 3 feeds&#xa;BLOG_SOURCES: 4 blogs&#xa;(NVIDIA, Siemens,&#xa;AWS IoT, Azure IoT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#455A64;fontColor=#ffffff;" parent="config_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="external_group" value="External" style="swimlane;startSize=25;fillColor=#fff3e0;strokeColor=#FF5722;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="190" width="280" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="feeds" value="RSS Feeds" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#BF360C;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="110" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="arxiv_api" value="arXiv API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#BF360C;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="150" y="35" width="110" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="blogs" value="Tech Blogs (HTML)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#BF360C;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="20" y="100" width="110" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="robots" value="robots.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#BF360C;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="150" y="100" width="110" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="utils_group" value="Utilities" style="swimlane;startSize=25;fillColor=#f3e5f5;strokeColor=#9C27B0;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="420" width="380" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="sanitizer" value="sanitizer.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=#ffffff;" parent="utils_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="logging_cell" value="logging.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#6A1B9A;fontColor=#ffffff;" parent="utils_group" vertex="1">
+                    <mxGeometry x="200" y="35" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="420" width="280" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="db" value="database.py (NullPool)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="240" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="models" value="Article | Analysis | FailedTask" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#1565C0;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="85" width="240" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#336791;strokeColor=#1a3a5c;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="60" y="135" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="inherits" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="base" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="inherits" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="arxiv" target="base" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="inherits" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="blog" target="base" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="returns" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="base" target="scraped" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="feeds" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="arxiv" target="arxiv_api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="blog" target="blogs" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" value="check" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="blog" target="robots" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="sanitizer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e10" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="blog" target="sanitizer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="config" target="rss" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="config" target="blog" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="db" target="pg" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
             </root>
