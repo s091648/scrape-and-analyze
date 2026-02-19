@@ -1,216 +1,247 @@
-<mxfile host="Claude Code">
-
-  <diagram id="phase1" name="Phase 1 - Project Setup">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="src_group" value="src/ (placeholders)" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" vertex="1" parent="1">
-          <mxGeometry x="30" y="20" width="280" height="380" as="geometry" />
-        </mxCell>
-        <mxCell id="p_main" value="main.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="35" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_config" value="config.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="75" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_database" value="database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="115" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_models" value="models/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="155" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_scrapers" value="scrapers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="195" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_analyzers" value="analyzers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="235" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_utils" value="utils/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="275" width="250" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="p_prompts" value="prompts/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
-          <mxGeometry x="15" y="315" width="250" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="infra_group" value="Infrastructure" style="swimlane;startSize=25;fillColor=#fff8e1;strokeColor=#F9A825;" vertex="1" parent="1">
-          <mxGeometry x="330" y="20" width="240" height="280" as="geometry" />
-        </mxCell>
-        <mxCell id="i_dockerfile" value="Dockerfile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
-          <mxGeometry x="20" y="35" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="i_railway" value="railway.toml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
-          <mxGeometry x="20" y="75" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="i_compose" value="docker-compose.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
-          <mxGeometry x="20" y="115" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="i_devdocker" value="Dockerfile.dev" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
-          <mxGeometry x="20" y="155" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="i_requirements" value="requirements.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
-          <mxGeometry x="20" y="195" width="200" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="tests_group" value="Tests" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;" vertex="1" parent="1">
-          <mxGeometry x="590" y="20" width="240" height="210" as="geometry" />
-        </mxCell>
-        <mxCell id="t_unit" value="tests/unit/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
-          <mxGeometry x="20" y="35" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="t_integration" value="tests/integration/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
-          <mxGeometry x="20" y="75" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="t_conftest" value="tests/conftest.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
-          <mxGeometry x="20" y="115" width="200" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="t_pytest" value="pytest.ini" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
-          <mxGeometry x="20" y="155" width="200" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" vertex="1" parent="1">
-          <mxGeometry x="870" y="110" width="140" height="70" as="geometry" />
-        </mxCell>
-
-        <mxCell id="e1" value="builds" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="i_compose" target="i_devdocker" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e2" value="depends_on" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="i_compose" target="pg" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <diagram id="phase2" name="Phase 2 - Database Layer">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#f0fff0;strokeColor=#4CAF50;" vertex="1" parent="1">
-          <mxGeometry x="30" y="20" width="870" height="520" as="geometry" />
-        </mxCell>
-
-        <mxCell id="db" value="database.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;create_engine_with_nullpool()&#xa;get_engine() / get_session()&#xa;has_analysis()&#xa;find_missing_analyses()&#xa;find_recent_failures()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;fontColor=#ffffff;strokeColor=#4CAF50;align=left;" vertex="1" parent="db_group">
-          <mxGeometry x="20" y="40" width="230" height="150" as="geometry" />
-        </mxCell>
-
-        <mxCell id="models_group" value="Models" style="swimlane;startSize=20;fillColor=#e3f2fd;strokeColor=#2196F3;" vertex="1" parent="db_group">
-          <mxGeometry x="270" y="35" width="580" height="295" as="geometry" />
-        </mxCell>
-
-        <mxCell id="article" value="Article&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;url: Text UNIQUE&#xa;url_hash: String(64)&#xa;source: String(50)&#xa;title / content: Text&#xa;published_at / scraped_at&#xa;metadata: JSONB&#xa;correlation_id: UUID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="10" y="30" width="175" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="analysis" value="Analysis&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;article_id: UUID FK UNIQUE&#xa;correlation_id: UUID&#xa;tags: TEXT[]&#xa;pain_points / insights&#xa;innovations: Text&#xa;model_used: String&#xa;input_tokens / output_tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="195" y="30" width="185" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="failed" value="FailedTask&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;task_type: String&#xa;article_url / article_id&#xa;exception_type / message&#xa;failed_at / resolved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;fontColor=#ffffff;strokeColor=#FF9800;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="390" y="30" width="180" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="pg" value="PostgreSQL 15&#xa;(NullPool)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" vertex="1" parent="db_group">
-          <mxGeometry x="20" y="430" width="140" height="70" as="geometry" />
-        </mxCell>
-
-        <mxCell id="migrations" value="migrations/001_initial.sql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="1">
-          <mxGeometry x="60" y="580" width="230" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="e1" value="NullPool" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="db" target="pg" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e2" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="analysis" target="article" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e3" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="failed" target="article" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4" value="CREATE TABLE" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="migrations" target="pg" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <diagram id="phase3" name="Phase 3 - Utilities">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="utils_group" value="Utilities" style="swimlane;startSize=25;fillColor=#f3e5f5;strokeColor=#9C27B0;" vertex="1" parent="1">
-          <mxGeometry x="30" y="20" width="660" height="200" as="geometry" />
-        </mxCell>
-
-        <mxCell id="logging" value="utils/logging.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;configure_logging()&#xa;get_logger()&#xa;bind_correlation_id()&#xa;get_correlation_id()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;fontColor=#ffffff;strokeColor=#9C27B0;align=left;" vertex="1" parent="utils_group">
-          <mxGeometry x="20" y="40" width="200" height="140" as="geometry" />
-        </mxCell>
-
-        <mxCell id="sanitizer" value="utils/sanitizer.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;sanitize_content()&#xa;generate_url_hash()&#xa;MAX_CONTENT_LENGTH = 50K" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;fontColor=#ffffff;strokeColor=#9C27B0;align=left;" vertex="1" parent="utils_group">
-          <mxGeometry x="240" y="40" width="200" height="140" as="geometry" />
-        </mxCell>
-
-        <mxCell id="stdout" value="stdout&#xa;(Railway logs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="1">
-          <mxGeometry x="730" y="80" width="140" height="50" as="geometry" />
-        </mxCell>
-
-        <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#f0fff0;strokeColor=#4CAF50;" vertex="1" parent="1">
-          <mxGeometry x="30" y="240" width="870" height="520" as="geometry" />
-        </mxCell>
-
-        <mxCell id="db" value="database.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;create_engine_with_nullpool()&#xa;get_engine() / get_session()&#xa;has_analysis()&#xa;find_missing_analyses()&#xa;find_recent_failures()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;fontColor=#ffffff;strokeColor=#4CAF50;align=left;" vertex="1" parent="db_group">
-          <mxGeometry x="20" y="40" width="230" height="150" as="geometry" />
-        </mxCell>
-
-        <mxCell id="models_group" value="Models" style="swimlane;startSize=20;fillColor=#e3f2fd;strokeColor=#2196F3;" vertex="1" parent="db_group">
-          <mxGeometry x="270" y="35" width="580" height="295" as="geometry" />
-        </mxCell>
-
-        <mxCell id="article" value="Article&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;url: Text UNIQUE&#xa;url_hash: String(64)&#xa;source: String(50)&#xa;title / content: Text&#xa;published_at / scraped_at&#xa;metadata: JSONB&#xa;correlation_id: UUID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="10" y="30" width="175" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="analysis" value="Analysis&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;article_id: UUID FK UNIQUE&#xa;correlation_id: UUID&#xa;tags: TEXT[]&#xa;pain_points / insights&#xa;innovations: Text&#xa;model_used: String&#xa;input_tokens / output_tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="195" y="30" width="185" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="failed" value="FailedTask&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;id: UUID PK&#xa;task_type: String&#xa;article_url / article_id&#xa;exception_type / message&#xa;failed_at / resolved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;fontColor=#ffffff;strokeColor=#FF9800;align=left;" vertex="1" parent="models_group">
-          <mxGeometry x="390" y="30" width="180" height="245" as="geometry" />
-        </mxCell>
-
-        <mxCell id="pg" value="PostgreSQL 15&#xa;(NullPool)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" vertex="1" parent="db_group">
-          <mxGeometry x="20" y="430" width="140" height="70" as="geometry" />
-        </mxCell>
-
-        <mxCell id="migrations" value="migrations/001_initial.sql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="1">
-          <mxGeometry x="60" y="800" width="230" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="e1" value="structlog JSON" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="logging" target="stdout" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e2" value="NullPool" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="db" target="pg" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e3" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="analysis" target="article" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="failed" target="article" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e5" value="CREATE TABLE" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="migrations" target="pg" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
+<mxfile host="65bd71144e">
+    <diagram id="phase1" name="Phase 1 - Project Setup">
+        <mxGraphModel dx="541" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="src_group" value="src/ (placeholders)" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="280" height="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_main" value="main.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="35" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_config" value="config.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="75" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_database" value="database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="115" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_models" value="models/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="155" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_scrapers" value="scrapers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="195" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_analyzers" value="analyzers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="235" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_utils" value="utils/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="275" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_prompts" value="prompts/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" parent="src_group" vertex="1">
+                    <mxGeometry x="15" y="315" width="250" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="infra_group" value="Infrastructure" style="swimlane;startSize=25;fillColor=#fff8e1;strokeColor=#F9A825;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="20" width="240" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="i_dockerfile" value="Dockerfile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="infra_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="i_railway" value="railway.toml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="infra_group" vertex="1">
+                    <mxGeometry x="20" y="75" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="i_compose" value="docker-compose.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="infra_group" vertex="1">
+                    <mxGeometry x="20" y="115" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="i_devdocker" value="Dockerfile.dev" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="infra_group" vertex="1">
+                    <mxGeometry x="20" y="155" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="i_requirements" value="requirements.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="infra_group" vertex="1">
+                    <mxGeometry x="20" y="195" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="tests_group" value="Tests" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;" parent="1" vertex="1">
+                    <mxGeometry x="590" y="20" width="240" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="t_unit" value="tests/unit/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" parent="tests_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="t_integration" value="tests/integration/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" parent="tests_group" vertex="1">
+                    <mxGeometry x="20" y="75" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="t_conftest" value="tests/conftest.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" parent="tests_group" vertex="1">
+                    <mxGeometry x="20" y="115" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="t_pytest" value="pytest.ini" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" parent="tests_group" vertex="1">
+                    <mxGeometry x="20" y="155" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" parent="1" vertex="1">
+                    <mxGeometry x="870" y="110" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="builds" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="i_compose" target="i_devdocker" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="depends_on" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="i_compose" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase2" name="Phase 2 - Database Layer">
+        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#f0fff0;strokeColor=#4CAF50;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="870" height="520" as="geometry"/>
+                </mxCell>
+                <mxCell id="db" value="database.py&#xa;─────&#xa;create_engine_with_nullpool()&#xa;get_engine() / get_session()&#xa;has_analysis()&#xa;find_missing_analyses()&#xa;find_recent_failures()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;fontColor=#ffffff;strokeColor=#4CAF50;align=left;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="40" width="230" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="models_group" value="Models" style="swimlane;startSize=20;fillColor=#e3f2fd;strokeColor=#2196F3;" parent="db_group" vertex="1">
+                    <mxGeometry x="270" y="35" width="580" height="295" as="geometry"/>
+                </mxCell>
+                <mxCell id="article" value="Article&#xa;─────&#xa;id: UUID PK&#xa;url: Text UNIQUE&#xa;url_hash: String(64)&#xa;source: String(50)&#xa;title / content: Text&#xa;published_at / scraped_at&#xa;metadata: JSONB&#xa;correlation_id: UUID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="10" y="30" width="175" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="analysis" value="Analysis&#xa;─────&#xa;id: UUID PK&#xa;article_id: UUID FK UNIQUE&#xa;correlation_id: UUID&#xa;tags: TEXT[]&#xa;pain_points / insights&#xa;innovations: Text&#xa;model_used: String&#xa;input_tokens / output_tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="195" y="30" width="185" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="failed" value="FailedTask&#xa;─────&#xa;id: UUID PK&#xa;task_type: String&#xa;article_url / article_id&#xa;exception_type / message&#xa;failed_at / resolved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;fontColor=#ffffff;strokeColor=#FF9800;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="390" y="30" width="180" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15&#xa;(NullPool)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="430" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="migrations" value="migrations/001_initial.sql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="580" width="230" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="NullPool" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="db" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="analysis" target="article" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="failed" target="article" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="CREATE TABLE" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="migrations" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase3" name="Phase 3 - Utilities">
+        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="utils_group" value="Utilities" style="swimlane;startSize=25;fillColor=#f3e5f5;strokeColor=#9C27B0;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="660" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="logging" value="utils/logging.py&#xa;─────&#xa;configure_logging()&#xa;get_logger()&#xa;bind_correlation_id()&#xa;get_correlation_id()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;fontColor=#ffffff;strokeColor=#9C27B0;align=left;" parent="utils_group" vertex="1">
+                    <mxGeometry x="20" y="40" width="200" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="sanitizer" value="utils/sanitizer.py&#xa;─────&#xa;sanitize_content()&#xa;generate_url_hash()&#xa;MAX_CONTENT_LENGTH = 50K" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;fontColor=#ffffff;strokeColor=#9C27B0;align=left;" parent="utils_group" vertex="1">
+                    <mxGeometry x="240" y="40" width="200" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="stdout" value="stdout&#xa;(Railway logs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="80" width="140" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#f0fff0;strokeColor=#4CAF50;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="240" width="870" height="520" as="geometry"/>
+                </mxCell>
+                <mxCell id="db" value="database.py&#xa;─────&#xa;create_engine_with_nullpool()&#xa;get_engine() / get_session()&#xa;has_analysis()&#xa;find_missing_analyses()&#xa;find_recent_failures()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;fontColor=#ffffff;strokeColor=#4CAF50;align=left;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="40" width="230" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="models_group" value="Models" style="swimlane;startSize=20;fillColor=#e3f2fd;strokeColor=#2196F3;" parent="db_group" vertex="1">
+                    <mxGeometry x="270" y="35" width="580" height="295" as="geometry"/>
+                </mxCell>
+                <mxCell id="article" value="Article&#xa;─────&#xa;id: UUID PK&#xa;url: Text UNIQUE&#xa;url_hash: String(64)&#xa;source: String(50)&#xa;title / content: Text&#xa;published_at / scraped_at&#xa;metadata: JSONB&#xa;correlation_id: UUID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="10" y="30" width="175" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="analysis" value="Analysis&#xa;─────&#xa;id: UUID PK&#xa;article_id: UUID FK UNIQUE&#xa;correlation_id: UUID&#xa;tags: TEXT[]&#xa;pain_points / insights&#xa;innovations: Text&#xa;model_used: String&#xa;input_tokens / output_tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;fontColor=#ffffff;strokeColor=#2196F3;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="195" y="30" width="185" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="failed" value="FailedTask&#xa;─────&#xa;id: UUID PK&#xa;task_type: String&#xa;article_url / article_id&#xa;exception_type / message&#xa;failed_at / resolved" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;fontColor=#ffffff;strokeColor=#FF9800;align=left;" parent="models_group" vertex="1">
+                    <mxGeometry x="390" y="30" width="180" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15&#xa;(NullPool)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="430" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="migrations" value="migrations/001_initial.sql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="800" width="230" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="structlog JSON" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="logging" target="stdout" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="NullPool" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="db" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="analysis" target="article" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="FK article_id" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="failed" target="article" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="CREATE TABLE" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="migrations" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase4" name="Phase 4 - RSS Scraper">
+        <mxGraphModel dx="541" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="scraper_layer" value="Scraper Layer" style="swimlane;startSize=25;fillColor=#fce4ec;strokeColor=#E91E63;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="380" height="320" as="geometry"/>
+                </mxCell>
+                <mxCell id="base" value="BaseScraper (ABC)&#xa;─────────────────────&#xa;+ scrape() -&gt; List[ScrapedArticle]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="40" width="340" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="scraped" value="ScrapedArticle (dataclass)&#xa;─────────────────────&#xa;url, title, content&#xa;published_at, source, metadata" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F48FB1;strokeColor=#E91E63;fontColor=#000000;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="120" width="340" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="rss" value="RssScraper&#xa;─────────────────────&#xa;+ scrape()&#xa;+ _matches_keywords()&#xa;DIGITAL_TWINS_KEYWORDS&#xa;rate_limit: 1.0s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                    <mxGeometry x="20" y="210" width="340" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="config_group" value="Config" style="swimlane;startSize=25;fillColor=#eceff1;strokeColor=#607D8B;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="20" width="280" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="config" value="config.py&#xa;─────────────────────&#xa;RSS_SOURCES:&#xa;techcrunch / venturebeat&#xa;iotworldtoday" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#455A64;fontColor=#ffffff;" parent="config_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="external_group" value="External" style="swimlane;startSize=25;fillColor=#fff3e0;strokeColor=#FF5722;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="170" width="280" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="feeds" value="RSS Feeds (HTTP GET)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#BF360C;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="240" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="utils_group" value="Utilities" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="380" width="380" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="sanitizer" value="sanitizer.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=#ffffff;" parent="utils_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="logging" value="logging.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=#ffffff;" parent="utils_group" vertex="1">
+                    <mxGeometry x="200" y="35" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="300" width="280" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="db" value="database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="240" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#336791;strokeColor=#1a3a5c;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="60" y="110" width="160" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_inherits" value="inherits" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="base" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_returns" value="returns" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="base" target="scraped" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_fetch" value="fetch + feedparser" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="feeds" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_sanitize" value="sanitize_content" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="rss" target="sanitizer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_sources" value="sources" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" parent="1" source="config" target="rss" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
