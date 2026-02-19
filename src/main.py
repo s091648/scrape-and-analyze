@@ -17,7 +17,7 @@ if SENTRY_DSN:
         dsn=SENTRY_DSN,
         traces_sample_rate=0.1,
     )
-from src.database import get_session, has_analysis
+from src.database import get_session, has_analysis, init_db
 from src.scrapers.rss_scraper import RssScraper
 from src.scrapers.arxiv_scraper import ArxivScraper
 from src.scrapers.blog_scraper import BlogScraper
@@ -334,6 +334,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     logger.info("execution_started", command=args.command, correlation_id=correlation_id)
+
+    init_db()
 
     start_time = time.time()
 

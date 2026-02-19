@@ -26,6 +26,14 @@ def get_engine():
     return _engine
 
 
+def init_db() -> None:
+    """Create all tables if they don't exist (idempotent)"""
+    from src.models.article import Base
+    from src.models.analysis import Analysis      # noqa: F401 — registers with Base
+    from src.models.failed_task import FailedTask  # noqa: F401 — registers with Base
+    Base.metadata.create_all(get_engine())
+
+
 def get_session() -> Session:
     """Get a new database session"""
     global _SessionLocal
