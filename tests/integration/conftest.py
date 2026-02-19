@@ -3,11 +3,11 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Use test database
-# Use test database (postgres service in Docker, localhost for local runs)
-os.environ['DATABASE_URL'] = 'postgresql://digital_twins:digital_twins@postgres:5432/digital_twins_test'
-os.environ['LLM_API_KEY'] = 'test-key'
-os.environ['SKIP_CONFIG_VALIDATION'] = 'true'
+# Use test database — hostname defaults to 'postgres' (Docker Compose service name).
+# Override DATABASE_URL env var to use a different host (e.g. 'localhost' in GitHub Actions).
+os.environ.setdefault('DATABASE_URL', 'postgresql://digital_twins:digital_twins@postgres:5432/digital_twins_test')
+os.environ.setdefault('LLM_API_KEY', 'test-key')
+os.environ.setdefault('SKIP_CONFIG_VALIDATION', 'true')
 
 
 @pytest.fixture(scope='session')
