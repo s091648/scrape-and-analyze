@@ -17,6 +17,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    command: sleep infinity
     stdin_open: true
     tty: true
 
