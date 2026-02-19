@@ -1,3 +1,10 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
+
+[deploy]
+# Default command — overridden per cron job in the Railway dashboard.
+# Cron jobs: "python -m src.main daily|weekly|remediate"
+startCommand = "python -m src.main daily"
+# Batch job: exits after completion — do not restart.
+restartPolicyType = "never"
