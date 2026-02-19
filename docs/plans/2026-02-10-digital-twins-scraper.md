@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, SQLAlchemy, PostgreSQL, feedparser, BeautifulSoup, Anthropic SDK, structlog, tenacity, pytest
 
-**Drawio Architecture Tracking:** Each phase ends with a drawio task that updates the system architecture diagram using the Write tool (drawio files are XML). Progressive Mermaid diagrams are defined in the [Appendix: Phase Architecture Diagrams](#appendix-phase-architecture-diagrams) section at the bottom of this plan — convert each to drawio XML and write directly to `docs/architecture/digital-twins-scraper.drawio`.
+**Drawio Architecture Tracking:** Each phase ends with a drawio task that **adds a new `<diagram>` page** to `docs/architecture/digital-twins-scraper.drawio` (multi-page `<mxfile>` format — one page per phase, never overwrite). Progressive Mermaid diagrams are defined in the [Appendix: Phase Architecture Diagrams](#appendix-phase-architecture-diagrams) section at the bottom of this plan — convert each to a `<diagram>` page and append it before `</mxfile>` using the Edit tool.
 
 ---
 
@@ -337,9 +337,9 @@ git commit -m "🐳 [FEAT] Add docker-compose.yml for local development mirrorin
 mkdir -p docs/architecture
 ```
 
-**Step 2: Render Phase 1 diagram**
+**Step 2: Initialize architecture diagram with Phase 1**
 
-Convert the **Phase 1 — Project Setup** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Create `docs/architecture/digital-twins-scraper.drawio` as a multi-page drawio file using the Write tool. The file must use `<mxfile>` as root with one `<diagram id="phase1" name="Phase 1 - Project Setup">` page containing the **Phase 1 — Project Setup** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) converted to `<mxGraphModel>` XML.
 
 **Step 3: Commit**
 
@@ -941,7 +941,7 @@ mkdir -p docs/architecture
 
 **Step 2: Render Phase 2 diagram**
 
-Convert the **Phase 2 — Database Layer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 2 — Database Layer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 3: Commit**
 
@@ -1344,7 +1344,7 @@ git commit -m "✅ [TEST] Add edge case tests for URL hash generation"
 
 **Step 1: Render Phase 3 diagram**
 
-Convert the **Phase 3 — Utilities** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 3 — Utilities** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -1889,7 +1889,7 @@ git commit -m "✅ [TEST] Add keyword filtering unit tests"
 
 **Step 1: Render Phase 4 diagram**
 
-Convert the **Phase 4 — RSS Scraper** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 4 — RSS Scraper** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -2262,7 +2262,7 @@ git commit -m "✅ [TEST] Add comprehensive arXiv API parsing tests"
 
 **Step 1: Render Phase 5 diagram**
 
-Convert the **Phase 5 — arXiv Scraper** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 5 — arXiv Scraper** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -2743,7 +2743,7 @@ git commit -m "✅ [TEST] Add comprehensive blog parsing tests with mock HTML"
 
 **Step 1: Render Phase 6 diagram**
 
-Convert the **Phase 6 — Complete Scraper Layer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 6 — Complete Scraper Layer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -3373,7 +3373,7 @@ git commit -m "✅ [TEST] Add edge case tests for LLM with mocked responses"
 
 **Step 1: Render Phase 7 diagram**
 
-Convert the **Phase 7 — LLM Analyzer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 7 — LLM Analyzer** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -3893,7 +3893,7 @@ git commit -m "🔄 [FEAT] Implement run_daily_scrape, run_weekly_scrape, run_re
 
 **Step 1: Render Phase 8 diagram**
 
-Convert the **Phase 8 — Full System Architecture** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 8 — Full System Architecture** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -4248,7 +4248,7 @@ git commit -m "✅ [TEST] Add integration tests for error handling"
 
 **Step 1: Render Phase 9 diagram**
 
-Convert the **Phase 9 — Error Handling Flow** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 9 — Error Handling Flow** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -4498,7 +4498,7 @@ git commit -m "✅ [FEAT] Add configuration validation at startup"
 
 **Step 1: Render Phase 10 diagram**
 
-Convert the **Phase 10 — Configuration** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 10 — Configuration** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -5004,7 +5004,7 @@ git commit -m "🚨 [FEAT] Add optional Sentry integration"
 
 **Step 1: Render Phase 12 diagram**
 
-Convert the **Phase 12 — Observability** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 12 — Observability** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 2: Commit**
 
@@ -5108,7 +5108,7 @@ mkdir -p docs/architecture
 
 **Step 2: Render Phase 13 diagram**
 
-Convert the **Phase 13 — Complete Deployment Architecture** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool.
+Convert the **Phase 13 — Complete Deployment Architecture** Mermaid diagram from the [Appendix](#appendix-phase-architecture-diagrams) into drawio XML and append it as a new `<diagram>` page to `docs/architecture/digital-twins-scraper.drawio` using the Edit tool (insert before `</mxfile>`).
 
 **Step 3: Commit**
 
@@ -5163,7 +5163,7 @@ docker run --env-file .env digital-twins-scraper python -m src.main daily
 
 ## Appendix: Phase Architecture Diagrams
 
-> **For Claude:** Convert the Mermaid diagram for the current phase into drawio XML (`mxGraphModel` format) and write it directly to `docs/architecture/digital-twins-scraper.drawio` using the Write tool. Each phase overwrites the file with a progressively richer diagram.
+> **For Claude:** The drawio file uses `<mxfile>` multi-page format — **one `<diagram>` page per phase, never overwrite**. For each phase: convert the Mermaid diagram below into a `<diagram id="phaseN" name="Phase N - Title"><mxGraphModel>...</mxGraphModel></diagram>` block, then use the Edit tool to insert it before the closing `</mxfile>` tag. For Phase 1 (first diagram only), use the Write tool to create the file with the full `<mxfile>` wrapper.
 
 ### Phase 1 — Project Setup
 
