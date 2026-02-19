@@ -286,14 +286,14 @@
         </mxGraphModel>
     </diagram>
     <diagram id="phase6" name="Phase 6 - Complete Scraper Layer">
-        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1000" math="0" shadow="0">
+        <mxGraphModel dx="541" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1000" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="scraper_layer" value="Scraper Layer" style="swimlane;startSize=25;fillColor=#fce4ec;strokeColor=#E91E63;fontColor=#333333;" parent="1" vertex="1">
                     <mxGeometry x="30" y="20" width="380" height="360" as="geometry"/>
                 </mxCell>
-                <mxCell id="base" value="BaseScraper (ABC)&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;+ scrape() -&gt; List[ScrapedArticle]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
+                <mxCell id="base" value="BaseScraper (ABC)&#xa;─────────────────────&#xa;+ scrape() -&gt; List[ScrapedArticle]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_layer" vertex="1">
                     <mxGeometry x="20" y="40" width="340" height="50" as="geometry"/>
                 </mxCell>
                 <mxCell id="scraped" value="ScrapedArticle (dataclass)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F48FB1;strokeColor=#E91E63;fontColor=#000000;" parent="scraper_layer" vertex="1">
@@ -311,7 +311,7 @@
                 <mxCell id="config_group" value="Config" style="swimlane;startSize=25;fillColor=#eceff1;strokeColor=#607D8B;fontColor=#333333;" parent="1" vertex="1">
                     <mxGeometry x="450" y="20" width="280" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="config" value="config.py&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;RSS_SOURCES: 3 feeds&#xa;BLOG_SOURCES: 4 blogs&#xa;(NVIDIA, Siemens,&#xa;AWS IoT, Azure IoT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#455A64;fontColor=#ffffff;" parent="config_group" vertex="1">
+                <mxCell id="config" value="config.py&#xa;─────────────────────&#xa;RSS_SOURCES: 3 feeds&#xa;BLOG_SOURCES: 4 blogs&#xa;(NVIDIA, Siemens,&#xa;AWS IoT, Azure IoT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#455A64;fontColor=#ffffff;" parent="config_group" vertex="1">
                     <mxGeometry x="20" y="35" width="240" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="external_group" value="External" style="swimlane;startSize=25;fillColor=#fff3e0;strokeColor=#FF5722;fontColor=#333333;" parent="1" vertex="1">
@@ -387,6 +387,74 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e13" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="db" target="pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="phase7" name="Phase 7 - LLM Analyzer">
+        <mxGraphModel dx="356" dy="435" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="analyzer_layer" value="Analyzer Layer" style="swimlane;startSize=25;fillColor=#fff3e0;strokeColor=#FF9800;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="420" height="350" as="geometry"/>
+                </mxCell>
+                <mxCell id="llm_base" value="LLMProvider (ABC)&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;+ analyze(content, prompt)&#xa;-&gt; AnalysisResult" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#E65100;fontColor=#ffffff;" parent="analyzer_layer" vertex="1">
+                    <mxGeometry x="20" y="40" width="380" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="result" value="AnalysisResult (dataclass)&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;tags, pain_points, insights&#xa;innovations, input/output_tokens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FF9800;fontColor=#000000;" parent="analyzer_layer" vertex="1">
+                    <mxGeometry x="20" y="120" width="380" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="claude" value="ClaudeProvider&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;+ analyze() / _call_api()&#xa;+ _validate_response()&#xa;retry: 3x exponential 4-60s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#E65100;fontColor=#ffffff;" parent="analyzer_layer" vertex="1">
+                    <mxGeometry x="20" y="210" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="prompt" value="prompts/analysis.txt&#xa;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#xa;-&gt; JSON output format" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#FF9800;fontColor=#000000;" parent="analyzer_layer" vertex="1">
+                    <mxGeometry x="280" y="210" width="120" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="external_group" value="External" style="swimlane;startSize=25;fillColor=#1A1A2E;strokeColor=#000033;fontColor=#ffffff;" parent="1" vertex="1">
+                    <mxGeometry x="490" y="20" width="220" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="anthropic_api" value="Anthropic API&#xa;Claude Sonnet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1A1A2E;strokeColor=#000033;fontColor=#ffffff;" parent="external_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="180" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="scraper_group" value="Scraper Layer" style="swimlane;startSize=25;fillColor=#fce4ec;strokeColor=#E91E63;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="490" y="150" width="220" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="scrapers" value="RssScraper | ArxivScraper | BlogScraper" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#880E4F;fontColor=#ffffff;" parent="scraper_group" vertex="1">
+                    <mxGeometry x="10" y="35" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_group" value="Database Layer" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="490" y="260" width="220" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="db" value="database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="35" width="180" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="models" value="Article | Analysis | FailedTask" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#1565C0;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="20" y="85" width="180" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#336791;strokeColor=#1a3a5c;fontColor=#ffffff;" parent="db_group" vertex="1">
+                    <mxGeometry x="30" y="135" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="inherits" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="claude" target="llm_base" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="returns" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="llm_base" target="result" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="messages.create()" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="claude" target="anthropic_api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="reads" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="claude" target="prompt" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="ScrapedArticle" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="scrapers" target="models" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="stored as" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="result" target="models" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;" parent="1" source="db" target="pg" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
             </root>
