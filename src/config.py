@@ -73,3 +73,20 @@ def get_sources(schedule_type: str) -> List[Dict[str, Any]]:
         return BLOG_SOURCES
     else:
         return []
+
+
+def validate_config() -> None:
+    """Validate required configuration at startup"""
+    errors = []
+
+    db_url = os.environ.get('DATABASE_URL', DATABASE_URL)
+    api_key = os.environ.get('LLM_API_KEY', LLM_API_KEY)
+
+    if not db_url:
+        errors.append("DATABASE_URL is required")
+
+    if not api_key:
+        errors.append("LLM_API_KEY is required")
+
+    if errors:
+        raise ValueError(f"Configuration errors: {', '.join(errors)}")
