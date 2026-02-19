@@ -61,12 +61,13 @@ class BlogScraper(BaseScraper):
         """Extract article links from listing page"""
         soup = BeautifulSoup(html, 'html.parser')
         selector = self.selectors.get('article_link', 'a')
+        base = self.base_url if self.base_url.endswith('/') else self.base_url + '/'
         links = []
 
         for link in soup.select(selector):
             href = link.get('href')
             if href:
-                full_url = urljoin(self.base_url, href)
+                full_url = urljoin(base, href)
                 links.append(full_url)
 
         return links
