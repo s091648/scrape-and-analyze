@@ -85,3 +85,81 @@ def test_rss_scraper_handles_500_error():
     articles = scraper.scrape()
 
     assert articles == []
+
+
+@responses.activate
+def test_rss_scraper_handles_malformed_xml():
+    """RssScraper should handle malformed XML gracefully"""
+    from src.scrapers.rss_scraper import RssScraper
+
+    responses.add(
+        responses.GET,
+        "https://example.com/feed",
+        body="<not valid xml",
+        status=200
+    )
+
+    scraper = RssScraper(url="https://example.com/feed", source="test")
+    articles = scraper.scrape()
+
+    assert articles == []
+
+
+@responses.activate
+def test_rss_scraper_handles_empty_feed():
+    """RssScraper should handle empty feed"""
+    from src.scrapers.rss_scraper import RssScraper
+
+    rss_content = '''<?xml version="1.0"?>
+    <rss version="2.0">
+      <channel>
+        <title>Empty Feed</title>
+      </channel>
+    </rss>'''
+
+    responses.add(
+        responses.GET,
+        "https://example.com/feed",
+        body=rss_content,
+        status=200
+    )
+
+    scraper = RssScraper(url="https://example.com/feed", source="test")
+    articles = scraper.scrape()
+
+    assert articles == []
+
+
+@responses.activate
+def test_rss_scraper_extracts_all_fields():
+    """RssScraper should extract title, link, description, pubDate"""
+    from src.scrapers.rss_scraper import RssScraper
+
+    rss_content = '''<?xml version="1.0"?>
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Digital Twin Innovation</title>
+          <link>https://example.com/article</link>
+          <description>Content about digital twins</description>
+          <pubDate>Tue, 15 Jan 2024 10:00:00 GMT</pubDate>
+          <author>John Doe</author>
+        </item>
+      </channel>
+    </rss>'''
+
+    responses.add(
+        responses.GET,
+        "https://example.com/feed",
+        body=rss_content,
+        status=200
+    )
+
+    scraper = RssScraper(url="https://example.com/feed", source="techcrunch")
+    articles = scraper.scrape()
+
+    assert len(articles) == 1
+    assert articles[0].title == "Digital Twin Innovation"
+    assert articles[0].url == "https://example.com/article"
+    assert articles[0].source == "techcrunch"
+    assert "digital twins" in articles[0].content.lower()
