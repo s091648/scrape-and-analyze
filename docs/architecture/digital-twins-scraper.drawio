@@ -1,0 +1,88 @@
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- src placeholders group -->
+    <mxCell id="src_group" value="src/ (placeholders)" style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" vertex="1" parent="1">
+      <mxGeometry x="30" y="20" width="280" height="380" as="geometry" />
+    </mxCell>
+    <mxCell id="p_main" value="main.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="35" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_config" value="config.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="75" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_database" value="database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="115" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_models" value="models/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="155" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_scrapers" value="scrapers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="195" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_analyzers" value="analyzers/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="235" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_utils" value="utils/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="275" width="250" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="p_prompts" value="prompts/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dddddd;strokeColor=#999999;" vertex="1" parent="src_group">
+      <mxGeometry x="15" y="315" width="250" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- Infrastructure group -->
+    <mxCell id="infra_group" value="Infrastructure" style="swimlane;startSize=25;fillColor=#fff8e1;strokeColor=#F9A825;" vertex="1" parent="1">
+      <mxGeometry x="330" y="20" width="240" height="280" as="geometry" />
+    </mxCell>
+    <mxCell id="i_dockerfile" value="Dockerfile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
+      <mxGeometry x="20" y="35" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="i_railway" value="railway.toml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
+      <mxGeometry x="20" y="75" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="i_compose" value="docker-compose.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
+      <mxGeometry x="20" y="115" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="i_devdocker" value="Dockerfile.dev" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
+      <mxGeometry x="20" y="155" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="i_requirements" value="requirements.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f0a30a;" vertex="1" parent="infra_group">
+      <mxGeometry x="20" y="195" width="200" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- Tests group -->
+    <mxCell id="tests_group" value="Tests" style="swimlane;startSize=25;fillColor=#e8f5e9;strokeColor=#4CAF50;" vertex="1" parent="1">
+      <mxGeometry x="590" y="20" width="240" height="210" as="geometry" />
+    </mxCell>
+    <mxCell id="t_unit" value="tests/unit/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
+      <mxGeometry x="20" y="35" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="t_integration" value="tests/integration/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
+      <mxGeometry x="20" y="75" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="t_conftest" value="tests/conftest.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
+      <mxGeometry x="20" y="115" width="200" height="30" as="geometry" />
+    </mxCell>
+    <mxCell id="t_pytest" value="pytest.ini" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#4CAF50;" vertex="1" parent="tests_group">
+      <mxGeometry x="20" y="155" width="200" height="30" as="geometry" />
+    </mxCell>
+
+    <!-- PostgreSQL 15 cylinder -->
+    <mxCell id="pg" value="PostgreSQL 15" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#336791;fontColor=#ffffff;strokeColor=#336791;" vertex="1" parent="1">
+      <mxGeometry x="870" y="110" width="140" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- Edge: compose -> devdocker (builds) -->
+    <mxCell id="e1" value="builds" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="i_compose" target="i_devdocker" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- Edge: compose -> pg (depends_on) -->
+    <mxCell id="e2" value="depends_on" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="i_compose" target="pg" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
