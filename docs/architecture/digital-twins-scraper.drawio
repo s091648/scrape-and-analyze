@@ -677,4 +677,48 @@
             </root>
         </mxGraphModel>
     </diagram>
+    <diagram id="phase10" name="Phase 10 - Configuration">
+        <mxGraphModel dx="800" dy="600" grid="0" gridSize="10" guides="0" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+
+                <!-- Config box with validate_config -->
+                <mxCell id="config_group" value="config.py" style="swimlane;fontSize=13;fontStyle=1;fillColor=#ECEFF1;strokeColor=#607D8B;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="40" width="380" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="env_box" value="Environment Variables&#xa;─────────────────&#xa;DATABASE_URL&#xa;LLM_API_KEY&#xa;LLM_PROVIDER (default: claude)&#xa;LLM_MODEL (default: claude-sonnet-4-20250514)&#xa;SENTRY_DSN" style="rounded=1;fillColor=#607D8B;fontColor=#fff;strokeColor=#607D8B;fontSize=11;align=left;" vertex="1" parent="config_group">
+                    <mxGeometry x="20" y="40" width="340" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="validate_box" value="validate_config()&#xa;─────────────────&#xa;raises ValueError if DATABASE_URL missing&#xa;raises ValueError if LLM_API_KEY missing" style="rounded=1;fillColor=#f44336;fontColor=#fff;strokeColor=#f44336;fontSize=11;align=left;" vertex="1" parent="config_group">
+                    <mxGeometry x="20" y="155" width="340" height="50" as="geometry"/>
+                </mxCell>
+
+                <!-- Sources group -->
+                <mxCell id="sources_group" value="Source Configurations" style="swimlane;fontSize=13;fontStyle=1;fillColor=#E3F2FD;strokeColor=#2196F3;" vertex="1" parent="1">
+                    <mxGeometry x="480" y="40" width="400" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="rss_src" value="RSS_SOURCES (daily)&#xa;─────────────────&#xa;techcrunch, venturebeat, iotworldtoday" style="rounded=1;fillColor=#2196F3;fontColor=#fff;strokeColor=#2196F3;fontSize=11;align=left;" vertex="1" parent="sources_group">
+                    <mxGeometry x="20" y="40" width="360" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="blog_src" value="BLOG_SOURCES (weekly)&#xa;─────────────────&#xa;nvidia, siemens, aws_iot, azure_iot" style="rounded=1;fillColor=#2196F3;fontColor=#fff;strokeColor=#2196F3;fontSize=11;align=left;" vertex="1" parent="sources_group">
+                    <mxGeometry x="20" y="115" width="360" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="get_src" value="get_sources(schedule_type) → list" style="rounded=1;fillColor=#1565C0;fontColor=#fff;strokeColor=#1565C0;fontSize=11;" vertex="1" parent="sources_group">
+                    <mxGeometry x="20" y="180" width="360" height="30" as="geometry"/>
+                </mxCell>
+
+                <!-- Startup flow -->
+                <mxCell id="startup" value="main() startup" style="rounded=1;fillColor=#4CAF50;fontColor=#fff;strokeColor=#4CAF50;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="200" y="310" width="150" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="calls at startup" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="startup" target="validate_box" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="reads" style="edgeStyle=orthogonalEdgeStyle;dashed=1;" edge="1" source="startup" target="env_box" parent="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
