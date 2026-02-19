@@ -47,6 +47,23 @@ def find_missing_analyses(session) -> List:
     return session.query(Article).outerjoin(Analysis).filter(Analysis.id == None).all()
 
 
+def scan_missing_analyses(session, min_age_hours: int = 1) -> List:
+    """
+    Find articles that should have analysis but don't (zombie records).
+    Only considers articles older than min_age_hours to avoid race conditions.
+    """
+    from src.models.article import Article
+    from src.models.analysis import Analysis
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=min_age_hours)
+
+    return session.query(Article)\
+        .outerjoin(Analysis)\
+        .filter(Analysis.id == None)\
+        .filter(Article.scraped_at < cutoff)\
+        .all()
+
+
 def find_recent_failures(session, hours: int = 24) -> List:
     """Find unresolved failures from last N hours"""
     from src.models.failed_task import FailedTask

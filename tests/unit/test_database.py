@@ -70,3 +70,33 @@ def test_find_missing_analyses_returns_articles_without_analysis():
 
     result = find_missing_analyses(mock_session)
     assert len(result) == 1
+
+
+def test_scan_missing_analyses_finds_zombie_records():
+    """scan_missing_analyses should find articles without analysis"""
+    from src.database import scan_missing_analyses
+
+    mock_session = MagicMock()
+
+    mock_article = MagicMock()
+    mock_article.id = 'test-id'
+    mock_article.url = 'https://example.com/zombie'
+
+    mock_session.query.return_value.outerjoin.return_value.filter.return_value.filter.return_value.all.return_value = [mock_article]
+
+    result = scan_missing_analyses(mock_session)
+
+    assert len(result) == 1
+    assert result[0].url == 'https://example.com/zombie'
+
+
+def test_scan_missing_analyses_excludes_recent():
+    """scan_missing_analyses should only find articles older than threshold"""
+    from src.database import scan_missing_analyses
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.outerjoin.return_value.filter.return_value.filter.return_value.all.return_value = []
+
+    result = scan_missing_analyses(mock_session, min_age_hours=1)
+
+    assert result == []
