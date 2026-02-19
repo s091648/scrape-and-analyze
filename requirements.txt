@@ -6,6 +6,7 @@ beautifulsoup4
 requests
 feedparser
 anthropic
+google-generativeai
 tenacity
 structlog
 lxml

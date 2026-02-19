@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import RSS_SOURCES, BLOG_SOURCES, LLM_API_KEY, LLM_MODEL, SENTRY_DSN
+from src.config import RSS_SOURCES, BLOG_SOURCES, LLM_API_KEY, LLM_MODEL, LLM_PROVIDER, SENTRY_DSN
 
 # Initialize Sentry if configured
 if SENTRY_DSN:
@@ -22,6 +22,7 @@ from src.scrapers.rss_scraper import RssScraper
 from src.scrapers.arxiv_scraper import ArxivScraper
 from src.scrapers.blog_scraper import BlogScraper
 from src.analyzers.claude import ClaudeProvider
+from src.analyzers.gemini import GeminiProvider
 from src.models.article import Article
 from src.models.analysis import Analysis
 from src.models.failed_task import FailedTask
@@ -35,6 +36,13 @@ BATCH_SIZE = 50
 
 # Global flag for graceful shutdown
 _shutdown_requested = False
+
+
+def build_analyzer():
+    """Instantiate the configured LLM provider"""
+    if LLM_PROVIDER == 'gemini':
+        return GeminiProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    return ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
 
 
 def parse_args(args=None):
@@ -181,7 +189,7 @@ def run_daily_scrape(start_time: float):
     correlation_id = str(uuid.uuid4())
     bind_correlation_id(correlation_id)
 
-    analyzer = ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    analyzer = build_analyzer()
     prompt = load_prompt()
 
     all_articles = []
@@ -239,7 +247,7 @@ def run_weekly_scrape(start_time: float):
     correlation_id = str(uuid.uuid4())
     bind_correlation_id(correlation_id)
 
-    analyzer = ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    analyzer = build_analyzer()
     prompt = load_prompt()
 
     all_articles = []
@@ -295,7 +303,7 @@ def run_remediate():
         logger.info("no_failures_to_remediate")
         return
 
-    analyzer = ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    analyzer = build_analyzer()
     prompt = load_prompt()
 
     remediated = 0
