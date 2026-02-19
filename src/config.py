@@ -30,18 +30,36 @@ BLOG_SOURCES: List[Dict[str, Any]] = [
         'base_url': 'https://developer.nvidia.com/blog',
         'source': 'nvidia',
         'selectors': {
-            'article_link': 'article a',
-            'title': 'h1',
-            'content': 'article .content',
+            'article_link': '.post-card a.post-card__link',
+            'title': 'h1.post-title',
+            'content': '.post-content',
         },
     },
     {
         'base_url': 'https://blogs.sw.siemens.com/digital-transformation',
         'source': 'siemens',
         'selectors': {
-            'article_link': '.post-title a',
+            'article_link': 'article.post a.entry-title-link',
             'title': 'h1.entry-title',
             'content': '.entry-content',
+        },
+    },
+    {
+        'base_url': 'https://aws.amazon.com/blogs/iot',
+        'source': 'aws_iot',
+        'selectors': {
+            'article_link': '.blog-post a.title',
+            'title': 'h1.blog-post-title',
+            'content': '.blog-post-content',
+        },
+    },
+    {
+        'base_url': 'https://azure.microsoft.com/en-us/blog/topics/internet-of-things',
+        'source': 'azure_iot',
+        'selectors': {
+            'article_link': '.card a.card-link',
+            'title': 'h1.article-title',
+            'content': '.article-content',
         },
     },
 ]
