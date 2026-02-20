@@ -1,20 +1,113 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  ## Project
+  Digital Twins market trend analysis system. A Railway Cron Job that scrapes Digital Twins
+  articles from RSS feeds, arXiv, and tech blogs, then analyzes them using an LLM.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  ## Tech Stack
+  - Language: Python 3.11
+  - Database: PostgreSQL (Railway-hosted) via SQLAlchemy 2.0 with NullPool
+  - Scheduler: Railway Cron Jobs (not 24/7; container starts, runs, exits)
+  - Scraping: requests, feedparser, BeautifulSoup4 (lxml parser)
+  - LLM: Anthropic SDK (claude) or google-genai SDK (gemini) — selected via LLM_PROVIDER env var
+  - Retry: tenacity (exponential backoff, 3 attempts)
+  - Logging: structlog (JSON, correlation_id context)
+  - Testing: pytest + pytest-cov + responses (HTTP mock)
+
+  ## Environment Variables
+  - DATABASE_URL: PostgreSQL connection string (auto-injected by Railway)
+  - LLM_PROVIDER: "claude" | "gemini" (default: "claude")
+  - LLM_MODEL: model identifier string
+  - LLM_API_KEY: API key for the selected provider
+  - LLM_API_TIER: "free" | "paid" (default: "free") — controls request strategy
+
+  ## Project Structure
+  src/
+    main.py            — entry point; python -m src.main daily|weekly|remediate
+    config.py          — env vars, RSS_SOURCES, BLOG_SOURCES, get_sources()
+    database.py        — SQLAlchemy engine (NullPool), get_session(), helpers
+    models/            — Article, Analysis, FailedTask (SQLAlchemy ORM)
+    scrapers/          — BaseScraper (ABC), RssScraper, ArxivScraper, BlogScraper
+    analyzers/         — LLMProvider (ABC), ClaudeProvider, GeminiProvider, build_analyzer()
+    utils/             — sanitizer.py (sanitize_content, generate_url_hash), logging.py
+    prompts/           — analysis.txt (LLM prompt template)
+
+  ## Architecture Decisions
+  - Cron Job model: single Python process per run; no 24/7 workers; NullPool avoids connection leaks
+  - Concurrency: ThreadPoolExecutor (max_workers=3); batch capped at BATCH_SIZE=50 articles
+  - Atomicity: scrape + analyze in one PostgreSQL transaction; LLM failure rolls back the full record
+  - Auto-redrive: on startup, retry unresolved FailedTask records from the last 24 hours
+  - LLM abstraction: LLMProvider ABC with build_analyzer() factory reading LLM_PROVIDER env var
+  - Rate limiting concern: Gemini Free tier = 5 RPM / 250K TPM / 20 RPD; concurrent calls cause HTTP 429
+
+  ## Conventions
+  - Commit messages: <single emoji> [FEAT|FIX|REFACTOR|TEST|DOCS] <short imperative description>
+  - TDD: failing test -> minimal implementation -> passing test -> commit
+  - No direct DB calls from scrapers; scrapers return ScrapedArticle dataclasses only
+  - All requirements use RFC 2119 language: MUST / SHOULD / MAY
+
+rules:
+  proposal:
+    - Keep the proposal under 300 words total
+    - Focus entirely on the why (problem, motivation, urgency) — do not describe implementation
+    - The What Changes section must be bullet points only; no prose paragraphs
+    - The Capabilities section must accurately name the spec files that will be created or modified; these names drive the specs phase
+
+  design:
+    - Each decision section must have a Rationale subsection explaining trade-offs
+    - Describe interfaces, contracts, and data flows — not code
+    - Reference existing modules by file path (e.g. src/analyzers/llm_provider.py) when relevant
+    - Do not include code snippets; use pseudocode or structured prose for algorithms
+    - Every design decision must trace back to a stated goal or constraint from the proposal
+
+  specs:
+    - Every requirement MUST have an Acceptance Criteria sub-list immediately below it
+    - Acceptance criteria must be observable and verifiable (e.g., returns X, raises Y, env var Z is read)
+    - Use RFC 2119 keywords (MUST / SHOULD / MAY) for all requirement statements
+    - Do not describe implementation details; specs define behaviour and contracts, not how to achieve them
+    - Group requirements under named headings that match the capability name from the proposal
+
+  tasks:
+    # Content rules
+    - Tasks MUST NOT contain any code, test code, or pseudo-code
+    - Tasks MUST list files to create, modify, or delete at the beginning of the task description
+    - Tasks MUST NOT show file contents — only state which files to create or modify
+    - Each task must be a single, atomic unit of work with one clearly stated deliverable
+    - Tasks describe WHAT to build and WHICH files are affected; they do not describe HOW
+    - Every task must reference at least one spec requirement by name or ID
+    - Test tasks must be listed separately from implementation tasks (never merged)
+    - Tasks should be ordered so dependencies come first (e.g., interface before implementation)
+
+    # 5-step structure — every task MUST use exactly these five steps in order
+    - |
+      Each task must contain exactly these five steps in order:
+        Step 1: Write failing test — describe which test file and what behaviour to test (mark as SKIP if not a TDD task)
+        Step 2: Verify test fails  — describe the expected failure mode (mark as SKIP if Step 1 is skipped)
+        Step 3: Implement          — describe which files to create or modify and what the deliverable is
+        Step 4: Verify passes      — describe how to confirm the implementation works (run tests, manual check, etc.)
+        Step 5: Commit             — REQUIRED, never skip; git commit message must follow the commit format
+
+    # Commit message format for Step 5
+    - |
+      Step 5 commit message format (MUST be followed exactly):
+        <single emoji> [FEAT|FIX|REFACTOR|TEST|DOCS] <short imperative description in English, no period>
+        Allowed tags: FEAT for new functionality, FIX for bug fixes, REFACTOR for restructuring,
+                      TEST for test-only changes, DOCS for documentation and diagrams
+        Examples:
+          ✨ [FEAT] Add LLM request strategy factory
+          🔧 [FIX] Handle 429 rate-limit errors in GeminiProvider
+          🧪 [TEST] Add unit tests for RateLimitStrategy
+          📐 [DOCS] Update architecture diagram — Phase N (phase name)
+
+    # Phase-end diagram rule
+    - |
+      The LAST task of every phase MUST be an architecture diagram update task.
+      Please check the current drawio diagram and decide whether to create a new drawio, add a new page to existing drawio, or to modify existing page.
+      The task should be structured as:
+        Title: Update architecture diagram — Phase N
+        Step 1: SKIP
+        Step 2: SKIP
+        Step 3: Add or update the diagram page for this phase in docs/architecture/digital-twins-scraper.drawio
+        Step 4: Open the drawio file and confirm the new page renders correctly
+        Step 5: Commit using the DOCS tag, e.g. 📐 [DOCS] Update architecture diagram — Phase N (phase name)
