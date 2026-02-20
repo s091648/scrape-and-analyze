@@ -3,7 +3,13 @@
     "allow": [
       "Bash(openspec new:*)",
       "Bash(openspec status:*)",
-      "Bash(openspec instructions proposal:*)"
+      "Bash(openspec instructions proposal:*)",
+      "Bash(openspec instructions specs:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "playwright",
+    "context7",
+    "drawio"
+  ]
 }
