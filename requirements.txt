@@ -18,6 +18,7 @@ responses
 
 # Migrations
 alembic>=1.13
+bcrypt>=4.0
 
 # Optional
 sentry-sdk
