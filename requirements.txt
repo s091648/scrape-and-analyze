@@ -16,5 +16,8 @@ pytest
 pytest-cov
 responses
 
+# Migrations
+alembic>=1.13
+
 # Optional
 sentry-sdk
