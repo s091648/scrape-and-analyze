@@ -46,6 +46,33 @@ def build_graph(analyses: list) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
+def query_tag_articles(db: Session, tag: str) -> list:
+    from src.models.analysis import Analysis
+    from sqlalchemy import cast
+    from sqlalchemy.dialects.postgresql import ARRAY, TEXT
+    return db.query(Analysis).filter(
+        Analysis.tags.contains(cast([tag], ARRAY(TEXT)))
+    ).all()
+
+
+@router.get("/analyses/graph/tag/{tag}")
+def get_tag_articles(tag: str, db: Session = Depends(get_db)):
+    analyses = query_tag_articles(db, tag)
+    result = []
+    for analysis in analyses:
+        article = analysis.article
+        if article:
+            result.append({
+                "articleId": str(analysis.article_id),
+                "title": article.title,
+                "source": article.source,
+                "url": article.url,
+                "published_at": article.published_at.isoformat() if article.published_at else None,
+                "excerpt": (article.content or "")[:200],
+            })
+    return result
+
+
 @router.get("/analyses/graph")
 def get_graph(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
     now = time.time()
