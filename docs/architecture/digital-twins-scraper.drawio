@@ -1173,4 +1173,69 @@
             </root>
         </mxGraphModel>
     </diagram>
+    <diagram id="dash_ph5" name="Dashboard Ph5 - Article Dashboard">
+        <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="ph5_title" value="Phase 5: Article Dashboard (app/page.tsx)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="20" width="480" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="url_params" value="URL Search Params&#xa;?page=N&amp;sort=scraped_at&amp;order=desc" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="60" width="240" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="use_pagination" value="usePagination() hook&#xa;hooks/use-pagination.ts&#xa;reads: page, sort, order from useSearchParams&#xa;writes: router.push(?page=N)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="125" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_url_hook" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="url_params" target="use_pagination" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="api_fetch_call" value="apiFetch('/articles?page=N&amp;sort=...&amp;order=...')&#xa;lib/api-fetch.ts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="210" width="240" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_hook_fetch" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="use_pagination" target="api_fetch_call" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fastapi_articles" value="FastAPI GET /articles&#xa;pagination: page, size=20&#xa;sort + order params&#xa;returns PaginatedArticles { items, total, page, size }" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="280" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_fetch_api" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="api_fetch_call" target="fastapi_articles" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg_articles" value="PostgreSQL&#xa;articles table&#xa;ORDER BY scraped_at DESC&#xa;LIMIT 20 OFFSET (page-1)*20" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="365" width="240" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_api_pg" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="fastapi_articles" target="pg_articles" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="components_title" value="React Components" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="60" width="200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="home_page" value="app/page.tsx (HomePage)&#xa;'use client'&#xa;useState: articles[], total&#xa;useEffect: fetch on [page, sort, order]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="90" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="article_card" value="ArticleCard&#xa;components/article-card.tsx&#xa;shadcn Card + CardHeader + CardContent&#xa;title (link), source, published, scraped dates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="175" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_page_card" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="home_page" target="article_card" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="pagination_ui" value="Pagination UI&#xa;Previous / Page N of M / Next buttons&#xa;onClick: setPage(page+1) → router.push" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="260" width="240" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_page_pagination" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="home_page" target="pagination_ui" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="failed_task_list" value="FailedTaskList&#xa;components/failed-task-list.tsx&#xa;GET /failed-tasks → list of failed scrape tasks&#xa;shows: task_type, url, exception_message, failed_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="340" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_page_failed" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="home_page" target="failed_task_list" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="url_update_loop" value="URL-Driven Re-fetch Loop&#xa;user clicks Next/Prev&#xa;→ setPage() → router.push(?page=N)&#xa;→ useSearchParams detects change&#xa;→ usePagination returns new page&#xa;→ useEffect re-runs → new apiFetch()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="90" width="260" height="90" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
