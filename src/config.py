@@ -1,5 +1,8 @@
 import os
+import structlog
 from typing import List, Dict, Any
+
+logger = structlog.get_logger(__name__)
 
 # Environment variables
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
@@ -8,71 +11,45 @@ LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'claude')
 LLM_MODEL = os.environ.get('LLM_MODEL', 'claude-sonnet-4-20250514')
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
-# RSS Sources (daily)
-RSS_SOURCES: List[Dict[str, Any]] = [
-    {
-        'url': 'https://techcrunch.com/feed/',
-        'source': 'techcrunch',
-    },
-    {
-        'url': 'https://venturebeat.com/feed/',
-        'source': 'venturebeat',
-    },
-    {
-        'url': 'https://www.iotworldtoday.com/rss.xml',
-        'source': 'iotworldtoday',
-    },
-]
 
-# Blog Sources (weekly)
-BLOG_SOURCES: List[Dict[str, Any]] = [
-    {
-        'base_url': 'https://developer.nvidia.com/blog',
-        'source': 'nvidia',
-        'selectors': {
-            'article_link': '.post-card a.post-card__link',
-            'title': 'h1.post-title',
-            'content': '.post-content',
-        },
-    },
-    {
-        'base_url': 'https://blogs.sw.siemens.com/digital-transformation',
-        'source': 'siemens',
-        'selectors': {
-            'article_link': 'article.post a.entry-title-link',
-            'title': 'h1.entry-title',
-            'content': '.entry-content',
-        },
-    },
-    {
-        'base_url': 'https://aws.amazon.com/blogs/iot',
-        'source': 'aws_iot',
-        'selectors': {
-            'article_link': '.blog-post a.title',
-            'title': 'h1.blog-post-title',
-            'content': '.blog-post-content',
-        },
-    },
-    {
-        'base_url': 'https://azure.microsoft.com/en-us/blog/topics/internet-of-things',
-        'source': 'azure_iot',
-        'selectors': {
-            'article_link': '.card a.card-link',
-            'title': 'h1.article-title',
-            'content': '.article-content',
-        },
-    },
-]
+def get_sources(schedule_type: str, session=None) -> List[Dict[str, Any]]:
+    """Get active sources from the database based on schedule type."""
+    from backend.models.scraper_setting import ScraperSetting
+    from sqlalchemy import and_
 
+    own_session = False
+    if session is None:
+        from src.database import get_session
+        session = get_session()
+        own_session = True
 
-def get_sources(schedule_type: str) -> List[Dict[str, Any]]:
-    """Get sources based on schedule type"""
-    if schedule_type == 'daily':
-        return RSS_SOURCES
-    elif schedule_type == 'weekly':
-        return BLOG_SOURCES
-    else:
-        return []
+    try:
+        settings = session.query(ScraperSetting).filter(
+            and_(
+                ScraperSetting.frequency == schedule_type,
+                ScraperSetting.is_active == True,
+            )
+        ).all()
+
+        if not settings:
+            logger.critical(
+                "no_active_sources_found",
+                schedule_type=schedule_type,
+                action="returning_empty_list",
+            )
+            return []
+
+        result = []
+        for s in settings:
+            entry = {"source": s.name, "url": s.url}
+            if s.source_type == "blog" and s.selector_config:
+                entry["base_url"] = s.url
+                entry["selectors"] = s.selector_config
+            result.append(entry)
+        return result
+    finally:
+        if own_session:
+            session.close()
 
 
 def validate_config() -> None:

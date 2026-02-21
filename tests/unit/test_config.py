@@ -39,37 +39,50 @@ def test_config_has_default_llm_model():
         assert 'claude' in config_module.LLM_MODEL.lower() or config_module.LLM_MODEL == ''
 
 
-def test_get_sources_returns_rss_for_daily():
-    """get_sources('daily') should return RSS sources"""
-    from src.config import get_sources, RSS_SOURCES
-
-    sources = get_sources('daily')
-
-    assert sources == RSS_SOURCES
-    assert len(sources) > 0
-    assert all('url' in s for s in sources)
-
-
-def test_get_sources_returns_blogs_for_weekly():
-    """get_sources('weekly') should return blog sources"""
-    from src.config import get_sources, BLOG_SOURCES
-
-    sources = get_sources('weekly')
-
-    assert sources == BLOG_SOURCES
-    assert len(sources) > 0
-    assert all('base_url' in s for s in sources)
-
-
-def test_get_sources_returns_empty_for_unknown():
-    """get_sources with unknown type should return empty list"""
+def test_get_sources_returns_only_active_daily():
+    """get_sources('daily', session) should return active daily sources from DB"""
     from src.config import get_sources
+    from unittest.mock import MagicMock
 
-    sources = get_sources('unknown')
-    assert sources == []
+    mock_rss = MagicMock()
+    mock_rss.name = 'techcrunch'
+    mock_rss.url = 'https://techcrunch.com/feed/'
+    mock_rss.source_type = 'rss'
+    mock_rss.selector_config = None
 
-    sources = get_sources('')
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = [mock_rss]
+
+    sources = get_sources('daily', session=mock_session)
+
+    assert len(sources) == 1
+    assert sources[0]['source'] == 'techcrunch'
+    assert sources[0]['url'] == 'https://techcrunch.com/feed/'
+
+
+def test_get_sources_emits_critical_log_when_empty():
+    """get_sources should log critical when no active sources found"""
+    from src.config import get_sources
+    from unittest.mock import MagicMock
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = []
+
+    with patch('src.config.logger') as mock_logger:
+        sources = get_sources('daily', session=mock_session)
+
     assert sources == []
+    mock_logger.critical.assert_called_once()
+
+
+def test_rss_sources_and_blog_sources_constants_do_not_exist():
+    """RSS_SOURCES and BLOG_SOURCES hardcoded constants should be removed"""
+    import importlib
+    import src.config as cfg
+    importlib.reload(cfg)
+
+    assert not hasattr(cfg, 'RSS_SOURCES'), "RSS_SOURCES should not exist"
+    assert not hasattr(cfg, 'BLOG_SOURCES'), "BLOG_SOURCES should not exist"
 
 
 def test_validate_config_raises_on_missing_database_url():
