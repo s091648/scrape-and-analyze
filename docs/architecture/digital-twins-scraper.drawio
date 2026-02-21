@@ -1001,4 +1001,60 @@
             </root>
         </mxGraphModel>
     </diagram>
+    <diagram id="dash_ph3" name="Dashboard Ph3 - Config Migration">
+        <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="ph3_title" value="Phase 3: Config Migration (src/config.py)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="20" width="420" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="old_box" value="BEFORE (removed)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;fontColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="60" width="200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="old_rss" value="RSS_SOURCES: List[Dict]&#xa;(hardcoded TechCrunch, VentureBeat, IoTWorldToday)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="90" width="280" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="old_blog" value="BLOG_SOURCES: List[Dict]&#xa;(hardcoded NVIDIA, Siemens, AWS IoT, Azure IoT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="145" width="280" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="old_fn" value="get_sources(schedule_type: str)&#xa;if daily: return RSS_SOURCES&#xa;elif weekly: return BLOG_SOURCES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="200" width="280" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="arrow_migrate" value="refactored to" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;fontStyle=1;fontSize=11;" parent="1" source="old_fn" target="new_fn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="new_box" value="AFTER (implemented)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="60" width="220" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="new_fn" value="get_sources(schedule_type, session=None)&#xa;Query ScraperSetting WHERE&#xa;  frequency=schedule_type AND is_active=True&#xa;If empty: logger.critical(no_active_sources_found)&#xa;Returns [{source, url, [base_url, selectors]}]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="90" width="310" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="new_logger" value="structlog logger&#xa;module-level: logger = structlog.get_logger(__name__)&#xa;Critical log when no sources found" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="185" width="310" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_fn_logger" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="new_fn" target="new_logger" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_box" value="Database Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="255" width="180" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="scraper_setting_model" value="ScraperSetting (SQLAlchemy)&#xa;backend/models/scraper_setting.py&#xa;frequency: String(20)  daily|weekly&#xa;is_active: Boolean&#xa;source_type: String(20)  rss|blog&#xa;selector_config: JSONB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="280" width="310" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_fn_model" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="new_fn" target="scraper_setting_model" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="session_note" value="Session injection&#xa;- Pass session=mock_session in tests&#xa;- If session=None: auto-create via get_session()&#xa;  and close in finally block" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="90" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_fn_session" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#9673a6;" parent="1" source="new_fn" target="session_note" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="tests_note" value="New tests (tests/unit/test_config.py)&#xa;- test_get_sources_returns_only_active_daily&#xa;  (mock session returning 1 RSS source)&#xa;- test_get_sources_emits_critical_log_when_empty&#xa;  (mock session returning [] + assert logger.critical)&#xa;- test_rss_sources_and_blog_sources_constants_do_not_exist&#xa;  (assert not hasattr(cfg, RSS_SOURCES))" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="200" width="280" height="100" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
