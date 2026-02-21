@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from backend.database import get_db, check_db_connection
 from backend.middleware.logging import RequestLoggingMiddleware
+from backend.routers.articles import router as articles_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -18,6 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestLoggingMiddleware)
+
+
+app.include_router(articles_router)
 
 
 @app.get("/health")
