@@ -8,6 +8,7 @@ from backend.middleware.logging import RequestLoggingMiddleware
 from backend.routers.articles import router as articles_router
 from backend.routers.graph import router as graph_router
 from backend.routers.scraper_settings import router as scraper_settings_router
+from backend.routers.auth import router as auth_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -26,6 +27,7 @@ app.add_middleware(RequestLoggingMiddleware)
 app.include_router(articles_router)
 app.include_router(graph_router)
 app.include_router(scraper_settings_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")
