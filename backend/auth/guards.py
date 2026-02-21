@@ -4,13 +4,13 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 
-NEXTAUTH_SECRET = os.environ.get("NEXTAUTH_SECRET", "")
 bearer = HTTPBearer()
 
 
-def require_admin(token: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
+def _require_admin_impl(token: HTTPAuthorizationCredentials) -> dict:
+    secret = os.environ.get("NEXTAUTH_SECRET", "")
     try:
-        payload = jwt.decode(token.credentials, NEXTAUTH_SECRET, algorithms=["HS256"],
+        payload = jwt.decode(token.credentials, secret, algorithms=["HS256"],
                              options={"verify_exp": False})
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -25,5 +25,9 @@ def require_admin(token: HTTPAuthorizationCredentials = Depends(bearer)) -> dict
     return payload
 
 
-# Expose the function without Depends wrapping for direct testing
-require_admin.__wrapped__ = require_admin
+def require_admin(token: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
+    return _require_admin_impl(token)
+
+
+# Expose implementation for direct testing (avoids inspect.signature() following __wrapped__)
+require_admin.impl = _require_admin_impl
