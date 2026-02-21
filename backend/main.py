@@ -2,8 +2,11 @@ from fastapi import FastAPI, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from backend.database import get_db, check_db_connection
+from backend.middleware.logging import RequestLoggingMiddleware
 
 app = FastAPI(title="Scrape Analyzer API", version="1.0.0")
+
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health")
