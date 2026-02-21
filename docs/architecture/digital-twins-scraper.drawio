@@ -912,4 +912,93 @@
             </root>
         </mxGraphModel>
     </diagram>
+    <diagram id="dash_ph2" name="Dashboard Ph2 - FastAPI Backend">
+        <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="mw_title" value="Middleware Stack (outermost first)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="20" width="350" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw_cors" value="CORSMiddleware&#xa;allow_origins=[FRONTEND_ORIGIN]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="55" width="260" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw_log" value="RequestLoggingMiddleware&#xa;structlog + X-Request-ID header" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="110" width="260" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw_routes" value="Route Handlers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="165" width="260" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_cors_log" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="mw_cors" target="mw_log" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_log_rt" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="mw_log" target="mw_routes" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="jwt_guard" value="require_admin (JWT Guard)&#xa;HTTPBearer - decode - verify exp + role=admin&#xa;401 invalid / 403 wrong role" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="230" width="260" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="db_dep" value="get_db() - SQLAlchemy Session&#xa;backend/database.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="310" width="260" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_title" value="API Endpoints" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="20" width="200" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_health" value="GET /health (DB ping)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="55" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_articles" value="GET /articles&#xa;GET /articles/{id}&#xa;GET /failed-tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="110" width="160" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_graph" value="GET /analyses/graph&#xa;GET /analyses/graph/tag/{tag}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="180" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_settings" value="GET/POST/PATCH/DELETE&#xa;/scraper-settings&#xa;[require_admin guard]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="245" width="160" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="ep_auth" value="POST /auth/verify&#xa;bcrypt credential check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="315" width="160" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_jwt_settings" value="guards" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;" parent="1" source="jwt_guard" target="ep_settings" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="pg_title" value="PostgreSQL Tables" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=13;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="20" width="200" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="tbl_article" value="Article" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="55" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tbl_analysis" value="Analysis" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="105" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tbl_failed" value="FailedTask" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="155" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tbl_scraper_s" value="ScraperSetting" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="205" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="tbl_auth_u" value="auth.users" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="255" width="120" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_articles_tbl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ep_articles" target="tbl_article" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_graph_tbl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ep_graph" target="tbl_analysis" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_failed_tbl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ep_articles" target="tbl_failed" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_settings_tbl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ep_settings" target="tbl_scraper_s" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_auth_tbl" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="ep_auth" target="tbl_auth_u" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_db_dep" value="injects Session" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#6c8ebf;" parent="1" source="db_dep" target="ep_articles" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
