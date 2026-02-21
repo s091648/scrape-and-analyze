@@ -1318,4 +1318,60 @@
             </root>
         </mxGraphModel>
     </diagram>
+    <diagram id="dash_ph7" name="Dashboard Ph7 - Admin Page">
+        <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="ph7_title" value="Phase 7: Admin Scraper Settings Page" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=14;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="20" width="420" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="guard_title" value="Route Protection Layers" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="60" width="220" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="middleware" value="middleware.ts&#xa;matcher: ['/admin/:path*']&#xa;Next.js middleware — route interception&#xa;(next-auth v5: client-side guard enforces role)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="90" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="page_guard" value="ScraperSettingsPage (useSession double guard)&#xa;if status === 'unauthenticated' → redirect('/login')&#xa;if role !== 'admin' → redirect('/login')" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="170" width="240" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_mw_page" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="middleware" target="page_guard" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="crud_title" value="Admin CRUD Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="60" width="200" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="source_form" value="ScraperSourceForm&#xa;components/scraper-source-form.tsx&#xa;fields: source_type, name, url, frequency&#xa;blog only: selector_config (article_link, title, content)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="90" width="240" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="post_settings" value="POST /scraper-settings&#xa;header: Authorization: Bearer &lt;JWT&gt;&#xa;FastAPI require_admin guard → verify JWT&#xa;create_setting() → scraper_settings table" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="175" width="240" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_form_post" value="onSubmit" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="source_form" target="post_settings" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="toggle_title" value="Optimistic Toggle Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="60" width="220" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="switch_comp" value="Switch (shadcn/ui)&#xa;checked={s.is_active}&#xa;onCheckedChange: toggleActive(id, v)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="90" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="optimistic_update" value="Optimistic state update (immediate)&#xa;setSettings(prev =&gt; prev.map(s =&gt;&#xa;  s.id === id ? { ...s, is_active } : s))" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="165" width="220" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="patch_settings" value="PATCH /scraper-settings/{id} (async)&#xa;{ is_active } JSON body&#xa;Authorization: Bearer &lt;JWT&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="240" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_switch_opt" style="edgeStyle=orthogonalEdgeStyle;html=1;" parent="1" source="switch_comp" target="optimistic_update" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_opt_patch" value="async" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;" parent="1" source="optimistic_update" target="patch_settings" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="sys_overview" value="Full System (Admin use case)&#xa;Browser → middleware.ts (route match)&#xa;→ ScraperSettingsPage (session guard)&#xa;→ ScraperSourceForm / Switch&#xa;→ apiFetch (Authorization: Bearer JWT)&#xa;→ FastAPI require_admin + CRUD&#xa;→ scraper_settings table (PostgreSQL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="310" width="280" height="100" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
