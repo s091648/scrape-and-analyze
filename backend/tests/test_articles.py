@@ -44,3 +44,26 @@ def test_articles_no_auth_required():
     with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
         response = client.get("/articles")
     assert response.status_code == 200
+
+
+def test_article_detail_returns_full_data():
+    from backend.main import app
+    client = TestClient(app)
+    article_id = uuid.uuid4()
+    mock_article = make_mock_article()
+    mock_article.id = article_id
+    mock_article.analyses = [MagicMock(tags=["IoT", "digital twin"], pain_points="...",
+                                        insights="...", model_used="claude")]
+    with patch("backend.routers.articles.get_article_by_id", return_value=mock_article):
+        response = client.get(f"/articles/{article_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert "tags" in data
+
+
+def test_article_detail_unknown_id_returns_404():
+    from backend.main import app
+    client = TestClient(app)
+    with patch("backend.routers.articles.get_article_by_id", return_value=None):
+        response = client.get(f"/articles/{uuid.uuid4()}")
+    assert response.status_code == 404

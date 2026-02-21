@@ -74,6 +74,49 @@ class PaginatedFailedTasks(BaseModel):
     size: int
 
 
+class ArticleDetailOut(BaseModel):
+    id: UUID
+    url: str
+    source: str
+    title: str
+    content: str
+    published_at: Optional[datetime]
+    scraped_at: Optional[datetime]
+    tags: list[str] = []
+    pain_points: Optional[str] = None
+    insights: Optional[str] = None
+    model_used: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+def get_article_by_id(db: Session, article_id: UUID):
+    from src.models.article import Article
+    return db.query(Article).filter(Article.id == article_id).first()
+
+
+@router.get("/articles/{article_id}", response_model=ArticleDetailOut)
+def get_article(article_id: UUID, db: Session = Depends(get_db)):
+    article = get_article_by_id(db, article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    analysis = article.analyses[0] if article.analyses else None
+    return ArticleDetailOut(
+        id=article.id,
+        url=article.url,
+        source=article.source,
+        title=article.title,
+        content=article.content,
+        published_at=article.published_at,
+        scraped_at=article.scraped_at,
+        tags=analysis.tags if analysis else [],
+        pain_points=analysis.pain_points if analysis else None,
+        insights=analysis.insights if analysis else None,
+        model_used=analysis.model_used if analysis else None,
+    )
+
+
 @router.get("/failed-tasks", response_model=PaginatedFailedTasks)
 def list_failed_tasks(
     page: int = Query(1, ge=1),
