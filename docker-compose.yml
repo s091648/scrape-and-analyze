@@ -13,12 +13,8 @@ services:
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
       - ./requirements.txt:/app/requirements.txt
-    environment:
-      DATABASE_URL: postgresql://digital_twins:digital_twins@postgres:5432/digital_twins
-      LLM_API_KEY: ${LLM_API_KEY:-test-key}
-      LLM_PROVIDER: ${LLM_PROVIDER:-claude}
-      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-4-20250514}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,11 +32,8 @@ services:
       - ./backend:/app/backend  # live-reload API changes
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://digital_twins:digital_twins@postgres:5432/digital_twins
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-secret-change-me}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,18 +49,14 @@ services:
       - frontend_node_modules:/app/node_modules  # preserve installed modules
     ports:
       - "3000:3000"
-    environment:
-      NEXT_PUBLIC_BACKEND_URL: http://localhost:8000
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-dev-secret-change-me}
+    env_file:
+      - .env
     command: npm run dev
 
   postgres:
     image: postgres:15
-    environment:
-      POSTGRES_USER: digital_twins
-      POSTGRES_PASSWORD: digital_twins
-      POSTGRES_DB: digital_twins
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
@@ -78,6 +67,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Job service - generic utility container; doesn't run anything by default
+  job_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./backend:/app/backend   # needed so alembic/env.py can import backend models
+      - ./scripts:/app/scripts   # helper scripts available inside container
+      - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # no command; `docker compose run` will supply the script to run
 
 volumes:
   postgres_data:

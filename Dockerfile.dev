@@ -7,6 +7,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# client utilities for interacting with Postgres during jobs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # src/ and migrations/ are volume-mounted, not copied
 # This keeps the image identical to production but allows live edits
 
