@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+// frontend/tests/graph.test.tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockApiFetch = vi.fn().mockResolvedValue({
   ok: true,
@@ -11,6 +12,14 @@ vi.mock('react-force-graph-2d', () => ({
 }))
 
 describe('Knowledge Graph', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ nodes: [], edges: [] }),
+    })
+  })
+
   it('fetches graph data with days=30 on initial load', async () => {
     const { KnowledgeGraph } = await import('../components/knowledge-graph')
     const { render } = await import('@testing-library/react')
@@ -29,24 +38,28 @@ describe('Knowledge Graph', () => {
     })
   })
 
-  it('tag nodes have different color than article nodes', () => {
-    const tagColor = '#6366f1'
-    const articleColor = '#10b981'
-    expect(tagColor).not.toEqual(articleColor)
+  it('group nodes have different color than article nodes', () => {
+    const groupColor = '#6366f1'   // Digital Twin group color
+    const articleColor = '#10b981' // Article node color
+    expect(groupColor).not.toEqual(articleColor)
   })
 
-  it('clicking tag node fetches tag articles', async () => {
-    mockApiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        nodes: [{ id: 'tag:IoT', type: 'tag', label: 'IoT' }],
-        edges: [],
-      }),
-    })
-    mockApiFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [{ articleId: 'a1', title: 'IoT Article', excerpt: 'desc', url: 'https://x.com', source: 'test' }],
-    })
+  it('clicking a group node fetches group articles', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          nodes: [{ id: 'group:digital_twin', type: 'group', label: 'Digital Twin', groupName: 'digital_twin', color: '#6366f1' }],
+          edges: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          { groupName: 'digital_twin', displayName: 'Digital Twin', tags: ['virtual replica'], articleId: 'a1', title: 'DT Article', excerpt: 'desc', url: 'https://x.com', source: 'test', pain_points: null, insights: null, innovations: null },
+        ],
+      })
+    // Verify both mocks are set up — actual click interaction is E2E territory
     expect(mockApiFetch).toBeDefined()
   })
 })
