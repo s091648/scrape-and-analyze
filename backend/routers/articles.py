@@ -1,6 +1,6 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -32,12 +32,47 @@ class PaginatedArticles(BaseModel):
     size: int
 
 
-def get_articles_paginated(db: Session, sort: str, order: str, page: int, size: int):
+def get_articles_paginated(
+    db: Session,
+    sort: str,
+    order: str,
+    page: int,
+    size: int,
+    sources: List[str] | None = None,
+    tags: List[str] | None = None,
+    published_after: Optional[date] = None,
+    published_before: Optional[date] = None,
+    scraped_after: Optional[date] = None,
+    scraped_before: Optional[date] = None,
+):
     from src.models.article import Article
+    from src.models.analysis import Analysis
+    from sqlalchemy import cast
+    from sqlalchemy.dialects.postgresql import ARRAY, TEXT
+
     query = db.query(Article)
+
+    if sources:
+        query = query.filter(Article.source.in_(sources))
+
+    if tags:
+        query = query.join(Analysis, Analysis.article_id == Article.id)
+        for tag in tags:
+            query = query.filter(Analysis.tags.contains(cast([tag], ARRAY(TEXT))))
+
+    if published_after:
+        query = query.filter(Article.published_at >= published_after)
+    if published_before:
+        query = query.filter(Article.published_at <= published_before)
+    if scraped_after:
+        query = query.filter(Article.scraped_at >= scraped_after)
+    if scraped_before:
+        query = query.filter(Article.scraped_at <= scraped_before)
+
     col = getattr(Article, sort, None)
     if col is not None:
         query = query.order_by(col.desc() if order == "desc" else col.asc())
+
     total = query.count()
     items = query.offset((page - 1) * size).limit(size).all()
     return total, items
@@ -49,10 +84,40 @@ def list_articles(
     size: int = Query(20, ge=1, le=100),
     sort: Literal["scraped_at", "published_at", "source", "title"] = "scraped_at",
     order: Literal["asc", "desc"] = "desc",
+    source: List[str] = Query(default=[]),
+    tag: List[str] = Query(default=[]),
+    published_after: Optional[date] = Query(default=None),
+    published_before: Optional[date] = Query(default=None),
+    scraped_after: Optional[date] = Query(default=None),
+    scraped_before: Optional[date] = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    total, items = get_articles_paginated(db, sort, order, page, size)
+    total, items = get_articles_paginated(
+        db, sort, order, page, size,
+        sources=source or None,
+        tags=tag or None,
+        published_after=published_after,
+        published_before=published_before,
+        scraped_after=scraped_after,
+        scraped_before=scraped_before,
+    )
     return PaginatedArticles(items=items, total=total, page=page, size=size)
+
+
+@router.get("/articles/filters/sources")
+def get_filter_sources(db: Session = Depends(get_db)):
+    from src.models.article import Article
+    rows = db.query(Article.source).distinct().order_by(Article.source).all()
+    return [r[0] for r in rows]
+
+
+@router.get("/articles/filters/tags")
+def get_filter_tags(db: Session = Depends(get_db)):
+    from sqlalchemy import text
+    rows = db.execute(
+        text("SELECT DISTINCT unnest(tags) AS tag FROM analyses ORDER BY tag")
+    ).fetchall()
+    return [r[0] for r in rows]
 
 
 class FailedTaskOut(BaseModel):
@@ -86,6 +151,7 @@ class ArticleDetailOut(BaseModel):
     tags: list[str] = []
     pain_points: Optional[str] = None
     insights: Optional[str] = None
+    innovations: Optional[str] = None
     model_used: Optional[str] = None
 
     class Config:
@@ -114,6 +180,7 @@ def get_article(article_id: UUID, db: Session = Depends(get_db)):
         tags=analysis.tags if analysis else [],
         pain_points=analysis.pain_points if analysis else None,
         insights=analysis.insights if analysis else None,
+        innovations=analysis.innovations if analysis else None,
         model_used=analysis.model_used if analysis else None,
     )
 

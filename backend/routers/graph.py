@@ -69,6 +69,9 @@ def get_tag_articles(tag: str, db: Session = Depends(get_db)):
                 "url": article.url,
                 "published_at": article.published_at.isoformat() if article.published_at else None,
                 "excerpt": (article.content or "")[:200],
+                "pain_points": analysis.pain_points,
+                "insights": analysis.insights,
+                "innovations": analysis.innovations,
             })
     return result
 
