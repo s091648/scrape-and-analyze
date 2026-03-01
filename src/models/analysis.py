@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Index
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
@@ -14,6 +14,7 @@ class Analysis(Base):
     article_id = Column(UUID(as_uuid=True), ForeignKey('articles.id'), unique=True, nullable=False)
     correlation_id = Column(UUID(as_uuid=True), nullable=False)
     tags = Column(ARRAY(Text), nullable=False)
+    tag_groups = Column(JSONB)          # [{"group": "digital_twin", "tags": ["virtual replica"]}]
     pain_points = Column(Text)
     insights = Column(Text)
     innovations = Column(Text)
