@@ -17,6 +17,7 @@ class ArticleOut(BaseModel):
     url: str
     source: str
     title: str
+    content: str
     published_at: Optional[datetime]
     scraped_at: Optional[datetime]
 
