@@ -119,6 +119,7 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
     analysis = Analysis(
         article_id=article.id,
         correlation_id=uuid.UUID(correlation_id),
+        tag_groups=result.tag_groups,
         tags=result.tags,
         pain_points=result.pain_points,
         insights=result.insights,
