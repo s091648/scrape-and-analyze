@@ -9,7 +9,7 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-_REQUIRED_FIELDS = ['tags', 'pain_points', 'insights', 'innovations']
+_REQUIRED_FIELDS = ['tag_groups', 'pain_points', 'insights', 'innovations']
 
 
 class GeminiProvider(LLMProvider):
@@ -50,10 +50,17 @@ class GeminiProvider(LLMProvider):
                          expected=_REQUIRED_FIELDS,
                          actual=list(result_json.keys()))
             return False
-        if not isinstance(result_json.get('tags'), list):
-            logger.error("gemini_response_invalid_tags",
-                         tags_type=type(result_json.get('tags')).__name__)
+        tag_groups = result_json.get('tag_groups')
+        if not isinstance(tag_groups, list):
+            logger.error("gemini_response_invalid_tag_groups",
+                         type=type(tag_groups).__name__)
             return False
+        for item in tag_groups:
+            if not isinstance(item, dict) or 'group' not in item or 'tags' not in item:
+                logger.error("gemini_response_malformed_tag_group", item=item)
+                return False
+            if not isinstance(item['tags'], list):
+                return False
         return True
 
     def analyze(self, content: str, prompt: str) -> Optional[AnalysisResult]:
@@ -83,8 +90,12 @@ class GeminiProvider(LLMProvider):
                     output_tokens=output_tokens,
                     total_tokens=input_tokens + output_tokens)
 
+        tag_groups = result_json.get('tag_groups', [])
+        flat_tags = [tag for tg in tag_groups for tag in tg.get('tags', [])]
+
         return AnalysisResult(
-            tags=result_json.get('tags', []),
+            tag_groups=tag_groups,
+            tags=flat_tags,
             pain_points=result_json.get('pain_points', ''),
             insights=result_json.get('insights', ''),
             innovations=result_json.get('innovations', ''),

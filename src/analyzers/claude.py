@@ -32,7 +32,7 @@ class ClaudeProvider(LLMProvider):
 
     def _validate_response(self, result_json: dict) -> bool:
         """Validate LLM response has required fields with correct types"""
-        required_fields = ['tags', 'pain_points', 'insights', 'innovations']
+        required_fields = ['tag_groups', 'pain_points', 'insights', 'innovations']
 
         if not all(field in result_json for field in required_fields):
             logger.error("claude_response_missing_fields",
@@ -40,10 +40,19 @@ class ClaudeProvider(LLMProvider):
                          actual=list(result_json.keys()))
             return False
 
-        if not isinstance(result_json.get('tags'), list):
-            logger.error("claude_response_invalid_tags",
-                         tags_type=type(result_json.get('tags')).__name__)
+        tag_groups = result_json.get('tag_groups')
+        if not isinstance(tag_groups, list):
+            logger.error("claude_response_invalid_tag_groups",
+                         type=type(tag_groups).__name__)
             return False
+
+        for item in tag_groups:
+            if not isinstance(item, dict) or 'group' not in item or 'tags' not in item:
+                logger.error("claude_response_malformed_tag_group", item=item)
+                return False
+            if not isinstance(item['tags'], list):
+                logger.error("claude_response_tags_not_list", item=item)
+                return False
 
         return True
 
@@ -71,8 +80,12 @@ class ClaudeProvider(LLMProvider):
                     output_tokens=response.usage.output_tokens,
                     total_tokens=response.usage.input_tokens + response.usage.output_tokens)
 
+        tag_groups = result_json.get('tag_groups', [])
+        flat_tags = [tag for tg in tag_groups for tag in tg.get('tags', [])]
+
         return AnalysisResult(
-            tags=result_json.get('tags', []),
+            tag_groups=tag_groups,
+            tags=flat_tags,
             pain_points=result_json.get('pain_points', ''),
             insights=result_json.get('insights', ''),
             innovations=result_json.get('innovations', ''),
