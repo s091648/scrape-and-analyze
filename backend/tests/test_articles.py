@@ -52,8 +52,8 @@ def test_article_detail_returns_full_data():
     article_id = uuid.uuid4()
     mock_article = make_mock_article()
     mock_article.id = article_id
-    mock_article.analyses = [MagicMock(tags=["IoT", "digital twin"], pain_points="...",
-                                        insights="...", model_used="claude")]
+    mock_article.analyses = [MagicMock(pain_points="...", insights="...",
+                                        innovations="...", model_used="claude")]
     with patch("backend.routers.articles.get_article_by_id", return_value=mock_article):
         response = client.get(f"/articles/{article_id}")
     assert response.status_code == 200
