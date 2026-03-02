@@ -1,0 +1,36 @@
+from sqlalchemy import Column, String, Text, Table, ForeignKey, UniqueConstraint, Index
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship, configure_mappers
+import uuid
+
+from src.models.article import Base
+from src.models.tag_group import TagGroupDefinition  # noqa: F401 — registers mapper
+
+
+article_tags = Table(
+    'article_tags',
+    Base.metadata,
+    Column('article_id', UUID(as_uuid=True), ForeignKey('articles.id'), primary_key=True),
+    Column('tag_id', UUID(as_uuid=True), ForeignKey('tags.id'), primary_key=True),
+)
+
+
+class Tag(Base):
+    __tablename__ = 'tags'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False)
+    tag_group_name = Column(String(100), ForeignKey('tag_group_definitions.name'), nullable=False)
+
+    group_def = relationship('TagGroupDefinition')
+    articles = relationship('Article', secondary=article_tags, backref='tags')
+
+    __table_args__ = (
+        UniqueConstraint('name', 'tag_group_name', name='uq_tag_name_group'),
+        Index('idx_tags_group', 'tag_group_name'),
+    )
+
+
+# Eagerly configure all mappers so that backrefs (e.g. Article.tags) are
+# immediately visible after this module is imported.
+configure_mappers()

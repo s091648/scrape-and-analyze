@@ -87,3 +87,35 @@ def test_failed_task_has_resolved_index():
 
     indexes = {idx.name for idx in FailedTask.__table__.indexes}
     assert any('resolved' in idx for idx in indexes)
+
+
+def test_tag_model_has_required_fields():
+    from src.models.tag import Tag
+    assert hasattr(Tag, 'id')
+    assert hasattr(Tag, 'name')
+    assert hasattr(Tag, 'tag_group_name')
+
+
+def test_tag_name_group_is_unique():
+    from src.models.tag import Tag
+    uq_names = {c.name for c in Tag.__table__.constraints}
+    assert 'uq_tag_name_group' in uq_names
+
+
+def test_tag_group_name_has_index():
+    from src.models.tag import Tag
+    idx_names = {i.name for i in Tag.__table__.indexes}
+    assert 'idx_tags_group' in idx_names
+
+
+def test_article_tags_table_exists():
+    from src.models.tag import article_tags
+    assert 'article_id' in article_tags.c
+    assert 'tag_id' in article_tags.c
+
+
+def test_article_has_tags_backref():
+    from src.models.article import Article
+    # importing tag module registers the backref
+    import src.models.tag  # noqa: F401
+    assert hasattr(Article, 'tags')
