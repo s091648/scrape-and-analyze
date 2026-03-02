@@ -40,7 +40,6 @@ def test_analysis_model_has_required_fields():
     assert hasattr(Analysis, 'id')
     assert hasattr(Analysis, 'article_id')
     assert hasattr(Analysis, 'correlation_id')
-    assert hasattr(Analysis, 'tags')
     assert hasattr(Analysis, 'pain_points')
     assert hasattr(Analysis, 'insights')
     assert hasattr(Analysis, 'innovations')
@@ -48,6 +47,9 @@ def test_analysis_model_has_required_fields():
     assert hasattr(Analysis, 'model_used')
     assert hasattr(Analysis, 'input_tokens')
     assert hasattr(Analysis, 'output_tokens')
+    # tags and tag_groups moved to tags / article_tags tables
+    assert 'tags' not in Analysis.__table__.columns
+    assert 'tag_groups' not in Analysis.__table__.columns
 
 
 def test_analysis_has_foreign_key_to_article():
