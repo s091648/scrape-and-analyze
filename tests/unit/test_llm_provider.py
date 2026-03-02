@@ -25,7 +25,7 @@ def test_analysis_result_has_all_fields():
     from src.analyzers.llm_provider import AnalysisResult
 
     result = AnalysisResult(
-        tags=["tag1", "tag2"],
+        tag_groups=[{"group": "digital_twin", "tags": ["virtual replica"]}],
         pain_points="Some pain points",
         insights="Key insights",
         innovations="New innovations",
@@ -33,9 +33,16 @@ def test_analysis_result_has_all_fields():
         output_tokens=50
     )
 
-    assert result.tags == ["tag1", "tag2"]
+    assert result.tag_groups == [{"group": "digital_twin", "tags": ["virtual replica"]}]
     assert result.pain_points == "Some pain points"
     assert result.insights == "Key insights"
     assert result.innovations == "New innovations"
     assert result.input_tokens == 100
     assert result.output_tokens == 50
+
+
+def test_analysis_result_has_no_flat_tags_field():
+    import dataclasses
+    from src.analyzers.llm_provider import AnalysisResult
+    field_names = {f.name for f in dataclasses.fields(AnalysisResult)}
+    assert 'tags' not in field_names

@@ -91,11 +91,9 @@ class GeminiProvider(LLMProvider):
                     total_tokens=input_tokens + output_tokens)
 
         tag_groups = result_json.get('tag_groups', [])
-        flat_tags = [tag for tg in tag_groups for tag in tg.get('tags', [])]
 
         return AnalysisResult(
             tag_groups=tag_groups,
-            tags=flat_tags,
             pain_points=result_json.get('pain_points', ''),
             insights=result_json.get('insights', ''),
             innovations=result_json.get('innovations', ''),

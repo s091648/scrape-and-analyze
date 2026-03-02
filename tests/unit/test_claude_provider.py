@@ -15,9 +15,8 @@ def test_claude_provider_calls_anthropic_api():
     with patch('src.analyzers.claude.anthropic') as mock_anthropic:
         from src.analyzers.claude import ClaudeProvider
 
-        # Setup mock response
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["digital twin"],"pain_points":"none","insights":"test","innovations":"new"}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["virtual replica"]}],"pain_points":"none","insights":"test","innovations":"new"}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -26,7 +25,7 @@ def test_claude_provider_calls_anthropic_api():
         result = provider.analyze("test content", "analyze this")
 
         assert result is not None
-        assert result.tags == ["digital twin"]
+        assert result.tag_groups == [{"group": "digital_twin", "tags": ["virtual replica"]}]
         assert result.input_tokens == 100
         assert result.output_tokens == 50
 
@@ -36,9 +35,8 @@ def test_claude_provider_retries_on_transient_error():
     with patch('src.analyzers.claude.anthropic') as mock_anthropic:
         from src.analyzers.claude import ClaudeProvider
 
-        # First call fails, second succeeds
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":[],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
@@ -50,7 +48,6 @@ def test_claude_provider_retries_on_transient_error():
         provider = ClaudeProvider(api_key="test-key")
         result = provider.analyze("test", "prompt")
 
-        # Should have retried
         assert mock_anthropic.Anthropic.return_value.messages.create.call_count == 2
         assert result is not None
 
@@ -69,7 +66,6 @@ def test_claude_provider_handles_invalid_json():
         provider = ClaudeProvider(api_key="test-key")
         result = provider.analyze("test", "prompt")
 
-        # Should return None on invalid JSON
         assert result is None
 
 
@@ -79,7 +75,7 @@ def test_claude_provider_tracks_token_usage():
         from src.analyzers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["test"],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"ai_ml","tags":["test"]}],"pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 500
         mock_response.usage.output_tokens = 200
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -98,7 +94,7 @@ def test_claude_provider_validates_required_fields():
 
         # Response missing 'innovations' field
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["test"],"pain_points":"","insights":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":""}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -106,17 +102,16 @@ def test_claude_provider_validates_required_fields():
         provider = ClaudeProvider(api_key="test-key")
         result = provider.analyze("test", "prompt")
 
-        assert result is None  # Should fail validation
+        assert result is None
 
 
 def test_claude_provider_validates_tags_is_array():
-    """ClaudeProvider should validate that tags is an array"""
+    """ClaudeProvider should validate that tag_groups is a list"""
     with patch('src.analyzers.claude.anthropic') as mock_anthropic:
         from src.analyzers.claude import ClaudeProvider
 
-        # Response with tags as string instead of array
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":"not-an-array","pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":"not-a-list","pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -124,7 +119,7 @@ def test_claude_provider_validates_tags_is_array():
         provider = ClaudeProvider(api_key="test-key")
         result = provider.analyze("test", "prompt")
 
-        assert result is None  # Should fail validation
+        assert result is None
 
 
 def test_claude_provider_logs_token_metrics():
@@ -134,7 +129,7 @@ def test_claude_provider_logs_token_metrics():
             from src.analyzers.claude import ClaudeProvider
 
             mock_response = MagicMock()
-            mock_response.content = [MagicMock(text='{"tags":[],"pain_points":"","insights":"","innovations":""}')]
+            mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
             mock_response.usage.input_tokens = 1500
             mock_response.usage.output_tokens = 300
             mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -142,7 +137,6 @@ def test_claude_provider_logs_token_metrics():
             provider = ClaudeProvider(api_key="test-key")
             result = provider.analyze("test content", "analyze")
 
-            # Verify logging was called with token metrics
             mock_logger.info.assert_called()
             call_args = mock_logger.info.call_args
             assert 'input_tokens' in str(call_args) or result.input_tokens == 1500
@@ -155,11 +149,10 @@ def test_claude_provider_retries_on_rate_limit():
         import anthropic
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":[],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
-        # First two calls raise rate limit, third succeeds
         rate_limit_error = anthropic.RateLimitError(
             message="Rate limit exceeded",
             response=MagicMock(status_code=429),
@@ -204,7 +197,7 @@ def test_claude_provider_handles_empty_content():
         from src.analyzers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["empty"],"pain_points":"","insights":"No content","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"other_applications","tags":["empty"]}],"pain_points":"","insights":"No content","innovations":""}')]
         mock_response.usage.input_tokens = 50
         mock_response.usage.output_tokens = 30
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -221,7 +214,7 @@ def test_claude_provider_handles_unicode_content():
         from src.analyzers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["数字孪生","デジタルツイン"],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["数字孪生","デジタルツイン"]}],"pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 200
         mock_response.usage.output_tokens = 100
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -230,7 +223,7 @@ def test_claude_provider_handles_unicode_content():
         result = provider.analyze("数字孪生技術の記事", "analyze")
 
         assert result is not None
-        assert "数字孪生" in result.tags
+        assert "数字孪生" in result.tag_groups[0]["tags"]
 
 
 def test_claude_provider_handles_large_content():
@@ -239,13 +232,13 @@ def test_claude_provider_handles_large_content():
         from src.analyzers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tags":["test"],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["test"]}],"pain_points":"","insights":"","innovations":""}')]
         mock_response.usage.input_tokens = 50000
         mock_response.usage.output_tokens = 500
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
 
         provider = ClaudeProvider(api_key="test-key")
-        large_content = "Digital twins content. " * 5000  # ~100KB of text
+        large_content = "Digital twins content. " * 5000
         result = provider.analyze(large_content, "analyze")
 
         assert result is not None
