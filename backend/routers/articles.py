@@ -46,9 +46,6 @@ def get_articles_paginated(
     scraped_before: Optional[date] = None,
 ):
     from src.models.article import Article
-    from src.models.analysis import Analysis
-    from sqlalchemy import cast
-    from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 
     query = db.query(Article)
 
@@ -56,9 +53,13 @@ def get_articles_paginated(
         query = query.filter(Article.source.in_(sources))
 
     if tags:
-        query = query.join(Analysis, Analysis.article_id == Article.id)
-        for tag in tags:
-            query = query.filter(Analysis.tags.contains(cast([tag], ARRAY(TEXT))))
+        from src.models.tag import Tag, article_tags as at
+        from sqlalchemy import select
+        for tag_name in tags:
+            tag_subq = select(at.c.article_id).join(
+                Tag, Tag.id == at.c.tag_id
+            ).where(Tag.name == tag_name).scalar_subquery()
+            query = query.filter(Article.id.in_(tag_subq))
 
     if published_after:
         query = query.filter(Article.published_at >= published_after)
@@ -113,10 +114,8 @@ def get_filter_sources(db: Session = Depends(get_db)):
 
 @router.get("/articles/filters/tags")
 def get_filter_tags(db: Session = Depends(get_db)):
-    from sqlalchemy import text
-    rows = db.execute(
-        text("SELECT DISTINCT unnest(tags) AS tag FROM analyses ORDER BY tag")
-    ).fetchall()
+    from src.models.tag import Tag
+    rows = db.query(Tag.name).order_by(Tag.name).distinct().all()
     return [r[0] for r in rows]
 
 
@@ -165,10 +164,18 @@ def get_article_by_id(db: Session, article_id: UUID):
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
 def get_article(article_id: UUID, db: Session = Depends(get_db)):
+    from src.models.tag import Tag, article_tags as at
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     analysis = article.analyses[0] if article.analyses else None
+    tag_names = (
+        db.query(Tag.name)
+        .join(at, Tag.id == at.c.tag_id)
+        .filter(at.c.article_id == article_id)
+        .order_by(Tag.name)
+        .all()
+    )
     return ArticleDetailOut(
         id=article.id,
         url=article.url,
@@ -177,7 +184,7 @@ def get_article(article_id: UUID, db: Session = Depends(get_db)):
         content=article.content,
         published_at=article.published_at,
         scraped_at=article.scraped_at,
-        tags=analysis.tags if analysis else [],
+        tags=[r[0] for r in tag_names],
         pain_points=analysis.pain_points if analysis else None,
         insights=analysis.insights if analysis else None,
         innovations=analysis.innovations if analysis else None,
