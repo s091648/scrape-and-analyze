@@ -59,6 +59,31 @@ def test_article_detail_returns_full_data():
     assert response.status_code == 200
     data = response.json()
     assert "tags" in data
+    assert "tag_groups" in data
+
+
+def test_article_detail_tag_groups_structure():
+    from backend.main import app
+    client = TestClient(app)
+    article_id = uuid.uuid4()
+    mock_article = make_mock_article()
+    mock_article.id = article_id
+    mock_article.analyses = []
+
+    mock_tag = MagicMock()
+    mock_tag.name = "digital twin"
+    mock_tag.tag_group_name = "digital_twin"
+    mock_tag.group_def = MagicMock(display_name="Digital Twin", color_hex="#3b82f6")
+    mock_article.tags = [mock_tag]
+
+    with patch("backend.routers.articles.get_article_by_id", return_value=mock_article):
+        with patch("backend.routers.articles.get_tag_groups_for_article",
+                   return_value=[{"group_name": "digital_twin", "display_name": "Digital Twin",
+                                  "color": "#3b82f6", "tags": ["digital twin"]}]):
+            response = client.get(f"/articles/{article_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data["tag_groups"], list)
 
 
 def test_article_detail_unknown_id_returns_404():

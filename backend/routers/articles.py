@@ -119,6 +119,13 @@ def get_filter_tags(db: Session = Depends(get_db)):
     return [r[0] for r in rows]
 
 
+class TagGroupOut(BaseModel):
+    group_name: str
+    display_name: str
+    color: str
+    tags: list[str]
+
+
 class FailedTaskOut(BaseModel):
     id: UUID
     task_type: str
@@ -148,6 +155,7 @@ class ArticleDetailOut(BaseModel):
     published_at: Optional[datetime]
     scraped_at: Optional[datetime]
     tags: list[str] = []
+    tag_groups: list[TagGroupOut] = []
     pain_points: Optional[str] = None
     insights: Optional[str] = None
     innovations: Optional[str] = None
@@ -160,6 +168,30 @@ class ArticleDetailOut(BaseModel):
 def get_article_by_id(db: Session, article_id: UUID):
     from src.models.article import Article
     return db.query(Article).filter(Article.id == article_id).first()
+
+
+def get_tag_groups_for_article(db: Session, article_id: UUID) -> list:
+    from src.models.tag import Tag, article_tags as at
+    tags = (
+        db.query(Tag)
+        .join(at, Tag.id == at.c.tag_id)
+        .filter(at.c.article_id == article_id)
+        .order_by(Tag.tag_group_name, Tag.name)
+        .all()
+    )
+    groups: dict = {}
+    for tag in tags:
+        gname = tag.tag_group_name
+        if gname not in groups:
+            gdef = tag.group_def
+            groups[gname] = {
+                "group_name": gname,
+                "display_name": gdef.display_name if gdef else gname,
+                "color": gdef.color_hex if gdef else "#6b7280",
+                "tags": [],
+            }
+        groups[gname]["tags"].append(tag.name)
+    return list(groups.values())
 
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
@@ -185,6 +217,7 @@ def get_article(article_id: UUID, db: Session = Depends(get_db)):
         published_at=article.published_at,
         scraped_at=article.scraped_at,
         tags=[r[0] for r in tag_names],
+        tag_groups=get_tag_groups_for_article(db, article_id),
         pain_points=analysis.pain_points if analysis else None,
         insights=analysis.insights if analysis else None,
         innovations=analysis.innovations if analysis else None,

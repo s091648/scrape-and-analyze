@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, Clock, Globe, Sparkles } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
@@ -18,6 +17,13 @@ interface ArticleCardProps {
   url: string
 }
 
+interface TagGroup {
+  group_name: string
+  display_name: string
+  color: string
+  tags: string[]
+}
+
 interface ArticleDetail {
   id: string
   url: string
@@ -27,6 +33,7 @@ interface ArticleDetail {
   published_at: string | null
   scraped_at: string | null
   tags: string[]
+  tag_groups: TagGroup[]
   pain_points: string | null
   insights: string | null
   innovations: string | null
@@ -49,7 +56,7 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
     }
   }
 
-  const hasAnalysis = detail && detail.tags.length > 0
+  const hasAnalysis = detail && !!detail.model_used
 
   return (
     <>
@@ -102,7 +109,7 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0">
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
             <DialogTitle className="text-lg leading-snug pr-6">{title}</DialogTitle>
             <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -118,7 +125,7 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
             </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6 py-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
             {loading ? (
               <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
             ) : (
@@ -137,10 +144,22 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
 
                 {hasAnalysis && (
                   <div className="space-y-4 border-t border-border pt-4">
-                    {detail.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {detail.tags.map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                    {detail.tag_groups.length > 0 && (
+                      <div className="space-y-2">
+                        {detail.tag_groups.map(group => (
+                          <div key={group.group_name}>
+                            <span
+                              className="text-[10px] font-semibold uppercase tracking-wide"
+                              style={{ color: group.color }}
+                            >
+                              {group.display_name}
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {group.tags.map(tag => (
+                                <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -166,7 +185,7 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
                 )}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </>
