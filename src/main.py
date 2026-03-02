@@ -109,6 +109,8 @@ def record_failure(session, task_type: str, url: Optional[str],
 
 def analyze_article(session, article, analyzer, prompt: str, correlation_id: str) -> bool:
     """Analyze an article using LLM"""
+    from src.models.tag import Tag
+
     result = analyzer.analyze(article.content, prompt)
 
     if result is None:
@@ -119,8 +121,6 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
     analysis = Analysis(
         article_id=article.id,
         correlation_id=uuid.UUID(correlation_id),
-        tag_groups=result.tag_groups,
-        tags=result.tags,
         pain_points=result.pain_points,
         insights=result.insights,
         innovations=result.innovations,
@@ -128,8 +128,23 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens
     )
-
     session.add(analysis)
+
+    for tg in (result.tag_groups or []):
+        group_name = tg.get('group', '')
+        for tag_name in tg.get('tags', []):
+            if not tag_name or not group_name:
+                continue
+            tag = session.query(Tag).filter_by(
+                name=tag_name, tag_group_name=group_name
+            ).first()
+            if not tag:
+                tag = Tag(name=tag_name, tag_group_name=group_name)
+                session.add(tag)
+                session.flush()
+            if tag not in article.tags:
+                article.tags.append(tag)
+
     logger.info("analysis_completed",
                 article_id=str(article.id),
                 input_tokens=result.input_tokens,

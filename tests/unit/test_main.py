@@ -73,3 +73,33 @@ def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session):
         run_daily_scrape(time.time())
 
     assert mock_rss_scraper.called
+
+
+@patch('src.main.LLM_MODEL', 'test-model')
+def test_analyze_article_writes_tags():
+    """analyze_article should upsert tags and link them to the article"""
+    from src.main import analyze_article
+    from src.analyzers.llm_provider import AnalysisResult
+
+    session = MagicMock()
+    article = MagicMock()
+    article.id = 'test-article-id'
+    article.content = 'content'
+    article.tags = []
+
+    mock_result = AnalysisResult(
+        tag_groups=[{"group": "digital_twin", "tags": ["virtual replica"]}],
+        pain_points='p', insights='i', innovations='n',
+        input_tokens=10, output_tokens=5,
+    )
+    analyzer = MagicMock()
+    analyzer.analyze.return_value = mock_result
+
+    # Tag query returns None (new tag to be created)
+    session.query.return_value.filter_by.return_value.first.return_value = None
+
+    import uuid
+    result = analyze_article(session, article, analyzer, 'prompt', str(uuid.uuid4()))
+
+    assert result is True
+    session.add.assert_called()
