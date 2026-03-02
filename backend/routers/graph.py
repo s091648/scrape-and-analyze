@@ -1,5 +1,4 @@
 # backend/routers/graph.py
-import json
 import time
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
@@ -38,15 +37,19 @@ def query_analyses(db: Session, days: int) -> list:
 
 
 def query_group_articles(db: Session, group_name: str) -> list:
-    """Return all analyses that include the given group in their tag_groups JSONB."""
+    """Return all analyses whose article has at least one tag in the given group."""
     from src.models.analysis import Analysis
-    from sqlalchemy.dialects.postgresql import JSONB
-    from sqlalchemy import cast
-    return db.query(Analysis).filter(
-        Analysis.tag_groups.op('@>')(
-            cast(json.dumps([{'group': group_name}]), JSONB)
-        )
-    ).all()
+    from src.models.article import Article
+    from src.models.tag import Tag, article_tags as at
+    return (
+        db.query(Analysis)
+        .join(Article, Article.id == Analysis.article_id)
+        .join(at, at.c.article_id == Article.id)
+        .join(Tag, Tag.id == at.c.tag_id)
+        .filter(Tag.tag_group_name == group_name)
+        .distinct()
+        .all()
+    )
 
 
 def build_graph(analyses: list, group_defs: dict) -> dict:
@@ -67,10 +70,12 @@ def build_graph(analyses: list, group_defs: dict) -> dict:
                 'articleId': article_id,
             })
 
-        for tg in (analysis.tag_groups or []):
-            group_name = tg.get('group', '')
-            if not group_name:
+        seen_groups: set = set()
+        for tag in (analysis.article.tags if analysis.article else []):
+            group_name = tag.tag_group_name
+            if not group_name or group_name in seen_groups:
                 continue
+            seen_groups.add(group_name)
             group_node_id = f'group:{group_name}'
             if group_node_id not in group_node_ids:
                 group_node_ids.add(group_node_id)
@@ -120,11 +125,10 @@ def get_group_articles(group_name: str, db: Session = Depends(get_db)):
         article = analysis.article
         if not article:
             continue
-        group_tags = []
-        for tg in (analysis.tag_groups or []):
-            if tg.get('group') == group_name:
-                group_tags = tg.get('tags', [])
-                break
+        group_tags = [
+            t.name for t in (analysis.article.tags if analysis.article else [])
+            if t.tag_group_name == group_name
+        ]
         result.append({
             'groupName': group_name,
             'displayName': display_name,

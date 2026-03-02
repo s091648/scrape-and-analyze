@@ -4,6 +4,13 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 
+def make_mock_tag(name, group_name):
+    t = MagicMock()
+    t.name = name
+    t.tag_group_name = group_name
+    return t
+
+
 def make_mock_analysis(tag_groups):
     article = MagicMock()
     article.id = uuid.uuid4()
@@ -12,9 +19,12 @@ def make_mock_analysis(tag_groups):
     article.url = "https://example.com"
     article.content = "Article content here for testing."
     article.published_at = None
+    article.tags = [
+        make_mock_tag(tag_name, tg['group'])
+        for tg in tag_groups
+        for tag_name in tg.get('tags', [])
+    ]
     analysis = MagicMock()
-    analysis.tag_groups = tag_groups
-    analysis.tags = [t for tg in tag_groups for t in tg.get('tags', [])]
     analysis.article = article
     analysis.article_id = article.id
     analysis.pain_points = "Some pain points"
