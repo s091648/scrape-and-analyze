@@ -1,7 +1,10 @@
 import os
+import uuid
 import pytest
 import time
+import bcrypt
 from jose import jwt
+from starlette.testclient import TestClient
 
 SECRET = "test-secret"  # matches conftest.py NEXTAUTH_SECRET
 os.environ["NEXTAUTH_SECRET"] = SECRET
@@ -50,3 +53,18 @@ def test_viewer_role_returns_403():
     with pytest.raises(HTTPException) as exc:
         require_admin.impl(token=HTTPAuthorizationCredentials(scheme="Bearer", credentials=token))
     assert exc.value.status_code == 403
+
+
+def test_verify_disabled_user_returns_403():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    mock_user = MagicMock()
+    mock_user.id = uuid.uuid4()
+    mock_user.username = 'disabled'
+    mock_user.role = 'user'
+    mock_user.is_allowed = False
+    mock_user.hashed_password = bcrypt.hashpw(b'pass', bcrypt.gensalt()).decode()
+    with patch("backend.routers.auth._get_user_by_username", return_value=mock_user):
+        response = client.post("/auth/verify", json={"username": "disabled", "password": "pass"})
+    assert response.status_code == 403
