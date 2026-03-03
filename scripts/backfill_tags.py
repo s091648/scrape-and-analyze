@@ -78,3 +78,34 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
                 """),
                 {"article_id": str(article_id), "tag_id": str(row[0])},
             )
+
+
+def update_analysis(session, analysis_id, result, model_used, dry_run=False):
+    """Overwrite pain_points/insights/innovations/token counts on the analyses row."""
+    if dry_run:
+        print(
+            f"  [DRY RUN] Would update analysis {analysis_id}:"
+            f" pain_points={result.pain_points[:50]!r}..."
+        )
+        return
+    session.execute(
+        text("""
+            UPDATE analyses
+            SET pain_points   = :pain_points,
+                insights      = :insights,
+                innovations   = :innovations,
+                model_used    = :model_used,
+                input_tokens  = :input_tokens,
+                output_tokens = :output_tokens
+            WHERE id = :id
+        """),
+        {
+            "id":            str(analysis_id),
+            "pain_points":   result.pain_points,
+            "insights":      result.insights,
+            "innovations":   result.innovations,
+            "model_used":    model_used,
+            "input_tokens":  result.input_tokens,
+            "output_tokens": result.output_tokens,
+        },
+    )

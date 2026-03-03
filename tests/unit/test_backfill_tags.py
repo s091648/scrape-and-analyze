@@ -86,3 +86,45 @@ def test_upsert_tags_skips_empty_tag_names():
 
     # Only 1 valid tag → 3 execute calls
     assert session.execute.call_count == 3
+
+
+def _make_result():
+    from src.analyzers.llm_provider import AnalysisResult
+    return AnalysisResult(
+        tag_groups=[],
+        pain_points="pain",
+        insights="insight",
+        innovations="innovation",
+        input_tokens=10,
+        output_tokens=5,
+    )
+
+
+def test_update_analysis_dry_run_skips_db(capsys):
+    """dry_run=True must not call session.execute"""
+    from scripts.backfill_tags import update_analysis
+
+    session = MagicMock()
+    update_analysis(session, "an-id", _make_result(), model_used="gemini-2.0-flash", dry_run=True)
+
+    session.execute.assert_not_called()
+    out = capsys.readouterr().out
+    assert "an-id" in out
+
+
+def test_update_analysis_executes_update():
+    """update_analysis should call session.execute exactly once"""
+    from scripts.backfill_tags import update_analysis
+
+    session = MagicMock()
+    update_analysis(session, "an-id", _make_result(), model_used="gemini-2.0-flash", dry_run=False)
+
+    session.execute.assert_called_once()
+    # Verify the params dict includes expected keys
+    params = session.execute.call_args[0][1]
+    assert params["pain_points"] == "pain"
+    assert params["insights"] == "insight"
+    assert params["innovations"] == "innovation"
+    assert params["model_used"] == "gemini-2.0-flash"
+    assert params["input_tokens"] == 10
+    assert params["output_tokens"] == 5
