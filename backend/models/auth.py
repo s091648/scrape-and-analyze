@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
@@ -12,7 +12,19 @@ class User(AuthBase):
     __table_args__ = {'schema': 'auth'}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String(100), unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(String(20), nullable=False, default='admin')
+    email = Column(String(255), unique=True, nullable=True)
+    name = Column(String(255), nullable=True)
+    role = Column(String(20), nullable=False, default='user')
+    is_allowed = Column(Boolean, nullable=False, default=True)
+
+    # Credentials auth (nullable for OAuth-only users)
+    username = Column(String(100), unique=True, nullable=True)
+    hashed_password = Column(String, nullable=True)
+
+    # Google OAuth
+    google_id = Column(String(255), unique=True, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True),
+                        default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
