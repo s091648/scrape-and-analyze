@@ -142,3 +142,52 @@ def run_backfill(session, provider, prompt, dry_run=False, limit=None):
         processed += 1
 
     return {"processed": processed, "skipped": skipped}
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Backfill normalized tags via Gemini re-analysis."
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Print planned changes without writing to the database.",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None,
+        help="Maximum number of articles to process.",
+    )
+    args = parser.parse_args()
+
+    api_key = os.environ.get("LLM_API_KEY")
+    if not api_key:
+        print("ERROR: LLM_API_KEY environment variable is required", file=sys.stderr)
+        sys.exit(1)
+
+    if not os.environ.get("DATABASE_URL"):
+        print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
+        sys.exit(1)
+
+    with open(_PROMPT_PATH) as f:
+        prompt = f.read()
+
+    provider = GeminiProvider(api_key=api_key)
+    session  = get_session()
+
+    try:
+        stats = run_backfill(
+            session, provider, prompt,
+            dry_run=args.dry_run,
+            limit=args.limit,
+        )
+    finally:
+        session.close()
+
+    prefix = "[DRY RUN] " if args.dry_run else ""
+    print(
+        f"\n{prefix}Backfill complete: "
+        f"{stats['processed']} processed, {stats['skipped']} skipped"
+    )
+
+
+if __name__ == "__main__":
+    main()

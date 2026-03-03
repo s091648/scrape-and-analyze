@@ -209,3 +209,33 @@ def test_run_backfill_dry_run_does_not_commit():
         run_backfill(session, _make_provider(_make_result()), "prompt", dry_run=True)
 
     session.commit.assert_not_called()
+
+
+def test_main_exits_without_llm_api_key(monkeypatch, capsys):
+    """main() must exit(1) when LLM_API_KEY is missing"""
+    import sys
+    from scripts.backfill_tags import main
+
+    monkeypatch.setattr(sys, "argv", ["backfill_tags.py"])
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://x")
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+    assert "LLM_API_KEY" in capsys.readouterr().err
+
+
+def test_main_exits_without_database_url(monkeypatch, capsys):
+    """main() must exit(1) when DATABASE_URL is missing"""
+    import sys
+    from scripts.backfill_tags import main
+
+    monkeypatch.setattr(sys, "argv", ["backfill_tags.py"])
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+    assert "DATABASE_URL" in capsys.readouterr().err
