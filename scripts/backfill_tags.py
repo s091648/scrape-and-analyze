@@ -43,3 +43,38 @@ def find_articles_needing_backfill(session, limit=None):
             text(_SQL_NEEDS_BACKFILL + " LIMIT :limit"), {"limit": limit}
         ).fetchall()
     return session.execute(text(_SQL_NEEDS_BACKFILL)).fetchall()
+
+
+def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
+    """Insert tag rows and article_tags entries for a single article."""
+    for group in tag_groups:
+        group_name = group.get("group")
+        for tag_name in group.get("tags", []):
+            if not tag_name or not group_name:
+                continue
+            if dry_run:
+                print(
+                    f"  [DRY RUN] tag {tag_name!r} in group {group_name!r}"
+                    f" -> article {article_id}"
+                )
+                continue
+            session.execute(
+                text("""
+                    INSERT INTO tags (id, name, tag_group_name)
+                    VALUES (:id, :name, :group_name)
+                    ON CONFLICT (name, tag_group_name) DO NOTHING
+                """),
+                {"id": str(uuid_module.uuid4()), "name": tag_name, "group_name": group_name},
+            )
+            row = session.execute(
+                text("SELECT id FROM tags WHERE name = :name AND tag_group_name = :group_name"),
+                {"name": tag_name, "group_name": group_name},
+            ).first()
+            session.execute(
+                text("""
+                    INSERT INTO article_tags (article_id, tag_id)
+                    VALUES (:article_id, :tag_id)
+                    ON CONFLICT DO NOTHING
+                """),
+                {"article_id": str(article_id), "tag_id": str(row[0])},
+            )
