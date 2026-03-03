@@ -1,7 +1,7 @@
 from typing import Literal, Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class UserOut(BaseModel):
@@ -22,18 +22,18 @@ class UserOut(BaseModel):
 class RegisterCredentialsRequest(BaseModel):
     username: str
     password: str
-    email: str
+    email: EmailStr
     name: Optional[str] = None
 
 
 class RegisterGoogleRequest(BaseModel):
-    email: str
+    email: EmailStr
     name: Optional[str] = None
     google_id: str
 
 
 class AdminCreateUserRequest(BaseModel):
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     username: Optional[str] = None
     password: Optional[str] = None
     name: Optional[str] = None
@@ -44,10 +44,10 @@ class AdminUpdateUserRequest(BaseModel):
     role: Optional[Literal['admin', 'user']] = None
     is_allowed: Optional[bool] = None
     name: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 
 class GoogleAuthorizeRequest(BaseModel):
-    email: str
+    email: EmailStr
     google_id: str
     name: Optional[str] = None

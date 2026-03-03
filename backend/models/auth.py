@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean
+from sqlalchemy import Column, String, DateTime, Boolean, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
@@ -15,7 +15,7 @@ class User(AuthBase):
     email = Column(String(255), unique=True, nullable=True)
     name = Column(String(255), nullable=True)
     role = Column(String(20), nullable=False, default='user')
-    is_allowed = Column(Boolean, nullable=False, default=True)
+    is_allowed = Column(Boolean, nullable=False, default=True, server_default='true')
 
     # Credentials auth (nullable for OAuth-only users)
     username = Column(String(100), unique=True, nullable=True)
@@ -27,4 +27,5 @@ class User(AuthBase):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True),
                         default=lambda: datetime.now(timezone.utc),
+                        server_default=text('NOW()'),
                         onupdate=lambda: datetime.now(timezone.utc))
