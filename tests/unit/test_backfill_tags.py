@@ -128,3 +128,84 @@ def test_update_analysis_executes_update():
     assert params["model_used"] == "gemini-2.0-flash"
     assert params["input_tokens"] == 10
     assert params["output_tokens"] == 5
+
+
+def _make_provider(result):
+    """Return a mock GeminiProvider that returns `result` from analyze()."""
+    provider = MagicMock()
+    provider.model_name = "gemini-2.0-flash"
+    provider.analyze.return_value = result
+    return provider
+
+
+def test_run_backfill_processes_successful_articles():
+    """Processed count increments when LLM succeeds"""
+    from scripts.backfill_tags import run_backfill
+
+    session = MagicMock()
+    rows = [MagicMock(id="art-1", title="T", content="C", analysis_id="an-1")]
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(
+            "scripts.backfill_tags.find_articles_needing_backfill",
+            lambda s, limit=None: rows,
+        )
+        stats = run_backfill(session, _make_provider(_make_result()), "prompt", dry_run=True)
+
+    assert stats["processed"] == 1
+    assert stats["skipped"] == 0
+
+
+def test_run_backfill_skips_on_llm_failure():
+    """Skipped count increments when LLM returns None"""
+    from scripts.backfill_tags import run_backfill
+
+    session = MagicMock()
+    rows = [MagicMock(id="art-1", title="T", content="C", analysis_id="an-1")]
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(
+            "scripts.backfill_tags.find_articles_needing_backfill",
+            lambda s, limit=None: rows,
+        )
+        stats = run_backfill(session, _make_provider(None), "prompt", dry_run=False)
+
+    assert stats["processed"] == 0
+    assert stats["skipped"] == 1
+
+
+def test_run_backfill_commits_per_article_when_not_dry_run():
+    """session.commit() is called once per successfully processed article"""
+    from scripts.backfill_tags import run_backfill
+
+    session = MagicMock()
+    rows = [
+        MagicMock(id="art-1", title="T1", content="C1", analysis_id="an-1"),
+        MagicMock(id="art-2", title="T2", content="C2", analysis_id="an-2"),
+    ]
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(
+            "scripts.backfill_tags.find_articles_needing_backfill",
+            lambda s, limit=None: rows,
+        )
+        run_backfill(session, _make_provider(_make_result()), "prompt", dry_run=False)
+
+    assert session.commit.call_count == 2
+
+
+def test_run_backfill_dry_run_does_not_commit():
+    """session.commit() must not be called in dry_run mode"""
+    from scripts.backfill_tags import run_backfill
+
+    session = MagicMock()
+    rows = [MagicMock(id="art-1", title="T", content="C", analysis_id="an-1")]
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(
+            "scripts.backfill_tags.find_articles_needing_backfill",
+            lambda s, limit=None: rows,
+        )
+        run_backfill(session, _make_provider(_make_result()), "prompt", dry_run=True)
+
+    session.commit.assert_not_called()

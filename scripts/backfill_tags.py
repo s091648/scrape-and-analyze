@@ -109,3 +109,36 @@ def update_analysis(session, analysis_id, result, model_used, dry_run=False):
             "output_tokens": result.output_tokens,
         },
     )
+
+
+def run_backfill(session, provider, prompt, dry_run=False, limit=None):
+    """
+    Main backfill loop.
+
+    Returns dict: {"processed": int, "skipped": int}
+    """
+    rows = find_articles_needing_backfill(session, limit=limit)
+    processed = 0
+    skipped = 0
+
+    for row in rows:
+        article_id  = row.id
+        analysis_id = row.analysis_id
+        logger.info("backfill_start", title=row.title, article_id=str(article_id))
+
+        result = provider.analyze(row.content, prompt)
+        if result is None:
+            logger.error("backfill_llm_failed", title=row.title, article_id=str(article_id))
+            skipped += 1
+            continue
+
+        upsert_tags_for_article(session, article_id, result.tag_groups, dry_run=dry_run)
+        update_analysis(session, analysis_id, result, model_used=provider.model_name, dry_run=dry_run)
+
+        if not dry_run:
+            session.commit()
+
+        logger.info("backfill_done", title=row.title, article_id=str(article_id))
+        processed += 1
+
+    return {"processed": processed, "skipped": skipped}
