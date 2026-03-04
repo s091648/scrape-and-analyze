@@ -239,3 +239,37 @@ def test_delete_user_as_admin_returns_204():
         response = client.delete(f"/auth/users/{uid}",
                                  headers={"Authorization": f"Bearer {admin_token()}"})
     assert response.status_code == 204
+
+
+def _make_creds(token):
+    from fastapi.security import HTTPAuthorizationCredentials
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+def test_require_user_valid_token():
+    from backend.auth import guards
+    from fastapi.security import HTTPAuthorizationCredentials
+    token = make_token(role="user")
+    creds = _make_creds(token)
+    payload = guards.require_user.impl(creds)
+    assert payload["role"] == "user"
+
+
+def test_require_user_accepts_admin():
+    from backend.auth import guards
+    from fastapi.security import HTTPAuthorizationCredentials
+    token = make_token(role="admin")
+    creds = _make_creds(token)
+    payload = guards.require_user.impl(creds)
+    assert payload["role"] == "admin"
+
+
+def test_require_user_rejects_expired():
+    from backend.auth import guards
+    from fastapi import HTTPException
+    from fastapi.security import HTTPAuthorizationCredentials
+    token = make_token(role="user", exp_offset=-1)
+    creds = _make_creds(token)
+    with pytest.raises(HTTPException) as exc:
+        guards.require_user.impl(creds)
+    assert exc.value.status_code == 401
