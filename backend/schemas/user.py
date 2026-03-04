@@ -51,3 +51,27 @@ class GoogleAuthorizeRequest(BaseModel):
     email: EmailStr
     google_id: str
     name: Optional[str] = None
+
+
+class UserProfileOut(BaseModel):
+    id: UUID
+    email: Optional[str] = None
+    name: Optional[str] = None
+    username: Optional[str] = None
+    role: str
+    icon: Optional[str] = None
+    google_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str

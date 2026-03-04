@@ -273,3 +273,200 @@ def test_require_user_rejects_expired():
     with pytest.raises(HTTPException) as exc:
         guards.require_user.impl(creds)
     assert exc.value.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# /auth/me endpoint tests
+# ---------------------------------------------------------------------------
+
+def make_user_token(user_id: str, role: str = "user"):
+    """Make a JWT with a real UUID sub claim."""
+    payload = {"sub": user_id, "role": role, "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, SECRET, algorithm="HS256")
+
+
+def _make_mock_profile_user(user_id=None):
+    """Return a MagicMock resembling a User ORM object with profile fields."""
+    from unittest.mock import MagicMock
+    mock_user = MagicMock()
+    mock_user.id = user_id or uuid.uuid4()
+    mock_user.email = "profile@test.com"
+    mock_user.name = "Profile User"
+    mock_user.username = "profileuser"
+    mock_user.role = "user"
+    mock_user.icon = None
+    mock_user.google_id = None
+    mock_user.created_at = None
+    mock_user.hashed_password = bcrypt.hashpw(b"correctpass", bcrypt.gensalt()).decode()
+    return mock_user
+
+
+def _make_mock_google_user(user_id=None):
+    """Return a MagicMock resembling a Google-only User (no hashed_password)."""
+    from unittest.mock import MagicMock
+    mock_user = MagicMock()
+    mock_user.id = user_id or uuid.uuid4()
+    mock_user.email = "googleonly@test.com"
+    mock_user.name = "Google Only"
+    mock_user.username = None
+    mock_user.role = "user"
+    mock_user.icon = None
+    mock_user.google_id = "google-sub-999"
+    mock_user.created_at = None
+    mock_user.hashed_password = None
+    return mock_user
+
+
+# GET /auth/me
+
+def test_get_me_returns_profile():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "profile@test.com"
+    assert data["username"] == "profileuser"
+    assert data["role"] == "user"
+
+
+def test_get_me_no_token():
+    from backend.main import app
+    client = TestClient(app)
+    response = client.get("/auth/me")
+    # HTTPBearer returns 403 when no credentials are provided (auto_error=True default)
+    # In some FastAPI versions this may be 401 or 403 — accept either
+    assert response.status_code in (401, 403)
+
+
+# PATCH /auth/me
+
+def test_update_me_name():
+    from backend.main import app
+    from backend.database import get_db
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+
+    mock_db = MagicMock()
+
+    def fake_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = fake_get_db
+    try:
+        with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+            response = client.patch(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"name": "Updated Name"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert "role" in response.json()
+
+
+def test_update_me_icon():
+    from backend.main import app
+    from backend.database import get_db
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+
+    mock_db = MagicMock()
+
+    def fake_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = fake_get_db
+    try:
+        with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+            response = client.patch(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"icon": "https://example.com/avatar.png"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert "role" in response.json()
+
+
+# POST /auth/me/password
+
+def test_change_password_success():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.post(
+            "/auth/me/password",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"current_password": "correctpass", "new_password": "newpass123"},
+        )
+    assert response.status_code == 204
+
+
+def test_change_password_wrong_current():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.post(
+            "/auth/me/password",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"current_password": "wrongpass", "new_password": "newpass123"},
+        )
+    assert response.status_code == 400
+
+
+def test_change_password_google_only():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_google_user(user_id=uid)
+    token = make_user_token(str(uid))
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.post(
+            "/auth/me/password",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"current_password": "anything", "new_password": "newpass123"},
+        )
+    assert response.status_code == 400
+
+
+# DELETE /auth/me
+
+def test_delete_me():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    uid = uuid.uuid4()
+    mock_user = _make_mock_profile_user(user_id=uid)
+    token = make_user_token(str(uid))
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user), \
+         patch("backend.routers.auth._delete_user"):
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 204

@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 import bcrypt
 
 from backend.database import get_db
-from backend.auth.guards import require_admin
+from backend.auth.guards import require_admin, require_user
 from backend.schemas.user import (
-    UserOut, RegisterCredentialsRequest, RegisterGoogleRequest,
+    UserOut, UserProfileOut, UserProfileUpdate, PasswordChangeRequest,
+    RegisterCredentialsRequest, RegisterGoogleRequest,
     AdminCreateUserRequest, AdminUpdateUserRequest, GoogleAuthorizeRequest,
 )
 
@@ -191,6 +192,58 @@ def update_user(user_id: UUID, data: AdminUpdateUserRequest,
 @router.delete("/users/{user_id}", status_code=204)
 def delete_user(user_id: UUID, db: Session = Depends(get_db), _=Depends(require_admin)):
     user = _get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    _delete_user(db, user)
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------------------
+# Self-service endpoints (any authenticated user)
+# ---------------------------------------------------------------------------
+
+@router.get("/me", response_model=UserProfileOut)
+def get_me(payload: dict = Depends(require_user), db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@router.patch("/me", response_model=UserProfileOut)
+def update_me(data: UserProfileUpdate, payload: dict = Depends(require_user),
+              db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(user, field, value)
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/me/password", status_code=204)
+def change_password(data: PasswordChangeRequest, payload: dict = Depends(require_user),
+                    db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user or not user.hashed_password:
+        raise HTTPException(status_code=400,
+                            detail="Password change not available for this account")
+    if not bcrypt.checkpw(data.current_password.encode(), user.hashed_password.encode()):
+        raise HTTPException(status_code=400, detail="Current password incorrect")
+    user.hashed_password = bcrypt.hashpw(
+        data.new_password.encode(), bcrypt.gensalt()
+    ).decode()
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/me", status_code=204)
+def delete_me(payload: dict = Depends(require_user), db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     _delete_user(db, user)
