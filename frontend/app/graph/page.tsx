@@ -23,10 +23,10 @@ export default function GraphPage() {
               <Lock className="h-6 w-6 text-muted-foreground" />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="text-sm font-medium">知識圖譜需要登入才能查看</p>
+              <p className="text-sm font-medium">Sign in to explore the Knowledge Graph</p>
               <p className="text-sm text-muted-foreground">
-                <Link href="/login" className="font-medium text-primary underline underline-offset-4">登入</Link>
-                {' '}後即可探索完整內容
+                <Link href="/login" className="font-medium text-primary underline underline-offset-4">Sign in</Link>
+                {' '}to access the full visualization
               </p>
             </div>
           </div>

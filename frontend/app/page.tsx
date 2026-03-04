@@ -15,7 +15,7 @@ interface Article {
   published_at: string | null; scraped_at: string | null; url: string
 }
 
-const GUEST_LIMIT = 5
+const GUEST_LIMIT = 6
 
 export default function HomePage() {
   const { status } = useSession()
@@ -77,10 +77,10 @@ export default function HomePage() {
               <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="text-sm font-medium">還有更多文章等你發掘</p>
+              <p className="text-sm font-medium">There&apos;s more to explore</p>
               <p className="text-sm text-muted-foreground">
-                <Link href="/login" className="font-medium text-primary underline underline-offset-4">登入</Link>
-                {' '}後即可瀏覽完整內容
+                <Link href="/login" className="font-medium text-primary underline underline-offset-4">Sign in</Link>
+                {' '}to read more articles
               </p>
             </div>
           </div>
