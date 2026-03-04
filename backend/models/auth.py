@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean, text
+from sqlalchemy import Column, String, Text, DateTime, Boolean, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
@@ -23,7 +23,7 @@ class User(AuthBase):
 
     # Google OAuth
     google_id = Column(String(255), unique=True, nullable=True)
-    icon = Column(String, nullable=True)
+    icon = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True),
