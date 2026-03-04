@@ -13,5 +13,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    env: {
+      NEXTAUTH_SECRET: 'test-secret',
+    },
   },
 })
