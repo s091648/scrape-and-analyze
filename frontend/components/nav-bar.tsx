@@ -1,8 +1,10 @@
 'use client'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Rss, Settings } from 'lucide-react'
+import { apiFetch } from '@/lib/api-fetch'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -12,6 +14,15 @@ function initials(name: string | null | undefined): string {
 export function NavBar() {
   const { data: session } = useSession()
   const userName = session?.user?.name ?? (session?.user as any)?.username ?? session?.user?.email ?? ''
+  const [userIcon, setUserIcon] = useState<string | null>(null)
+  const token = (session as any)?.accessToken
+
+  useEffect(() => {
+    if (!token) { setUserIcon(null); return }
+    apiFetch('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(profile => setUserIcon(profile?.icon ?? null))
+  }, [token])
 
   return (
     <header className="fixed left-0 top-0 right-0 z-50 w-full border-b border-border bg-background">
@@ -42,9 +53,13 @@ export function NavBar() {
           {session ? (
             <>
               <div className="flex items-center gap-2.5">
-                <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold select-none">
-                  {initials(userName)}
-                </div>
+                {userIcon ? (
+                  <img src={userIcon} className="h-7 w-7 rounded-full object-cover" alt="" />
+                ) : (
+                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold select-none">
+                    {initials(userName)}
+                  </div>
+                )}
                 <span className="text-sm font-medium max-w-[120px] truncate">{userName}</span>
               </div>
               <Button

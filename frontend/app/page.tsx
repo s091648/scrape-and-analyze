@@ -1,19 +1,25 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { apiFetch } from '@/lib/api-fetch'
 import { ArticleCard } from '@/components/article-card'
 import { FilterBar } from '@/components/filter-bar'
 import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Newspaper } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Newspaper, Lock } from 'lucide-react'
 
 interface Article {
   id: string; title: string; source: string; content: string
   published_at: string | null; scraped_at: string | null; url: string
 }
 
+const GUEST_LIMIT = 5
+
 export default function HomePage() {
+  const { status } = useSession()
+  const isGuest = status === 'unauthenticated'
   const searchParams = useSearchParams()
   const {
     page, sort, order, setPage, setFilters,
@@ -59,12 +65,30 @@ export default function HomePage() {
       />
 
       {/* Grid */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {articles.map(a => <ArticleCard key={a.id} {...a} />)}
+      <div className="relative">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {(isGuest ? articles.slice(0, GUEST_LIMIT) : articles).map(a => <ArticleCard key={a.id} {...a} />)}
+        </div>
+
+        {/* Guest paywall overlay */}
+        {isGuest && articles.length > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-10 gap-4">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full border border-border bg-background shadow-sm">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-medium">還有更多文章等你發掘</p>
+              <p className="text-sm text-muted-foreground">
+                <Link href="/login" className="font-medium text-primary underline underline-offset-4">登入</Link>
+                {' '}後即可瀏覽完整內容
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination — hidden for guests */}
+      {!isGuest && totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 pt-4 border-t border-border">
           <Button
             variant="outline"
