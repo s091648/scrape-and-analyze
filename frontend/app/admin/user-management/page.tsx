@@ -27,7 +27,7 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState('')
 
   if (status === 'unauthenticated') redirect('/login')
-  if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/')
+  if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
 
   const token = (session as any)?.accessToken
 
@@ -85,10 +85,10 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Users</h1>
+          <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage user accounts and roles</p>
         </div>
         <Button onClick={() => setCreating(!creating)} variant={creating ? 'outline' : 'default'}>
