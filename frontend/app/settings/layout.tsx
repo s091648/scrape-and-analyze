@@ -13,7 +13,7 @@ const adminItems = [
   { href: '/admin/user-management', label: 'User Management' },
 ]
 
-export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+export function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session, status } = useSession()
 
@@ -70,3 +70,5 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     </div>
   )
 }
+
+export default SettingsLayout

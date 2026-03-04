@@ -2,11 +2,16 @@
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Rss } from 'lucide-react'
+import { Rss, Settings } from 'lucide-react'
+
+function initials(name: string | null | undefined): string {
+  if (!name) return '?'
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
 
 export function NavBar() {
   const { data: session } = useSession()
-  const isAdmin = (session?.user as any)?.role === 'admin'
+  const userName = session?.user?.name ?? (session?.user as any)?.username ?? session?.user?.email ?? ''
 
   return (
     <header className="fixed left-0 top-0 right-0 z-50 w-full border-b border-border bg-background">
@@ -15,52 +20,44 @@ export function NavBar() {
           <Rss className="h-4 w-4 text-primary" />
           Scrape Analyzer
         </Link>
-        <div className="flex items-center gap-6 flex-1">
-          <Link
-            href="/"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-          >
+
+        {/* Left nav */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
             Articles
           </Link>
-          <Link
-            href="/graph"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-          >
+          <Link href="/graph" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
             Knowledge Graph
           </Link>
-          {isAdmin && (
-            <>
-              <Link
-                href="/admin/scraper-settings"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-              >
-                Settings
-              </Link>
-              <Link
-                href="/admin/users"
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-              >
-                Users
-              </Link>
-            </>
-          )}
         </div>
-        <div className="ml-auto shrink-0">
+
+        {/* Right nav */}
+        <div className="ml-auto flex items-center gap-4 shrink-0">
+          {session && (
+            <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">
+              <Settings size={20} />
+            </Link>
+          )}
+
           {session ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => signOut()}
-              className="rounded-full h-8 px-4 text-sm font-medium"
-            >
-              Logout
-            </Button>
+            <>
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold select-none">
+                  {initials(userName)}
+                </div>
+                <span className="text-sm font-medium max-w-[120px] truncate">{userName}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => signOut()}
+                className="rounded-full h-8 px-4 text-sm font-medium"
+              >
+                Logout
+              </Button>
+            </>
           ) : (
-            <Button
-              asChild
-              size="sm"
-              className="rounded-full h-8 px-4 text-sm font-medium"
-            >
+            <Button asChild size="sm" className="rounded-full h-8 px-4 text-sm font-medium">
               <Link href="/login">Login</Link>
             </Button>
           )}
