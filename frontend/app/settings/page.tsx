@@ -12,6 +12,7 @@ interface Profile {
   icon: string | null
   role: string
   google_id: string | null
+  username: string | null
 }
 
 async function resizeToBase64(file: File): Promise<string> {
@@ -166,7 +167,8 @@ export default function SettingsPage() {
       setProfile(prev => prev ? { ...prev, google_id: null } : prev)
       setLinkMsg({ ok: true, text: 'Google account unlinked.' })
     } else {
-      setLinkMsg({ ok: false, text: 'Failed to unlink.' })
+      const data = await res.json().catch(() => ({}))
+      setLinkMsg({ ok: false, text: data?.detail ?? 'Failed to unlink.' })
     }
   }
 
@@ -284,7 +286,7 @@ export default function SettingsPage() {
             </Button>
           )}
 
-          {profile?.google_id && (
+          {profile?.google_id && profile.username && (
             <Button
               variant="outline"
               size="sm"
