@@ -75,3 +75,7 @@ class UserProfileUpdate(BaseModel):
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str
+
+
+class LinkGoogleRequest(BaseModel):
+    google_id: str

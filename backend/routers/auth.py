@@ -12,6 +12,7 @@ from backend.schemas.user import (
     UserOut, UserProfileOut, UserProfileUpdate, PasswordChangeRequest,
     RegisterCredentialsRequest, RegisterGoogleRequest,
     AdminCreateUserRequest, AdminUpdateUserRequest, GoogleAuthorizeRequest,
+    LinkGoogleRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -249,4 +250,32 @@ def delete_me(payload: dict = Depends(require_user), db: Session = Depends(get_d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     _delete_user(db, user)
+    return Response(status_code=204)
+
+
+@router.post("/me/link-google", status_code=204)
+def link_google(data: LinkGoogleRequest, payload: dict = Depends(require_user),
+                db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.google_id:
+        raise HTTPException(status_code=400, detail="Google account already linked")
+    if _get_user_by_google_id(db, data.google_id):
+        raise HTTPException(status_code=409, detail="Google account already in use")
+    _update_google_id(db, user, data.google_id)
+    return Response(status_code=204)
+
+
+@router.delete("/me/link-google", status_code=204)
+def unlink_google(payload: dict = Depends(require_user), db: Session = Depends(get_db)):
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.username:
+        raise HTTPException(status_code=400,
+                            detail="Cannot unlink Google from a Google-only account")
+    user.google_id = None
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
     return Response(status_code=204)

@@ -492,3 +492,109 @@ def test_delete_me():
             headers={"Authorization": f"Bearer {token}"},
         )
     assert response.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# /auth/me/link-google endpoint tests
+# ---------------------------------------------------------------------------
+
+def test_link_google_success():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    user_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.google_id = None
+    mock_user.username = "alice"
+    mock_user.name = "Alice"
+    mock_user.email = "alice@test.com"
+    mock_user.role = "user"
+    mock_user.is_allowed = True
+    mock_user.icon = None
+    mock_user.created_at = None
+    token = make_user_token(str(user_id), role="user")
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user), \
+         patch("backend.routers.auth._get_user_by_google_id", return_value=None), \
+         patch("backend.routers.auth._update_google_id"):
+        response = client.post(
+            "/auth/me/link-google",
+            json={"google_id": "new-google-sub"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 204
+
+
+def test_link_google_already_linked_returns_400():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    user_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.google_id = "existing-sub"
+    token = make_user_token(str(user_id), role="user")
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.post(
+            "/auth/me/link-google",
+            json={"google_id": "new-sub"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 400
+
+
+def test_link_google_id_taken_returns_409():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    user_id = uuid.uuid4()
+    current_user = MagicMock()
+    current_user.id = user_id
+    current_user.google_id = None
+    other_user = MagicMock()
+    other_user.id = uuid.uuid4()
+    token = make_user_token(str(user_id), role="user")
+    with patch("backend.routers.auth._get_user_by_id", return_value=current_user), \
+         patch("backend.routers.auth._get_user_by_google_id", return_value=other_user):
+        response = client.post(
+            "/auth/me/link-google",
+            json={"google_id": "taken-sub"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 409
+
+
+def test_unlink_google_success():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    user_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.google_id = "some-sub"
+    mock_user.username = "alice"  # has username — safe to unlink
+    token = make_user_token(str(user_id), role="user")
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.delete(
+            "/auth/me/link-google",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 204
+
+
+def test_unlink_google_no_username_returns_400():
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    user_id = uuid.uuid4()
+    mock_user = MagicMock()
+    mock_user.id = user_id
+    mock_user.google_id = "some-sub"
+    mock_user.username = None  # Google-only account — would be locked out
+    token = make_user_token(str(user_id), role="user")
+    with patch("backend.routers.auth._get_user_by_id", return_value=mock_user):
+        response = client.delete(
+            "/auth/me/link-google",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 400
