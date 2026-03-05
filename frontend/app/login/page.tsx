@@ -25,6 +25,7 @@ export default function LoginPage() {
 
   const notRegistered = authError === 'not_registered'
   const disabled = authError === 'account_disabled'
+  const linkRequired = authError === 'link_required'
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4">
@@ -38,7 +39,7 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-          {(error || notRegistered || disabled) && (
+          {(error || notRegistered || disabled || linkRequired) && (
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive space-y-2">
               {error && <p>{error}</p>}
               {disabled && <p>Your account has been disabled. Contact an admin.</p>}
@@ -49,6 +50,13 @@ export default function LoginPage() {
                     Create an account →
                   </Link>
                 </div>
+              )}
+              {linkRequired && (
+                <p>
+                  This email is already registered. Sign in with your username and password,
+                  then link Google in{' '}
+                  <Link href="/settings" className="underline font-medium">Settings</Link>.
+                </p>
               )}
             </div>
           )}
