@@ -131,6 +131,7 @@ def test_register_duplicate_email_returns_409():
 
 
 def test_google_authorize_known_user_returns_200():
+    """Email exists and google_id already set — sign in succeeds."""
     from backend.main import app
     from unittest.mock import patch, MagicMock
     client = TestClient(app)
@@ -141,16 +142,37 @@ def test_google_authorize_known_user_returns_200():
     mock_user.username = None
     mock_user.role = "user"
     mock_user.is_allowed = True
-    mock_user.google_id = None
+    mock_user.google_id = "sub-abc"   # already linked
     mock_user.created_at = None
     mock_user.updated_at = None
-    with patch("backend.routers.auth._get_user_by_email", return_value=mock_user), \
-         patch("backend.routers.auth._update_google_id"):
+    with patch("backend.routers.auth._get_user_by_email", return_value=mock_user):
         response = client.post("/auth/google/authorize", json={
             "email": "known@test.com", "google_id": "sub-abc", "name": "Known"
         })
     assert response.status_code == 200
     assert response.json()["role"] == "user"
+
+
+def test_google_authorize_unlinked_email_returns_409():
+    """Email exists but has no google_id — must not auto-link, return 409."""
+    from backend.main import app
+    from unittest.mock import patch, MagicMock
+    client = TestClient(app)
+    mock_user = MagicMock()
+    mock_user.id = uuid.uuid4()
+    mock_user.email = "creds@test.com"
+    mock_user.name = "Creds User"
+    mock_user.username = "credsuser"
+    mock_user.role = "user"
+    mock_user.is_allowed = True
+    mock_user.google_id = None      # <-- no google_id linked yet
+    mock_user.created_at = None
+    mock_user.updated_at = None
+    with patch("backend.routers.auth._get_user_by_email", return_value=mock_user):
+        response = client.post("/auth/google/authorize", json={
+            "email": "creds@test.com", "google_id": "new-sub-456", "name": "Creds User"
+        })
+    assert response.status_code == 409
 
 
 def test_google_authorize_unknown_user_returns_404():

@@ -146,7 +146,7 @@ def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db)
     if not user.is_allowed:
         raise HTTPException(status_code=403, detail="Account disabled")
     if not user.google_id:
-        _update_google_id(db, user, data.google_id)
+        raise HTTPException(status_code=409, detail="Google account not linked")
     return user
 
 
@@ -228,7 +228,9 @@ def update_me(data: UserProfileUpdate, payload: dict = Depends(require_user),
 def change_password(data: PasswordChangeRequest, payload: dict = Depends(require_user),
                     db: Session = Depends(get_db)):
     user = _get_user_by_id(db, UUID(payload["sub"]))
-    if not user or not user.hashed_password:
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.hashed_password:
         raise HTTPException(status_code=400,
                             detail="Password change not available for this account")
     if not bcrypt.checkpw(data.current_password.encode(), user.hashed_password.encode()):
