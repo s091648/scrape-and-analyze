@@ -50,8 +50,12 @@ def upgrade() -> None:
         schema='auth'
     )
 
+    # Icon (merged from 07_add_user_icon)
+    op.add_column('users', sa.Column('icon', sa.Text(), nullable=True), schema='auth')
+
 
 def downgrade() -> None:
+    op.drop_column('users', 'icon', schema='auth')
     op.drop_constraint('chk_credentials_complete', 'users', schema='auth', type_='check')
     op.drop_constraint('chk_has_identifier', 'users', schema='auth', type_='check')
     op.drop_constraint('uq_users_google_id', 'users', schema='auth', type_='unique')
