@@ -1,9 +1,12 @@
 import NextAuth, { type NextAuthOptions } from 'next-auth'
+import type { Account, Profile, Session, User } from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { SignJWT } from 'jose'
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+// Server-side only: uses Docker/Railway internal hostname (not accessible from browser)
+const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 const SECRET = process.env.NEXTAUTH_SECRET!
 
 async function makeAccessToken(payload: Record<string, unknown>): Promise<string> {
@@ -61,7 +64,7 @@ export const authConfig: NextAuthOptions = {
   session: { strategy: 'jwt' },
 
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account }: { user: User; account: Account | null; profile?: Profile }) {
       if (account?.provider === 'google-login') {
         try {
           const res = await fetch(`${BACKEND_URL}/auth/google/authorize`, {
@@ -75,6 +78,7 @@ export const authConfig: NextAuthOptions = {
           })
           if (res.status === 404) return '/login?error=not_registered'
           if (res.status === 403) return '/login?error=account_disabled'
+          if (res.status === 409) return '/login?error=link_required'
           if (!res.ok) return false
           const dbUser = await res.json()
           user.id = dbUser.id
@@ -111,7 +115,7 @@ export const authConfig: NextAuthOptions = {
       return true
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: JWT; user?: User }) {
       if (user) {
         token.userId = user.id
         token.role = (user as any).role
@@ -119,7 +123,7 @@ export const authConfig: NextAuthOptions = {
       return token
     },
 
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         (session.user as any).role = token.role
         ;(session.user as any).id = token.userId
@@ -137,4 +141,4 @@ export const authConfig: NextAuthOptions = {
   pages: { signIn: '/login' },
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig)
+export default NextAuth(authConfig)
