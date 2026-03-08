@@ -22,3 +22,6 @@ bcrypt>=4.0
 
 # Optional
 sentry-sdk
+
+# PDF parsing
+pymupdf>=1.24
