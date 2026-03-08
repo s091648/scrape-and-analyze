@@ -19,9 +19,9 @@ if SENTRY_DSN:
         traces_sample_rate=0.1,
     )
 from src.database import get_session, has_analysis, init_db
-from src.scrapers.rss_scraper import RssScraper
-from src.scrapers.arxiv_scraper import ArxivScraper
-from src.scrapers.blog_scraper import BlogScraper
+from src.scrapers.scrapers.rss_scraper import RssScraper
+from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+from src.scrapers.scrapers.blog_scraper import BlogScraper
 from src.models.article import Article
 from src.models.analysis import Analysis
 from src.models.failed_task import FailedTask
@@ -40,7 +40,8 @@ _shutdown_requested = False
 def build_analyzer():
     """Build a ProviderChain from providers.toml (lazy imports per provider SDK)."""
     from src.analyzers.provider_chain import ProviderChain, ProviderHandler
-    from src.analyzers.request_strategy import LeakyBucketStrategy, NoOpStrategy
+    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analyzers.strategies.no_op_strategy import NoOpStrategy
     from src.config import load_providers
 
     handlers = []
@@ -51,10 +52,10 @@ def build_analyzer():
 
         # Instantiate provider
         if name == 'gemini':
-            from src.analyzers.gemini import GeminiProvider
+            from src.analyzers.providers.gemini import GeminiProvider
             provider = GeminiProvider(api_key=api_key, model=model)
         elif name == 'openrouter':
-            from src.analyzers.openrouter import OpenRouterProvider
+            from src.analyzers.providers.openrouter import OpenRouterProvider
             provider = OpenRouterProvider(api_key=api_key, model=model)
         else:
             logger.warning("unknown_provider_skipped", name=name)

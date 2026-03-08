@@ -5,7 +5,7 @@ from urllib.robotparser import RobotFileParser
 
 def test_blog_scraper_extracts_article_links():
     """BlogScraper should extract article links from listing page"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -33,7 +33,7 @@ def test_blog_scraper_extracts_article_links():
 
 def test_blog_scraper_extracts_content():
     """BlogScraper should extract title and content with selectors"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -60,7 +60,7 @@ def test_blog_scraper_extracts_content():
 @responses.activate
 def test_blog_scraper_checks_robots_txt():
     """BlogScraper should check robots.txt before scraping"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     robots_content = """
     User-agent: *
@@ -88,7 +88,7 @@ def test_blog_scraper_checks_robots_txt():
 @responses.activate
 def test_blog_scraper_handles_missing_robots_txt():
     """BlogScraper should allow scraping when robots.txt is missing"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     responses.add(
         responses.GET,
@@ -108,7 +108,7 @@ def test_blog_scraper_handles_missing_robots_txt():
 
 def test_blog_scraper_removes_nav_footer_from_content():
     """BlogScraper should exclude nav and footer from extracted content"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -139,7 +139,7 @@ def test_blog_scraper_removes_nav_footer_from_content():
 
 def test_blog_scraper_handles_missing_content():
     """BlogScraper should handle pages with missing content selector"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -162,7 +162,7 @@ def test_blog_scraper_handles_missing_content():
 
 def test_blog_scraper_converts_relative_links():
     """BlogScraper should convert relative links to absolute URLs"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -189,7 +189,7 @@ def test_blog_scraper_converts_relative_links():
 @responses.activate
 def test_blog_scraper_respects_rate_limit():
     """BlogScraper should wait between requests"""
-    from src.scrapers.blog_scraper import BlogScraper
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
     from unittest.mock import patch
     import time
 

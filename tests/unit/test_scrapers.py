@@ -3,7 +3,7 @@ import pytest
 
 def test_base_scraper_is_abstract():
     """BaseScraper should be abstract and cannot be instantiated"""
-    from src.scrapers.base import BaseScraper
+    from src.scrapers.scrapers.base_scraper import BaseScraper
 
     with pytest.raises(TypeError):
         BaseScraper()
@@ -11,7 +11,7 @@ def test_base_scraper_is_abstract():
 
 def test_base_scraper_requires_scrape_method():
     """Subclass must implement scrape() method"""
-    from src.scrapers.base import BaseScraper
+    from src.scrapers.scrapers.base_scraper import BaseScraper
 
     class IncompleteScraper(BaseScraper):
         pass
@@ -22,7 +22,7 @@ def test_base_scraper_requires_scrape_method():
 
 def test_scraped_article_dataclass_has_fields():
     """ScrapedArticle should have required fields"""
-    from src.scrapers.base import ScrapedArticle
+    from src.scrapers.scrapers.base_scraper import ScrapedArticle
 
     article = ScrapedArticle(
         url="https://example.com",

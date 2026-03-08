@@ -5,7 +5,7 @@ import responses
 @responses.activate
 def test_rss_scraper_parses_feed():
     """RssScraper should parse RSS feed entries"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     rss_content = '''<?xml version="1.0"?>
     <rss version="2.0">
@@ -43,7 +43,7 @@ def test_rss_scraper_parses_feed():
 
 def test_rss_scraper_matches_keywords():
     """RssScraper should match Digital Twins keywords"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     scraper = RssScraper(url="https://example.com/feed", source="test")
 
@@ -56,7 +56,7 @@ def test_rss_scraper_matches_keywords():
 @responses.activate
 def test_rss_scraper_handles_network_error():
     """RssScraper should handle network errors gracefully"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     responses.add(
         responses.GET,
@@ -73,7 +73,7 @@ def test_rss_scraper_handles_network_error():
 @responses.activate
 def test_rss_scraper_handles_500_error():
     """RssScraper should handle HTTP 500 errors gracefully"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     responses.add(
         responses.GET,
@@ -90,7 +90,7 @@ def test_rss_scraper_handles_500_error():
 @responses.activate
 def test_rss_scraper_handles_malformed_xml():
     """RssScraper should handle malformed XML gracefully"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     responses.add(
         responses.GET,
@@ -108,7 +108,7 @@ def test_rss_scraper_handles_malformed_xml():
 @responses.activate
 def test_rss_scraper_handles_empty_feed():
     """RssScraper should handle empty feed"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     rss_content = '''<?xml version="1.0"?>
     <rss version="2.0">
@@ -133,7 +133,7 @@ def test_rss_scraper_handles_empty_feed():
 @responses.activate
 def test_rss_scraper_extracts_all_fields():
     """RssScraper should extract title, link, description, pubDate"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     rss_content = '''<?xml version="1.0"?>
     <rss version="2.0">
@@ -167,7 +167,7 @@ def test_rss_scraper_extracts_all_fields():
 
 def test_keyword_matching_case_insensitive():
     """Keyword matching should be case insensitive"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     scraper = RssScraper(url="https://example.com/feed", source="test")
 
@@ -178,7 +178,7 @@ def test_keyword_matching_case_insensitive():
 
 def test_keyword_matching_partial_match():
     """Keyword matching should work with surrounding text"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     scraper = RssScraper(url="https://example.com/feed", source="test")
 
@@ -188,7 +188,7 @@ def test_keyword_matching_partial_match():
 
 def test_keyword_matching_rejects_unrelated():
     """Keyword matching should reject unrelated content"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     scraper = RssScraper(url="https://example.com/feed", source="test")
 
@@ -199,7 +199,7 @@ def test_keyword_matching_rejects_unrelated():
 
 def test_keyword_matching_cyber_physical():
     """Keyword matching should match cyber-physical variants"""
-    from src.scrapers.rss_scraper import RssScraper
+    from src.scrapers.scrapers.rss_scraper import RssScraper
 
     scraper = RssScraper(url="https://example.com/feed", source="test")
 

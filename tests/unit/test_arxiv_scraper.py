@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 def test_arxiv_scraper_builds_query():
     """ArxivScraper should build correct search query"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 
     scraper = ArxivScraper()
     query = scraper._build_query()
@@ -16,7 +16,7 @@ def test_arxiv_scraper_builds_query():
 @responses.activate
 def test_arxiv_scraper_parses_atom_response():
     """ArxivScraper should parse Atom XML response"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 
     recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -49,7 +49,7 @@ def test_arxiv_scraper_parses_atom_response():
 
 def test_arxiv_scraper_respects_max_results():
     """ArxivScraper should respect max_results limit"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 
     scraper = ArxivScraper(max_results=50)
     assert scraper.max_results == 50
@@ -61,7 +61,7 @@ def test_arxiv_scraper_respects_max_results():
 @responses.activate
 def test_arxiv_scraper_handles_empty_response():
     """ArxivScraper should handle empty response gracefully"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 
     atom_response = '''<?xml version="1.0" encoding="UTF-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
@@ -83,7 +83,7 @@ def test_arxiv_scraper_handles_empty_response():
 @responses.activate
 def test_arxiv_scraper_handles_api_error():
     """ArxivScraper should handle API errors gracefully"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 
     responses.add(
         responses.GET,
@@ -100,7 +100,7 @@ def test_arxiv_scraper_handles_api_error():
 @responses.activate
 def test_arxiv_scraper_extracts_authors():
     """ArxivScraper should extract multiple authors"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
     from datetime import datetime, timedelta, timezone
 
     recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -136,7 +136,7 @@ def test_arxiv_scraper_extracts_authors():
 @responses.activate
 def test_arxiv_scraper_filters_old_papers():
     """ArxivScraper should filter papers older than days_back"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
     from datetime import datetime, timedelta, timezone
 
     old_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
@@ -168,7 +168,7 @@ def test_arxiv_scraper_filters_old_papers():
 @responses.activate
 def test_arxiv_scraper_handles_missing_fields():
     """ArxivScraper should handle entries with missing optional fields"""
-    from src.scrapers.arxiv_scraper import ArxivScraper
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
     from datetime import datetime, timedelta, timezone
 
     recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
