@@ -1,0 +1,23 @@
+[[providers]]
+name = "gemini"
+priority = 1
+model = "gemini-2.0-flash"
+api_key_env = "GEMINI_API_KEY"
+
+[providers.strategy]
+type = "leaky_bucket"
+rpm = 5
+tpm = 250000
+rpd = 20
+
+[[providers]]
+name = "openrouter"
+priority = 2
+model = "deepseek/deepseek-chat"
+api_key_env = "OPENROUTER_API_KEY"
+
+[providers.strategy]
+type = "leaky_bucket"
+rpm = 20
+tpm = 100000
+rpd = 200

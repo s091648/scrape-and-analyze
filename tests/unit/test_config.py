@@ -112,3 +112,51 @@ def test_validate_config_passes_with_all_required():
         'LLM_API_KEY': 'sk-test-key'
     }):
         validate_config()
+
+
+def test_load_providers_returns_list():
+    from src.config import load_providers
+    providers = load_providers()
+    assert isinstance(providers, list)
+    assert len(providers) >= 1
+
+
+def test_load_providers_sorted_by_priority():
+    from src.config import load_providers
+    providers = load_providers()
+    priorities = [p['priority'] for p in providers]
+    assert priorities == sorted(priorities)
+
+
+def test_load_providers_required_keys():
+    from src.config import load_providers
+    for p in load_providers():
+        assert 'name' in p
+        assert 'priority' in p
+        assert 'model' in p
+        assert 'api_key_env' in p
+        assert 'strategy' in p
+        assert 'type' in p['strategy']
+
+
+def test_load_providers_custom_path(tmp_path):
+    import tomllib
+    from src.config import load_providers
+
+    toml_content = """
+[[providers]]
+name = "test"
+priority = 1
+model = "test-model"
+api_key_env = "TEST_API_KEY"
+
+[providers.strategy]
+type = "noop"
+"""
+    p = tmp_path / "providers.toml"
+    p.write_text(toml_content)
+
+    providers = load_providers(path=str(p))
+    assert len(providers) == 1
+    assert providers[0]['name'] == 'test'
+    assert providers[0]['strategy']['type'] == 'noop'

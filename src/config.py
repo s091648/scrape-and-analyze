@@ -1,5 +1,6 @@
 import os
 import structlog
+import tomllib
 from typing import List, Dict, Any
 
 logger = structlog.get_logger(__name__)
@@ -67,3 +68,13 @@ def validate_config() -> None:
 
     if errors:
         raise ValueError(f"Configuration errors: {', '.join(errors)}")
+
+
+def load_providers(path: str = None) -> List[Dict[str, Any]]:
+    """Load provider definitions from providers.toml (sorted by priority)."""
+    if path is None:
+        path = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), 'providers.toml')
+    with open(path, 'rb') as f:
+        data = tomllib.load(f)
+    providers = data.get('providers', [])
+    return sorted(providers, key=lambda p: p['priority'])
