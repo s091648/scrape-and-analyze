@@ -196,3 +196,73 @@ def test_arxiv_scraper_handles_missing_fields():
     assert len(articles) == 1
     assert articles[0].title == "Minimal Entry"
     assert articles[0].content == ""
+
+
+@responses.activate
+def test_arxiv_scraper_stores_pdf_full_text_in_content():
+    """When PDF download succeeds, content should be full text, abstract in metadata."""
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+    from datetime import datetime, timedelta, timezone
+
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    paper_id = '2401.00001'
+
+    atom_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/{paper_id}v1</id>
+        <title>Digital Twins Paper</title>
+        <summary>Short abstract text.</summary>
+        <published>{recent_date}</published>
+        <link href="http://arxiv.org/abs/{paper_id}v1" rel="alternate" type="text/html"/>
+      </entry>
+    </feed>'''
+
+    responses.add(responses.GET, 'http://export.arxiv.org/api/query', body=atom_response, status=200)
+    responses.add(responses.GET, f'https://arxiv.org/pdf/{paper_id}v1', body=b'%PDF-1.4 fake', status=200)
+
+    scraper = ArxivScraper(fetch_pdf=True)
+    articles = scraper.scrape()
+
+    assert len(articles) == 1
+    assert articles[0].metadata.get('abstract') == 'Short abstract text.'
+    assert articles[0].metadata.get('pdf_available') is not None
+
+
+@responses.activate
+def test_arxiv_scraper_falls_back_to_abstract_when_pdf_fails():
+    """When PDF download fails, content should be the original abstract."""
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+    from datetime import datetime, timedelta, timezone
+
+    recent_date = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    paper_id = '2401.00002'
+
+    atom_response = f'''<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/{paper_id}v1</id>
+        <title>Another Paper</title>
+        <summary>Fallback abstract.</summary>
+        <published>{recent_date}</published>
+        <link href="http://arxiv.org/abs/{paper_id}v1" rel="alternate" type="text/html"/>
+      </entry>
+    </feed>'''
+
+    responses.add(responses.GET, 'http://export.arxiv.org/api/query', body=atom_response, status=200)
+    responses.add(responses.GET, f'https://arxiv.org/pdf/{paper_id}v1', status=404)
+
+    scraper = ArxivScraper(fetch_pdf=True)
+    articles = scraper.scrape()
+
+    assert len(articles) == 1
+    assert articles[0].content == 'Fallback abstract.'
+    assert articles[0].metadata.get('pdf_available') is False
+
+
+def test_arxiv_scraper_fetch_pdf_disabled_by_default():
+    """fetch_pdf=False (default) preserves existing behaviour."""
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+
+    scraper = ArxivScraper()
+    assert scraper.fetch_pdf is False
