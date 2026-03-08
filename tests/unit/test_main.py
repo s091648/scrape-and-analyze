@@ -52,9 +52,10 @@ def test_check_timeout_returns_false_when_not_exceeded():
     assert check_timeout(start_time) is False
 
 
+@patch('src.main.get_sources', return_value=[{'url': 'http://example.com', 'source': 'test'}])
 @patch('src.main.get_session')
 @patch('src.main.RssScraper')
-def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session):
+def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session, mock_get_sources):
     """run_daily_scrape should use RSS sources"""
     import time
 

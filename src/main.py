@@ -9,7 +9,9 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import RSS_SOURCES, BLOG_SOURCES, LLM_API_KEY, LLM_MODEL, LLM_PROVIDER, SENTRY_DSN
+from src.config import get_sources, load_providers, LLM_API_KEY, LLM_MODEL, LLM_PROVIDER, SENTRY_DSN
+from src.analyzers.providers.gemini import GeminiProvider
+from src.analyzers.providers.openrouter import OpenRouterProvider
 
 # Initialize Sentry if configured
 if SENTRY_DSN:
@@ -43,7 +45,6 @@ def build_analyzer():
     from src.analyzers.provider_chain import ProviderChain, ProviderHandler
     from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
     from src.analyzers.strategies.no_op_strategy import NoOpStrategy
-    from src.config import load_providers
 
     handlers = []
     for cfg in load_providers():
@@ -53,10 +54,8 @@ def build_analyzer():
 
         # Instantiate provider
         if name == 'gemini':
-            from src.analyzers.providers.gemini import GeminiProvider
             provider = GeminiProvider(api_key=api_key, model=model)
         elif name == 'openrouter':
-            from src.analyzers.providers.openrouter import OpenRouterProvider
             provider = OpenRouterProvider(api_key=api_key, model=model)
         else:
             logger.warning("unknown_provider_skipped", name=name)
@@ -252,7 +251,7 @@ def run_daily_scrape(start_time: float):
 
     all_articles = []
 
-    for source_config in RSS_SOURCES:
+    for source_config in get_sources('daily'):
         if _shutdown_requested or check_timeout(start_time):
             break
         scraper = RssScraper(url=source_config['url'], source=source_config['source'])
@@ -310,7 +309,7 @@ def run_weekly_scrape(start_time: float):
 
     all_articles = []
 
-    for source_config in BLOG_SOURCES:
+    for source_config in get_sources('weekly'):
         if _shutdown_requested or check_timeout(start_time):
             break
         scraper = BlogScraper(

@@ -73,7 +73,7 @@ def validate_config() -> None:
 def load_providers(path: str = None) -> List[Dict[str, Any]]:
     """Load provider definitions from providers.toml (sorted by priority)."""
     if path is None:
-        path = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), 'providers.toml')
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'providers.toml')
     with open(path, 'rb') as f:
         data = tomllib.load(f)
     providers = data.get('providers', [])
