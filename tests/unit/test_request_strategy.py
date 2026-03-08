@@ -126,3 +126,19 @@ def test_leaky_bucket_cleans_stale_rpm_entries():
 
     # Stale entry should have been evicted; only the new one remains
     assert len(s._rpm_window) == 1
+
+
+def test_leaky_bucket_raises_when_daily_cap_hit():
+    from src.analyzers.request_strategy import LeakyBucketStrategy, RateLimitExhausted
+    s = LeakyBucketStrategy(rpm=100, tpm=1_000_000, rpd=3)
+    s._daily_count = 3  # simulate cap already reached
+    with pytest.raises(RateLimitExhausted, match="Daily request limit"):
+        s.acquire(estimated_tokens=100)
+
+
+def test_leaky_bucket_daily_count_increments_on_acquire():
+    from src.analyzers.request_strategy import LeakyBucketStrategy
+    s = LeakyBucketStrategy(rpm=100, tpm=1_000_000, rpd=20)
+    assert s._daily_count == 0
+    s.acquire(estimated_tokens=100)
+    assert s._daily_count == 1
