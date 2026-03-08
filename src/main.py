@@ -3,6 +3,7 @@ import uuid
 import time
 import signal
 import sys
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -37,12 +38,50 @@ _shutdown_requested = False
 
 
 def build_analyzer():
-    """Instantiate the configured LLM provider (lazy import — only loads the selected SDK)"""
-    if LLM_PROVIDER == 'gemini':
-        from src.analyzers.gemini import GeminiProvider
-        return GeminiProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
-    from src.analyzers.claude import ClaudeProvider
-    return ClaudeProvider(api_key=LLM_API_KEY, model=LLM_MODEL)
+    """Build a ProviderChain from providers.toml (lazy imports per provider SDK)."""
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analyzers.request_strategy import LeakyBucketStrategy, NoOpStrategy
+    from src.config import load_providers
+
+    handlers = []
+    for cfg in load_providers():
+        name = cfg['name']
+        model = cfg['model']
+        api_key = os.environ.get(cfg['api_key_env'], '')
+
+        # Instantiate provider
+        if name == 'gemini':
+            from src.analyzers.gemini import GeminiProvider
+            provider = GeminiProvider(api_key=api_key, model=model)
+        elif name == 'openrouter':
+            from src.analyzers.openrouter import OpenRouterProvider
+            provider = OpenRouterProvider(api_key=api_key, model=model)
+        else:
+            logger.warning("unknown_provider_skipped", name=name)
+            continue
+
+        # Instantiate strategy
+        s_cfg = cfg.get('strategy', {})
+        if s_cfg.get('type') == 'leaky_bucket':
+            strategy = LeakyBucketStrategy(
+                rpm=s_cfg['rpm'],
+                tpm=s_cfg['tpm'],
+                rpd=s_cfg['rpd'],
+            )
+        else:
+            strategy = NoOpStrategy()
+
+        handlers.append(ProviderHandler(
+            provider=provider,
+            strategy=strategy,
+            priority=cfg['priority'],
+            name=name,
+        ))
+
+    if not handlers:
+        raise ValueError("No valid providers configured in providers.toml")
+
+    return ProviderChain(handlers=handlers)
 
 
 def parse_args(args=None):

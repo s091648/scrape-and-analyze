@@ -103,3 +103,50 @@ def test_analyze_article_writes_tags():
 
     assert result is True
     session.add.assert_called()
+
+
+def test_build_analyzer_returns_provider_chain():
+    from unittest.mock import patch, MagicMock
+
+    mock_providers = [
+        {
+            'name': 'gemini', 'priority': 1, 'model': 'gemini-2.0-flash',
+            'api_key_env': 'GEMINI_API_KEY',
+            'strategy': {'type': 'leaky_bucket', 'rpm': 5, 'tpm': 250000, 'rpd': 20}
+        }
+    ]
+
+    with patch('src.main.load_providers', return_value=mock_providers), \
+         patch.dict('os.environ', {'GEMINI_API_KEY': 'test-key'}), \
+         patch('src.main.GeminiProvider') as mock_gemini:
+
+        mock_gemini.return_value = MagicMock()
+
+        from src.main import build_analyzer
+        from src.analyzers.provider_chain import ProviderChain
+        result = build_analyzer()
+
+    assert isinstance(result, ProviderChain)
+
+
+def test_build_analyzer_noop_strategy_for_unknown_type():
+    from unittest.mock import patch, MagicMock
+
+    mock_providers = [
+        {
+            'name': 'openrouter', 'priority': 1, 'model': 'deepseek/deepseek-chat',
+            'api_key_env': 'OPENROUTER_API_KEY',
+            'strategy': {'type': 'noop'}
+        }
+    ]
+
+    with patch('src.main.load_providers', return_value=mock_providers), \
+         patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}), \
+         patch('src.main.OpenRouterProvider') as mock_or:
+
+        mock_or.return_value = MagicMock()
+
+        from src.main import build_analyzer
+        result = build_analyzer()
+
+    assert result is not None
