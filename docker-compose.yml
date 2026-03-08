@@ -13,6 +13,7 @@ services:
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
       - ./requirements.txt:/app/requirements.txt
+      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -51,7 +52,7 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    command: npm run dev
+    command: npx next dev
 
   postgres:
     image: postgres:15
@@ -61,12 +62,21 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+      # - ./migrations:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U digital_twins"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+  
+  pgadmin:
+    image: dpage/pgadmin4
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
   # Job service - generic utility container; doesn't run anything by default
   job_service:
@@ -89,4 +99,5 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:
   frontend_node_modules:

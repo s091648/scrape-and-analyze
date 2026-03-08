@@ -211,7 +211,9 @@ def test_analyze_article_uses_prepare_content_for_analysis(mock_session):
         tag_groups=[], input_tokens=10, output_tokens=20,
     )
 
+    import uuid as _uuid
+    valid_id = str(_uuid.uuid4())
     with patch('src.main.prepare_content_for_analysis', return_value='prepared content') as mock_prep:
-        analyze_article(mock_session, article, analyzer, 'prompt', 'corr-id')
+        analyze_article(mock_session, article, analyzer, 'prompt', valid_id)
         mock_prep.assert_called_once_with(article)
         analyzer.analyze.assert_called_once_with('prepared content', 'prompt')
