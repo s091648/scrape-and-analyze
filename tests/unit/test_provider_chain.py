@@ -66,3 +66,131 @@ def test_provider_handler_returns_result():
     result = handler.analyze('content', 'prompt')
 
     assert result is expected
+
+
+def test_provider_chain_implements_llm_provider():
+    from src.analyzers.provider_chain import ProviderChain
+    from src.analyzers.llm_provider import LLMProvider
+    assert issubclass(ProviderChain, LLMProvider)
+
+
+def test_provider_chain_returns_first_success():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    result = _make_result()
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 1
+    h1.name = 'first'
+    h1.analyze.return_value = result
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 2
+    h2.name = 'second'
+
+    chain = ProviderChain(handlers=[h2, h1])  # order shouldn't matter — sorted by priority
+    outcome = chain.analyze('content', 'prompt')
+
+    assert outcome is result
+    h2.analyze.assert_not_called()  # h1 succeeded, h2 never tried
+
+
+def test_provider_chain_falls_back_on_none():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    result = _make_result()
+
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 1
+    h1.name = 'first'
+    h1.analyze.return_value = None  # failure
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 2
+    h2.name = 'second'
+    h2.analyze.return_value = result  # success
+
+    chain = ProviderChain(handlers=[h1, h2])
+    outcome = chain.analyze('content', 'prompt')
+
+    assert outcome is result
+    h1.analyze.assert_called_once()
+    h2.analyze.assert_called_once()
+
+
+def test_provider_chain_falls_back_on_exception():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    result = _make_result()
+
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 1
+    h1.name = 'first'
+    h1.analyze.side_effect = RuntimeError("API down")
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 2
+    h2.name = 'second'
+    h2.analyze.return_value = result
+
+    chain = ProviderChain(handlers=[h1, h2])
+    outcome = chain.analyze('content', 'prompt')
+
+    assert outcome is result
+
+
+def test_provider_chain_falls_back_on_rate_limit_exhausted():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analyzers.request_strategy import RateLimitExhausted
+    result = _make_result()
+
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 1
+    h1.name = 'first'
+    h1.analyze.side_effect = RateLimitExhausted("daily cap hit")
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 2
+    h2.name = 'second'
+    h2.analyze.return_value = result
+
+    chain = ProviderChain(handlers=[h1, h2])
+    outcome = chain.analyze('content', 'prompt')
+
+    assert outcome is result
+
+
+def test_provider_chain_returns_none_when_all_fail():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 1
+    h1.name = 'first'
+    h1.analyze.return_value = None
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 2
+    h2.name = 'second'
+    h2.analyze.side_effect = RuntimeError("also down")
+
+    chain = ProviderChain(handlers=[h1, h2])
+    outcome = chain.analyze('content', 'prompt')
+
+    assert outcome is None
+
+
+def test_provider_chain_sorts_handlers_by_priority():
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+
+    h1 = MagicMock(spec=ProviderHandler)
+    h1.priority = 2
+    h1.name = 'lower'
+    h1.analyze.return_value = None
+
+    h2 = MagicMock(spec=ProviderHandler)
+    h2.priority = 1
+    h2.name = 'higher'
+    h2.analyze.return_value = _make_result()
+
+    # Pass in reverse order — chain must sort them
+    chain = ProviderChain(handlers=[h1, h2])
+    chain.analyze('content', 'prompt')
+
+    h2.analyze.assert_called_once()  # priority=1 tried first
+    h1.analyze.assert_not_called()   # priority=2 never needed
