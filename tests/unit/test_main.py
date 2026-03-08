@@ -79,7 +79,7 @@ def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session):
 def test_analyze_article_writes_tags():
     """analyze_article should upsert tags and link them to the article"""
     from src.main import analyze_article
-    from src.analyzers.llm_provider import AnalysisResult
+    from src.analyzers import AnalysisResult
 
     session = MagicMock()
     article = MagicMock()
@@ -150,3 +150,67 @@ def test_build_analyzer_noop_strategy_for_unknown_type():
         result = build_analyzer()
 
     assert result is not None
+
+
+def test_prepare_content_for_analysis_uses_sections_for_arxiv():
+    from unittest.mock import MagicMock
+    from src.scrapers.content_parsers import prepare_content_for_analysis
+
+    article = MagicMock()
+    article.source = 'arxiv'
+    article.content = "Abstract\nReal abstract.\n\n1 Introduction\nIntro text."
+    article.metadata_ = {'abstract': 'Short abstract.'}
+
+    result = prepare_content_for_analysis(article)
+    # Should use sections, not the short fallback abstract
+    assert 'Real abstract' in result or 'Intro text' in result
+
+
+def test_prepare_content_for_analysis_falls_back_to_metadata_abstract():
+    from unittest.mock import MagicMock
+    from src.scrapers.content_parsers import prepare_content_for_analysis
+
+    article = MagicMock()
+    article.source = 'arxiv'
+    article.content = 'No headings here at all just plain text.'
+    article.metadata_ = {'abstract': 'The stored abstract.'}
+
+    result = prepare_content_for_analysis(article)
+    assert result == 'The stored abstract.'
+
+
+def test_prepare_content_for_analysis_passthrough_for_non_arxiv():
+    from unittest.mock import MagicMock
+    from src.scrapers.content_parsers import prepare_content_for_analysis
+
+    article = MagicMock()
+    article.source = 'techcrunch'
+    article.content = 'Blog article content.'
+    article.metadata_ = {}
+
+    result = prepare_content_for_analysis(article)
+    assert result == 'Blog article content.'
+
+
+def test_analyze_article_uses_prepare_content_for_analysis(mock_session):
+    """analyze_article should call prepare_content_for_analysis before the LLM."""
+    from unittest.mock import MagicMock, patch
+    from src.main import analyze_article
+
+    article = MagicMock()
+    article.source = 'arxiv'
+    article.content = 'Full PDF text.'
+    article.metadata_ = {'abstract': 'Short abstract.'}
+    article.id = 'uuid-1'
+    article.tags = []
+
+    analyzer = MagicMock()
+    analyzer.analyze.return_value = MagicMock(
+        pain_points=[], insights=[], innovations=[],
+        tag_groups=[], input_tokens=10, output_tokens=20,
+    )
+
+    with patch('src.main.prepare_content_for_analysis', return_value='prepared content') as mock_prep:
+        analyze_article(mock_session, article, analyzer, 'prompt', 'corr-id')
+        mock_prep.assert_called_once_with(article)
+        analyzer.analyze.assert_called_once_with('prepared content', 'prompt')

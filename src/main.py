@@ -26,6 +26,7 @@ from src.models.article import Article
 from src.models.analysis import Analysis
 from src.models.failed_task import FailedTask
 from src.utils.sanitizer import generate_url_hash
+from src.scrapers.content_parsers import prepare_content_for_analysis
 
 logger = get_logger(__name__)
 
@@ -151,7 +152,8 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
     """Analyze an article using LLM"""
     from src.models.tag import Tag
 
-    result = analyzer.analyze(article.content, prompt)
+    llm_content = prepare_content_for_analysis(article)
+    result = analyzer.analyze(llm_content, prompt)
 
     if result is None:
         record_failure(session, 'analyze', article.url, article.id,
