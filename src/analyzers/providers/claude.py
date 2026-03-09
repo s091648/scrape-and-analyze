@@ -2,7 +2,7 @@ import anthropic
 import json
 from typing import Optional
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from src.analyzers.llm_provider import LLMProvider, AnalysisResult
+from src.analyzers.providers.base_llm_provider import LLMProvider, AnalysisResult
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

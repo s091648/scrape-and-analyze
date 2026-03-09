@@ -3,7 +3,9 @@
 Backfill normalized tags for articles that have analyses but no article_tags entries.
 
 Usage:
-    DATABASE_URL=... LLM_API_KEY=... python scripts/backfill_tags.py [--dry-run] [--limit N]
+    DATABASE_URL=... python scripts/backfill_tags.py [--dry-run] [--limit N]
+
+Provider selection and rate limiting are controlled by providers.toml (same as main.py).
 """
 import argparse
 import os
@@ -15,9 +17,56 @@ from sqlalchemy import text
 # Ensure project root is on sys.path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.analyzers.gemini import GeminiProvider
+from src.config import load_providers
 from src.database import get_session
 from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def build_analyzer():
+    """Build a ProviderChain from providers.toml (mirrors src/main.py logic)."""
+    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analyzers.providers.gemini import GeminiProvider
+    from src.analyzers.providers.openrouter import OpenRouterProvider
+    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analyzers.strategies.no_op_strategy import NoOpStrategy
+
+    handlers = []
+    for cfg in load_providers():
+        name = cfg['name']
+        model = cfg['model']
+        api_key = os.environ.get(cfg['api_key_env'], '')
+
+        if name == 'gemini':
+            provider = GeminiProvider(api_key=api_key, model=model)
+        elif name == 'openrouter':
+            provider = OpenRouterProvider(api_key=api_key, model=model)
+        else:
+            logger.warning("unknown_provider_skipped", name=name)
+            continue
+
+        s_cfg = cfg.get('strategy', {})
+        if s_cfg.get('type') == 'leaky_bucket':
+            strategy = LeakyBucketStrategy(
+                rpm=s_cfg['rpm'],
+                tpm=s_cfg['tpm'],
+                rpd=s_cfg['rpd'],
+            )
+        else:
+            strategy = NoOpStrategy()
+
+        handlers.append(ProviderHandler(
+            provider=provider,
+            strategy=strategy,
+            priority=cfg['priority'],
+            name=name,
+        ))
+
+    if not handlers:
+        raise ValueError("No valid providers configured in providers.toml")
+
+    return ProviderChain(handlers=handlers)
 
 logger = get_logger(__name__)
 
@@ -133,7 +182,7 @@ def run_backfill(session, provider, prompt, dry_run=False, limit=None):
             continue
 
         upsert_tags_for_article(session, article_id, result.tag_groups, dry_run=dry_run)
-        update_analysis(session, analysis_id, result, model_used=provider.model_name, dry_run=dry_run)
+        update_analysis(session, analysis_id, result, model_used=result.model_used, dry_run=dry_run)
 
         if not dry_run:
             session.commit()
@@ -146,7 +195,7 @@ def run_backfill(session, provider, prompt, dry_run=False, limit=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Backfill normalized tags via Gemini re-analysis."
+        description="Backfill normalized tags via LLM re-analysis (providers.toml)."
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -158,11 +207,6 @@ def main():
     )
     args = parser.parse_args()
 
-    api_key = os.environ.get("LLM_API_KEY")
-    if not api_key:
-        print("ERROR: LLM_API_KEY environment variable is required", file=sys.stderr)
-        sys.exit(1)
-
     if not os.environ.get("DATABASE_URL"):
         print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
         sys.exit(1)
@@ -170,7 +214,7 @@ def main():
     with open(_PROMPT_PATH) as f:
         prompt = f.read()
 
-    provider = GeminiProvider(api_key=api_key)
+    provider = build_analyzer()
     session  = get_session()
 
     try:

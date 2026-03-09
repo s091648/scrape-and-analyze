@@ -7,9 +7,6 @@ logger = structlog.get_logger(__name__)
 
 # Environment variables
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
-LLM_API_KEY = os.environ.get('LLM_API_KEY', '')
-LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'claude')
-LLM_MODEL = os.environ.get('LLM_MODEL', 'claude-sonnet-4-20250514')
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 
@@ -57,14 +54,8 @@ def validate_config() -> None:
     """Validate required configuration at startup"""
     errors = []
 
-    db_url = os.environ.get('DATABASE_URL', DATABASE_URL)
-    api_key = os.environ.get('LLM_API_KEY', LLM_API_KEY)
-
-    if not db_url:
+    if not os.environ.get('DATABASE_URL', DATABASE_URL):
         errors.append("DATABASE_URL is required")
-
-    if not api_key:
-        errors.append("LLM_API_KEY is required")
 
     if errors:
         raise ValueError(f"Configuration errors: {', '.join(errors)}")

@@ -4,7 +4,7 @@ from typing import Optional
 from google import genai
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from src.analyzers.llm_provider import AnalysisResult, LLMProvider
+from src.analyzers.providers.base_llm_provider import AnalysisResult, LLMProvider
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,4 +99,5 @@ class GeminiProvider(LLMProvider):
             innovations=result_json.get('innovations', ''),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            model_used=self.model_name,
         )

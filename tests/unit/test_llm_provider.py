@@ -3,7 +3,7 @@ import pytest
 
 def test_llm_provider_is_abstract():
     """LLMProvider should be abstract"""
-    from src.analyzers.llm_provider import LLMProvider
+    from src.analyzers.providers.base_llm_provider import LLMProvider
 
     with pytest.raises(TypeError):
         LLMProvider()
@@ -11,7 +11,7 @@ def test_llm_provider_is_abstract():
 
 def test_llm_provider_requires_analyze_method():
     """Subclass must implement analyze() method"""
-    from src.analyzers.llm_provider import LLMProvider
+    from src.analyzers.providers.base_llm_provider import LLMProvider
 
     class IncompleteProvider(LLMProvider):
         pass
@@ -22,7 +22,7 @@ def test_llm_provider_requires_analyze_method():
 
 def test_analysis_result_has_all_fields():
     """AnalysisResult should have all required fields"""
-    from src.analyzers.llm_provider import AnalysisResult
+    from src.analyzers.providers.base_llm_provider import AnalysisResult
 
     result = AnalysisResult(
         tag_groups=[{"group": "digital_twin", "tags": ["virtual replica"]}],
@@ -43,6 +43,6 @@ def test_analysis_result_has_all_fields():
 
 def test_analysis_result_has_no_flat_tags_field():
     import dataclasses
-    from src.analyzers.llm_provider import AnalysisResult
+    from src.analyzers.providers.base_llm_provider import AnalysisResult
     field_names = {f.name for f in dataclasses.fields(AnalysisResult)}
     assert 'tags' not in field_names

@@ -2,7 +2,7 @@ import json
 import requests
 from typing import Optional
 
-from src.analyzers.llm_provider import LLMProvider, AnalysisResult
+from src.analyzers.providers.base_llm_provider import LLMProvider, AnalysisResult
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,4 +65,5 @@ class OpenRouterProvider(LLMProvider):
             innovations=result_json.get('innovations', ''),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            model_used=self._model,
         )

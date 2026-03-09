@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, call
-from src.analyzers.llm_provider import AnalysisResult
+from src.analyzers.providers.base_llm_provider import AnalysisResult
 
 
 def _make_result():
@@ -70,7 +70,7 @@ def test_provider_handler_returns_result():
 
 def test_provider_chain_implements_llm_provider():
     from src.analyzers.provider_chain import ProviderChain
-    from src.analyzers.llm_provider import LLMProvider
+    from src.analyzers.providers.base_llm_provider import LLMProvider
     assert issubclass(ProviderChain, LLMProvider)
 
 
@@ -137,7 +137,7 @@ def test_provider_chain_falls_back_on_exception():
 
 def test_provider_chain_falls_back_on_rate_limit_exhausted():
     from src.analyzers.provider_chain import ProviderChain, ProviderHandler
-    from src.analyzers.request_strategy import RateLimitExhausted
+    from src.analyzers.strategies.leaky_bucket_strategy import RateLimitExhausted
     result = _make_result()
 
     h1 = MagicMock(spec=ProviderHandler)

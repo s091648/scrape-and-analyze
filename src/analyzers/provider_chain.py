@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, List
 
-from src.analyzers.llm_provider import LLMProvider, AnalysisResult
-from src.analyzers.request_strategy import RequestStrategy, RateLimitExhausted
+from src.analyzers.providers import LLMProvider, AnalysisResult
+from src.analyzers.strategies import RequestStrategy, RateLimitExhausted
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

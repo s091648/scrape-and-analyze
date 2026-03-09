@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import get_sources, load_providers, LLM_API_KEY, LLM_MODEL, LLM_PROVIDER, SENTRY_DSN
+from src.config import get_sources, load_providers, SENTRY_DSN
 from src.analyzers.providers.gemini import GeminiProvider
 from src.analyzers.providers.openrouter import OpenRouterProvider
 
@@ -165,7 +165,7 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
         pain_points=result.pain_points,
         insights=result.insights,
         innovations=result.innovations,
-        model_used=LLM_MODEL,
+        model_used=result.model_used,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens
     )

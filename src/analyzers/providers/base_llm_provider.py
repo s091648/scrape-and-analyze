@@ -12,6 +12,7 @@ class AnalysisResult:
     innovations: str
     input_tokens: int
     output_tokens: int
+    model_used: str = ""
 
 
 class LLMProvider(ABC):
