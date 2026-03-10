@@ -1,15 +1,13 @@
-import argparse
 import uuid
 import time
 import signal
-import sys
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime, timezone
+from sqlalchemy import text
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import get_sources, load_providers, SENTRY_DSN
+from src.config import load_providers, SENTRY_DSN
 from src.analyzers.providers.gemini import GeminiProvider
 from src.analyzers.providers.openrouter import OpenRouterProvider
 
@@ -83,14 +81,6 @@ def build_analyzer():
         raise ValueError("No valid providers configured in providers.toml")
 
     return ProviderChain(handlers=handlers)
-
-
-def parse_args(args=None):
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='Digital Twins Scraper')
-    parser.add_argument('command', choices=['daily', 'weekly', 'remediate'],
-                        help='Execution mode: daily, weekly, or remediate')
-    return parser.parse_args(args)
 
 
 def signal_handler(signum, frame):
@@ -239,112 +229,53 @@ def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str) ->
         session.close()
 
 
-def run_daily_scrape(start_time: float):
-    """Run daily scraping (RSS + arXiv)"""
-    global _shutdown_requested
+def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) -> None:
+    """Scrape and analyze all provided sources, update last_scraped_at per source."""
+    for source in sources:
+        source_type = source['source_type']
+        logger.info("scrape_source_start", source=source['source'], source_type=source_type)
 
-    correlation_id = str(uuid.uuid4())
-    bind_correlation_id(correlation_id)
+        try:
+            if source_type == 'rss':
+                scraper = RssScraper(url=source['url'], source=source['source'])
+            elif source_type == 'blog':
+                scraper = BlogScraper(
+                    base_url=source['base_url'],
+                    source=source['source'],
+                    selectors=source['selectors'],
+                )
+            elif source_type == 'arxiv':
+                cfg = source.get('selector_config', {})
+                scraper = ArxivScraper(
+                    max_results=cfg.get('max_results', 30),
+                    days_back=cfg.get('days_back', 1),
+                )
+            else:
+                logger.warning("unknown_source_type_skipped", source_type=source_type)
+                continue
 
-    analyzer = build_analyzer()
-    prompt = load_prompt()
+            articles = scraper.scrape()
+            logger.info("source_scraped", source=source['source'], count=len(articles))
 
-    all_articles = []
+            for article in articles:
+                if _shutdown_requested or check_timeout(time.time()):
+                    return
+                process_article_safe(article, analyzer, prompt, correlation_id)
 
-    for source_config in get_sources('daily'):
-        if _shutdown_requested or check_timeout(start_time):
-            break
-        scraper = RssScraper(url=source_config['url'], source=source_config['source'])
-        articles = scraper.scrape()
-        all_articles.extend(articles)
-        logger.info("source_scraped", source=source_config['source'], count=len(articles))
+        except Exception as e:
+            logger.error("source_scrape_failed", source=source['source'], error=str(e))
+            continue
 
-    if not _shutdown_requested and not check_timeout(start_time):
-        arxiv_scraper = ArxivScraper()
-        arxiv_articles = arxiv_scraper.scrape()
-        all_articles.extend(arxiv_articles)
-        logger.info("source_scraped", source="arxiv", count=len(arxiv_articles))
-
-    if len(all_articles) > BATCH_SIZE:
-        logger.warning("batch_size_exceeded", total=len(all_articles), limit=BATCH_SIZE)
-        all_articles = all_articles[:BATCH_SIZE]
-
-    success_count = 0
-    failure_count = 0
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {
-            executor.submit(process_article_safe, article, analyzer, prompt, correlation_id): article
-            for article in all_articles
-        }
-
-        for future in as_completed(futures):
-            if _shutdown_requested or check_timeout(start_time):
-                logger.warning("processing_interrupted")
-                break
-            try:
-                if future.result():
-                    success_count += 1
-                else:
-                    failure_count += 1
-            except Exception as e:
-                failure_count += 1
-                logger.error("future_exception", error=str(e))
-
-    logger.info("daily_scrape_completed",
-                success=success_count,
-                failures=failure_count,
-                total=len(all_articles))
-
-
-def run_weekly_scrape(start_time: float):
-    """Run weekly scraping (blogs)"""
-    global _shutdown_requested
-
-    correlation_id = str(uuid.uuid4())
-    bind_correlation_id(correlation_id)
-
-    analyzer = build_analyzer()
-    prompt = load_prompt()
-
-    all_articles = []
-
-    for source_config in get_sources('weekly'):
-        if _shutdown_requested or check_timeout(start_time):
-            break
-        scraper = BlogScraper(
-            base_url=source_config['base_url'],
-            source=source_config['source'],
-            selectors=source_config['selectors']
-        )
-        articles = scraper.scrape()
-        all_articles.extend(articles)
-        logger.info("source_scraped", source=source_config['source'], count=len(articles))
-
-    if len(all_articles) > BATCH_SIZE:
-        all_articles = all_articles[:BATCH_SIZE]
-
-    success_count = 0
-    failure_count = 0
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {
-            executor.submit(process_article_safe, article, analyzer, prompt, correlation_id): article
-            for article in all_articles
-        }
-
-        for future in as_completed(futures):
-            if _shutdown_requested or check_timeout(start_time):
-                break
-            try:
-                if future.result():
-                    success_count += 1
-                else:
-                    failure_count += 1
-            except Exception:
-                failure_count += 1
-
-    logger.info("weekly_scrape_completed", success=success_count, failures=failure_count)
+        # Update last_scraped_at
+        session = get_session()
+        try:
+            session.execute(
+                text("UPDATE scraper_settings SET last_scraped_at = NOW() WHERE id = :id"),
+                {"id": source['id']}
+            )
+            session.commit()
+        finally:
+            session.close()
 
 
 def run_remediate():
@@ -378,11 +309,9 @@ def run_remediate():
     session.close()
 
 
-def main():
-    """Main entry point"""
+def main() -> None:
+    """Main entry point — frequency-based scrape dispatch."""
     configure_logging()
-
-    args = parse_args()
 
     correlation_id = str(uuid.uuid4())
     bind_correlation_id(correlation_id)
@@ -390,19 +319,27 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    logger.info("execution_started", command=args.command, correlation_id=correlation_id)
+    logger.info("execution_started", correlation_id=correlation_id)
 
     init_db()
 
     start_time = time.time()
 
     try:
-        if args.command == 'daily':
-            run_daily_scrape(start_time)
-        elif args.command == 'weekly':
-            run_weekly_scrape(start_time)
-        elif args.command == 'remediate':
-            run_remediate()
+        from src.config import get_sources_due
+        sources_due = get_sources_due()
+
+        if not sources_due:
+            logger.info("no_sources_due")
+            return
+
+        logger.info("sources_due_count", count=len(sources_due))
+
+        analyzer = build_analyzer()
+        prompt = load_prompt()
+
+        run_scrape_cycle(sources_due, analyzer, prompt, correlation_id)
+
     except Exception as e:
         logger.error("execution_failed", error=str(e))
         raise

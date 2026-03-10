@@ -1,37 +1,6 @@
 import pytest
+import uuid
 from unittest.mock import patch, MagicMock
-
-
-def test_parse_args_accepts_daily():
-    """parse_args should accept 'daily' command"""
-    from src.main import parse_args
-
-    args = parse_args(['daily'])
-    assert args.command == 'daily'
-
-
-def test_parse_args_accepts_weekly():
-    """parse_args should accept 'weekly' command"""
-    from src.main import parse_args
-
-    args = parse_args(['weekly'])
-    assert args.command == 'weekly'
-
-
-def test_parse_args_accepts_remediate():
-    """parse_args should accept 'remediate' command"""
-    from src.main import parse_args
-
-    args = parse_args(['remediate'])
-    assert args.command == 'remediate'
-
-
-def test_parse_args_rejects_invalid_command():
-    """parse_args should reject invalid commands"""
-    from src.main import parse_args
-
-    with pytest.raises(SystemExit):
-        parse_args(['invalid'])
 
 
 def test_check_timeout_returns_true_when_exceeded():
@@ -52,31 +21,77 @@ def test_check_timeout_returns_false_when_not_exceeded():
     assert check_timeout(start_time) is False
 
 
-@patch('src.main.get_sources', return_value=[{'url': 'http://example.com', 'source': 'test'}])
-@patch('src.main.get_session')
-@patch('src.main.RssScraper')
-def test_run_daily_scrape_uses_rss_sources(mock_rss_scraper, mock_get_session, mock_get_sources):
-    """run_daily_scrape should use RSS sources"""
-    import time
+def test_main_dispatches_rss_scraper_for_rss_source():
+    """run_scrape_cycle uses RssScraper for source_type='rss'"""
+    from src.main import run_scrape_cycle
 
-    mock_session = MagicMock()
-    mock_get_session.return_value = mock_session
-    mock_scraper_instance = MagicMock()
-    mock_scraper_instance.scrape.return_value = []
-    mock_rss_scraper.return_value = mock_scraper_instance
+    source = {
+        'id': str(uuid.uuid4()),
+        'source': 'techcrunch',
+        'url': 'https://techcrunch.com/feed/',
+        'source_type': 'rss',
+        'selector_config': {},
+    }
 
-    with patch('src.main.ArxivScraper') as mock_arxiv, \
-         patch('src.main.build_analyzer'), \
-         patch('src.main.load_prompt', return_value='prompt'):
-        mock_arxiv.return_value.scrape.return_value = []
+    with patch('src.main.RssScraper') as MockRss, \
+         patch('src.main.get_session') as mock_get_session:
+        MockRss.return_value.scrape.return_value = []
+        mock_session = MagicMock()
+        mock_get_session.return_value = mock_session
 
-        from src.main import run_daily_scrape
-        run_daily_scrape(time.time())
+        run_scrape_cycle([source], MagicMock(), 'prompt', str(uuid.uuid4()))
 
-    assert mock_rss_scraper.called
+        MockRss.assert_called_once_with(url=source['url'], source=source['source'])
 
 
-@patch('src.main.LLM_MODEL', 'test-model')
+def test_main_dispatches_arxiv_scraper_for_arxiv_source():
+    """run_scrape_cycle uses ArxivScraper with selector_config params for source_type='arxiv'"""
+    from src.main import run_scrape_cycle
+
+    source = {
+        'id': str(uuid.uuid4()),
+        'source': 'arxiv',
+        'url': '',
+        'source_type': 'arxiv',
+        'selector_config': {'max_results': 30, 'days_back': 1},
+    }
+
+    with patch('src.main.ArxivScraper') as MockArxiv, \
+         patch('src.main.get_session') as mock_get_session:
+        MockArxiv.return_value.scrape.return_value = []
+        mock_session = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        run_scrape_cycle([source], MagicMock(), 'prompt', str(uuid.uuid4()))
+
+        MockArxiv.assert_called_once_with(max_results=30, days_back=1)
+
+
+def test_main_updates_last_scraped_at_after_scrape():
+    """run_scrape_cycle updates last_scraped_at in DB after each source"""
+    from src.main import run_scrape_cycle
+
+    source = {
+        'id': 'test-uuid-123',
+        'source': 'techcrunch',
+        'url': 'https://techcrunch.com/feed/',
+        'source_type': 'rss',
+        'selector_config': {},
+    }
+
+    with patch('src.main.RssScraper') as MockRss, \
+         patch('src.main.get_session') as mock_get_session, \
+         patch('src.main.text') as mock_text:
+        MockRss.return_value.scrape.return_value = []
+        mock_session = MagicMock()
+        mock_get_session.return_value = mock_session
+
+        run_scrape_cycle([source], MagicMock(), 'prompt', str(uuid.uuid4()))
+
+        mock_session.execute.assert_called()
+        mock_session.commit.assert_called()
+
+
 def test_analyze_article_writes_tags():
     """analyze_article should upsert tags and link them to the article"""
     from src.main import analyze_article
@@ -92,6 +107,7 @@ def test_analyze_article_writes_tags():
         tag_groups=[{"group": "digital_twin", "tags": ["virtual replica"]}],
         pain_points='p', insights='i', innovations='n',
         input_tokens=10, output_tokens=5,
+        model_used='gemini-2.5-flash',
     )
     analyzer = MagicMock()
     analyzer.analyze.return_value = mock_result
@@ -99,7 +115,6 @@ def test_analyze_article_writes_tags():
     # Tag query returns None (new tag to be created)
     session.query.return_value.filter_by.return_value.first.return_value = None
 
-    import uuid
     result = analyze_article(session, article, analyzer, 'prompt', str(uuid.uuid4()))
 
     assert result is True
@@ -211,8 +226,7 @@ def test_analyze_article_uses_prepare_content_for_analysis(mock_session):
         tag_groups=[], input_tokens=10, output_tokens=20,
     )
 
-    import uuid as _uuid
-    valid_id = str(_uuid.uuid4())
+    valid_id = str(uuid.uuid4())
     with patch('src.main.prepare_content_for_analysis', return_value='prepared content') as mock_prep:
         analyze_article(mock_session, article, analyzer, 'prompt', valid_id)
         mock_prep.assert_called_once_with(article)
