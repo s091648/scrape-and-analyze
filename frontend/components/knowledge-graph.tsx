@@ -8,6 +8,9 @@ import { ExternalLink, X, Globe, Clock } from 'lucide-react'
 
 const ForceGraph = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
+const CHARGE_STRENGTH = -300   // repulsion between nodes (more negative = more spread)
+const LINK_DISTANCE  = 100     // preferred edge length
+
 interface GraphNode {
   id: string
   type: 'group' | 'article' | 'tag'
@@ -54,6 +57,8 @@ export function KnowledgeGraph() {
   const [dialogLoading, setDialogLoading] = useState(false)
 
   const graphContainerRef = useRef<HTMLDivElement>(null)
+  const graphRef = useRef<any>(null)
+  const forcesConfigured = useRef(false)
   const [graphDims, setGraphDims] = useState({ width: 600, height: 500 })
 
   // Stable refs (used inside canvas callbacks)
@@ -141,7 +146,12 @@ export function KnowledgeGraph() {
       }
     } else if (node.type === 'article') {
       const article = groupDataRef.current.find(a => a.articleId === node.id)
-      setSelectedArticle(article || null)
+      if (article) {
+        setSelectedArticle(article)
+      } else {
+        // Group not expanded — open full dialog directly
+        openArticleDialog(node.id)
+      }
     }
   }
 
@@ -183,10 +193,19 @@ export function KnowledgeGraph() {
           className="flex-1 border border-border rounded-xl overflow-hidden bg-muted/10"
         >
           <ForceGraph
+            ref={graphRef}
             graphData={mergedGraphData}
             width={graphDims.width}
             height={graphDims.height}
             nodeRelSize={6}
+            onEngineStop={() => {
+              // Configure d3 forces once after first cooldown, then reheat
+              if (forcesConfigured.current || !graphRef.current) return
+              forcesConfigured.current = true
+              graphRef.current.d3Force('charge')?.strength(CHARGE_STRENGTH)
+              graphRef.current.d3Force('link')?.distance(LINK_DISTANCE)
+              graphRef.current.d3ReheatSimulation()
+            }}
             onNodeClick={handleNodeClick}
             onNodeHover={(node: any) => {
               if (node?.type === 'article') {
