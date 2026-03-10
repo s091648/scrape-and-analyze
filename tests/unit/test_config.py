@@ -13,9 +13,8 @@ def test_config_loads_database_url():
         assert config_module.DATABASE_URL == 'postgresql://test:test@localhost/db'
 
 
-
-def test_get_sources_returns_only_active_daily():
-    """get_sources('daily', session) should return active daily sources from DB"""
+def test_get_sources_filters_by_source_type():
+    """get_sources('rss', session) returns only rss sources"""
     from src.config import get_sources
     from unittest.mock import MagicMock
 
@@ -24,11 +23,12 @@ def test_get_sources_returns_only_active_daily():
     mock_rss.url = 'https://techcrunch.com/feed/'
     mock_rss.source_type = 'rss'
     mock_rss.selector_config = None
+    mock_rss.id = 'some-uuid'
 
     mock_session = MagicMock()
     mock_session.query.return_value.filter.return_value.all.return_value = [mock_rss]
 
-    sources = get_sources('daily', session=mock_session)
+    sources = get_sources('rss', session=mock_session)
 
     assert len(sources) == 1
     assert sources[0]['source'] == 'techcrunch'
@@ -44,7 +44,7 @@ def test_get_sources_emits_critical_log_when_empty():
     mock_session.query.return_value.filter.return_value.all.return_value = []
 
     with patch('src.config.logger') as mock_logger:
-        sources = get_sources('daily', session=mock_session)
+        sources = get_sources('rss', session=mock_session)
 
     assert sources == []
     mock_logger.critical.assert_called_once()
@@ -132,9 +132,55 @@ def test_scraper_setting_frequency_is_integer():
     col_type = ScraperSetting.__table__.c.frequency.type
     assert isinstance(col_type, Integer)
 
+
 def test_scraper_setting_has_last_scraped_at():
     """ScraperSetting should have last_scraped_at column"""
     from backend.models.scraper_setting import ScraperSetting
     assert hasattr(ScraperSetting, 'last_scraped_at')
     col = ScraperSetting.__table__.c.last_scraped_at
     assert col.nullable is True
+
+
+def test_get_sources_due_returns_null_last_scraped():
+    """get_sources_due returns sources with last_scraped_at IS NULL"""
+    from src.config import get_sources_due
+    from unittest.mock import MagicMock
+
+    mock_source = MagicMock()
+    mock_source.name = 'techcrunch'
+    mock_source.url = 'https://techcrunch.com/feed/'
+    mock_source.source_type = 'rss'
+    mock_source.selector_config = None
+    mock_source.last_scraped_at = None
+    mock_source.id = 'some-uuid'
+    mock_source.frequency = 24
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = [mock_source]
+
+    sources = get_sources_due(session=mock_session)
+    assert len(sources) == 1
+    assert sources[0]['source'] == 'techcrunch'
+
+
+def test_get_sources_due_result_includes_source_type():
+    """get_sources_due result dict includes source_type for dispatcher"""
+    from src.config import get_sources_due
+    from unittest.mock import MagicMock
+
+    mock_source = MagicMock()
+    mock_source.name = 'arxiv'
+    mock_source.url = ''
+    mock_source.source_type = 'arxiv'
+    mock_source.selector_config = {'max_results': 30, 'days_back': 1}
+    mock_source.last_scraped_at = None
+    mock_source.id = 'some-uuid'
+    mock_source.frequency = 6
+
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.all.return_value = [mock_source]
+
+    sources = get_sources_due(session=mock_session)
+    assert sources[0]['source_type'] == 'arxiv'
+    assert sources[0]['id'] == 'some-uuid'
+    assert sources[0]['selector_config'] == {'max_results': 30, 'days_back': 1}

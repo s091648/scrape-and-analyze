@@ -10,10 +10,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 
-def get_sources(schedule_type: str, session=None) -> List[Dict[str, Any]]:
-    """Get active sources from the database based on schedule type."""
+def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
+    """Get active sources from the database by source_type ('rss', 'blog', 'arxiv')."""
     from backend.models.scraper_setting import ScraperSetting
-    from sqlalchemy import and_
 
     own_session = False
     if session is None:
@@ -23,23 +22,67 @@ def get_sources(schedule_type: str, session=None) -> List[Dict[str, Any]]:
 
     try:
         settings = session.query(ScraperSetting).filter(
-            and_(
-                ScraperSetting.frequency == schedule_type,
-                ScraperSetting.is_active == True,
-            )
+            ScraperSetting.source_type == source_type,
+            ScraperSetting.is_active == True,
         ).all()
 
         if not settings:
             logger.critical(
                 "no_active_sources_found",
-                schedule_type=schedule_type,
+                source_type=source_type,
                 action="returning_empty_list",
             )
             return []
 
         result = []
         for s in settings:
-            entry = {"source": s.name, "url": s.url}
+            entry = {
+                "id": str(s.id),
+                "source": s.name,
+                "url": s.url,
+                "source_type": s.source_type,
+                "selector_config": s.selector_config,
+            }
+            if s.source_type == "blog" and s.selector_config:
+                entry["base_url"] = s.url
+                entry["selectors"] = s.selector_config
+            result.append(entry)
+        return result
+    finally:
+        if own_session:
+            session.close()
+
+
+def get_sources_due(session=None) -> List[Dict[str, Any]]:
+    """Return active sources whose last scrape time has exceeded their frequency interval."""
+    from backend.models.scraper_setting import ScraperSetting
+    from sqlalchemy import or_, text
+
+    own_session = False
+    if session is None:
+        from src.database import get_session
+        session = get_session()
+        own_session = True
+
+    try:
+        settings = session.query(ScraperSetting).filter(
+            ScraperSetting.is_active == True,
+            or_(
+                ScraperSetting.last_scraped_at == None,
+                text("NOW() - last_scraped_at > frequency * INTERVAL '1 hour'"),
+            )
+        ).all()
+
+        result = []
+        for s in settings:
+            entry = {
+                "id": str(s.id),
+                "source": s.name,
+                "url": s.url,
+                "source_type": s.source_type,
+                "selector_config": s.selector_config or {},
+                "frequency": s.frequency,
+            }
             if s.source_type == "blog" and s.selector_config:
                 entry["base_url"] = s.url
                 entry["selectors"] = s.selector_config
