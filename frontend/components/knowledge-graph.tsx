@@ -59,6 +59,9 @@ export function KnowledgeGraph() {
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
   const forcesConfigured = useRef(false)
+  const hoveredNodeIdRef = useRef<string | null>(null)
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const articleCacheRef = useRef<Map<string, GroupArticle>>(new Map())
   const [graphDims, setGraphDims] = useState({ width: 600, height: 500 })
 
   // Stable refs (used inside canvas callbacks)
@@ -209,8 +212,52 @@ export function KnowledgeGraph() {
             onNodeClick={handleNodeClick}
             onNodeHover={(node: any) => {
               if (node?.type === 'article') {
-                const article = groupDataRef.current.find(a => a.articleId === node.id)
-                setSelectedArticle(article || null)
+                hoveredNodeIdRef.current = node.id
+
+                // If the group is already expanded and has this article's data, use it directly
+                const groupArticle = groupDataRef.current.find(a => a.articleId === node.id)
+                if (groupArticle) {
+                  setSelectedArticle(groupArticle)
+                  return
+                }
+
+                // Check cache first
+                const cached = articleCacheRef.current.get(node.id)
+                if (cached) {
+                  setSelectedArticle(cached)
+                  return
+                }
+
+                // Debounce fetch so rapid mouse movement doesn't spam requests
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                hoverTimeoutRef.current = setTimeout(() => {
+                  if (hoveredNodeIdRef.current !== node.id) return
+                  apiFetch(`/articles/${node.id}`)
+                    .then(r => r.json())
+                    .then(data => {
+                      if (hoveredNodeIdRef.current !== node.id) return
+                      const art: GroupArticle = {
+                        articleId: data.id,
+                        title: data.title,
+                        pain_points: data.pain_points,
+                        insights: data.insights,
+                        innovations: data.innovations,
+                        url: data.url || '',
+                        tags: [],
+                        groupName: '',
+                        displayName: '',
+                        source: data.source || '',
+                        published_at: data.published_at,
+                        excerpt: (data.content || '').slice(0, 200),
+                      }
+                      articleCacheRef.current.set(node.id, art)
+                      setSelectedArticle(art)
+                    })
+                    .catch(() => {})
+                }, 250)
+              } else {
+                hoveredNodeIdRef.current = null
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
               }
             }}
             nodeCanvasObjectMode={() => 'replace'}
@@ -285,12 +332,23 @@ export function KnowledgeGraph() {
                 ctx.fillText(truncTag, node.x, node.y + radius + 2)
 
               } else {
-                // --- Article node (small dot, no label) ---
+                // --- Article node (small dot, title on hover) ---
                 const radius = 4
                 ctx.beginPath()
                 ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
                 ctx.fillStyle = '#10b981'
                 ctx.fill()
+
+                if (node.id === hoveredNodeIdRef.current) {
+                  const label: string = node.label || ''
+                  const truncated = label.length > 32 ? label.slice(0, 30) + '…' : label
+                  const fontSize = Math.max(9 / globalScale, 2)
+                  ctx.font = `${fontSize}px sans-serif`
+                  ctx.fillStyle = '#111827'
+                  ctx.textAlign = 'center'
+                  ctx.textBaseline = 'top'
+                  ctx.fillText(truncated, node.x, node.y + radius + 3)
+                }
               }
             }}
           />
