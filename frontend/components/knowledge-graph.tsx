@@ -3,13 +3,14 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { apiFetch } from '@/lib/api-fetch'
 import { Badge } from '@/components/ui/badge'
-import { ExternalLink, X } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ExternalLink, X, Globe, Clock } from 'lucide-react'
 
 const ForceGraph = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
 interface GraphNode {
   id: string
-  type: 'group' | 'article'
+  type: 'group' | 'article' | 'tag'
   label: string
   color?: string
   groupName?: string
@@ -42,14 +43,26 @@ export function KnowledgeGraph() {
   const [expandedGroupColor, setExpandedGroupColor] = useState('#6b7280')
   const [groupData, setGroupData] = useState<GroupArticle[]>([])
 
+  // Overlay state (tag nodes + edges injected on group expand)
+  const [overlayNodes, setOverlayNodes] = useState<GraphNode[]>([])
+  const [overlayEdges, setOverlayEdges] = useState<GraphEdge[]>([])
+
+  // Article selection state
+  const [selectedArticle, setSelectedArticle] = useState<GroupArticle | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogDetail, setDialogDetail] = useState<any>(null)
+  const [dialogLoading, setDialogLoading] = useState(false)
+
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const [graphDims, setGraphDims] = useState({ width: 600, height: 500 })
 
-  // Stable reference for the expanded group data (used inside canvas callback)
+  // Stable refs (used inside canvas callbacks)
   const groupDataRef = useRef<GroupArticle[]>([])
   const expandedGroupRef = useRef<string | null>(null)
+  const selectedArticleRef = useRef<GroupArticle | null>(null)
   useEffect(() => { groupDataRef.current = groupData }, [groupData])
   useEffect(() => { expandedGroupRef.current = expandedGroup }, [expandedGroup])
+  useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
 
   useEffect(() => {
     apiFetch(`/analyses/graph?days=${days}`)
@@ -68,22 +81,79 @@ export function KnowledgeGraph() {
     return () => obs.disconnect()
   }, [])
 
+  // Merged graph data: base nodes/edges + tag overlay
+  const mergedGraphData = useMemo(() => ({
+    nodes: [...graphData.nodes, ...overlayNodes],
+    links: [...graphData.edges, ...overlayEdges],
+  }), [graphData, overlayNodes, overlayEdges])
+
   function handleNodeClick(node: any) {
     if (node.type === 'group') {
       if (expandedGroupRef.current === node.groupName) {
+        // Collapse
         setExpandedGroup(null)
         setGroupData([])
+        setOverlayNodes([])
+        setOverlayEdges([])
+        setSelectedArticle(null)
       } else {
         setExpandedGroup(node.groupName)
         setExpandedGroupLabel(node.label)
         setExpandedGroupColor(node.color || '#6b7280')
+        setOverlayNodes([])
+        setOverlayEdges([])
+        setSelectedArticle(null)
+
         apiFetch(`/analyses/graph/group/${encodeURIComponent(node.groupName)}`)
           .then(r => r.json())
-          .then(setGroupData)
+          .then((data: GroupArticle[]) => {
+            setGroupData(data)
+
+            // Build tag overlay nodes and edges
+            const uniqueTags = [...new Set(data.flatMap(a => a.tags))]
+
+            const tagNodes: GraphNode[] = uniqueTags.map(tag => ({
+              id: `tag::${node.groupName}::${tag}`,
+              type: 'tag' as const,
+              label: tag,
+              color: node.color || '#6b7280',
+              groupName: node.groupName,
+            }))
+
+            const tagEdges: GraphEdge[] = [
+              // group → tag
+              ...uniqueTags.map(tag => ({
+                source: node.id,
+                target: `tag::${node.groupName}::${tag}`,
+              })),
+              // tag → article
+              ...data.flatMap(article =>
+                article.tags.map(tag => ({
+                  source: `tag::${node.groupName}::${tag}`,
+                  target: article.articleId,
+                }))
+              ),
+            ]
+
+            setOverlayNodes(tagNodes)
+            setOverlayEdges(tagEdges)
+          })
       }
-    } else {
-      setExpandedGroup(null)
-      setGroupData([])
+    } else if (node.type === 'article') {
+      const article = groupDataRef.current.find(a => a.articleId === node.id)
+      setSelectedArticle(article || null)
+    }
+  }
+
+  function openArticleDialog(articleId: string) {
+    setDialogOpen(true)
+    if (!dialogDetail || dialogDetail.id !== articleId) {
+      setDialogLoading(true)
+      setDialogDetail(null)
+      apiFetch(`/articles/${articleId}`)
+        .then(r => r.json())
+        .then(data => { setDialogDetail(data); setDialogLoading(false) })
+        .catch(() => setDialogLoading(false))
     }
   }
 
@@ -113,19 +183,25 @@ export function KnowledgeGraph() {
           className="flex-1 border border-border rounded-xl overflow-hidden bg-muted/10"
         >
           <ForceGraph
-            graphData={{ nodes: graphData.nodes, links: graphData.edges }}
+            graphData={mergedGraphData}
             width={graphDims.width}
             height={graphDims.height}
             nodeRelSize={6}
             onNodeClick={handleNodeClick}
+            onNodeHover={(node: any) => {
+              if (node?.type === 'article') {
+                const article = groupDataRef.current.find(a => a.articleId === node.id)
+                setSelectedArticle(article || null)
+              }
+            }}
             nodeCanvasObjectMode={() => 'replace'}
             nodeCanvasObject={(node: any, ctx, globalScale) => {
               const isGroup = node.type === 'group'
               const isExpanded = isGroup && expandedGroupRef.current === node.groupName
 
               if (isExpanded) {
-                // --- Expanded group: dashed outline + inner tag nodes ---
-                const outerRadius = 52
+                // --- Expanded group: dashed outline + label only ---
+                const outerRadius = 20
                 ctx.beginPath()
                 ctx.arc(node.x, node.y, outerRadius, 0, 2 * Math.PI)
                 ctx.setLineDash([5, 3])
@@ -134,7 +210,6 @@ export function KnowledgeGraph() {
                 ctx.stroke()
                 ctx.setLineDash([])
 
-                // Group label above the circle
                 const titleFontSize = Math.max(11 / globalScale, 3)
                 ctx.font = `bold ${titleFontSize}px sans-serif`
                 ctx.fillStyle = node.color || '#6b7280'
@@ -142,34 +217,6 @@ export function KnowledgeGraph() {
                 ctx.textBaseline = 'bottom'
                 ctx.fillText(node.label, node.x, node.y - outerRadius - 4 / globalScale)
 
-                // Collect unique tags for this group from the ref (stable, no re-render needed)
-                const allTags = [...new Set(
-                  groupDataRef.current.flatMap(a => a.tags)
-                )].slice(0, 8)
-
-                allTags.forEach((tag, i) => {
-                  const angle = (i / Math.max(allTags.length, 1)) * 2 * Math.PI - Math.PI / 2
-                  const r = outerRadius * 0.6
-                  const tx = node.x + Math.cos(angle) * r
-                  const ty = node.y + Math.sin(angle) * r
-
-                  // Tag dot
-                  ctx.beginPath()
-                  ctx.arc(tx, ty, 4 / globalScale, 0, 2 * Math.PI)
-                  ctx.fillStyle = node.color || '#6b7280'
-                  ctx.globalAlpha = 0.7
-                  ctx.fill()
-                  ctx.globalAlpha = 1.0
-
-                  // Tag label
-                  const tagFontSize = Math.max(8 / globalScale, 2)
-                  ctx.font = `${tagFontSize}px sans-serif`
-                  ctx.fillStyle = '#374151'
-                  ctx.textAlign = 'center'
-                  ctx.textBaseline = 'top'
-                  const truncTag = tag.length > 16 ? tag.slice(0, 14) + '…' : tag
-                  ctx.fillText(truncTag, tx, ty + 5 / globalScale)
-                })
               } else if (isGroup) {
                 // --- Collapsed group node ---
                 const radius = 12
@@ -178,9 +225,9 @@ export function KnowledgeGraph() {
                 ctx.fillStyle = node.color || '#6b7280'
                 ctx.fill()
 
-                // Article count badge in the centre
+                // Article count badge (larger font)
                 if (node.articleCount) {
-                  const badgeFontSize = Math.max(8 / globalScale, 2)
+                  const badgeFontSize = Math.max(14 / globalScale, 4)
                   ctx.font = `bold ${badgeFontSize}px sans-serif`
                   ctx.fillStyle = 'white'
                   ctx.textAlign = 'center'
@@ -197,22 +244,34 @@ export function KnowledgeGraph() {
                 ctx.textAlign = 'center'
                 ctx.textBaseline = 'top'
                 ctx.fillText(truncated, node.x, node.y + radius + 2)
+
+              } else if (node.type === 'tag') {
+                // --- Tag node ---
+                const radius = 5
+                ctx.beginPath()
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                ctx.fillStyle = node.color || '#6b7280'
+                ctx.globalAlpha = 0.8
+                ctx.fill()
+                ctx.globalAlpha = 1.0
+
+                const tagFontSize = Math.max(9 / globalScale, 2)
+                ctx.font = `${tagFontSize}px sans-serif`
+                ctx.fillStyle = '#374151'
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'top'
+                const truncTag = (node.label || '').length > 18
+                  ? (node.label || '').slice(0, 16) + '…'
+                  : (node.label || '')
+                ctx.fillText(truncTag, node.x, node.y + radius + 2)
+
               } else {
-                // --- Article node ---
-                const radius = 8
+                // --- Article node (small dot, no label) ---
+                const radius = 4
                 ctx.beginPath()
                 ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
                 ctx.fillStyle = '#10b981'
                 ctx.fill()
-
-                const label: string = node.label || node.id
-                const truncated = label.length > 22 ? label.slice(0, 20) + '…' : label
-                const fontSize = Math.max(11 / globalScale, 3)
-                ctx.font = `${fontSize}px sans-serif`
-                ctx.fillStyle = '#6b7280'
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'top'
-                ctx.fillText(truncated, node.x, node.y + radius + 2)
               }
             }}
           />
@@ -221,7 +280,64 @@ export function KnowledgeGraph() {
 
       {/* Right panel — 40% */}
       <div className="w-[40%] flex flex-col min-h-0">
-        {expandedGroup ? (
+        {selectedArticle ? (
+          /* Article detail view */
+          <div className="flex flex-col h-full border border-border rounded-xl bg-card overflow-hidden">
+            <div className="flex items-start justify-between px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-sm font-semibold text-foreground leading-snug pr-2">
+                {selectedArticle.title}
+              </h3>
+              <button
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setSelectedArticle(null)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+              {selectedArticle.pain_points && (
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Pain Points
+                  </span>
+                  <p className="text-xs text-foreground mt-0.5 leading-relaxed">
+                    {selectedArticle.pain_points}
+                  </p>
+                </div>
+              )}
+              {selectedArticle.insights && (
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Insights
+                  </span>
+                  <p className="text-xs text-foreground mt-0.5 leading-relaxed">
+                    {selectedArticle.insights}
+                  </p>
+                </div>
+              )}
+              {selectedArticle.innovations && (
+                <div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Innovations
+                  </span>
+                  <p className="text-xs text-foreground mt-0.5 leading-relaxed">
+                    {selectedArticle.innovations}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-border shrink-0">
+              <button
+                className="w-full text-xs font-medium text-center py-2 px-3 rounded-lg border border-border hover:bg-muted/40 transition-colors"
+                onClick={() => openArticleDialog(selectedArticle.articleId)}
+              >
+                View Full Article
+              </button>
+            </div>
+          </div>
+        ) : expandedGroup ? (
+          /* Group detail view */
           <div className="flex flex-col h-full border border-border rounded-xl bg-card overflow-hidden">
             {/* Panel header */}
             <div
@@ -231,7 +347,13 @@ export function KnowledgeGraph() {
               <h3 className="text-sm font-semibold text-foreground">{expandedGroupLabel}</h3>
               <button
                 className="text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => { setExpandedGroup(null); setGroupData([]) }}
+                onClick={() => {
+                  setExpandedGroup(null)
+                  setGroupData([])
+                  setOverlayNodes([])
+                  setOverlayEdges([])
+                  setSelectedArticle(null)
+                }}
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
@@ -295,6 +417,67 @@ export function KnowledgeGraph() {
           </div>
         )}
       </div>
+
+      {/* View Full Article dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <DialogTitle className="text-lg leading-snug pr-6">
+              {dialogDetail?.title ?? selectedArticle?.title ?? ''}
+            </DialogTitle>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {dialogDetail?.source && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Globe className="h-3 w-3" />{dialogDetail.source}
+                </span>
+              )}
+              {dialogDetail?.published_at && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {new Date(dialogDetail.published_at).toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric'
+                  })}
+                </span>
+              )}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+            {dialogLoading ? (
+              <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
+            ) : dialogDetail ? (
+              <div className="space-y-6">
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                  {dialogDetail.content}
+                </p>
+                {dialogDetail.pain_points && (
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      Pain Points
+                    </h4>
+                    <p className="text-sm text-foreground leading-relaxed">{dialogDetail.pain_points}</p>
+                  </div>
+                )}
+                {dialogDetail.insights && (
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      Insights
+                    </h4>
+                    <p className="text-sm text-foreground leading-relaxed">{dialogDetail.insights}</p>
+                  </div>
+                )}
+                {dialogDetail.innovations && (
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      Innovations
+                    </h4>
+                    <p className="text-sm text-foreground leading-relaxed">{dialogDetail.innovations}</p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
