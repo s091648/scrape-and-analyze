@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = '08_seed_arxiv_scraper'
-down_revision = '07_alter_scraper_settings_frequency'
+down_revision = '07_alter_scraper_frequency'
 branch_labels = None
 depends_on = None
 
