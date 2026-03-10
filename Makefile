@@ -1,4 +1,4 @@
-.PHONY: migrate dump sync backfill backfill-dry-run create-admin
+.PHONY: migrate dump sync backfill backfill-dry-run create-admin scrape
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -14,14 +14,6 @@ DUMP_FILE ?= /app/db_dumps/railway_dump.sql
 LIMIT ?=
 _BACKFILL_ARGS := $(if $(LIMIT),--limit $(LIMIT),)
 
-create-admin:
-	docker compose exec backend python scripts/create_admin.py
-
-backfill:
-	docker compose run --rm job_service python /app/scripts/backfill_tags.py $(_BACKFILL_ARGS)
-
-backfill-dry-run:
-	docker compose run --rm job_service python /app/scripts/backfill_tags.py --dry-run $(_BACKFILL_ARGS)
 
 migrate:
 	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
@@ -40,3 +32,24 @@ sync:
 	docker compose run --rm \
 		-e PGPASSWORD=$${POSTGRES_PASSWORD:-postgres} \
 		job_service /app/scripts/sync_db.sh "$(DUMP_FILE)"
+
+create-admin:
+	docker compose run --rm job_service python scripts/create_admin.py
+
+backfill:
+	docker compose run --rm job_service python /app/scripts/backfill_tags.py $(_BACKFILL_ARGS)
+
+backfill-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_tags.py --dry-run $(_BACKFILL_ARGS)
+
+# Scrape (and optionally analyze) from a specific source.
+# Usage:
+#   make scrape SOURCE=rss
+#   make scrape SOURCE=arxiv LIMIT=10
+#   make scrape SOURCE=blog NO_ANALYZE=1
+SOURCE ?= rss
+NO_ANALYZE ?=
+_SCRAPE_ARGS := --source $(SOURCE) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_ANALYZE),--no-analyze,)
+
+scrape:
+	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
