@@ -15,6 +15,6 @@ OUT=${2:-/app/db_dumps/railway_dump.sql}
 
 echo "Dumping remote database ($REMOTE) to $OUT"
 # pg_dump should be installed in this image (postgresql-client package)
-pg_dump "$REMOTE" -Fp -O -x -f "$OUT"
+pg_dump "$REMOTE" -Fp -O -x --column-inserts --on-conflict-do-nothing -f "$OUT"
 
 echo "Dump complete"

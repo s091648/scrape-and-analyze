@@ -1,22 +1,22 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Rethink_Sans } from 'next/font/google'
 import './globals.css'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { NavBar } from '@/components/nav-bar'
 import SessionProviderWrapper from '@/components/session-provider'
 
-const inter = Inter({ subsets: ['latin'] })
+const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink' })
 
 export const metadata: Metadata = { title: 'Scrape Analyzer' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${rethinkSans.variable} font-sans`}>
         <SessionProviderWrapper>
           <ErrorBoundary>
             <NavBar />
-            <main className="container mx-auto px-4 py-6">{children}</main>
+            <main className="container mx-auto px-6 py-8 pt-24">{children}</main>
           </ErrorBoundary>
         </SessionProviderWrapper>
       </body>

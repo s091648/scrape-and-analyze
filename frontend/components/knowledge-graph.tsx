@@ -516,6 +516,16 @@ export function KnowledgeGraph() {
                   })}
                 </span>
               )}
+              {(dialogDetail?.url || selectedArticle?.url) && (
+                <a
+                  href={dialogDetail?.url ?? selectedArticle?.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />Original
+                </a>
+              )}
             </div>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">

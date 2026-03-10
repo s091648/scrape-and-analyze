@@ -10,14 +10,26 @@ if [ ! -f "$DUMP" ]; then
   exit 1
 fi
 
-PGHOST=${PGHOST:-postgres}
-PGUSER=${PGUSER:-digital_twins}
-PGDATABASE=${PGDATABASE:-digital_twins}
-PGPASSWORD=${PGPASSWORD:-digital_twins}
+POSTGRES_USER=${POSTGRES_USER:-postgres}
+POSTGRES_DB=${POSTGRES_DB:-postgres}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+POSTGRES_PORT=${POSTGRES_PORT:-5432}
 
-export PGPASSWORD
+export POSTGRES_PASSWORD
 
-echo "Restoring $DUMP into $PGUSER@$PGHOST/$PGDATABASE"
-psql "host=$PGHOST user=$PGUSER dbname=$PGDATABASE" < "$DUMP"
+CONN="host=$POSTGRES_HOST port=$POSTGRES_PORT user=$POSTGRES_USER dbname=$POSTGRES_DB password=$POSTGRES_PASSWORD"
+
+echo "Restoring $DUMP into $POSTGRES_USER@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB"
+
+# Preprocess the dump before applying:
+#   - CREATE TABLE/INDEX → IF NOT EXISTS  (safe to re-run against existing schema)
+#   - COPY blocks        → INSERT … ON CONFLICT DO NOTHING  (skips already-imported rows)
+# Any remaining DDL errors (e.g. ADD CONSTRAINT on tables that already have the constraint)
+# are harmless; grep filters them from output and || true prevents bash from exiting.
+python3 /app/scripts/copy_to_insert.py < "$DUMP" \
+  | psql "$CONN" 2>&1 \
+  | grep -v -e "already exists" -e "multiple primary keys" \
+  || true
 
 echo "Restore complete"

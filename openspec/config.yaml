@@ -78,6 +78,7 @@ rules:
     - Every task must reference at least one spec requirement by name or ID
     - Test tasks must be listed separately from implementation tasks (never merged)
     - Tasks should be ordered so dependencies come first (e.g., interface before implementation)
+    - Do not test using local environment, always use containerized environment (docker compose)
 
     # 5-step structure — every task MUST use exactly these five steps in order
     - |

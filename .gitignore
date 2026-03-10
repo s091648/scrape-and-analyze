@@ -117,3 +117,7 @@ temp/
 # Git Worktrees
 # -----------------------------
 .worktrees/
+
+# directory for persisted postgres dumps; keep only .gitkeep
+/db_dumps/*
+!/db_dumps/.gitkeep

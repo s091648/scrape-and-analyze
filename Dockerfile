@@ -7,6 +7,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
-COPY migrations/ ./migrations/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+COPY providers.toml .
 
-CMD ["python", "-m", "src.main", "daily"]
+CMD ["python", "-m", "src.main"]
