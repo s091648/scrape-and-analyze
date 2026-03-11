@@ -128,14 +128,14 @@ type = "noop"
 def test_scraper_setting_frequency_is_integer():
     """ScraperSetting.frequency should be Integer type"""
     from sqlalchemy import Integer
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     col_type = ScraperSetting.__table__.c.frequency.type
     assert isinstance(col_type, Integer)
 
 
 def test_scraper_setting_has_last_scraped_at():
     """ScraperSetting should have last_scraped_at column"""
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     assert hasattr(ScraperSetting, 'last_scraped_at')
     col = ScraperSetting.__table__.c.last_scraped_at
     assert col.nullable is True

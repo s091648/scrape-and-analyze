@@ -49,8 +49,8 @@ def test_record_failure_with_article_id():
 def test_run_remediate_retries_failed_analyses(mock_prompt, mock_provider, mock_get_session):
     """run_remediate should retry failed analysis tasks"""
     from src.main import run_remediate
-    from src.models.failed_task import FailedTask
-    from src.models.article import Article
+    from models.failed_task import FailedTask
+    from models.article import Article
 
     mock_session = MagicMock()
     mock_get_session.return_value = mock_session

@@ -13,7 +13,7 @@ os.environ.setdefault('SKIP_CONFIG_VALIDATION', 'true')
 @pytest.fixture(scope='session')
 def db_engine():
     """Create database engine for tests"""
-    from src.models.article import Base
+    from models.article import Base
     engine = create_engine(os.environ['DATABASE_URL'])
     Base.metadata.create_all(engine)
     yield engine

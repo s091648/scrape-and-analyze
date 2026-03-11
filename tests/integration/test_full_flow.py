@@ -6,7 +6,7 @@ import uuid
 @pytest.mark.integration
 def test_article_deduplication(db_session):
     """Duplicate articles should not be created"""
-    from src.models.article import Article
+    from models.article import Article
     from src.utils.sanitizer import generate_url_hash
 
     url = "https://example.com/test-article"
@@ -33,7 +33,7 @@ def test_article_deduplication(db_session):
 @pytest.mark.integration
 def test_transaction_rollback_on_failure(db_session):
     """Failed transactions should rollback completely"""
-    from src.models.article import Article
+    from models.article import Article
 
     initial_count = db_session.query(Article).count()
 
