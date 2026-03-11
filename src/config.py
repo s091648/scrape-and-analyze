@@ -12,7 +12,7 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
     """Get active sources from the database by source_type ('rss', 'blog', 'arxiv')."""
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
 
     own_session = False
     if session is None:
@@ -55,7 +55,7 @@ def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
 
 def get_sources_due(session=None) -> List[Dict[str, Any]]:
     """Return active sources whose last scrape time has exceeded their frequency interval."""
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     from sqlalchemy import or_, text
 
     own_session = False

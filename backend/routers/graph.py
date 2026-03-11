@@ -16,7 +16,7 @@ CACHE_TTL_SECONDS = 300  # 5 minutes
 
 def load_group_defs(db: Session) -> dict:
     """Load tag group definitions as a name→metadata dict."""
-    from src.models.tag_group import TagGroupDefinition
+    from models.tag_group import TagGroupDefinition
     rows = db.query(TagGroupDefinition).order_by(TagGroupDefinition.sort_order).all()
     return {
         r.name: {'display_name': r.display_name, 'color_hex': r.color_hex or '#6b7280'}
@@ -26,21 +26,21 @@ def load_group_defs(db: Session) -> dict:
 
 def load_group_def(db: Session, group_name: str):
     """Load a single tag group definition by name."""
-    from src.models.tag_group import TagGroupDefinition
+    from models.tag_group import TagGroupDefinition
     return db.query(TagGroupDefinition).filter_by(name=group_name).first()
 
 
 def query_analyses(db: Session, days: int) -> list:
-    from src.models.analysis import Analysis
+    from models.analysis import Analysis
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     return db.query(Analysis).filter(Analysis.analyzed_at >= cutoff).all()
 
 
 def query_group_articles(db: Session, group_name: str) -> list:
     """Return all analyses whose article has at least one tag in the given group."""
-    from src.models.analysis import Analysis
-    from src.models.article import Article
-    from src.models.tag import Tag, article_tags as at
+    from models.analysis import Analysis
+    from models.article import Article
+    from models.tag import Tag, article_tags as at
     return (
         db.query(Analysis)
         .join(Article, Article.id == Analysis.article_id)

@@ -30,27 +30,27 @@ class _LoginRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _get_user_by_username(db: Session, username: str):
-    from backend.models.auth import User
+    from models.auth import User
     return db.query(User).filter(User.username == username).first()
 
 
 def _get_user_by_email(db: Session, email: str):
-    from backend.models.auth import User
+    from models.auth import User
     return db.query(User).filter(User.email == email).first()
 
 
 def _get_user_by_google_id(db: Session, google_id: str):
-    from backend.models.auth import User
+    from models.auth import User
     return db.query(User).filter(User.google_id == google_id).first()
 
 
 def _get_user_by_id(db: Session, user_id: UUID):
-    from backend.models.auth import User
+    from models.auth import User
     return db.query(User).filter(User.id == user_id).first()
 
 
 def _create_user(db: Session, **kwargs) -> "User":
-    from backend.models.auth import User
+    from models.auth import User
     user = User(**kwargs)
     db.add(user)
     db.commit()
@@ -65,7 +65,7 @@ def _update_google_id(db: Session, user, google_id: str):
 
 
 def _list_users(db: Session):
-    from backend.models.auth import User
+    from models.auth import User
     return db.query(User).order_by(User.created_at.desc()).all()
 
 

@@ -22,9 +22,9 @@ from src.database import get_session, has_analysis, init_db
 from src.scrapers.scrapers.rss_scraper import RssScraper
 from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
 from src.scrapers.scrapers.blog_scraper import BlogScraper
-from src.models.article import Article
-from src.models.analysis import Analysis
-from src.models.failed_task import FailedTask
+from models.article import Article
+from models.analysis import Analysis
+from models.failed_task import FailedTask
 from src.utils.sanitizer import generate_url_hash
 from src.scrapers.content_parsers import prepare_content_for_analysis
 
@@ -139,7 +139,7 @@ def record_failure(session, task_type: str, url: Optional[str],
 
 def analyze_article(session, article, analyzer, prompt: str, correlation_id: str) -> bool:
     """Analyze an article using LLM"""
-    from src.models.tag import Tag
+    from models.tag import Tag
 
     llm_content = prepare_content_for_analysis(article)
     result = analyzer.analyze(llm_content, prompt)

@@ -10,12 +10,12 @@ router = APIRouter(prefix="/scraper-settings", tags=["scraper-settings"])
 
 
 def get_all_settings(db: Session):
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     return db.query(ScraperSetting).all()
 
 
 def create_setting(db: Session, data: ScraperSettingCreate):
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     obj = ScraperSetting(**data.model_dump())
     db.add(obj)
     db.commit()
@@ -24,7 +24,7 @@ def create_setting(db: Session, data: ScraperSettingCreate):
 
 
 def update_setting(db: Session, setting_id: UUID, data: ScraperSettingUpdate):
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     obj = db.query(ScraperSetting).filter(ScraperSetting.id == setting_id).first()
     if not obj:
         return None
@@ -36,7 +36,7 @@ def update_setting(db: Session, setting_id: UUID, data: ScraperSettingUpdate):
 
 
 def delete_setting(db: Session, setting_id: UUID) -> bool:
-    from backend.models.scraper_setting import ScraperSetting
+    from models.scraper_setting import ScraperSetting
     obj = db.query(ScraperSetting).filter(ScraperSetting.id == setting_id).first()
     if not obj:
         return False

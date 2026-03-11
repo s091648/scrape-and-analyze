@@ -28,9 +28,9 @@ def get_engine():
 
 def init_db() -> None:
     """Create all tables if they don't exist (idempotent)"""
-    from src.models.article import Base
-    from src.models.analysis import Analysis      # noqa: F401 — registers with Base
-    from src.models.failed_task import FailedTask  # noqa: F401 — registers with Base
+    from models.article import Base
+    from models.analysis import Analysis      # noqa: F401 — registers with Base
+    from models.failed_task import FailedTask  # noqa: F401 — registers with Base
     Base.metadata.create_all(get_engine())
 
 
@@ -44,14 +44,14 @@ def get_session() -> Session:
 
 def has_analysis(session, article_id: UUID) -> bool:
     """Check if article has analysis"""
-    from src.models.analysis import Analysis
+    from models.analysis import Analysis
     return session.query(Analysis).filter_by(article_id=article_id).first() is not None
 
 
 def find_missing_analyses(session) -> List:
     """Find articles without analysis"""
-    from src.models.article import Article
-    from src.models.analysis import Analysis
+    from models.article import Article
+    from models.analysis import Analysis
     return session.query(Article).outerjoin(Analysis).filter(Analysis.id == None).all()
 
 
@@ -60,8 +60,8 @@ def scan_missing_analyses(session, min_age_hours: int = 1) -> List:
     Find articles that should have analysis but don't (zombie records).
     Only considers articles older than min_age_hours to avoid race conditions.
     """
-    from src.models.article import Article
-    from src.models.analysis import Analysis
+    from models.article import Article
+    from models.analysis import Analysis
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=min_age_hours)
 
@@ -74,7 +74,7 @@ def scan_missing_analyses(session, min_age_hours: int = 1) -> List:
 
 def find_recent_failures(session, hours: int = 24) -> List:
     """Find unresolved failures from last N hours"""
-    from src.models.failed_task import FailedTask
+    from models.failed_task import FailedTask
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     return session.query(FailedTask).filter(
         FailedTask.resolved == False,

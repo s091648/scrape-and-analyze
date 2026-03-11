@@ -45,7 +45,7 @@ def get_articles_paginated(
     scraped_after: Optional[date] = None,
     scraped_before: Optional[date] = None,
 ):
-    from src.models.article import Article
+    from models.article import Article
 
     query = db.query(Article)
 
@@ -53,7 +53,7 @@ def get_articles_paginated(
         query = query.filter(Article.source.in_(sources))
 
     if tags:
-        from src.models.tag import Tag, article_tags as at
+        from models.tag import Tag, article_tags as at
         from sqlalchemy import select
         for tag_name in tags:
             tag_subq = select(at.c.article_id).join(
@@ -107,14 +107,14 @@ def list_articles(
 
 @router.get("/articles/filters/sources")
 def get_filter_sources(db: Session = Depends(get_db)):
-    from src.models.article import Article
+    from models.article import Article
     rows = db.query(Article.source).distinct().order_by(Article.source).all()
     return [r[0] for r in rows]
 
 
 @router.get("/articles/filters/tags")
 def get_filter_tags(db: Session = Depends(get_db)):
-    from src.models.tag import Tag
+    from models.tag import Tag
     rows = db.query(Tag.name).order_by(Tag.name).distinct().all()
     return [r[0] for r in rows]
 
@@ -166,12 +166,12 @@ class ArticleDetailOut(BaseModel):
 
 
 def get_article_by_id(db: Session, article_id: UUID):
-    from src.models.article import Article
+    from models.article import Article
     return db.query(Article).filter(Article.id == article_id).first()
 
 
 def get_tag_groups_for_article(db: Session, article_id: UUID) -> list:
-    from src.models.tag import Tag, article_tags as at
+    from models.tag import Tag, article_tags as at
     tags = (
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
@@ -196,7 +196,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID) -> list:
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
 def get_article(article_id: UUID, db: Session = Depends(get_db)):
-    from src.models.tag import Tag, article_tags as at
+    from models.tag import Tag, article_tags as at
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -231,7 +231,7 @@ def list_failed_tasks(
     size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    from src.models.failed_task import FailedTask
+    from models.failed_task import FailedTask
     query = db.query(FailedTask).order_by(FailedTask.failed_at.desc())
     total = query.count()
     items = query.offset((page - 1) * size).limit(size).all()
