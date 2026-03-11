@@ -25,10 +25,14 @@ echo "Restoring $DUMP into $POSTGRES_USER@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRE
 # Preprocess the dump before applying:
 #   - CREATE TABLE/INDEX → IF NOT EXISTS  (safe to re-run against existing schema)
 #   - COPY blocks        → INSERT … ON CONFLICT DO NOTHING  (skips already-imported rows)
+# FK checks are disabled during data load to handle orphaned rows in remote DB.
 # Any remaining DDL errors (e.g. ADD CONSTRAINT on tables that already have the constraint)
 # are harmless; grep filters them from output and || true prevents bash from exiting.
-python3 /app/scripts/copy_to_insert.py < "$DUMP" \
-  | psql "$CONN" 2>&1 \
+{
+  echo "SET session_replication_role = replica;"
+  python3 /app/scripts/copy_to_insert.py < "$DUMP"
+  echo "SET session_replication_role = DEFAULT;"
+} | psql "$CONN" 2>&1 \
   | grep -v -e "already exists" -e "multiple primary keys" \
   || true
 

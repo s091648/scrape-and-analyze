@@ -10,6 +10,7 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       - ./backend:/app/backend   # needed so alembic/env.py can import backend models
+      - ./models:/app/models     # needed so alembic/env.py can import ORM models
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
       - ./requirements.txt:/app/requirements.txt
@@ -32,6 +33,7 @@ services:
     volumes:
       - ./src:/app/src       # live-reload model changes
       - ./backend:/app/backend  # live-reload API changes
+      - ./models:/app/models      # live-reload DB model changes
     ports:
       - "8000:8000"
     env_file:
@@ -45,7 +47,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules  # preserve installed modules
@@ -92,6 +94,7 @@ services:
       - ./scripts:/app/scripts   # helper scripts available inside container
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
       - ./providers.toml:/app/providers.toml
+      - ./models:/app/models      # live-reload DB model changes
     env_file:
       - .env
     depends_on:
