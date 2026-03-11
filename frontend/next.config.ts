@@ -1,15 +1,8 @@
 import type { NextConfig } from "next";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: "/api/proxy/:path*",
-        destination: `${BACKEND_URL}/:path*`,
-      },
-    ];
-  },
-};
+// API proxy is handled by app/api/proxy/[...path]/route.ts (App Router route handler).
+// It reads BACKEND_URL at runtime (server-side), avoiding the NEXT_PUBLIC_* build-time
+// baking issue that would cause rewrites to fall back to localhost:8000.
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

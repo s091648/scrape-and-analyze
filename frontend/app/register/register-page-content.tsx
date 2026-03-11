@@ -5,8 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+import { apiFetch } from '@/lib/api-fetch'
 
 
 export default function RegisterPageContent() {
@@ -21,7 +20,7 @@ export default function RegisterPageContent() {
     setLoading(true)
     const form = new FormData(e.currentTarget)
     try {
-      const res = await fetch(`${BACKEND_URL}/auth/register`, {
+      const res = await apiFetch('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -5,7 +5,9 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { SignJWT } from 'jose'
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+// auth.ts runs server-side only (NextAuth callbacks). Use BACKEND_URL (not NEXT_PUBLIC_*)
+// so it reads Docker's internal hostname (http://backend:8000) at runtime.
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 const SECRET = process.env.NEXTAUTH_SECRET!
 
 async function makeAccessToken(payload: Record<string, unknown>): Promise<string> {
