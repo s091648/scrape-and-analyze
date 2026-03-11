@@ -1,0 +1,9 @@
+# frontend service
+# Railway Root Directory: /frontend
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "on_failure"

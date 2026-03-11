@@ -5,8 +5,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { SignJWT } from 'jose'
 
-// Server-side only: uses Docker/Railway internal hostname (not accessible from browser)
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 const SECRET = process.env.NEXTAUTH_SECRET!
 
 async function makeAccessToken(payload: Record<string, unknown>): Promise<string> {
