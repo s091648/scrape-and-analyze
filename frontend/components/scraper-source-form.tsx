@@ -80,7 +80,7 @@ export function ScraperSourceForm({ onSubmit }: { onSubmit: (data: ScraperSource
               placeholder="a.post-link"
               onChange={e => setForm(f => ({
                 ...f,
-                selector_config: { article_link: '', title: '', content: '', ...f.selector_config, article_link: e.target.value },
+                selector_config: { title: '', content: '', ...f.selector_config, article_link: e.target.value },
               }))}
             />
           </div>
@@ -92,7 +92,7 @@ export function ScraperSourceForm({ onSubmit }: { onSubmit: (data: ScraperSource
               placeholder="h1.post-title"
               onChange={e => setForm(f => ({
                 ...f,
-                selector_config: { article_link: '', title: '', content: '', ...f.selector_config, title: e.target.value },
+                selector_config: { article_link: '', content: '', ...f.selector_config, title: e.target.value },
               }))}
             />
           </div>
@@ -104,7 +104,7 @@ export function ScraperSourceForm({ onSubmit }: { onSubmit: (data: ScraperSource
               placeholder=".post-content"
               onChange={e => setForm(f => ({
                 ...f,
-                selector_config: { article_link: '', title: '', content: '', ...f.selector_config, content: e.target.value },
+                selector_config: { article_link: '', title: '', ...f.selector_config, content: e.target.value },
               }))}
             />
           </div>
