@@ -110,7 +110,7 @@ Expected: `Running upgrade f9a54cc49040 -> b3f1a9d2c8e0, add_tag_groups`
 
 ```bash
 git add alembic/versions/b3f1a9d2c8e0_add_tag_groups.py
-git commit -m "🗄️ FEAT Add tag_group_definitions migration and tag_groups column on analyses"
+git commit -m "🗄️ [FEAT] Add tag_group_definitions migration and tag_groups column on analyses"
 ```
 
 ---
@@ -162,7 +162,7 @@ tag_groups = Column(JSONB)          # [{"group": "digital_twin", "tags": ["virtu
 
 ```bash
 git add src/models/tag_group.py src/models/analysis.py
-git commit -m "🗄️ FEAT Add TagGroupDefinition model and Analysis.tag_groups column"
+git commit -m "🗄️ [FEAT] Add TagGroupDefinition model and Analysis.tag_groups column"
 ```
 
 ---
@@ -214,7 +214,7 @@ IMPORTANT: Output ONLY the JSON object, no other text or explanation.
 
 ```bash
 git add src/prompts/analysis.txt
-git commit -m "✨ FEAT Rewrite analysis prompt to produce structured tag_groups"
+git commit -m "✨ [FEAT] Rewrite analysis prompt to produce structured tag_groups"
 ```
 
 ---
@@ -366,7 +366,7 @@ Expected: all tests that don't involve the LLM directly still pass. (Graph tests
 
 ```bash
 git add src/analyzers/llm_provider.py src/analyzers/claude.py src/analyzers/gemini.py
-git commit -m "✨ FEAT Update AnalysisResult and LLM providers to produce tag_groups"
+git commit -m "✨ [FEAT] Update AnalysisResult and LLM providers to produce tag_groups"
 ```
 
 ---
@@ -399,7 +399,7 @@ In `src/main.py`, find the `analyze_article()` function. The `Analysis(...)` con
 
 ```bash
 git add src/main.py
-git commit -m "✨ FEAT Store tag_groups in Analysis records from pipeline"
+git commit -m "✨ [FEAT] Store tag_groups in Analysis records from pipeline"
 ```
 
 ---
@@ -560,7 +560,7 @@ def get_group_articles(group_name: str, db: Session = Depends(get_db)):
 
 ```bash
 git add backend/routers/graph.py
-git commit -m "✨ FEAT Rewrite graph router: group nodes, /graph/group/{name} endpoint"
+git commit -m "✨ [FEAT] Rewrite graph router: group nodes, /graph/group/{name} endpoint"
 ```
 
 ---
@@ -717,7 +717,7 @@ Expected: all tests pass.
 
 ```bash
 git add backend/tests/test_graph.py
-git commit -m "✅ TEST Update backend graph tests for group-based nodes"
+git commit -m "✅ [TEST] Update backend graph tests for group-based nodes"
 ```
 
 ---
@@ -1036,7 +1036,7 @@ export function KnowledgeGraph() {
 
 ```bash
 git add frontend/components/knowledge-graph.tsx
-git commit -m "✨ FEAT Rewrite KnowledgeGraph: group nodes, expand on click, inline tag sub-nodes"
+git commit -m "✨ [FEAT] Rewrite KnowledgeGraph: group nodes, expand on click, inline tag sub-nodes"
 ```
 
 ---
@@ -1128,7 +1128,7 @@ Expected: all tests PASS including the 3 graph tests.
 
 ```bash
 git add frontend/tests/graph.test.tsx
-git commit -m "✅ TEST Update frontend graph tests for group-based nodes"
+git commit -m "✅ [TEST] Update frontend graph tests for group-based nodes"
 ```
 
 ---
@@ -1155,5 +1155,5 @@ Both should pass with 0 failures.
 
 ```bash
 git add -A
-git commit -m "🔧 FIX Final cleanup for tag groups feature"
+git commit -m "🔧 [FIX] Final cleanup for tag groups feature"
 ```

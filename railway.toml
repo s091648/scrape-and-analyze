@@ -9,4 +9,3 @@
 
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"

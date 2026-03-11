@@ -4,9 +4,19 @@
       "Bash(openspec new:*)",
       "Bash(openspec status:*)",
       "Bash(openspec instructions proposal:*)",
-      "Bash(openspec instructions specs:*)"
+      "Bash(openspec instructions specs:*)",
+      "Bash(openspec instructions design:*)",
+      "Bash(openspec instructions tasks:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(/tmp/verify_exports.txt:*)",
+      "Read(//tmp/**)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "playwright",
     "context7",
