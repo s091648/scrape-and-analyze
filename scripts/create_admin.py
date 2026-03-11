@@ -40,7 +40,7 @@ def main():
     db = Session()
 
     try:
-        from backend.models.auth import User
+        from models.auth import User
         existing = db.query(User).filter(User.username == username).first()
         if existing:
             print(f"User '{username}' already exists. Updating role to admin.")
