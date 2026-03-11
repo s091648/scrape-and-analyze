@@ -57,7 +57,7 @@ function MultiSelectPopover({
           <CommandList className="max-h-52">
             {options.map(opt => (
               <CommandItem key={opt} value={opt} onSelect={() => toggle(opt)} className="gap-2 text-xs">
-                <Checkbox checked={selected.includes(opt)} className="h-3.5 w-3.5" readOnly />
+                <Checkbox checked={selected.includes(opt)} className="h-3.5 w-3.5" />
                 {opt}
               </CommandItem>
             ))}
