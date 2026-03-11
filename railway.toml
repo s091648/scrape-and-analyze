@@ -1,11 +1,12 @@
-# Shared by: worker service (Dockerfile) and backend service (backend/Dockerfile)
-# Both services have Root Directory = / (repo root) because backend/Dockerfile needs src/
-#
-# Per-service overrides must be set in Railway Dashboard:
-#   - worker:  Start Command = "python -m src.main daily|weekly|remediate"
-#              Restart Policy = never
-#   - backend: Start Command = (empty, use Dockerfile CMD)
-#              Restart Policy = on_failure
+# Worker service (scraper/analyzer cron jobs)
+# Railway Root Directory: / (repo root)
+# Railway Dashboard must set per-service overrides:
+#   worker  → Dockerfile Path: Dockerfile
+#             Start Command:   python -m src.main daily|weekly|remediate
+#             Restart Policy:  never
+#   backend → Dockerfile Path: backend/Dockerfile
+#             Start Command:   (empty — use Dockerfile CMD)
+#             Restart Policy:  on_failure
 
 [build]
 builder = "dockerfile"
