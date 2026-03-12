@@ -1,9 +1,12 @@
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
-from typing import List
-from src.scrapers.scrapers.base_scraper import BaseScraper, ScrapedArticle
+from typing import List, Optional
+
+from src.scrapers.scrapers.article import ScrapedArticle
+from src.scrapers.scrapers.base_scraper import BaseScraper
 from src.scrapers.content_parsers.pdf_parser import PdfParser
+from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -13,42 +16,60 @@ ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
 
 class ArxivScraper(BaseScraper):
-    """Scraper for arXiv API"""
+    """Scraper for arXiv API. Fetches PDF full-text by default."""
 
-    def __init__(self, max_results: int = 100, days_back: int = 7, fetch_pdf: bool = False):
+    def __init__(self, max_results: int = 100, days_back: int = 7,
+                 fetch_pdf: bool = True) -> None:
         self.max_results = max_results
         self.days_back = days_back
         self.fetch_pdf = fetch_pdf
         self._pdf_parser = PdfParser() if fetch_pdf else None
 
+    # ── Public API ────────────────────────────────────────────────────────
+
+    def discover(self) -> List[ScrapeTask]:
+        """
+        Call arXiv API, parse Atom feed, return one ScrapeTask per article.
+        Each task's execute() fetches PDF (if enabled) and builds the article.
+        Returns [] on API or parse failure.
+        """
+        entries = self._fetch_entries()
+        tasks = [
+            ScrapeTask(
+                url=e["url"],
+                source="arxiv",
+                metadata={"arxiv_id": e["arxiv_id"]},
+                _execute_fn=lambda d=e: self._build_article(d),
+            )
+            for e in entries
+        ]
+        logger.info("arxiv_discover_complete", task_count=len(tasks))
+        return tasks
+
+    # ── Private helpers ───────────────────────────────────────────────────
+
     def _build_query(self) -> str:
-        """Build arXiv search query for Digital Twins"""
         terms = [
             'ti:"digital twin"',
             'ti:"digital twins"',
             'abs:"digital twin"',
             'abs:"cyber-physical"',
         ]
-        return ' OR '.join(terms)
+        return " OR ".join(terms)
 
-    def scrape(self) -> List[ScrapedArticle]:
-        """Scrape arXiv API for Digital Twins papers"""
-        query = self._build_query()
-
+    def _fetch_entries(self) -> List[dict]:
+        """Fetch and parse the arXiv Atom feed. Returns list of entry dicts."""
         params = {
-            'search_query': query,
-            'start': 0,
-            'max_results': self.max_results,
-            'sortBy': 'submittedDate',
-            'sortOrder': 'descending',
+            "search_query": self._build_query(),
+            "start": 0,
+            "max_results": self.max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
         }
-
         try:
             response = requests.get(
-                ARXIV_API_URL,
-                params=params,
-                timeout=60,
-                headers={'User-Agent': 'Digital-Twins-Scraper/1.0'}
+                ARXIV_API_URL, params=params, timeout=60,
+                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
             )
             response.raise_for_status()
         except Exception as e:
@@ -61,61 +82,83 @@ class ArxivScraper(BaseScraper):
             logger.error("arxiv_parse_failed", error=str(e))
             return []
 
-        articles = []
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=self.days_back)
-
-        for entry in root.findall(f'{ATOM_NS}entry'):
-            title_elem = entry.find(f'{ATOM_NS}title')
-            summary_elem = entry.find(f'{ATOM_NS}summary')
-            published_elem = entry.find(f'{ATOM_NS}published')
-            id_elem = entry.find(f'{ATOM_NS}id')
-
-            title = title_elem.text.strip() if title_elem is not None else ''
-            summary = (summary_elem.text or '').strip() if summary_elem is not None else ''
-            published = published_elem.text if published_elem is not None else ''
-            arxiv_id = id_elem.text if id_elem is not None else ''
-
-            authors = []
-            for author in entry.findall(f'{ATOM_NS}author'):
-                name_elem = author.find(f'{ATOM_NS}name')
-                if name_elem is not None:
-                    authors.append(name_elem.text)
-
-            link = ''
-            for link_elem in entry.findall(f'{ATOM_NS}link'):
-                if link_elem.get('rel') == 'alternate':
-                    link = link_elem.get('href', '')
-                    break
-
-            if not link:
-                link = arxiv_id
-
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.days_back)
+        entries = []
+        for entry in root.findall(f"{ATOM_NS}entry"):
+            data = self._parse_entry(entry)
+            if data is None:
+                continue
             try:
-                pub_date = datetime.fromisoformat(published.replace('Z', '+00:00'))
-                if pub_date < cutoff_date:
+                pub_date = datetime.fromisoformat(
+                    data["published"].replace("Z", "+00:00")
+                )
+                if pub_date < cutoff:
                     continue
             except (ValueError, AttributeError):
                 pass
+            entries.append(data)
+        return entries
 
-            # Derive PDF URL from arxiv_id (which looks like http://arxiv.org/abs/2401.00001v1)
-            pdf_url = arxiv_id.replace('/abs/', '/pdf/') if '/abs/' in arxiv_id else ''
+    def _parse_entry(self, entry) -> Optional[dict]:
+        id_elem = entry.find(f"{ATOM_NS}id")
+        title_elem = entry.find(f"{ATOM_NS}title")
+        summary_elem = entry.find(f"{ATOM_NS}summary")
+        published_elem = entry.find(f"{ATOM_NS}published")
 
-            if self.fetch_pdf and pdf_url:
-                full_text = self._pdf_parser.parse(pdf_url)
-                content = full_text if full_text else summary
-                pdf_available = bool(full_text)
+        arxiv_id = id_elem.text if id_elem is not None else ""
+        title = title_elem.text.strip() if title_elem is not None else ""
+        summary = (summary_elem.text or "").strip() if summary_elem is not None else ""
+        published = published_elem.text if published_elem is not None else ""
+
+        authors = [
+            name_elem.text
+            for author in entry.findall(f"{ATOM_NS}author")
+            for name_elem in [author.find(f"{ATOM_NS}name")]
+            if name_elem is not None
+        ]
+
+        url = next(
+            (link.get("href", "") for link in entry.findall(f"{ATOM_NS}link")
+             if link.get("rel") == "alternate"),
+            arxiv_id,
+        )
+        pdf_url = arxiv_id.replace("/abs/", "/pdf/") if "/abs/" in arxiv_id else ""
+
+        return {
+            "url": url or arxiv_id,
+            "arxiv_id": arxiv_id,
+            "title": title,
+            "summary": summary,
+            "published": published,
+            "authors": authors,
+            "pdf_url": pdf_url,
+        }
+
+    def _build_article(self, entry_data: dict) -> Optional[ScrapedArticle]:
+        summary = entry_data["summary"]
+        pdf_url = entry_data["pdf_url"]
+        pdf_available = False
+
+        if self.fetch_pdf and pdf_url:
+            full_text = self._pdf_parser.parse(pdf_url)
+            if full_text:
+                content = full_text
+                pdf_available = True
             else:
                 content = summary
-                pdf_available = False
+        else:
+            content = summary
 
-            articles.append(ScrapedArticle(
-                url=link,
-                title=title,
-                content=content,
-                published_at=published,
-                source='arxiv',
-                metadata={'authors': authors, 'arxiv_id': arxiv_id, 'abstract': summary, 'pdf_available': pdf_available}
-            ))
-
-        logger.info("arxiv_scrape_completed", articles_found=len(articles))
-        return articles
+        return ScrapedArticle(
+            url=entry_data["url"],
+            title=entry_data["title"],
+            content=content,
+            published_at=entry_data["published"],
+            source="arxiv",
+            metadata={
+                "authors": entry_data["authors"],
+                "arxiv_id": entry_data["arxiv_id"],
+                "abstract": summary,
+                "pdf_available": pdf_available,
+            },
+        )
