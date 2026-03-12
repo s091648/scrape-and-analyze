@@ -230,48 +230,59 @@ def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str) ->
 
 
 def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) -> None:
-    """Scrape and analyze all provided sources, update last_scraped_at per source."""
-    for source in sources:
-        source_type = source['source_type']
-        logger.info("scrape_source_start", source=source['source'], source_type=source_type)
+    """Build scrapers from source configs, dispatch via ScrapeDispatcher."""
+    from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
+    from sqlalchemy import text
 
+    scrapers_with_sources = []
+    for source in sources:
+        source_type = source["source_type"]
+        logger.info("scrape_source_start",
+                    source=source["source"], source_type=source_type)
         try:
-            if source_type == 'rss':
-                scraper = RssScraper(url=source['url'], source=source['source'])
-            elif source_type == 'blog':
+            if source_type == "rss":
+                scraper = RssScraper(url=source["url"], source=source["source"])
+            elif source_type == "blog":
                 scraper = BlogScraper(
-                    base_url=source['base_url'],
-                    source=source['source'],
-                    selectors=source['selectors'],
+                    base_url=source["base_url"],
+                    source=source["source"],
+                    selectors=source["selectors"],
                 )
-            elif source_type == 'arxiv':
-                cfg = source.get('selector_config', {})
+            elif source_type == "arxiv":
+                cfg = source.get("selector_config", {})
                 scraper = ArxivScraper(
-                    max_results=cfg.get('max_results', 30),
-                    days_back=cfg.get('days_back', 1),
+                    max_results=cfg.get("max_results", 30),
+                    days_back=cfg.get("days_back", 1),
                 )
             else:
                 logger.warning("unknown_source_type_skipped", source_type=source_type)
                 continue
-
-            articles = scraper.scrape()
-            logger.info("source_scraped", source=source['source'], count=len(articles))
-
-            for article in articles:
-                if _shutdown_requested or check_timeout(time.time()):
-                    return
-                process_article_safe(article, analyzer, prompt, correlation_id)
-
         except Exception as e:
-            logger.error("source_scrape_failed", source=source['source'], error=str(e))
+            logger.error("scraper_init_failed", source=source["source"], error=str(e))
             continue
 
-        # Update last_scraped_at
+        scrapers_with_sources.append((scraper, source))
+
+    if not scrapers_with_sources:
+        return
+
+    def handle_result(scraped) -> None:
+        if _shutdown_requested or check_timeout(time.time()):
+            return
+        process_article_safe(scraped, analyzer, prompt, correlation_id)
+
+    ScrapeDispatcher(num_workers=MAX_WORKERS, delay=5.0).run(
+        scrapers=[s for s, _ in scrapers_with_sources],
+        on_result=handle_result,
+    )
+
+    # Update last_scraped_at for each successfully initialized source
+    for _, source in scrapers_with_sources:
         session = get_session()
         try:
             session.execute(
                 text("UPDATE scraper_settings SET last_scraped_at = NOW() WHERE id = :id"),
-                {"id": source['id']}
+                {"id": source["id"]},
             )
             session.commit()
         finally:
