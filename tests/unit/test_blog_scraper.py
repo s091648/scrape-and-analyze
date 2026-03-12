@@ -211,3 +211,75 @@ def test_blog_scraper_respects_rate_limit():
 
         # Should have called sleep with rate_limit value
         mock_sleep.assert_called_with(2.0)
+
+@responses.activate
+def test_discover_returns_tasks_for_allowed_links():
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
+
+    listing_html = '<html><body><article><a href="/blog/dt-article">DT</a></article></body></html>'
+    responses.add(responses.GET, "https://example.com/blog", body=listing_html, status=200)
+    responses.add(responses.GET, "https://example.com/robots.txt", status=404)
+
+    scraper = BlogScraper(
+        base_url="https://example.com/blog", source="test",
+        selectors={"article_link": "article a", "title": "h1", "content": ".content"},
+    )
+    tasks = scraper.discover()
+    assert len(tasks) == 1
+    assert "dt-article" in tasks[0].url
+
+
+@responses.activate
+def test_discover_returns_empty_when_listing_fetch_fails():
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
+    responses.add(responses.GET, "https://example.com/blog", status=500)
+    scraper = BlogScraper(
+        base_url="https://example.com/blog", source="test",
+        selectors={"article_link": "a", "title": "h1", "content": ".content"},
+    )
+    assert scraper.discover() == []
+
+
+@responses.activate
+def test_execute_fetches_and_returns_matching_article():
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
+
+    listing_html = '<html><body><a href="/digital-twins">DT Link</a></body></html>'
+    article_html = (
+        '<html><body>'
+        '<h1>Digital Twin Guide</h1>'
+        '<div class="content"><p>Digital twins are virtual replicas.</p></div>'
+        '</body></html>'
+    )
+    responses.add(responses.GET, "https://example.com/blog", body=listing_html, status=200)
+    responses.add(responses.GET, "https://example.com/robots.txt", status=404)
+    responses.add(responses.GET, "https://example.com/digital-twins",
+                  body=article_html, status=200)
+
+    scraper = BlogScraper(
+        base_url="https://example.com/blog", source="test",
+        selectors={"article_link": "a", "title": "h1", "content": ".content"},
+    )
+    article = scraper.discover()[0].execute()
+    assert article is not None
+    assert article.title == "Digital Twin Guide"
+    assert article.source == "test"
+
+
+@responses.activate
+def test_execute_returns_none_for_non_keyword_article():
+    from src.scrapers.scrapers.blog_scraper import BlogScraper
+
+    listing_html = '<html><body><a href="/unrelated">No DT here</a></body></html>'
+    article_html = '<html><body><h1>Cloud News</h1><div class="content"><p>About AWS.</p></div></body></html>'
+    responses.add(responses.GET, "https://example.com/blog", body=listing_html, status=200)
+    responses.add(responses.GET, "https://example.com/robots.txt", status=404)
+    responses.add(responses.GET, "https://example.com/unrelated",
+                  body=article_html, status=200)
+
+    scraper = BlogScraper(
+        base_url="https://example.com/blog", source="test",
+        selectors={"article_link": "a", "title": "h1", "content": ".content"},
+    )
+    tasks = scraper.discover()
+    assert tasks[0].execute() is None
