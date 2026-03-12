@@ -1,56 +1,49 @@
 import feedparser
 import requests
-import time
 import re
-from typing import List
-from src.scrapers.scrapers.base_scraper import BaseScraper, ScrapedArticle
+from typing import List, Optional
+
+from src.scrapers.scrapers.article import ScrapedArticle
+from src.scrapers.scrapers.base_scraper import BaseScraper
 from src.scrapers.content_parsers.html_parser import HtmlArticleParser
+from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 DIGITAL_TWINS_KEYWORDS = [
-    r'digital\s+twin',
-    r'digital\s+twins',
-    r'twin\s+technology',
-    r'cyber[\-\s]?physical',
-    r'virtual\s+replica',
+    r"digital\s+twin",
+    r"digital\s+twins",
+    r"twin\s+technology",
+    r"cyber[\-\s]?physical",
+    r"virtual\s+replica",
 ]
 
 
 class RssScraper(BaseScraper):
-    """Scraper for RSS feeds with Digital Twins keyword filtering"""
+    """Scraper for RSS feeds with Digital Twins keyword filtering."""
 
-    def __init__(self, url: str, source: str, rate_limit: float = 1.0):
+    def __init__(self, url: str, source: str, rate_limit: float = 1.0) -> None:
         self.url = url
         self.source = source
-        self.rate_limit = rate_limit
+        self.rate_limit = rate_limit  # kept for back-compat; delay enforced by worker
         self._keyword_pattern = re.compile(
-            '|'.join(DIGITAL_TWINS_KEYWORDS),
-            re.IGNORECASE
+            "|".join(DIGITAL_TWINS_KEYWORDS), re.IGNORECASE
         )
         self._html_parser = HtmlArticleParser()
 
-    def _matches_keywords(self, text: str) -> bool:
-        """Check if text matches Digital Twins keywords"""
-        if not text:
-            return False
-        return bool(self._keyword_pattern.search(text))
+    # ── Public API ────────────────────────────────────────────────────────
 
-    def _fetch_full_content(self, url: str, fallback: str) -> str:
-        """Fetch full article content from URL, falling back to RSS description."""
-        sanitized_fallback = sanitize_content(fallback)
-        result = self._html_parser.fetch_and_parse(url, fallback=sanitized_fallback)
-        return result
-
-    def scrape(self) -> List[ScrapedArticle]:
-        """Scrape RSS feed for Digital Twins articles"""
+    def discover(self) -> List[ScrapeTask]:
+        """
+        Fetch RSS feed, filter entries by keyword, return one ScrapeTask per match.
+        Returns [] on fetch or parse failure.
+        """
         try:
             response = requests.get(
-                self.url,
-                timeout=30,
-                headers={'User-Agent': 'Digital-Twins-Scraper/1.0'}
+                self.url, timeout=30,
+                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
             )
             response.raise_for_status()
         except Exception as e:
@@ -58,33 +51,41 @@ class RssScraper(BaseScraper):
             return []
 
         feed = feedparser.parse(response.content)
-
         if not feed.entries:
             return []
 
-        articles = []
-
+        tasks = []
         for entry in feed.entries:
-            title = entry.get('title', '')
-            description = entry.get('description', '') or entry.get('summary', '')
-
-            # Filter by keywords
+            title = entry.get("title", "")
+            description = entry.get("description", "") or entry.get("summary", "")
             if not self._matches_keywords(title) and not self._matches_keywords(description):
                 continue
-
-            content = self._fetch_full_content(entry.get('link', ''), description)
-
-            articles.append(ScrapedArticle(
-                url=entry.get('link', ''),
-                title=title,
-                content=content,
-                published_at=entry.get('published', ''),
+            tasks.append(ScrapeTask(
+                url=entry.get("link", ""),
                 source=self.source,
-                metadata={'author': entry.get('author')}
+                _execute_fn=lambda e=entry: self._fetch_article(e),
             ))
 
-            if self.rate_limit > 0:
-                time.sleep(self.rate_limit)
+        logger.info("rss_discover_complete", source=self.source, task_count=len(tasks))
+        return tasks
 
-        logger.info("rss_scrape_completed", source=self.source, articles_found=len(articles))
-        return articles
+    # ── Private helpers ───────────────────────────────────────────────────
+
+    def _fetch_article(self, entry) -> Optional[ScrapedArticle]:
+        link = entry.get("link", "")
+        description = entry.get("description", "") or entry.get("summary", "")
+        fallback = sanitize_content(description)
+        content = self._html_parser.fetch_and_parse(link, fallback=fallback)
+        return ScrapedArticle(
+            url=link,
+            title=entry.get("title", ""),
+            content=content,
+            published_at=entry.get("published", ""),
+            source=self.source,
+            metadata={"author": entry.get("author")},
+        )
+
+    def _matches_keywords(self, text: str) -> bool:
+        if not text:
+            return False
+        return bool(self._keyword_pattern.search(text))
