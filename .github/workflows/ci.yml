@@ -74,6 +74,15 @@ jobs:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
         run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
 
+      - name: Debug secrets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          if [ -z "$GIST_SECRET" ]; then echo "GIST_SECRET is EMPTY"; else echo "GIST_SECRET length=${#GIST_SECRET}"; fi
+          if [ -z "$GIST_ID" ]; then echo "GIST_ID is EMPTY"; else echo "GIST_ID=${GIST_ID}"; fi
+        env:
+          GIST_SECRET: ${{ secrets.GIST_SECRET }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+
       - name: Update unit coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: schneegans/dynamic-badges-action@v1.7.0
