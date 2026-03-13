@@ -10,6 +10,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # -----------------------------------------------
   # Stage 1: Unit Tests (no external dependencies)
@@ -39,7 +42,7 @@ jobs:
         id: coverage
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
-          pytest-xml-coverage-report: ./coverage.xml
+          pytest-xml-coverage-path:./coverage.xml
           junitxml-path: ./pytest.xml
           title: Unit Test Coverage
 
@@ -167,7 +170,7 @@ jobs:
         id: coverage
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
-          pytest-xml-coverage-report: ./coverage-integration.xml
+          pytest-xml-coverage-path:./coverage-integration.xml
           junitxml-path: ./pytest-integration.xml
           title: Integration Test Coverage
 
