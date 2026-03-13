@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 env:
@@ -24,8 +24,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
@@ -45,73 +43,58 @@ jobs:
           pytest-xml-coverage-path: ./coverage.xml
           junitxml-path: ./pytest.xml
           title: Unit Test Coverage
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update README — unit test badges and report
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        env:
-          COVERAGE_BADGE: ${{ steps.coverage.outputs.coverageHtml }}
-          REPORT_HTML: ${{ steps.coverage.outputs.summaryReport }}
-          TESTS: ${{ steps.coverage.outputs.tests }}
-          FAILURES: ${{ steps.coverage.outputs.failures }}
-          ERRORS: ${{ steps.coverage.outputs.errors }}
-          SKIPPED: ${{ steps.coverage.outputs.skipped }}
+      - name: Compute pass rate
+        id: passrate
         run: |
-          python - <<'EOF'
-          import os, re
+          TESTS="${{ steps.coverage.outputs.tests }}"
+          FAILURES="${{ steps.coverage.outputs.failures }}"
+          ERRORS="${{ steps.coverage.outputs.errors }}"
+          SKIPPED="${{ steps.coverage.outputs.skipped }}"
+          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
+          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
+          if [ "$TESTS" -eq 0 ]; then
+            COLOR="lightgrey"; MSG="no tests"
+          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
+            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
+          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
+            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
+          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
+            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
+          else
+            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
+          fi
+          echo "msg=${MSG}" >> $GITHUB_OUTPUT
+          echo "color=${COLOR}" >> $GITHUB_OUTPUT
 
-          coverage_badge = os.environ['COVERAGE_BADGE']
-          report         = os.environ['REPORT_HTML']
+      - name: Write coverage to job summary
+        if: always()
+        env:
+          REPORT: ${{ steps.coverage.outputs.summaryReport }}
+        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
 
-          tests    = int(os.environ.get('TESTS',    '0') or 0)
-          failures = int(os.environ.get('FAILURES', '0') or 0)
-          errors   = int(os.environ.get('ERRORS',   '0') or 0)
-          skipped  = int(os.environ.get('SKIPPED',  '0') or 0)
-          passed   = tests - failures - errors - skipped
-
-          if tests == 0:
-              color, msg = 'lightgrey', 'no%20tests'
-          elif failures + errors == 0:
-              color, msg = 'brightgreen', f'{passed}%2F{tests}%20passed'
-          elif passed / tests >= 0.9:
-              color, msg = 'green',       f'{passed}%2F{tests}%20passed'
-          elif passed / tests >= 0.75:
-              color, msg = 'yellow',      f'{passed}%2F{tests}%20passed'
-          else:
-              color, msg = 'red',         f'{passed}%2F{tests}%20passed'
-
-          passrate_badge = (
-              f'<img src="https://img.shields.io/badge/unit%20tests-{msg}-{color}"'
-              f' alt="unit test results">'
-          )
-
-          def replace_section(text, begin, end, body):
-              repl = f'{begin}\n{body}\n{end}'
-              return re.sub(
-                  re.escape(begin) + r'.*?' + re.escape(end),
-                  lambda _: repl,
-                  text, flags=re.DOTALL
-              )
-
-          with open('README.md', 'r') as f:
-              content = f.read()
-
-          content = replace_section(content,
-              '<!-- Unit-Badge:Begin -->', '<!-- Unit-Badge:End -->', coverage_badge)
-          content = replace_section(content,
-              '<!-- Unit-Passrate-Badge:Begin -->', '<!-- Unit-Passrate-Badge:End -->', passrate_badge)
-          content = replace_section(content,
-              '<!-- Pytest Coverage Comment:Begin -->', '<!-- Pytest Coverage Comment:End -->', report)
-
-          with open('README.md', 'w') as f:
-              f.write(content)
-          EOF
-
-      - name: Commit README (unit)
+      - name: Update unit coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
-          commit_message: "docs: update unit test badges [skip ci]"
-          file_pattern: README.md
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: unit-coverage.json
+          label: unit coverage
+          message: ${{ steps.coverage.outputs.coverage }}%
+          color: ${{ steps.coverage.outputs.color }}
+
+      - name: Update unit pass rate badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: unit-passrate.json
+          label: unit tests
+          message: ${{ steps.passrate.outputs.msg }}
+          color: ${{ steps.passrate.outputs.color }}
 
   # -----------------------------------------------
   # Stage 2: Integration Tests (requires Postgres)
@@ -144,10 +127,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          # Fetch the latest commit so we get the README updated by unit-test
-          ref: ${{ github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -172,70 +151,55 @@ jobs:
           pytest-xml-coverage-path: ./coverage-integration.xml
           junitxml-path: ./pytest-integration.xml
           title: Integration Test Coverage
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update README — integration test badges and report
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        env:
-          COVERAGE_BADGE: ${{ steps.coverage.outputs.coverageHtml }}
-          REPORT_HTML: ${{ steps.coverage.outputs.summaryReport }}
-          TESTS: ${{ steps.coverage.outputs.tests }}
-          FAILURES: ${{ steps.coverage.outputs.failures }}
-          ERRORS: ${{ steps.coverage.outputs.errors }}
-          SKIPPED: ${{ steps.coverage.outputs.skipped }}
+      - name: Compute pass rate
+        id: passrate
         run: |
-          python - <<'EOF'
-          import os, re
+          TESTS="${{ steps.coverage.outputs.tests }}"
+          FAILURES="${{ steps.coverage.outputs.failures }}"
+          ERRORS="${{ steps.coverage.outputs.errors }}"
+          SKIPPED="${{ steps.coverage.outputs.skipped }}"
+          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
+          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
+          if [ "$TESTS" -eq 0 ]; then
+            COLOR="lightgrey"; MSG="no tests"
+          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
+            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
+          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
+            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
+          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
+            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
+          else
+            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
+          fi
+          echo "msg=${MSG}" >> $GITHUB_OUTPUT
+          echo "color=${COLOR}" >> $GITHUB_OUTPUT
 
-          coverage_badge = os.environ['COVERAGE_BADGE']
-          report         = os.environ['REPORT_HTML']
+      - name: Write coverage to job summary
+        if: always()
+        env:
+          REPORT: ${{ steps.coverage.outputs.summaryReport }}
+        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
 
-          tests    = int(os.environ.get('TESTS',    '0') or 0)
-          failures = int(os.environ.get('FAILURES', '0') or 0)
-          errors   = int(os.environ.get('ERRORS',   '0') or 0)
-          skipped  = int(os.environ.get('SKIPPED',  '0') or 0)
-          passed   = tests - failures - errors - skipped
-
-          if tests == 0:
-              color, msg = 'lightgrey', 'no%20tests'
-          elif failures + errors == 0:
-              color, msg = 'brightgreen', f'{passed}%2F{tests}%20passed'
-          elif passed / tests >= 0.9:
-              color, msg = 'green',       f'{passed}%2F{tests}%20passed'
-          elif passed / tests >= 0.75:
-              color, msg = 'yellow',      f'{passed}%2F{tests}%20passed'
-          else:
-              color, msg = 'red',         f'{passed}%2F{tests}%20passed'
-
-          passrate_badge = (
-              f'<img src="https://img.shields.io/badge/integration%20tests-{msg}-{color}"'
-              f' alt="integration test results">'
-          )
-
-          def replace_section(text, begin, end, body):
-              repl = f'{begin}\n{body}\n{end}'
-              return re.sub(
-                  re.escape(begin) + r'.*?' + re.escape(end),
-                  lambda _: repl,
-                  text, flags=re.DOTALL
-              )
-
-          with open('README.md', 'r') as f:
-              content = f.read()
-
-          content = replace_section(content,
-              '<!-- Integration-Badge:Begin -->', '<!-- Integration-Badge:End -->', coverage_badge)
-          content = replace_section(content,
-              '<!-- Integration-Passrate-Badge:Begin -->', '<!-- Integration-Passrate-Badge:End -->', passrate_badge)
-          content = replace_section(content,
-              '<!-- Pytest Integration Coverage:Begin -->', '<!-- Pytest Integration Coverage:End -->', report)
-
-          with open('README.md', 'w') as f:
-              f.write(content)
-          EOF
-
-      - name: Commit README (integration)
+      - name: Update integration coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
-          commit_message: "docs: update integration test badges [skip ci]"
-          file_pattern: README.md
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: integration-coverage.json
+          label: integration coverage
+          message: ${{ steps.coverage.outputs.coverage }}%
+          color: ${{ steps.coverage.outputs.color }}
+
+      - name: Update integration pass rate badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: integration-passrate.json
+          label: integration tests
+          message: ${{ steps.passrate.outputs.msg }}
+          color: ${{ steps.passrate.outputs.color }}
