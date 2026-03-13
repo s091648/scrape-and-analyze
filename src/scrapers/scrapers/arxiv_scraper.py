@@ -35,7 +35,6 @@ class ArxivScraper(BaseScraper):
         """
         from src.observability.metrics import SCRAPER_ARTICLES_FOUND
 
-        SCRAPER_ARTICLES_FOUND.labels(source="arxiv").inc(len(tasks))
         entries = self._fetch_entries()
         tasks = [
             ScrapeTask(
@@ -46,6 +45,7 @@ class ArxivScraper(BaseScraper):
             )
             for e in entries
         ]
+        SCRAPER_ARTICLES_FOUND.labels(source="arxiv").inc(len(tasks))
         logger.info("arxiv_discover_complete", task_count=len(tasks))
         return tasks
 
