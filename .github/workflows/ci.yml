@@ -22,8 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # 為了讓後面的 commit 動作有權限推送，建議 checkout 時不使用唯讀模式
-          persist-credentials: true 
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
@@ -31,33 +30,55 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest-cov # 確保有安裝 pytest-cov
+        run: pip install -r requirements.txt
 
       - name: Run unit tests with coverage
         run: pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Pytest Coverage Comment
-        id: coverage # 加入 ID 才能在下一步取得輸出變數
+        id: coverage
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
-          pytest-xml-coverage-path: ./coverage.xml # 修正參數名稱
+          pytest-xml-coverage-report: ./coverage.xml
           junitxml-path: ./pytest.xml
-          # 如果是 push 到 master，通常不需要在 PR 留言，可以視情況加上 hide-comment: true
+          title: Unit Test Coverage
 
-      # 新增：更新 README 內容
-      - name: Update README with Coverage Badge
+      - name: Update README — unit test badge and report
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          BADGE_HTML: ${{ steps.coverage.outputs.coverageHtml }}
+          REPORT_HTML: ${{ steps.coverage.outputs.summaryReport }}
         run: |
-          sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n${{ steps.coverage.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
+          python - <<'EOF'
+          import os, re
 
-      # 新增：將變更推送到 GitHub
-      - name: Commit changes
+          badge  = os.environ['BADGE_HTML']
+          report = os.environ['REPORT_HTML']
+
+          with open('README.md', 'r') as f:
+              content = f.read()
+
+          content = re.sub(
+              r'<!-- Unit-Badge:Begin -->.*?<!-- Unit-Badge:End -->',
+              f'<!-- Unit-Badge:Begin -->\n{badge}\n<!-- Unit-Badge:End -->',
+              content, flags=re.DOTALL
+          )
+          content = re.sub(
+              r'<!-- Pytest Coverage Comment:Begin -->.*?<!-- Pytest Coverage Comment:End -->',
+              f'<!-- Pytest Coverage Comment:Begin -->\n{report}\n<!-- Pytest Coverage Comment:End -->',
+              content, flags=re.DOTALL
+          )
+
+          with open('README.md', 'w') as f:
+              f.write(content)
+          EOF
+
+      - name: Commit README (unit)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'docs: update coverage badge [skip ci]'
+          commit_message: "docs: update unit test coverage badge [skip ci]"
           file_pattern: README.md
-
 
   # -----------------------------------------------
   # Stage 2: Integration Tests (requires Postgres)
@@ -85,6 +106,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          # Fetch the latest commit so we get the README updated by unit-test
+          ref: ${{ github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -94,15 +119,55 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Create test database
-        run: psql -h localhost -U ${{ secrets.POSTGRES_USER }} -c "CREATE DATABASE digital_twins_test;"
+      - name: Run integration tests with coverage
+        run: pytest tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
-          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-
-      - name: Run integration tests
-        run: pytest tests/integration/ -v --tb=short -m integration
-        env:
-          DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/digital_twins_test
+          DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/${{ secrets.POSTGRES_DB }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Pytest Coverage Comment
+        id: coverage
+        uses: MishaKav/pytest-coverage-comment@v1.6.0
+        with:
+          pytest-xml-coverage-report: ./coverage-integration.xml
+          junitxml-path: ./pytest-integration.xml
+          title: Integration Test Coverage
+
+      - name: Update README — integration test badge and report
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          BADGE_HTML: ${{ steps.coverage.outputs.coverageHtml }}
+          REPORT_HTML: ${{ steps.coverage.outputs.summaryReport }}
+        run: |
+          python - <<'EOF'
+          import os, re
+
+          badge  = os.environ['BADGE_HTML']
+          report = os.environ['REPORT_HTML']
+
+          with open('README.md', 'r') as f:
+              content = f.read()
+
+          content = re.sub(
+              r'<!-- Integration-Badge:Begin -->.*?<!-- Integration-Badge:End -->',
+              f'<!-- Integration-Badge:Begin -->\n{badge}\n<!-- Integration-Badge:End -->',
+              content, flags=re.DOTALL
+          )
+          content = re.sub(
+              r'<!-- Pytest Integration Coverage:Begin -->.*?<!-- Pytest Integration Coverage:End -->',
+              f'<!-- Pytest Integration Coverage:Begin -->\n{report}\n<!-- Pytest Integration Coverage:End -->',
+              content, flags=re.DOTALL
+          )
+
+          with open('README.md', 'w') as f:
+              f.write(content)
+          EOF
+
+      - name: Commit README (integration)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update integration test coverage badge [skip ci]"
+          file_pattern: README.md
