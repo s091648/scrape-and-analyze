@@ -59,7 +59,7 @@ class ScraperWorker(threading.Thread):
             if claimed_idx is None:
                 if self._done_event.is_set() and self._all_empty():
                     break
-                time.sleep(0.1)   # back-off while waiting for work
+                self._done_event.wait(timeout=0.1)   # back-off while waiting for work
                 continue
 
             try:

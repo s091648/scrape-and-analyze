@@ -42,10 +42,9 @@ class LeakyBucketStrategy(RequestStrategy):
     def record_usage(self, actual_tokens: int) -> None:
         with self._lock:
             now = time.monotonic()
-            # Replace the estimated-token placeholder added by _reserve() with actual
-            # by appending the real count. The placeholder (estimated) was already
-            # added; we append the delta so TPM total stays accurate.
-            # Simpler: just append actual — slight overcount but conservative.
+            # Replace the estimated-token placeholder added by acquire() with actual.
+            if self._tpm_window:
+                self._tpm_window.pop()
             self._tpm_window.append((now, actual_tokens))
 
     # ------------------------------------------------------------------

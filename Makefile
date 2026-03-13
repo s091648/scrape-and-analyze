@@ -57,3 +57,16 @@ _SCRAPE_ARGS := --source $(SOURCE) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_AN
 
 scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
+
+# 基礎測試指令
+test:
+	docker compose run --rm app python -m pytest tests/unit/ -v --tb=short
+
+# 產生覆蓋率報告的測試指令 (HTML 會出現在專案的 tests/htmlcov/ 目錄下)
+test-cov:
+	docker compose run --rm app python -m pytest \
+		tests/unit/ \
+		-v --tb=short \
+		--cov=src \
+		--cov-report=html:tests/htmlcov \
+		--cov-report=term

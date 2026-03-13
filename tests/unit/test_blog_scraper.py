@@ -187,11 +187,9 @@ def test_blog_scraper_converts_relative_links():
 
 
 @responses.activate
-def test_blog_scraper_respects_rate_limit():
-    """BlogScraper should wait between requests"""
+def test_blog_scraper_rate_limit_attr_preserved():
+    """rate_limit kwarg should be stored; actual delay is enforced by the queue worker"""
     from src.scrapers.scrapers.blog_scraper import BlogScraper
-    from unittest.mock import patch
-    import time
 
     listing_html = '<html><a href="/article">Link</a></html>'
     article_html = '<html><h1>Digital Twin</h1><div class="content">Content</div></html>'
@@ -200,17 +198,15 @@ def test_blog_scraper_respects_rate_limit():
     responses.add(responses.GET, "https://example.com/article", body=article_html, status=200)
     responses.add(responses.GET, "https://example.com/robots.txt", status=404)
 
-    with patch('time.sleep') as mock_sleep:
-        scraper = BlogScraper(
-            base_url="https://example.com/blog",
-            source="test",
-            selectors={'article_link': 'a', 'title': 'h1', 'content': '.content'},
-            rate_limit=2.0
-        )
-        scraper.scrape()
-
-        # Should have called sleep with rate_limit value
-        mock_sleep.assert_called_with(2.0)
+    scraper = BlogScraper(
+        base_url="https://example.com/blog",
+        source="test",
+        selectors={'article_link': 'a', 'title': 'h1', 'content': '.content'},
+        rate_limit=2.0,
+    )
+    assert scraper.rate_limit == 2.0
+    tasks = scraper.discover()
+    assert len(tasks) == 1
 
 @responses.activate
 def test_discover_returns_tasks_for_allowed_links():

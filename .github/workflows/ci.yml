@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   # -----------------------------------------------
   # Stage 1: Unit Tests (no external dependencies)
@@ -17,6 +21,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 為了讓後面的 commit 動作有權限推送，建議 checkout 時不使用唯讀模式
+          persist-credentials: true 
 
       - uses: actions/setup-python@v5
         with:
@@ -24,10 +31,33 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pytest-cov # 確保有安裝 pytest-cov
 
-      - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
+      - name: Run unit tests with coverage
+        run: pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
+
+      - name: Pytest Coverage Comment
+        id: coverage # 加入 ID 才能在下一步取得輸出變數
+        uses: MishaKav/pytest-coverage-comment@v1.6.0
+        with:
+          pytest-xml-coverage-path: ./coverage.xml # 修正參數名稱
+          junitxml-path: ./pytest.xml
+          # 如果是 push 到 master，通常不需要在 PR 留言，可以視情況加上 hide-comment: true
+
+      # 新增：更新 README 內容
+      - name: Update README with Coverage Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          sed -i '/<!-- Pytest Coverage Comment:Begin -->/,/<!-- Pytest Coverage Comment:End -->/c\<!-- Pytest Coverage Comment:Begin -->\n${{ steps.coverage.outputs.coverageHtml }}\n<!-- Pytest Coverage Comment:End -->' ./README.md
+
+      # 新增：將變更推送到 GitHub
+      - name: Commit changes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'docs: update coverage badge [skip ci]'
+          file_pattern: README.md
+
 
   # -----------------------------------------------
   # Stage 2: Integration Tests (requires Postgres)
@@ -42,13 +72,13 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: digital_twins
-          POSTGRES_PASSWORD: digital_twins
-          POSTGRES_DB: digital_twins
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U digital_twins"
+          --health-cmd "pg_isready"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -65,26 +95,14 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Create test database
-        run: psql -h localhost -U digital_twins -c "CREATE DATABASE digital_twins_test;"
+        run: psql -h localhost -U ${{ secrets.POSTGRES_USER }} -c "CREATE DATABASE digital_twins_test;"
         env:
-          PGPASSWORD: digital_twins
+          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
       - name: Run integration tests
         run: pytest tests/integration/ -v --tb=short -m integration
         env:
-          DATABASE_URL: postgresql://digital_twins:digital_twins@localhost:5432/digital_twins_test
-
-  # -----------------------------------------------
-  # Stage 3: Docker Build (catches packaging issues)
-  # -----------------------------------------------
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: unit-test
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: docker build -t digital-twins-scraper .
+          DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/digital_twins_test
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

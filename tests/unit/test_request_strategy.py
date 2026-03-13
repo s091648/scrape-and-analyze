@@ -66,50 +66,84 @@ def test_leaky_bucket_record_usage_updates_tpm_window():
 
 
 def test_leaky_bucket_rpm_blocks_when_full():
-    """When RPM limit is reached, acquire() should sleep until a slot opens."""
+    """當 RPM 達到上限時，acquire() 應模擬睡眠直到視窗開啟。"""
     from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
 
     slept = []
+    start_now = 1000.0  # 使用固定的起始時間方便除錯
 
-    def fake_sleep(duration):
-        slept.append(duration)
+    # 定義一個模擬時間的類別
+    class MockClock:
+        def __init__(self, current_time):
+            self.current = current_time
 
-    now = time_module.monotonic()
+        def monotonic(self):
+            return self.current
 
-    # Pre-fill RPM window with rpm=2 requests at t=now-5 (recent, within 60s)
+        def sleep(self, duration):
+            # 關鍵：模擬時間前進，否則 while 迴圈永遠不會結束
+            self.current += duration
+            slept.append(duration)
+
+    clock = MockClock(start_now)
+
+    # 初始化策略：RPM=2 (每分鐘最多2次)
     s = LeakyBucketStrategy(rpm=2, tpm=250_000, rpd=20)
-    s._rpm_window.append(now - 5)
-    s._rpm_window.append(now - 3)
+    
+    # 預填 RPM 視窗：在 t=995 和 t=997 分別發送一次請求
+    # 假設視窗長度是 60 秒，這兩筆在 t=1000 時都還在視窗內
+    s._rpm_window.append(start_now - 5)
+    s._rpm_window.append(start_now - 3)
 
-    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', fake_sleep), \
-         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', return_value=now):
+    # 使用 side_effect 將 MockClock 的方法植入
+    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
+         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
+        
+        # 這次 acquire 會因為 RPM=2 已滿而進入迴圈
         s.acquire(estimated_tokens=100)
 
-    assert len(slept) >= 1
-    assert slept[0] > 0
+    # 驗證
+    assert len(slept) >= 1, "應該要觸發 sleep"
+    assert sum(slept) > 0, "總睡眠時間應大於 0"
+    assert clock.current > start_now, "模擬時間應該有所前進"
 
 
 def test_leaky_bucket_tpm_blocks_when_full():
-    """When TPM limit is reached, acquire() should sleep."""
+    """當 TPM 達到上限時，acquire() 應模擬睡眠直到視窗開啟。"""
     from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
 
     slept = []
+    start_now = 2000.0
 
-    def fake_sleep(duration):
-        slept.append(duration)
+    class MockClock:
+        def __init__(self, current_time):
+            self.current = current_time
+        def monotonic(self):
+            return self.current
+        def sleep(self, duration):
+            # 關鍵：讓模擬時間前進，使 TPM 視窗內的舊紀錄能被清除
+            self.current += duration
+            slept.append(duration)
 
-    now = time_module.monotonic()
+    clock = MockClock(start_now)
 
+    # 設定 TPM 為 100
     s = LeakyBucketStrategy(rpm=5, tpm=100, rpd=20)
-    # Pre-fill TPM window: 90 tokens used 10 seconds ago
-    s._tpm_window.append((now - 10, 90))
+    
+    # 預填 TPM 視窗：10秒前使用了 90 tokens (假設視窗為 60 秒)
+    s._tpm_window.append((start_now - 10, 90))
 
-    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', fake_sleep), \
-         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', return_value=now):
-        # Requesting 20 more tokens would exceed tpm=100
+    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
+         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
+        
+        # 請求 20 tokens，總數 110 會超過 100，必須觸發 sleep
         s.acquire(estimated_tokens=20)
 
-    assert len(slept) >= 1
+    # 驗證邏輯
+    assert len(slept) >= 1, "應該要觸發 sleep"
+    assert clock.current > start_now, "模擬時間應該有所前進"
+    # 確保最終成功加入視窗
+    assert sum(t for _, t in s._tpm_window) >= 20
 
 
 def test_leaky_bucket_cleans_stale_rpm_entries():
