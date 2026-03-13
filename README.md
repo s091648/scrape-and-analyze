@@ -18,10 +18,5 @@
 
 ### 整合測試覆蓋率
 <!-- Pytest Integration Coverage:Begin -->
-"<a href=\"https://github.com/s091648/scrape-and-analyze/blob/205e6ff97c47d0b0930a676125f5b24fe72fb5c2/README.md\"><img alt=\"Coverage\" src=\"https://img.shields.io/badge/Coverage-025-red.svg\" /></a>
-
-| Tests | Skipped | Failures | Errors | Time |
-| ----- | ------- | -------- | -------- | ------------------ |
-| 2 | 0 :zzz: | 0 :x: | 0 :fire: | 0.631s :stopwatch: |
-"
+"<a href=\"https://github.com/s091648/scrape-and-analyze/blob/2d83735712098b5f119ce11e4eb06f21d4b7d943/README.md\"><img alt=\"Coverage\" src=\"https://img.shields.io/badge/Coverage-025-red.svg\" /></a>\n\n| Tests | Skipped | Failures | Errors | Time |\n| ----- | ------- | -------- | -------- | ------------------ |\n| 2 | 0 :zzz: | 0 :x: | 0 :fire: | 0.690s :stopwatch: |\n"
 <!-- Pytest Integration Coverage:End -->
