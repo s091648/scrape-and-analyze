@@ -1,4 +1,4 @@
-.PHONY: migrate dump sync backfill backfill-dry-run create-admin scrape
+.PHONY: migrate dump sync backfill backfill-dry-run create-admin scrape run
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -57,6 +57,9 @@ _SCRAPE_ARGS := --source $(SOURCE) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_AN
 
 scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
+
+run:
+	docker compose run --rm app python -m src.main
 
 # 基礎測試指令
 test:

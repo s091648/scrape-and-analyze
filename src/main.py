@@ -27,6 +27,12 @@ from models.analysis import Analysis
 from models.failed_task import FailedTask
 from src.utils.sanitizer import generate_url_hash
 from src.scrapers.content_parsers import prepare_content_for_analysis
+from src.observability.metrics import (
+    SCRAPER_RUNS,
+    SCRAPER_DURATION,
+    push_metrics
+)
+from src.observability.run_context import init_run_context, get_run_id
 
 logger = get_logger(__name__)
 
@@ -125,6 +131,12 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 def record_failure(session, task_type: str, url: Optional[str],
                    article_id, error: Exception):
     """Record a failed task"""
+    # push error metric
+    from src.observability.metrics import SCRAPER_ERRORS
+
+    SCRAPER_ERRORS.labels(type=task_type).inc()
+
+    # add a failed task
     failure = FailedTask(
         task_type=task_type,
         article_url=url,
@@ -186,14 +198,24 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
 
 def process_article(session, scraped, analyzer, prompt: str, correlation_id: str) -> bool:
     """Process and analyze a single article within a transaction"""
+    from src.observability.metrics import (
+        SCRAPER_ARTICLES_NEW,
+        SCRAPER_ARTICLES_DUPLICATE
+    )
     url_hash = generate_url_hash(scraped.url)
 
     existing = session.query(Article).filter_by(url_hash=url_hash).first()
+
+    # Duplicate article
     if existing:
+        SCRAPER_ARTICLES_DUPLICATE.labels(source=scraped.source).inc()
         logger.info("article_already_exists", url=scraped.url)
         if not has_analysis(session, existing.id):
             return analyze_article(session, existing, analyzer, prompt, correlation_id)
         return False
+    
+    # New article
+    SCRAPER_ARTICLES_NEW.labels(source=scraped.source).inc()
 
     article = Article(
         url=scraped.url,
@@ -324,13 +346,21 @@ def main() -> None:
     """Main entry point — frequency-based scrape dispatch."""
     configure_logging()
 
-    correlation_id = str(uuid.uuid4())
+    SCRAPER_RUNS.inc()
+
+    start_time = time.time()
+
+    run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    logger.info("execution_started", correlation_id=correlation_id)
+    logger.info(
+        "execution_started",
+        run_id=run_id,
+        correlation_id=correlation_id
+    )
 
     init_db()
 
@@ -356,7 +386,14 @@ def main() -> None:
         raise
     finally:
         duration = time.time() - start_time
-        logger.info("execution_completed", duration_seconds=duration)
+        logger.info(
+            "execution_completed",
+            run_id=get_run_id(),
+            duration_seconds=duration
+        )
+        SCRAPER_DURATION.observe(duration)
+
+        push_metrics()
 
 
 if __name__ == '__main__':

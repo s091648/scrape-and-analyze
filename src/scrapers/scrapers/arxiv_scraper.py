@@ -33,6 +33,9 @@ class ArxivScraper(BaseScraper):
         Each task's execute() fetches PDF (if enabled) and builds the article.
         Returns [] on API or parse failure.
         """
+        from src.observability.metrics import SCRAPER_ARTICLES_FOUND
+
+        SCRAPER_ARTICLES_FOUND.labels(source="arxiv").inc(len(tasks))
         entries = self._fetch_entries()
         tasks = [
             ScrapeTask(

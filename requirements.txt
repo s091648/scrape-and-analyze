@@ -20,7 +20,9 @@ responses
 alembic>=1.13
 bcrypt>=4.0
 
-# Optional
+# Observability
+prometheus-client>=0.20
+python-logging-loki>=0.3
 sentry-sdk
 
 # PDF parsing

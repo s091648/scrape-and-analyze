@@ -23,7 +23,12 @@ def add_correlation_id(logger, method_name, event_dict):
 
 
 def configure_logging() -> None:
-    """Configure structlog for JSON output"""
+    """Configure structlog for JSON output and set up Loki logging if configured"""
+    # configure Loki logging if URL is set
+    from src.observability.loki_logging import configure_loki
+
+    configure_loki()
+    # configure structlog with processors and JSON output
     structlog.configure(
         processors=[
             structlog.stdlib.add_log_level,
