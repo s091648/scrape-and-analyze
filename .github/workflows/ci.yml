@@ -43,8 +43,8 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
           pytest-xml-coverage-path:./coverage.xml
-          junitxml-path: ./pytest.xml
-          title: Unit Test Coverage
+          junitxml-path:./pytest.xml
+          title:Unit Test Coverage
 
       - name: Update README — unit test badges and report
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -171,8 +171,8 @@ jobs:
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
           pytest-xml-coverage-path:./coverage-integration.xml
-          junitxml-path: ./pytest-integration.xml
-          title: Integration Test Coverage
+          junitxml-path:./pytest-integration.xml
+          title:Integration Test Coverage
 
       - name: Update README — integration test badges and report
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
