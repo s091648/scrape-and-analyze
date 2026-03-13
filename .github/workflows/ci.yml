@@ -84,24 +84,23 @@ jobs:
               f' alt="unit test results">'
           )
 
+          def replace_section(text, begin, end, body):
+              repl = f'{begin}\n{body}\n{end}'
+              return re.sub(
+                  re.escape(begin) + r'.*?' + re.escape(end),
+                  lambda _: repl,
+                  text, flags=re.DOTALL
+              )
+
           with open('README.md', 'r') as f:
               content = f.read()
 
-          content = re.sub(
-              r'<!-- Unit-Badge:Begin -->.*?<!-- Unit-Badge:End -->',
-              f'<!-- Unit-Badge:Begin -->\n{coverage_badge}\n<!-- Unit-Badge:End -->',
-              content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'<!-- Unit-Passrate-Badge:Begin -->.*?<!-- Unit-Passrate-Badge:End -->',
-              f'<!-- Unit-Passrate-Badge:Begin -->\n{passrate_badge}\n<!-- Unit-Passrate-Badge:End -->',
-              content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'<!-- Pytest Coverage Comment:Begin -->.*?<!-- Pytest Coverage Comment:End -->',
-              f'<!-- Pytest Coverage Comment:Begin -->\n{report}\n<!-- Pytest Coverage Comment:End -->',
-              content, flags=re.DOTALL
-          )
+          content = replace_section(content,
+              '<!-- Unit-Badge:Begin -->', '<!-- Unit-Badge:End -->', coverage_badge)
+          content = replace_section(content,
+              '<!-- Unit-Passrate-Badge:Begin -->', '<!-- Unit-Passrate-Badge:End -->', passrate_badge)
+          content = replace_section(content,
+              '<!-- Pytest Coverage Comment:Begin -->', '<!-- Pytest Coverage Comment:End -->', report)
 
           with open('README.md', 'w') as f:
               f.write(content)
@@ -212,24 +211,23 @@ jobs:
               f' alt="integration test results">'
           )
 
+          def replace_section(text, begin, end, body):
+              repl = f'{begin}\n{body}\n{end}'
+              return re.sub(
+                  re.escape(begin) + r'.*?' + re.escape(end),
+                  lambda _: repl,
+                  text, flags=re.DOTALL
+              )
+
           with open('README.md', 'r') as f:
               content = f.read()
 
-          content = re.sub(
-              r'<!-- Integration-Badge:Begin -->.*?<!-- Integration-Badge:End -->',
-              f'<!-- Integration-Badge:Begin -->\n{coverage_badge}\n<!-- Integration-Badge:End -->',
-              content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'<!-- Integration-Passrate-Badge:Begin -->.*?<!-- Integration-Passrate-Badge:End -->',
-              f'<!-- Integration-Passrate-Badge:Begin -->\n{passrate_badge}\n<!-- Integration-Passrate-Badge:End -->',
-              content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'<!-- Pytest Integration Coverage:Begin -->.*?<!-- Pytest Integration Coverage:End -->',
-              f'<!-- Pytest Integration Coverage:Begin -->\n{report}\n<!-- Pytest Integration Coverage:End -->',
-              content, flags=re.DOTALL
-          )
+          content = replace_section(content,
+              '<!-- Integration-Badge:Begin -->', '<!-- Integration-Badge:End -->', coverage_badge)
+          content = replace_section(content,
+              '<!-- Integration-Passrate-Badge:Begin -->', '<!-- Integration-Passrate-Badge:End -->', passrate_badge)
+          content = replace_section(content,
+              '<!-- Pytest Integration Coverage:Begin -->', '<!-- Pytest Integration Coverage:End -->', report)
 
           with open('README.md', 'w') as f:
               f.write(content)
