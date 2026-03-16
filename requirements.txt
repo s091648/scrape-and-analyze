@@ -24,6 +24,10 @@ bcrypt>=4.0
 prometheus-client>=0.20
 python-logging-loki>=0.3
 sentry-sdk
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation
 
 # PDF parsing
 pymupdf>=1.24

@@ -30,6 +30,9 @@ from src.scrapers.content_parsers import prepare_content_for_analysis
 from src.observability.metrics import (
     SCRAPER_RUNS,
     SCRAPER_DURATION,
+    SCRAPER_ERRORS,
+    SCRAPER_ARTICLES_NEW,
+    SCRAPER_ARTICLES_DUPLICATE,
     push_metrics
 )
 from src.observability.run_context import init_run_context, get_run_id
@@ -56,7 +59,6 @@ def build_analyzer():
         model = cfg['model']
         api_key = os.environ.get(cfg['api_key_env'], '')
 
-        # Instantiate provider
         if name == 'gemini':
             provider = GeminiProvider(api_key=api_key, model=model)
         elif name == 'openrouter':
@@ -65,7 +67,6 @@ def build_analyzer():
             logger.warning("unknown_provider_skipped", name=name)
             continue
 
-        # Instantiate strategy
         s_cfg = cfg.get('strategy', {})
         if s_cfg.get('type') == 'leaky_bucket':
             strategy = LeakyBucketStrategy(
@@ -107,7 +108,6 @@ def check_timeout(start_time: float) -> bool:
 
 def load_prompt() -> str:
     """Load analysis prompt from file"""
-    import os
     prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'analysis.txt')
     with open(prompt_path, 'r') as f:
         return f.read()
@@ -129,14 +129,11 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 
 def record_failure(session, task_type: str, url: Optional[str],
-                   article_id, error: Exception):
+                    article_id, error: Exception):
     """Record a failed task"""
-    # push error metric
-    from src.observability.metrics import SCRAPER_ERRORS
+    # OpenTelemetry: add(amount, attributes)
+    SCRAPER_ERRORS.add(1, {"type": task_type})
 
-    SCRAPER_ERRORS.labels(type=task_type).inc()
-
-    # add a failed task
     failure = FailedTask(
         task_type=task_type,
         article_url=url,
@@ -158,7 +155,7 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
 
     if result is None:
         record_failure(session, 'analyze', article.url, article.id,
-                       Exception("Analysis returned None"))
+                        Exception("Analysis returned None"))
         return False
 
     analysis = Analysis(
@@ -198,24 +195,20 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
 
 def process_article(session, scraped, analyzer, prompt: str, correlation_id: str) -> bool:
     """Process and analyze a single article within a transaction"""
-    from src.observability.metrics import (
-        SCRAPER_ARTICLES_NEW,
-        SCRAPER_ARTICLES_DUPLICATE
-    )
     url_hash = generate_url_hash(scraped.url)
 
     existing = session.query(Article).filter_by(url_hash=url_hash).first()
 
-    # Duplicate article
+    # Duplicate article - OpenTelemetry: add(amount, attributes)
     if existing:
-        SCRAPER_ARTICLES_DUPLICATE.labels(source=scraped.source).inc()
+        SCRAPER_ARTICLES_DUPLICATE.add(1, {"source": scraped.source})
         logger.info("article_already_exists", url=scraped.url)
         if not has_analysis(session, existing.id):
             return analyze_article(session, existing, analyzer, prompt, correlation_id)
         return False
     
-    # New article
-    SCRAPER_ARTICLES_NEW.labels(source=scraped.source).inc()
+    # New article - OpenTelemetry: add(amount, attributes)
+    SCRAPER_ARTICLES_NEW.add(1, {"source": scraped.source})
 
     article = Article(
         url=scraped.url,
@@ -254,7 +247,6 @@ def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str) ->
 def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) -> None:
     """Build scrapers from source configs, dispatch via ScrapeDispatcher."""
     from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
-    from sqlalchemy import text
 
     scrapers_with_sources = []
     for source in sources:
@@ -298,7 +290,6 @@ def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) 
         on_result=handle_result,
     )
 
-    # Update last_scraped_at for each successfully initialized source
     for _, source in scrapers_with_sources:
         session = get_session()
         try:
@@ -311,44 +302,12 @@ def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) 
             session.close()
 
 
-def run_remediate():
-    """Retry all unresolved failures"""
-    correlation_id = str(uuid.uuid4())
-    bind_correlation_id(correlation_id)
-
-    session = get_session()
-
-    failures = session.query(FailedTask).filter_by(resolved=False).all()
-
-    if not failures:
-        logger.info("no_failures_to_remediate")
-        return
-
-    analyzer = build_analyzer()
-    prompt = load_prompt()
-
-    remediated = 0
-    for failure in failures:
-        if failure.task_type == 'analyze' and failure.article_id:
-            article = session.get(Article, failure.article_id)
-            if article and not has_analysis(session, article.id):
-                if analyze_article(session, article, analyzer, prompt, correlation_id):
-                    failure.resolved = True
-                    failure.resolved_at = datetime.now(timezone.utc)
-                    session.commit()
-                    remediated += 1
-
-    logger.info("remediation_completed", remediated=remediated, total=len(failures))
-    session.close()
-
-
 def main() -> None:
     """Main entry point — frequency-based scrape dispatch."""
     configure_logging()
 
-    SCRAPER_RUNS.inc()
-
-    start_time = time.time()
+    # OpenTelemetry: add(amount)
+    SCRAPER_RUNS.add(1)
 
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
@@ -363,7 +322,6 @@ def main() -> None:
     )
 
     init_db()
-
     start_time = time.time()
 
     try:
@@ -391,7 +349,8 @@ def main() -> None:
             run_id=get_run_id(),
             duration_seconds=duration
         )
-        SCRAPER_DURATION.observe(duration)
+        # OpenTelemetry Histogram: record(amount)
+        SCRAPER_DURATION.record(duration)
 
         push_metrics()
 
