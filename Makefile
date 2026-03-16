@@ -1,4 +1,4 @@
-.PHONY: migrate dump sync backfill backfill-dry-run create-admin scrape run
+.PHONY: migrate migrate-remote dump sync backfill backfill-dry-run create-admin scrape run
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -22,6 +22,11 @@ pg_init:
 migrate:
 	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
 	docker compose run --rm job_service /app/scripts/db_migrate.sh
+
+migrate-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	@echo "Running alembic upgrade head against Railway DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
 dump:

@@ -52,13 +52,20 @@ class ArxivScraper(BaseScraper):
     # ── Private helpers ───────────────────────────────────────────────────
 
     def _build_query(self) -> str:
-        terms = [
-            'ti:"digital twin"',
-            'ti:"digital twins"',
-            'abs:"digital twin"',
-            'abs:"cyber-physical"',
-        ]
-        return " OR ".join(terms)
+        try:
+            from src.database import get_session
+            from models.arxiv_keyword import ArxivKeyword
+            session = get_session()
+            try:
+                keywords = session.query(ArxivKeyword).all()
+                if keywords:
+                    return " OR ".join(kw.keyword for kw in keywords)
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning("arxiv_keywords_db_fetch_failed", error=str(e))
+        # Fallback to hardcoded defaults if DB is unavailable
+        return 'ti:"digital twin" OR ti:"digital twins" OR abs:"digital twin" OR abs:"cyber-physical"'
 
     def _fetch_entries(self) -> List[dict]:
         """Fetch and parse the arXiv Atom feed. Returns list of entry dicts."""

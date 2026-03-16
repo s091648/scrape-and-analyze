@@ -13,7 +13,7 @@ class SelectorConfig(BaseModel):
 class ScraperSettingCreate(BaseModel):
     source_type: Literal["rss", "blog", "arxiv"]
     name: str
-    url: str
+    url: str = ""
     frequency: int  # hours between scrapes
     is_active: bool = True
     selector_config: Optional[SelectorConfig] = None

@@ -2,13 +2,361 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
+import { ChevronDown, Pencil, X, Check, Plus } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
-import { ScraperSourceForm } from '@/components/scraper-source-form'
 import { Switch } from '@/components/ui/switch'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { SourceCard, ScraperSetting, formatFrequency } from '@/components/scraper-source-card'
+import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
+
+interface ArxivKeyword {
+  id: string
+  keyword: string
+}
+
+// ── Accordion shell ──────────────────────────────────────────────────────────
+
+function AccordionSection({
+  title,
+  badge,
+  children,
+}: {
+  title: string
+  badge?: number
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 bg-card hover:bg-muted/40 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-semibold capitalize">{title}</span>
+          {badge !== undefined && (
+            <span className="inline-flex h-5 min-w-5 px-1.5 rounded-full bg-muted text-xs text-muted-foreground items-center justify-center">
+              {badge}
+            </span>
+          )}
+        </div>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 pt-2 space-y-3 bg-muted/20">{children}</div>
+      )}
+    </div>
+  )
+}
+
+// ── ArXiv card (singleton, no URL, no delete) ────────────────────────────────
+
+function ArxivSettingCard({
+  setting,
+  onUpdate,
+  onDelete,
+  keywords,
+  onAddKeyword,
+  onDeleteKeyword,
+}: {
+  setting: ScraperSetting
+  onUpdate: (id: string, data: Partial<ScraperSetting>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  keywords: ArxivKeyword[]
+  onAddKeyword: (keyword: string) => Promise<void>
+  onDeleteKeyword: (id: string) => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [form, setForm] = useState({
+    name: setting.name,
+    frequency: setting.frequency,
+    is_active: setting.is_active,
+  })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    await onUpdate(setting.id, form)
+    setSaving(false)
+    setEditing(false)
+  }
+
+  return (
+    <>
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        {editing ? (
+          <div className="flex-1 space-y-3">
+            <div>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">Name</label>
+              <input
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                Frequency (hours)
+              </label>
+              <input
+                type="number"
+                min={1}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                value={form.frequency}
+                onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
+              />
+              {form.frequency >= 24 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatFrequency(form.frequency)}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+              />
+              <span className="text-sm text-muted-foreground">Active</span>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                <Check className="h-4 w-4 mr-1" />
+                Save
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 space-y-1">
+            <p className="font-semibold text-sm">{setting.name}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="inline-flex items-center h-5 px-2 rounded-full border border-border text-xs text-muted-foreground">
+                {formatFrequency(setting.frequency)}
+              </span>
+              <Switch
+                checked={setting.is_active}
+                onCheckedChange={v => onUpdate(setting.id, { is_active: v })}
+              />
+            </div>
+          </div>
+        )}
+        {!editing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <ArxivKeywordManager
+          keywords={keywords}
+          onAdd={onAddKeyword}
+          onDelete={onDeleteKeyword}
+        />
+      </div>
+    </div>
+
+    <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete arXiv source?</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete <strong>{setting.name}</strong>? This cannot be undone.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+          <Button variant="destructive" onClick={() => { setConfirmDelete(false); onDelete(setting.id) }}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
+  )
+}
+
+// ── Add source card (RSS / Blog) ─────────────────────────────────────────────
+
+function AddSourceCard({
+  sourceType,
+  onAdd,
+}: {
+  sourceType: 'rss' | 'blog'
+  onAdd: (data: Omit<ScraperSetting, 'id'>) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const emptyForm = {
+    name: '',
+    url: '',
+    frequency: 24,
+    is_active: true,
+    selector_config: { article_link: '', title: '', content: '' },
+  }
+  const [form, setForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
+
+  async function handleAdd() {
+    if (!form.name || !form.url) return
+    setSaving(true)
+    const payload: any = {
+      source_type: sourceType,
+      name: form.name,
+      url: form.url,
+      frequency: form.frequency,
+      is_active: form.is_active,
+    }
+    if (sourceType === 'blog') payload.selector_config = form.selector_config
+    await onAdd(payload)
+    setSaving(false)
+    setExpanded(false)
+    setForm(emptyForm)
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+      >
+        <Plus className="h-4 w-4" />
+        Add source
+      </button>
+    )
+  }
+
+  const inputClass =
+    'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold">New {sourceType.toUpperCase()} Source</span>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className={labelClass}>Name</label>
+          <input
+            className={inputClass}
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Hacker News"
+          />
+        </div>
+        <div>
+          <label className={labelClass}>URL</label>
+          <input
+            className={inputClass}
+            value={form.url}
+            onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+            placeholder="https://..."
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Frequency (hours)</label>
+          <input
+            type="number"
+            min={1}
+            className={inputClass}
+            value={form.frequency}
+            onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
+          />
+          {form.frequency >= 24 && (
+            <p className="text-xs text-muted-foreground mt-1">{formatFrequency(form.frequency)}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={form.is_active}
+            onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+          />
+          <span className="text-sm text-muted-foreground">Active</span>
+        </div>
+
+        {sourceType === 'blog' && (
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              CSS Selectors
+            </p>
+            {(['article_link', 'title', 'content'] as const).map(key => (
+              <div key={key}>
+                <label className={labelClass}>{key.replace('_', ' ')}</label>
+                <input
+                  className={inputClass}
+                  value={form.selector_config[key]}
+                  placeholder={
+                    key === 'article_link'
+                      ? 'a.post-link'
+                      : key === 'title'
+                      ? 'h1.post-title'
+                      : '.post-content'
+                  }
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      selector_config: { ...f.selector_config, [key]: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleAdd} disabled={saving || !form.name || !form.url}>
+          <Check className="h-4 w-4 mr-1" />
+          Add
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ScraperSettingsPage() {
   const { data: session, status } = useSession()
-  const [settings, setSettings] = useState<any[]>([])
+  const [settings, setSettings] = useState<ScraperSetting[]>([])
+  const [keywords, setKeywords] = useState<ArxivKeyword[]>([])
 
   if (status === 'unauthenticated') redirect('/login')
   if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
@@ -17,73 +365,117 @@ export default function ScraperSettingsPage() {
 
   useEffect(() => {
     if (!token) return
-    apiFetch('/scraper-settings', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(setSettings)
+    const headers = { Authorization: `Bearer ${token}` }
+    Promise.all([
+      apiFetch('/scraper-settings', { headers }).then(r => r.json()),
+      apiFetch('/arxiv-keywords', { headers }).then(r => r.json()),
+    ]).then(([s, k]) => {
+      setSettings(s)
+      setKeywords(k)
+    })
   }, [token])
 
-  async function handleCreate(data: any) {
+  const byType = (type: ScraperSetting['source_type']) =>
+    settings.filter(s => s.source_type === type)
+
+  async function handleUpdate(id: string, data: Partial<ScraperSetting>) {
+    // Optimistic update
+    setSettings(prev => prev.map(s => (s.id === id ? { ...s, ...data } : s)))
+    await apiFetch(`/scraper-settings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    })
+  }
+
+  async function handleDelete(id: string) {
+    setSettings(prev => prev.filter(s => s.id !== id))
+    await apiFetch(`/scraper-settings/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  }
+
+  async function handleCreate(data: Omit<ScraperSetting, 'id'>) {
     const res = await apiFetch('/scraper-settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     })
     if (res.ok) {
-      const newSetting = await res.json()
-      setSettings(prev => [...prev, newSetting])
+      const created = await res.json()
+      setSettings(prev => [...prev, created])
     }
   }
 
-  async function toggleActive(id: string, is_active: boolean) {
-    setSettings(prev => prev.map(s => s.id === id ? { ...s, is_active } : s))
-    await apiFetch(`/scraper-settings/${id}`, {
-      method: 'PATCH',
+  async function handleAddKeyword(keyword: string) {
+    const res = await apiFetch('/arxiv-keywords', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ is_active }),
+      body: JSON.stringify({ keyword }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setKeywords(prev => [...prev, created])
+    }
+  }
+
+  async function handleDeleteKeyword(id: string) {
+    setKeywords(prev => prev.filter(k => k.id !== id))
+    await apiFetch(`/arxiv-keywords/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
     })
   }
 
+  const arxivSettings = byType('arxiv')
+  const blogSettings = byType('blog')
+  const rssSettings = byType('rss')
+
   return (
     <div className="max-w-3xl space-y-10">
-      {/* Header */}
       <div className="border-b border-border pb-6">
         <h1 className="text-2xl font-bold">Scraper Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your news sources and scraping schedule.</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage your news sources and scraping schedule.
+        </p>
       </div>
 
-      {/* Sources list */}
-      <div className="space-y-2">
-        <h2 className="text-base font-semibold">Active Sources</h2>
-        {settings.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center border border-dashed border-border rounded-2xl">
-            No sources yet. Add one below.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-2xl border border-border overflow-hidden">
-            {settings.map(s => (
-              <li key={s.id} className="flex items-center justify-between px-5 py-4 bg-card hover:bg-muted/40 transition-colors duration-150">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">{s.name}</p>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-5 px-2 rounded-full border border-border text-xs text-muted-foreground">
-                      {s.source_type}
-                    </span>
-                    <span className="inline-flex h-5 px-2 rounded-full border border-border text-xs text-muted-foreground">
-                      {s.frequency}
-                    </span>
-                  </div>
-                </div>
-                <Switch checked={s.is_active} onCheckedChange={v => toggleActive(s.id, v)} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Add form */}
       <div className="space-y-4">
-        <h2 className="text-base font-semibold">Add Source</h2>
-        <ScraperSourceForm onSubmit={handleCreate} />
+        {/* ArXiv */}
+        <AccordionSection title="arXiv" badge={arxivSettings.length}>
+          {arxivSettings.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No arXiv source found.</p>
+          ) : (
+            arxivSettings.map(s => (
+              <ArxivSettingCard
+                key={s.id}
+                setting={s}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
+                keywords={keywords}
+                onAddKeyword={handleAddKeyword}
+                onDeleteKeyword={handleDeleteKeyword}
+              />
+            ))
+          )}
+        </AccordionSection>
+
+        {/* Blog */}
+        <AccordionSection title="Blog" badge={blogSettings.length}>
+          {blogSettings.map(s => (
+            <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
+          ))}
+          <AddSourceCard sourceType="blog" onAdd={handleCreate} />
+        </AccordionSection>
+
+        {/* RSS */}
+        <AccordionSection title="RSS" badge={rssSettings.length}>
+          {rssSettings.map(s => (
+            <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
+          ))}
+          <AddSourceCard sourceType="rss" onAdd={handleCreate} />
+        </AccordionSection>
       </div>
     </div>
   )
