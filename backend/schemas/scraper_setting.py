@@ -38,6 +38,7 @@ class ScraperSettingOut(BaseModel):
     last_scraped_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    activity: list[int] = []  # daily article counts, oldest→newest, last 14 days
 
     class Config:
         from_attributes = True

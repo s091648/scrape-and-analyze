@@ -11,7 +11,7 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-ARXIV_API_URL = "http://export.arxiv.org/api/query"
+ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
 
@@ -45,7 +45,7 @@ class ArxivScraper(BaseScraper):
             )
             for e in entries
         ]
-        SCRAPER_ARTICLES_FOUND.labels(source="arxiv").inc(len(tasks))
+        SCRAPER_ARTICLES_FOUND.add(len(tasks), {"source": "arxiv"})
         logger.info("arxiv_discover_complete", task_count=len(tasks))
         return tasks
 

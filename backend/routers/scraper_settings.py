@@ -1,5 +1,7 @@
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -8,10 +10,34 @@ from backend.schemas.scraper_setting import ScraperSettingCreate, ScraperSetting
 
 router = APIRouter(prefix="/scraper-settings", tags=["scraper-settings"])
 
+_ACTIVITY_SQL = text("""
+    SELECT source, DATE(scraped_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+    FROM articles
+    WHERE scraped_at >= NOW() - INTERVAL '14 days'
+    GROUP BY source, day
+""")
+
 
 def get_all_settings(db: Session):
     from models.scraper_setting import ScraperSetting
-    return db.query(ScraperSetting).all()
+
+    settings = db.query(ScraperSetting).all()
+
+    # Build per-name activity arrays (14 slots, index 0 = 14 days ago, 13 = today)
+    today = datetime.now(timezone.utc).date()
+    cutoff = today - timedelta(days=13)
+    activity_map: dict[str, list[int]] = {s.name: [0] * 14 for s in settings}
+
+    for row in db.execute(_ACTIVITY_SQL):
+        if row.source in activity_map:
+            offset = (row.day - cutoff).days
+            if 0 <= offset <= 13:
+                activity_map[row.source][offset] = int(row.cnt)
+
+    for s in settings:
+        s.activity = activity_map.get(s.name, [0] * 14)
+
+    return settings
 
 
 def create_setting(db: Session, data: ScraperSettingCreate):

@@ -98,7 +98,7 @@ export default function SettingsPageContent() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ icon: dataUrl }),
-    }, false)
+    })
     if (res.ok) {
       setAvatarSrc(dataUrl)
       setProfile(prev => prev ? { ...prev, icon: dataUrl } : prev)
@@ -115,7 +115,7 @@ export default function SettingsPageContent() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: name.trim() }),
-    }, false)
+    })
     setNameSaving(false)
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, name: name.trim() } : prev)
@@ -134,7 +134,7 @@ export default function SettingsPageContent() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    }, false)
+    })
     setPasswordSaving(false)
     if (res.ok) {
       setPasswordMsg({ ok: true, text: 'Password changed successfully.' })
@@ -151,7 +151,7 @@ export default function SettingsPageContent() {
     const res = await apiFetch('/auth/me', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
-    }, false)
+    })
     if (res.ok) {
       await signOut({ callbackUrl: '/login' })
     }
@@ -162,7 +162,7 @@ export default function SettingsPageContent() {
     const res = await apiFetch('/auth/me/link-google', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
-    }, false)
+    })
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, google_id: null } : prev)
       setLinkMsg({ ok: true, text: 'Google account unlinked.' })

@@ -13,7 +13,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { SourceCard, ScraperSetting, formatFrequency } from '@/components/scraper-source-card'
+import {
+  SourceCard,
+  ScraperSetting,
+  formatFrequency,
+  ActiveBadge,
+  ActivityGraph,
+  useNextScrapeCountdown,
+} from '@/components/scraper-source-card'
 import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
 
 interface ArxivKeyword {
@@ -92,89 +99,99 @@ function ArxivSettingCard({
     setEditing(false)
   }
 
+  const countdown = useNextScrapeCountdown()
+
   return (
     <>
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        {editing ? (
-          <div className="flex-1 space-y-3">
-            <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">Name</label>
-              <input
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">
-                Frequency (hours)
-              </label>
-              <input
-                type="number"
-                min={1}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                value={form.frequency}
-                onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
-              />
-              {form.frequency >= 24 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {formatFrequency(form.frequency)}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.is_active}
-                onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
-              />
-              <span className="text-sm text-muted-foreground">Active</span>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSave} disabled={saving}>
-                <Check className="h-4 w-4 mr-1" />
-                Save
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 space-y-1">
-            <p className="font-semibold text-sm">{setting.name}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="inline-flex items-center h-5 px-2 rounded-full border border-border text-xs text-muted-foreground">
-                {formatFrequency(setting.frequency)}
-              </span>
-              <Switch
-                checked={setting.is_active}
-                onCheckedChange={v => onUpdate(setting.id, { is_active: v })}
-              />
-            </div>
-          </div>
-        )}
-        {!editing && (
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setEditing(true)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={() => setConfirmDelete(true)}
-            >
+      {editing ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Edit ArXiv Source</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
-        )}
-      </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">Name</label>
+            <input
+              className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1 text-muted-foreground">
+              Frequency (hours)
+            </label>
+            <input
+              type="number"
+              min={1}
+              className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={form.frequency}
+              onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
+            />
+            {form.frequency >= 24 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatFrequency(form.frequency)}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.is_active}
+              onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+            />
+            <span className="text-sm text-muted-foreground">Active</span>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Check className="h-4 w-4 mr-1" />
+              Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {/* Top row: name + badge/actions */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-bold text-lg leading-snug">{setting.name}</p>
+            <div className="flex items-center gap-1 shrink-0">
+              <ActiveBadge
+                active={setting.is_active}
+                onToggle={() => onUpdate(setting.id, { is_active: !setting.is_active })}
+              />
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(true)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Middle + bottom: countdown, frequency, activity (right-aligned) */}
+          <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-right leading-tight space-y-0.5">
+                <p className="text-xs font-medium text-orange-500 tabular-nums">
+                  next scrape in {countdown}
+                </p>
+                <p className="text-xs text-muted-foreground">{formatFrequency(setting.frequency)}</p>
+              </div>
+              <ActivityGraph activity={setting.activity} />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-border pt-4">
         <ArxivKeywordManager
