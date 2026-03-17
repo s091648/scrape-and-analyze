@@ -54,7 +54,7 @@ def test_builds_query_contains_digital_twin_terms():
 @responses.activate
 def test_discover_returns_one_task_per_entry():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry()), status=200)
     tasks = ArxivScraper(fetch_pdf=False).discover()
     assert len(tasks) == 1
@@ -65,7 +65,7 @@ def test_discover_returns_one_task_per_entry():
 @responses.activate
 def test_discover_returns_empty_on_api_error():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query", status=500)
+    responses.add(responses.GET, "https://export.arxiv.org/api/query", status=500)
     assert ArxivScraper().discover() == []
 
 
@@ -73,7 +73,7 @@ def test_discover_returns_empty_on_api_error():
 def test_discover_filters_old_papers():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
     old = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(published=old)), status=200)
     assert ArxivScraper(days_back=7).discover() == []
 
@@ -83,7 +83,7 @@ def test_discover_filters_old_papers():
 @responses.activate
 def test_execute_returns_article_with_abstract_when_fetch_pdf_false():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(summary="Short abstract.")), status=200)
     article = ArxivScraper(fetch_pdf=False).discover()[0].execute()
     assert article is not None
@@ -95,7 +95,7 @@ def test_execute_returns_article_with_abstract_when_fetch_pdf_false():
 @responses.activate
 def test_execute_extracts_authors():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(authors=["Alice", "Bob"])), status=200)
     article = ArxivScraper(fetch_pdf=False).discover()[0].execute()
     assert article.metadata["authors"] == ["Alice", "Bob"]
@@ -104,7 +104,7 @@ def test_execute_extracts_authors():
 @responses.activate
 def test_execute_falls_back_to_abstract_when_pdf_fails():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(paper_id="2401.00002", summary="Fallback.")), status=200)
     responses.add(responses.GET, "http://arxiv.org/pdf/2401.00002v1", status=404)
     article = ArxivScraper(fetch_pdf=True).discover()[0].execute()
@@ -116,7 +116,7 @@ def test_execute_falls_back_to_abstract_when_pdf_fails():
 def test_execute_uses_pdf_text_and_sets_pdf_available_true():
     from unittest.mock import patch
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(paper_id="2401.00003", summary="Short abstract.")),
                   status=200)
     responses.add(responses.GET, "http://arxiv.org/pdf/2401.00003v1",
@@ -142,7 +142,7 @@ def test_discover_handles_entry_with_missing_summary():
         f"<published>{RECENT}</published>"
         f"</entry>"
     )
-    responses.add(responses.GET, "http://export.arxiv.org/api/query",
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(entry_xml), status=200)
     tasks = ArxivScraper(fetch_pdf=False).discover()
     assert len(tasks) == 1
