@@ -99,7 +99,7 @@ function ArxivSettingCard({
     setEditing(false)
   }
 
-  const countdown = useNextScrapeCountdown()
+  const countdown = useNextScrapeCountdown(setting.last_scraped_at, setting.frequency)
 
   return (
     <>

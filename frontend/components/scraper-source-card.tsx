@@ -40,6 +40,18 @@ function msUntilNextMidnightUTC(): number {
   return Math.max(0, nextMidnight - Date.now())
 }
 
+function msUntilNextScrape(lastScrapedAt: string | null | undefined, frequencyHours: number): number {
+  if (!lastScrapedAt) return msUntilNextMidnightUTC()
+
+  const nextDueMs = new Date(lastScrapedAt).getTime() + frequencyHours * 3600 * 1000
+  if (nextDueMs <= Date.now()) return msUntilNextMidnightUTC()
+
+  // Find the next midnight UTC on or after nextDueMs
+  const d = new Date(nextDueMs)
+  const nextMidnightAfterDue = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
+  return Math.max(0, nextMidnightAfterDue - Date.now())
+}
+
 export function formatCountdown(ms: number): string {
   if (ms <= 0) return 'due now'
   const s = Math.floor(ms / 1000)
@@ -51,12 +63,18 @@ export function formatCountdown(ms: number): string {
   return days > 0 ? `${days}d ${hms}` : hms
 }
 
-export function useNextScrapeCountdown(): string {
-  const [ms, setMs] = useState(msUntilNextMidnightUTC)
+export function useNextScrapeCountdown(
+  lastScrapedAt?: string | null,
+  frequencyHours?: number,
+): string {
+  const [ms, setMs] = useState(() => msUntilNextScrape(lastScrapedAt, frequencyHours ?? 24))
   useEffect(() => {
-    const id = setInterval(() => setMs(msUntilNextMidnightUTC()), 1000)
+    const id = setInterval(
+      () => setMs(msUntilNextScrape(lastScrapedAt, frequencyHours ?? 24)),
+      1000,
+    )
     return () => clearInterval(id)
-  }, [])
+  }, [lastScrapedAt, frequencyHours])
   return formatCountdown(ms)
 }
 
@@ -158,7 +176,7 @@ export function SourceCard({
     selector_config: setting.selector_config ?? { article_link: '', title: '', content: '' },
   })
   const [saving, setSaving] = useState(false)
-  const countdown = useNextScrapeCountdown()
+  const countdown = useNextScrapeCountdown(setting.last_scraped_at, setting.frequency)
 
   async function handleSave() {
     setSaving(true)
