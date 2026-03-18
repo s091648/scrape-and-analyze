@@ -131,6 +131,32 @@ def test_execute_uses_pdf_text_and_sets_pdf_available_true():
     assert article.metadata["abstract"] == "Short abstract."
 
 
+# ── 429 retry ─────────────────────────────────────────────────────────────
+
+@responses.activate
+def test_discover_retries_on_429_and_succeeds():
+    from unittest.mock import patch
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+    responses.add(responses.GET, "https://export.arxiv.org/api/query", status=429)
+    responses.add(responses.GET, "https://export.arxiv.org/api/query",
+                  body=_atom(_entry()), status=200)
+    with patch("time.sleep"):
+        tasks = ArxivScraper(fetch_pdf=False).discover()
+    assert len(tasks) == 1
+
+
+@responses.activate
+def test_discover_returns_empty_after_exhausting_retries_on_429():
+    from unittest.mock import patch
+    from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
+    # initial attempt + 3 retries = 4 total
+    for _ in range(4):
+        responses.add(responses.GET, "https://export.arxiv.org/api/query", status=429)
+    with patch("time.sleep"):
+        tasks = ArxivScraper(fetch_pdf=False).discover()
+    assert tasks == []
+
+
 @responses.activate
 def test_discover_handles_entry_with_missing_summary():
     from src.scrapers.scrapers.arxiv_scraper import ArxivScraper

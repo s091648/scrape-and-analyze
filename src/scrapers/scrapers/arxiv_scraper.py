@@ -1,3 +1,4 @@
+import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,8 @@ logger = get_logger(__name__)
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
+_ARXIV_MAX_RETRIES = 3
+_ARXIV_RETRY_BACKOFF = 3  # seconds; wait = 3^(attempt+1): 3, 9, 27s
 
 
 class ArxivScraper(BaseScraper):
@@ -76,14 +79,28 @@ class ArxivScraper(BaseScraper):
             "sortBy": "submittedDate",
             "sortOrder": "descending",
         }
-        try:
-            response = requests.get(
-                ARXIV_API_URL, params=params, timeout=60,
-                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-            )
-            response.raise_for_status()
-        except Exception as e:
-            logger.error("arxiv_fetch_failed", error=str(e))
+        for attempt in range(_ARXIV_MAX_RETRIES + 1):
+            try:
+                response = requests.get(
+                    ARXIV_API_URL, params=params, timeout=60,
+                    headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
+                )
+                response.raise_for_status()
+                break
+            except requests.exceptions.HTTPError as e:
+                if response.status_code == 429 and attempt < _ARXIV_MAX_RETRIES:
+                    wait = _ARXIV_RETRY_BACKOFF ** (attempt + 1)
+                    logger.warning("arxiv_rate_limited",
+                                   attempt=attempt + 1, retry_in_seconds=wait)
+                    time.sleep(wait)
+                    continue
+                logger.error("arxiv_fetch_failed", error=str(e))
+                return []
+            except Exception as e:
+                logger.error("arxiv_fetch_failed", error=str(e))
+                return []
+        else:
+            logger.error("arxiv_fetch_failed", error="max retries exceeded on 429")
             return []
 
         try:
