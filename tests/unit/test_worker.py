@@ -46,7 +46,7 @@ def _run_workers(tasks_by_host, num_workers=1, delay=0.0):
         w.start()
     done_event.set()
     for w in workers:
-        w.join(timeout=5)
+        w.join()
     return results
 
 
