@@ -1,6 +1,8 @@
-import json
 import pytest
 from unittest.mock import patch
+
+pytest.importorskip("starlette", reason="starlette not installed in this container")
+
 from starlette.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.routing import Route
