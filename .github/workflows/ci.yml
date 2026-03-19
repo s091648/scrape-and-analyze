@@ -36,6 +36,13 @@ jobs:
       - name: Run unit tests with coverage
         run: pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
+      - name: Upload unit coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Pytest Coverage Comment
         id: coverage
         uses: MishaKav/pytest-coverage-comment@v1.6.0
@@ -143,6 +150,13 @@ jobs:
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Upload integration coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage-integration.xml
+          flags: integration
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Pytest Coverage Comment
         id: coverage
