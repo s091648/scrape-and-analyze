@@ -36,6 +36,8 @@ from src.observability.metrics import (
     push_metrics
 )
 from src.observability.run_context import init_run_context, get_run_id
+from src.observability.run_summary import RunSummary
+from src.notifications.service import notify_all
 
 logger = get_logger(__name__)
 
@@ -129,7 +131,7 @@ def parse_date(date_str: Optional[str]) -> Optional[datetime]:
 
 
 def record_failure(session, task_type: str, url: Optional[str],
-                    article_id, error: Exception):
+                    article_id, error: Exception, source: str = "", summary=None) -> None:
     """Record a failed task"""
     # OpenTelemetry: add(amount, attributes)
     SCRAPER_ERRORS.add(1, {"type": task_type})
@@ -144,6 +146,9 @@ def record_failure(session, task_type: str, url: Optional[str],
     session.add(failure)
     session.commit()
     logger.error("failure_recorded", task_type=task_type, url=url)
+
+    if source and summary:
+        summary.record_failed(source)
 
 
 def analyze_article(session, article, analyzer, prompt: str, correlation_id: str) -> bool:
@@ -193,7 +198,8 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
     return True
 
 
-def process_article(session, scraped, analyzer, prompt: str, correlation_id: str) -> bool:
+def process_article(session, scraped, analyzer, prompt: str, correlation_id: str,
+                    summary=None) -> bool:
     """Process and analyze a single article within a transaction"""
     url_hash = generate_url_hash(scraped.url)
 
@@ -202,13 +208,17 @@ def process_article(session, scraped, analyzer, prompt: str, correlation_id: str
     # Duplicate article - OpenTelemetry: add(amount, attributes)
     if existing:
         SCRAPER_ARTICLES_DUPLICATE.add(1, {"source": scraped.source})
+        if summary:
+            summary.record_duplicate(scraped.source)
         logger.info("article_already_exists", url=scraped.url)
         if not has_analysis(session, existing.id):
             return analyze_article(session, existing, analyzer, prompt, correlation_id)
         return False
-    
+
     # New article - OpenTelemetry: add(amount, attributes)
     SCRAPER_ARTICLES_NEW.add(1, {"source": scraped.source})
+    if summary:
+        summary.record_new(scraped.source)
 
     article = Article(
         url=scraped.url,
@@ -231,20 +241,23 @@ def process_article(session, scraped, analyzer, prompt: str, correlation_id: str
     return success
 
 
-def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str) -> bool:
+def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str,
+                         summary=None) -> bool:
     """Process a single article with error handling"""
     session = get_session()
     try:
-        return process_article(session, scraped, analyzer, prompt, correlation_id)
+        return process_article(session, scraped, analyzer, prompt, correlation_id, summary)
     except Exception as e:
         logger.error("article_processing_failed", url=scraped.url, error=str(e))
-        record_failure(session, 'scrape', scraped.url, None, e)
+        record_failure(session, 'scrape', scraped.url, None, e,
+                       source=scraped.source, summary=summary)
         return False
     finally:
         session.close()
 
 
-def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) -> None:
+def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str,
+                     summary=None) -> None:
     """Build scrapers from source configs, dispatch via ScrapeDispatcher."""
     from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
 
@@ -283,7 +296,7 @@ def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str) 
     def handle_result(scraped) -> None:
         if _shutdown_requested or check_timeout(time.time()):
             return
-        process_article_safe(scraped, analyzer, prompt, correlation_id)
+        process_article_safe(scraped, analyzer, prompt, correlation_id, summary)
 
     ScrapeDispatcher(num_workers=MAX_WORKERS, delay=5.0).run(
         scrapers=[s for s, _ in scrapers_with_sources],
@@ -324,6 +337,8 @@ def main() -> None:
     init_db()
     start_time = time.time()
 
+    summary = RunSummary()
+
     try:
         from src.config import get_sources_due
         sources_due = get_sources_due()
@@ -337,7 +352,7 @@ def main() -> None:
         analyzer = build_analyzer()
         prompt = load_prompt()
 
-        run_scrape_cycle(sources_due, analyzer, prompt, correlation_id)
+        run_scrape_cycle(sources_due, analyzer, prompt, correlation_id, summary)
 
     except Exception as e:
         logger.error("execution_failed", error=str(e))
@@ -349,9 +364,8 @@ def main() -> None:
             run_id=get_run_id(),
             duration_seconds=duration
         )
-        # OpenTelemetry Histogram: record(amount)
         SCRAPER_DURATION.record(duration)
-
+        notify_all(summary, duration)
         push_metrics()
 
 
