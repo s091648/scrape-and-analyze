@@ -10,3 +10,4 @@ httpx
 pytest
 pytest-asyncio
 email-validator>=2.0
+geoip2>=4.8

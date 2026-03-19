@@ -30,6 +30,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        - MAXMIND_LICENSE_KEY=${MAXMIND_LICENSE_KEY:-}
     volumes:
       - ./src:/app/src       # live-reload model changes
       - ./backend:/app/backend  # live-reload API changes
@@ -41,7 +43,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
 
   # Next.js frontend
   frontend:
