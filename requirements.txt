@@ -15,12 +15,15 @@ lxml
 pytest
 pytest-cov
 responses
+starlette
+httpx
 
 # Migrations
 alembic>=1.13
 bcrypt>=4.0
 
 # Observability
+geoip2>=4.8
 prometheus-client>=0.20
 python-logging-loki>=0.3
 sentry-sdk
