@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from backend.database import get_db, check_db_connection
 from backend.middleware.logging import RequestLoggingMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from backend.routers.articles import router as articles_router
 from backend.routers.graph import router as graph_router
 from backend.routers.scraper_settings import router as scraper_settings_router
@@ -15,6 +16,7 @@ FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
 app = FastAPI(title="Scrape Analyzer API", version="1.0.0")
 
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
@@ -22,7 +24,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 
 app.include_router(articles_router)
