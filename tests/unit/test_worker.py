@@ -111,5 +111,6 @@ def test_worker_sleeps_between_tasks():
     with patch("src.scrapers.strategy.worker.time.sleep") as mock_sleep:
         _run_workers({"example.com": tasks}, delay=5.0)
     sleep_calls = [c.args[0] for c in mock_sleep.call_args_list]
-    assert all(c == 5.0 for c in sleep_calls)
-    assert len(sleep_calls) == 2
+    # Sentry SDK background threads may call time.sleep with unrelated values;
+    # assert exactly 2 worker delay calls with the configured value.
+    assert sleep_calls.count(5.0) == 2

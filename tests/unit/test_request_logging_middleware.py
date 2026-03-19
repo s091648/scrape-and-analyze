@@ -1,7 +1,5 @@
 import pytest
-from unittest.mock import patch
-
-pytest.importorskip("starlette", reason="starlette not installed in this container")
+from unittest.mock import patch, MagicMock
 
 from starlette.testclient import TestClient
 from starlette.applications import Starlette
@@ -32,30 +30,33 @@ def test_middleware_returns_200():
     assert response.status_code == 200
 
 
-def test_middleware_logs_ip_and_user_agent(capsys):
+def test_middleware_logs_ip_and_user_agent():
     """Enriched middleware must log ip and user_agent fields."""
-    with patch("src.observability.geoip.get_geo", return_value={}):
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("src.observability.geoip.get_geo", return_value={}):
         client = TestClient(make_app())
         client.get("/", headers={"User-Agent": "TestBrowser/1.0"})
-    captured = capsys.readouterr().out
-    assert "ip" in captured
-    assert "user_agent" in captured
+    kwargs = mock_logger.info.call_args.kwargs
+    assert "ip" in kwargs
+    assert "user_agent" in kwargs
 
 
-def test_middleware_logs_geo_fields_when_available(capsys):
+def test_middleware_logs_geo_fields_when_available():
     """When GeoIP lookup returns country/city, they must appear in the log."""
-    with patch("src.observability.geoip.get_geo", return_value={"country": "TW", "city": "Taipei"}):
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("src.observability.geoip.get_geo", return_value={"country": "TW", "city": "Taipei"}):
         client = TestClient(make_app())
         client.get("/")
-    captured = capsys.readouterr().out
-    assert "geo_country" in captured
-    assert "geo_city" in captured
+    kwargs = mock_logger.info.call_args.kwargs
+    assert "geo_country" in kwargs
+    assert "geo_city" in kwargs
 
 
-def test_middleware_logs_anonymous_when_no_auth(capsys):
+def test_middleware_logs_anonymous_when_no_auth():
     """Requests without Authorization header must log user_id as anonymous."""
-    with patch("src.observability.geoip.get_geo", return_value={}):
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("src.observability.geoip.get_geo", return_value={}):
         client = TestClient(make_app())
         client.get("/")
-    captured = capsys.readouterr().out
-    assert "anonymous" in captured
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("user_id") == "anonymous"
