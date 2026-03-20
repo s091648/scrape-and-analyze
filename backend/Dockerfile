@@ -42,6 +42,7 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
 COPY models/ ./models/
 COPY backend/ ./backend/
+COPY src/ ./src/
 COPY providers.toml ./providers.toml
 COPY --from=builder /app/data/ ./data/
 
