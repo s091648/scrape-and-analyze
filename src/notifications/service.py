@@ -20,6 +20,9 @@ def get_notifiers() -> list[BaseNotifier]:
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     if token and chat_id:
         notifiers.append(TelegramNotifier(token=token, chat_id=chat_id))
+    else:
+        missing = [k for k, v in {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id}.items() if not v]
+        logger.error("telegram_notifier_disabled", missing_env_vars=missing)
     return notifiers
 
 

@@ -4,6 +4,9 @@ from datetime import datetime, timezone
 
 from src.notifications.base import BaseNotifier
 from src.observability.run_summary import RunSummary
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def _esc(s: str) -> str:
@@ -23,6 +26,12 @@ class TelegramNotifier(BaseNotifier):
             json={"chat_id": self._chat_id, "text": text, "parse_mode": "MarkdownV2"},
             timeout=10,
         )
+        if not response.ok:
+            logger.error(
+                "telegram_send_failed",
+                status_code=response.status_code,
+                response_body=response.text[:500],
+            )
         response.raise_for_status()
 
     def _format_message(self, summary: RunSummary, duration: float) -> str:
