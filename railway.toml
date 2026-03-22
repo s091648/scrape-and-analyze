@@ -1,7 +1,7 @@
 # Worker service (scraper/analyzer cron jobs)
 # Railway Root Directory: / (repo root)
 # Railway Dashboard must set per-service overrides:
-#   worker  → Dockerfile Path: Dockerfile
+#   worker  → Dockerfile Path: src/Dockerfile
 #             Start Command:   python -m src.main daily|weekly|remediate
 #             Restart Policy:  never
 #   backend → Dockerfile Path: backend/Dockerfile
@@ -10,3 +10,4 @@
 
 [build]
 builder = "dockerfile"
+dockerfilePath = "src/Dockerfile"
