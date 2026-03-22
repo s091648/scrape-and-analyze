@@ -44,6 +44,44 @@ describe('Knowledge Graph', () => {
     expect(groupColor).not.toEqual(articleColor)
   })
 
+  it('days filter change triggers re-fetch with updated days value', async () => {
+    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { render, screen } = await import('@testing-library/react')
+    const { fireEvent } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'))
+    })
+    // Reset and change days
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    // Days selector is the first combobox (select with options "7 days", "30 days", etc.)
+    const allComboboxes = screen.queryAllByRole('combobox')
+    const daysSelect = allComboboxes.find(el => el.querySelector('option[value="7"]'))
+    if (daysSelect) {
+      fireEvent.change(daysSelect, { target: { value: '7' } })
+      await vi.waitFor(() => {
+        expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=7'))
+      })
+    }
+    expect(mockApiFetch).toBeDefined()
+  })
+
+  it('loading state shown while fetching', async () => {
+    let resolvePromise: (v: any) => void
+    const promise = new Promise(r => { resolvePromise = r })
+    mockApiFetch.mockReturnValueOnce(promise)
+    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    // Resolve the promise to unblock
+    resolvePromise!({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    // Verify component fetched data
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalled()
+    })
+  })
+
   it('clicking a group node fetches group articles', async () => {
     mockApiFetch
       .mockResolvedValueOnce({

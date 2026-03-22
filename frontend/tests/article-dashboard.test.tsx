@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
+}))
+
 vi.mock('../lib/api-fetch', () => ({
   apiFetch: vi.fn().mockResolvedValue({
     ok: true,
@@ -45,12 +50,14 @@ describe('Article Dashboard', () => {
     expect(screen.getByText('Timeout')).toBeInTheDocument()
   })
 
-  it('reads page and sort from URL params', async () => {
+  it('reads page=2 and sort=published_at from URL', async () => {
+    const { renderHook } = await import('@testing-library/react')
+    const { useSearchParams, useRouter } = await import('next/navigation')
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('page=2&sort=published_at') as any)
+    vi.mocked(useRouter).mockReturnValue({ push: vi.fn() } as any)
     const { usePagination } = await import('../hooks/use-pagination')
-    vi.mock('next/navigation', () => ({
-      useSearchParams: () => new URLSearchParams('page=2&sort=published_at'),
-      useRouter: () => ({ push: vi.fn() }),
-    }))
-    expect(usePagination).toBeDefined()
+    const { result } = renderHook(() => usePagination())
+    expect(result.current.page).toBe(2)
+    expect(result.current.sort).toBe('published_at')
   })
 })
