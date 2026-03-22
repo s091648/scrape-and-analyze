@@ -1,5 +1,6 @@
 import pytest
 import os
+from dataclasses import dataclass
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -54,3 +55,36 @@ def db_session(db_engine):
     yield session
     session.rollback()
     session.close()
+
+
+@dataclass
+class TagGroupRef:
+    """Lightweight reference to a TagGroupDefinition row (avoids detached-instance errors)."""
+    name: str
+    display_name: str
+
+
+@pytest.fixture(scope="session")
+def tag_group(db_engine):
+    """Create a shared TagGroupDefinition for tests that need tag FK references."""
+    from models.tag_group import TagGroupDefinition
+
+    name = "test_technology"
+    Session = sessionmaker(bind=db_engine)
+    session = Session()
+    try:
+        existing = session.query(TagGroupDefinition).filter_by(name=name).first()
+        if not existing:
+            tg = TagGroupDefinition(
+                name=name,
+                display_name="Test Technology",
+                description="Tag group used in integration tests",
+                color_hex="#3B82F6",
+                sort_order=1,
+            )
+            session.add(tg)
+            session.commit()
+    finally:
+        session.close()
+
+    return TagGroupRef(name=name, display_name="Test Technology")

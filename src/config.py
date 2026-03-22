@@ -69,7 +69,7 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
             ScraperSetting.is_active == True,
             or_(
                 ScraperSetting.last_scraped_at == None,
-                text("NOW() - last_scraped_at > frequency * INTERVAL '1 hour'"),
+                text("NOW() - last_scraped_at > frequency * INTERVAL '1 hour' - INTERVAL '30 minutes'"),
             )
         ).all()
 
