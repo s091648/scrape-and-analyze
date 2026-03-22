@@ -13,11 +13,15 @@ test.describe('Login page', () => {
   test('empty submit shows validation or disabled state', async ({ page }) => {
     await page.goto('/login')
     const submitButton = page.getByRole('button', { name: 'Sign in', exact: true })
+    await expect(submitButton).toBeVisible()
     await submitButton.click()
-    // Either button is disabled, or an error message appears, or the form stays on the login page
+    // Either an error message appears, or we stay on the login page
     const staysOnLogin = page.url().includes('/login')
     const hasError = await page.getByRole('alert').count() > 0
-    const buttonDisabled = await submitButton.isDisabled()
+    // Use evaluate (sync DOM read) to avoid waiting for element that may have navigated away
+    const buttonDisabled = staysOnLogin
+      ? await submitButton.evaluate(el => (el as HTMLButtonElement).disabled)
+      : false
     expect(staysOnLogin || hasError || buttonDisabled).toBe(true)
   })
 })
