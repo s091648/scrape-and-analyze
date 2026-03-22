@@ -38,7 +38,7 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       - name: Run unit tests with coverage
-        run: pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
+        run: uv run pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -152,7 +152,7 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       - name: Run integration tests with coverage
-        run: pytest tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
+        run: uv run pytest tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
