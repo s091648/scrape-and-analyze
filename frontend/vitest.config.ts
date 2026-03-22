@@ -16,5 +16,15 @@ export default defineConfig({
     env: {
       NEXTAUTH_SECRET: 'test-secret',
     },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['components/**', 'hooks/**', 'lib/**'],
+      exclude: [
+        'components/ui/**',
+        '**/*.d.ts',
+        'e2e/**',
+      ],
+    },
   },
 })
