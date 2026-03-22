@@ -6,7 +6,7 @@ import { CompactEncrypt } from 'jose'
 // Falls back to a fixed test secret when NEXTAUTH_SECRET is not in the environment.
 // Must match the value used in playwright.config.ts webServer env.
 export const E2E_SECRET =
-  process.env.NEXTAUTH_SECRET ?? 'e2e-nextauth-secret-local-testing-only'
+  process.env.NEXTAUTH_SECRET || 'e2e-nextauth-secret-local-testing-only'
 
 async function deriveEncryptionKey(secret: string): Promise<CryptoKey> {
   const baseKey = await globalThis.crypto.subtle.importKey(

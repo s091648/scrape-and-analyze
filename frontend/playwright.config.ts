@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 // Use GitHub Actions secret when available; fall back to fixed local test secret.
 // Must match the value used in e2e/global-setup.ts.
 const NEXTAUTH_SECRET =
-  process.env.NEXTAUTH_SECRET ?? 'e2e-nextauth-secret-local-testing-only'
+  process.env.NEXTAUTH_SECRET || 'e2e-nextauth-secret-local-testing-only'
 
 export default defineConfig({
   testDir: './e2e',
