@@ -1,0 +1,14 @@
+flags:
+  unit:
+    carryforward: true
+  integration:
+    carryforward: true
+  frontend-unit:
+    carryforward: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 2%
