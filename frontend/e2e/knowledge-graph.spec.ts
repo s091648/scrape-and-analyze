@@ -18,11 +18,10 @@ test.describe('Knowledge graph page', () => {
     await page.waitForRequest(req => req.url().includes('days=30'))
 
     // Find the days selector and change it to 7
-    const daysInput = page.getByRole('spinbutton').or(page.getByRole('combobox')).first()
+    const daysInput = page.getByRole('combobox').first()
     if (await daysInput.count() > 0) {
       const requestPromise = page.waitForRequest(req => req.url().includes('days=7'))
-      await daysInput.fill('7')
-      await daysInput.press('Enter')
+      await daysInput.selectOption('7')
       await requestPromise
     }
   })

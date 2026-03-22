@@ -18,7 +18,7 @@ test.describe('Article list page', () => {
     // Open Source popover
     await page.getByRole('button', { name: /source/i }).click()
     // Select 'rss' option
-    await page.getByText('rss').click()
+    await page.getByRole('option', { name: 'rss', exact: true }).click()
     // Apply filters
     await page.getByRole('button', { name: /apply/i }).click()
     await expect(page).toHaveURL(/source=rss/)

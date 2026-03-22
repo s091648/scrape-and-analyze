@@ -8,6 +8,9 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET!,
+    },
   },
   use: {
     baseURL: 'http://localhost:3000',

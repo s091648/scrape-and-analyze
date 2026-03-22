@@ -12,7 +12,7 @@ test.describe('Login page', () => {
 
   test('empty submit shows validation or disabled state', async ({ page }) => {
     await page.goto('/login')
-    const submitButton = page.getByRole('button', { name: /sign in|login|submit/i })
+    const submitButton = page.getByRole('button', { name: 'Sign in', exact: true })
     await submitButton.click()
     // Either button is disabled, or an error message appears, or the form stays on the login page
     const staysOnLogin = page.url().includes('/login')
