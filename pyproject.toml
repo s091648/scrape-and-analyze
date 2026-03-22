@@ -1,0 +1,53 @@
+[project]
+name = "scrape-analyzer"
+version = "0.1.0"
+requires-python = ">=3.11"
+# 共用核心依賴：scraper 與 backend 都會用到
+dependencies = [
+    "sqlalchemy>=2.0",
+    "psycopg2-binary",
+    "structlog>=24.0",
+    "alembic>=1.13",
+    "geoip2>=4.8",
+]
+
+[dependency-groups]
+# src/ 爬蟲服務專屬依賴
+scraper = [
+    "beautifulsoup4",
+    "requests",
+    "feedparser",
+    "anthropic",
+    "google-genai",
+    "tenacity",
+    "lxml",
+    "pymupdf>=1.24",
+]
+# backend/ FastAPI 服務專屬依賴
+backend = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart",
+    "email-validator>=2.0",
+    "bcrypt>=4.0",
+    "httpx",
+]
+# 可觀測性 — scraper 與 backend 共用，prod 才需要
+observability = [
+    "python-logging-loki>=0.3",
+    "sentry-sdk",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-http",
+    "opentelemetry-instrumentation",
+]
+# 本地開發與測試工具
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "responses",
+    "httpx",
+    "starlette",
+]

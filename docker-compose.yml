@@ -1,21 +1,16 @@
 # docker-compose.yml
 services:
-  # Scraper / Analyzer — runs src/ code and Alembic migrations
+  # Scraper / Analyzer — runs src/ code and unit tests
   app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: src/Dockerfile.dev
     volumes:
       - ./src:/app/src
-      - ./alembic:/app/alembic
-      - ./alembic.ini:/app/alembic.ini
-      - ./backend:/app/backend   # needed so alembic/env.py can import backend models
-      - ./models:/app/models     # needed so alembic/env.py can import ORM models
+      - ./models:/app/models
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
-      - ./requirements.txt:/app/requirements.txt
       - ./providers.toml:/app/providers.toml
-      - ./scripts:/app/scripts
     env_file:
       - .env
     depends_on:
@@ -29,9 +24,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-      args:
-        - MAXMIND_LICENSE_KEY=${MAXMIND_LICENSE_KEY:-}
+      dockerfile: backend/Dockerfile.dev
     volumes:
       - ./src:/app/src       # live-reload model changes
       - ./backend:/app/backend  # live-reload API changes
@@ -83,20 +76,20 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
-  # Job service - generic utility container; doesn't run anything by default
+  # Job service - 一次性任務：migration、db dump/sync、backfill、scrape
   job_service:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: src/Dockerfile.dev
     volumes:
       - ./src:/app/src
+      - ./models:/app/models
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
-      - ./backend:/app/backend   # needed so alembic/env.py can import backend models
-      - ./scripts:/app/scripts   # helper scripts available inside container
+      - ./backend:/app/backend   # alembic/env.py 需要 import backend models
+      - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
       - ./providers.toml:/app/providers.toml
-      - ./models:/app/models      # live-reload DB model changes
     env_file:
       - .env
     depends_on:

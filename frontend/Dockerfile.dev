@@ -1,25 +1,12 @@
-# frontend/Dockerfile
-# Railway Root Directory: /frontend
+# frontend/Dockerfile.dev
+# 本地開發用，程式碼透過 docker-compose volumes 掛載以支援 HMR
 
-FROM node:20-slim AS builder
+FROM node:20-slim
+
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
 
-COPY . .
-RUN npm run build
-
-FROM node:20-slim AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-COPY --from=builder /app/package*.json ./
-RUN npm ci --only=production
-
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-
-EXPOSE 3000
-CMD ["sh", "-c", "npx next start -p ${PORT:-3000}"]
+# 程式碼透過 docker-compose volumes 掛載，不在此 COPY
+CMD ["npm", "run", "dev"]

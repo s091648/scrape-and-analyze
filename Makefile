@@ -78,3 +78,25 @@ test-cov:
 		--cov=src \
 		--cov-report=html:tests/htmlcov \
 		--cov-report=term
+
+# Integration tests (requires postgres — `docker compose up -d postgres` first if needed)
+test-integration:
+	docker compose run --rm app python -m pytest tests/integration/ -v --tb=short -m integration
+
+# Integration tests with coverage report
+test-integration-cov:
+	docker compose run --rm app python -m pytest \
+		tests/integration/ \
+		-v --tb=short -m integration \
+		--cov=src \
+		--cov-report=html:tests/htmlcov-integration \
+		--cov-report=term
+
+# Run all tests (unit + integration) with combined coverage
+test-all-cov:
+	docker compose run --rm app python -m pytest \
+		tests/ \
+		-v --tb=short \
+		--cov=src \
+		--cov-report=html:tests/htmlcov-all \
+		--cov-report=term
