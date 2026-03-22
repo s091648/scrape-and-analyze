@@ -12,6 +12,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     storageState: 'e2e/fixtures/auth-state.json',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
   reporter: [
     ['html', { open: 'never' }],
