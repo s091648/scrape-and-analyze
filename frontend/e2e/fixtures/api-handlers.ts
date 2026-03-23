@@ -107,4 +107,9 @@ export async function mockApiRoutes(page: Page) {
   await page.route('/api/proxy/articles/*', route =>
     route.fulfill({ json: articleDetailFixture })
   )
+
+  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
+  await page.route('/api/proxy/**', route =>
+    route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
+  )
 }
