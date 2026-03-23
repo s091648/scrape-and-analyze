@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project \
+RUN uv sync --frozen \
     --group backend \
     --group observability \
     --no-group scraper \
