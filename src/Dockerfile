@@ -20,4 +20,4 @@ COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY providers.toml .
 
-CMD [".venv/bin/python", "-m", "src.main"]
+CMD ["uv", "run", "python", "-m", "src.main"]
