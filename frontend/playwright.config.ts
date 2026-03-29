@@ -17,6 +17,7 @@ export default defineConfig({
     env: {
       NEXTAUTH_SECRET,
       NEXTAUTH_URL: 'http://localhost:3000',
+      BACKEND_URL: 'http://localhost:8000',
     },
   },
   use: {

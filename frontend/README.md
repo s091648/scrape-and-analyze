@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend
 
-## Getting Started
+Next.js 16 + React 19 web application for browsing AI-analyzed articles, managing scraper sources, and visualizing tag relationships as a knowledge graph.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+frontend/
+├── app/                        # Next.js App Router
+│   ├── page.tsx                # Home — article browse entry point
+│   ├── layout.tsx              # Root layout + navbar
+│   ├── home-page-content.tsx   # Article grid with pagination and filters
+│   ├── admin/                  # Admin dashboard
+│   ├── graph/                  # Knowledge graph page
+│   ├── login/ & register/      # Auth pages
+│   ├── settings/               # Scraper source configuration UI
+│   └── api/
+│       ├── auth/               # NextAuth route handlers
+│       ├── link-google/        # Google OAuth2 account linking
+│       └── proxy/              # Proxied requests to the backend API
+├── components/
+│   ├── article-card.tsx        # Article display card (title, preview, source, tags)
+│   ├── filter-bar.tsx          # Date range + multi-select source/tag filters
+│   ├── knowledge-graph.tsx     # Force-directed graph visualization
+│   ├── scraper-source-form.tsx # Form to add RSS / blog / ArXiv scraper sources
+│   ├── scraper-source-card.tsx # Display and inline-edit a scraper config
+│   ├── arxiv-keyword-manager.tsx # Manage ArXiv search terms
+│   ├── nav-bar.tsx             # Header with auth state
+│   ├── session-provider.tsx    # NextAuth SessionProvider wrapper
+│   └── ui/                     # Shadcn/UI primitives (button, input, modal, etc.)
+├── hooks/
+│   └── use-pagination.tsx      # Shared pagination + filter state hook
+├── lib/
+│   └── api-fetch.tsx           # Authenticated HTTP client (attaches JWT)
+├── middleware.ts               # NextAuth route protection
+├── globals.css                 # Tailwind CSS v4 theme + global styles
+├── vitest.config.ts            # Unit test config (Vitest + React Testing Library)
+├── playwright.config.ts        # E2E test config (Playwright)
+└── next.config.ts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Feature | Details |
+|---------|---------|
+| **Article Browse** | Paginated grid (6 cards/page for guests, unlimited for users) |
+| **Filtering** | Multi-select sources, tags, and date range (published or scraped date) |
+| **Full-text Search** | Passes `q` query param to `/articles` API |
+| **Knowledge Graph** | `react-force-graph-2d` force-directed graph of tag and article relationships |
+| **Auth** | NextAuth v4 with JWT cookies; optional Google OAuth2 |
+| **Guest Paywall** | Overlay after 6 articles, redirects to login |
+| **Scraper Config** | Admin panel to add/edit/delete RSS, blog (CSS selector), and ArXiv sources |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tech Stack
 
-## Learn More
+- **Framework**: Next.js 16 (App Router), React 19, TypeScript
+- **Styling**: Tailwind CSS v4, Shadcn/UI (Radix UI primitives), Lucide icons
+- **Auth**: NextAuth v4
+- **State**: Zustand
+- **Graph**: react-force-graph-2d
+- **Tests**: Vitest + React Testing Library (unit), Playwright (E2E)
 
-To learn more about Next.js, take a look at the following resources:
+## Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run test       # Vitest unit tests
+npm run test:e2e   # Playwright E2E tests
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+| Context | File |
+|---------|------|
+| Production | `Dockerfile` (multi-stage Node build) |
+| Development | `Dockerfile.dev` |
+| Config | `railway.toml` (Railway service definition) |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Environment variables required: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `NEXT_PUBLIC_API_URL`. Default port: `3000`.

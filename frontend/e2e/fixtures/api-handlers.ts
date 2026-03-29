@@ -78,9 +78,15 @@ export const updatedSettingFixture = {
 }
 
 export async function mockApiRoutes(page: Page) {
-  // Generic routes registered first (lower priority in LIFO)
-  await page.route('/api/proxy/articles**', route => route.fulfill({ json: articleListFixture }))
-  await page.route('/api/proxy/articles/*/..', route => route.fulfill({ json: articleDetailFixture }))
+  // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
+  // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
+
+  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
+  await page.route('/api/proxy/**', route =>
+    route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
+  )
+
+  // Generic routes
   await page.route('/api/proxy/analyses/graph**', route => route.fulfill({ json: graphFixture }))
   await page.route('/api/proxy/scraper-settings', async route => {
     if (route.request().method() === 'POST') {
@@ -96,8 +102,9 @@ export async function mockApiRoutes(page: Page) {
       await route.fallback()
     }
   })
+  await page.route('/api/proxy/articles**', route => route.fulfill({ json: articleListFixture }))
 
-  // Specific routes registered last (higher priority in LIFO — override generic patterns)
+  // Specific routes registered last (higher priority in LIFO — override generic patterns above)
   await page.route('/api/proxy/articles/filters/sources', route =>
     route.fulfill({ json: ['rss', 'blog'] })
   )
@@ -106,10 +113,5 @@ export async function mockApiRoutes(page: Page) {
   )
   await page.route('/api/proxy/articles/*', route =>
     route.fulfill({ json: articleDetailFixture })
-  )
-
-  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
-  await page.route('/api/proxy/**', route =>
-    route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
   )
 }
