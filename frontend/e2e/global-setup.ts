@@ -39,6 +39,7 @@ export default async function globalSetup() {
     name: 'Admin',
     email: 'admin@example.com',
     sub: 'admin-test-user',
+    role: 'admin',
     iat: now,
     exp: now + oneYear,
     jti: crypto.randomUUID(),
