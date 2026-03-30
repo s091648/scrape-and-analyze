@@ -13,16 +13,16 @@ test.describe('Admin scraper settings', () => {
 
   test('add RSS source via form and new item appears', async ({ page }) => {
     await page.goto('/admin/scraper-settings')
-    // Find the add form — fill in name and URL
-    const nameInput = page.getByLabel(/name/i)
-    const urlInput = page.getByLabel(/url/i)
-    await nameInput.fill('New RSS Source')
-    await urlInput.fill('https://new.com/feed')
-    // Submit via Add Source button
+    // The RSS AddSourceCard is the last "Add source" button — click it to expand the form
+    await page.getByRole('button', { name: 'Add source' }).last().click()
+    // Labels lack htmlFor association — use placeholder selectors
+    await page.getByPlaceholder('e.g. Hacker News').fill('New RSS Source')
+    await page.getByPlaceholder('https://...').fill('https://new.com/feed')
+    // Wait for POST request, then click the "Add" submit button (last on page = inside RSS form)
     const submitPromise = page.waitForRequest(req =>
       req.url().includes('/api/proxy/scraper-settings') && req.method() === 'POST'
     )
-    await page.getByRole('button', { name: /add source/i }).click()
+    await page.getByRole('button', { name: 'Add' }).last().click()
     await submitPromise
     // After POST, the new item should appear (page refetches or state updates)
     await expect(page.getByText('New RSS Source')).toBeVisible()
