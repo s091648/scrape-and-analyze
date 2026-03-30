@@ -2,7 +2,7 @@
 # Railway Root Directory: / (repo root)
 # Railway Dashboard must set per-service overrides:
 #   worker  → Dockerfile Path: src/Dockerfile
-#             Start Command:   python -m src.main daily|weekly|remediate
+#             Start Command:   python -m src.main   (UV_SYSTEM_PYTHON=1 ensures system python has all deps)
 #             Restart Policy:  never
 #   backend → Dockerfile Path: backend/Dockerfile
 #             Start Command:   (empty — use Dockerfile CMD)
