@@ -10,9 +10,7 @@ def test_get_tracer_returns_tracer_instance():
 
 
 def test_shutdown_tracing_does_not_raise_when_no_provider(monkeypatch):
-    monkeypatch.delenv("GRAFANA_OTLP_USER", raising=False)
-    monkeypatch.delenv("GRAFANA_API_KEY", raising=False)
-    monkeypatch.delenv("GRAFANA_OTLP_ENDPOINT", raising=False)
-    # Should not raise even when _provider is None
+    import src.observability.tracing as tracing_module
+    monkeypatch.setattr(tracing_module, "_provider", None)
     from src.observability.tracing import shutdown_tracing
-    shutdown_tracing()
+    shutdown_tracing()  # must not raise
