@@ -154,48 +154,61 @@ def record_failure(session, task_type: str, url: Optional[str],
 def analyze_article(session, article, analyzer, prompt: str, correlation_id: str) -> bool:
     """Analyze an article using LLM"""
     from models.tag import Tag
+    from opentelemetry import trace as otel_trace
+    from src.observability.tracing import get_tracer
 
-    llm_content = prepare_content_for_analysis(article)
-    result = analyzer.analyze(llm_content, prompt)
+    tracer = get_tracer()
+    with tracer.start_as_current_span("article.analyze") as span:
+        span.set_attribute("article.id", str(article.id))
+        span.set_attribute("article.url", article.url)
+        span.set_attribute("article.source", article.source)
 
-    if result is None:
-        record_failure(session, 'analyze', article.url, article.id,
-                        Exception("Analysis returned None"))
-        return False
+        llm_content = prepare_content_for_analysis(article)
+        result = analyzer.analyze(llm_content, prompt)
 
-    analysis = Analysis(
-        article_id=article.id,
-        correlation_id=uuid.UUID(correlation_id),
-        pain_points=result.pain_points,
-        insights=result.insights,
-        innovations=result.innovations,
-        model_used=result.model_used,
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens
-    )
-    session.add(analysis)
+        if result is None:
+            span.set_status(otel_trace.StatusCode.ERROR, "Analysis returned None")
+            record_failure(session, 'analyze', article.url, article.id,
+                            Exception("Analysis returned None"))
+            return False
 
-    for tg in (result.tag_groups or []):
-        group_name = tg.get('group', '')
-        for tag_name in tg.get('tags', []):
-            if not tag_name or not group_name:
-                continue
-            tag = session.query(Tag).filter_by(
-                name=tag_name, tag_group_name=group_name
-            ).first()
-            if not tag:
-                tag = Tag(name=tag_name, tag_group_name=group_name)
-                session.add(tag)
-                session.flush()
-            if tag not in article.tags:
-                article.tags.append(tag)
+        analysis = Analysis(
+            article_id=article.id,
+            correlation_id=uuid.UUID(correlation_id),
+            pain_points=result.pain_points,
+            insights=result.insights,
+            innovations=result.innovations,
+            model_used=result.model_used,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens
+        )
+        session.add(analysis)
 
-    logger.info("analysis_completed",
-                article_id=str(article.id),
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens)
+        for tg in (result.tag_groups or []):
+            group_name = tg.get('group', '')
+            for tag_name in tg.get('tags', []):
+                if not tag_name or not group_name:
+                    continue
+                tag = session.query(Tag).filter_by(
+                    name=tag_name, tag_group_name=group_name
+                ).first()
+                if not tag:
+                    tag = Tag(name=tag_name, tag_group_name=group_name)
+                    session.add(tag)
+                    session.flush()
+                if tag not in article.tags:
+                    article.tags.append(tag)
 
-    return True
+        span.set_attribute("llm.model", result.model_used)
+        span.set_attribute("llm.input_tokens", result.input_tokens)
+        span.set_attribute("llm.output_tokens", result.output_tokens)
+
+        logger.info("analysis_completed",
+                    article_id=str(article.id),
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens)
+
+        return True
 
 
 def process_article(session, scraped, analyzer, prompt: str, correlation_id: str,
