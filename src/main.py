@@ -214,44 +214,50 @@ def analyze_article(session, article, analyzer, prompt: str, correlation_id: str
 def process_article(session, scraped, analyzer, prompt: str, correlation_id: str,
                     summary=None) -> bool:
     """Process and analyze a single article within a transaction"""
-    url_hash = generate_url_hash(scraped.url)
+    from src.observability.tracing import get_tracer
 
-    existing = session.query(Article).filter_by(url_hash=url_hash).first()
+    tracer = get_tracer()
+    with tracer.start_as_current_span("article.process") as span:
+        span.set_attribute("article.url", scraped.url)
+        span.set_attribute("article.source", scraped.source)
 
-    # Duplicate article - OpenTelemetry: add(amount, attributes)
-    if existing:
-        SCRAPER_ARTICLES_DUPLICATE.add(1, {"source": scraped.source})
+        url_hash = generate_url_hash(scraped.url)
+        existing = session.query(Article).filter_by(url_hash=url_hash).first()
+
+        if existing:
+            span.set_attribute("article.is_duplicate", True)
+            SCRAPER_ARTICLES_DUPLICATE.add(1, {"source": scraped.source})
+            if summary:
+                summary.record_duplicate(scraped.source)
+            logger.info("article_already_exists", url=scraped.url)
+            if not has_analysis(session, existing.id):
+                return analyze_article(session, existing, analyzer, prompt, correlation_id)
+            return False
+
+        span.set_attribute("article.is_duplicate", False)
+        SCRAPER_ARTICLES_NEW.add(1, {"source": scraped.source})
         if summary:
-            summary.record_duplicate(scraped.source)
-        logger.info("article_already_exists", url=scraped.url)
-        if not has_analysis(session, existing.id):
-            return analyze_article(session, existing, analyzer, prompt, correlation_id)
-        return False
+            summary.record_new(scraped.source)
 
-    # New article - OpenTelemetry: add(amount, attributes)
-    SCRAPER_ARTICLES_NEW.add(1, {"source": scraped.source})
-    if summary:
-        summary.record_new(scraped.source)
+        article = Article(
+            url=scraped.url,
+            url_hash=url_hash,
+            source=scraped.source,
+            title=scraped.title,
+            content=scraped.content,
+            published_at=parse_date(scraped.published_at),
+            correlation_id=uuid.UUID(correlation_id),
+            metadata_=scraped.metadata
+        )
 
-    article = Article(
-        url=scraped.url,
-        url_hash=url_hash,
-        source=scraped.source,
-        title=scraped.title,
-        content=scraped.content,
-        published_at=parse_date(scraped.published_at),
-        correlation_id=uuid.UUID(correlation_id),
-        metadata_=scraped.metadata
-    )
+        session.add(article)
+        session.flush()
 
-    session.add(article)
-    session.flush()
+        success = analyze_article(session, article, analyzer, prompt, correlation_id)
+        session.commit()
+        logger.info("article_processed", url=scraped.url, article_id=str(article.id))
 
-    success = analyze_article(session, article, analyzer, prompt, correlation_id)
-    session.commit()
-    logger.info("article_processed", url=scraped.url, article_id=str(article.id))
-
-    return success
+        return success
 
 
 def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str,
@@ -330,9 +336,10 @@ def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str,
 
 def main() -> None:
     """Main entry point — frequency-based scrape dispatch."""
-    configure_logging()
+    from opentelemetry import trace as otel_trace
+    from src.observability.tracing import get_tracer, shutdown_tracing
 
-    # OpenTelemetry: add(amount)
+    configure_logging()
     SCRAPER_RUNS.add(1)
 
     run_id, correlation_id = init_run_context()
@@ -341,45 +348,49 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    logger.info(
-        "execution_started",
-        run_id=run_id,
-        correlation_id=correlation_id
-    )
+    logger.info("execution_started", run_id=run_id, correlation_id=correlation_id)
 
     init_db()
     start_time = time.time()
-
     summary = RunSummary()
 
-    try:
-        from src.config import get_sources_due
-        sources_due = get_sources_due()
+    tracer = get_tracer()
+    with tracer.start_as_current_span("scraper.run") as span:
+        span.set_attribute("run.id", run_id)
+        span.set_attribute("run.correlation_id", correlation_id)
 
-        if not sources_due:
-            logger.info("no_sources_due")
-            return
+        try:
+            from src.config import get_sources_due
+            sources_due = get_sources_due()
 
-        logger.info("sources_due_count", count=len(sources_due))
+            if not sources_due:
+                logger.info("no_sources_due")
+                return
 
-        analyzer = build_analyzer()
-        prompt = load_prompt()
+            logger.info("sources_due_count", count=len(sources_due))
+            span.set_attribute("run.sources_count", len(sources_due))
 
-        run_scrape_cycle(sources_due, analyzer, prompt, correlation_id, summary)
+            analyzer = build_analyzer()
+            prompt = load_prompt()
 
-    except Exception as e:
-        logger.error("execution_failed", error=str(e))
-        raise
-    finally:
-        duration = time.time() - start_time
-        logger.info(
-            "execution_completed",
-            run_id=get_run_id(),
-            duration_seconds=duration
-        )
-        SCRAPER_DURATION.record(duration)
-        notify_all(summary, duration)
-        push_metrics()
+            run_scrape_cycle(sources_due, analyzer, prompt, correlation_id, summary)
+
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(otel_trace.StatusCode.ERROR, str(e))
+            logger.error("execution_failed", error=str(e))
+            raise
+        finally:
+            duration = time.time() - start_time
+            logger.info(
+                "execution_completed",
+                run_id=get_run_id(),
+                duration_seconds=duration
+            )
+            SCRAPER_DURATION.record(duration)
+            notify_all(summary, duration)
+            push_metrics()
+            shutdown_tracing()
 
 
 if __name__ == '__main__':

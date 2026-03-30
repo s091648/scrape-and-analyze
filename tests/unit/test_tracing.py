@@ -101,3 +101,57 @@ def test_analyze_article_span_has_error_status_when_result_is_none():
     span = exporter.get_finished_spans()[0]
     assert span.name == "article.analyze"
     assert span.status.status_code == StatusCode.ERROR
+
+
+def test_process_article_creates_span_for_new_article():
+    exporter = _make_test_provider()
+
+    mock_session = MagicMock()
+    mock_scraped = MagicMock()
+    mock_scraped.url = "https://example.com/new"
+    mock_scraped.source = "test_rss"
+    mock_scraped.title = "Test"
+    mock_scraped.content = "body"
+    mock_scraped.published_at = None
+    mock_scraped.metadata = {}
+
+    from src.main import process_article
+    with patch("src.main.generate_url_hash", return_value="hash123"), \
+         patch("src.main.Article") as MockArticle, \
+         patch("src.main.analyze_article", return_value=True):
+        # Simulate no existing article
+        mock_session.query.return_value.filter_by.return_value.first.return_value = None
+        mock_article_instance = MagicMock()
+        mock_article_instance.id = uuid4()
+        MockArticle.return_value = mock_article_instance
+
+        process_article(mock_session, mock_scraped, MagicMock(), "prompt", str(uuid4()))
+
+    finished = exporter.get_finished_spans()
+    span_names = [s.name for s in finished]
+    assert "article.process" in span_names
+    span = next(s for s in finished if s.name == "article.process")
+    assert span.attributes["article.url"] == "https://example.com/new"
+    assert span.attributes["article.source"] == "test_rss"
+    assert span.attributes["article.is_duplicate"] is False
+
+
+def test_process_article_span_marks_duplicate():
+    exporter = _make_test_provider()
+
+    mock_session = MagicMock()
+    mock_scraped = MagicMock()
+    mock_scraped.url = "https://example.com/existing"
+    mock_scraped.source = "test_rss"
+
+    existing = MagicMock()
+    existing.id = uuid4()
+    mock_session.query.return_value.filter_by.return_value.first.return_value = existing
+
+    from src.main import process_article
+    with patch("src.main.generate_url_hash", return_value="hash456"), \
+         patch("src.main.has_analysis", return_value=True):
+        process_article(mock_session, mock_scraped, MagicMock(), "prompt", str(uuid4()))
+
+    span = next(s for s in exporter.get_finished_spans() if s.name == "article.process")
+    assert span.attributes["article.is_duplicate"] is True
