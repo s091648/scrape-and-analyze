@@ -70,6 +70,7 @@ def test_analyze_article_creates_span_with_llm_attributes():
     assert span.name == "article.analyze"
     assert span.attributes["article.url"] == "https://example.com/article"
     assert span.attributes["article.source"] == "test_rss"
+    assert span.attributes["article.id"] == str(mock_article.id)
     assert span.attributes["llm.model"] == "gemini-pro"
     assert span.attributes["llm.input_tokens"] == 120
     assert span.attributes["llm.output_tokens"] == 60
