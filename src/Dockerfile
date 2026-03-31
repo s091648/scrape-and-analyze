@@ -1,8 +1,7 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app \
-    UV_SYSTEM_PYTHON=1
+    PYTHONPATH=/app
 
 WORKDIR /app
 
@@ -21,4 +20,4 @@ COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY providers.toml .
 
-CMD ["uv", "run", "python", "-m", "src.main"]
+CMD ["/app/.venv/bin/python", "-m", "src.main"]
