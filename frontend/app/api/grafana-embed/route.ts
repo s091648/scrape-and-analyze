@@ -29,6 +29,9 @@ export async function GET(req: NextRequest) {
     const headers = new Headers(upstream.headers)
     headers.delete('x-frame-options')
     headers.delete('content-security-policy')
+    headers.delete('content-security-policy-report-only')
+    // Node fetch auto-decompresses; remove encoding header so browser doesn't try again
+    headers.delete('content-encoding')
 
     return new NextResponse(upstream.body, {
       status: upstream.status,

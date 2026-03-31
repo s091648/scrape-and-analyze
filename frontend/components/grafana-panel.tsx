@@ -38,7 +38,7 @@ export function GrafanaPanel({
     )
   }
 
-  const grafanaEmbedUrl = `${grafanaUrl}/d-solo/${dashboardUid}?orgId=1&panelId=${panelId}&from=${from}&to=${to}&theme=dark&kiosk`
+  const grafanaEmbedUrl = `${grafanaUrl.replace(/\/$/, '')}/d-solo/${dashboardUid}?orgId=1&panelId=${panelId}&from=${from}&to=${to}&theme=dark&kiosk`
   const src = `/api/grafana-embed?url=${encodeURIComponent(grafanaEmbedUrl)}`
 
   return (
