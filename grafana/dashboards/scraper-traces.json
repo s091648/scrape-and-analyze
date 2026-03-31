@@ -1,0 +1,185 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_TEMPO",
+      "label": "Tempo",
+      "description": "Grafana Tempo datasource for distributed tracing",
+      "type": "datasource",
+      "pluginId": "tempo",
+      "pluginName": "Tempo"
+    }
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "tempo",
+      "name": "Tempo",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "traces",
+      "name": "Traces",
+      "version": ""
+    }
+  ],
+  "uid": "scraper-traces-001",
+  "title": "Scraper Traces",
+  "tags": ["scraper", "tracing"],
+  "schemaVersion": 36,
+  "version": 1,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Traces (24h)",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [{
+        "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+        "queryType": "traceqlMetrics",
+        "query": "{ resource.service.name=\"scrape-analyzer\" && name=\"scraper.run\" } | count_over_time()",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": { "defaults": { "mappings": [] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "LLM Latency P95",
+      "description": "P95 duration of article.analyze spans",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [{
+        "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+        "queryType": "traceqlMetrics",
+        "query": "{ resource.service.name=\"scrape-analyzer\" && name=\"article.analyze\" } | quantile_over_time(duration, 0.95)",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ns",
+          "mappings": []
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Error Spans (24h)",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [{
+        "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+        "queryType": "traceqlMetrics",
+        "query": "{ resource.service.name=\"scrape-analyzer\" && status=error } | count_over_time()",
+        "refId": "A"
+      }],
+      "options": {
+        "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "mappings": []
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Span Rate by Operation",
+      "description": "Spans/sec for each instrumented operation",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+          "queryType": "traceqlMetrics",
+          "query": "{ resource.service.name=\"scrape-analyzer\" && name=\"scraper.run\" } | rate()",
+          "refId": "A",
+          "legendFormat": "scraper.run"
+        },
+        {
+          "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+          "queryType": "traceqlMetrics",
+          "query": "{ resource.service.name=\"scrape-analyzer\" && name=\"article.process\" } | rate()",
+          "refId": "B",
+          "legendFormat": "article.process"
+        },
+        {
+          "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+          "queryType": "traceqlMetrics",
+          "query": "{ resource.service.name=\"scrape-analyzer\" && name=\"article.analyze\" } | rate()",
+          "refId": "C",
+          "legendFormat": "article.analyze"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineInterpolation": "smooth" } }
+      },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 5,
+      "type": "traces",
+      "title": "Recent Traces",
+      "description": "Click any trace to view the full span waterfall",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+      "targets": [{
+        "datasource": { "type": "tempo", "uid": "${DS_TEMPO}" },
+        "queryType": "traceql",
+        "query": "{resource.service.name=\"scrape-analyzer\"}",
+        "refId": "A",
+        "limit": 20
+      }]
+    }
+  ]
+}
