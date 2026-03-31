@@ -363,12 +363,13 @@ def main() -> None:
             from src.config import get_sources_due
             sources_due = get_sources_due()
 
+            span.set_attribute("run.sources_count", len(sources_due))
+
             if not sources_due:
                 logger.info("no_sources_due")
                 return
 
             logger.info("sources_due_count", count=len(sources_due))
-            span.set_attribute("run.sources_count", len(sources_due))
 
             analyzer = build_analyzer()
             prompt = load_prompt()
@@ -389,7 +390,10 @@ def main() -> None:
             )
             SCRAPER_DURATION.record(duration)
             notify_all(summary, duration)
-            push_metrics()
+            try:
+                push_metrics()
+            except Exception as e:
+                logger.warning("push_metrics_failed", error=str(e))
             shutdown_tracing()
 
 
