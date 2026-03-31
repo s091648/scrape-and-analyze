@@ -12,7 +12,6 @@ export default async function MonitoringPage() {
   // Read server-side only — same variable name used by src/ scraper service,
   // no NEXT_PUBLIC_ prefix needed since this runs only on the server.
   const grafanaUrl = process.env.GRAFANA_URL ?? ''
-  const grafanaSaToken = process.env.GRAFANA_SA_TOKEN ?? ''
 
-  return <MonitoringContent grafanaUrl={grafanaUrl} grafanaSaToken={grafanaSaToken} />
+  return <MonitoringContent grafanaUrl={grafanaUrl} />
 }

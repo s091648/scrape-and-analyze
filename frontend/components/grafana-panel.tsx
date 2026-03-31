@@ -9,7 +9,6 @@ interface GrafanaPanelProps {
   from?: string
   to?: string
   className?: string
-  authToken?: string
 }
 
 export function GrafanaPanel({
@@ -21,7 +20,6 @@ export function GrafanaPanel({
   from = 'now-24h',
   to = 'now',
   className,
-  authToken,
 }: GrafanaPanelProps) {
 
   if (!grafanaUrl) {
@@ -40,7 +38,8 @@ export function GrafanaPanel({
     )
   }
 
-  const src = `${grafanaUrl}/d-solo/${dashboardUid}?orgId=1&panelId=${panelId}&from=${from}&to=${to}&theme=dark&kiosk${authToken ? `&auth_token=${authToken}` : ''}`
+  const grafanaEmbedUrl = `${grafanaUrl}/d-solo/${dashboardUid}?orgId=1&panelId=${panelId}&from=${from}&to=${to}&theme=dark&kiosk`
+  const src = `/api/grafana-embed?url=${encodeURIComponent(grafanaEmbedUrl)}`
 
   return (
     <div className={cn('w-full', className)}>

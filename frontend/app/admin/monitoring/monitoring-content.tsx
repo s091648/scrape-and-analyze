@@ -5,12 +5,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 interface MonitoringContentProps {
   grafanaUrl: string
-  grafanaSaToken?: string
 }
 
-export function MonitoringContent({ grafanaUrl, grafanaSaToken }: MonitoringContentProps) {
+export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
   const Panel = (props: Omit<React.ComponentProps<typeof GrafanaPanel>, 'grafanaUrl'>) => (
-    <GrafanaPanel {...props} grafanaUrl={grafanaUrl} authToken={grafanaSaToken} />
+    <GrafanaPanel {...props} grafanaUrl={grafanaUrl} />
   )
 
   return (
