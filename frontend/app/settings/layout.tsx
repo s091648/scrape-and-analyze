@@ -11,6 +11,7 @@ const profileItems = [
 const adminItems = [
   { href: '/admin/scraper-settings', label: 'Scraper Settings' },
   { href: '/admin/user-management', label: 'User Management' },
+  { href: '/admin/monitoring', label: 'Monitoring' },
 ]
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {

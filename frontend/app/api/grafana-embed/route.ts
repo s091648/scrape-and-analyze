@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 import { authConfig } from '@/lib/auth'
 
 const GRAFANA_URL = process.env.GRAFANA_URL ?? ''
@@ -26,18 +26,14 @@ export async function GET(req: NextRequest) {
       headers: { Authorization: `Bearer ${GRAFANA_SA_TOKEN}` },
     })
 
-    const headers = new Headers(upstream.headers)
-    headers.delete('x-frame-options')
-    headers.delete('content-security-policy')
-    headers.delete('content-security-policy-report-only')
-    // Node fetch auto-decompresses; remove encoding header so browser doesn't try again
-    headers.delete('content-encoding')
-
     return new NextResponse(upstream.body, {
       status: upstream.status,
-      headers,
+      headers: {
+        'content-type': upstream.headers.get('content-type') ?? 'image/png',
+        'cache-control': 'no-store',
+      },
     })
-  } catch (err) {
+  } catch {
     return new NextResponse('Bad gateway', { status: 502 })
   }
 }
