@@ -1,7 +1,6 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -13,6 +12,15 @@ RUN uv sync --frozen \
     --group observability \
     --no-group backend \
     --no-group dev
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+COPY --from=builder /app/.venv /app/.venv
 
 COPY models/ ./models/
 COPY src/ ./src/

@@ -11,6 +11,3 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "src/Dockerfile"
-
-[deploy]
-startCommand = "/app/.venv/bin/python -m src.main"
