@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { apiFetch } from '@/lib/api-fetch'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface User {
   id: string
@@ -20,6 +21,7 @@ interface User {
 export default function UsersPage() {
   const { data: session, status } = useSession()
   const [users, setUsers] = useState<User[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'user'>('user')
@@ -33,9 +35,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (!token) return
+    setIsLoading(true)
     apiFetch('/auth/users', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(setUsers)
+      .finally(() => setIsLoading(false))
   }, [token])
 
   async function toggleAllowed(user: User) {
@@ -143,60 +147,88 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {users.map(user => (
-              <tr key={user.id} className="hover:bg-muted/20 transition-colors">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{user.name ?? user.username ?? '—'}</div>
-                  <div className="text-xs text-muted-foreground">{user.email ?? user.username}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1 flex-wrap">
-                    {user.username && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted font-medium">
-                        credentials
-                      </span>
-                    )}
-                    {user.google_id && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
-                        google
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <select
-                    value={user.role}
-                    onChange={e => changeRole(user, e.target.value as 'admin' | 'user')}
-                    className="h-8 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3">
-                  <Switch checked={user.is_allowed} onCheckedChange={() => toggleAllowed(user)} />
-                </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => deleteUser(user.id)}
-                  >
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                  No users found
-                </td>
-              </tr>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-4 w-32 mb-1" />
+                    <Skeleton className="h-3 w-40" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-8 w-20 rounded-lg" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-6 w-10 rounded-full" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <Skeleton className="h-3 w-20" />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Skeleton className="h-8 w-14 rounded-md ml-auto" />
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <>
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{user.name ?? user.username ?? '—'}</div>
+                      <div className="text-xs text-muted-foreground">{user.email ?? user.username}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1 flex-wrap">
+                        {user.username && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-muted font-medium">
+                            credentials
+                          </span>
+                        )}
+                        {user.google_id && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                            google
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={user.role}
+                        onChange={e => changeRole(user, e.target.value as 'admin' | 'user')}
+                        className="h-8 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="user">user</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Switch checked={user.is_allowed} onCheckedChange={() => toggleAllowed(user)} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => deleteUser(user.id)}
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                      No users found
+                    </td>
+                  </tr>
+                )}
+              </>
             )}
           </tbody>
         </table>
