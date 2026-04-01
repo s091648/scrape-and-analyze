@@ -22,6 +22,7 @@ import {
   useNextScrapeCountdown,
 } from '@/components/scraper-source-card'
 import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface ArxivKeyword {
   id: string
@@ -368,12 +369,33 @@ function AddSourceCard({
   )
 }
 
+// ── Skeleton card ─────────────────────────────────────────────────────────────
+
+function ScraperSourceCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <Skeleton className="h-5 w-2/5" />
+        <div className="flex gap-1">
+          <Skeleton className="h-6 w-14 rounded-full" />
+          <Skeleton className="h-8 w-8 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-md" />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Skeleton className="h-3 w-28" />
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ScraperSettingsPage() {
   const { data: session, status } = useSession()
   const [settings, setSettings] = useState<ScraperSetting[]>([])
   const [keywords, setKeywords] = useState<ArxivKeyword[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   if (status === 'unauthenticated') redirect('/login')
   if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
@@ -383,13 +405,14 @@ export default function ScraperSettingsPage() {
   useEffect(() => {
     if (!token) return
     const headers = { Authorization: `Bearer ${token}` }
+    setIsLoading(true)
     Promise.all([
       apiFetch('/scraper-settings', { headers }).then(r => r.json()),
       apiFetch('/arxiv-keywords', { headers }).then(r => r.json()),
     ]).then(([s, k]) => {
       setSettings(s)
       setKeywords(k)
-    })
+    }).finally(() => setIsLoading(false))
   }, [token])
 
   const byType = (type: ScraperSetting['source_type']) =>
@@ -459,40 +482,55 @@ export default function ScraperSettingsPage() {
       </div>
 
       <div className="space-y-4">
-        {/* ArXiv */}
-        <AccordionSection title="arXiv" badge={arxivSettings.length}>
-          {arxivSettings.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">No arXiv source found.</p>
-          ) : (
-            arxivSettings.map(s => (
-              <ArxivSettingCard
-                key={s.id}
-                setting={s}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
-                keywords={keywords}
-                onAddKeyword={handleAddKeyword}
-                onDeleteKeyword={handleDeleteKeyword}
-              />
-            ))
-          )}
-        </AccordionSection>
+        {isLoading ? (
+          <>
+            {[0, 1, 2].map(i => (
+              <div key={i} className="rounded-xl border border-border overflow-hidden">
+                <div className="px-5 py-4 bg-card flex items-center justify-between">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-4 w-4" />
+                </div>
+                <div className="px-4 pb-4 pt-2 space-y-3 bg-muted/20">
+                  <ScraperSourceCardSkeleton />
+                </div>
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
+            <AccordionSection title="arXiv" badge={arxivSettings.length}>
+              {arxivSettings.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No arXiv source found.</p>
+              ) : (
+                arxivSettings.map(s => (
+                  <ArxivSettingCard
+                    key={s.id}
+                    setting={s}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                    keywords={keywords}
+                    onAddKeyword={handleAddKeyword}
+                    onDeleteKeyword={handleDeleteKeyword}
+                  />
+                ))
+              )}
+            </AccordionSection>
 
-        {/* Blog */}
-        <AccordionSection title="Blog" badge={blogSettings.length}>
-          {blogSettings.map(s => (
-            <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
-          ))}
-          <AddSourceCard sourceType="blog" onAdd={handleCreate} />
-        </AccordionSection>
+            <AccordionSection title="Blog" badge={blogSettings.length}>
+              {blogSettings.map(s => (
+                <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
+              ))}
+              <AddSourceCard sourceType="blog" onAdd={handleCreate} />
+            </AccordionSection>
 
-        {/* RSS */}
-        <AccordionSection title="RSS" badge={rssSettings.length}>
-          {rssSettings.map(s => (
-            <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
-          ))}
-          <AddSourceCard sourceType="rss" onAdd={handleCreate} />
-        </AccordionSection>
+            <AccordionSection title="RSS" badge={rssSettings.length}>
+              {rssSettings.map(s => (
+                <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
+              ))}
+              <AddSourceCard sourceType="rss" onAdd={handleCreate} />
+            </AccordionSection>
+          </>
+        )}
       </div>
     </div>
   )
