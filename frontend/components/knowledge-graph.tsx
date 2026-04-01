@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { apiFetch } from '@/lib/api-fetch'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ExternalLink, X, Globe, Clock } from 'lucide-react'
 
@@ -55,6 +56,7 @@ export function KnowledgeGraph() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogDetail, setDialogDetail] = useState<any>(null)
   const [dialogLoading, setDialogLoading] = useState(false)
+  const [graphLoading, setGraphLoading] = useState(true)
 
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
@@ -73,9 +75,11 @@ export function KnowledgeGraph() {
   useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
 
   useEffect(() => {
+    setGraphLoading(true)
     apiFetch(`/analyses/graph?days=${days}`)
       .then(r => r.json())
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
+      .finally(() => setGraphLoading(false))
   }, [days])
 
   useEffect(() => {
@@ -193,165 +197,169 @@ export function KnowledgeGraph() {
 
         <div
           ref={graphContainerRef}
-          className="flex-1 border border-border rounded-xl overflow-hidden bg-muted/10"
+          className="flex-1 min-h-0 relative"
         >
-          <ForceGraph
-            ref={graphRef}
-            graphData={mergedGraphData}
-            width={graphDims.width}
-            height={graphDims.height}
-            nodeRelSize={6}
-            onEngineStop={() => {
-              // Configure d3 forces once after first cooldown, then reheat
-              if (forcesConfigured.current || !graphRef.current) return
-              forcesConfigured.current = true
-              graphRef.current.d3Force('charge')?.strength(CHARGE_STRENGTH)
-              graphRef.current.d3Force('link')?.distance(LINK_DISTANCE)
-              graphRef.current.d3ReheatSimulation()
-            }}
-            onNodeClick={handleNodeClick}
-            onNodeHover={(node: any) => {
-              if (node?.type === 'article') {
-                hoveredNodeIdRef.current = node.id
+          {graphLoading ? (
+            <Skeleton className="absolute inset-0 rounded-lg" />
+          ) : (
+            <ForceGraph
+              ref={graphRef}
+              graphData={mergedGraphData}
+              width={graphDims.width}
+              height={graphDims.height}
+              nodeRelSize={6}
+              onEngineStop={() => {
+                // Configure d3 forces once after first cooldown, then reheat
+                if (forcesConfigured.current || !graphRef.current) return
+                forcesConfigured.current = true
+                graphRef.current.d3Force('charge')?.strength(CHARGE_STRENGTH)
+                graphRef.current.d3Force('link')?.distance(LINK_DISTANCE)
+                graphRef.current.d3ReheatSimulation()
+              }}
+              onNodeClick={handleNodeClick}
+              onNodeHover={(node: any) => {
+                if (node?.type === 'article') {
+                  hoveredNodeIdRef.current = node.id
 
-                // If the group is already expanded and has this article's data, use it directly
-                const groupArticle = groupDataRef.current.find(a => a.articleId === node.id)
-                if (groupArticle) {
-                  setSelectedArticle(groupArticle)
-                  return
+                  // If the group is already expanded and has this article's data, use it directly
+                  const groupArticle = groupDataRef.current.find(a => a.articleId === node.id)
+                  if (groupArticle) {
+                    setSelectedArticle(groupArticle)
+                    return
+                  }
+
+                  // Check cache first
+                  const cached = articleCacheRef.current.get(node.id)
+                  if (cached) {
+                    setSelectedArticle(cached)
+                    return
+                  }
+
+                  // Debounce fetch so rapid mouse movement doesn't spam requests
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+                  hoverTimeoutRef.current = setTimeout(() => {
+                    if (hoveredNodeIdRef.current !== node.id) return
+                    apiFetch(`/articles/${node.id}`)
+                      .then(r => r.json())
+                      .then(data => {
+                        if (hoveredNodeIdRef.current !== node.id) return
+                        const art: GroupArticle = {
+                          articleId: data.id,
+                          title: data.title,
+                          pain_points: data.pain_points,
+                          insights: data.insights,
+                          innovations: data.innovations,
+                          url: data.url || '',
+                          tags: [],
+                          groupName: '',
+                          displayName: '',
+                          source: data.source || '',
+                          published_at: data.published_at,
+                          excerpt: (data.content || '').slice(0, 200),
+                        }
+                        articleCacheRef.current.set(node.id, art)
+                        setSelectedArticle(art)
+                      })
+                      .catch(() => {})
+                  }, 250)
+                } else {
+                  hoveredNodeIdRef.current = null
+                  if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
                 }
+              }}
+              nodeCanvasObjectMode={() => 'replace'}
+              nodeCanvasObject={(node: any, ctx, globalScale) => {
+                const isGroup = node.type === 'group'
+                const isExpanded = isGroup && expandedGroupRef.current === node.groupName
 
-                // Check cache first
-                const cached = articleCacheRef.current.get(node.id)
-                if (cached) {
-                  setSelectedArticle(cached)
-                  return
-                }
+                if (isExpanded) {
+                  // --- Expanded group: dashed outline + label only ---
+                  const outerRadius = 20
+                  ctx.beginPath()
+                  ctx.arc(node.x, node.y, outerRadius, 0, 2 * Math.PI)
+                  ctx.setLineDash([5, 3])
+                  ctx.strokeStyle = node.color || '#6b7280'
+                  ctx.lineWidth = 2 / globalScale
+                  ctx.stroke()
+                  ctx.setLineDash([])
 
-                // Debounce fetch so rapid mouse movement doesn't spam requests
-                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
-                hoverTimeoutRef.current = setTimeout(() => {
-                  if (hoveredNodeIdRef.current !== node.id) return
-                  apiFetch(`/articles/${node.id}`)
-                    .then(r => r.json())
-                    .then(data => {
-                      if (hoveredNodeIdRef.current !== node.id) return
-                      const art: GroupArticle = {
-                        articleId: data.id,
-                        title: data.title,
-                        pain_points: data.pain_points,
-                        insights: data.insights,
-                        innovations: data.innovations,
-                        url: data.url || '',
-                        tags: [],
-                        groupName: '',
-                        displayName: '',
-                        source: data.source || '',
-                        published_at: data.published_at,
-                        excerpt: (data.content || '').slice(0, 200),
-                      }
-                      articleCacheRef.current.set(node.id, art)
-                      setSelectedArticle(art)
-                    })
-                    .catch(() => {})
-                }, 250)
-              } else {
-                hoveredNodeIdRef.current = null
-                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
-              }
-            }}
-            nodeCanvasObjectMode={() => 'replace'}
-            nodeCanvasObject={(node: any, ctx, globalScale) => {
-              const isGroup = node.type === 'group'
-              const isExpanded = isGroup && expandedGroupRef.current === node.groupName
-
-              if (isExpanded) {
-                // --- Expanded group: dashed outline + label only ---
-                const outerRadius = 20
-                ctx.beginPath()
-                ctx.arc(node.x, node.y, outerRadius, 0, 2 * Math.PI)
-                ctx.setLineDash([5, 3])
-                ctx.strokeStyle = node.color || '#6b7280'
-                ctx.lineWidth = 2 / globalScale
-                ctx.stroke()
-                ctx.setLineDash([])
-
-                const titleFontSize = Math.max(11 / globalScale, 3)
-                ctx.font = `bold ${titleFontSize}px sans-serif`
-                ctx.fillStyle = node.color || '#6b7280'
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'bottom'
-                ctx.fillText(node.label, node.x, node.y - outerRadius - 4 / globalScale)
-
-              } else if (isGroup) {
-                // --- Collapsed group node ---
-                const radius = 12
-                ctx.beginPath()
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
-                ctx.fillStyle = node.color || '#6b7280'
-                ctx.fill()
-
-                // Article count badge (larger font)
-                if (node.articleCount) {
-                  const badgeFontSize = Math.max(14 / globalScale, 4)
-                  ctx.font = `bold ${badgeFontSize}px sans-serif`
-                  ctx.fillStyle = 'white'
+                  const titleFontSize = Math.max(11 / globalScale, 3)
+                  ctx.font = `bold ${titleFontSize}px sans-serif`
+                  ctx.fillStyle = node.color || '#6b7280'
                   ctx.textAlign = 'center'
-                  ctx.textBaseline = 'middle'
-                  ctx.fillText(String(node.articleCount), node.x, node.y)
-                }
+                  ctx.textBaseline = 'bottom'
+                  ctx.fillText(node.label, node.x, node.y - outerRadius - 4 / globalScale)
 
-                // Label below
-                const label: string = node.label || node.id
-                const truncated = label.length > 22 ? label.slice(0, 20) + '…' : label
-                const fontSize = Math.max(10 / globalScale, 2)
-                ctx.font = `bold ${fontSize}px sans-serif`
-                ctx.fillStyle = node.color || '#6b7280'
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'top'
-                ctx.fillText(truncated, node.x, node.y + radius + 2)
+                } else if (isGroup) {
+                  // --- Collapsed group node ---
+                  const radius = 12
+                  ctx.beginPath()
+                  ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                  ctx.fillStyle = node.color || '#6b7280'
+                  ctx.fill()
 
-              } else if (node.type === 'tag') {
-                // --- Tag node ---
-                const radius = 5
-                ctx.beginPath()
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
-                ctx.fillStyle = node.color || '#6b7280'
-                ctx.globalAlpha = 0.8
-                ctx.fill()
-                ctx.globalAlpha = 1.0
+                  // Article count badge (larger font)
+                  if (node.articleCount) {
+                    const badgeFontSize = Math.max(14 / globalScale, 4)
+                    ctx.font = `bold ${badgeFontSize}px sans-serif`
+                    ctx.fillStyle = 'white'
+                    ctx.textAlign = 'center'
+                    ctx.textBaseline = 'middle'
+                    ctx.fillText(String(node.articleCount), node.x, node.y)
+                  }
 
-                const tagFontSize = Math.max(9 / globalScale, 2)
-                ctx.font = `${tagFontSize}px sans-serif`
-                ctx.fillStyle = '#374151'
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'top'
-                const truncTag = (node.label || '').length > 18
-                  ? (node.label || '').slice(0, 16) + '…'
-                  : (node.label || '')
-                ctx.fillText(truncTag, node.x, node.y + radius + 2)
-
-              } else {
-                // --- Article node (small dot, title on hover) ---
-                const radius = 4
-                ctx.beginPath()
-                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
-                ctx.fillStyle = '#10b981'
-                ctx.fill()
-
-                if (node.id === hoveredNodeIdRef.current) {
-                  const label: string = node.label || ''
-                  const truncated = label.length > 32 ? label.slice(0, 30) + '…' : label
-                  const fontSize = Math.max(9 / globalScale, 2)
-                  ctx.font = `${fontSize}px sans-serif`
-                  ctx.fillStyle = '#111827'
+                  // Label below
+                  const label: string = node.label || node.id
+                  const truncated = label.length > 22 ? label.slice(0, 20) + '…' : label
+                  const fontSize = Math.max(10 / globalScale, 2)
+                  ctx.font = `bold ${fontSize}px sans-serif`
+                  ctx.fillStyle = node.color || '#6b7280'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'top'
-                  ctx.fillText(truncated, node.x, node.y + radius + 3)
+                  ctx.fillText(truncated, node.x, node.y + radius + 2)
+
+                } else if (node.type === 'tag') {
+                  // --- Tag node ---
+                  const radius = 5
+                  ctx.beginPath()
+                  ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                  ctx.fillStyle = node.color || '#6b7280'
+                  ctx.globalAlpha = 0.8
+                  ctx.fill()
+                  ctx.globalAlpha = 1.0
+
+                  const tagFontSize = Math.max(9 / globalScale, 2)
+                  ctx.font = `${tagFontSize}px sans-serif`
+                  ctx.fillStyle = '#374151'
+                  ctx.textAlign = 'center'
+                  ctx.textBaseline = 'top'
+                  const truncTag = (node.label || '').length > 18
+                    ? (node.label || '').slice(0, 16) + '…'
+                    : (node.label || '')
+                  ctx.fillText(truncTag, node.x, node.y + radius + 2)
+
+                } else {
+                  // --- Article node (small dot, title on hover) ---
+                  const radius = 4
+                  ctx.beginPath()
+                  ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI)
+                  ctx.fillStyle = '#10b981'
+                  ctx.fill()
+
+                  if (node.id === hoveredNodeIdRef.current) {
+                    const label: string = node.label || ''
+                    const truncated = label.length > 32 ? label.slice(0, 30) + '…' : label
+                    const fontSize = Math.max(9 / globalScale, 2)
+                    ctx.font = `${fontSize}px sans-serif`
+                    ctx.fillStyle = '#111827'
+                    ctx.textAlign = 'center'
+                    ctx.textBaseline = 'top'
+                    ctx.fillText(truncated, node.x, node.y + radius + 3)
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -530,7 +538,11 @@ export function KnowledgeGraph() {
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
             {dialogLoading ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">Loading…</div>
+              <div className="space-y-3 py-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5" />
+                <Skeleton className="h-4 w-3/5" />
+              </div>
             ) : dialogDetail ? (
               <div className="space-y-6">
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
