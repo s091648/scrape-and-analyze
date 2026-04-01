@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api-fetch'
-import { ArticleCard } from '@/components/article-card'
+import { ArticleCard, ArticleCardSkeleton } from '@/components/article-card'
 import { FilterBar } from '@/components/filter-bar'
 import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
@@ -29,13 +29,16 @@ export default function HomePageContent() {
   } = usePagination()
   const [articles, setArticles] = useState<Article[]>([])
   const [total, setTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
 
   const searchParamsString = searchParams.toString()
 
   useEffect(() => {
+    setIsLoading(true)
     apiFetch(`/articles?${searchParamsString}`)
       .then(r => r.json())
       .then(data => { setArticles(data.items); setTotal(data.total) })
+      .finally(() => setIsLoading(false))
   }, [searchParamsString])
 
   const totalPages = Math.ceil(total / 20)
@@ -68,11 +71,14 @@ export default function HomePageContent() {
       {/* Grid */}
       <div className="relative">
         <div className="grid gap-3 lg:grid-cols-2">
-          {(isGuest ? articles.slice(0, GUEST_LIMIT) : articles).map(a => <ArticleCard key={a.id} {...a} />)}
+          {isLoading
+            ? Array.from({ length: 6 }).map((_, i) => <ArticleCardSkeleton key={i} />)
+            : (isGuest ? articles.slice(0, GUEST_LIMIT) : articles).map(a => <ArticleCard key={a.id} {...a} />)
+          }
         </div>
 
-        {/* Guest paywall overlay */}
-        {isGuest && articles.length > 0 && (
+        {/* Guest paywall overlay — only show when not loading and has articles */}
+        {!isLoading && isGuest && articles.length > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-10 gap-4">
             <div className="flex items-center justify-center h-12 w-12 rounded-full border border-border bg-background shadow-sm">
               <Lock className="h-5 w-5 text-muted-foreground" />
