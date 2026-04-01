@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Rss, Settings } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
+import { Skeleton } from '@/components/ui/skeleton'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -15,13 +16,16 @@ export function NavBar() {
   const { data: session } = useSession()
   const userName = session?.user?.name ?? (session?.user as any)?.username ?? session?.user?.email ?? ''
   const [userIcon, setUserIcon] = useState<string | null>(null)
+  const [iconLoading, setIconLoading] = useState(false)
   const token = (session as any)?.accessToken
 
   useEffect(() => {
     if (!token) { setUserIcon(null); return }
+    setIconLoading(true)
     apiFetch('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(profile => setUserIcon(profile?.icon ?? null))
+      .finally(() => setIconLoading(false))
   }, [token])
 
   return (
@@ -53,7 +57,9 @@ export function NavBar() {
           {session ? (
             <>
               <div className="flex items-center gap-2.5">
-                {userIcon ? (
+                {iconLoading ? (
+                  <Skeleton className="h-7 w-7 rounded-full" />
+                ) : userIcon ? (
                   <img src={userIcon} className="h-7 w-7 rounded-full object-cover" alt="" />
                 ) : (
                   <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold select-none">
