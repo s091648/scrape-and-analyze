@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface GrafanaPanelProps {
   grafanaUrl: string
@@ -28,11 +29,16 @@ export function GrafanaPanel({
   refreshInterval = 60,
 }: GrafanaPanelProps) {
   const [cacheBust, setCacheBust] = useState(0)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
+    setLoaded(false)
     setCacheBust(Date.now())
     if (!refreshInterval) return
-    const id = setInterval(() => setCacheBust(Date.now()), refreshInterval * 1000)
+    const id = setInterval(() => {
+      setLoaded(false)
+      setCacheBust(Date.now())
+    }, refreshInterval * 1000)
     return () => clearInterval(id)
   }, [refreshInterval])
 
@@ -58,14 +64,21 @@ export function GrafanaPanel({
       {title && (
         <p className="text-xs font-medium text-muted-foreground mb-1">{title}</p>
       )}
-      <img
-        src={src}
-        alt={title ?? `Grafana panel ${panelId}`}
-        width={renderWidth}
-        height={renderHeight}
-        className="w-full rounded-lg"
-        style={{ height }}
-      />
+      <div className="relative w-full rounded-lg overflow-hidden" style={{ height }}>
+        {!loaded && (
+          <Skeleton className="absolute inset-0 rounded-lg" />
+        )}
+        <img
+          src={src}
+          alt={title ?? `Grafana panel ${panelId}`}
+          width={renderWidth}
+          height={renderHeight}
+          className="w-full rounded-lg"
+          style={{ height, opacity: loaded ? 1 : 0 }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setLoaded(true)}
+        />
+      </div>
     </div>
   )
 }
