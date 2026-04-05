@@ -3,7 +3,7 @@ import time
 import signal
 import os
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import text
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging

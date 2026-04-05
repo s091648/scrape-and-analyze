@@ -114,10 +114,15 @@ temp/
 *.bak
 
 # -----------------------------
-# Git Worktrees
+# AI artifacts
 # -----------------------------
+.claude/
 .worktrees/
+docs/
+openspec/
 
-# directory for persisted postgres dumps; keep only .gitkeep
-/db_dumps/*
-!/db_dumps/.gitkeep
+# -----------------------------
+# Local development files
+# -----------------------------
+db_dumps/
+migrations/

@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote dump sync backfill backfill-dry-run create-admin scrape run
+.PHONY: migrate migrate-remote dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -65,6 +65,16 @@ scrape:
 
 run:
 	docker compose run --rm app python -m src.main
+
+# optional: override with HOURS=48 LIMIT=20
+_RETRY_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(HOURS),--hours $(HOURS),)
+
+retry-failed:
+	docker compose run --rm job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
+
+retry-failed-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
 
 # 基礎測試指令
 test:
