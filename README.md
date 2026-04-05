@@ -6,6 +6,15 @@
 
 A web scraping and AI-powered article analysis platform. Articles are automatically discovered from RSS feeds, blogs, and ArXiv, analyzed by LLMs to extract insights and tags, then served through a web UI for browsing and exploration.
 
+## Concept
+[![Notion](https://img.shields.io/badge/Notion-000000?style=for-the-badge&logo=notion&logoColor=white)](https://www.notion.so/sweetfatotaku/Chapter-9-Deisgn-a-Web-Crawler-3176d4fc5ccf8114aa4cceb952db9fca?source=copy_link)
+![Common Web Crawler](images/diagrams/common_web_crawler.png)
+The overall design is greatly inspired by the Chapter 9 of System Design Interview by Alex Xu.
+
+As we're not trying to crawl every content possible across the whole world-wide web but just request contents from particular sources, the complexity of analyzing the structure and building a tree for the web pages are avoided.
+
+However, useful concepts such as politeness are taken into consideration.
+
 ## Architecture
 
 ```
