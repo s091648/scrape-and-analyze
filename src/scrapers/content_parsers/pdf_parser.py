@@ -3,6 +3,7 @@ import requests
 import fitz  # pymupdf
 from src.scrapers.content_parsers.base_parser import BaseContentParser
 from src.utils.logging import get_logger
+from src.utils.proxy import get_proxies
 
 logger = get_logger(__name__)
 
@@ -34,6 +35,7 @@ class PdfParser(BaseContentParser):
                 pdf_url,
                 timeout=60,
                 headers={'User-Agent': 'Digital-Twins-Scraper/1.0'},
+                proxies=get_proxies(),
             )
             response.raise_for_status()
         except Exception as e:

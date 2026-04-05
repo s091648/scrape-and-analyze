@@ -9,6 +9,7 @@ from src.scrapers.content_parsers.html_parser import HtmlArticleParser
 from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
+from src.utils.proxy import get_proxies
 
 logger = get_logger(__name__)
 
@@ -44,6 +45,7 @@ class RssScraper(BaseScraper):
             response = requests.get(
                 self.url, timeout=30,
                 headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
+                proxies=get_proxies(),
             )
             response.raise_for_status()
         except Exception as e:
