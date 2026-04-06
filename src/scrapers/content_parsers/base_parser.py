@@ -1,12 +1,4 @@
-from abc import ABC, abstractmethod
+# Compatibility shim — canonical location: src.ingestion.parsers.base_parser
+from src.ingestion.parsers.base_parser import BaseContentParser  # noqa: F401
 
-
-class BaseContentParser(ABC):
-
-    @abstractmethod
-    def parse(self, content: str) -> str:
-        """Parse raw input and return the full extracted content."""
-
-    def prepare_for_analysis(self, content: str, fallback: str = '') -> str:
-        """Return LLM-ready excerpt. Default: return content unchanged."""
-        return content
+__all__ = ["BaseContentParser"]

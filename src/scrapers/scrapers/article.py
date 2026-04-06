@@ -1,13 +1,4 @@
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+# Compatibility shim — canonical location: src.ingestion.models.scraped_article
+from src.ingestion.models.scraped_article import ScrapedArticle  # noqa: F401
 
-
-@dataclass
-class ScrapedArticle:
-    """Data class representing a scraped article."""
-    url: str
-    title: str
-    content: str
-    published_at: Optional[str]
-    source: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+__all__ = ["ScrapedArticle"]

@@ -21,14 +21,14 @@ if SENTRY_DSN:
         traces_sample_rate=0.1,
     )
 from src.database import get_session, has_analysis, init_db
-from src.scrapers.scrapers.rss_scraper import RssScraper
-from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-from src.scrapers.scrapers.blog_scraper import BlogScraper
+from src.ingestion.scrapers.rss_scraper import RssScraper
+from src.ingestion.scrapers.arxiv_scraper import ArxivScraper
+from src.ingestion.scrapers.blog_scraper import BlogScraper
 from models.article import Article
 from models.analysis import Analysis
 from models.failed_task import FailedTask
 from src.utils.sanitizer import generate_url_hash
-from src.scrapers.content_parsers import prepare_content_for_analysis
+from src.ingestion.parsers import prepare_content_for_analysis
 from src.observability.metrics import (
     SCRAPER_RUNS,
     SCRAPER_DURATION,
