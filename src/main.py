@@ -340,6 +340,7 @@ def main() -> None:
     """Main entry point — frequency-based scrape dispatch."""
     from opentelemetry import trace as otel_trace
     from src.observability.tracing import get_tracer, shutdown_tracing
+    from src.app.composition_root import build_run_scraper_use_case
 
     configure_logging()
     init_default_client(HttpClient.build_default())
@@ -363,21 +364,9 @@ def main() -> None:
         span.set_attribute("run.correlation_id", correlation_id)
 
         try:
-            from src.infrastructure.persistence.sqlalchemy_repos.scraper_setting_repo_impl import get_sources_due
-            sources_due = get_sources_due()
-
-            span.set_attribute("run.sources_count", len(sources_due))
-
-            if not sources_due:
-                logger.info("no_sources_due")
-                return
-
-            logger.info("sources_due_count", count=len(sources_due))
-
-            analyzer = build_analyzer()
             prompt = load_prompt()
-
-            run_scrape_cycle(sources_due, analyzer, prompt, correlation_id, summary)
+            run_uc = build_run_scraper_use_case(prompt=prompt, summary=summary)
+            run_uc.execute(correlation_id=correlation_id, summary=summary)
 
         except Exception as e:
             span.record_exception(e)
@@ -389,7 +378,7 @@ def main() -> None:
             logger.info(
                 "execution_completed",
                 run_id=get_run_id(),
-                duration_seconds=duration
+                duration_seconds=duration,
             )
             SCRAPER_DURATION.record(duration)
             notify_all(summary, duration)
