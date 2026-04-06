@@ -1,4 +1,3 @@
-import requests
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
@@ -10,7 +9,7 @@ from src.scrapers.content_parsers.html_parser import HtmlArticleParser
 from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
-from src.utils.proxy import get_proxies
+from src.infrastructure.http.http_client import get_default_client
 
 logger = get_logger(__name__)
 
@@ -38,12 +37,7 @@ class BlogScraper(BaseScraper):
         Filters out URLs disallowed by robots.txt.
         """
         try:
-            response = requests.get(
-                self.base_url, timeout=30,
-                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-                proxies=get_proxies(),
-            )
-            response.raise_for_status()
+            response = get_default_client().get(self.base_url, timeout=30)
         except Exception as e:
             logger.error("blog_listing_fetch_failed", url=self.base_url, error=str(e))
             return []
@@ -67,12 +61,7 @@ class BlogScraper(BaseScraper):
 
     def _fetch_article(self, url: str) -> Optional[ScrapedArticle]:
         try:
-            response = requests.get(
-                url, timeout=30,
-                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-                proxies=get_proxies(),
-            )
-            response.raise_for_status()
+            response = get_default_client().get(url, timeout=30)
         except Exception as e:
             logger.warning("blog_article_fetch_failed", url=url, error=str(e))
             return None
@@ -92,14 +81,9 @@ class BlogScraper(BaseScraper):
             parsed = urlparse(self.base_url)
             robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
             try:
-                response = requests.get(
-                    robots_url, timeout=10,
-                    headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-                    proxies=get_proxies(),
-                )
-                if response.status_code == 200:
-                    self._robot_parser.parse(response.text.splitlines())
-                    self._robots_loaded = True
+                response = get_default_client().get(robots_url, timeout=10)
+                self._robot_parser.parse(response.text.splitlines())
+                self._robots_loaded = True
             except Exception as e:
                 logger.warning("robots_txt_fetch_failed", url=robots_url, error=str(e))
         return self._robot_parser

@@ -1,9 +1,8 @@
 import re
-import requests
 import fitz  # pymupdf
 from src.scrapers.content_parsers.base_parser import BaseContentParser
 from src.utils.logging import get_logger
-from src.utils.proxy import get_proxies
+from src.infrastructure.http.http_client import get_default_client
 
 logger = get_logger(__name__)
 
@@ -31,13 +30,7 @@ class PdfParser(BaseContentParser):
     def parse(self, pdf_url: str) -> str:
         """Download PDF from URL and return full extracted text. Returns '' on failure."""
         try:
-            response = requests.get(
-                pdf_url,
-                timeout=60,
-                headers={'User-Agent': 'Digital-Twins-Scraper/1.0'},
-                proxies=get_proxies(),
-            )
-            response.raise_for_status()
+            response = get_default_client().get(pdf_url, timeout=60)
         except Exception as e:
             logger.warning('pdf_download_failed', url=pdf_url, error=str(e))
             return ''

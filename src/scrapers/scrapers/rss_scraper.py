@@ -1,5 +1,4 @@
 import feedparser
-import requests
 import re
 from typing import List, Optional
 
@@ -9,7 +8,7 @@ from src.scrapers.content_parsers.html_parser import HtmlArticleParser
 from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
-from src.utils.proxy import get_proxies
+from src.infrastructure.http.http_client import get_default_client
 
 logger = get_logger(__name__)
 
@@ -42,12 +41,7 @@ class RssScraper(BaseScraper):
         Returns [] on fetch or parse failure.
         """
         try:
-            response = requests.get(
-                self.url, timeout=30,
-                headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-                proxies=get_proxies(),
-            )
-            response.raise_for_status()
+            response = get_default_client().get(self.url, timeout=30)
         except Exception as e:
             logger.error("rss_fetch_failed", url=self.url, error=str(e))
             return []

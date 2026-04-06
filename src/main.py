@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
 from src.config import load_providers, SENTRY_DSN
+from src.infrastructure.http.http_client import HttpClient, init_default_client
 from src.analyzers.providers.gemini import GeminiProvider
 from src.analyzers.providers.openrouter import OpenRouterProvider
 
@@ -340,6 +341,7 @@ def main() -> None:
     from src.observability.tracing import get_tracer, shutdown_tracing
 
     configure_logging()
+    init_default_client(HttpClient.build_default())
     SCRAPER_RUNS.add(1)
 
     run_id, correlation_id = init_run_context()

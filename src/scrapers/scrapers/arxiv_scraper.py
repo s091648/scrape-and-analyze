@@ -1,5 +1,3 @@
-import time
-import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -9,14 +7,12 @@ from src.scrapers.scrapers.base_scraper import BaseScraper
 from src.scrapers.content_parsers.pdf_parser import PdfParser
 from src.scrapers.strategy.scrape_task import ScrapeTask
 from src.utils.logging import get_logger
-from src.utils.proxy import get_proxies
+from src.infrastructure.http.http_client import get_default_client
 
 logger = get_logger(__name__)
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
-_ARXIV_MAX_RETRIES = 4
-_ARXIV_RETRY_BASE_WAIT = 30  # seconds; wait = base * 2^attempt: 30, 60, 120, 240s
 
 
 class ArxivScraper(BaseScraper):
@@ -80,29 +76,10 @@ class ArxivScraper(BaseScraper):
             "sortBy": "submittedDate",
             "sortOrder": "descending",
         }
-        for attempt in range(_ARXIV_MAX_RETRIES + 1):
-            try:
-                response = requests.get(
-                    ARXIV_API_URL, params=params, timeout=60,
-                    headers={"User-Agent": "Digital-Twins-Scraper/1.0"},
-                    proxies=get_proxies(),
-                )
-                response.raise_for_status()
-                break
-            except requests.exceptions.HTTPError as e:
-                if response.status_code == 429 and attempt < _ARXIV_MAX_RETRIES:
-                    wait = _ARXIV_RETRY_BASE_WAIT * (2 ** attempt)
-                    logger.warning("arxiv_rate_limited",
-                                   attempt=attempt + 1, retry_in_seconds=wait)
-                    time.sleep(wait)
-                    continue
-                logger.error("arxiv_fetch_failed", error=str(e))
-                return []
-            except Exception as e:
-                logger.error("arxiv_fetch_failed", error=str(e))
-                return []
-        else:
-            logger.error("arxiv_fetch_failed", error="max retries exceeded on 429")
+        try:
+            response = get_default_client().get(ARXIV_API_URL, params=params, timeout=60)
+        except Exception as e:
+            logger.error("arxiv_fetch_failed", error=str(e))
             return []
 
         try:

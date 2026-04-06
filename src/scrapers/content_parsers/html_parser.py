@@ -1,9 +1,8 @@
-import requests
 from bs4 import BeautifulSoup
 from src.scrapers.content_parsers.base_parser import BaseContentParser
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
-from src.utils.proxy import get_proxies
+from src.infrastructure.http.http_client import get_default_client
 
 logger = get_logger(__name__)
 
@@ -41,13 +40,7 @@ class HtmlArticleParser(BaseContentParser):
         if not url:
             return fallback
         try:
-            response = requests.get(
-                url,
-                timeout=30,
-                headers={'User-Agent': 'Digital-Twins-Scraper/1.0'},
-                proxies=get_proxies(),
-            )
-            response.raise_for_status()
+            response = get_default_client().get(url, timeout=30)
         except Exception as e:
             logger.warning('html_fetch_failed', url=url, error=str(e))
             return fallback
