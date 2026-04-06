@@ -1,22 +1,23 @@
-import os
+"""
+SQLAlchemy implementation for ScraperSetting queries.
+
+These functions are the canonical source going forward.
+src/config/__init__.py delegates to them for backward compatibility;
+future phases will inject them directly into use cases.
+"""
 import structlog
-import tomllib
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 logger = structlog.get_logger(__name__)
 
-# Environment variables
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
-SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
-
 
 def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
-    """Get active sources from the database by source_type ('rss', 'blog', 'arxiv')."""
+    """Return active scraper settings filtered by *source_type*."""
     from models.scraper_setting import ScraperSetting
 
     own_session = False
     if session is None:
-        from src.database import get_session
+        from src.infrastructure.persistence.db import get_session
         session = get_session()
         own_session = True
 
@@ -36,7 +37,7 @@ def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
 
         result = []
         for s in settings:
-            entry = {
+            entry: Dict[str, Any] = {
                 "id": str(s.id),
                 "source": s.name,
                 "url": s.url,
@@ -54,13 +55,13 @@ def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
 
 
 def get_sources_due(session=None) -> List[Dict[str, Any]]:
-    """Return active sources whose last scrape time has exceeded their frequency interval."""
+    """Return active sources whose scrape interval has elapsed."""
     from models.scraper_setting import ScraperSetting
     from sqlalchemy import or_, text
 
     own_session = False
     if session is None:
-        from src.database import get_session
+        from src.infrastructure.persistence.db import get_session
         session = get_session()
         own_session = True
 
@@ -69,13 +70,16 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
             ScraperSetting.is_active == True,
             or_(
                 ScraperSetting.last_scraped_at == None,
-                text("NOW() - last_scraped_at > frequency * INTERVAL '1 hour' - INTERVAL '30 minutes'"),
-            )
+                text(
+                    "NOW() - last_scraped_at > frequency * INTERVAL '1 hour'"
+                    " - INTERVAL '30 minutes'"
+                ),
+            ),
         ).all()
 
         result = []
         for s in settings:
-            entry = {
+            entry: Dict[str, Any] = {
                 "id": str(s.id),
                 "source": s.name,
                 "url": s.url,
@@ -91,24 +95,3 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
     finally:
         if own_session:
             session.close()
-
-
-def validate_config() -> None:
-    """Validate required configuration at startup"""
-    errors = []
-
-    if not os.environ.get('DATABASE_URL', DATABASE_URL):
-        errors.append("DATABASE_URL is required")
-
-    if errors:
-        raise ValueError(f"Configuration errors: {', '.join(errors)}")
-
-
-def load_providers(path: str = None) -> List[Dict[str, Any]]:
-    """Load provider definitions from providers.toml (sorted by priority)."""
-    if path is None:
-        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'providers.toml')
-    with open(path, 'rb') as f:
-        data = tomllib.load(f)
-    providers = data.get('providers', [])
-    return sorted(providers, key=lambda p: p['priority'])

@@ -7,7 +7,8 @@ from datetime import datetime
 from sqlalchemy import text
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config import load_providers, SENTRY_DSN
+from src.config.settings import SENTRY_DSN
+from src.config.providers import load_providers
 from src.infrastructure.http.http_client import HttpClient, init_default_client
 from src.analyzers.providers.gemini import GeminiProvider
 from src.analyzers.providers.openrouter import OpenRouterProvider
@@ -362,7 +363,7 @@ def main() -> None:
         span.set_attribute("run.correlation_id", correlation_id)
 
         try:
-            from src.config import get_sources_due
+            from src.infrastructure.persistence.sqlalchemy_repos.scraper_setting_repo_impl import get_sources_due
             sources_due = get_sources_due()
 
             span.set_attribute("run.sources_count", len(sources_due))
