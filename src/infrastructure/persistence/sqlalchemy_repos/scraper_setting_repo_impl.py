@@ -1,12 +1,16 @@
 """
 SQLAlchemy implementation for ScraperSetting queries.
 
-These functions are the canonical source going forward.
-src/config/__init__.py delegates to them for backward compatibility;
-future phases will inject them directly into use cases.
+Provides both standalone functions (for backward compat) and a
+SqlAlchemyScraperSettingRepository class that implements the domain ABC.
+
+src/config/__init__.py delegates to the standalone functions for backward
+compatibility; RunScraperUseCase receives the class via DI.
 """
 import structlog
 from typing import Any, Dict, List, Optional
+
+from src.domain.repositories.scraper_setting_repository import ScraperSettingRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -95,3 +99,40 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
     finally:
         if own_session:
             session.close()
+
+
+class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
+    """
+    Class-based implementation injected into RunScraperUseCase.
+    Delegates query logic to the standalone functions above so there is
+    a single source of truth for the SQL.
+    """
+
+    def __init__(self, session=None) -> None:
+        self._session = session  # None → functions open their own session
+
+    def get_sources_due(self) -> List[Dict[str, Any]]:
+        return get_sources_due(session=self._session)
+
+    def mark_scraped(self, source_id: str) -> None:
+        from sqlalchemy import text
+
+        own_session = False
+        session = self._session
+        if session is None:
+            from src.infrastructure.persistence.db import get_session
+            session = get_session()
+            own_session = True
+
+        try:
+            session.execute(
+                text(
+                    "UPDATE scraper_settings SET last_scraped_at = NOW() WHERE id = :id"
+                ),
+                {"id": source_id},
+            )
+            session.commit()
+            logger.info("source_marked_scraped", source_id=source_id)
+        finally:
+            if own_session:
+                session.close()
