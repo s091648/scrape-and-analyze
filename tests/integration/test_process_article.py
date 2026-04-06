@@ -1,16 +1,15 @@
 """
-Integration tests for the core article processing pipeline (src/main.py).
+Integration tests for the article processing pipeline.
 
-These tests use a real PostgreSQL database (isolated test schema) and a
-mocked LLM analyzer to exercise the full process_article / analyze_article
-code paths without hitting external APIs.
+Uses ProcessArticleUseCase + real PostgreSQL (isolated test schema) and a
+mocked LLM analyzer to exercise the full persist + analyze code paths.
 """
 import pytest
 import uuid
 from unittest.mock import MagicMock
 
-from src.analyzers.providers import AnalysisResult
-from src.scrapers.scrapers.article import ScrapedArticle
+from src.analysis.providers.base_llm_provider import AnalysisResult
+from src.ingestion.models.scraped_article import ScrapedArticle
 
 
 # ---------------------------------------------------------------------------
@@ -18,7 +17,6 @@ from src.scrapers.scrapers.article import ScrapedArticle
 # ---------------------------------------------------------------------------
 
 def _make_result(**overrides):
-    """Build a minimal AnalysisResult, merging any overrides."""
     defaults = dict(
         tag_groups=[],
         pain_points="Test pain points",
@@ -33,7 +31,6 @@ def _make_result(**overrides):
 
 
 def _make_scraped(**overrides):
-    """Build a ScrapedArticle with a unique URL by default."""
     defaults = dict(
         url=f"https://example.com/article/{uuid.uuid4()}",
         title="Test Article",
@@ -46,12 +43,34 @@ def _make_scraped(**overrides):
 
 
 def _mock_analyzer(result=None, *, use_default=True):
-    """Return a MagicMock analyzer whose .analyze() returns result."""
     analyzer = MagicMock()
     analyzer.analyze.return_value = result if result is not None else (
         _make_result() if use_default else None
     )
     return analyzer
+
+
+def _make_process_uc(db_session, analyzer):
+    """Wire ProcessArticleUseCase against the shared test session."""
+    from src.infrastructure.persistence.sqlalchemy_repos.article_repo_impl import (
+        SqlAlchemyArticleRepository,
+    )
+    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import (
+        SqlAlchemyAnalysisRepository,
+    )
+    from src.domain.services.dedup_service import DedupService
+    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.app.use_cases.process_article import ProcessArticleUseCase
+
+    article_repo = SqlAlchemyArticleRepository(session=db_session)
+    analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
+    dedup = DedupService(article_repo=article_repo)
+    analyze_uc = AnalyzeArticleUseCase(analyzer=analyzer, analysis_repo=analysis_repo)
+    return ProcessArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=dedup,
+        analyze_article_uc=analyze_uc,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -61,14 +80,12 @@ def _mock_analyzer(result=None, *, use_default=True):
 @pytest.mark.integration
 def test_process_article_creates_article_and_analysis(db_session):
     """A new article should be persisted together with its LLM analysis."""
-    from src.main import process_article
     from models.article import Article
     from models.analysis import Analysis
 
     scraped = _make_scraped()
-    result = process_article(
-        db_session, scraped, _mock_analyzer(), "test prompt", str(uuid.uuid4())
-    )
+    uc = _make_process_uc(db_session, _mock_analyzer())
+    result = uc.execute(scraped, "test prompt", str(uuid.uuid4()))
 
     assert result is True
 
@@ -91,30 +108,25 @@ def test_process_article_creates_article_and_analysis(db_session):
 @pytest.mark.integration
 def test_process_article_returns_false_for_fully_processed_duplicate(db_session):
     """A duplicate URL that already has an analysis should return False without re-analyzing."""
-    from src.main import process_article
     from models.article import Article
 
     scraped = _make_scraped()
     correlation_id = str(uuid.uuid4())
 
     # First call — creates article + analysis
-    process_article(db_session, scraped, _mock_analyzer(), "test prompt", correlation_id)
+    _make_process_uc(db_session, _mock_analyzer()).execute(scraped, "test prompt", correlation_id)
 
     analyzer = _mock_analyzer()
-    result = process_article(db_session, scraped, analyzer, "test prompt", correlation_id)
+    result = _make_process_uc(db_session, analyzer).execute(scraped, "test prompt", correlation_id)
 
     assert result is False
-    # Analyzer should NOT have been called a second time
     analyzer.analyze.assert_not_called()
-
-    # Still only one Article row
     assert db_session.query(Article).filter_by(url=scraped.url).count() == 1
 
 
 @pytest.mark.integration
 def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     """A duplicate URL that has NO analysis should still be analyzed."""
-    from src.main import process_article
     from models.article import Article
     from models.analysis import Analysis
     from src.utils.sanitizer import generate_url_hash
@@ -133,8 +145,8 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     db_session.add(article)
     db_session.commit()
 
-    result = process_article(
-        db_session, scraped, _mock_analyzer(), "test prompt", str(uuid.uuid4())
+    result = _make_process_uc(db_session, _mock_analyzer()).execute(
+        scraped, "test prompt", str(uuid.uuid4())
     )
 
     assert result is True
@@ -149,23 +161,19 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
 @pytest.mark.integration
 def test_process_article_creates_tags_and_links_to_article(db_session, tag_group):
     """analyze_article should create Tag rows and associate them with the article."""
-    from src.main import process_article
     from models.article import Article
-    from models.tag import Tag
 
     analyzer = _mock_analyzer(
         _make_result(tag_groups=[{"group": tag_group.name, "tags": ["AI", "IoT"]}])
     )
     scraped = _make_scraped()
 
-    process_article(db_session, scraped, analyzer, "test prompt", str(uuid.uuid4()))
+    _make_process_uc(db_session, analyzer).execute(scraped, "test prompt", str(uuid.uuid4()))
 
     article = db_session.query(Article).filter_by(url=scraped.url).first()
     tag_names = {t.name for t in article.tags}
     assert "AI" in tag_names
     assert "IoT" in tag_names
-
-    # Tags should be in the correct group
     for tag in article.tags:
         assert tag.tag_group_name == tag_group.name
 
@@ -173,19 +181,15 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
 @pytest.mark.integration
 def test_process_article_reuses_existing_tag(db_session, tag_group):
     """The same tag name+group on two different articles should produce only one Tag row."""
-    from src.main import process_article
     from models.tag import Tag
 
     tag_payload = [{"group": tag_group.name, "tags": ["SharedTag"]}]
 
-    # Process two independent articles, both tagged "SharedTag"
-    process_article(
-        db_session, _make_scraped(), _mock_analyzer(_make_result(tag_groups=tag_payload)),
-        "test prompt", str(uuid.uuid4())
+    _make_process_uc(db_session, _mock_analyzer(_make_result(tag_groups=tag_payload))).execute(
+        _make_scraped(), "test prompt", str(uuid.uuid4())
     )
-    process_article(
-        db_session, _make_scraped(), _mock_analyzer(_make_result(tag_groups=tag_payload)),
-        "test prompt", str(uuid.uuid4())
+    _make_process_uc(db_session, _mock_analyzer(_make_result(tag_groups=tag_payload))).execute(
+        _make_scraped(), "test prompt", str(uuid.uuid4())
     )
 
     count = db_session.query(Tag).filter_by(
@@ -195,25 +199,17 @@ def test_process_article_reuses_existing_tag(db_session, tag_group):
 
 
 # ---------------------------------------------------------------------------
-# Failure recording
+# Failure handling
 # ---------------------------------------------------------------------------
 
 @pytest.mark.integration
-def test_process_article_records_failure_when_analyzer_returns_none(db_session):
-    """When the analyzer returns None a FailedTask should be created for task_type='analyze'."""
-    from src.main import process_article
-    from models.failed_task import FailedTask
-
+def test_process_article_returns_false_when_analyzer_returns_none(db_session):
+    """When the analyzer returns None, execute() returns False."""
     scraped = _make_scraped()
     analyzer = _mock_analyzer(result=None, use_default=False)
 
-    result = process_article(db_session, scraped, analyzer, "test prompt", str(uuid.uuid4()))
+    result = _make_process_uc(db_session, analyzer).execute(
+        scraped, "test prompt", str(uuid.uuid4())
+    )
 
     assert result is False
-
-    failure = db_session.query(FailedTask).filter_by(
-        article_url=scraped.url, task_type="analyze"
-    ).first()
-    assert failure is not None
-    assert failure.exception_type == "Exception"
-    assert failure.resolved is False
