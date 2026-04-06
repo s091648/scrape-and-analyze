@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from src.ingestion.models.scraped_article import ScrapedArticle
-from src.scrapers.strategy.scrape_task import ScrapeTask  # Phase 4 will move this
+from src.pipeline.task import ScrapeTask
 
 __all__ = ["BaseScraper", "ScrapedArticle"]
 

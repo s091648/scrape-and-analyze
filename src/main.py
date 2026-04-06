@@ -280,7 +280,7 @@ def process_article_safe(scraped, analyzer, prompt: str, correlation_id: str,
 def run_scrape_cycle(sources: list, analyzer, prompt: str, correlation_id: str,
                      summary=None) -> None:
     """Build scrapers from source configs, dispatch via ScrapeDispatcher."""
-    from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
+    from src.pipeline.dispatcher import ScrapeDispatcher
 
     scrapers_with_sources = []
     for source in sources:

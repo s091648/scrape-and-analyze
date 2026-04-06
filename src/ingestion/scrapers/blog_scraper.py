@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from src.ingestion.models.scraped_article import ScrapedArticle
 from src.ingestion.scrapers.base_scraper import BaseScraper
 from src.ingestion.parsers.html_parser import HtmlArticleParser
-from src.scrapers.strategy.scrape_task import ScrapeTask  # Phase 4 will move this
+from src.pipeline.task import ScrapeTask
 from src.utils.sanitizer import sanitize_content
 from src.utils.logging import get_logger
 from src.infrastructure.http.http_client import get_default_client

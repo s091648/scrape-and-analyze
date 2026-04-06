@@ -28,7 +28,7 @@ def test_dispatcher_delivers_all_results():
     from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
     articles = _make_articles(3)
     results = []
-    with patch("src.scrapers.strategy.worker.time.sleep"):
+    with patch("src.pipeline.worker.time.sleep"):
         ScrapeDispatcher(num_workers=2, delay=0.0).run(
             [_make_scraper(articles)], on_result=results.append
         )
@@ -38,7 +38,7 @@ def test_dispatcher_delivers_all_results():
 def test_dispatcher_handles_empty_scraper():
     from src.scrapers.strategy.scrape_dispatcher import ScrapeDispatcher
     results = []
-    with patch("src.scrapers.strategy.worker.time.sleep"):
+    with patch("src.pipeline.worker.time.sleep"):
         ScrapeDispatcher(num_workers=1, delay=0.0).run(
             [_make_scraper([])], on_result=results.append
         )
@@ -50,7 +50,7 @@ def test_dispatcher_accepts_custom_selector():
     from src.scrapers.strategy.queue_selector import RoundRobinQueueSelector
     articles = _make_articles(2)
     results = []
-    with patch("src.scrapers.strategy.worker.time.sleep"):
+    with patch("src.pipeline.worker.time.sleep"):
         ScrapeDispatcher(
             num_workers=1, delay=0.0,
             selector=RoundRobinQueueSelector(),
@@ -67,7 +67,7 @@ def test_dispatcher_handles_discover_exception_gracefully():
             raise RuntimeError("network down")
 
     results = []
-    with patch("src.scrapers.strategy.worker.time.sleep"):
+    with patch("src.pipeline.worker.time.sleep"):
         ScrapeDispatcher(num_workers=1, delay=0.0).run(
             [BrokenScraper()], on_result=results.append
         )

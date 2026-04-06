@@ -5,7 +5,7 @@ from typing import List, Optional
 from src.ingestion.models.scraped_article import ScrapedArticle
 from src.ingestion.scrapers.base_scraper import BaseScraper
 from src.ingestion.parsers.pdf_parser import PdfParser
-from src.scrapers.strategy.scrape_task import ScrapeTask  # Phase 4 will move this
+from src.pipeline.task import ScrapeTask
 from src.utils.logging import get_logger
 from src.infrastructure.http.http_client import get_default_client
 

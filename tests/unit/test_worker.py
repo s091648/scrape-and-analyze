@@ -97,7 +97,7 @@ def test_two_workers_never_concurrently_process_same_host():
         ScrapeTask(url="http://example.com/b", source="test", _execute_fn=slow_fn),
     ]
 
-    with patch("src.scrapers.strategy.worker.time.sleep"):
+    with patch("src.pipeline.worker.time.sleep"):
         results = _run_workers({"example.com": tasks}, num_workers=2)
 
     assert len(results) == 2
@@ -108,7 +108,7 @@ def test_two_workers_never_concurrently_process_same_host():
 
 def test_worker_sleeps_between_tasks():
     tasks = [_make_task(_make_article(i)) for i in range(2)]
-    with patch("src.scrapers.strategy.worker.time.sleep") as mock_sleep:
+    with patch("src.pipeline.worker.time.sleep") as mock_sleep:
         _run_workers({"example.com": tasks}, delay=5.0)
     sleep_calls = [c.args[0] for c in mock_sleep.call_args_list]
     # Sentry SDK background threads may call time.sleep with unrelated values;
