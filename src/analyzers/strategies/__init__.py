@@ -1,10 +1,7 @@
-from .no_op_strategy import NoOpStrategy
-from .leaky_bucket_strategy import LeakyBucketStrategy, RateLimitExhausted
-from .base_request_strategy import RequestStrategy
-
-__all__ = [
-    "NoOpStrategy",
-    "LeakyBucketStrategy",
-    "RateLimitExhausted",
-    "RequestStrategy",
-]
+# Shim — canonical code lives in src/analysis/strategies/
+from src.analysis.strategies import (  # noqa: F401
+    NoOpStrategy,
+    LeakyBucketStrategy,
+    RateLimitExhausted,
+    RequestStrategy,
+)

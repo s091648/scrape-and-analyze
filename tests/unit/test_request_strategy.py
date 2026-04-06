@@ -96,8 +96,8 @@ def test_leaky_bucket_rpm_blocks_when_full():
     s._rpm_window.append(start_now - 3)
 
     # 使用 side_effect 將 MockClock 的方法植入
-    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
-         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
+    with patch('src.analysis.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
+         patch('src.analysis.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
         
         # 這次 acquire 會因為 RPM=2 已滿而進入迴圈
         s.acquire(estimated_tokens=100)
@@ -133,8 +133,8 @@ def test_leaky_bucket_tpm_blocks_when_full():
     # 預填 TPM 視窗：10秒前使用了 90 tokens (假設視窗為 60 秒)
     s._tpm_window.append((start_now - 10, 90))
 
-    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
-         patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
+    with patch('src.analysis.strategies.leaky_bucket_strategy.time.sleep', side_effect=clock.sleep), \
+         patch('src.analysis.strategies.leaky_bucket_strategy.time.monotonic', side_effect=clock.monotonic):
         
         # 請求 20 tokens，總數 110 會超過 100，必須觸發 sleep
         s.acquire(estimated_tokens=20)
@@ -155,7 +155,7 @@ def test_leaky_bucket_cleans_stale_rpm_entries():
     # Add stale entry (65s ago) — should be cleaned on acquire
     s._rpm_window.append(now - 65)
 
-    with patch('src.analyzers.strategies.leaky_bucket_strategy.time.monotonic', return_value=now):
+    with patch('src.analysis.strategies.leaky_bucket_strategy.time.monotonic', return_value=now):
         s.acquire(estimated_tokens=100)  # must not sleep
 
     # Stale entry should have been evicted; only the new one remains

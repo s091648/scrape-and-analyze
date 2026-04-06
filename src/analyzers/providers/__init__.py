@@ -1,7 +1,2 @@
-# Lazy imports to avoid loading all dependencies
-from .base_llm_provider import LLMProvider, AnalysisResult
-
-__all__ = [
-    "LLMProvider",
-    "AnalysisResult",
-]
+# Shim — canonical code lives in src/analysis/providers/
+from src.analysis.providers import LLMProvider, AnalysisResult  # noqa: F401
