@@ -1,3 +1,7 @@
+"""
+GeoIP lookup — optional MaxMind GeoLite2 adapter.
+Used by the backend request-logging middleware.
+"""
 import os
 from typing import Optional
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from src.observability.run_summary import RunSummary
+from src.infrastructure.observability.run_summary import RunSummary
 
 
 class BaseNotifier(ABC):

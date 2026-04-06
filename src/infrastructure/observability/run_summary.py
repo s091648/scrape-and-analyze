@@ -1,3 +1,7 @@
+"""
+RunSummary — thread-safe per-source stats aggregator for one scraper run.
+Pure Python, no infrastructure dependency.
+"""
 import threading
 from dataclasses import dataclass, field
 from typing import List

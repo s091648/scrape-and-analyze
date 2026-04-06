@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, call
-from src.analyzers.providers.base_llm_provider import AnalysisResult
+from src.analysis.providers.base_llm_provider import AnalysisResult
 
 
 def _make_result():
@@ -12,7 +12,7 @@ def _make_result():
 
 
 def test_provider_handler_calls_strategy_acquire():
-    from src.analyzers.provider_chain import ProviderHandler
+    from src.analysis.provider_chain import ProviderHandler
     provider = MagicMock()
     strategy = MagicMock()
     provider.analyze.return_value = _make_result()
@@ -28,7 +28,7 @@ def test_provider_handler_calls_strategy_acquire():
 
 
 def test_provider_handler_calls_record_usage_on_success():
-    from src.analyzers.provider_chain import ProviderHandler
+    from src.analysis.provider_chain import ProviderHandler
     provider = MagicMock()
     strategy = MagicMock()
     result = _make_result()
@@ -43,7 +43,7 @@ def test_provider_handler_calls_record_usage_on_success():
 
 
 def test_provider_handler_skips_record_usage_on_none():
-    from src.analyzers.provider_chain import ProviderHandler
+    from src.analysis.provider_chain import ProviderHandler
     provider = MagicMock()
     strategy = MagicMock()
     provider.analyze.return_value = None
@@ -56,7 +56,7 @@ def test_provider_handler_skips_record_usage_on_none():
 
 
 def test_provider_handler_returns_result():
-    from src.analyzers.provider_chain import ProviderHandler
+    from src.analysis.provider_chain import ProviderHandler
     provider = MagicMock()
     strategy = MagicMock()
     expected = _make_result()
@@ -69,13 +69,13 @@ def test_provider_handler_returns_result():
 
 
 def test_provider_chain_implements_llm_provider():
-    from src.analyzers.provider_chain import ProviderChain
-    from src.analyzers.providers.base_llm_provider import LLMProvider
+    from src.analysis.provider_chain import ProviderChain
+    from src.analysis.providers.base_llm_provider import LLMProvider
     assert issubclass(ProviderChain, LLMProvider)
 
 
 def test_provider_chain_returns_first_success():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
     result = _make_result()
     h1 = MagicMock(spec=ProviderHandler)
     h1.priority = 1
@@ -94,7 +94,7 @@ def test_provider_chain_returns_first_success():
 
 
 def test_provider_chain_falls_back_on_none():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
     result = _make_result()
 
     h1 = MagicMock(spec=ProviderHandler)
@@ -116,7 +116,7 @@ def test_provider_chain_falls_back_on_none():
 
 
 def test_provider_chain_falls_back_on_exception():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
     result = _make_result()
 
     h1 = MagicMock(spec=ProviderHandler)
@@ -136,8 +136,8 @@ def test_provider_chain_falls_back_on_exception():
 
 
 def test_provider_chain_falls_back_on_rate_limit_exhausted():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
-    from src.analyzers.strategies.leaky_bucket_strategy import RateLimitExhausted
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.strategies.leaky_bucket_strategy import RateLimitExhausted
     result = _make_result()
 
     h1 = MagicMock(spec=ProviderHandler)
@@ -157,7 +157,7 @@ def test_provider_chain_falls_back_on_rate_limit_exhausted():
 
 
 def test_provider_chain_returns_none_when_all_fail():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
 
     h1 = MagicMock(spec=ProviderHandler)
     h1.priority = 1
@@ -176,7 +176,7 @@ def test_provider_chain_returns_none_when_all_fail():
 
 
 def test_provider_chain_sorts_handlers_by_priority():
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
 
     h1 = MagicMock(spec=ProviderHandler)
     h1.priority = 2

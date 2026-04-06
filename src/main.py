@@ -17,9 +17,9 @@ from src.utils.logging import get_logger, bind_correlation_id, configure_logging
 from src.config.settings import SENTRY_DSN
 from src.infrastructure.http.http_client import HttpClient, init_default_client
 from src.database import init_db
-from src.observability.metrics import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
-from src.observability.run_context import init_run_context, get_run_id
-from src.observability.run_summary import RunSummary
+from src.infrastructure.observability.otel_metrics import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
+from src.infrastructure.observability.run_context import init_run_context, get_run_id
+from src.infrastructure.observability.run_summary import RunSummary
 from src.notifications.service import notify_all
 
 if SENTRY_DSN:
@@ -55,7 +55,7 @@ def load_prompt() -> str:
 
 def main() -> None:
     from opentelemetry import trace as otel_trace
-    from src.observability.tracing import get_tracer, shutdown_tracing
+    from src.infrastructure.observability.otel_tracing import get_tracer, shutdown_tracing
     from src.app.composition_root import build_run_scraper_use_case
 
     configure_logging()

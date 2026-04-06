@@ -1,7 +1,7 @@
 import os
 from src.notifications.base import BaseNotifier
 from src.notifications.telegram import TelegramNotifier
-from src.observability.run_summary import RunSummary
+from src.infrastructure.observability.run_summary import RunSummary
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -14,7 +14,7 @@ def _mock_response(content: str, input_tokens=100, output_tokens=50):
 
 
 def test_openrouter_provider_analyze_returns_result():
-    from src.analyzers.providers.openrouter import OpenRouterProvider
+    from src.analysis.providers.openrouter import OpenRouterProvider
     payload = json.dumps({
         'tag_groups': [{'group': 'test', 'tags': ['a']}],
         'pain_points': 'p', 'insights': 'i', 'innovations': 'n'
@@ -30,7 +30,7 @@ def test_openrouter_provider_analyze_returns_result():
 
 
 def test_openrouter_provider_returns_none_on_http_error():
-    from src.analyzers.providers.openrouter import OpenRouterProvider
+    from src.analysis.providers.openrouter import OpenRouterProvider
     mock_resp = MagicMock()
     mock_resp.status_code = 429
     mock_resp.raise_for_status.side_effect = Exception("rate limited")
@@ -43,7 +43,7 @@ def test_openrouter_provider_returns_none_on_http_error():
 
 
 def test_openrouter_provider_returns_none_on_invalid_json():
-    from src.analyzers.providers.openrouter import OpenRouterProvider
+    from src.analysis.providers.openrouter import OpenRouterProvider
     with patch('src.analysis.providers.openrouter.requests.post',
                return_value=_mock_response('not valid json')):
         provider = OpenRouterProvider(api_key='test', model='deepseek/deepseek-chat')

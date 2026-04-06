@@ -26,11 +26,11 @@ logger = get_logger(__name__)
 
 def build_analyzer():
     """Build a ProviderChain from providers.toml (mirrors src/main.py logic)."""
-    from src.analyzers.provider_chain import ProviderChain, ProviderHandler
-    from src.analyzers.providers.gemini import GeminiProvider
-    from src.analyzers.providers.openrouter import OpenRouterProvider
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
-    from src.analyzers.strategies.no_op_strategy import NoOpStrategy
+    from src.analysis.provider_chain import ProviderChain, ProviderHandler
+    from src.analysis.providers.gemini import GeminiProvider
+    from src.analysis.providers.openrouter import OpenRouterProvider
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.no_op_strategy import NoOpStrategy
 
     handlers = []
     for cfg in load_providers():

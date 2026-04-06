@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from src.observability.run_summary import RunSummary
+from src.infrastructure.observability.run_summary import RunSummary
 from src.notifications.telegram import TelegramNotifier
 
 

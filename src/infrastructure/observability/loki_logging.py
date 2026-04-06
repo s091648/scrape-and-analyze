@@ -1,10 +1,13 @@
+"""
+Loki log handler — optional sink that ships structlog JSON to Grafana Loki.
+Called once by configure_logging() at process startup.
+"""
 import logging
 import os
 import sys
-from logging_loki import LokiHandler
 
 
-def configure_loki():
+def configure_loki() -> None:
     url = os.environ.get("GRAFANA_LOKI_URL")
     user = os.environ.get("GRAFANA_LOKI_USER")
     key = os.environ.get("GRAFANA_API_KEY")
@@ -12,7 +15,7 @@ def configure_loki():
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
 
-    # Always add a stdout handler so structlog messages appear in container logs
+    # Always attach stdout so structlog messages appear in container logs
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
     root_logger.addHandler(stdout_handler)
@@ -21,13 +24,13 @@ def configure_loki():
         return
 
     try:
+        from logging_loki import LokiHandler
         loki_handler = LokiHandler(
             url=url,
             auth=(user, key),
             tags={"app": "scraper", "env": "production"},
             version="1",
         )
-        # Only send INFO+ to avoid OTLP retry warnings causing a feedback loop
         loki_handler.setLevel(logging.INFO)
         root_logger.addHandler(loki_handler)
     except Exception as e:

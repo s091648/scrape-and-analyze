@@ -3,7 +3,7 @@ import requests
 from datetime import datetime, timezone
 
 from src.notifications.base import BaseNotifier
-from src.observability.run_summary import RunSummary
+from src.infrastructure.observability.run_summary import RunSummary
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)

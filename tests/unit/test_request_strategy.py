@@ -4,13 +4,13 @@ import time as time_module
 
 
 def test_request_strategy_is_abstract():
-    from src.analyzers.strategies.base_request_strategy import RequestStrategy
+    from src.analysis.strategies.base_request_strategy import RequestStrategy
     with pytest.raises(TypeError):
         RequestStrategy()
 
 
 def test_request_strategy_requires_acquire():
-    from src.analyzers.strategies.base_request_strategy import RequestStrategy
+    from src.analysis.strategies.base_request_strategy import RequestStrategy
 
     class MissingAcquire(RequestStrategy):
         def record_usage(self, actual_tokens: int) -> None:
@@ -21,7 +21,7 @@ def test_request_strategy_requires_acquire():
 
 
 def test_request_strategy_requires_record_usage():
-    from src.analyzers.strategies.base_request_strategy import RequestStrategy
+    from src.analysis.strategies.base_request_strategy import RequestStrategy
 
     class MissingRecord(RequestStrategy):
         def acquire(self, estimated_tokens: int) -> None:
@@ -32,31 +32,31 @@ def test_request_strategy_requires_record_usage():
 
 
 def test_rate_limit_exhausted_is_exception():
-    from src.analyzers.strategies.leaky_bucket_strategy import RateLimitExhausted
+    from src.analysis.strategies.leaky_bucket_strategy import RateLimitExhausted
     exc = RateLimitExhausted("daily limit hit")
     assert isinstance(exc, Exception)
     assert str(exc) == "daily limit hit"
 
 
 def test_noop_strategy_acquire_does_nothing():
-    from src.analyzers.strategies.no_op_strategy import NoOpStrategy
+    from src.analysis.strategies.no_op_strategy import NoOpStrategy
     s = NoOpStrategy()
     s.acquire(1000)  # must not raise or sleep
 
 
 def test_noop_strategy_record_usage_does_nothing():
-    from src.analyzers.strategies.no_op_strategy import NoOpStrategy
+    from src.analysis.strategies.no_op_strategy import NoOpStrategy
     s = NoOpStrategy()
     s.record_usage(500)  # must not raise
 
 def test_leaky_bucket_acquire_passes_when_under_limits():
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
     s = LeakyBucketStrategy(rpm=5, tpm=250_000, rpd=20)
     s.acquire(estimated_tokens=100)  # first request, must not sleep or raise
 
 
 def test_leaky_bucket_record_usage_updates_tpm_window():
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
     s = LeakyBucketStrategy(rpm=5, tpm=250_000, rpd=20)
     s.acquire(estimated_tokens=100)
     s.record_usage(actual_tokens=300)
@@ -67,7 +67,7 @@ def test_leaky_bucket_record_usage_updates_tpm_window():
 
 def test_leaky_bucket_rpm_blocks_when_full():
     """當 RPM 達到上限時，acquire() 應模擬睡眠直到視窗開啟。"""
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
 
     slept = []
     start_now = 1000.0  # 使用固定的起始時間方便除錯
@@ -110,7 +110,7 @@ def test_leaky_bucket_rpm_blocks_when_full():
 
 def test_leaky_bucket_tpm_blocks_when_full():
     """當 TPM 達到上限時，acquire() 應模擬睡眠直到視窗開啟。"""
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
 
     slept = []
     start_now = 2000.0
@@ -148,7 +148,7 @@ def test_leaky_bucket_tpm_blocks_when_full():
 
 def test_leaky_bucket_cleans_stale_rpm_entries():
     """Entries older than 60s should be evicted from RPM window."""
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
 
     now = time_module.monotonic()
     s = LeakyBucketStrategy(rpm=2, tpm=250_000, rpd=20)
@@ -163,7 +163,7 @@ def test_leaky_bucket_cleans_stale_rpm_entries():
 
 
 def test_leaky_bucket_raises_when_daily_cap_hit():
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy, RateLimitExhausted
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy, RateLimitExhausted
     s = LeakyBucketStrategy(rpm=100, tpm=1_000_000, rpd=3)
     s._daily_count = 3  # simulate cap already reached
     with pytest.raises(RateLimitExhausted, match="Daily request limit"):
@@ -171,7 +171,7 @@ def test_leaky_bucket_raises_when_daily_cap_hit():
 
 
 def test_leaky_bucket_daily_count_increments_on_acquire():
-    from src.analyzers.strategies.leaky_bucket_strategy import LeakyBucketStrategy
+    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
     s = LeakyBucketStrategy(rpm=100, tpm=1_000_000, rpd=20)
     assert s._daily_count == 0
     s.acquire(estimated_tokens=100)

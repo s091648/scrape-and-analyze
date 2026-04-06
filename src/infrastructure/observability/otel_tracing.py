@@ -1,29 +1,43 @@
-import os
+"""
+OTel tracing implementation — satisfies TracerPort.
+
+Exports spans to Grafana Cloud (OTLP/HTTP) when GRAFANA_* env vars are set.
+Falls back to a no-op tracer automatically via the OTel SDK.
+
+To swap backends (e.g. Jaeger, Zipkin):
+  1. Return a different TracerProvider / exporter from _setup_tracing().
+  2. No other file needs to change.
+"""
 import base64
+import os
 from typing import Optional
 
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-
-def _setup_tracing() -> Optional[TracerProvider]:
+def _setup_tracing():
     user = os.environ.get("GRAFANA_OTLP_USER", "").strip()
     api_key = os.environ.get("GRAFANA_API_KEY", "").strip()
     endpoint = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()
 
     if not all([user, api_key, endpoint]):
-        missing = [k for k, v in {
-            "GRAFANA_OTLP_USER": user,
-            "GRAFANA_API_KEY": api_key,
-            "GRAFANA_OTLP_ENDPOINT": endpoint,
-        }.items() if not v]
+        missing = [
+            k
+            for k, v in {
+                "GRAFANA_OTLP_USER": user,
+                "GRAFANA_API_KEY": api_key,
+                "GRAFANA_OTLP_ENDPOINT": endpoint,
+            }.items()
+            if not v
+        ]
         print(f"[tracing] Skipping OTLP setup, missing env vars: {missing}")
         return None
 
     try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
         auth_str = f"{user}:{api_key}"
         encoded_auth = base64.b64encode(auth_str.encode()).decode()
 
@@ -44,13 +58,17 @@ def _setup_tracing() -> Optional[TracerProvider]:
 
 
 _provider = _setup_tracing()
-_tracer = trace.get_tracer("scrape-analyzer")
+
+from opentelemetry import trace as _otel_trace
+_tracer = _otel_trace.get_tracer("scrape-analyzer")
 
 
-def get_tracer() -> trace.Tracer:
+def get_tracer():
+    """Return the module-level OTel tracer (satisfies TracerPort)."""
     return _tracer
 
 
 def shutdown_tracing() -> None:
+    """Flush and shut down the tracer provider (call once at process exit)."""
     if _provider:
         _provider.shutdown()

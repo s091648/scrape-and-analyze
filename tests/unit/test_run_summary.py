@@ -1,4 +1,4 @@
-from src.observability.run_summary import RunSummary, SourceResult
+from src.infrastructure.observability.run_summary import RunSummary, SourceResult
 
 
 def test_record_new_increments_count():
