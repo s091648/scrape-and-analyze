@@ -1,9 +1,9 @@
 """
 Domain entity for Analysis — pure dataclass, zero ORM dependency.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 
@@ -17,5 +17,7 @@ class AnalysisEntity:
     model_used: str
     input_tokens: int
     output_tokens: int
+    # tag_groups carries [{group: str, tags: [str]}] for the persistence layer to handle
+    tag_groups: List[Dict[str, Any]] = field(default_factory=list)
     id: Optional[UUID] = None
     analyzed_at: Optional[datetime] = None

@@ -14,3 +14,7 @@ class ScraperSettingRepository(ABC):
     @abstractmethod
     def get_sources_due(self) -> List[Dict[str, Any]]:
         """Return active sources whose scrape interval has elapsed."""
+
+    @abstractmethod
+    def mark_scraped(self, source_id: str) -> None:
+        """Update last_scraped_at to NOW() for the given source."""
