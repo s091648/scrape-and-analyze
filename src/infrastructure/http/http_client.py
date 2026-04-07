@@ -11,13 +11,15 @@ raised as exceptions (HTTPError, ConnectionError, etc.) for callers to handle.
 """
 from __future__ import annotations
 
+import random
+import time
 import requests
 from typing import Optional
 from urllib.parse import urlparse
 
 from src.infrastructure.http.rate_limiter import DomainRateLimiter
 from src.infrastructure.http.retry import make_retry_policy
-from src.infrastructure.http.user_agent import UserAgentPool
+from src.infrastructure.http.user_agent import UserAgentPool, get_browser_headers
 from src.utils.logging import get_logger
 from src.utils.proxy import get_proxies
 
@@ -35,16 +37,19 @@ class HttpClient:
     Flow for each GET:
       1. Acquire a rate-limit token for the request's domain (may block).
       2. Pick the current User-Agent for that domain.
-      3. Send the request through the tenacity retry policy (handles 429 / 5xx).
-      4. On 403: rotate to next UA and retry, up to *max_403_rotations* times.
-      5. Return the successful Response (2xx), or raise the last exception.
+      3. Build a full browser-like header set (sec-ch-ua, Sec-Fetch-*, etc.).
+      4. Send the request through the tenacity retry policy (handles 429 / 5xx).
+      5. On 403: wait with jitter, rotate to next UA, retry up to *max_403_rotations* times.
+      6. Return the successful Response (2xx), or raise the last exception.
 
     Args:
-        rate_limiter:       Per-domain token-bucket limiter.
-        ua_pool:            Rotating browser UA pool.
-        proxies:            ``requests``-style proxies dict (e.g. from Fixie).
-        max_403_rotations:  How many times to rotate UA before giving up on 403.
-        retry_max_attempts: Max retry attempts for 429/5xx/network errors.
+        rate_limiter:            Per-domain token-bucket limiter.
+        ua_pool:                 Rotating browser UA pool.
+        proxies:                 ``requests``-style proxies dict (e.g. from Fixie).
+        max_403_rotations:       How many times to rotate UA before giving up on 403.
+        retry_max_attempts:      Max retry attempts for 429/5xx/network errors.
+        rotation_delay_base:     Base seconds to wait between 403 UA rotations.
+                                 Actual wait = uniform(base, base * 2) for jitter.
     """
 
     def __init__(
@@ -54,11 +59,13 @@ class HttpClient:
         proxies: Optional[dict] = None,
         max_403_rotations: int = 2,
         retry_max_attempts: int = 4,
+        rotation_delay_base: float = 3.0,
     ) -> None:
         self._rate_limiter = rate_limiter
         self._ua_pool = ua_pool
         self._proxies = proxies
         self._max_403_rotations = max_403_rotations
+        self._rotation_delay_base = rotation_delay_base
         self._retry_policy = make_retry_policy(max_attempts=retry_max_attempts)
 
     def get(self, url: str, timeout: int = 30, **kwargs) -> requests.Response:
@@ -71,12 +78,17 @@ class HttpClient:
         domain = _extract_domain(url)
         self._rate_limiter.acquire(domain)
 
-        extra_headers: dict = kwargs.pop("headers", {})
+        caller_headers: dict = kwargs.pop("headers", {})
 
         last_403_exc: Optional[Exception] = None
         for rotation in range(self._max_403_rotations + 1):
             ua = self._ua_pool.get(domain)
-            headers = {"User-Agent": ua, **extra_headers}
+            # Full browser-like header fingerprint — reduces bot-detection triggers
+            headers = {
+                "User-Agent": ua,
+                **get_browser_headers(ua),
+                **caller_headers,  # caller overrides last
+            }
             try:
                 for attempt in self._retry_policy:
                     with attempt:
@@ -91,13 +103,22 @@ class HttpClient:
                 return resp
             except requests.exceptions.HTTPError as exc:
                 if exc.response is not None and exc.response.status_code == 403:
-                    logger.warning(
-                        "http_403_rotating_ua",
-                        url=url,
-                        rotation=rotation + 1,
-                        max_rotations=self._max_403_rotations,
-                    )
-                    self._ua_pool.rotate(domain)
+                    if rotation < self._max_403_rotations:
+                        # Jitter delay before next rotation so the burst
+                        # doesn't look like a bot to the server
+                        jitter = random.uniform(
+                            self._rotation_delay_base,
+                            self._rotation_delay_base * 2,
+                        )
+                        logger.warning(
+                            "http_403_rotating_ua",
+                            url=url,
+                            rotation=rotation + 1,
+                            max_rotations=self._max_403_rotations,
+                            retry_after_seconds=round(jitter, 1),
+                        )
+                        time.sleep(jitter)
+                        self._ua_pool.rotate(domain)
                     last_403_exc = exc
                     continue
                 raise

@@ -17,9 +17,12 @@ from urllib.parse import urlparse
 _DEFAULT_RPM: float = 10.0
 
 # Hardcoded conservative defaults; can be overridden via env or constructor.
+# Sites marked with ⚠ have known anti-bot protections — keep RPM very low.
 _BUILTIN_OVERRIDES: dict[str, float] = {
     "export.arxiv.org": 3.0,
     "arxiv.org": 5.0,
+    "www.iotworldtoday.com": 2.0,   # ⚠ anti-bot (Cloudflare)
+    "iotworldtoday.com": 2.0,
 }
 
 
