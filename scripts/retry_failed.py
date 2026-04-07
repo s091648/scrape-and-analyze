@@ -6,7 +6,7 @@ Usage:
     python scripts/retry_failed.py [--hours N] [--limit N] [--dry-run]
 
 Options:
-    --hours N    Look back N hours for failures (default: 72)
+    --hours N    Look back N hours for failures (default: all unresolved)
     --limit N    Max number of tasks to retry
     --dry-run    Print what would be retried without executing
 
@@ -53,7 +53,11 @@ def retry_analyze(session, failure, analyzer, prompt, correlation_id, dry_run) -
     """Re-run analysis on an existing article."""
     from models.article import Article
     from src.database import has_analysis
-    from src.main import analyze_article
+    from src.domain.entities.article import ArticleEntity
+    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import (
+        SqlAlchemyAnalysisRepository,
+    )
 
     if not failure.article_id:
         logger.warning("retry_analyze_no_article_id", failure_id=str(failure.id))
@@ -73,14 +77,36 @@ def retry_analyze(session, failure, analyzer, prompt, correlation_id, dry_run) -
         print(f"  [DRY RUN] Would re-analyze article {article.id} — {article.url}")
         return True
 
-    return analyze_article(session, article, analyzer, prompt, correlation_id)
+    article_entity = ArticleEntity(
+        id=article.id,
+        url=article.url,
+        url_hash=article.url_hash,
+        source=article.source,
+        title=article.title,
+        content=article.content,
+        published_at=article.published_at,
+        scraped_at=article.scraped_at,
+        correlation_id=article.correlation_id,
+        metadata=article.metadata_ or {},
+    )
+    analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+    analyze_uc = AnalyzeArticleUseCase(analyzer=analyzer, analysis_repo=analysis_repo)
+    return analyze_uc.execute(article_entity, prompt, correlation_id)
 
 
 def retry_scrape(session, failure, analyzer, prompt, correlation_id, dry_run) -> bool:
     """Re-scrape a URL and process the article."""
-    from src.main import process_article_safe
-    from src.scrapers.content_parsers.html_parser import HtmlArticleParser
-    from src.scrapers.scrapers.article import ScrapedArticle
+    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from src.ingestion.models.scraped_article import ScrapedArticle
+    from src.app.use_cases.process_article import ProcessArticleUseCase
+    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.infrastructure.persistence.sqlalchemy_repos.article_repo_impl import (
+        SqlAlchemyArticleRepository,
+    )
+    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import (
+        SqlAlchemyAnalysisRepository,
+    )
+    from src.domain.services.dedup_service import DedupService
     import requests
 
     url = failure.article_url
@@ -102,13 +128,22 @@ def retry_scrape(session, failure, analyzer, prompt, correlation_id, dry_run) ->
             title=content.title or url,
             content=content.text or "",
             published_at=None,
-            source=failure.article_url.split("/")[2] if url else "unknown",
+            source=url.split("/")[2] if url else "unknown",
         )
     except Exception as e:
         logger.error("retry_scrape_fetch_failed", url=url, error=str(e))
         return False
 
-    return process_article_safe(scraped, analyzer, prompt, correlation_id)
+    article_repo = SqlAlchemyArticleRepository(session=session)
+    analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+    dedup_svc = DedupService(article_repo=article_repo)
+    analyze_uc = AnalyzeArticleUseCase(analyzer=analyzer, analysis_repo=analysis_repo)
+    process_uc = ProcessArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=dedup_svc,
+        analyze_article_uc=analyze_uc,
+    )
+    return process_uc.execute(scraped, prompt, correlation_id)
 
 
 def main():
@@ -143,7 +178,8 @@ def main():
 
     print(f"Found {len(failures)} unresolved failure(s) — retrying...\n")
 
-    from src.main import build_analyzer, load_prompt
+    from src.app.composition_root import build_analyzer
+    from src.main import load_prompt
 
     analyzer = build_analyzer()
     prompt = load_prompt()

@@ -25,9 +25,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import get_sources
 from src.database import get_session, init_db
-from src.scrapers.scrapers.rss_scraper import RssScraper
-from src.scrapers.scrapers.arxiv_scraper import ArxivScraper
-from src.scrapers.scrapers.blog_scraper import BlogScraper
+from src.ingestion.scrapers.rss_scraper import RssScraper
+from src.ingestion.scrapers.arxiv_scraper import ArxivScraper
+from src.ingestion.scrapers.blog_scraper import BlogScraper
 from src.utils.logging import get_logger, bind_correlation_id
 
 logger = get_logger(__name__)
@@ -55,9 +55,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def _scrape(source: str) -> list:
-    """Collect raw articles for the given source type."""
-    articles = []
+def _discover_tasks(source: str) -> list:
+    """Return ScrapeTask list for the given source type."""
+    tasks = []
 
     if source in ("rss", "blog"):
         session = get_session()
@@ -75,9 +75,9 @@ def _scrape(source: str) -> list:
                     source=src["source"],
                     selectors=src["selectors"],
                 )
-            batch = scraper.scrape()
-            articles.extend(batch)
-            logger.info("source_scraped", source=src["source"], count=len(batch))
+            batch = scraper.discover()
+            tasks.extend(batch)
+            logger.info("source_discovered", source=src["source"], task_count=len(batch))
 
     elif source == "arxiv":
         session = get_session()
@@ -90,10 +90,10 @@ def _scrape(source: str) -> list:
             max_results=cfg.get("max_results", 30),
             days_back=cfg.get("days_back", 1),
         )
-        articles = scraper.scrape()
-        logger.info("source_scraped", source="arxiv", count=len(articles))
+        tasks = scraper.discover()
+        logger.info("source_discovered", source="arxiv", task_count=len(tasks))
 
-    return articles
+    return tasks
 
 
 def main():
@@ -108,35 +108,68 @@ def main():
     correlation_id = str(uuid.uuid4())
     bind_correlation_id(correlation_id)
 
-    articles = _scrape(args.source)
+    tasks = _discover_tasks(args.source)
 
     if args.limit:
-        articles = articles[: args.limit]
+        tasks = tasks[: args.limit]
 
-    logger.info("scrape_completed", source=args.source, total=len(articles))
+    logger.info("scrape_tasks_total", source=args.source, total=len(tasks))
 
     if args.no_analyze:
-        logger.info("analysis_skipped")
+        # Execute tasks to count articles without saving or analysing
+        count = sum(1 for t in tasks if t.execute() is not None)
+        logger.info("scrape_completed_no_analyze", source=args.source, scraped=count)
         return
 
-    from src.main import build_analyzer, load_prompt, process_article_safe
+    from src.app.composition_root import build_analyzer
+    from src.app.use_cases.process_article import ProcessArticleUseCase
+    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.infrastructure.persistence.sqlalchemy_repos.article_repo_impl import (
+        SqlAlchemyArticleRepository,
+    )
+    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import (
+        SqlAlchemyAnalysisRepository,
+    )
+    from src.domain.services.dedup_service import DedupService
+    from src.main import load_prompt
 
     analyzer = build_analyzer()
     prompt = load_prompt()
 
     success = failed = 0
-    for article in articles:
-        if process_article_safe(article, analyzer, prompt, correlation_id):
-            success += 1
-        else:
+    for task in tasks:
+        scraped = task.execute()
+        if scraped is None:
             failed += 1
+            continue
+
+        session = get_session()
+        try:
+            article_repo = SqlAlchemyArticleRepository(session=session)
+            analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+            dedup_svc = DedupService(article_repo=article_repo)
+            analyze_uc = AnalyzeArticleUseCase(analyzer=analyzer, analysis_repo=analysis_repo)
+            process_uc = ProcessArticleUseCase(
+                article_repo=article_repo,
+                dedup_service=dedup_svc,
+                analyze_article_uc=analyze_uc,
+            )
+            if process_uc.execute(scraped, prompt, correlation_id):
+                success += 1
+            else:
+                failed += 1
+        except Exception as e:
+            logger.error("process_article_failed", url=task.url, error=str(e))
+            failed += 1
+        finally:
+            session.close()
 
     logger.info(
         "run_completed",
         source=args.source,
         success=success,
         failed=failed,
-        total=len(articles),
+        total=len(tasks),
     )
 
 

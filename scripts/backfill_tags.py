@@ -17,7 +17,7 @@ from sqlalchemy import text
 # Ensure project root is on sys.path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import load_providers
+from src.config.providers import load_providers
 from src.database import get_session
 from src.utils.logging import get_logger
 
@@ -68,7 +68,6 @@ def build_analyzer():
 
     return ProviderChain(handlers=handlers)
 
-logger = get_logger(__name__)
 
 _PROMPT_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
