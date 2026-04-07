@@ -16,6 +16,7 @@ class Analysis(Base):
     pain_points = Column(Text)
     insights = Column(Text)
     innovations = Column(Text)
+    summary = Column(Text)
     analyzed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     model_used = Column(String(100), nullable=False)
     input_tokens = Column(Integer)

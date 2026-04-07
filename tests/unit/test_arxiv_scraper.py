@@ -122,12 +122,14 @@ def test_execute_uses_pdf_text_and_sets_pdf_available_true():
     responses.add(responses.GET, "http://arxiv.org/pdf/2401.00003v1",
                   body=b"%PDF-1.4 fake", status=200)
     with patch(
-        "src.scrapers.content_parsers.pdf_parser.PdfParser.parse",
+        "src.ingestion.parsers.pdf_parser.PdfParser.parse",
         return_value="Full PDF text."
     ):
         article = ArxivScraper(fetch_pdf=True).discover()[0].execute()
     assert article.metadata["pdf_available"] is True
-    assert article.content == "Full PDF text."
+    # content holds the clean abstract for display; pdf_text holds the full text for LLM
+    assert article.content == "Short abstract."
+    assert article.metadata["pdf_text"] == "Full PDF text."
     assert article.metadata["abstract"] == "Short abstract."
 
 

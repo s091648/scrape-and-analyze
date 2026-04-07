@@ -76,6 +76,26 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
+  # Test service - 一次性任務：跑單元/整合測試，包含所有 mounted 目錄
+  test_service:
+    build:
+      context: .
+      dockerfile: src/Dockerfile.dev
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./scripts:/app/scripts
+      - ./backend:/app/backend
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
+      - ./providers.toml:/app/providers.toml
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # no command; `docker compose run` will supply the test command
+
   # Job service - 一次性任務：migration、db dump/sync、backfill、scrape
   job_service:
     build:

@@ -12,6 +12,7 @@ class AnalysisResult:
     innovations: str
     input_tokens: int
     output_tokens: int
+    summary: str = ""     # 2-3 sentence overview for frontend display
     model_used: str = ""
 
 

@@ -9,7 +9,7 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-_REQUIRED_FIELDS = ['tag_groups', 'pain_points', 'insights', 'innovations']
+_REQUIRED_FIELDS = ['tag_groups', 'pain_points', 'insights', 'innovations', 'summary']
 
 
 class GeminiProvider(LLMProvider):
@@ -93,6 +93,7 @@ class GeminiProvider(LLMProvider):
             pain_points=result_json.get('pain_points', ''),
             insights=result_json.get('insights', ''),
             innovations=result_json.get('innovations', ''),
+            summary=result_json.get('summary', ''),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             model_used=self.model_name,

@@ -14,6 +14,7 @@ class AnalysisEntity:
     pain_points: Optional[str]
     insights: Optional[str]
     innovations: Optional[str]
+    summary: Optional[str]
     model_used: str
     input_tokens: int
     output_tokens: int

@@ -47,6 +47,7 @@ class AnalyzeArticleUseCase:
             pain_points=result.pain_points,
             insights=result.insights,
             innovations=result.innovations,
+            summary=result.summary,
             model_used=result.model_used,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
@@ -71,17 +72,23 @@ class AnalyzeArticleUseCase:
     def _prepare_content(self, article: ArticleEntity) -> str:
         """
         Return LLM-ready text for *article*, applying source-specific extraction.
-        Mirrors the logic in src/ingestion/parsers/__init__.py:prepare_content_for_analysis
-        but operates on ArticleEntity (which uses 'metadata', not 'metadata_').
+
+        For arxiv: full PDF text lives in metadata["pdf_text"] (extracted at scrape
+        time).  content holds the abstract for display — we don't use it for analysis
+        because it lacks the structural sections the LLM needs.
         """
         if article.source == "arxiv":
             from src.ingestion.parsers.pdf_parser import PdfParser
             parser = PdfParser()
-            sections = parser.extract_sections(article.content)
-            if len(sections) >= 2:
-                combined = "\n\n".join(
-                    f"{name.title()}\n{body}" for name, body in sections.items()
-                )
-                return combined[:parser.max_chars]
+            pdf_text = article.metadata.get("pdf_text")
+            if pdf_text:
+                sections = parser.extract_sections(pdf_text)
+                if len(sections) >= 2:
+                    combined = "\n\n".join(
+                        f"{name.title()}\n{body}" for name, body in sections.items()
+                    )
+                    return combined[:parser.max_chars]
+                return pdf_text[:parser.max_chars]
+            # No PDF text — fall back to abstract
             return article.metadata.get("abstract", article.content[:2000])
         return article.content

@@ -7,7 +7,11 @@ def test_config_loads_database_url():
     """Config should load DATABASE_URL from environment"""
     with patch.dict(os.environ, {'DATABASE_URL': 'postgresql://test:test@localhost/db'}):
         import importlib
+        import src.config.settings as settings_module
         import src.config as config_module
+        # settings_module must be reloaded first — DATABASE_URL is read at
+        # module level there; reloading only the __init__ shim gets the stale value
+        importlib.reload(settings_module)
         importlib.reload(config_module)
 
         assert config_module.DATABASE_URL == 'postgresql://test:test@localhost/db'

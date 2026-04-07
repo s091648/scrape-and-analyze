@@ -4,9 +4,9 @@ RunScraperUseCase.
 
 Called once from main() so that main.py stays free of construction logic.
 
-Session strategy: each on_result callback opens one SQLAlchemy session that
-spans the entire process_article → analyze_article pipeline, then commits
-(in analysis_repo.save) and closes.
+Session strategy: process_uc_factory opens a fresh SQLAlchemy session per
+article, passes it into ProcessArticleUseCase, and closes it when done.
+RunScraperUseCase calls the factory for every scraped article.
 """
 import os
 
@@ -65,10 +65,10 @@ def build_run_scraper_use_case(prompt: str, summary=None):
     """
     Instantiate and wire all dependencies. Returns a RunScraperUseCase.
 
-    Session-per-article strategy:
-    ProcessArticleUseCase.execute() is called once per scraped article.
-    We wrap it so that each call opens a fresh SQLAlchemy session, uses it
-    for the full article+analysis pipeline, and closes it when done.
+    The process_uc_factory closure is called once per scraped article.
+    It opens a fresh SQLAlchemy session for the full article+analysis
+    pipeline and returns (ProcessArticleUseCase, session) so the caller
+    can close the session after execute() returns.
     """
     from src.infrastructure.persistence.sqlalchemy_repos.scraper_setting_repo_impl import (
         SqlAlchemyScraperSettingRepository,
@@ -92,12 +92,7 @@ def build_run_scraper_use_case(prompt: str, summary=None):
     dispatcher = ScrapeDispatcher(num_workers=3, delay=5.0)
     scraper_svc = ScraperService(dispatcher=dispatcher)
 
-    def make_process_uc():
-        """
-        Build a ProcessArticleUseCase backed by a shared session.
-        The session is committed inside SqlAlchemyAnalysisRepository.save()
-        and must be closed by the caller after execute() returns.
-        """
+    def process_uc_factory():
         session = get_session()
         article_repo = SqlAlchemyArticleRepository(session=session)
         analysis_repo = SqlAlchemyAnalysisRepository(session=session)
@@ -106,44 +101,16 @@ def build_run_scraper_use_case(prompt: str, summary=None):
             analyzer=analyzer,
             analysis_repo=analysis_repo,
         )
-        return ProcessArticleUseCase(
+        process_uc = ProcessArticleUseCase(
             article_repo=article_repo,
             dedup_service=dedup_svc,
             analyze_article_uc=analyze_uc,
-        ), session
+        )
+        return process_uc, session
 
-    # Wrap RunScraperUseCase so each article gets its own session
-    class _SessionPerArticleRunUseCase:
-        def __init__(self):
-            self._setting_repo = setting_repo
-            self._scraper_svc = scraper_svc
-            self._prompt = prompt
-
-        def execute(self, correlation_id: str, summary=None) -> None:
-            from src.utils.logging import get_logger as _gl
-            _log = _gl(__name__)
-
-            sources = self._setting_repo.get_sources_due()
-            if not sources:
-                _log.info("no_sources_due")
-                return
-
-            _log.info("sources_due", count=len(sources))
-
-            def on_result(scraped) -> None:
-                process_uc, session = make_process_uc()
-                try:
-                    process_uc.execute(scraped, self._prompt, correlation_id, summary)
-                finally:
-                    session.close()
-
-            completed_sources = self._scraper_svc.run(sources, on_result)
-
-            for source in completed_sources:
-                try:
-                    self._setting_repo.mark_scraped(source["id"])
-                except Exception as e:
-                    _log.warning("mark_scraped_failed",
-                                 source_id=source["id"], error=str(e))
-
-    return _SessionPerArticleRunUseCase()
+    return RunScraperUseCase(
+        scraper_setting_repo=setting_repo,
+        scraper_service=scraper_svc,
+        process_uc_factory=process_uc_factory,
+        prompt=prompt,
+    )

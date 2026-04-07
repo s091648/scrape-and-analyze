@@ -17,7 +17,7 @@ def test_openrouter_provider_analyze_returns_result():
     from src.analysis.providers.openrouter import OpenRouterProvider
     payload = json.dumps({
         'tag_groups': [{'group': 'test', 'tags': ['a']}],
-        'pain_points': 'p', 'insights': 'i', 'innovations': 'n'
+        'pain_points': 'p', 'insights': 'i', 'innovations': 'n', 'summary': 's'
     })
     with patch('src.analysis.providers.openrouter.requests.post',
                return_value=_mock_response(payload)):

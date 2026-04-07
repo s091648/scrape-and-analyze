@@ -29,6 +29,7 @@ def test_analysis_result_has_all_fields():
         pain_points="Some pain points",
         insights="Key insights",
         innovations="New innovations",
+        summary="A brief summary.",
         input_tokens=100,
         output_tokens=50
     )

@@ -22,6 +22,7 @@ def _make_result(**overrides):
         pain_points="Test pain points",
         insights="Test insights",
         innovations="Test innovations",
+        summary="Test summary.",
         input_tokens=100,
         output_tokens=50,
         model_used="test-model",

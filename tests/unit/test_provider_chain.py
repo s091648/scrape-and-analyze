@@ -6,7 +6,7 @@ from src.analysis.providers.base_llm_provider import AnalysisResult
 def _make_result():
     return AnalysisResult(
         tag_groups=[],
-        pain_points='p', insights='i', innovations='n',
+        pain_points='p', insights='i', innovations='n', summary='s',
         input_tokens=100, output_tokens=50
     )
 

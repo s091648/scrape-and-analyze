@@ -30,6 +30,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
             pain_points=analysis.pain_points,
             insights=analysis.insights,
             innovations=analysis.innovations,
+            summary=analysis.summary,
             model_used=analysis.model_used,
             input_tokens=analysis.input_tokens,
             output_tokens=analysis.output_tokens,

@@ -77,19 +77,21 @@ class ArxivScraper(BaseScraper):
         )
 
     def _build_article(self, entry: ArxivEntry) -> Optional[ScrapedArticle]:
-        content = entry.abstract
+        pdf_text: Optional[str] = None
         pdf_available = False
 
         if self.fetch_pdf and entry.pdf_url:
             full_text = self._pdf_parser.parse(entry.pdf_url)
             if full_text:
-                content = full_text
+                pdf_text = full_text
                 pdf_available = True
 
         return ScrapedArticle(
             url=entry.url,
             title=entry.title,
-            content=content,
+            # Abstract goes in content — clean text for web display.
+            # Full PDF text lives in metadata["pdf_text"] for LLM analysis only.
+            content=entry.abstract,
             published_at=entry.published,
             source="arxiv",
             metadata={
@@ -97,5 +99,6 @@ class ArxivScraper(BaseScraper):
                 "arxiv_id": entry.arxiv_id,
                 "abstract": entry.abstract,
                 "pdf_available": pdf_available,
+                "pdf_text": pdf_text,
             },
         )

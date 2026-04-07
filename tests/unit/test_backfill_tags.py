@@ -89,12 +89,13 @@ def test_upsert_tags_skips_empty_tag_names():
 
 
 def _make_result():
-    from src.analyzers import AnalysisResult
+    from src.analysis.providers.base_llm_provider import AnalysisResult
     return AnalysisResult(
         tag_groups=[],
         pain_points="pain",
         insights="insight",
         innovations="innovation",
+        summary="A summary.",
         input_tokens=10,
         output_tokens=5,
     )

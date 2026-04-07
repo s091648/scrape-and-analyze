@@ -15,6 +15,7 @@ TAG GROUPS (use these exact group key strings):
 - other_applications: Healthcare, energy, transportation, aerospace, agriculture — any domain not above
 
 Also extract:
+- summary: 2-3 sentences covering what the article is about, its core contribution, and why it matters. Written for a general technical audience. This will appear at the top of the article page.
 - pain_points: Key challenges, problems, or barriers mentioned in the article
 - insights: Important observations, trends, or takeaways
 - innovations: New technologies, methods, solutions, or approaches mentioned
@@ -25,6 +26,7 @@ Return your analysis as valid JSON with these exact fields:
     {"group": "digital_twin", "tags": ["virtual replica", "real-time sync"]},
     {"group": "manufacturing_industry", "tags": ["factory automation", "process optimization"]}
   ],
+  "summary": "Brief overview of the article's core contribution and significance...",
   "pain_points": "Description of challenges mentioned...",
   "insights": "Key observations and trends...",
   "innovations": "New technologies or approaches..."

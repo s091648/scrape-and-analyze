@@ -78,11 +78,11 @@ retry-failed-remote:
 
 # 基礎測試指令
 test:
-	docker compose run --rm app python -m pytest tests/unit/ -v --tb=short
+	docker compose run --rm test_service python -m pytest tests/unit/ -v --tb=short
 
 # 產生覆蓋率報告的測試指令 (HTML 會出現在專案的 tests/htmlcov/ 目錄下)
 test-cov:
-	docker compose run --rm app python -m pytest \
+	docker compose run --rm test_service python -m pytest \
 		tests/unit/ \
 		-v --tb=short \
 		--cov=src \
@@ -91,11 +91,11 @@ test-cov:
 
 # Integration tests (requires postgres — `docker compose up -d postgres` first if needed)
 test-integration:
-	docker compose run --rm app python -m pytest tests/integration/ -v --tb=short -m integration
+	docker compose run --rm test_service python -m pytest tests/integration/ -v --tb=short -m integration
 
 # Integration tests with coverage report
 test-integration-cov:
-	docker compose run --rm app python -m pytest \
+	docker compose run --rm test_service python -m pytest \
 		tests/integration/ \
 		-v --tb=short -m integration \
 		--cov=src \
@@ -104,7 +104,7 @@ test-integration-cov:
 
 # Run all tests (unit + integration) with combined coverage
 test-all-cov:
-	docker compose run --rm app python -m pytest \
+	docker compose run --rm test_service python -m pytest \
 		tests/ \
 		-v --tb=short \
 		--cov=src \

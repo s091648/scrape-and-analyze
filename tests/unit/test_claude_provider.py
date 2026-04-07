@@ -16,7 +16,7 @@ def test_claude_provider_calls_anthropic_api():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["virtual replica"]}],"pain_points":"none","insights":"test","innovations":"new"}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["virtual replica"]}],"pain_points":"none","insights":"test","innovations":"new","summary":"s"}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -36,7 +36,7 @@ def test_claude_provider_retries_on_transient_error():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
@@ -75,7 +75,7 @@ def test_claude_provider_tracks_token_usage():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"ai_ml","tags":["test"]}],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"ai_ml","tags":["test"]}],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 500
         mock_response.usage.output_tokens = 200
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -111,7 +111,7 @@ def test_claude_provider_validates_tags_is_array():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":"not-a-list","pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":"not-a-list","pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -129,7 +129,7 @@ def test_claude_provider_logs_token_metrics():
             from src.analysis.providers.claude import ClaudeProvider
 
             mock_response = MagicMock()
-            mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
+            mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
             mock_response.usage.input_tokens = 1500
             mock_response.usage.output_tokens = 300
             mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -149,7 +149,7 @@ def test_claude_provider_retries_on_rate_limit():
         import anthropic
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
@@ -197,7 +197,7 @@ def test_claude_provider_handles_empty_content():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"other_applications","tags":["empty"]}],"pain_points":"","insights":"No content","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"other_applications","tags":["empty"]}],"pain_points":"","insights":"No content","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 50
         mock_response.usage.output_tokens = 30
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -214,7 +214,7 @@ def test_claude_provider_handles_unicode_content():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["数字孪生","デジタルツイン"]}],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["数字孪生","デジタルツイン"]}],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 200
         mock_response.usage.output_tokens = 100
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response
@@ -232,7 +232,7 @@ def test_claude_provider_handles_large_content():
         from src.analysis.providers.claude import ClaudeProvider
 
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["test"]}],"pain_points":"","insights":"","innovations":""}')]
+        mock_response.content = [MagicMock(text='{"tag_groups":[{"group":"digital_twin","tags":["test"]}],"pain_points":"","insights":"","innovations":"","summary":"s"}')]
         mock_response.usage.input_tokens = 50000
         mock_response.usage.output_tokens = 500
         mock_anthropic.Anthropic.return_value.messages.create.return_value = mock_response

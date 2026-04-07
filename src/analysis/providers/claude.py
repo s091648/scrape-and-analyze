@@ -31,7 +31,7 @@ class ClaudeProvider(LLMProvider):
 
     def _validate_response(self, result_json: dict) -> bool:
         """Validate LLM response has required fields with correct types"""
-        required_fields = ['tag_groups', 'pain_points', 'insights', 'innovations']
+        required_fields = ['tag_groups', 'pain_points', 'insights', 'innovations', 'summary']
         if not all(field in result_json for field in required_fields):
             logger.error("claude_response_missing_fields",
                          expected=required_fields,
@@ -80,6 +80,7 @@ class ClaudeProvider(LLMProvider):
             pain_points=result_json.get('pain_points', ''),
             insights=result_json.get('insights', ''),
             innovations=result_json.get('innovations', ''),
+            summary=result_json.get('summary', ''),
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens
         )

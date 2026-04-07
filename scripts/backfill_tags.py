@@ -142,6 +142,7 @@ def update_analysis(session, analysis_id, result, model_used, dry_run=False):
             SET pain_points   = :pain_points,
                 insights      = :insights,
                 innovations   = :innovations,
+                summary       = :summary,
                 model_used    = :model_used,
                 input_tokens  = :input_tokens,
                 output_tokens = :output_tokens
@@ -152,6 +153,7 @@ def update_analysis(session, analysis_id, result, model_used, dry_run=False):
             "pain_points":   result.pain_points,
             "insights":      result.insights,
             "innovations":   result.innovations,
+            "summary":       result.summary,
             "model_used":    model_used,
             "input_tokens":  result.input_tokens,
             "output_tokens": result.output_tokens,
