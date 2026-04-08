@@ -40,16 +40,27 @@ function msUntilNextMidnightUTC(): number {
   return Math.max(0, nextMidnight - Date.now())
 }
 
+// Matches the SQL early-trigger window: sources are picked up 30 min before
+// their nominal due time so a source scraped just after midnight is still
+// caught at the *next* midnight rather than having to wait a full extra day.
+const EARLY_WINDOW_MS = 30 * 60 * 1000
+
 function msUntilNextScrape(lastScrapedAt: string | null | undefined, frequencyHours: number): number {
   if (!lastScrapedAt) return msUntilNextMidnightUTC()
 
-  const nextDueMs = new Date(lastScrapedAt).getTime() + frequencyHours * 3600 * 1000
+  // Subtract the early window so this matches get_sources_due()'s SQL condition.
+  const nextDueMs = new Date(lastScrapedAt).getTime() + frequencyHours * 3600 * 1000 - EARLY_WINDOW_MS
   if (nextDueMs <= Date.now()) return msUntilNextMidnightUTC()
 
-  // Find the next midnight UTC on or after nextDueMs
+  // Find the next midnight UTC *on or after* nextDueMs.
+  // "On" = nextDueMs is exactly at 00:00:00.000 UTC → use that same midnight.
+  // "After" = nextDueMs is any other time → use the following midnight.
   const d = new Date(nextDueMs)
-  const nextMidnightAfterDue = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
-  return Math.max(0, nextMidnightAfterDue - Date.now())
+  const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+  const nextScrapeMs = nextDueMs === dayStart
+    ? dayStart
+    : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
+  return Math.max(0, nextScrapeMs - Date.now())
 }
 
 export function formatCountdown(ms: number): string {
