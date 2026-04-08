@@ -36,6 +36,13 @@ class RssClient:
             http_client = get_default_client()
         self._http = http_client
 
+    # RSS/Atom readers signal these MIME types — avoids browser content-negotiation
+    # that can trigger anti-bot HTML responses instead of XML feed content.
+    _RSS_ACCEPT = (
+        "application/rss+xml, application/atom+xml, application/xml;q=0.9, "
+        "text/xml;q=0.8, */*;q=0.1"
+    )
+
     def fetch_feed(self, url: str) -> List[RssEntry]:
         """
         Fetch *url* and return parsed feed entries.
@@ -43,14 +50,22 @@ class RssClient:
         Returns [] on network or parse failure.
         """
         try:
-            response = self._http.get(url, timeout=30)
+            response = self._http.get(
+                url, timeout=30, headers={"Accept": self._RSS_ACCEPT}
+            )
         except Exception as e:
             logger.error("rss_fetch_failed", url=url, error=str(e))
             return []
 
         feed = feedparser.parse(response.content)
         if not feed.entries:
-            logger.info("rss_feed_empty", url=url)
+            logger.info(
+                "rss_feed_empty",
+                url=url,
+                content_type=response.headers.get("Content-Type", "unknown"),
+                bozo=feed.bozo,
+                bozo_exception=str(feed.bozo_exception) if feed.bozo else None,
+            )
             return []
 
         entries = [self._to_entry(e) for e in feed.entries]

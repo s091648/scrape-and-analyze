@@ -56,7 +56,8 @@ def _compute_wait(retry_state: tenacity.RetryCallState) -> float:
     return base * (0.5 + random.random() * 0.5)
 
 
-def _log_before_sleep(retry_state: tenacity.RetryCallState) -> None:
+def _compute_and_log_wait(retry_state: tenacity.RetryCallState) -> float:
+    """Compute wait duration, log it, and return it — called once by tenacity."""
     exc = retry_state.outcome.exception()
     status = None
     if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
@@ -69,6 +70,7 @@ def _log_before_sleep(retry_state: tenacity.RetryCallState) -> None:
         status_code=status,
         exc_type=type(exc).__name__,
     )
+    return wait
 
 
 def make_retry_policy(max_attempts: int = 4) -> tenacity.Retrying:
@@ -80,8 +82,7 @@ def make_retry_policy(max_attempts: int = 4) -> tenacity.Retrying:
     """
     return tenacity.Retrying(
         retry=tenacity.retry_if_exception(_is_retryable),
-        wait=_compute_wait,
+        wait=_compute_and_log_wait,
         stop=tenacity.stop_after_attempt(max_attempts),
-        before_sleep=_log_before_sleep,
         reraise=True,
     )
