@@ -20,9 +20,15 @@ class Tag(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(Text, nullable=False)
-    tag_group_name = Column(String(100), ForeignKey('tag_group_definitions.name'), nullable=False)
+    tag_group_name = Column(String(100), nullable=False)
 
-    group_def = relationship('TagGroupDefinition')
+    group_def = relationship(
+        'TagGroupDefinition',
+        primaryjoin='Tag.tag_group_name == TagGroupDefinition.name',
+        foreign_keys='[Tag.tag_group_name]',
+        uselist=False,
+        viewonly=True,
+    )
     articles = relationship('Article', secondary=article_tags, backref='tags')
 
     __table_args__ = (

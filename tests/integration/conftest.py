@@ -28,9 +28,11 @@ def db_engine():
 
     # Import every non-auth model so their tables are registered before create_all()
     from models.article import Base
-    from models.analysis import Analysis          # noqa: F401
-    from models.failed_task import FailedTask     # noqa: F401
-    from models.tag import Tag                    # noqa: F401
+    from models.topic import Topic                  # noqa: F401
+    from models.arxiv_metadata import ArxivMetadata  # noqa: F401
+    from models.analysis import Analysis            # noqa: F401
+    from models.failed_task import FailedTask       # noqa: F401
+    from models.tag import Tag                      # noqa: F401
     from models.tag_group import TagGroupDefinition  # noqa: F401
     from models.scraper_setting import ScraperBase, ScraperSetting  # noqa: F401
 
@@ -65,7 +67,28 @@ class TagGroupRef:
 
 
 @pytest.fixture(scope="session")
-def tag_group(db_engine):
+def test_topic(db_engine):
+    """Shared Topic row for tests that need tag group FK references."""
+    from models.topic import Topic
+    Session = sessionmaker(bind=db_engine)
+    session = Session()
+    try:
+        existing = session.query(Topic).filter_by(name="test-topic").first()
+        if not existing:
+            t = Topic(name="test-topic", display_name="Test Topic",
+                      color_hex="#3B82F6", sort_order=1)
+            session.add(t)
+            session.commit()
+            topic_id = t.id
+        else:
+            topic_id = existing.id
+    finally:
+        session.close()
+    return topic_id
+
+
+@pytest.fixture(scope="session")
+def tag_group(db_engine, test_topic):
     """Create a shared TagGroupDefinition for tests that need tag FK references."""
     from models.tag_group import TagGroupDefinition
 
@@ -73,7 +96,9 @@ def tag_group(db_engine):
     Session = sessionmaker(bind=db_engine)
     session = Session()
     try:
-        existing = session.query(TagGroupDefinition).filter_by(name=name).first()
+        existing = session.query(TagGroupDefinition).filter_by(
+            name=name, topic_id=test_topic
+        ).first()
         if not existing:
             tg = TagGroupDefinition(
                 name=name,
@@ -81,6 +106,7 @@ def tag_group(db_engine):
                 description="Tag group used in integration tests",
                 color_hex="#3B82F6",
                 sort_order=1,
+                topic_id=test_topic,
             )
             session.add(tg)
             session.commit()

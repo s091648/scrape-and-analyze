@@ -40,6 +40,7 @@ class SqlAlchemyArticleRepository(ArticleRepository):
             published_at=article.published_at,
             correlation_id=article.correlation_id,
             metadata_=article.metadata or {},
+            topic_id=article.topic_id,
         )
         self._session.add(row)
         self._session.flush()  # populate row.id without committing
