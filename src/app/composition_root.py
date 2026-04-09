@@ -94,8 +94,12 @@ def build_run_scraper_use_case(prompt: str, summary=None):
 
     def process_uc_factory():
         session = get_session()
+        from src.infrastructure.persistence.sqlalchemy_repos.arxiv_metadata_repo_impl import (
+            SqlAlchemyArxivMetadataRepository,
+        )
         article_repo = SqlAlchemyArticleRepository(session=session)
         analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+        arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
         dedup_svc = DedupService(article_repo=article_repo)
         analyze_uc = AnalyzeArticleUseCase(
             analyzer=analyzer,
@@ -105,6 +109,7 @@ def build_run_scraper_use_case(prompt: str, summary=None):
             article_repo=article_repo,
             dedup_service=dedup_svc,
             analyze_article_uc=analyze_uc,
+            arxiv_metadata_repo=arxiv_metadata_repo,
         )
         return process_uc, session
 

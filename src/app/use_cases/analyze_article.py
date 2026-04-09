@@ -73,22 +73,17 @@ class AnalyzeArticleUseCase:
         """
         Return LLM-ready text for *article*, applying source-specific extraction.
 
-        For arxiv: full PDF text lives in metadata["pdf_text"] (extracted at scrape
-        time).  content holds the abstract for display — we don't use it for analysis
-        because it lacks the structural sections the LLM needs.
+        For arxiv: sections are pre-extracted at scrape time into metadata["sections"].
+        content holds the abstract for display — we use sections for analysis.
         """
         if article.source == "arxiv":
-            from src.ingestion.parsers.pdf_parser import PdfParser
-            parser = PdfParser()
-            pdf_text = article.metadata.get("pdf_text")
-            if pdf_text:
-                sections = parser.extract_sections(pdf_text)
-                if len(sections) >= 2:
-                    combined = "\n\n".join(
-                        f"{name.title()}\n{body}" for name, body in sections.items()
-                    )
-                    return combined[:parser.max_chars]
-                return pdf_text[:parser.max_chars]
-            # No PDF text — fall back to abstract
+            sections: dict = article.metadata.get("sections") or {}
+            if len(sections) >= 2:
+                from src.ingestion.parsers.pdf_parser import PdfParser
+                max_chars = PdfParser().max_chars
+                combined = "\n\n".join(
+                    f"{name.title()}\n{body}" for name, body in sections.items()
+                )
+                return combined[:max_chars]
             return article.metadata.get("abstract", article.content[:2000])
         return article.content

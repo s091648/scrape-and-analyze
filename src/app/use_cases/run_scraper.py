@@ -56,6 +56,8 @@ class RunScraperUseCase:
                 process_uc.execute(scraped, self._prompt, correlation_id, summary)
             finally:
                 session.close()
+            # Note: prompt_override is resolved inside ProcessArticleUseCase
+            # via scraped.prompt_override, so no extra logic needed here
 
         completed_sources = self._scraper_svc.run(sources, on_result)
 

@@ -26,10 +26,12 @@ class ProcessArticleUseCase:
         article_repo: ArticleRepository,
         dedup_service: DedupService,
         analyze_article_uc: AnalyzeArticleUseCase,
+        arxiv_metadata_repo=None,  # ArxivMetadataRepository | None
     ) -> None:
         self._article_repo = article_repo
         self._dedup = dedup_service
         self._analyze_uc = analyze_article_uc
+        self._arxiv_meta_repo = arxiv_metadata_repo
 
     def execute(
         self,
@@ -38,21 +40,6 @@ class ProcessArticleUseCase:
         correlation_id: str,
         summary=None,
     ) -> bool:
-        """
-        Process a single scraped article:
-          1. Check for duplicate URL.
-          2. If new → save to store, then analyse.
-          3. If duplicate but no analysis → analyse existing record.
-          4. If duplicate with analysis → skip.
-
-        Args:
-            scraped:        DTO from the scraper.
-            prompt:         LLM analysis prompt text.
-            correlation_id: UUID string for the current run.
-            summary:        Optional RunSummary for aggregated stats.
-
-        Returns True if an analysis was produced, False otherwise.
-        """
         try:
             return self._process(scraped, prompt, correlation_id, summary)
         except Exception as e:
@@ -61,15 +48,8 @@ class ProcessArticleUseCase:
                 summary.record_failed(scraped.source)
             return False
 
-    # ── private ───────────────────────────────────────────────────────────
-
-    def _process(
-        self,
-        scraped: ScrapedArticle,
-        prompt: str,
-        correlation_id: str,
-        summary,
-    ) -> bool:
+    def _process(self, scraped: ScrapedArticle, prompt: str,
+                 correlation_id: str, summary) -> bool:
         existing = self._dedup.find_existing(scraped.url)
 
         if existing:
@@ -77,11 +57,15 @@ class ProcessArticleUseCase:
             if summary:
                 summary.record_duplicate(scraped.source)
             if self._dedup.needs_analysis(existing):
+                if existing.source == "arxiv" and self._arxiv_meta_repo is not None:
+                    stored = self._arxiv_meta_repo.find_by_article_id(existing.id)
+                    if stored:
+                        existing.metadata["sections"] = stored.sections
                 return self._analyze_uc.execute(existing, prompt, correlation_id)
             return False
 
-        # New article
         url_hash = UrlHash.from_url(scraped.url).value
+        topic_id = UUID(scraped.topic_id) if scraped.topic_id else None
         article = ArticleEntity(
             url=scraped.url,
             url_hash=url_hash,
@@ -91,18 +75,39 @@ class ProcessArticleUseCase:
             published_at=self._parse_date(scraped.published_at),
             correlation_id=UUID(correlation_id),
             metadata=scraped.metadata or {},
+            topic_id=topic_id,
         )
         article = self._article_repo.save(article)
+
+        if article.source == "arxiv" and self._arxiv_meta_repo is not None:
+            self._save_arxiv_metadata(article)
 
         if summary:
             summary.record_new(scraped.source)
 
         logger.info("article_saved", url=scraped.url, article_id=str(article.id))
-        return self._analyze_uc.execute(article, prompt, correlation_id)
+
+        effective_prompt = scraped.prompt_override or prompt
+        return self._analyze_uc.execute(article, effective_prompt, correlation_id)
+
+    def _save_arxiv_metadata(self, article: ArticleEntity) -> None:
+        from src.domain.entities.arxiv_metadata import ArxivMetadataEntity
+        meta = article.metadata or {}
+        entity = ArxivMetadataEntity(
+            article_id=article.id,
+            arxiv_id=meta.get("arxiv_id"),
+            authors=meta.get("authors") or [],
+            pdf_available=bool(meta.get("pdf_available", False)),
+            sections=meta.get("sections") or {},
+        )
+        try:
+            self._arxiv_meta_repo.save(entity)
+        except Exception as e:
+            logger.warning("arxiv_metadata_save_failed",
+                           article_id=str(article.id), error=str(e))
 
     @staticmethod
     def _parse_date(date_str: Optional[str]) -> Optional[datetime]:
-        """Parse ISO or RFC-2822 date strings to datetime. Returns None on failure."""
         if not date_str:
             return None
         try:
