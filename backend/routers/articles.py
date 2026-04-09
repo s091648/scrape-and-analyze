@@ -44,10 +44,14 @@ def get_articles_paginated(
     published_before: Optional[date] = None,
     scraped_after: Optional[date] = None,
     scraped_before: Optional[date] = None,
+    topic_id: Optional[UUID] = None,
 ):
     from models.article import Article
 
     query = db.query(Article)
+
+    if topic_id:
+        query = query.filter(Article.topic_id == topic_id)
 
     if sources:
         query = query.filter(Article.source.in_(sources))
@@ -91,6 +95,7 @@ def list_articles(
     published_before: Optional[date] = Query(default=None),
     scraped_after: Optional[date] = Query(default=None),
     scraped_before: Optional[date] = Query(default=None),
+    topic_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     total, items = get_articles_paginated(
@@ -101,22 +106,35 @@ def list_articles(
         published_before=published_before,
         scraped_after=scraped_after,
         scraped_before=scraped_before,
+        topic_id=topic_id,
     )
     return PaginatedArticles(items=items, total=total, page=page, size=size)
 
 
 @router.get("/articles/filters/sources")
-def get_filter_sources(db: Session = Depends(get_db)):
+def get_filter_sources(topic_id: Optional[UUID] = Query(default=None),
+                       db: Session = Depends(get_db)):
     from models.article import Article
-    rows = db.query(Article.source).distinct().order_by(Article.source).all()
-    return [r[0] for r in rows]
+    query = db.query(Article.source).distinct()
+    if topic_id:
+        query = query.filter(Article.topic_id == topic_id)
+    return [r[0] for r in query.order_by(Article.source).all()]
 
 
 @router.get("/articles/filters/tags")
-def get_filter_tags(db: Session = Depends(get_db)):
-    from models.tag import Tag
-    rows = db.query(Tag.name).order_by(Tag.name).distinct().all()
-    return [r[0] for r in rows]
+def get_filter_tags(topic_id: Optional[UUID] = Query(default=None),
+                    db: Session = Depends(get_db)):
+    from models.tag import Tag, article_tags as at
+    from models.article import Article
+    query = db.query(Tag.name).distinct()
+    if topic_id:
+        query = (
+            query
+            .join(at, Tag.id == at.c.tag_id)
+            .join(Article, Article.id == at.c.article_id)
+            .filter(Article.topic_id == topic_id)
+        )
+    return [r[0] for r in query.order_by(Tag.name).all()]
 
 
 class TagGroupOut(BaseModel):

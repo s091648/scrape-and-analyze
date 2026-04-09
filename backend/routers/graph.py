@@ -1,16 +1,17 @@
 # backend/routers/graph.py
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from typing import Any
 
 from backend.database import get_db
 
 router = APIRouter()
 
-# In-process cache: {days: (result, expires_at)}
-_cache: dict[int, tuple[Any, float]] = {}
+# In-process cache: {(days, topic_id): (result, expires_at)}
+_cache: dict[tuple, tuple[Any, float]] = {}
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
@@ -30,26 +31,34 @@ def load_group_def(db: Session, group_name: str):
     return db.query(TagGroupDefinition).filter_by(name=group_name).first()
 
 
-def query_analyses(db: Session, days: int) -> list:
+def query_analyses(db: Session, days: int, topic_id=None) -> list:
     from models.analysis import Analysis
+    from models.article import Article
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    return db.query(Analysis).filter(Analysis.analyzed_at >= cutoff).all()
+    query = db.query(Analysis).join(Article, Article.id == Analysis.article_id).filter(
+        Analysis.analyzed_at >= cutoff
+    )
+    if topic_id:
+        query = query.filter(Article.topic_id == topic_id)
+    return query.all()
 
 
-def query_group_articles(db: Session, group_name: str) -> list:
+def query_group_articles(db: Session, group_name: str, topic_id=None) -> list:
     """Return all analyses whose article has at least one tag in the given group."""
     from models.analysis import Analysis
     from models.article import Article
     from models.tag import Tag, article_tags as at
-    return (
+    query = (
         db.query(Analysis)
         .join(Article, Article.id == Analysis.article_id)
         .join(at, at.c.article_id == Article.id)
         .join(Tag, Tag.id == at.c.tag_id)
         .filter(Tag.tag_group_name == group_name)
         .distinct()
-        .all()
     )
+    if topic_id:
+        query = query.filter(Article.topic_id == topic_id)
+    return query.all()
 
 
 def build_graph(analyses: list, group_defs: dict) -> dict:
@@ -100,26 +109,31 @@ def build_graph(analyses: list, group_defs: dict) -> dict:
 
 
 @router.get('/analyses/graph')
-def get_graph(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+def get_graph(days: int = Query(30, ge=1, le=365),
+              topic_id: Optional[UUID] = Query(default=None),
+              db: Session = Depends(get_db)):
+    cache_key = (days, str(topic_id))
     now = time.time()
-    if days in _cache:
-        result, expires_at = _cache[days]
+    if cache_key in _cache:
+        result, expires_at = _cache[cache_key]
         if now < expires_at:
             return result
 
     group_defs = load_group_defs(db)
-    analyses = query_analyses(db, days)
+    analyses = query_analyses(db, days, topic_id=topic_id)
     result = build_graph(analyses, group_defs)
-    _cache[days] = (result, now + CACHE_TTL_SECONDS)
+    _cache[cache_key] = (result, now + CACHE_TTL_SECONDS)
     return result
 
 
 @router.get('/analyses/graph/group/{group_name}')
-def get_group_articles(group_name: str, db: Session = Depends(get_db)):
+def get_group_articles(group_name: str,
+                       topic_id: Optional[UUID] = Query(default=None),
+                       db: Session = Depends(get_db)):
     group_def = load_group_def(db, group_name)
     display_name = group_def.display_name if group_def else group_name
 
-    analyses = query_group_articles(db, group_name)
+    analyses = query_group_articles(db, group_name, topic_id=topic_id)
     result = []
     for analysis in analyses:
         article = analysis.article

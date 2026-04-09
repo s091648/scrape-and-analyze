@@ -14,9 +14,10 @@ class ScraperSettingCreate(BaseModel):
     source_type: Literal["rss", "blog", "arxiv"]
     name: str
     url: str = ""
-    frequency: int  # hours between scrapes
+    frequency: int
     is_active: bool = True
-    selector_config: Optional[SelectorConfig] = None
+    selector_config: Optional[dict] = None
+    topic_id: UUID
 
 
 class ScraperSettingUpdate(BaseModel):
@@ -24,7 +25,8 @@ class ScraperSettingUpdate(BaseModel):
     url: Optional[str] = None
     frequency: Optional[int] = None
     is_active: Optional[bool] = None
-    selector_config: Optional[SelectorConfig] = None
+    selector_config: Optional[dict] = None
+    topic_id: Optional[UUID] = None
 
 
 class ScraperSettingOut(BaseModel):
@@ -38,7 +40,8 @@ class ScraperSettingOut(BaseModel):
     last_scraped_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    activity: list[int] = []  # daily article counts, oldest→newest, last 14 days
+    topic_id: UUID
+    activity: list[int] = []
 
     class Config:
         from_attributes = True
