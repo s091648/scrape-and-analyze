@@ -23,6 +23,7 @@ import {
 } from '@/components/scraper-source-card'
 import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTopic } from '@/contexts/topic-context'
 
 interface ArxivKeyword {
   id: string
@@ -242,6 +243,8 @@ function AddSourceCard({
   }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [topicId, setTopicId] = useState<string>('')
+  const { topics } = useTopic()
 
   async function handleAdd() {
     if (!form.name || !form.url) return
@@ -252,12 +255,14 @@ function AddSourceCard({
       url: form.url,
       frequency: form.frequency,
       is_active: form.is_active,
+      topic_id: topicId || undefined,
     }
     if (sourceType === 'blog') payload.selector_config = form.selector_config
     await onAdd(payload)
     setSaving(false)
     setExpanded(false)
     setForm(emptyForm)
+    setTopicId('')
   }
 
   if (!expanded) {
@@ -355,6 +360,21 @@ function AddSourceCard({
           </div>
         )}
       </div>
+
+        <div className="space-y-1.5">
+          <label className={labelClass}>Topic</label>
+          <select
+            value={topicId}
+            onChange={e => setTopicId(e.target.value)}
+            className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            required
+          >
+            <option value="">Select a topic...</option>
+            {topics.map(t => (
+              <option key={t.id} value={t.id}>{t.display_name}</option>
+            ))}
+          </select>
+        </div>
 
       <div className="flex gap-2">
         <Button size="sm" onClick={handleAdd} disabled={saving || !form.name || !form.url}>

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
+import { useTopic } from '@/contexts/topic-context'
 import dynamic from 'next/dynamic'
 import { apiFetch } from '@/lib/api-fetch'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +42,7 @@ interface GroupArticle {
 
 export function KnowledgeGraph() {
   const [days, setDays] = useState(30)
+  const { selectedTopicId } = useTopic()
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedGroupLabel, setExpandedGroupLabel] = useState('')
@@ -75,12 +77,13 @@ export function KnowledgeGraph() {
   useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
 
   useEffect(() => {
+    if (!selectedTopicId) return
     setGraphLoading(true)
-    apiFetch(`/analyses/graph?days=${days}`)
+    apiFetch(`/analyses/graph?days=${days}&topic_id=${selectedTopicId}`)
       .then(r => r.json())
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [days])
+  }, [days, selectedTopicId])
 
   useEffect(() => {
     const el = graphContainerRef.current

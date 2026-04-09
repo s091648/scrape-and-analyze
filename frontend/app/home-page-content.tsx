@@ -10,6 +10,7 @@ import { FilterBar } from '@/components/filter-bar'
 import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Newspaper, Lock } from 'lucide-react'
+import { useTopic } from '@/contexts/topic-context'
 
 interface Article {
   id: string; title: string; source: string; content: string
@@ -30,16 +31,20 @@ export default function HomePageContent() {
   const [articles, setArticles] = useState<Article[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const { selectedTopicId } = useTopic()
 
   const searchParamsString = searchParams.toString()
 
   useEffect(() => {
+    if (!selectedTopicId) return
     setIsLoading(true)
-    apiFetch(`/articles?${searchParamsString}`)
+    const params = new URLSearchParams(searchParamsString)
+    params.set('topic_id', selectedTopicId)
+    apiFetch(`/articles?${params.toString()}`)
       .then(r => r.json())
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [searchParamsString])
+  }, [searchParamsString, selectedTopicId])
 
   const totalPages = Math.ceil(total / 20)
 

@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Rss, Settings } from 'lucide-react'
+import { Rss, Settings, ChevronDown } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useTopic } from '@/contexts/topic-context'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -18,6 +19,7 @@ export function NavBar() {
   const [userIcon, setUserIcon] = useState<string | null>(null)
   const [iconLoading, setIconLoading] = useState(false)
   const token = (session as any)?.accessToken
+  const { topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading } = useTopic()
 
   useEffect(() => {
     if (!token) { setUserIcon(null); return }
@@ -35,6 +37,53 @@ export function NavBar() {
           <Rss className="h-4 w-4 text-primary" />
           Scrape Analyzer
         </Link>
+
+        {/* Topic dropdown */}
+        <div className="relative group">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+          >
+            {topicsLoading ? (
+              <Skeleton className="h-4 w-20" />
+            ) : (
+              <>
+                {selectedTopic?.color_hex && (
+                  <span
+                    className="inline-block h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: selectedTopic.color_hex }}
+                  />
+                )}
+                <span className="max-w-[120px] truncate">
+                  {selectedTopic?.display_name ?? 'Select topic'}
+                </span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </>
+            )}
+          </button>
+          {!topicsLoading && topics.length > 0 && (
+            <div className="absolute left-0 top-full mt-1 w-48 rounded-lg border border-border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              {topics.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedTopicId(t.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                    t.id === selectedTopic?.id ? 'font-semibold' : ''
+                  }`}
+                >
+                  {t.color_hex && (
+                    <span
+                      className="inline-block h-2 w-2 rounded-full shrink-0"
+                      style={{ backgroundColor: t.color_hex }}
+                    />
+                  )}
+                  {t.display_name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Left nav */}
         <div className="flex items-center gap-6">
