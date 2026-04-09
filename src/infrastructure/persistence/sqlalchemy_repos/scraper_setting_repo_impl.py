@@ -41,12 +41,17 @@ def get_sources(source_type: str, session=None) -> List[Dict[str, Any]]:
 
         result = []
         for s in settings:
+            from models.topic import Topic
+            topic = session.query(Topic).filter_by(id=s.topic_id).first() if s.topic_id else None
+            prompt_override = topic.prompt_override if topic else None
             entry: Dict[str, Any] = {
                 "id": str(s.id),
                 "source": s.name,
                 "url": s.url,
                 "source_type": s.source_type,
                 "selector_config": s.selector_config,
+                "topic_id": str(s.topic_id) if s.topic_id else None,
+                "prompt_override": prompt_override,
             }
             if s.source_type == "blog" and s.selector_config:
                 entry["base_url"] = s.url
@@ -83,6 +88,9 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
 
         result = []
         for s in settings:
+            from models.topic import Topic
+            topic = session.query(Topic).filter_by(id=s.topic_id).first() if s.topic_id else None
+            prompt_override = topic.prompt_override if topic else None
             entry: Dict[str, Any] = {
                 "id": str(s.id),
                 "source": s.name,
@@ -90,6 +98,8 @@ def get_sources_due(session=None) -> List[Dict[str, Any]]:
                 "source_type": s.source_type,
                 "selector_config": s.selector_config or {},
                 "frequency": s.frequency,
+                "topic_id": str(s.topic_id) if s.topic_id else None,
+                "prompt_override": prompt_override,
             }
             if s.source_type == "blog" and s.selector_config:
                 entry["base_url"] = s.url
