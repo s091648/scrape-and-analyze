@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+from src.infrastructure.http.user_agent import get_api_bot_ua
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,7 +68,13 @@ class ArxivClient:
             "sortOrder": "descending",
         }
         try:
-            response = self._http.get(ARXIV_API_URL, params=params, timeout=60)
+            # Use descriptive bot UA per arXiv API TOS (not browser UA rotation)
+            response = self._http.get(
+                ARXIV_API_URL,
+                params=params,
+                timeout=60,
+                headers={"User-Agent": get_api_bot_ua()},
+            )
         except Exception as e:
             logger.error("arxiv_fetch_failed", error=str(e))
             return []

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
+import { useSession } from 'next-auth/react'
 import { useTopic } from '@/contexts/topic-context'
 import dynamic from 'next/dynamic'
 import { apiFetch } from '@/lib/api-fetch'
@@ -25,6 +26,29 @@ interface GraphNode {
 interface GraphEdge { source: string; target: string }
 interface GraphData { nodes: GraphNode[]; edges: GraphEdge[] }
 
+// Fake graph shown to guests — API is never called
+const GUEST_GRAPH: GraphData = {
+  nodes: [
+    { id: 'g1', type: 'group', label: 'Lorem Ipsum',      color: '#6366f1', articleCount: 8 },
+    { id: 'g2', type: 'group', label: 'Dolor Sit Amet',   color: '#22c55e', articleCount: 5 },
+    { id: 'g3', type: 'group', label: 'Consectetur',      color: '#f59e0b', articleCount: 6 },
+    { id: 'g4', type: 'group', label: 'Adipiscing Elit',  color: '#ec4899', articleCount: 4 },
+    { id: 't1', type: 'tag',   label: 'lorem',       color: '#94a3b8', groupName: 'g1' },
+    { id: 't2', type: 'tag',   label: 'ipsum',       color: '#94a3b8', groupName: 'g1' },
+    { id: 't3', type: 'tag',   label: 'dolor',       color: '#94a3b8', groupName: 'g2' },
+    { id: 't4', type: 'tag',   label: 'consectetur', color: '#94a3b8', groupName: 'g3' },
+    { id: 't5', type: 'tag',   label: 'adipiscing',  color: '#94a3b8', groupName: 'g4' },
+    { id: 't6', type: 'tag',   label: 'elit',        color: '#94a3b8', groupName: 'g4' },
+  ],
+  edges: [
+    { source: 'g1', target: 't1' }, { source: 'g1', target: 't2' },
+    { source: 'g2', target: 't3' }, { source: 'g3', target: 't4' },
+    { source: 'g4', target: 't5' }, { source: 'g4', target: 't6' },
+    { source: 'g1', target: 'g2' }, { source: 'g2', target: 'g3' },
+    { source: 'g3', target: 'g4' }, { source: 'g1', target: 'g3' },
+  ],
+}
+
 interface GroupArticle {
   groupName: string
   displayName: string
@@ -42,6 +66,8 @@ interface GroupArticle {
 
 export function KnowledgeGraph() {
   const [days, setDays] = useState(30)
+  const { status } = useSession()
+  const isGuest = status === 'unauthenticated'
   const { selectedTopicId } = useTopic()
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
@@ -77,13 +103,19 @@ export function KnowledgeGraph() {
   useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
 
   useEffect(() => {
+    // Guests see fake data — API is never called (prevents data leakage via devtools)
+    if (isGuest) {
+      setGraphData(GUEST_GRAPH)
+      setGraphLoading(false)
+      return
+    }
     if (!selectedTopicId) return
     setGraphLoading(true)
     apiFetch(`/analyses/graph?days=${days}&topic_id=${selectedTopicId}`)
       .then(r => r.json())
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [days, selectedTopicId])
+  }, [days, selectedTopicId, isGuest])
 
   useEffect(() => {
     const el = graphContainerRef.current

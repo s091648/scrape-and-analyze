@@ -6,9 +6,22 @@ Usage:
     ua = pool.get("example.com")              # returns a stable UA for this domain
     ua = pool.rotate("example.com")           # forces switch to next UA (call on 403)
     hdrs = get_browser_headers(ua)            # full Chrome/Firefox/Safari header set
+
+For APIs that require a descriptive bot UA (e.g. arXiv API TOS), use:
+    ua = get_api_bot_ua()
 """
 import random
 import threading
+
+# Descriptive bot UA for APIs that require/recommend identified crawlers.
+# arXiv API TOS: https://info.arxiv.org/help/api/tou.html
+# Format: <AppName>/<version> (<contact>)
+ARXIV_BOT_UA: str = "ScrapeAnalyzer/1.0 (research tool; contact@example.com)"
+
+
+def get_api_bot_ua() -> str:
+    """Return the descriptive bot User-Agent for use with APIs like arXiv."""
+    return ARXIV_BOT_UA
 
 _UA_POOL: list[str] = [
     # Chrome 122-124 on Windows

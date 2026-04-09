@@ -90,6 +90,7 @@ class ScraperService:
                     max_results=cfg.get("max_results", 30),
                     days_back=cfg.get("days_back", 1),
                     keywords=cfg.get("keywords") or None,
+                    categories=cfg.get("categories") or None,
                     topic_id=topic_id,
                     prompt_override=prompt_override,
                 )

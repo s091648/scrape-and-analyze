@@ -76,7 +76,6 @@ class HttpClient:
         A ``headers`` kwarg will be merged with the managed User-Agent header.
         """
         domain = _extract_domain(url)
-        self._rate_limiter.acquire(domain)
 
         caller_headers: dict = kwargs.pop("headers", {})
 
@@ -90,16 +89,18 @@ class HttpClient:
                 **caller_headers,  # caller overrides last
             }
             try:
-                for attempt in self._retry_policy:
-                    with attempt:
-                        resp = requests.get(
-                            url,
-                            headers=headers,
-                            proxies=self._proxies,
-                            timeout=timeout,
-                            **kwargs,
-                        )
-                        resp.raise_for_status()
+                # connection() enforces rate limiting + single-connection for arXiv domains
+                with self._rate_limiter.connection(domain):
+                    for attempt in self._retry_policy:
+                        with attempt:
+                            resp = requests.get(
+                                url,
+                                headers=headers,
+                                proxies=self._proxies,
+                                timeout=timeout,
+                                **kwargs,
+                            )
+                            resp.raise_for_status()
                 return resp
             except requests.exceptions.HTTPError as exc:
                 if exc.response is not None and exc.response.status_code == 403:

@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -10,10 +10,16 @@ router = APIRouter(prefix="/topics", tags=["topics"])
 
 
 @router.get("", response_model=list[TopicOut])
-def list_topics(db: Session = Depends(get_db)):
-    """Public — all users can fetch the topic list for the dropdown."""
+def list_topics(
+    include_inactive: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    """Public — returns active topics. Pass ?include_inactive=true for admin views."""
     from models.topic import Topic
-    return db.query(Topic).filter_by(is_active=True).order_by(Topic.sort_order).all()
+    q = db.query(Topic)
+    if not include_inactive:
+        q = q.filter_by(is_active=True)
+    return q.order_by(Topic.sort_order, Topic.created_at).all()
 
 
 @router.post("", response_model=TopicOut, status_code=201)

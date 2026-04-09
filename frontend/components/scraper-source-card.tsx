@@ -30,36 +30,36 @@ export function formatFrequency(hours: number): string {
   return rem > 0 ? `${hours}h (= ${days}d ${rem}h)` : `${hours}h (= ${days}d)`
 }
 
-function msUntilNextMidnightUTC(): number {
-  const now = new Date()
-  const nextMidnight = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() + 1,
-  )
-  return Math.max(0, nextMidnight - Date.now())
+// Scheduler runs daily at 08:00 UTC.
+const SCHEDULER_HOUR_UTC = 8
+
+function msUntilNextScheduledRun(): number {
+  const now = Date.now()
+  const d = new Date(now)
+  const todayRun = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), SCHEDULER_HOUR_UTC)
+  if (todayRun > now) return todayRun - now
+  const tomorrowRun = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, SCHEDULER_HOUR_UTC)
+  return tomorrowRun - now
 }
 
 // Matches the SQL early-trigger window: sources are picked up 30 min before
-// their nominal due time so a source scraped just after midnight is still
-// caught at the *next* midnight rather than having to wait a full extra day.
+// their nominal due time so a source scraped just after the run is still
+// caught at the *next* scheduled run rather than having to wait a full extra day.
 const EARLY_WINDOW_MS = 30 * 60 * 1000
 
 function msUntilNextScrape(lastScrapedAt: string | null | undefined, frequencyHours: number): number {
-  if (!lastScrapedAt) return msUntilNextMidnightUTC()
+  if (!lastScrapedAt) return msUntilNextScheduledRun()
 
   // Subtract the early window so this matches get_sources_due()'s SQL condition.
   const nextDueMs = new Date(lastScrapedAt).getTime() + frequencyHours * 3600 * 1000 - EARLY_WINDOW_MS
-  if (nextDueMs <= Date.now()) return msUntilNextMidnightUTC()
+  if (nextDueMs <= Date.now()) return msUntilNextScheduledRun()
 
-  // Find the next midnight UTC *on or after* nextDueMs.
-  // "On" = nextDueMs is exactly at 00:00:00.000 UTC → use that same midnight.
-  // "After" = nextDueMs is any other time → use the following midnight.
+  // Find the next 08:00 UTC *on or after* nextDueMs.
   const d = new Date(nextDueMs)
-  const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-  const nextScrapeMs = nextDueMs === dayStart
-    ? dayStart
-    : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1)
+  const sameDay08 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), SCHEDULER_HOUR_UTC)
+  const nextScrapeMs = nextDueMs <= sameDay08
+    ? sameDay08
+    : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, SCHEDULER_HOUR_UTC)
   return Math.max(0, nextScrapeMs - Date.now())
 }
 

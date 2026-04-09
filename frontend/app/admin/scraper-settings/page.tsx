@@ -30,6 +30,11 @@ interface ArxivKeyword {
   keyword: string
 }
 
+interface ArxivCategory {
+  id: string
+  category: string
+}
+
 // ── Accordion shell ──────────────────────────────────────────────────────────
 
 function AccordionSection({
@@ -75,15 +80,21 @@ function ArxivSettingCard({
   onUpdate,
   onDelete,
   keywords,
+  categories,
   onAddKeyword,
   onDeleteKeyword,
+  onAddCategory,
+  onDeleteCategory,
 }: {
   setting: ScraperSetting
   onUpdate: (id: string, data: Partial<ScraperSetting>) => Promise<void>
   onDelete: (id: string) => Promise<void>
   keywords: ArxivKeyword[]
+  categories: ArxivCategory[]
   onAddKeyword: (keyword: string) => Promise<void>
   onDeleteKeyword: (id: string) => Promise<void>
+  onAddCategory: (category: string) => Promise<void>
+  onDeleteCategory: (id: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -198,8 +209,11 @@ function ArxivSettingCard({
       <div className="border-t border-border pt-4">
         <ArxivKeywordManager
           keywords={keywords}
-          onAdd={onAddKeyword}
-          onDelete={onDeleteKeyword}
+          categories={categories}
+          onAddKeyword={onAddKeyword}
+          onDeleteKeyword={onDeleteKeyword}
+          onAddCategory={onAddCategory}
+          onDeleteCategory={onDeleteCategory}
         />
       </div>
     </div>
@@ -415,6 +429,7 @@ export default function ScraperSettingsPage() {
   const { data: session, status } = useSession()
   const [settings, setSettings] = useState<ScraperSetting[]>([])
   const [keywords, setKeywords] = useState<ArxivKeyword[]>([])
+  const [categories, setCategories] = useState<ArxivCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   if (status === 'unauthenticated') redirect('/login')
@@ -429,9 +444,11 @@ export default function ScraperSettingsPage() {
     Promise.all([
       apiFetch('/scraper-settings', { headers }).then(r => r.json()),
       apiFetch('/arxiv-keywords', { headers }).then(r => r.json()),
-    ]).then(([s, k]) => {
-      setSettings(s)
-      setKeywords(k)
+      apiFetch('/arxiv-categories', { headers }).then(r => r.json()),
+    ]).then(([s, k, c]) => {
+      setSettings(Array.isArray(s) ? s : [])
+      setKeywords(Array.isArray(k) ? k : [])
+      setCategories(Array.isArray(c) ? c : [])
     }).finally(() => setIsLoading(false))
   }, [token])
 
@@ -488,6 +505,26 @@ export default function ScraperSettingsPage() {
     })
   }
 
+  async function handleAddCategory(category: string) {
+    const res = await apiFetch('/arxiv-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ category }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setCategories(prev => [...prev, created])
+    }
+  }
+
+  async function handleDeleteCategory(id: string) {
+    setCategories(prev => prev.filter(c => c.id !== id))
+    await apiFetch(`/arxiv-categories/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  }
+
   const arxivSettings = byType('arxiv')
   const blogSettings = byType('blog')
   const rssSettings = byType('rss')
@@ -529,8 +566,11 @@ export default function ScraperSettingsPage() {
                     onUpdate={handleUpdate}
                     onDelete={handleDelete}
                     keywords={keywords}
+                    categories={categories}
                     onAddKeyword={handleAddKeyword}
                     onDeleteKeyword={handleDeleteKeyword}
+                    onAddCategory={handleAddCategory}
+                    onDeleteCategory={handleDeleteCategory}
                   />
                 ))
               )}

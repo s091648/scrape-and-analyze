@@ -15,6 +15,7 @@ interface TopicContextValue {
   selectedTopicId: string | null
   selectedTopic: Topic | null
   setSelectedTopicId: (id: string) => void
+  refresh: () => Promise<void>
   isLoading: boolean
 }
 
@@ -23,6 +24,7 @@ const TopicContext = createContext<TopicContextValue>({
   selectedTopicId: null,
   selectedTopic: null,
   setSelectedTopicId: () => {},
+  refresh: async () => {},
   isLoading: true,
 })
 
@@ -33,18 +35,23 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  async function fetchTopics() {
+    const data: Topic[] = await apiFetch('/topics').then(r => r.json())
+    setTopics(data)
+    const stored = localStorage.getItem(STORAGE_KEY)
+    const valid = data.find(t => t.id === stored)
+    const initial = valid ? stored : (data[0]?.id ?? null)
+    setSelectedTopicIdState(prev => {
+      // Keep current selection if it still exists in the new list
+      if (prev && data.find(t => t.id === prev)) return prev
+      if (initial) localStorage.setItem(STORAGE_KEY, initial)
+      return initial
+    })
+  }
+
   useEffect(() => {
-    apiFetch('/topics')
-      .then(r => r.json())
-      .then((data: Topic[]) => {
-        setTopics(data)
-        const stored = localStorage.getItem(STORAGE_KEY)
-        const valid = data.find(t => t.id === stored)
-        const initial = valid ? stored : (data[0]?.id ?? null)
-        setSelectedTopicIdState(initial)
-        if (initial && !valid) localStorage.setItem(STORAGE_KEY, initial)
-      })
-      .finally(() => setIsLoading(false))
+    setIsLoading(true)
+    fetchTopics().finally(() => setIsLoading(false))
   }, [])
 
   function setSelectedTopicId(id: string) {
@@ -52,10 +59,14 @@ export function TopicProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, id)
   }
 
+  async function refresh() {
+    await fetchTopics()
+  }
+
   const selectedTopic = topics.find(t => t.id === selectedTopicId) ?? null
 
   return (
-    <TopicContext.Provider value={{ topics, selectedTopicId, selectedTopic, setSelectedTopicId, isLoading }}>
+    <TopicContext.Provider value={{ topics, selectedTopicId, selectedTopic, setSelectedTopicId, refresh, isLoading }}>
       {children}
     </TopicContext.Provider>
   )

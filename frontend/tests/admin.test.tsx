@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 
+// vi.mock must be at module top level (hoisted by vitest before any imports)
+vi.mock('../lib/api-fetch', () => ({
+  apiFetch: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+}))
+
 describe('Admin route protection', () => {
   it('exports middleware function', async () => {
     const mod = await import('../middleware')
@@ -14,9 +19,8 @@ describe('Admin route protection', () => {
   })
 
   it('toggle calls PATCH with is_active false', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
-    vi.mock('../lib/api-fetch', () => ({ apiFetch: mockFetch }))
+    const { apiFetch } = await import('../lib/api-fetch')
     // Optimistic update: state changes immediately; PATCH fires async
-    expect(mockFetch).toBeDefined()
+    expect(apiFetch).toBeDefined()
   })
 })

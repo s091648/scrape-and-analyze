@@ -4,22 +4,22 @@ from unittest.mock import patch
 
 
 def _make_article(n=0):
-    from src.scrapers.scrapers.article import ScrapedArticle
+    from src.ingestion.models.scraped_article import ScrapedArticle
     return ScrapedArticle(url=f"http://x.com/{n}", title=f"T{n}",
                           content="C", published_at=None, source="test")
 
 
 def _make_task(article=None):
-    from src.scrapers.strategy.scrape_task import ScrapeTask
+    from src.pipeline.task import ScrapeTask
     return ScrapeTask(url="http://example.com/a", source="test",
                       _execute_fn=lambda: article)
 
 
 def _run_workers(tasks_by_host, num_workers=1, delay=0.0):
     """Build infrastructure, run workers, return collected results."""
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
-    from src.scrapers.strategy.queue_selector import WeightedRoundRobinQueueSelector
-    from src.scrapers.strategy.worker import ScraperWorker
+    from src.pipeline.host_queue_map import HostQueueMap
+    from src.pipeline.queue_selector import WeightedRoundRobinQueueSelector
+    from src.pipeline.worker import ScraperWorker
 
     hqm = HostQueueMap()
     for host, tasks in tasks_by_host.items():
@@ -91,7 +91,7 @@ def test_two_workers_never_concurrently_process_same_host():
             windows.append((start, end))
         return _make_article()
 
-    from src.scrapers.strategy.scrape_task import ScrapeTask
+    from src.pipeline.task import ScrapeTask
     tasks = [
         ScrapeTask(url="http://example.com/a", source="test", _execute_fn=slow_fn),
         ScrapeTask(url="http://example.com/b", source="test", _execute_fn=slow_fn),

@@ -1,17 +1,17 @@
 def test_same_host_returns_same_index():
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
+    from src.pipeline.host_queue_map import HostQueueMap
     m = HostQueueMap()
     assert m.get_or_create("arxiv.org") == m.get_or_create("arxiv.org")
 
 
 def test_different_hosts_get_different_indices():
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
+    from src.pipeline.host_queue_map import HostQueueMap
     m = HostQueueMap()
     assert m.get_or_create("arxiv.org") != m.get_or_create("example.com")
 
 
 def test_queues_and_semaphores_count_match_unique_hosts():
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
+    from src.pipeline.host_queue_map import HostQueueMap
     m = HostQueueMap()
     m.get_or_create("arxiv.org")
     m.get_or_create("example.com")
@@ -22,7 +22,7 @@ def test_queues_and_semaphores_count_match_unique_hosts():
 
 def test_semaphore_is_bounded_1():
     """Each queue gets a BoundedSemaphore(1) — acquire twice should fail."""
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
+    from src.pipeline.host_queue_map import HostQueueMap
     m = HostQueueMap()
     idx = m.get_or_create("arxiv.org")
     sem = m.semaphores[idx]
@@ -32,8 +32,8 @@ def test_semaphore_is_bounded_1():
 
 
 def test_put_and_get_task_from_queue():
-    from src.scrapers.strategy.host_queue_map import HostQueueMap
-    from src.scrapers.strategy.scrape_task import ScrapeTask
+    from src.pipeline.host_queue_map import HostQueueMap
+    from src.pipeline.task import ScrapeTask
     m = HostQueueMap()
     idx = m.get_or_create("arxiv.org")
     task = ScrapeTask(url="http://arxiv.org/abs/1", source="arxiv",

@@ -9,6 +9,7 @@ const profileItems = [
 ]
 
 const adminItems = [
+  { href: '/admin/topics', label: 'Topics' },
   { href: '/admin/scraper-settings', label: 'Scraper Settings' },
   { href: '/admin/user-management', label: 'User Management' },
   { href: '/admin/monitoring', label: 'Monitoring' },
@@ -43,7 +44,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
 
           {isAdmin && (
             <>
-              <p className="px-3 pt-5 pb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <p className="px-3 pt-5 pb-1 text-xs font-bold text-black uppercase tracking-wider">
                 Admin
               </p>
               {adminItems.map(item => (

@@ -28,6 +28,7 @@ class TopicOut(BaseModel):
     display_name: str
     description: Optional[str] = None
     color_hex: Optional[str] = None
+    prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: bool
     created_at: Optional[datetime] = None

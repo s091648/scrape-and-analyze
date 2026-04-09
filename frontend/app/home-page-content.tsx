@@ -17,7 +17,19 @@ interface Article {
   published_at: string | null; scraped_at: string | null; url: string
 }
 
-const GUEST_LIMIT = 6
+// Fake articles shown to guests — no API call, no real data exposed
+const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) => ({
+  id: `guest-${i}`,
+  title: 'Lorem ipsum dolor sit amet consectetur adipiscing elit',
+  source: 'arxiv',
+  content:
+    'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor ' +
+    'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud ' +
+    'exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+  published_at: new Date(Date.now() - i * 86400000).toISOString(),
+  scraped_at: null,
+  url: '#',
+}))
 
 export default function HomePageContent() {
   const { status } = useSession()
@@ -36,6 +48,8 @@ export default function HomePageContent() {
   const searchParamsString = searchParams.toString()
 
   useEffect(() => {
+    // Guests see placeholder data only — never call the API
+    if (isGuest) { setIsLoading(false); return }
     if (!selectedTopicId) return
     setIsLoading(true)
     const params = new URLSearchParams(searchParamsString)
@@ -44,7 +58,7 @@ export default function HomePageContent() {
       .then(r => r.json())
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [searchParamsString, selectedTopicId])
+  }, [searchParamsString, selectedTopicId, isGuest])
 
   const totalPages = Math.ceil(total / 20)
 
@@ -78,12 +92,18 @@ export default function HomePageContent() {
         <div className="grid gap-3 lg:grid-cols-2">
           {isLoading
             ? Array.from({ length: 6 }).map((_, i) => <ArticleCardSkeleton key={i} />)
-            : (isGuest ? articles.slice(0, GUEST_LIMIT) : articles).map(a => <ArticleCard key={a.id} {...a} />)
+            : isGuest
+              ? GUEST_PLACEHOLDER_ARTICLES.map(a => (
+                  <div key={a.id} className="select-none pointer-events-none blur-[2px] opacity-70">
+                    <ArticleCard {...a} />
+                  </div>
+                ))
+              : articles.map(a => <ArticleCard key={a.id} {...a} />)
           }
         </div>
 
-        {/* Guest paywall overlay — only show when not loading and has articles */}
-        {!isLoading && isGuest && articles.length > 0 && (
+        {/* Guest paywall overlay */}
+        {!isLoading && isGuest && (
           <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-10 gap-4">
             <div className="flex items-center justify-center h-12 w-12 rounded-full border border-border bg-background shadow-sm">
               <Lock className="h-5 w-5 text-muted-foreground" />

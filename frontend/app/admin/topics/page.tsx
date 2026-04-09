@@ -1,0 +1,485 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { redirect } from 'next/navigation'
+import { Pencil, X, Check, Plus, RotateCcw } from 'lucide-react'
+import { apiFetch } from '@/lib/api-fetch'
+import { useTopic } from '@/contexts/topic-context'
+import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+
+interface Topic {
+  id: string
+  name: string
+  display_name: string
+  description: string | null
+  color_hex: string | null
+  prompt_override: string | null
+  sort_order: number | null
+  is_active: boolean
+}
+
+const inputClass =
+  'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
+const textareaClass =
+  'w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none'
+
+// ── Topic row ────────────────────────────────────────────────────────────────
+
+function TopicRow({
+  topic,
+  onUpdate,
+  onDelete,
+}: {
+  topic: Topic
+  onUpdate: (id: string, data: Partial<Topic>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [form, setForm] = useState({
+    display_name: topic.display_name,
+    description: topic.description ?? '',
+    color_hex: topic.color_hex ?? '',
+    prompt_override: topic.prompt_override ?? '',
+    sort_order: topic.sort_order ?? 0,
+    is_active: topic.is_active,
+  })
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    await onUpdate(topic.id, {
+      display_name: form.display_name,
+      description: form.description || null,
+      color_hex: form.color_hex || null,
+      prompt_override: form.prompt_override || null,
+      sort_order: form.sort_order,
+      is_active: form.is_active,
+    })
+    setSaving(false)
+    setEditing(false)
+  }
+
+  return (
+    <>
+      <div className={`rounded-xl border border-border bg-card p-5 space-y-3 ${!topic.is_active ? 'opacity-60' : ''}`}>
+        {editing ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">Edit Topic</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Display Name</label>
+                <input
+                  className={inputClass}
+                  value={form.display_name}
+                  onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Color (hex)</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    className={inputClass}
+                    value={form.color_hex}
+                    placeholder="#3b82f6"
+                    onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                  />
+                  {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
+                    <span
+                      className="h-7 w-7 rounded-full shrink-0 border border-border"
+                      style={{ backgroundColor: form.color_hex }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>Description</label>
+              <textarea
+                className={textareaClass}
+                rows={2}
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Prompt Override</label>
+              <textarea
+                className={textareaClass}
+                rows={3}
+                placeholder="Leave empty to use the default analysis prompt."
+                value={form.prompt_override}
+                onChange={e => setForm(f => ({ ...f, prompt_override: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 items-end">
+              <div>
+                <label className={labelClass}>Sort Order</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={form.sort_order}
+                  onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="flex items-center gap-2 pb-0.5">
+                <Switch
+                  checked={form.is_active}
+                  onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+                />
+                <span className="text-sm text-muted-foreground">Active</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSave} disabled={saving || !form.display_name}>
+                <Check className="h-4 w-4 mr-1" /> Save
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0">
+              {topic.color_hex && (
+                <span
+                  className="mt-1 h-3.5 w-3.5 rounded-full shrink-0 border border-border"
+                  style={{ backgroundColor: topic.color_hex }}
+                />
+              )}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-sm leading-snug">{topic.display_name}</p>
+                  {!topic.is_active && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium uppercase tracking-wide">
+                      inactive
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">{topic.name}</p>
+                {topic.description && (
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{topic.description}</p>
+                )}
+                {topic.sort_order !== null && (
+                  <p className="text-xs text-muted-foreground mt-1">Order: {topic.sort_order}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(true)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              {topic.is_active ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground"
+                  title="Restore topic"
+                  onClick={() => onUpdate(topic.id, { is_active: true })}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Deactivate topic?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <strong>{topic.display_name}</strong> will be hidden from users. Articles tagged with this topic are unaffected. You can restore it later.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { setConfirmDelete(false); onDelete(topic.id) }}>
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+// ── Add topic form ────────────────────────────────────────────────────────────
+
+function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>) => Promise<void> }) {
+  const [expanded, setExpanded] = useState(false)
+  const emptyForm = {
+    name: '',
+    display_name: '',
+    description: '',
+    color_hex: '',
+    prompt_override: '',
+    sort_order: 0,
+  }
+  const [form, setForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
+
+  async function handleAdd() {
+    if (!form.name || !form.display_name) return
+    setSaving(true)
+    await onAdd({
+      name: form.name,
+      display_name: form.display_name,
+      description: form.description || null,
+      color_hex: form.color_hex || null,
+      prompt_override: form.prompt_override || null,
+      sort_order: form.sort_order || null,
+    })
+    setSaving(false)
+    setExpanded(false)
+    setForm(emptyForm)
+  }
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+      >
+        <Plus className="h-4 w-4" /> Add topic
+      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold">New Topic</span>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Slug (name) <span className="text-destructive">*</span></label>
+          <input
+            className={inputClass}
+            value={form.name}
+            placeholder="digital-twin"
+            onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Immutable after creation</p>
+        </div>
+        <div>
+          <label className={labelClass}>Display Name <span className="text-destructive">*</span></label>
+          <input
+            className={inputClass}
+            value={form.display_name}
+            placeholder="Digital Twin"
+            onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Color (hex)</label>
+          <div className="flex gap-2 items-center">
+            <input
+              className={inputClass}
+              value={form.color_hex}
+              placeholder="#3b82f6"
+              onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+            />
+            {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
+              <span
+                className="h-7 w-7 rounded-full shrink-0 border border-border"
+                style={{ backgroundColor: form.color_hex }}
+              />
+            )}
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Sort Order</label>
+          <input
+            type="number"
+            className={inputClass}
+            value={form.sort_order}
+            onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Description</label>
+        <textarea
+          className={textareaClass}
+          rows={2}
+          value={form.description}
+          onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Prompt Override</label>
+        <textarea
+          className={textareaClass}
+          rows={3}
+          placeholder="Leave empty to use the default analysis prompt."
+          value={form.prompt_override}
+          onChange={e => setForm(f => ({ ...f, prompt_override: e.target.value }))}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          onClick={handleAdd}
+          disabled={saving || !form.name || !form.display_name}
+        >
+          <Check className="h-4 w-4 mr-1" /> Create
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function TopicsPage() {
+  const { data: session, status } = useSession()
+  const [topics, setTopics] = useState<Topic[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [showInactive, setShowInactive] = useState(false)
+  const { refresh: refreshTopicContext } = useTopic()
+
+  if (status === 'unauthenticated') redirect('/login')
+  if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
+
+  const token = (session as any)?.accessToken
+
+  useEffect(() => {
+    if (!token) return
+    setIsLoading(true)
+    apiFetch(`/topics?include_inactive=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setTopics(Array.isArray(data) ? data : []))
+      .finally(() => setIsLoading(false))
+  }, [token])
+
+  async function handleUpdate(id: string, data: Partial<Topic>) {
+    setTopics(prev => prev.map(t => (t.id === id ? { ...t, ...data } : t)))
+    await apiFetch(`/topics/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    })
+    await refreshTopicContext()
+  }
+
+  async function handleDelete(id: string) {
+    setTopics(prev => prev.map(t => (t.id === id ? { ...t, is_active: false } : t)))
+    await apiFetch(`/topics/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    await refreshTopicContext()
+  }
+
+  async function handleCreate(data: Omit<Topic, 'id' | 'is_active'>) {
+    const res = await apiFetch('/topics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setTopics(prev => [...prev, created])
+      await refreshTopicContext()
+    }
+  }
+
+  const visible = showInactive ? topics : topics.filter(t => t.is_active)
+
+  return (
+    <div className="max-w-3xl space-y-10">
+      <div className="border-b border-border pb-6">
+        <h1 className="text-2xl font-bold">Topics</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage research topics. Articles and scrapers are tagged with a topic.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {topics.filter(t => t.is_active).length} active
+            {topics.some(t => !t.is_active) && `, ${topics.filter(t => !t.is_active).length} inactive`}
+          </p>
+          {topics.some(t => !t.is_active) && (
+            <button
+              onClick={() => setShowInactive(v => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              {showInactive ? 'Hide inactive' : 'Show inactive'}
+            </button>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-3">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="rounded-xl border border-border bg-card p-5">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visible.map(t => (
+              <TopicRow key={t.id} topic={t} onUpdate={handleUpdate} onDelete={handleDelete} />
+            ))}
+            <AddTopicCard onAdd={handleCreate} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

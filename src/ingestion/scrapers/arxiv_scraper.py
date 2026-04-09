@@ -18,6 +18,7 @@ class ArxivScraper(BaseScraper):
         days_back: int = 7,
         fetch_pdf: bool = True,
         keywords: Optional[List[str]] = None,
+        categories: Optional[List[str]] = None,
         topic_id: Optional[str] = None,
         prompt_override: Optional[str] = None,
         client: ArxivClient = None,
@@ -25,7 +26,8 @@ class ArxivScraper(BaseScraper):
         self.max_results = max_results
         self.days_back = days_back
         self.fetch_pdf = fetch_pdf
-        self._keywords = keywords  # list of query strings, or None for fallback
+        self._keywords = keywords    # ti:/abs:/au:/all: query strings — ORed together
+        self._categories = categories  # arXiv category codes — ORed, then ANDed with keywords
         self._topic_id = topic_id
         self._prompt_override = prompt_override
         self._client = client or ArxivClient()
@@ -53,13 +55,25 @@ class ArxivScraper(BaseScraper):
         return tasks
 
     def _build_query(self) -> str:
+        # Build keyword clause (ORed)
         if self._keywords:
-            return " OR ".join(self._keywords)
-        # Hardcoded fallback for backward compatibility
-        return (
-            'ti:"digital twin" OR ti:"digital twins"'
-            ' OR abs:"digital twin" OR abs:"cyber-physical"'
-        )
+            kw_clause = " OR ".join(self._keywords)
+        else:
+            # Hardcoded fallback for backward compatibility
+            kw_clause = (
+                'ti:"digital twin" OR ti:"digital twins"'
+                ' OR abs:"digital twin" OR abs:"cyber-physical"'
+            )
+
+        # Build category clause (ORed), then AND with keywords
+        if self._categories:
+            cat_clause = " OR ".join(f"cat:{c}" for c in self._categories)
+            # Wrap in parens when combining multiple terms
+            kw_part = f"({kw_clause})" if " OR " in kw_clause else kw_clause
+            cat_part = f"({cat_clause})" if " OR " in cat_clause else cat_clause
+            return f"{cat_part} AND {kw_part}"
+
+        return kw_clause
 
     def _build_article(self, entry: ArxivEntry) -> Optional[ScrapedArticle]:
         sections: dict = {}
