@@ -11,7 +11,7 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-DIGITAL_TWINS_KEYWORDS = [
+_DEFAULT_KEYWORDS = [
     r"digital\s+twin",
     r"digital\s+twins",
     r"twin\s+technology",
@@ -21,30 +21,26 @@ DIGITAL_TWINS_KEYWORDS = [
 
 
 class RssScraper(BaseScraper):
-    """
-    Scraper for RSS feeds.
-
-    Delegates HTTP + feedparser to RssClient (infrastructure).
-    Domain decisions here: keyword filtering, article content fetching.
-    """
 
     def __init__(
         self,
         url: str,
         source: str,
         rate_limit: float = 1.0,
+        keywords: Optional[List[str]] = None,
+        topic_id: Optional[str] = None,
+        prompt_override: Optional[str] = None,
         client: RssClient = None,
     ) -> None:
         self.url = url
         self.source = source
-        self.rate_limit = rate_limit  # kept for back-compat; delay enforced by worker
+        self.rate_limit = rate_limit
+        self._topic_id = topic_id
+        self._prompt_override = prompt_override
         self._client = client or RssClient()
-        self._keyword_pattern = re.compile(
-            "|".join(DIGITAL_TWINS_KEYWORDS), re.IGNORECASE
-        )
+        patterns = keywords if keywords else _DEFAULT_KEYWORDS
+        self._keyword_pattern = re.compile("|".join(patterns), re.IGNORECASE)
         self._html_parser = HtmlArticleParser()
-
-    # ── Public API ────────────────────────────────────────────────────────
 
     def discover(self) -> List[ScrapeTask]:
         entries = self._client.fetch_feed(self.url)
@@ -64,8 +60,6 @@ class RssScraper(BaseScraper):
         logger.info("rss_discover_complete", source=self.source, task_count=len(tasks))
         return tasks
 
-    # ── Private helpers ───────────────────────────────────────────────────
-
     def _fetch_article(self, entry: RssEntry) -> Optional[ScrapedArticle]:
         fallback = sanitize_content(entry.description)
         content = self._html_parser.fetch_and_parse(entry.url, fallback=fallback)
@@ -75,6 +69,8 @@ class RssScraper(BaseScraper):
             content=content,
             published_at=entry.published,
             source=self.source,
+            topic_id=self._topic_id,
+            prompt_override=self._prompt_override,
             metadata={"author": entry.author},
         )
 

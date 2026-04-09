@@ -18,11 +18,14 @@ class BlogScraper(BaseScraper):
     """Scraper for blog websites with CSS selectors."""
 
     def __init__(self, base_url: str, source: str, selectors: Dict[str, str],
-                 rate_limit: float = 2.0) -> None:
+                 rate_limit: float = 2.0, topic_id: Optional[str] = None,
+                 prompt_override: Optional[str] = None) -> None:
         self.base_url = base_url
         self.source = source
         self.selectors = selectors
         self.rate_limit = rate_limit  # kept for back-compat; delay enforced by worker
+        self._topic_id = topic_id
+        self._prompt_override = prompt_override
         self._robot_parser: Optional[RobotFileParser] = None
         self._robots_loaded: bool = False
         self._html_parser = HtmlArticleParser(
@@ -73,6 +76,8 @@ class BlogScraper(BaseScraper):
         return ScrapedArticle(
             url=url, title=title, content=content,
             published_at=None, source=self.source,
+            topic_id=self._topic_id,
+            prompt_override=self._prompt_override,
         )
 
     def _get_robot_parser(self) -> RobotFileParser:

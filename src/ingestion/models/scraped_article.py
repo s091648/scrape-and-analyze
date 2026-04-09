@@ -11,3 +11,5 @@ class ScrapedArticle:
     published_at: Optional[str]
     source: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    topic_id: Optional[str] = None   # string UUID; converted to UUID in domain layer
+    prompt_override: Optional[str] = None

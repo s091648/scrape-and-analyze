@@ -61,24 +61,37 @@ class ScraperService:
 
         source_type = source["source_type"]
         name = source["source"]
+        topic_id = source.get("topic_id")
+        prompt_override = source.get("prompt_override")
+        cfg = source.get("selector_config") or {}
         logger.info("scraper_building", source=name, source_type=source_type)
 
         try:
             if source_type == "rss":
-                return RssScraper(url=source["url"], source=name)
+                return RssScraper(
+                    url=source["url"],
+                    source=name,
+                    keywords=cfg.get("keywords") or None,
+                    topic_id=topic_id,
+                    prompt_override=prompt_override,
+                )
 
             if source_type == "blog":
                 return BlogScraper(
                     base_url=source["base_url"],
                     source=name,
                     selectors=source["selectors"],
+                    topic_id=topic_id,
+                    prompt_override=prompt_override,
                 )
 
             if source_type == "arxiv":
-                cfg = source.get("selector_config", {})
                 return ArxivScraper(
                     max_results=cfg.get("max_results", 30),
                     days_back=cfg.get("days_back", 1),
+                    keywords=cfg.get("keywords") or None,
+                    topic_id=topic_id,
+                    prompt_override=prompt_override,
                 )
 
             logger.warning("unknown_source_type", source_type=source_type)

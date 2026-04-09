@@ -24,3 +24,4 @@ class ArticleEntity:
     published_at: Optional[datetime] = None
     scraped_at: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    topic_id: Optional[UUID] = None
