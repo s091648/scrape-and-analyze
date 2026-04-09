@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Index
+from sqlalchemy import Column, String, Text, DateTime, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
@@ -20,9 +20,11 @@ class Article(Base):
     scraped_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     metadata_ = Column('metadata', JSONB)
     correlation_id = Column(UUID(as_uuid=True), nullable=False)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id'), nullable=True)
 
     __table_args__ = (
         Index('idx_articles_url_hash', 'url_hash'),
         Index('idx_articles_source', 'source'),
         Index('idx_articles_scraped_at', 'scraped_at'),
+        Index('idx_articles_topic_id', 'topic_id'),
     )
