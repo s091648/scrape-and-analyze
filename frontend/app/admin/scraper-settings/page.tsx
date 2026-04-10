@@ -238,6 +238,137 @@ function ArxivSettingCard({
   )
 }
 
+// ── Activate arXiv card (shown when no arxiv setting exists) ─────────────────
+
+function AddArxivCard({
+  onActivate,
+}: {
+  onActivate: (
+    setting: Omit<ScraperSetting, 'id'>,
+    keywords: string[],
+    categories: string[],
+  ) => Promise<void>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [form, setForm] = useState({ name: 'arXiv', frequency: 24, is_active: true })
+  const [localKeywords, setLocalKeywords] = useState<ArxivKeyword[]>([])
+  const [localCategories, setLocalCategories] = useState<ArxivCategory[]>([])
+  const [saving, setSaving] = useState(false)
+  const { selectedTopicId } = useTopic()
+
+  function encodeId(s: string) {
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await onActivate(
+      {
+        source_type: 'arxiv',
+        name: form.name,
+        url: '',
+        frequency: form.frequency,
+        is_active: form.is_active,
+        topic_id: selectedTopicId ?? undefined,
+      } as any,
+      localKeywords.map(k => k.keyword),
+      localCategories.map(c => c.category),
+    )
+    setSaving(false)
+    setExpanded(false)
+    setForm({ name: 'arXiv', frequency: 24, is_active: true })
+    setLocalKeywords([])
+    setLocalCategories([])
+  }
+
+  const inputClass =
+    'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+      >
+        <Plus className="h-4 w-4" />
+        Activate arXiv
+      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold">Activate arXiv Source</span>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className={labelClass}>Name</label>
+          <input
+            className={inputClass}
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Frequency (hours)</label>
+          <input
+            type="number"
+            min={1}
+            className={inputClass}
+            value={form.frequency}
+            onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
+          />
+          {form.frequency >= 24 && (
+            <p className="text-xs text-muted-foreground mt-1">{formatFrequency(form.frequency)}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={form.is_active}
+            onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
+          />
+          <span className="text-sm text-muted-foreground">Active</span>
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <ArxivKeywordManager
+          keywords={localKeywords}
+          categories={localCategories}
+          onAddKeyword={async (kw) => {
+            setLocalKeywords(prev => [...prev, { id: encodeId(kw), keyword: kw }])
+          }}
+          onDeleteKeyword={async (id) => {
+            setLocalKeywords(prev => prev.filter(k => k.id !== id))
+          }}
+          onAddCategory={async (cat) => {
+            setLocalCategories(prev => [...prev, { id: encodeId(cat), category: cat }])
+          }}
+          onDeleteCategory={async (id) => {
+            setLocalCategories(prev => prev.filter(c => c.id !== id))
+          }}
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleSave} disabled={saving || !form.name}>
+          <Check className="h-4 w-4 mr-1" />
+          Activate
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ── Add source card (RSS / Blog) ─────────────────────────────────────────────
 
 function AddSourceCard({
@@ -487,6 +618,45 @@ export default function ScraperSettingsPage() {
     }
   }
 
+  async function handleActivateArxiv(
+    data: Omit<ScraperSetting, 'id'>,
+    keywords: string[],
+    categories: string[],
+  ) {
+    const tq = selectedTopicId ? `?topic_id=${selectedTopicId}` : ''
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+
+    // 1. Create the scraper setting
+    const res = await apiFetch('/scraper-settings', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) return
+    const created = await res.json()
+    setSettings(prev => [...prev, created])
+
+    // 2. Add keywords sequentially (they share a single JSONB field)
+    const addedKeywords: ArxivKeyword[] = []
+    for (const kw of keywords) {
+      const r = await apiFetch(`/arxiv-keywords${tq}`, {
+        method: 'POST', headers, body: JSON.stringify({ keyword: kw }),
+      })
+      if (r.ok) addedKeywords.push(await r.json())
+    }
+    setKeywords(addedKeywords)
+
+    // 3. Add categories
+    const addedCategories: ArxivCategory[] = []
+    for (const cat of categories) {
+      const r = await apiFetch(`/arxiv-categories${tq}`, {
+        method: 'POST', headers, body: JSON.stringify({ category: cat }),
+      })
+      if (r.ok) addedCategories.push(await r.json())
+    }
+    setCategories(addedCategories)
+  }
+
   async function handleAddKeyword(keyword: string) {
     const res = await apiFetch('/arxiv-keywords', {
       method: 'POST',
@@ -559,7 +729,7 @@ export default function ScraperSettingsPage() {
           <>
             <AccordionSection title="arXiv" badge={arxivSettings.length}>
               {arxivSettings.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No arXiv source found.</p>
+                <AddArxivCard onActivate={handleActivateArxiv} />
               ) : (
                 arxivSettings.map(s => (
                   <ArxivSettingCard
