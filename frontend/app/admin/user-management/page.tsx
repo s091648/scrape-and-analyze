@@ -7,6 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 
+function initials(name: string | null | undefined): string {
+  if (!name) return '?'
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
+function UserAvatar({ name, icon }: { name: string | null | undefined; icon: string | null | undefined }) {
+  if (icon) {
+    return <img src={icon} className="h-8 w-8 rounded-full object-cover shrink-0" alt="" aria-hidden />
+  }
+  return (
+    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold shrink-0 select-none" aria-hidden>
+      {initials(name)}
+    </div>
+  )
+}
+
 interface User {
   id: string
   email: string | null
@@ -14,6 +30,7 @@ interface User {
   username: string | null
   role: 'admin' | 'user'
   is_allowed: boolean
+  icon: string | null
   google_id: string | null
   created_at: string | null
 }
@@ -176,8 +193,13 @@ export default function UsersPage() {
                 {users.map(user => (
                   <tr key={user.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-medium">{user.name ?? user.username ?? '—'}</div>
-                      <div className="text-xs text-muted-foreground">{user.email ?? user.username}</div>
+                      <div className="flex items-center gap-3">
+                        <UserAvatar name={user.name ?? user.username ?? user.email} icon={user.icon} />
+                        <div>
+                          <div className="font-medium">{user.name ?? user.username ?? '—'}</div>
+                          <div className="text-xs text-muted-foreground">{user.email ?? user.username}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 flex-wrap">

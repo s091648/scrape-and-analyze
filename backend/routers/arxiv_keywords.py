@@ -3,15 +3,19 @@ arxiv_keywords router — reads/writes keywords from scraper_settings.selector_c
 
 The arxiv_keywords table was removed. Keywords now live in the arxiv scraper
 setting's selector_config JSON:
-  { "keywords": [...], "days_back": 1, "max_results": 30 }
+  { "keywords": [...], "categories": [...], "days_back": 1, "max_results": 30 }
 
 Since the REST interface (id, keyword) is still used by the frontend, we use
 a base64url encoding of the keyword string as a stable virtual id.
+
+All endpoints accept an optional ?topic_id= query param so that callers can
+target the arxiv scraper for a specific topic.
 """
 import base64
-from typing import List
+from typing import List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -42,13 +46,12 @@ def _decode(kid: str) -> str:
     return base64.urlsafe_b64decode(kid + "=" * padding).decode()
 
 
-def _get_arxiv_setting(db: Session):
+def _get_arxiv_setting(db: Session, topic_id: Optional[UUID] = None):
     from models.scraper_setting import ScraperSetting
-    setting = (
-        db.query(ScraperSetting)
-        .filter_by(source_type="arxiv", is_active=True)
-        .first()
-    )
+    q = db.query(ScraperSetting).filter_by(source_type="arxiv", is_active=True)
+    if topic_id is not None:
+        q = q.filter(ScraperSetting.topic_id == topic_id)
+    setting = q.first()
     if not setting:
         raise HTTPException(status_code=404, detail="No active arXiv scraper setting found")
     return setting
@@ -69,18 +72,23 @@ def _set_keywords(setting, keywords: list, db: Session) -> None:
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[ArxivKeywordOut])
-def list_keywords(db: Session = Depends(get_db), _=Depends(require_admin)):
-    setting = _get_arxiv_setting(db)
+def list_keywords(
+    topic_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    setting = _get_arxiv_setting(db, topic_id)
     return [ArxivKeywordOut(id=_encode(kw), keyword=kw) for kw in _get_keywords(setting)]
 
 
 @router.post("", response_model=ArxivKeywordOut, status_code=201)
 def create_keyword(
     data: ArxivKeywordCreate,
+    topic_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_admin),
 ):
-    setting = _get_arxiv_setting(db)
+    setting = _get_arxiv_setting(db, topic_id)
     keywords = _get_keywords(setting)
     if data.keyword in keywords:
         raise HTTPException(status_code=409, detail="Keyword already exists")
@@ -92,6 +100,7 @@ def create_keyword(
 @router.delete("/{keyword_id}", status_code=204)
 def delete_keyword(
     keyword_id: str,
+    topic_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_admin),
 ):
@@ -100,7 +109,7 @@ def delete_keyword(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid keyword id")
 
-    setting = _get_arxiv_setting(db)
+    setting = _get_arxiv_setting(db, topic_id)
     keywords = _get_keywords(setting)
     if keyword not in keywords:
         raise HTTPException(status_code=404, detail="Keyword not found")
@@ -139,18 +148,23 @@ def _set_categories(setting, categories: list, db: Session) -> None:
 
 
 @_cat_router.get("", response_model=list[ArxivCategoryOut])
-def list_categories(db: Session = Depends(get_db), _=Depends(require_admin)):
-    setting = _get_arxiv_setting(db)
+def list_categories(
+    topic_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    setting = _get_arxiv_setting(db, topic_id)
     return [ArxivCategoryOut(id=_encode(c), category=c) for c in _get_categories(setting)]
 
 
 @_cat_router.post("", response_model=ArxivCategoryOut, status_code=201)
 def create_category(
     data: ArxivCategoryCreate,
+    topic_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_admin),
 ):
-    setting = _get_arxiv_setting(db)
+    setting = _get_arxiv_setting(db, topic_id)
     categories = _get_categories(setting)
     if data.category in categories:
         raise HTTPException(status_code=409, detail="Category already exists")
@@ -162,6 +176,7 @@ def create_category(
 @_cat_router.delete("/{category_id}", status_code=204)
 def delete_category(
     category_id: str,
+    topic_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     _=Depends(require_admin),
 ):
@@ -170,7 +185,7 @@ def delete_category(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid category id")
 
-    setting = _get_arxiv_setting(db)
+    setting = _get_arxiv_setting(db, topic_id)
     categories = _get_categories(setting)
     if category not in categories:
         raise HTTPException(status_code=404, detail="Category not found")

@@ -436,21 +436,23 @@ export default function ScraperSettingsPage() {
   if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
 
   const token = (session as any)?.accessToken
+  const { selectedTopicId } = useTopic()
 
   useEffect(() => {
-    if (!token) return
+    if (!token || !selectedTopicId) return
     const headers = { Authorization: `Bearer ${token}` }
+    const tq = `topic_id=${selectedTopicId}`
     setIsLoading(true)
     Promise.all([
-      apiFetch('/scraper-settings', { headers }).then(r => r.json()),
-      apiFetch('/arxiv-keywords', { headers }).then(r => r.json()),
-      apiFetch('/arxiv-categories', { headers }).then(r => r.json()),
+      apiFetch(`/scraper-settings?${tq}`, { headers }).then(r => r.json()),
+      apiFetch(`/arxiv-keywords?${tq}`, { headers }).then(r => r.json()),
+      apiFetch(`/arxiv-categories?${tq}`, { headers }).then(r => r.json()),
     ]).then(([s, k, c]) => {
       setSettings(Array.isArray(s) ? s : [])
       setKeywords(Array.isArray(k) ? k : [])
       setCategories(Array.isArray(c) ? c : [])
     }).finally(() => setIsLoading(false))
-  }, [token])
+  }, [token, selectedTopicId])
 
   const byType = (type: ScraperSetting['source_type']) =>
     settings.filter(s => s.source_type === type)

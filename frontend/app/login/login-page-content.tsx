@@ -1,14 +1,21 @@
 'use client'
-import { signIn } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
 
 export default function LoginPageContent() {
+  const { status } = useSession()
+  const router = useRouter()
   const [error, setError] = useState('')
   const searchParams = useSearchParams()
+
+  if (status === 'authenticated') {
+    router.replace('/')
+    return null
+  }
   const authError = searchParams.get('error')
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

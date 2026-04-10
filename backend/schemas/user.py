@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     username: Optional[str] = None
     role: str
     is_allowed: bool
+    icon: Optional[str] = None
     google_id: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

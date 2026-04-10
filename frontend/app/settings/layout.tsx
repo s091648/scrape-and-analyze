@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname, redirect } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
+import { useTopic } from '@/contexts/topic-context'
 
 const profileItems = [
   { href: '/settings', label: 'Profile' },
@@ -22,6 +23,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
   if (status === 'unauthenticated') redirect('/login')
 
   const isAdmin = (session?.user as any)?.role === 'admin'
+  const { selectedTopic } = useTopic()
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)]">
@@ -48,18 +50,26 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                 Admin
               </p>
               {adminItems.map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150',
-                    pathname === item.href
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                <div key={item.href} className="relative">
+                  {item.href === '/admin/scraper-settings' && selectedTopic?.color_hex && (
+                    <span
+                      className="absolute -left-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full"
+                      style={{ backgroundColor: selectedTopic.color_hex }}
+                    />
                   )}
-                >
-                  {item.label}
-                </Link>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'relative flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150',
+                      pathname === item.href
+                        ? 'bg-muted text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </div>
               ))}
             </>
           )}

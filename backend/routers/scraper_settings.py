@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -18,10 +19,13 @@ _ACTIVITY_SQL = text("""
 """)
 
 
-def get_all_settings(db: Session):
+def get_all_settings(db: Session, topic_id: Optional[UUID] = None):
     from models.scraper_setting import ScraperSetting
 
-    settings = db.query(ScraperSetting).all()
+    q = db.query(ScraperSetting)
+    if topic_id is not None:
+        q = q.filter(ScraperSetting.topic_id == topic_id)
+    settings = q.all()
 
     # Build per-name activity arrays (14 slots, index 0 = 14 days ago, 13 = today)
     today = datetime.now(timezone.utc).date()
@@ -72,8 +76,12 @@ def delete_setting(db: Session, setting_id: UUID) -> bool:
 
 
 @router.get("", response_model=list[ScraperSettingOut])
-def list_settings(db: Session = Depends(get_db), _=Depends(require_admin)):
-    return get_all_settings(db)
+def list_settings(
+    topic_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(require_admin),
+):
+    return get_all_settings(db, topic_id=topic_id)
 
 
 @router.post("", response_model=ScraperSettingOut, status_code=201)
