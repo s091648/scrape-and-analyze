@@ -57,6 +57,7 @@ class HttpClient:
         rate_limiter: DomainRateLimiter,
         ua_pool: UserAgentPool,
         proxies: Optional[dict] = None,
+        proxy_enabled: bool = False,
         max_403_rotations: int = 2,
         retry_max_attempts: int = 4,
         rotation_delay_base: float = 3.0,
@@ -64,6 +65,7 @@ class HttpClient:
         self._rate_limiter = rate_limiter
         self._ua_pool = ua_pool
         self._proxies = proxies
+        self._proxy_enabled = proxy_enabled
         self._max_403_rotations = max_403_rotations
         self._rotation_delay_base = rotation_delay_base
         self._retry_policy = make_retry_policy(max_attempts=retry_max_attempts)
@@ -112,7 +114,7 @@ class HttpClient:
                             url=url,
                             retry_without_proxy=True,
                         )
-                        proxies = None
+                        self._proxy_enabled = False
                         continue
                     if status_code == 403:
                         if rotation < self._max_403_rotations:
@@ -141,10 +143,14 @@ class HttpClient:
     @classmethod
     def build_default(cls) -> "HttpClient":
         """Construct an HttpClient with production defaults (proxy from env)."""
+        proxies = get_proxies()
+        proxy_enabled = True if proxies else False
+
         return cls(
             rate_limiter=DomainRateLimiter(),
             ua_pool=UserAgentPool(),
-            proxies=get_proxies(),
+            proxies=proxies,
+            proxy_enabled=proxy_enabled,
         )
 
 
