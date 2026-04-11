@@ -79,6 +79,7 @@ class HttpClient:
 
         caller_headers: dict = kwargs.pop("headers", {})
 
+        proxies = self._proxies
         last_403_exc: Optional[Exception] = None
         for rotation in range(self._max_403_rotations + 1):
             ua = self._ua_pool.get(domain)
@@ -96,32 +97,42 @@ class HttpClient:
                             resp = requests.get(
                                 url,
                                 headers=headers,
-                                proxies=self._proxies,
+                                proxies=proxies,
                                 timeout=timeout,
                                 **kwargs,
                             )
                             resp.raise_for_status()
                 return resp
             except requests.exceptions.HTTPError as exc:
-                if exc.response is not None and exc.response.status_code == 403:
-                    if rotation < self._max_403_rotations:
-                        # Jitter delay before next rotation so the burst
-                        # doesn't look like a bot to the server
-                        jitter = random.uniform(
-                            self._rotation_delay_base,
-                            self._rotation_delay_base * 2,
-                        )
+                if exc.response is not None:
+                    status_code = exc.response.status_code
+                    if status_code == 407 and proxies is not None:
                         logger.warning(
-                            "http_403_rotating_ua",
+                            "http_407_proxy_authentication_required",
                             url=url,
-                            rotation=rotation + 1,
-                            max_rotations=self._max_403_rotations,
-                            retry_after_seconds=round(jitter, 1),
+                            retry_without_proxy=True,
                         )
-                        time.sleep(jitter)
-                        self._ua_pool.rotate(domain)
-                    last_403_exc = exc
-                    continue
+                        proxies = None
+                        continue
+                    if status_code == 403:
+                        if rotation < self._max_403_rotations:
+                            # Jitter delay before next rotation so the burst
+                            # doesn't look like a bot to the server
+                            jitter = random.uniform(
+                                self._rotation_delay_base,
+                                self._rotation_delay_base * 2,
+                            )
+                            logger.warning(
+                                "http_403_rotating_ua",
+                                url=url,
+                                rotation=rotation + 1,
+                                max_rotations=self._max_403_rotations,
+                                retry_after_seconds=round(jitter, 1),
+                            )
+                            time.sleep(jitter)
+                            self._ua_pool.rotate(domain)
+                        last_403_exc = exc
+                        continue
                 raise
 
         logger.error("http_403_exhausted", url=url)
