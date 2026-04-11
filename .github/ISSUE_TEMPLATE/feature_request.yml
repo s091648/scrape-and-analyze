@@ -1,0 +1,31 @@
+name: Feature Request 💡
+description: Suggest an idea for this project
+title: "[feature] "
+labels: [enhancement]
+
+body:
+  - type: textarea
+    attributes:
+      label: What is requested?
+      description: What kind of new features do you want to add, or what kind of improvements do you want to make?
+      placeholder: Tell us what you request!
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Why it is requested?
+      description: Why do you want to add this feature?
+      placeholder: Tell us your motivation!
+
+  - type: textarea
+    attributes:
+      label: How to implement it?
+      description: A concise description of your preferred solution
+      placeholder: Propose your solution!
+
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem (ex. slack message).
+      placeholder: https://weathernews.slack.com/
