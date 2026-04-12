@@ -106,6 +106,18 @@ class HttpClient:
                             )
                             resp.raise_for_status()
                 return resp
+            except requests.exceptions.ProxyError as exc:
+                # ProxyError (including 407) should disable proxy for next attempt
+                if self._proxy_enabled:
+                    logger.warning(
+                        "http_proxy_error_disabling_proxy",
+                        url=url,
+                        error=str(exc),
+                    )
+                    self._proxy_enabled = False
+                    continue
+                # If proxy already disabled but still getting ProxyError, propagate
+                raise
             except requests.exceptions.HTTPError as exc:
                 if exc.response is not None:
                     status_code = exc.response.status_code
