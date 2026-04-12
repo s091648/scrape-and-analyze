@@ -26,6 +26,9 @@ def _is_retryable(exc: BaseException) -> bool:
         if exc.response is None:
             return True
         return exc.response.status_code in _RETRYABLE_STATUS
+    # ProxyError should not be retried — it needs immediate proxy disable + outer retry
+    if isinstance(exc, requests.exceptions.ProxyError):
+        return False
     return isinstance(exc, (
         requests.exceptions.ConnectionError,
         requests.exceptions.Timeout,
