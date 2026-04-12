@@ -1,7 +1,7 @@
 [[providers]]
 name = "gemini"
 priority = 1
-model = "gemini-2.5-flash"
+model = "gemini-3-flash-preview"
 api_key_env = "GEMINI_API_KEY"
 
 [providers.strategy]
@@ -13,19 +13,19 @@ rpd = 20
 [[providers]]
 name = "gemini"
 priority = 2
-model = "gemini-2.5-flash-lite"
+model = "gemini-3.1-flash-lite-preview"
 api_key_env = "GEMINI_API_KEY"
 
 [providers.strategy]
 type = "leaky_bucket"
-rpm = 10
+rpm = 15
 tpm = 250000
-rpd = 20
+rpd = 500
 
 [[providers]]
 name = "gemini"
 priority = 3
-model = "gemini-3-flash"
+model = "gemini-2.5-flash"
 api_key_env = "GEMINI_API_KEY"
 
 [providers.strategy]
@@ -36,13 +36,13 @@ rpd = 20
 
 [[providers]]
 name = "gemini"
-priority = 3
-model = "gemini-3.1-flash-lite"
+priority = 4
+model = "gemini-2.5-flash-lite"
 api_key_env = "GEMINI_API_KEY"
 
 [providers.strategy]
 type = "leaky_bucket"
-rpm = 15
+rpm = 10
 tpm = 250000
 rpd = 20
 

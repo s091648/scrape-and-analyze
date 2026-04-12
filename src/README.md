@@ -4,6 +4,8 @@ Standalone Python service that discovers articles, fetches content, and analyzes
 
 ## Architecture
 
+![Clean Architecture](../drawio/clean_architecture.drawio.png)
+
 ```
 src/
 ├── main.py                     # Entry point — dispatches scrape cycles by frequency
