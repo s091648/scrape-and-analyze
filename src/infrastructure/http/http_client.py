@@ -81,9 +81,10 @@ class HttpClient:
 
         caller_headers: dict = kwargs.pop("headers", {})
 
-        proxies = self._proxies
         last_403_exc: Optional[Exception] = None
         for rotation in range(self._max_403_rotations + 1):
+            # Dynamically decide whether to use proxy based on current state
+            proxies = self._proxies if self._proxy_enabled else None
             ua = self._ua_pool.get(domain)
             # Full browser-like header fingerprint — reduces bot-detection triggers
             headers = {
