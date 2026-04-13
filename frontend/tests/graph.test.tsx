@@ -10,6 +10,10 @@ vi.mock('../lib/api-fetch', () => ({ apiFetch: mockApiFetch }))
 vi.mock('react-force-graph-2d', () => ({
   default: ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>
 }))
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
+  SessionProvider: ({ children }: any) => children,
+}))
 
 describe('Knowledge Graph', () => {
   beforeEach(() => {

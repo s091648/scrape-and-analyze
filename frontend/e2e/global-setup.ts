@@ -1,33 +1,16 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import * as crypto from 'crypto'
-import { CompactEncrypt } from 'jose'
+import { EncryptJWT } from 'jose'
+import { hkdf } from '@panva/hkdf'
 
 // Falls back to a fixed test secret when NEXTAUTH_SECRET is not in the environment.
 // Must match the value used in playwright.config.ts webServer env.
 export const E2E_SECRET =
   process.env.NEXTAUTH_SECRET || 'e2e-nextauth-secret-local-testing-only'
 
-async function deriveEncryptionKey(secret: string): Promise<CryptoKey> {
-  const baseKey = await globalThis.crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    'HKDF',
-    false,
-    ['deriveKey'],
-  )
-  return globalThis.crypto.subtle.deriveKey(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt: new Uint8Array(),
-      info: new TextEncoder().encode('NextAuth.js Generated Encryption Key'),
-    },
-    baseKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  )
+async function deriveEncryptionKey(secret: string): Promise<Uint8Array> {
+  // Matches next-auth v4's getDerivedEncryptionKey(secret, salt="")
+  return hkdf('sha256', secret, '', 'NextAuth.js Generated Encryption Key', 32)
 }
 
 export default async function globalSetup() {
@@ -35,18 +18,21 @@ export default async function globalSetup() {
 
   const now = Math.floor(Date.now() / 1000)
   const oneYear = 365 * 24 * 60 * 60
-  const payload = JSON.stringify({
+
+  // EncryptJWT matches next-auth v4's encode() exactly:
+  //   new EncryptJWT(token).setProtectedHeader({ alg:"dir", enc:"A256GCM" })
+  //     .setIssuedAt().setExpirationTime(...).setJti(...).encrypt(key)
+  const token = await new EncryptJWT({
     name: 'Admin',
     email: 'admin@example.com',
     sub: 'admin-test-user',
     role: 'admin',
-    iat: now,
-    exp: now + oneYear,
-    jti: crypto.randomUUID(),
+    userId: 'admin-test-user',
   })
-
-  const token = await new CompactEncrypt(new TextEncoder().encode(payload))
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
+    .setIssuedAt(now)
+    .setExpirationTime(now + oneYear)
+    .setJti(crypto.randomUUID())
     .encrypt(encKey)
 
   const authState = {
