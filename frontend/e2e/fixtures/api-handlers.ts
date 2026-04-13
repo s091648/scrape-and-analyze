@@ -93,15 +93,13 @@ export async function mockApiRoutes(page: Page) {
   // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
   // Function matchers are used to reliably match URLs with query strings (glob ** may not match ?).
 
-  const proxy = (path: string) => (url: string) => {
-    const u = new URL(url)
-    return u.pathname === `/api/proxy/${path}` || u.pathname.startsWith(`/api/proxy/${path}/`)
-  }
-  const proxyPrefix = (prefix: string) => (url: string) =>
-    new URL(url).pathname.startsWith(`/api/proxy/${prefix}`)
+  const proxy = (path: string) => (url: URL) =>
+    url.pathname === `/api/proxy/${path}` || url.pathname.startsWith(`/api/proxy/${path}/`)
+  const proxyPrefix = (prefix: string) => (url: URL) =>
+    url.pathname.startsWith(`/api/proxy/${prefix}`)
 
   // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
-  await page.route(url => new URL(url).pathname.startsWith('/api/proxy/'), route =>
+  await page.route((url: URL) => url.pathname.startsWith('/api/proxy/'), route =>
     route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
   )
 
@@ -116,7 +114,7 @@ export async function mockApiRoutes(page: Page) {
     }
   })
 
-  await page.route(url => /\/api\/proxy\/scraper-settings\/[^/]+$/.test(new URL(url).pathname), async route => {
+  await page.route((url: URL) => /\/api\/proxy\/scraper-settings\/[^/]+$/.test(url.pathname), async route => {
     if (route.request().method() === 'PATCH') {
       await route.fulfill({ json: updatedSettingFixture })
     } else {
@@ -137,7 +135,7 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxy('articles/filters/tags'), route =>
     route.fulfill({ json: ['AI', 'IoT', 'Digital Twin'] })
   )
-  await page.route(url => /\/api\/proxy\/articles\/[^/]+$/.test(new URL(url).pathname), route =>
+  await page.route((url: URL) => /\/api\/proxy\/articles\/[^/]+$/.test(url.pathname), route =>
     route.fulfill({ json: articleDetailFixture })
   )
 
