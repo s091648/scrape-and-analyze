@@ -2,6 +2,7 @@ import { Page } from '@playwright/test'
 
 // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
 // Specific routes (filters, detail) are registered AFTER generic routes to override them.
+// Function matchers are used instead of glob strings to reliably intercept URLs with query params.
 
 export const articleListFixture = {
   items: [
@@ -48,6 +49,16 @@ export const graphFixture = {
   ],
 }
 
+export const topicsFixture = [
+  {
+    id: 'topic-001',
+    name: 'digital_twin',
+    display_name: 'Digital Twin',
+    color_hex: '#6366f1',
+    sort_order: 1,
+  },
+]
+
 export const scraperListFixture = [
   {
     id: 'sc-001',
@@ -80,38 +91,56 @@ export const updatedSettingFixture = {
 export async function mockApiRoutes(page: Page) {
   // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
   // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
+  // Function matchers are used to reliably match URLs with query strings (glob ** may not match ?).
+
+  const proxy = (path: string) => (url: string) => {
+    const u = new URL(url)
+    return u.pathname === `/api/proxy/${path}` || u.pathname.startsWith(`/api/proxy/${path}/`)
+  }
+  const proxyPrefix = (prefix: string) => (url: string) =>
+    new URL(url).pathname.startsWith(`/api/proxy/${prefix}`)
 
   // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
-  await page.route('/api/proxy/**', route =>
+  await page.route(url => new URL(url).pathname.startsWith('/api/proxy/'), route =>
     route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
   )
 
-  // Generic routes
-  await page.route('/api/proxy/analyses/graph**', route => route.fulfill({ json: graphFixture }))
-  await page.route('/api/proxy/scraper-settings', async route => {
+  // Generic routes (registered before specifics — lower priority in LIFO)
+  await page.route(proxyPrefix('analyses/graph'), route => route.fulfill({ json: graphFixture }))
+
+  await page.route(proxy('scraper-settings'), async route => {
     if (route.request().method() === 'POST') {
       await route.fulfill({ status: 201, json: newSettingFixture })
     } else {
       await route.fulfill({ json: scraperListFixture })
     }
   })
-  await page.route('/api/proxy/scraper-settings/*', async route => {
+
+  await page.route(url => /\/api\/proxy\/scraper-settings\/[^/]+$/.test(new URL(url).pathname), async route => {
     if (route.request().method() === 'PATCH') {
       await route.fulfill({ json: updatedSettingFixture })
     } else {
       await route.fallback()
     }
   })
-  await page.route('/api/proxy/articles**', route => route.fulfill({ json: articleListFixture }))
+
+  // arxiv sub-resources (needed by scraper-settings page)
+  await page.route(proxyPrefix('arxiv-keywords'), route => route.fulfill({ json: [] }))
+  await page.route(proxyPrefix('arxiv-categories'), route => route.fulfill({ json: [] }))
+
+  await page.route(proxyPrefix('articles'), route => route.fulfill({ json: articleListFixture }))
 
   // Specific routes registered last (higher priority in LIFO — override generic patterns above)
-  await page.route('/api/proxy/articles/filters/sources', route =>
+  await page.route(proxy('articles/filters/sources'), route =>
     route.fulfill({ json: ['rss', 'blog'] })
   )
-  await page.route('/api/proxy/articles/filters/tags', route =>
+  await page.route(proxy('articles/filters/tags'), route =>
     route.fulfill({ json: ['AI', 'IoT', 'Digital Twin'] })
   )
-  await page.route('/api/proxy/articles/*', route =>
+  await page.route(url => /\/api\/proxy\/articles\/[^/]+$/.test(new URL(url).pathname), route =>
     route.fulfill({ json: articleDetailFixture })
   )
+
+  // Topics — needed by TopicContext on every page load (must be last = highest priority)
+  await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))
 }
