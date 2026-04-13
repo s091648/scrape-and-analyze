@@ -51,8 +51,9 @@ def _compute_wait(retry_state: tenacity.RetryCallState) -> float:
                 return max(1.0, float(retry_after))
             except ValueError:
                 pass
-        # exponential: 30, 60, 120, 240
-        return min(30 * (2 ** (attempt - 1)), 240)
+        # exponential with jitter: base 30→60→120→240s, ±25%
+        base = min(30 * (2 ** (attempt - 1)), 240)
+        return base * random.uniform(0.75, 1.25)
 
     # 5xx / connection / timeout: shorter with jitter
     base = min(5 * (2 ** (attempt - 1)), 60)

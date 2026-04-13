@@ -12,6 +12,7 @@ All domain/application logic lives in src/app/ and src/ingestion/.
 import time
 import signal
 import os
+import random
 
 from src.utils.logging import get_logger, bind_correlation_id, configure_logging
 from src.config.settings import SENTRY_DSN
@@ -59,6 +60,14 @@ def main() -> None:
     from src.app.composition_root import build_run_scraper_use_case
 
     configure_logging()
+
+    # Randomise start time to avoid hitting arXiv at the top of the hour
+    # alongside other cron jobs. Skipped when RUN_IMMEDIATELY=1 (manual triggers).
+    if not os.environ.get("RUN_IMMEDIATELY"):
+        _jitter = random.uniform(0, 900)  # 0–15 minutes
+        logger.info("startup_jitter_sleep", seconds=round(_jitter))
+        time.sleep(_jitter)
+
     init_default_client(HttpClient.build_default())
     SCRAPER_RUNS.add(1)
 
