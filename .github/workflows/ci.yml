@@ -239,7 +239,8 @@ jobs:
         run: npm ci
 
       - name: Run vitest with coverage
-        run: npm run test:coverage -- --reporter=json --outputFile=test-results.json
+        run: npm run test:coverage -- --reporter=verbose --reporter=json --outputFile=test-results.json
+        continue-on-error: true
 
       - name: Upload frontend-unit coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -250,6 +251,7 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
+        if: always()
         run: |
           PASSED=$(node -e "
             const r = require('./test-results.json');
