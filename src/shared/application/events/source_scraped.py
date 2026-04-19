@@ -1,7 +1,0 @@
-from dataclasses import dataclass
-from src.shared.domain.entities.article import Article
-
-
-@dataclass(frozen=True)
-class SourceScrapedEvent:
-    article: Article

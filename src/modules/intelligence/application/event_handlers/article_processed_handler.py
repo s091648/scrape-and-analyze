@@ -1,5 +1,5 @@
 from src.shared.application import ArticleProcessedEvent
-from src.modules.intelligence.application import AnalyzeArticleUseCase
+from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
 
 
 class ArticleProcessedHandler:

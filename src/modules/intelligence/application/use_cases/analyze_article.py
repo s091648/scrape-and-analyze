@@ -1,6 +1,7 @@
 from src.shared.domain import Article
 from src.shared.logging import get_logger
-from src.modules.intelligence.domain import AnalysisRepository, LLMService
+from src.modules.intelligence.domain.repositories import AnalysisRepository
+from src.modules.intelligence.domain.services import LLMService
 
 logger = get_logger(__name__)
 

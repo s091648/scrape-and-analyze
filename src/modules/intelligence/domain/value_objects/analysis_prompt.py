@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List
-from .tag_group import TagGroup
+from src.modules.intelligence.domain.value_objects import TagGroup
 
 
 @dataclass(frozen=True)

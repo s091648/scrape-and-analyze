@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from uuid import UUID
 
-from src.modules.content.domain import ArxivMetadata
+from src.modules.collection.domain.entities import ArxivMetadata
 
 
 class ArxivMetadataRepository(ABC):

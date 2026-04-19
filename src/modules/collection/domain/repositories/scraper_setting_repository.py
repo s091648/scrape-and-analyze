@@ -1,20 +1,16 @@
-"""
-Abstract repository interface for ScraperSetting queries.
-
-Returns plain dicts (not domain entities) because scraper settings are
-configuration data, not core business objects.  A future phase can
-introduce a ScraperSettingEntity if that changes.
-"""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import List
+from uuid import UUID
+
+from src.modules.collection.domain.entities import ScraperSetting
 
 
 class ScraperSettingRepository(ABC):
 
     @abstractmethod
-    def get_sources_due(self) -> List[Dict[str, Any]]:
-        """Return active sources whose scrape interval has elapsed."""
+    def get_active_due(self) -> List[ScraperSetting]:
+        """Return all active ScraperSettings whose scrape interval has elapsed."""
 
     @abstractmethod
-    def mark_scraped(self, source_id: str) -> None:
-        """Update last_scraped_at to NOW() for the given source."""
+    def mark_scraped(self, setting_id: UUID) -> None:
+        """Update last_scraped_at to now for the given setting."""

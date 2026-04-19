@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
-from src.modules.intelligence.domain import Analysis
+from src.modules.intelligence.domain.entities import Analysis
 
 class LLMService(ABC):
     """Abstract base class for LLM services"""

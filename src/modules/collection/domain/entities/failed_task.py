@@ -8,7 +8,7 @@ from uuid import UUID
 
 
 @dataclass
-class FailedTaskEntity:
+class FailedTask:
     id: UUID = field(default_factory=UUID)
     task_type: str
     article_url: Optional[str] = None

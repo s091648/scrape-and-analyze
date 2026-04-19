@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from uuid import UUID
 
-from src.shared.domain import Article
+from src.shared.domain.entities import Article
 
 
 class ArticleRepository(ABC):

@@ -2,7 +2,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 from uuid import UUID
 from datetime import datetime
-from src.modules.intelligence.domain import AnalysisContent, AnalysisMetadata
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 
 
 @dataclass

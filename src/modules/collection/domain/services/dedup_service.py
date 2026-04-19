@@ -10,8 +10,9 @@ Business rules encoded here:
 """
 from typing import Optional
 
-from src.shared.domain import Article, ArticleRepository
-from src.modules.collection.domain import UrlHash
+from src.shared.domain.entities import Article
+from src.shared.domain.repositories import ArticleRepository
+from src.modules.collection.domain.value_objects import UrlHash
 
 
 class DedupService:

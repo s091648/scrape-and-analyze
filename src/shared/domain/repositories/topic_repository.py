@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from uuid import UUID
 
-from src.shared.domain import Topic
+from src.shared.domain.entities import Topic
 
 
 class TopicRepository(ABC):
