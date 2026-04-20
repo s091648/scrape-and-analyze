@@ -3,14 +3,26 @@ import time
 from collections import deque
 from typing import Deque, Tuple
 
-from src.infrastructure.intelligence.llm.rate_limit.request_strategy import RequestStrategy
+from .quota_strategy import QuotaStrategy
 
 
 class RateLimitExhausted(Exception):
     """Raised when a provider's daily request cap is reached."""
 
 
-class LeakyBucketStrategy(RequestStrategy):
+class SlidingWindowStrategy(QuotaStrategy):
+    """
+    Sliding-window rate limiter for LLM API quota management.
+
+    Tracks requests and token usage within a rolling 60-second window,
+    blocking until capacity is available. Also enforces a hard daily cap (rpd).
+
+    Args:
+        rpm: Max requests per minute.
+        tpm: Max tokens per minute.
+        rpd: Max requests per day (raises RateLimitExhausted when reached).
+    """
+
     _WINDOW = 60.0
 
     def __init__(self, rpm: int, tpm: int, rpd: int) -> None:

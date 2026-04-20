@@ -1,10 +1,10 @@
 from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.factories import ScraperFactory
-from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
-from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
-from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
-from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
+from .base_scraper import BaseScraper
+from .rss_scraper import RssScraper
+from .blog_scraper import BlogScraper
+from .arxiv_scraper import ArxivScraper
 
 logger = get_logger(__name__)
 

@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from src.infrastructure.shared.http.user_agent import get_api_bot_ua
-from src.infrastructure.shared.logging import get_logger
+from src.infrastructure.shared.http import get_api_bot_ua
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

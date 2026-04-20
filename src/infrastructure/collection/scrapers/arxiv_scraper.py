@@ -2,11 +2,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients.arxiv_client import ArxivClient
-from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
+from src.infrastructure.collection.clients import ArxivClient
+from .base_scraper import BaseScraper
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.value_objects import ScrapeJob
-from src.application.ingestion.parsers.pdf_parser import PdfParser
+from src.infrastructure.collection.parsers import PdfParser
 from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
 logger = get_logger(__name__)

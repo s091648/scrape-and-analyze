@@ -5,13 +5,12 @@ from uuid import UUID
 
 from bs4 import BeautifulSoup
 
+from src.infrastructure.collection.parsers import HtmlArticleParser
+from .base_scraper import BaseScraper
+from src.infrastructure.shared.http import get_default_client
 from src.shared.logging import get_logger
-from src.infrastructure.shared.http.http_client import get_default_client
-from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.value_objects import ScrapeJob
-from src.application.ingestion.parsers.html_parser import HtmlArticleParser
-from .sanitize_service import SanitizeService
 
 logger = get_logger(__name__)
 
@@ -66,7 +65,8 @@ class BlogScraper(BaseScraper):
             logger.warning("blog_article_fetch_failed", url=job.url, error=str(e))
             return None
 
-        title, content = self._extract_article(response.text)
+        title = self._extract_title(response.text)
+        content = self._html_parser.parse(response.text)
         if not content:
             return None
 
@@ -77,6 +77,11 @@ class BlogScraper(BaseScraper):
             source=job.source,
             topic_id=job.topic_id,
         )
+
+    def _extract_title(self, html: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        tag = soup.select_one(self._selectors.get("title", "h1"))
+        return tag.get_text(strip=True) if tag else ""
 
     def _extract_links(self, html: str) -> List[str]:
         soup = BeautifulSoup(html, "html.parser")
@@ -89,14 +94,6 @@ class BlogScraper(BaseScraper):
             if parsed.scheme in ("http", "https") and parsed.netloc:
                 links.append(full)
         return list(dict.fromkeys(links))
-
-    def _extract_article(self, html: str):
-        soup = BeautifulSoup(html, "html.parser")
-        title_tag = soup.select_one(self._selectors.get("title", "h1"))
-        title = title_tag.get_text(strip=True) if title_tag else ""
-        content_tag = soup.select_one(self._selectors.get("content", "article"))
-        raw = content_tag.get_text(separator="\n", strip=True) if content_tag else ""
-        return title, SanitizeService.sanitize_content(raw)
 
     def _can_fetch(self, url: str) -> bool:
         if not self._robots_loaded:

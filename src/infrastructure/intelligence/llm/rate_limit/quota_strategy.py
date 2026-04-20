@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class RequestStrategy(ABC):
+class QuotaStrategy(ABC):
     @abstractmethod
     def acquire(self, estimated_tokens: int) -> None:
         """Block until a request slot is available."""

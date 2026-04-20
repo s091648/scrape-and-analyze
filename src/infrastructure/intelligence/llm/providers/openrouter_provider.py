@@ -1,8 +1,9 @@
 import json
+
 import requests
 
 from src.shared.logging import get_logger
-from src.infrastructure.intelligence.llm.providers.base_provider import BaseProvider
+from .base_provider import BaseProvider
 
 logger = get_logger(__name__)
 
@@ -11,7 +12,7 @@ _API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 class OpenRouterProvider(BaseProvider):
 
-    def __init__(self, api_key: str, model: str = "deepseek/deepseek-chat") -> None:
+    def __init__(self, api_key: str, model: str) -> None:
         super().__init__(model=model)
         self._api_key = api_key
 
@@ -19,8 +20,14 @@ class OpenRouterProvider(BaseProvider):
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         response = requests.post(
             _API_URL,
-            headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
-            json={"model": self._model, "messages": [{"role": "user", "content": full_prompt}]},
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._model,
+                "messages": [{"role": "user", "content": full_prompt}],
+            },
             timeout=60,
         )
         response.raise_for_status()

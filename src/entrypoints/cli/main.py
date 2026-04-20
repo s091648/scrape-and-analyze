@@ -14,8 +14,9 @@ import signal
 import os
 import random
 
-from src.infrastructure.shared.logging import get_logger, bind_correlation_id, configure_logging
 from src.config.settings import SENTRY_DSN, validate_config
+from src.shared.logging import get_logger
+from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
 from src.infrastructure.shared.observability import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
 from src.infrastructure.shared.observability import init_run_context, get_run_id

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from src.modules.intelligence.domain.value_objects import TagGroup
+from .tag_group import TagGroup
 
 
 @dataclass

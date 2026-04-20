@@ -8,7 +8,7 @@ import feedparser
 from dataclasses import dataclass
 from typing import List, Optional
 
-from src.infrastructure.shared.logging import get_logger
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

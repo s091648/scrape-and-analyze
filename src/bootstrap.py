@@ -23,15 +23,16 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 def _build_llm_service():
+    """
+    Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
+    根據 article.topic_id 動態 render 後傳入。
+    """
     from src.config.providers import load_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
     )
-    from src.infrastructure.intelligence.llm.providers.claude_provider import ClaudeProvider
-    from src.infrastructure.intelligence.llm.providers.gemini_provider import GeminiProvider
-    from src.infrastructure.intelligence.llm.providers.openrouter_provider import OpenRouterProvider
-    from src.infrastructure.intelligence.llm.rate_limit.leaky_bucket_strategy import LeakyBucketStrategy
-    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+    from src.infrastructure.intelligence.llm.providers import ClaudeProvider, GeminiProvider, OpenRouterProvider
+    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
 
     handlers: List[ProviderHandler] = []
 
@@ -51,8 +52,8 @@ def _build_llm_service():
             continue
 
         s_cfg = cfg.get('strategy', {})
-        if s_cfg.get('type') == 'leaky_bucket':
-            strategy = LeakyBucketStrategy(
+        if s_cfg.get('type') == 'sliding_window':
+            strategy = SlidingWindowStrategy(
                 rpm=s_cfg['rpm'],
                 tpm=s_cfg['tpm'],
                 rpd=s_cfg['rpd'],
@@ -88,8 +89,9 @@ def build_collection_pipeline():
       若需要 per-article transaction 隔離，可改為在 handler 內部
       建立獨立 session（future work）。
     """
-    from src.infrastructure.persistence.db import get_session, init_db
+    from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
+    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -113,6 +115,7 @@ def build_collection_pipeline():
     article_repo = SqlAlchemyArticleRepository(session=session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
+    topic_repo = SqlAlchemyTopicRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -132,6 +135,7 @@ def build_collection_pipeline():
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
+        topic_repository=topic_repo,
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────

@@ -10,7 +10,6 @@ To swap backends (e.g. Jaeger, Zipkin):
 """
 import base64
 import os
-from typing import Optional
 
 
 def _setup_tracing():

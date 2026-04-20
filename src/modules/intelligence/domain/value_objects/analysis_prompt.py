@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 from typing import List
-from src.modules.intelligence.domain.value_objects import TagGroup
 
+from .base_prompt import BasePrompt
+from .tag_group import TagGroup
 
-@dataclass(frozen=True)
-class AnalysisPrompt:
-    content: str = """You are a professional technology analyst specializing in __TOPIC__.
+_TEMPLATE = """You are a professional technology analyst specializing in __TOPIC__.
 
 Analyze the following article and classify it into one or more of the predefined tag groups below.
 For each group that genuinely applies, generate 2-4 specific sub-tags describing the article's focus
@@ -36,10 +35,44 @@ Return your analysis as valid JSON with these exact fields:
 IMPORTANT: Output ONLY the JSON object, no other text or explanation.
 """
 
-    def render(self, topic: str, tag_groups: List[TagGroup]) -> 'AnalysisPrompt':
-        _content = self.content.replace("__TOPIC__", topic)
-        _content = _content.replace("__TAG_GROUPS__", self._generate_tag_groups_str(tag_groups))
-        return AnalysisPrompt(content=_content)
-    
-    def _generate_tag_groups_str(self, tag_groups: List[TagGroup]) -> str:
-        return "\n".join([f"- {tg.display_name}: {tg.description}" for tg in tag_groups])
+
+@dataclass(frozen=True)
+class AnalysisPrompt(BasePrompt):
+    """
+    Prompt value object for article analysis.
+
+    Holds the template as a class-level default; call render() with topic and
+    tag_groups from the DB to produce a filled instance ready for provider injection.
+
+    Example:
+        prompt = AnalysisPrompt().render(
+            topic="Digital Twins, IoT",
+            tag_groups=[TagGroup("Digital Twin", "virtual replicas of physical systems")],
+        )
+        provider = GeminiProvider(..., prompt=prompt.content)
+    """
+
+    _content: str = _TEMPLATE
+
+    @property
+    def content(self) -> str:
+        return self._content
+
+    def render(self, topic: str, tag_groups: List[TagGroup]) -> 'AnalysisPrompt':  # type: ignore[override]
+        """
+        Fill __TOPIC__ and __TAG_GROUPS__ placeholders and return a new instance.
+
+        Args:
+            topic:      Display name(s) of the analysis domain, e.g. "Digital Twins, IoT".
+            tag_groups: Active tag groups from the DB; each becomes one entry in the
+                        TAG GROUPS section of the prompt.
+        """
+        filled = self._content.replace("__TOPIC__", topic)
+        filled = filled.replace("__TAG_GROUPS__", self._format_tag_groups(tag_groups))
+        return AnalysisPrompt(_content=filled)
+
+    @staticmethod
+    def _format_tag_groups(tag_groups: List[TagGroup]) -> str:
+        return "\n".join(
+            f"- {tg.display_name}: {tg.description}" for tg in tag_groups
+        )

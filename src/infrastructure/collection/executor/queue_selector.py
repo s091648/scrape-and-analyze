@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from queue import Queue
 from typing import List
 
-from src.pipeline.task import ScrapeTask
+from .fetch_task import FetchTask
 
 
 class QueueSelector(ABC):
@@ -10,7 +10,7 @@ class QueueSelector(ABC):
     Strategy interface for ordering queue candidates for an idle worker.
 
     select() returns non-empty queue indices in preferred order.
-    The worker iterates the list and attempts semaphore.acquire(blocking=False)
+    The executor iterates the list and attempts semaphore.acquire(blocking=False)
     on each index — first successful acquire wins.
 
     Implementations only express ordering preference; mutual exclusion is
@@ -18,7 +18,7 @@ class QueueSelector(ABC):
     """
 
     @abstractmethod
-    def select(self, queues: List[Queue[ScrapeTask]]) -> List[int]:
+    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
         """
         Return indices of non-empty queues in preferred processing order.
         Returns [] if all queues are empty.
@@ -35,7 +35,7 @@ class RoundRobinQueueSelector(QueueSelector):
     def __init__(self) -> None:
         self._counter: int = 0
 
-    def select(self, queues: List[Queue[ScrapeTask]]) -> List[int]:
+    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
         n = len(queues)
         if n == 0:
             return []
@@ -52,7 +52,7 @@ class WeightedRoundRobinQueueSelector(QueueSelector):
     This is the default selector.
     """
 
-    def select(self, queues: List[Queue[ScrapeTask]]) -> List[int]:
+    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
         candidates = [
             (i, queues[i].qsize())
             for i in range(len(queues))

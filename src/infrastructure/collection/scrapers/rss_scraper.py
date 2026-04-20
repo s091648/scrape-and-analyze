@@ -4,11 +4,11 @@ from uuid import UUID
 
 from src.shared.logging import get_logger
 from src.infrastructure.collection.clients.rss_client import RssClient
+from src.infrastructure.collection.parsers.sanitize_service import SanitizeService
 from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
-from src.infrastructure.collection.scrapers.sanitize_service import SanitizeService
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.value_objects import ScrapeJob
-from src.application.ingestion.parsers.html_parser import HtmlArticleParser
+from src.infrastructure.collection.parsers import HtmlArticleParser
 
 logger = get_logger(__name__)
 

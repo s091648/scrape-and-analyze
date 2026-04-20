@@ -21,7 +21,7 @@ from src.infrastructure.shared.http.rate_limiter import DomainRateLimiter
 from src.infrastructure.shared.http.retry import make_retry_policy
 from src.infrastructure.shared.http.user_agent import UserAgentPool, get_browser_headers
 from src.infrastructure.shared.http.proxy import get_proxies
-from src.infrastructure.shared.logging import get_logger
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

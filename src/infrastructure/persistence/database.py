@@ -29,8 +29,6 @@ def get_engine():
 def init_db() -> None:
     """Create all tables if they don't exist (idempotent)"""
     from models.article import Base
-    from models.analysis import Analysis      # noqa: F401 — registers with Base
-    from models.failed_task import FailedTask  # noqa: F401 — registers with Base
     Base.metadata.create_all(get_engine())
 
 

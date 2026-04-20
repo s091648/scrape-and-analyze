@@ -1,23 +1,23 @@
 from typing import List
 from urllib.parse import urlparse
 
-from src.pipeline.host_queue_map import HostQueueMap
-from src.pipeline.task import ScrapeTask
-from src.utils.logging import get_logger
+from .fetch_task import FetchTask
+from .host_queue_map import HostQueueMap
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class QueueRouter:
     """
-    Routes ScrapeTask objects into per-host queues in a HostQueueMap.
+    Routes FetchTask objects into per-host queues in a HostQueueMap.
     Called once during Phase 1 (single-threaded) — not thread-safe.
     """
 
     def __init__(self, host_queue_map: HostQueueMap) -> None:
         self._map = host_queue_map
 
-    def route(self, tasks: List[ScrapeTask]) -> None:
+    def route(self, tasks: List[FetchTask]) -> None:
         """Assign each task to its host's queue."""
         for task in tasks:
             host = self._extract_host(task.url)

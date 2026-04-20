@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
 from src.shared.logging import get_logger

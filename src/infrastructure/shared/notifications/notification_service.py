@@ -1,8 +1,8 @@
 import os
-from .base import BaseNotifier
+from .base_notifier import BaseNotifier
 from .telegram import TelegramNotifier
-from src.infrastructure.observability.run_summary import RunSummary
-from src.infrastructure.shared.logging import get_logger
+from src.infrastructure.shared.observability import RunSummary
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

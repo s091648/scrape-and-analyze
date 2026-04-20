@@ -2,7 +2,7 @@ import threading
 from queue import Queue
 from typing import Dict, List
 
-from src.pipeline.task import ScrapeTask
+from .fetch_task import FetchTask
 
 
 class HostQueueMap:
@@ -10,17 +10,17 @@ class HostQueueMap:
     Mapping table: hostname (str) → queue index (int).
 
     Each host gets:
-    - A Queue[ScrapeTask] for pending work.
+    - A Queue[FetchTask] for pending work.
     - A BoundedSemaphore(1) for single-thread-per-host mutual exclusion.
 
-    Created fresh per scrape job.
+    Created fresh per pipeline run.
     get_or_create() is NOT thread-safe — call only from the single-threaded
     Phase 1 (routing) before workers start.
     """
 
     def __init__(self) -> None:
         self._map: Dict[str, int] = {}
-        self._queues: List[Queue[ScrapeTask]] = []
+        self._queues: List[Queue[FetchTask]] = []
         self._semaphores: List[threading.BoundedSemaphore] = []
 
     def get_or_create(self, host: str) -> int:
@@ -32,7 +32,7 @@ class HostQueueMap:
         return self._map[host]
 
     @property
-    def queues(self) -> List[Queue[ScrapeTask]]:
+    def queues(self) -> List[Queue[FetchTask]]:
         return self._queues
 
     @property

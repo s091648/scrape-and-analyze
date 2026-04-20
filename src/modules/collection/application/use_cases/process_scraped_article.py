@@ -3,7 +3,8 @@ from src.shared.domain.repositories import ArticleRepository
 from src.shared.application.ports import EventBus
 from src.shared.application.events import ArticleProcessedEvent
 from src.shared.logging import get_logger
-from src.modules.collection.domain import DedupService, UrlHash
+from src.modules.collection.domain.services import DedupService
+from src.modules.collection.domain.value_objects import UrlHash
 from src.modules.collection.application.events import ArticleScrapedEvent
 
 logger = get_logger(__name__)

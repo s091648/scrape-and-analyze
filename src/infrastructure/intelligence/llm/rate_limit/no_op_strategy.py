@@ -1,9 +1,9 @@
-from src.infrastructure.intelligence.llm.rate_limit.request_strategy import RequestStrategy
+from .quota_strategy import QuotaStrategy
 
 
-class NoOpStrategy(RequestStrategy):
+class NoOpStrategy(QuotaStrategy):
     def acquire(self, estimated_tokens: int) -> None:
-        pass
+        ...
 
     def record_usage(self, actual_tokens: int) -> None:
-        pass
+        ...

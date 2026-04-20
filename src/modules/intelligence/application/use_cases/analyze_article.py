@@ -1,8 +1,13 @@
+from typing import Optional
+from uuid import UUID
+
 from src.shared.domain.entities import Article
+from src.shared.domain.repositories import TopicRepository
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
 from src.modules.intelligence.domain.services import LLMService
+from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup
 
 logger = get_logger(__name__)
 
@@ -12,13 +17,16 @@ class AnalyzeArticleUseCase:
         self,
         llm_service: LLMService,
         analysis_repository: AnalysisRepository,
+        topic_repository: TopicRepository,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
+        self._topic_repository = topic_repository
 
     def execute(self, article: Article) -> bool:
         content = article.get_analysis_content()
-        result = self._llm_service.analyze(content)
+        prompt = self._build_prompt(article.topic_id)
+        result = self._llm_service.analyze(content, prompt)
 
         if result is None:
             logger.error("llm_analysis_failed", article_id=str(article.id))
@@ -45,3 +53,37 @@ class AnalyzeArticleUseCase:
             output_tokens=analysis_metadata.output_tokens,
         )
         return True
+
+    def _build_prompt(self, topic_id: Optional[UUID]) -> str:
+        """
+        Render an AnalysisPrompt for the article's topic.
+
+        Priority:
+          1. article has a topic_id → render with that single topic's context
+          2. no topic_id → render with all active topics merged (broad context)
+          3. no topics in DB → return unrendered template (best-effort)
+        """
+        if topic_id is not None:
+            topic = self._topic_repository.find_by_id(topic_id)
+            if topic is not None:
+                tag_groups = [TagGroup(
+                    display_name=topic.display_name,
+                    description=topic.description or "",
+                )]
+                return AnalysisPrompt().render(
+                    topic=topic.display_name,
+                    tag_groups=tag_groups,
+                ).content
+
+        # fallback: merge all active topics
+        topics = self._topic_repository.list_active()
+        if not topics:
+            logger.warning("no_active_topics_using_unrendered_prompt")
+            return AnalysisPrompt().content
+
+        topic_str = ", ".join(t.display_name for t in topics)
+        tag_groups = [
+            TagGroup(display_name=t.display_name, description=t.description or "")
+            for t in topics
+        ]
+        return AnalysisPrompt().render(topic=topic_str, tag_groups=tag_groups).content

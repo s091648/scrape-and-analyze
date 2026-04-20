@@ -2,9 +2,9 @@ import re
 import requests
 from datetime import datetime, timezone
 
-from src.infrastructure.notifications.base import BaseNotifier
-from src.infrastructure.observability.run_summary import RunSummary
-from src.infrastructure.shared.logging import get_logger
+from .base_notifier import BaseNotifier
+from src.infrastructure.shared.observability import RunSummary
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 

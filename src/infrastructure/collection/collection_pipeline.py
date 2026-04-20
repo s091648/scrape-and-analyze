@@ -1,6 +1,10 @@
+from typing import List, Optional
+
+from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
+from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.repositories import ScraperSettingRepository
-from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
 from src.shared.application.ports import EventBus
 
 logger = get_logger(__name__)
@@ -12,13 +16,14 @@ class CollectionPipeline:
 
     責任：
     1. 從 repository 取出到期的 ScraperSetting
-    2. 為每個 setting 建立對應的 scraper，執行 discover()
-    3. 對每筆 ScrapeJob 呼叫 scraper.fetch()，取得文章內容
-    4. 將 ArticleScrapedEvent 發佈到 EventBus，觸發後續處理流程
-    5. 標記 setting 已抓取（更新 last_scraped_at）
+    2. 為每個 setting 建立對應的 scraper，執行 discover() 取得 ScrapeJob 列表
+    3. 將每個 (job, scraper) 包裝成 FetchTask，交給 ScrapeExecutor
+    4. ScrapeExecutor 在 Phase 2 以多線程 + per-host BoundedSemaphore 並發抓取
+    5. 每筆抓取結果以 ArticleScrapedEvent 發佈到 EventBus，觸發後續處理流程
+    6. 標記 setting 已抓取（更新 last_scraped_at）
 
     注意：此類屬於 infrastructure layer，因此可直接依賴 ConcreteScraperFactory
-    與 SQLAlchemy session — 不屬於 application use case。
+    與 ScrapeExecutor — 不屬於 application use case。
     """
 
     def __init__(
@@ -26,10 +31,12 @@ class CollectionPipeline:
         setting_repo: ScraperSettingRepository,
         scraper_factory: ConcreteScraperFactory,
         event_bus: EventBus,
+        executor: Optional[ScrapeExecutor] = None,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
         self._event_bus = event_bus
+        self._executor = executor or ScrapeExecutor()
 
     def run(self) -> int:
         """
@@ -43,35 +50,47 @@ class CollectionPipeline:
             return 0
 
         logger.info("sources_due", count=len(due_settings))
-        published = 0
+
+        # ── Phase 1: discover all jobs across every due setting ───────────
+        tasks: List[FetchTask] = []
+        scraped_setting_ids = []
 
         for setting in due_settings:
-            published += self._run_for_setting(setting)
-            self._setting_repo.mark_scraped(setting.id)
+            try:
+                scraper = self._scraper_factory.create_for(setting)
+                jobs = scraper.discover()
+            except Exception as e:
+                logger.error("discover_failed", source=setting.source, error=str(e))
+                continue
 
-        logger.info("collection_pipeline_completed", published=published)
-        return published
+            logger.info("jobs_discovered", source=setting.source, count=len(jobs))
 
-    def _run_for_setting(self, setting) -> int:
-        try:
-            scraper = self._scraper_factory.create_for(setting)
-            jobs = scraper.discover()
-        except Exception as e:
-            logger.error("discover_failed", source=setting.source, error=str(e))
-            return 0
+            for job in jobs:
+                tasks.append(FetchTask(
+                    url=job.url,
+                    source=setting.source,
+                    job=job,
+                    scraper=scraper,
+                ))
 
-        logger.info("jobs_discovered", source=setting.source, count=len(jobs))
+            scraped_setting_ids.append(setting.id)
+
+        # ── Phase 2: concurrent fetch via ScrapeExecutor ──────────────────
         published = 0
 
-        for job in jobs:
-            try:
-                event = scraper.fetch(job)
-                if event is None:
-                    logger.warning("fetch_returned_none", url=job.url)
-                    continue
-                self._event_bus.publish(event)
-                published += 1
-            except Exception as e:
-                logger.error("fetch_failed", url=job.url, error=str(e))
+        def on_result(event: ArticleScrapedEvent) -> None:
+            nonlocal published
+            self._event_bus.publish(event)
+            published += 1
 
+        self._executor.run(tasks, on_result=on_result)
+
+        # ── Mark settings as scraped after all tasks complete ─────────────
+        for setting_id in scraped_setting_ids:
+            try:
+                self._setting_repo.mark_scraped(setting_id)
+            except Exception as e:
+                logger.error("mark_scraped_failed", setting_id=str(setting_id), error=str(e))
+
+        logger.info("collection_pipeline_completed", published=published)
         return published
