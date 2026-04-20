@@ -1,0 +1,38 @@
+import json
+from typing import Optional
+
+from google import genai
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from src.shared.logging import get_logger
+from src.infrastructure.intelligence.llm.providers.base_provider import BaseProvider
+
+logger = get_logger(__name__)
+
+
+class GeminiProvider(BaseProvider):
+
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash") -> None:
+        super().__init__(model=model)
+        self._client = genai.Client(api_key=api_key)
+
+    @retry(stop=stop_after_attempt(3),
+           wait=wait_exponential(multiplier=1, min=4, max=60),
+           retry=retry_if_exception_type(Exception))
+    def _call_api(self, content: str, prompt: str) -> dict:
+        full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=full_prompt,
+        )
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]
+            if text.endswith("```"):
+                text = text[:-3].strip()
+        result = json.loads(text)
+        usage = getattr(response, "usage_metadata", None)
+        result["_input_tokens"] = getattr(usage, "prompt_token_count", 0) if usage else 0
+        result["_output_tokens"] = getattr(usage, "candidates_token_count", 0) if usage else 0
+        logger.info("gemini_api_called", model=self._model)
+        return result

@@ -14,14 +14,13 @@ import signal
 import os
 import random
 
-from src.utils.logging import get_logger, bind_correlation_id, configure_logging
-from src.config.settings import SENTRY_DSN
-from src.infrastructure.http.http_client import HttpClient, init_default_client
-from src.database import init_db
-from src.infrastructure.observability.otel_metrics import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
-from src.infrastructure.observability.run_context import init_run_context, get_run_id
-from src.infrastructure.observability.run_summary import RunSummary
-from src.notifications.service import notify_all
+from src.infrastructure.shared.logging import get_logger, bind_correlation_id, configure_logging
+from src.config.settings import SENTRY_DSN, validate_config
+from src.infrastructure.shared.http import HttpClient, init_default_client
+from src.infrastructure.shared.observability import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
+from src.infrastructure.shared.observability import init_run_context, get_run_id
+from src.infrastructure.shared.observability import RunSummary
+from src.infrastructure.shared.notifications import notify_all
 
 if SENTRY_DSN:
     import sentry_sdk
@@ -48,17 +47,13 @@ def check_timeout(start_time: float) -> bool:
     return False
 
 
-def load_prompt() -> str:
-    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", "analysis.txt")
-    with open(prompt_path, "r") as f:
-        return f.read()
-
 
 def main() -> None:
     from opentelemetry import trace as otel_trace
-    from src.infrastructure.observability.otel_tracing import get_tracer, shutdown_tracing
-    from src.app.composition_root import build_run_scraper_use_case
+    from src.infrastructure.shared.observability import get_tracer, shutdown_tracing
+    from src.bootstrap import build_collection_pipeline
 
+    validate_config()
     configure_logging()
 
     # Randomise start time to avoid hitting arXiv at the top of the hour
@@ -79,7 +74,6 @@ def main() -> None:
 
     logger.info("execution_started", run_id=run_id, correlation_id=correlation_id)
 
-    init_db()
     start_time = time.time()
     summary = RunSummary()
 
@@ -89,9 +83,8 @@ def main() -> None:
         span.set_attribute("run.correlation_id", correlation_id)
 
         try:
-            prompt = load_prompt()
-            run_uc = build_run_scraper_use_case(prompt=prompt, summary=summary)
-            run_uc.execute(correlation_id=correlation_id, summary=summary)
+            pipeline = build_collection_pipeline()
+            pipeline.run()
 
         except Exception as e:
             span.record_exception(e)

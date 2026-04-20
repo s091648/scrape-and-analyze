@@ -1,4 +1,5 @@
-from src.shared.domain import Article, ArticleRepository
+from src.shared.domain.entities import Article
+from src.shared.domain.repositories import ArticleRepository
 from src.shared.application.ports import EventBus
 from src.shared.application.events import ArticleProcessedEvent
 from src.shared.logging import get_logger

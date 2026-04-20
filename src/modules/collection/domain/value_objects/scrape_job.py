@@ -1,5 +1,5 @@
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 
@@ -11,3 +11,4 @@ class ScrapeJob:
     source_type: str
     topic_id: Optional[UUID] = None
     prompt_override: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)

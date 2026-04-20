@@ -1,4 +1,4 @@
-from src.shared.application import ArticleProcessedEvent
+from src.shared.application.events import ArticleProcessedEvent
 from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
 
 
