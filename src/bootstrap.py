@@ -92,6 +92,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -102,7 +103,8 @@ def build_collection_pipeline():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
-    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
+    from src.modules.intelligence.application.events import AnalysisFailedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
     from src.modules.collection.application.events import ArticleScrapedEvent
@@ -116,6 +118,7 @@ def build_collection_pipeline():
     analysis_repo = SqlAlchemyAnalysisRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
+    failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -136,6 +139,7 @@ def build_collection_pipeline():
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        event_bus=event_bus,
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
@@ -146,6 +150,10 @@ def build_collection_pipeline():
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
+
+    # intelligence 失敗事件：AnalysisFailedEvent → AnalysisFailedHandler
+    analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
+    event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     scraper_factory = ConcreteScraperFactory()

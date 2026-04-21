@@ -3,11 +3,13 @@ from uuid import UUID
 
 from src.shared.domain.entities import Article
 from src.shared.domain.repositories import TopicRepository
+from src.shared.application.ports import EventBus
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
 from src.modules.intelligence.domain.services import LLMService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup
+from src.modules.intelligence.application.events import AnalysisFailedEvent
 
 logger = get_logger(__name__)
 
@@ -18,10 +20,12 @@ class AnalyzeArticleUseCase:
         llm_service: LLMService,
         analysis_repository: AnalysisRepository,
         topic_repository: TopicRepository,
+        event_bus: Optional[EventBus] = None,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
         self._topic_repository = topic_repository
+        self._event_bus = event_bus
 
     def execute(self, article: Article) -> bool:
         content = article.get_analysis_content()
@@ -30,6 +34,8 @@ class AnalyzeArticleUseCase:
 
         if result is None:
             logger.error("llm_analysis_failed", article_id=str(article.id))
+            self._publish_failure(article, exception_type="LLMAnalysisError",
+                                  exception_message="All LLM providers returned None")
             return False
 
         analysis_content, analysis_metadata = result
@@ -43,6 +49,8 @@ class AnalyzeArticleUseCase:
             self._analysis_repository.save(analysis)
         except Exception as e:
             logger.error("analysis_save_failed", article_id=str(article.id), error=str(e))
+            self._publish_failure(article, exception_type=type(e).__name__,
+                                  exception_message=str(e))
             return False
 
         logger.info(
@@ -53,6 +61,21 @@ class AnalyzeArticleUseCase:
             output_tokens=analysis_metadata.output_tokens,
         )
         return True
+
+    def _publish_failure(
+        self,
+        article: Article,
+        exception_type: Optional[str],
+        exception_message: Optional[str],
+    ) -> None:
+        if self._event_bus is None:
+            return
+        self._event_bus.publish(AnalysisFailedEvent(
+            article_id=article.id,
+            article_url=article.url,
+            exception_type=exception_type,
+            exception_message=exception_message,
+        ))
 
     def _build_prompt(self, topic_id: Optional[UUID]) -> str:
         """
