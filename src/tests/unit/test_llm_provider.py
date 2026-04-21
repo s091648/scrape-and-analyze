@@ -1,49 +1,51 @@
 import pytest
 
 
-def test_llm_provider_is_abstract():
-    """LLMProvider should be abstract"""
-    from src.analysis.providers.base_llm_provider import LLMProvider
-
+def test_base_provider_is_abstract():
+    from src.infrastructure.intelligence.llm.providers.base_provider import BaseProvider
     with pytest.raises(TypeError):
-        LLMProvider()
+        BaseProvider(model="test")
 
 
-def test_llm_provider_requires_analyze_method():
-    """Subclass must implement analyze() method"""
-    from src.analysis.providers.base_llm_provider import LLMProvider
+def test_base_provider_requires_call_api_method():
+    from src.infrastructure.intelligence.llm.providers.base_provider import BaseProvider
 
-    class IncompleteProvider(LLMProvider):
+    class Incomplete(BaseProvider):
         pass
 
     with pytest.raises(TypeError):
-        IncompleteProvider()
+        Incomplete(model="test")
 
 
-def test_analysis_result_has_all_fields():
-    """AnalysisResult should have all required fields"""
-    from src.analysis.providers.base_llm_provider import AnalysisResult
-
-    result = AnalysisResult(
-        tag_groups=[{"group": "digital_twin", "tags": ["virtual replica"]}],
+def test_analysis_content_has_all_fields():
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, TagGroup
+    content = AnalysisContent(
+        tag_groups=[],
         pain_points="Some pain points",
         insights="Key insights",
         innovations="New innovations",
         summary="A brief summary.",
-        input_tokens=100,
-        output_tokens=50
     )
-
-    assert result.tag_groups == [{"group": "digital_twin", "tags": ["virtual replica"]}]
-    assert result.pain_points == "Some pain points"
-    assert result.insights == "Key insights"
-    assert result.innovations == "New innovations"
-    assert result.input_tokens == 100
-    assert result.output_tokens == 50
+    assert content.pain_points == "Some pain points"
+    assert content.insights == "Key insights"
+    assert content.innovations == "New innovations"
+    assert content.tag_groups == []
 
 
-def test_analysis_result_has_no_flat_tags_field():
+def test_analysis_metadata_has_all_fields():
+    from src.modules.intelligence.domain.value_objects import AnalysisMetadata
+    metadata = AnalysisMetadata(
+        model_used="claude-sonnet-4-6",
+        input_tokens=100,
+        output_tokens=50,
+    )
+    assert metadata.model_used == "claude-sonnet-4-6"
+    assert metadata.input_tokens == 100
+    assert metadata.output_tokens == 50
+
+
+def test_analysis_content_has_no_flat_tags_field():
     import dataclasses
-    from src.analysis.providers.base_llm_provider import AnalysisResult
-    field_names = {f.name for f in dataclasses.fields(AnalysisResult)}
+    from src.modules.intelligence.domain.value_objects import AnalysisContent
+    field_names = {f.name for f in dataclasses.fields(AnalysisContent)}
     assert 'tags' not in field_names

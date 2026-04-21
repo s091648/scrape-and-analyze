@@ -1,14 +1,14 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
-from src.ingestion.models.scraped_article import ScrapedArticle
-from src.domain.entities.article import ArticleEntity
+from src.modules.collection.application.events import ArticleScrapedEvent
+from src.shared.domain.entities import Article
 
 
-def _make_arxiv_scraped(topic_id="22222222-2222-2222-2222-222222222222"):
-    return ScrapedArticle(
+def _make_arxiv_event(topic_id=None):
+    return ArticleScrapedEvent(
         url=f"https://arxiv.org/abs/{uuid4()}v1",
-        title="Paper", content="Abstract.", published_at=None,
-        source="arxiv", topic_id=topic_id,
+        title="Paper", content="Abstract.", source="arxiv",
+        topic_id=topic_id or uuid4(),
         metadata={
             "authors": ["Alice"], "arxiv_id": "2601.00001",
             "abstract": "Abstract.", "pdf_available": True,
@@ -17,72 +17,57 @@ def _make_arxiv_scraped(topic_id="22222222-2222-2222-2222-222222222222"):
     )
 
 
-def _make_saved(scraped):
-    return ArticleEntity(
-        id=uuid4(), url=scraped.url, url_hash="abc",
-        source=scraped.source, title=scraped.title,
-        content=scraped.content, correlation_id=uuid4(),
-        metadata=scraped.metadata or {},
-        topic_id=None,
+def test_process_uc_builds_article_with_topic_id():
+    from src.modules.collection.application.use_cases.process_scraped_article import (
+        ProcessScrapedArticleUseCase,
     )
+    from src.modules.collection.domain.services import DedupService
 
+    topic_id = uuid4()
+    event = _make_arxiv_event(topic_id=topic_id)
 
-def _make_uc(article_repo, arxiv_meta_repo=None):
-    from src.app.use_cases.process_article import ProcessArticleUseCase
-    dedup = MagicMock()
-    dedup.find_existing.return_value = None
-    analyze = MagicMock()
-    analyze.execute.return_value = True
-    return ProcessArticleUseCase(
+    article_repo = MagicMock()
+    article_repo.find_by_url_hash.return_value = None
+    saved = Article(
+        url=event.url, url_hash="a" * 64,
+        source=event.source, title=event.title,
+        content=event.content, topic_id=topic_id,
+    )
+    article_repo.save.return_value = saved
+
+    dedup = DedupService(article_repo=article_repo)
+    event_bus = MagicMock()
+
+    uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        analyze_article_uc=analyze,
-        arxiv_metadata_repo=arxiv_meta_repo,
+        event_bus=event_bus,
     )
+    uc.execute(event)
+
+    saved_article = article_repo.save.call_args[0][0]
+    assert saved_article.topic_id == topic_id
+    assert saved_article.source == "arxiv"
 
 
-def test_process_article_writes_topic_id_to_entity():
-    scraped = _make_arxiv_scraped(topic_id="11111111-1111-1111-1111-111111111111")
-    saved_entity = _make_saved(scraped)
-
-    article_repo = MagicMock()
-    article_repo.save.return_value = saved_entity
-
-    uc = _make_uc(article_repo)
-    uc.execute(scraped, "prompt", str(uuid4()))
-
-    saved_arg: ArticleEntity = article_repo.save.call_args[0][0]
-    assert str(saved_arg.topic_id) == "11111111-1111-1111-1111-111111111111"
-
-
-def test_process_article_saves_arxiv_metadata():
-    from src.domain.entities.arxiv_metadata import ArxivMetadataEntity
-    scraped = _make_arxiv_scraped()
-    saved_entity = _make_saved(scraped)
-    article_repo = MagicMock()
-    article_repo.save.return_value = saved_entity
-    arxiv_meta_repo = MagicMock()
-
-    uc = _make_uc(article_repo, arxiv_meta_repo=arxiv_meta_repo)
-    uc.execute(scraped, "prompt", str(uuid4()))
-
-    arxiv_meta_repo.save.assert_called_once()
-    meta: ArxivMetadataEntity = arxiv_meta_repo.save.call_args[0][0]
-    assert meta.authors == ["Alice"]
-    assert meta.sections == {"introduction": "Intro.", "conclusion": "Concl."}
-
-
-def test_process_article_skips_arxiv_metadata_for_non_arxiv():
-    scraped = ScrapedArticle(
-        url=f"https://blog.example.com/{uuid4()}", title="Post",
-        content="Body.", published_at=None, source="blog",
+def test_process_uc_builds_article_with_metadata():
+    from src.modules.collection.application.use_cases.process_scraped_article import (
+        ProcessScrapedArticleUseCase,
     )
+    from src.modules.collection.domain.services import DedupService
+
+    event = _make_arxiv_event()
     article_repo = MagicMock()
-    article_repo.save.return_value = ArticleEntity(
-        id=uuid4(), url=scraped.url, url_hash="x",
-        source="blog", title="Post", content="Body.", correlation_id=uuid4(),
+    article_repo.find_by_url_hash.return_value = None
+    article_repo.save.return_value = MagicMock()
+
+    uc = ProcessScrapedArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=DedupService(article_repo=article_repo),
+        event_bus=MagicMock(),
     )
-    arxiv_meta_repo = MagicMock()
-    uc = _make_uc(article_repo, arxiv_meta_repo=arxiv_meta_repo)
-    uc.execute(scraped, "prompt", str(uuid4()))
-    arxiv_meta_repo.save.assert_not_called()
+    uc.execute(event)
+
+    saved = article_repo.save.call_args[0][0]
+    assert saved.metadata["authors"] == ["Alice"]
+    assert saved.metadata["pdf_available"] is True
