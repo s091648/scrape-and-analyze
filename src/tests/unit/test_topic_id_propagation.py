@@ -1,25 +1,35 @@
-def test_scraped_article_accepts_topic_id():
-    from src.ingestion.models.scraped_article import ScrapedArticle
-    a = ScrapedArticle(
-        url="https://example.com", title="T", content="C",
-        published_at=None, source="rss", topic_id="abc-123",
-    )
-    assert a.topic_id == "abc-123"
+def test_scrape_job_accepts_topic_id():
+    from uuid import uuid4
+    from src.modules.collection.domain.value_objects import ScrapeJob
+    tid = uuid4()
+    job = ScrapeJob(url="https://example.com", source="rss",
+                    source_type="rss", topic_id=tid)
+    assert job.topic_id == tid
 
 
-def test_scraped_article_topic_id_defaults_to_none():
-    from src.ingestion.models.scraped_article import ScrapedArticle
-    a = ScrapedArticle(url="https://x.com", title="T", content="C",
-                       published_at=None, source="rss")
-    assert a.topic_id is None
+def test_scrape_job_topic_id_defaults_to_none():
+    from src.modules.collection.domain.value_objects import ScrapeJob
+    job = ScrapeJob(url="https://x.com", source="rss", source_type="rss")
+    assert job.topic_id is None
 
 
 def test_article_entity_accepts_topic_id():
     from uuid import uuid4
-    from src.domain.entities.article import ArticleEntity
+    from src.shared.domain.entities import Article
     tid = uuid4()
-    a = ArticleEntity(
-        url="https://x.com", url_hash="abc", source="rss",
-        title="T", content="C", correlation_id=uuid4(), topic_id=tid,
+    a = Article(
+        url="https://x.com", url_hash="a" * 64,
+        source="rss", title="T", content="C", topic_id=tid,
     )
     assert a.topic_id == tid
+
+
+def test_article_scraped_event_accepts_topic_id():
+    from uuid import uuid4
+    from src.modules.collection.application.events import ArticleScrapedEvent
+    tid = uuid4()
+    ev = ArticleScrapedEvent(
+        url="https://x.com", title="T", content="C",
+        source="rss", topic_id=tid,
+    )
+    assert ev.topic_id == tid

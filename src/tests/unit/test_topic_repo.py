@@ -17,22 +17,22 @@ def _make_topic_row(name="digital-twins"):
 
 
 def test_list_active_returns_entities():
-    from src.infrastructure.persistence.sqlalchemy_repos.topic_repo_impl import (
+    from src.infrastructure.persistence.shared.topic_repo_impl import (
         SqlAlchemyTopicRepository,
     )
-    from src.domain.entities.topic import TopicEntity
+    from src.shared.domain.entities import Topic
     row = _make_topic_row()
     session = MagicMock()
     session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [row]
     repo = SqlAlchemyTopicRepository(session=session)
     results = repo.list_active()
     assert len(results) == 1
-    assert isinstance(results[0], TopicEntity)
+    assert isinstance(results[0], Topic)
     assert results[0].name == "digital-twins"
 
 
 def test_find_by_id_returns_none_when_not_found():
-    from src.infrastructure.persistence.sqlalchemy_repos.topic_repo_impl import (
+    from src.infrastructure.persistence.shared.topic_repo_impl import (
         SqlAlchemyTopicRepository,
     )
     session = MagicMock()
