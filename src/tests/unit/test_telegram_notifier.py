@@ -1,6 +1,6 @@
 from unittest.mock import patch, MagicMock
-from src.infrastructure.observability.run_summary import RunSummary
-from src.notifications.telegram import TelegramNotifier
+from src.infrastructure.shared.observability.run_summary import RunSummary
+from src.infrastructure.shared.notifications.telegram import TelegramNotifier
 
 
 def _make_summary():
