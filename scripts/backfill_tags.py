@@ -10,72 +10,21 @@ Provider selection and rate limiting are controlled by providers.toml (same as m
 import argparse
 import os
 import sys
-import uuid as uuid_module
 
 from sqlalchemy import text
 
 # Ensure project root is on sys.path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config.providers import load_providers
-from src.database import get_session
-from src.utils.logging import get_logger
+from src.bootstrap import build_llm_service
+from src.infrastructure.persistence.database import get_session
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def build_analyzer():
-    """Build a ProviderChain from providers.toml (mirrors src/main.py logic)."""
-    from src.analysis.provider_chain import ProviderChain, ProviderHandler
-    from src.analysis.providers.gemini import GeminiProvider
-    from src.analysis.providers.openrouter import OpenRouterProvider
-    from src.analysis.strategies.leaky_bucket_strategy import LeakyBucketStrategy
-    from src.analysis.strategies.no_op_strategy import NoOpStrategy
-
-    handlers = []
-    for cfg in load_providers():
-        name = cfg['name']
-        model = cfg['model']
-        api_key = os.environ.get(cfg['api_key_env'], '')
-
-        if name == 'gemini':
-            provider = GeminiProvider(api_key=api_key, model=model)
-        elif name == 'openrouter':
-            provider = OpenRouterProvider(api_key=api_key, model=model)
-        else:
-            logger.warning("unknown_provider_skipped", name=name)
-            continue
-
-        s_cfg = cfg.get('strategy', {})
-        if s_cfg.get('type') == 'leaky_bucket':
-            strategy = LeakyBucketStrategy(
-                rpm=s_cfg['rpm'],
-                tpm=s_cfg['tpm'],
-                rpd=s_cfg['rpd'],
-            )
-        else:
-            strategy = NoOpStrategy()
-
-        handlers.append(ProviderHandler(
-            provider=provider,
-            strategy=strategy,
-            priority=cfg['priority'],
-            name=name,
-        ))
-
-    if not handlers:
-        raise ValueError("No valid providers configured in providers.toml")
-
-    return ProviderChain(handlers=handlers)
-
-
-_PROMPT_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "src", "prompts", "analysis.txt",
-)
-
 _SQL_NEEDS_BACKFILL = """
-    SELECT ar.id, ar.title, ar.content, an.id AS analysis_id
+    SELECT ar.id, ar.title, ar.content, ar.metadata_, ar.source, an.id AS analysis_id
     FROM articles ar
     JOIN analyses an ON an.article_id = ar.id
     LEFT JOIN article_tags at ON at.article_id = ar.id
@@ -86,18 +35,23 @@ _SQL_NEEDS_BACKFILL = """
 
 def find_articles_needing_backfill(session, limit=None):
     """Return rows for articles with an analyses row but no article_tags entries."""
+    sql = _SQL_NEEDS_BACKFILL
     if limit is not None:
-        return session.execute(
-            text(_SQL_NEEDS_BACKFILL + " LIMIT :limit"), {"limit": limit}
-        ).fetchall()
-    return session.execute(text(_SQL_NEEDS_BACKFILL)).fetchall()
+        return session.execute(text(sql + " LIMIT :limit"), {"limit": limit}).fetchall()
+    return session.execute(text(sql)).fetchall()
 
 
 def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
-    """Insert tag rows and article_tags entries for a single article."""
-    for group in tag_groups:
-        group_name = group.get("group")
-        for tag_name in group.get("tags", []):
+    """Insert tag rows and article_tags entries for a single article.
+
+    tag_groups is a list of TagGroup(display_name, description) NamedTuples.
+    Tags are stored as comma-separated values in description.
+    """
+    import uuid as uuid_module
+    for tg in tag_groups:
+        group_name = tg.display_name
+        for tag_name in tg.description.split(", "):
+            tag_name = tag_name.strip()
             if not tag_name or not group_name:
                 continue
             if dry_run:
@@ -128,12 +82,12 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
             )
 
 
-def update_analysis(session, analysis_id, result, model_used, dry_run=False):
+def update_analysis(session, analysis_id, content, metadata, dry_run=False):
     """Overwrite pain_points/insights/innovations/token counts on the analyses row."""
     if dry_run:
         print(
             f"  [DRY RUN] Would update analysis {analysis_id}:"
-            f" pain_points={result.pain_points[:50]!r}..."
+            f" pain_points={content.pain_points[:50]!r}..."
         )
         return
     session.execute(
@@ -150,23 +104,25 @@ def update_analysis(session, analysis_id, result, model_used, dry_run=False):
         """),
         {
             "id":            str(analysis_id),
-            "pain_points":   result.pain_points,
-            "insights":      result.insights,
-            "innovations":   result.innovations,
-            "summary":       result.summary,
-            "model_used":    model_used,
-            "input_tokens":  result.input_tokens,
-            "output_tokens": result.output_tokens,
+            "pain_points":   content.pain_points,
+            "insights":      content.insights,
+            "innovations":   content.innovations,
+            "summary":       content.summary,
+            "model_used":    metadata.model_used,
+            "input_tokens":  metadata.input_tokens,
+            "output_tokens": metadata.output_tokens,
         },
     )
 
 
-def run_backfill(session, provider, prompt, dry_run=False, limit=None):
+def run_backfill(session, llm_service, prompt, dry_run=False, limit=None):
     """
     Main backfill loop.
 
     Returns dict: {"processed": int, "skipped": int}
     """
+    from src.shared.domain.entities import Article
+
     rows = find_articles_needing_backfill(session, limit=limit)
     processed = 0
     skipped = 0
@@ -176,14 +132,16 @@ def run_backfill(session, provider, prompt, dry_run=False, limit=None):
         analysis_id = row.analysis_id
         logger.info("backfill_start", title=row.title, article_id=str(article_id))
 
-        result = provider.analyze(row.content, prompt)
+        result = llm_service.analyze(row.content, prompt)
         if result is None:
             logger.error("backfill_llm_failed", title=row.title, article_id=str(article_id))
             skipped += 1
             continue
 
-        upsert_tags_for_article(session, article_id, result.tag_groups, dry_run=dry_run)
-        update_analysis(session, analysis_id, result, model_used=result.model_used, dry_run=dry_run)
+        content, metadata = result
+
+        upsert_tags_for_article(session, article_id, content.tag_groups, dry_run=dry_run)
+        update_analysis(session, analysis_id, content, metadata, dry_run=dry_run)
 
         if not dry_run:
             session.commit()
@@ -212,15 +170,15 @@ def main():
         print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
         sys.exit(1)
 
-    with open(_PROMPT_PATH) as f:
-        prompt = f.read()
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
+    prompt = AnalysisPrompt().content
 
-    provider = build_analyzer()
-    session  = get_session()
+    llm_service = build_llm_service()
+    session = get_session()
 
     try:
         stats = run_backfill(
-            session, provider, prompt,
+            session, llm_service, prompt,
             dry_run=args.dry_run,
             limit=args.limit,
         )

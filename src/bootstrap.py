@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 # LLM 層：從 providers.toml 建立 ResilientLLMService
 # ---------------------------------------------------------------------------
 
-def _build_llm_service():
+def build_llm_service():
     """
     Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
     根據 article.topic_id 動態 render 後傳入。
@@ -124,7 +124,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = _build_llm_service()
+    llm_service = build_llm_service()
 
     # ── Domain Services ────────────────────────────────────────────────────
     dedup_service = DedupService(article_repo=article_repo)

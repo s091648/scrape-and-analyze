@@ -18,17 +18,13 @@ Provider selection and rate limiting are controlled by providers.toml.
 import argparse
 import os
 import sys
-import uuid
 
 # Ensure project root is on sys.path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import get_sources
-from src.database import get_session, init_db
-from src.ingestion.scrapers.rss_scraper import RssScraper
-from src.ingestion.scrapers.arxiv_scraper import ArxivScraper
-from src.ingestion.scrapers.blog_scraper import BlogScraper
-from src.utils.logging import get_logger, bind_correlation_id
+from src.infrastructure.persistence.database import get_session, init_db
+from src.infrastructure.shared.logging import bind_correlation_id
+from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -39,7 +35,7 @@ def parse_args():
         "--source",
         choices=["rss", "blog", "arxiv"],
         required=True,
-        help="Source type: rss (feeds from DB), blog (blogs from DB), arxiv",
+        help="Source type to scrape",
     )
     parser.add_argument(
         "--no-analyze",
@@ -55,45 +51,88 @@ def parse_args():
     return parser.parse_args()
 
 
-def _discover_tasks(source: str) -> list:
-    """Return ScrapeTask list for the given source type."""
-    tasks = []
+def _get_active_settings_by_type(session, source_type: str):
+    """Return all active ScraperSettings of the given source_type (bypasses frequency check)."""
+    from models.scraper_setting import ScraperSetting as ScraperSettingModel
+    from models.topic import Topic as TopicModel
+    from src.modules.collection.domain.entities import ScraperSetting
 
-    if source in ("rss", "blog"):
-        session = get_session()
-        try:
-            sources = get_sources(source, session)
-        finally:
-            session.close()
+    rows = (
+        session.query(ScraperSettingModel)
+        .filter_by(is_active=True, source_type=source_type)
+        .all()
+    )
 
-        for src in sources:
-            if source == "rss":
-                scraper = RssScraper(url=src["url"], source=src["source"])
-            else:
-                scraper = BlogScraper(
-                    base_url=src["base_url"],
-                    source=src["source"],
-                    selectors=src["selectors"],
-                )
-            batch = scraper.discover()
-            tasks.extend(batch)
-            logger.info("source_discovered", source=src["source"], task_count=len(batch))
+    settings = []
+    for row in rows:
+        prompt_override = None
+        if row.topic_id:
+            topic = session.query(TopicModel).filter_by(id=row.topic_id).first()
+            if topic:
+                prompt_override = topic.prompt_override
 
-    elif source == "arxiv":
-        session = get_session()
-        try:
-            arxiv_sources = get_sources("arxiv", session)
-        finally:
-            session.close()
-        cfg = arxiv_sources[0].get("selector_config", {}) if arxiv_sources else {}
-        scraper = ArxivScraper(
-            max_results=cfg.get("max_results", 30),
-            days_back=cfg.get("days_back", 1),
+        settings.append(ScraperSetting(
+            id=row.id,
+            source=row.name,
+            source_type=row.source_type,
+            url=row.url,
+            interval_hours=row.frequency,
+            topic_id=row.topic_id,
+            prompt_override=prompt_override,
+            selector_config=row.selector_config or {},
+            last_scraped_at=row.last_scraped_at,
+            is_active=row.is_active,
+        ))
+
+    return settings
+
+
+def _build_pipeline(no_analyze: bool):
+    """Wire up the event-driven use case pipeline, returning (event_bus, process_uc)."""
+    from src.infrastructure.persistence.database import get_session
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
+    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
+    from src.modules.intelligence.application.events import AnalysisFailedEvent
+    from src.shared.application.events import ArticleProcessedEvent
+    from src.modules.collection.application.events import ArticleScrapedEvent
+
+    session = get_session()
+    article_repo = SqlAlchemyArticleRepository(session=session)
+    topic_repo = SqlAlchemyTopicRepository(session=session)
+    analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+    failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
+
+    event_bus = InMemoryEventBus()
+    dedup = DedupService(article_repo=article_repo)
+
+    process_uc = ProcessScrapedArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=dedup,
+        event_bus=event_bus,
+    )
+    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc).handle)
+
+    if not no_analyze:
+        from src.bootstrap import build_llm_service
+        llm_service = build_llm_service()
+        analyze_uc = AnalyzeArticleUseCase(
+            llm_service=llm_service,
+            analysis_repository=analysis_repo,
+            topic_repository=topic_repo,
+            event_bus=event_bus,
         )
-        tasks = scraper.discover()
-        logger.info("source_discovered", source="arxiv", task_count=len(tasks))
+        event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
+        event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
-    return tasks
+    return event_bus, process_uc
 
 
 def main():
@@ -103,72 +142,62 @@ def main():
         print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
         sys.exit(1)
 
+    import uuid
+    bind_correlation_id(str(uuid.uuid4()))
     init_db()
 
-    correlation_id = str(uuid.uuid4())
-    bind_correlation_id(correlation_id)
+    from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
+    from src.infrastructure.collection.executor.fetch_task import FetchTask
+    from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
 
-    tasks = _discover_tasks(args.source)
+    session = get_session()
+    try:
+        settings = _get_active_settings_by_type(session, args.source)
+    finally:
+        session.close()
+
+    if not settings:
+        print(f"No active {args.source!r} sources found in database.")
+        return
+
+    factory = ConcreteScraperFactory()
+    tasks = []
+
+    for setting in settings:
+        try:
+            scraper = factory.create_for(setting)
+            jobs = scraper.discover()
+        except Exception as e:
+            logger.error("discover_failed", source=setting.source, error=str(e))
+            continue
+
+        logger.info("jobs_discovered", source=setting.source, count=len(jobs))
+        for job in jobs:
+            tasks.append(FetchTask(url=job.url, source=setting.source, job=job, scraper=scraper))
 
     if args.limit:
-        tasks = tasks[: args.limit]
+        tasks = tasks[:args.limit]
 
     logger.info("scrape_tasks_total", source=args.source, total=len(tasks))
 
-    if args.no_analyze:
-        # Execute tasks to count articles without saving or analysing
-        count = sum(1 for t in tasks if t.execute() is not None)
-        logger.info("scrape_completed_no_analyze", source=args.source, scraped=count)
+    if not tasks:
+        print("No tasks to run.")
         return
 
-    from src.app.composition_root import build_analyzer
-    from src.app.use_cases.process_article import ProcessArticleUseCase
-    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
-    from src.infrastructure.persistence.sqlalchemy_repos.article_repo_impl import (
-        SqlAlchemyArticleRepository,
-    )
-    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import (
-        SqlAlchemyAnalysisRepository,
-    )
-    from src.domain.services.dedup_service import DedupService
-    from src.main import load_prompt
+    event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
+    published = [0]
 
-    analyzer = build_analyzer()
-    prompt = load_prompt()
+    def on_result(event):
+        event_bus.publish(event)
+        published[0] += 1
 
-    success = failed = 0
-    for task in tasks:
-        scraped = task.execute()
-        if scraped is None:
-            failed += 1
-            continue
-
-        session = get_session()
-        try:
-            article_repo = SqlAlchemyArticleRepository(session=session)
-            analysis_repo = SqlAlchemyAnalysisRepository(session=session)
-            dedup_svc = DedupService(article_repo=article_repo)
-            analyze_uc = AnalyzeArticleUseCase(analyzer=analyzer, analysis_repo=analysis_repo)
-            process_uc = ProcessArticleUseCase(
-                article_repo=article_repo,
-                dedup_service=dedup_svc,
-                analyze_article_uc=analyze_uc,
-            )
-            if process_uc.execute(scraped, prompt, correlation_id):
-                success += 1
-            else:
-                failed += 1
-        except Exception as e:
-            logger.error("process_article_failed", url=task.url, error=str(e))
-            failed += 1
-        finally:
-            session.close()
+    executor = ScrapeExecutor()
+    executor.run(tasks, on_result=on_result)
 
     logger.info(
-        "run_completed",
+        "scrape_completed",
         source=args.source,
-        success=success,
-        failed=failed,
+        published=published[0],
         total=len(tasks),
     )
 
