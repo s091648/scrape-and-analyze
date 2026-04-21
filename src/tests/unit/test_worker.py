@@ -1,116 +1,82 @@
 import threading
-import queue
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
 
-def _make_article(n=0):
-    from src.ingestion.models.scraped_article import ScrapedArticle
-    return ScrapedArticle(url=f"http://x.com/{n}", title=f"T{n}",
-                          content="C", published_at=None, source="test")
+def _make_fetch_task(url="http://example.com/a", result=None):
+    from src.infrastructure.collection.executor.fetch_task import FetchTask
+    from src.modules.collection.domain.value_objects import ScrapeJob
+    job = ScrapeJob(url=url, source="test", source_type="rss")
+    scraper = MagicMock()
+    scraper.fetch.return_value = result
+    return FetchTask(url=url, source="test", job=job, scraper=scraper)
 
 
-def _make_task(article=None):
-    from src.pipeline.task import ScrapeTask
-    return ScrapeTask(url="http://example.com/a", source="test",
-                      _execute_fn=lambda: article)
+def test_executor_delivers_all_results():
+    from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
+    from src.modules.collection.application.events import ArticleScrapedEvent
 
-
-def _run_workers(tasks_by_host, num_workers=1, delay=0.0):
-    """Build infrastructure, run workers, return collected results."""
-    from src.pipeline.host_queue_map import HostQueueMap
-    from src.pipeline.queue_selector import WeightedRoundRobinQueueSelector
-    from src.pipeline.worker import ScraperWorker
-
-    hqm = HostQueueMap()
-    for host, tasks in tasks_by_host.items():
-        idx = hqm.get_or_create(host)
-        for t in tasks:
-            hqm.queues[idx].put(t)
-
-    done_event = threading.Event()
-    selector = WeightedRoundRobinQueueSelector()
-    results = []
-
-    workers = [
-        ScraperWorker(
-            worker_id=i,
-            host_queue_map=hqm,
-            selector=selector,
-            done_event=done_event,
-            on_result=results.append,
-            delay=delay,
-        )
-        for i in range(num_workers)
+    events = [
+        ArticleScrapedEvent(url=f"http://example.com/{i}", title=f"T{i}",
+                            content="C", source="test")
+        for i in range(3)
     ]
-    for w in workers:
-        w.start()
-    done_event.set()
-    for w in workers:
-        w.join()
-    return results
+    tasks = [_make_fetch_task(url=ev.url, result=ev) for ev in events]
+
+    collected = []
+    executor = ScrapeExecutor(num_workers=2)
+    executor.route(tasks)
+    executor.execute(on_result=collected.append)
+
+    assert len(collected) == 3
 
 
-def test_worker_executes_task_and_delivers_result():
-    article = _make_article()
-    results = _run_workers({"example.com": [_make_task(article)]})
-    assert results == [article]
+def test_executor_skips_none_results():
+    from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
+
+    tasks = [
+        _make_fetch_task(url="http://example.com/a", result=None),
+        _make_fetch_task(url="http://example.com/b", result=None),
+    ]
+    collected = []
+    executor = ScrapeExecutor(num_workers=1)
+    executor.route(tasks)
+    executor.execute(on_result=collected.append)
+    assert collected == []
 
 
-def test_worker_skips_none_result():
-    results = _run_workers({"example.com": [_make_task(None)]})
-    assert results == []
-
-
-def test_worker_processes_multiple_tasks():
-    articles = [_make_article(i) for i in range(4)]
-    tasks = [_make_task(a) for a in articles]
-    results = _run_workers({"example.com": tasks})
-    assert len(results) == 4
-
-
-def test_worker_terminates_with_no_tasks():
-    results = _run_workers({})
-    assert results == []
-
-
-def test_two_workers_never_concurrently_process_same_host():
-    """
-    Both workers target the same host queue.
-    BoundedSemaphore(1) must ensure at most one runs at a time.
-    Detect violations by checking overlap in execution windows.
-    """
+def test_executor_respects_per_host_exclusion():
+    """Two tasks for the same host should not run concurrently."""
     import time
-    windows = []
+    from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
+    from src.modules.collection.application.events import ArticleScrapedEvent
+
+    concurrent_count = [0]
+    max_concurrent = [0]
     lock = threading.Lock()
 
-    def slow_fn():
-        start = time.monotonic()
-        time.sleep(0.05)
-        end = time.monotonic()
+    def slow_fetch(job):
         with lock:
-            windows.append((start, end))
-        return _make_article()
+            concurrent_count[0] += 1
+            max_concurrent[0] = max(max_concurrent[0], concurrent_count[0])
+        time.sleep(0.05)
+        with lock:
+            concurrent_count[0] -= 1
+        return ArticleScrapedEvent(url=job.url, title="T", content="C", source="test")
 
-    from src.pipeline.task import ScrapeTask
-    tasks = [
-        ScrapeTask(url="http://example.com/a", source="test", _execute_fn=slow_fn),
-        ScrapeTask(url="http://example.com/b", source="test", _execute_fn=slow_fn),
-    ]
+    from src.infrastructure.collection.executor.fetch_task import FetchTask
+    from src.modules.collection.domain.value_objects import ScrapeJob
+    tasks = []
+    for i in range(4):
+        job = ScrapeJob(url=f"http://same-host.com/{i}", source="test", source_type="rss")
+        scraper = MagicMock()
+        scraper.fetch.side_effect = slow_fetch
+        tasks.append(FetchTask(url=f"http://same-host.com/{i}", source="test",
+                               job=job, scraper=scraper))
 
-    with patch("src.pipeline.worker.time.sleep"):
-        results = _run_workers({"example.com": tasks}, num_workers=2)
+    collected = []
+    executor = ScrapeExecutor(num_workers=4)
+    executor.route(tasks)
+    executor.execute(on_result=collected.append)
 
-    assert len(results) == 2
-    # Windows must not overlap — second starts after first ends
-    windows.sort()
-    assert windows[1][0] >= windows[0][1], "Concurrent access to same host detected!"
-
-
-def test_worker_sleeps_between_tasks():
-    tasks = [_make_task(_make_article(i)) for i in range(2)]
-    with patch("src.pipeline.worker.time.sleep") as mock_sleep:
-        _run_workers({"example.com": tasks}, delay=5.0)
-    sleep_calls = [c.args[0] for c in mock_sleep.call_args_list]
-    # Sentry SDK background threads may call time.sleep with unrelated values;
-    # assert exactly 2 worker delay calls with the configured value.
-    assert sleep_calls.count(5.0) == 2
+    assert max_concurrent[0] == 1  # same host: only 1 at a time
+    assert len(collected) == 4

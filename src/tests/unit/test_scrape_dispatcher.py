@@ -1,74 +1,71 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock
 
 
-def _make_scraper(articles):
-    from src.ingestion.scrapers.base_scraper import BaseScraper
-    from src.pipeline.task import ScrapeTask
+def test_pipeline_publishes_events_for_each_scraped_article():
+    from src.infrastructure.collection.collection_pipeline import CollectionPipeline
+    from src.modules.collection.domain.entities import ScraperSetting
+    from src.modules.collection.application.events import ArticleScrapedEvent
+    from uuid import uuid4
 
-    class FakeScraper(BaseScraper):
-        def discover(self):
-            return [
-                ScrapeTask(url=f"http://example.com/{i}", source="test",
-                           _execute_fn=lambda a=a: a)
-                for i, a in enumerate(articles)
-            ]
-    return FakeScraper()
+    # Mock setting repo
+    setting = ScraperSetting(
+        source="test-rss", source_type="rss",
+        url="https://example.com/feed", interval_hours=24,
+    )
+    setting_repo = MagicMock()
+    setting_repo.get_active_due.return_value = [setting]
 
+    # Mock scraper factory + scraper
+    event1 = ArticleScrapedEvent(url="https://example.com/1", title="T1",
+                                  content="C", source="test-rss")
+    event2 = ArticleScrapedEvent(url="https://example.com/2", title="T2",
+                                  content="C", source="test-rss")
 
-def _make_articles(n):
-    from src.ingestion.models.scraped_article import ScrapedArticle
-    return [
-        ScrapedArticle(url=f"http://example.com/{i}", title=f"T{i}",
-                       content="C", published_at=None, source="test")
-        for i in range(n)
-    ]
+    from src.modules.collection.domain.value_objects import ScrapeJob
+    job1 = ScrapeJob(url="https://example.com/1", source="test-rss", source_type="rss")
+    job2 = ScrapeJob(url="https://example.com/2", source="test-rss", source_type="rss")
 
+    scraper = MagicMock()
+    scraper.discover.return_value = [job1, job2]
+    scraper.fetch.side_effect = [event1, event2]
 
-def test_dispatcher_delivers_all_results():
-    from src.pipeline.dispatcher import ScrapeDispatcher
-    articles = _make_articles(3)
-    results = []
-    with patch("src.pipeline.worker.time.sleep"):
-        ScrapeDispatcher(num_workers=2, delay=0.0).run(
-            [_make_scraper(articles)], on_result=results.append
-        )
-    assert len(results) == 3
+    scraper_factory = MagicMock()
+    scraper_factory.create_for.return_value = scraper
 
+    event_bus = MagicMock()
 
-def test_dispatcher_handles_empty_scraper():
-    from src.pipeline.dispatcher import ScrapeDispatcher
-    results = []
-    with patch("src.pipeline.worker.time.sleep"):
-        ScrapeDispatcher(num_workers=1, delay=0.0).run(
-            [_make_scraper([])], on_result=results.append
-        )
-    assert results == []
+    pipeline = CollectionPipeline(
+        setting_repo=setting_repo,
+        scraper_factory=scraper_factory,
+        event_bus=event_bus,
+    )
+    pipeline.run()
 
-
-def test_dispatcher_accepts_custom_selector():
-    from src.pipeline.dispatcher import ScrapeDispatcher
-    from src.pipeline.queue_selector import RoundRobinQueueSelector
-    articles = _make_articles(2)
-    results = []
-    with patch("src.pipeline.worker.time.sleep"):
-        ScrapeDispatcher(
-            num_workers=1, delay=0.0,
-            selector=RoundRobinQueueSelector(),
-        ).run([_make_scraper(articles)], on_result=results.append)
-    assert len(results) == 2
+    assert event_bus.publish.call_count == 2
 
 
-def test_dispatcher_handles_discover_exception_gracefully():
-    from src.ingestion.scrapers.base_scraper import BaseScraper
-    from src.pipeline.dispatcher import ScrapeDispatcher
+def test_pipeline_marks_setting_scraped_after_run():
+    from src.infrastructure.collection.collection_pipeline import CollectionPipeline
+    from src.modules.collection.domain.entities import ScraperSetting
+    from uuid import uuid4
 
-    class BrokenScraper(BaseScraper):
-        def discover(self):
-            raise RuntimeError("network down")
+    setting = ScraperSetting(
+        source="test", source_type="rss",
+        url="https://example.com/feed", interval_hours=24,
+    )
+    setting_repo = MagicMock()
+    setting_repo.get_active_due.return_value = [setting]
 
-    results = []
-    with patch("src.pipeline.worker.time.sleep"):
-        ScrapeDispatcher(num_workers=1, delay=0.0).run(
-            [BrokenScraper()], on_result=results.append
-        )
-    assert results == []
+    scraper = MagicMock()
+    scraper.discover.return_value = []
+    scraper_factory = MagicMock()
+    scraper_factory.create_for.return_value = scraper
+
+    pipeline = CollectionPipeline(
+        setting_repo=setting_repo,
+        scraper_factory=scraper_factory,
+        event_bus=MagicMock(),
+    )
+    pipeline.run()
+
+    setting_repo.mark_scraped.assert_called_once_with(setting.id)
