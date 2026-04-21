@@ -1,5 +1,5 @@
 import time
-from src.main import check_timeout, MAX_EXECUTION_TIME
+from src.entrypoints.cli.main import check_timeout, MAX_EXECUTION_TIME
 
 
 def test_check_timeout_returns_true_when_exceeded():
