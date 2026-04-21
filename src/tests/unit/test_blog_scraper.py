@@ -5,7 +5,7 @@ from urllib.robotparser import RobotFileParser
 
 def test_blog_scraper_extracts_article_links():
     """BlogScraper should extract article links from listing page"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -33,7 +33,7 @@ def test_blog_scraper_extracts_article_links():
 
 def test_blog_scraper_extracts_content():
     """BlogScraper should extract title and content with selectors"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -60,7 +60,7 @@ def test_blog_scraper_extracts_content():
 @responses.activate
 def test_blog_scraper_checks_robots_txt():
     """BlogScraper should check robots.txt before scraping"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     robots_content = """
     User-agent: *
@@ -88,7 +88,7 @@ def test_blog_scraper_checks_robots_txt():
 @responses.activate
 def test_blog_scraper_handles_missing_robots_txt():
     """BlogScraper should allow scraping when robots.txt is missing"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     responses.add(
         responses.GET,
@@ -108,7 +108,7 @@ def test_blog_scraper_handles_missing_robots_txt():
 
 def test_blog_scraper_removes_nav_footer_from_content():
     """BlogScraper should exclude nav and footer from extracted content"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -139,7 +139,7 @@ def test_blog_scraper_removes_nav_footer_from_content():
 
 def test_blog_scraper_handles_missing_content():
     """BlogScraper should handle pages with missing content selector"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -162,7 +162,7 @@ def test_blog_scraper_handles_missing_content():
 
 def test_blog_scraper_converts_relative_links():
     """BlogScraper should convert relative links to absolute URLs"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     html = '''
     <html>
@@ -189,7 +189,7 @@ def test_blog_scraper_converts_relative_links():
 @responses.activate
 def test_blog_scraper_rate_limit_attr_preserved():
     """rate_limit kwarg should be stored; actual delay is enforced by the queue worker"""
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     listing_html = '<html><a href="/article">Link</a></html>'
     article_html = '<html><h1>Digital Twin</h1><div class="content">Content</div></html>'
@@ -210,7 +210,7 @@ def test_blog_scraper_rate_limit_attr_preserved():
 
 @responses.activate
 def test_discover_returns_tasks_for_allowed_links():
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     listing_html = '<html><body><article><a href="/blog/dt-article">DT</a></article></body></html>'
     responses.add(responses.GET, "https://example.com/blog", body=listing_html, status=200)
@@ -227,7 +227,7 @@ def test_discover_returns_tasks_for_allowed_links():
 
 @responses.activate
 def test_discover_returns_empty_when_listing_fetch_fails():
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
     responses.add(responses.GET, "https://example.com/blog", status=500)
     scraper = BlogScraper(
         base_url="https://example.com/blog", source="test",
@@ -238,7 +238,7 @@ def test_discover_returns_empty_when_listing_fetch_fails():
 
 @responses.activate
 def test_execute_fetches_and_returns_matching_article():
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     listing_html = '<html><body><a href="/digital-twins">DT Link</a></body></html>'
     article_html = (
@@ -264,7 +264,7 @@ def test_execute_fetches_and_returns_matching_article():
 
 @responses.activate
 def test_execute_returns_none_for_non_keyword_article():
-    from src.ingestion.scrapers.blog_scraper import BlogScraper
+    from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
 
     listing_html = '<html><body><a href="/unrelated">No DT here</a></body></html>'
     article_html = '<html><body><h1>Cloud News</h1><div class="content"><p>About AWS.</p></div></body></html>'

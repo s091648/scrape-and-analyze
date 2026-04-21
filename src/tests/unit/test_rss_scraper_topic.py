@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from src.infrastructure.external.rss_client import RssEntry
+from src.infrastructure.collection.clients.rss_client import RssEntry
 
 
 def _make_entry(title="Digital Twin article"):
@@ -13,7 +13,7 @@ def _make_entry(title="Digital Twin article"):
 
 
 def test_rss_scraper_uses_selector_config_keywords():
-    from src.ingestion.scrapers.rss_scraper import RssScraper
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
     client = MagicMock()
     client.fetch_feed.return_value = [
         _make_entry("3D AI model research"),
@@ -26,16 +26,15 @@ def test_rss_scraper_uses_selector_config_keywords():
         topic_id="topic-uuid-123",
         client=client,
     )
-    tasks = scraper.discover()
-    assert len(tasks) == 1
-    article = tasks[0].execute()
-    assert article.topic_id == "topic-uuid-123"
+    jobs = scraper.discover()
+    assert len(jobs) == 1
+    assert str(jobs[0].topic_id) == "topic-uuid-123"
 
 
 def test_rss_scraper_falls_back_to_hardcoded_keywords_when_none_provided():
-    from src.ingestion.scrapers.rss_scraper import RssScraper
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
     client = MagicMock()
     client.fetch_feed.return_value = [_make_entry("Digital twin simulation")]
     scraper = RssScraper(url="https://example.com/feed", source="test", client=client)
-    tasks = scraper.discover()
-    assert len(tasks) == 1
+    jobs = scraper.discover()
+    assert len(jobs) == 1

@@ -2,14 +2,14 @@ import pytest
 
 
 def test_base_content_parser_is_abstract():
-    from src.ingestion.parsers.base_parser import BaseContentParser
+    from  src.infrastructure.collection.parsers.base_parser import BaseContentParser
 
     with pytest.raises(TypeError):
         BaseContentParser()
 
 
 def test_base_content_parser_requires_parse():
-    from src.ingestion.parsers.base_parser import BaseContentParser
+    from  src.infrastructure.collection.parsers.base_parser import BaseContentParser
 
     class Incomplete(BaseContentParser):
         pass
@@ -20,7 +20,7 @@ def test_base_content_parser_requires_parse():
 
 def test_base_content_parser_prepare_for_analysis_default():
     """Default prepare_for_analysis returns content unchanged."""
-    from src.ingestion.parsers.base_parser import BaseContentParser
+    from  src.infrastructure.collection.parsers.base_parser import BaseContentParser
 
     class Concrete(BaseContentParser):
         def parse(self, content: str) -> str:
@@ -31,7 +31,7 @@ def test_base_content_parser_prepare_for_analysis_default():
 
 
 def test_html_parser_extracts_article_element():
-    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
     html = '<html><body><article><p>Digital twins content</p></article></body></html>'
     parser = HtmlArticleParser()
@@ -40,7 +40,7 @@ def test_html_parser_extracts_article_element():
 
 
 def test_html_parser_falls_back_to_main():
-    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
     html = '<html><body><main><p>Twin content</p></main></body></html>'
     parser = HtmlArticleParser()
@@ -49,7 +49,7 @@ def test_html_parser_falls_back_to_main():
 
 
 def test_html_parser_returns_empty_for_no_match():
-    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
     html = '<html><body><div class="sidebar">ads</div></body></html>'
     parser = HtmlArticleParser()
@@ -58,7 +58,7 @@ def test_html_parser_returns_empty_for_no_match():
 
 
 def test_html_parser_custom_selectors_take_priority():
-    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
     html = '<html><body><div class="post-body"><p>Content here</p></div><article>wrong</article></body></html>'
     parser = HtmlArticleParser(selectors=['[class*="post-body"]'])
@@ -68,7 +68,7 @@ def test_html_parser_custom_selectors_take_priority():
 
 
 def test_html_parser_fetch_and_parse_returns_fallback_on_error():
-    from src.ingestion.parsers.html_parser import HtmlArticleParser
+    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
     # Bad URL — should return fallback, not raise
     parser = HtmlArticleParser()
@@ -77,7 +77,7 @@ def test_html_parser_fetch_and_parse_returns_fallback_on_error():
 
 
 def test_pdf_parser_extract_sections_finds_standard_headers():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     text = """
 Abstract
@@ -101,7 +101,7 @@ In this work we showed.
 
 
 def test_pdf_parser_extract_sections_handles_numbered_headings():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     text = "1. Introduction\nSome intro text.\n2. Methods\nSome method text."
     parser = PdfParser()
@@ -110,7 +110,7 @@ def test_pdf_parser_extract_sections_handles_numbered_headings():
 
 
 def test_pdf_parser_prepare_for_analysis_uses_sections_when_found():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     full_text = """
 Abstract
@@ -133,7 +133,7 @@ We demonstrated results.
 
 
 def test_pdf_parser_prepare_for_analysis_falls_back_when_no_sections():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     # Text with no recognisable section headings
     full_text = "This is a short document with no headers at all."
@@ -143,7 +143,7 @@ def test_pdf_parser_prepare_for_analysis_falls_back_when_no_sections():
 
 
 def test_pdf_parser_prepare_for_analysis_caps_at_max_chars():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     long_text = "Abstract\n" + "x" * 50_000 + "\n1 Introduction\n" + "y" * 50_000
     parser = PdfParser(max_chars=100)
@@ -152,7 +152,7 @@ def test_pdf_parser_prepare_for_analysis_caps_at_max_chars():
 
 
 def test_pdf_parser_parse_returns_text_on_http_failure():
-    from src.ingestion.parsers.pdf_parser import PdfParser
+    from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
     parser = PdfParser()
     # Bad URL — should return empty string, not raise
