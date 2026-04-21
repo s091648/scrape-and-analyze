@@ -1,48 +1,63 @@
 import uuid
 from unittest.mock import MagicMock
 import pytest
-from src.analysis.providers.base_llm_provider import AnalysisResult
-from src.ingestion.models.scraped_article import ScrapedArticle
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+from src.modules.collection.application.events import ArticleScrapedEvent
 
 
 def _make_result():
-    return AnalysisResult(
-        tag_groups=[], pain_points="p", insights="i",
-        innovations="n", summary="s",
-        input_tokens=10, output_tokens=5, model_used="test-model",
-    )
+    content = AnalysisContent(tag_groups=[], pain_points="p", insights="i",
+                               innovations="n", summary="s")
+    metadata = AnalysisMetadata(model_used="test-model", input_tokens=10, output_tokens=5)
+    return (content, metadata)
 
 
-def _make_uc(db_session):
-    from src.infrastructure.persistence.sqlalchemy_repos.article_repo_impl import SqlAlchemyArticleRepository
-    from src.infrastructure.persistence.sqlalchemy_repos.analysis_repo_impl import SqlAlchemyAnalysisRepository
-    from src.domain.services.dedup_service import DedupService
-    from src.app.use_cases.analyze_article import AnalyzeArticleUseCase
-    from src.app.use_cases.process_article import ProcessArticleUseCase
-    analyzer = MagicMock()
-    analyzer.analyze.return_value = _make_result()
-    return ProcessArticleUseCase(
-        article_repo=SqlAlchemyArticleRepository(session=db_session),
-        dedup_service=DedupService(article_repo=SqlAlchemyArticleRepository(session=db_session)),
-        analyze_article_uc=AnalyzeArticleUseCase(
-            analyzer=analyzer,
-            analysis_repo=SqlAlchemyAnalysisRepository(session=db_session),
-        ),
+def _wire_pipeline(db_session):
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
+    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
+    from src.modules.intelligence.application.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.shared.application.events import ArticleProcessedEvent
+
+    llm = MagicMock()
+    llm.analyze.return_value = _make_result()
+
+    article_repo = SqlAlchemyArticleRepository(session=db_session)
+    analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
+    topic_repo = SqlAlchemyTopicRepository(session=db_session)
+    event_bus = InMemoryEventBus()
+
+    process_uc = ProcessScrapedArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=DedupService(article_repo=article_repo),
+        event_bus=event_bus,
     )
+    analyze_uc = AnalyzeArticleUseCase(
+        llm_service=llm,
+        analysis_repository=analysis_repo,
+        topic_repository=topic_repo,
+    )
+    handler = ArticleProcessedHandler(use_case=analyze_uc)
+    event_bus.subscribe(ArticleProcessedEvent, handler.handle)
+    return process_uc
 
 
 @pytest.mark.integration
 def test_article_gets_topic_id_on_save(db_session, test_topic):
     from models.article import Article
-    topic_id = str(test_topic)
-    scraped = ScrapedArticle(
+    topic_id = test_topic
+    event = ArticleScrapedEvent(
         url=f"https://example.com/{uuid.uuid4()}",
-        title="Test Article", content="Body.", published_at=None,
-        source="rss", topic_id=topic_id,
+        title="Test Article", content="Body.", source="rss",
+        topic_id=topic_id,
     )
-    uc = _make_uc(db_session)
-    result = uc.execute(scraped, "test prompt", str(uuid.uuid4()))
+    uc = _wire_pipeline(db_session)
+    result = uc.execute(event)
     assert result is True
-    article = db_session.query(Article).filter_by(url=scraped.url).first()
+    article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
-    assert str(article.topic_id) == topic_id
+    assert article.topic_id == topic_id

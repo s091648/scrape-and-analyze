@@ -10,12 +10,12 @@ from datetime import datetime, timezone, timedelta
 def _make_article(db_session, *, url=None, source="test"):
     """Insert and return a committed Article with no analysis."""
     from models.article import Article
-    from src.utils.sanitizer import generate_url_hash
+    from src.modules.collection.domain.value_objects.url import UrlHash
 
     url = url or f"https://example.com/{uuid.uuid4()}"
     article = Article(
         url=url,
-        url_hash=generate_url_hash(url),
+        url_hash=UrlHash.generate_url_hash(url),
         source=source,
         title="Test Article",
         content="Test content",
@@ -53,10 +53,10 @@ def _make_analysis(db_session, article):
 def test_article_deduplication(db_session):
     """Duplicate articles should not be created."""
     from models.article import Article
-    from src.utils.sanitizer import generate_url_hash
+    from src.modules.collection.domain.value_objects.url import UrlHash
 
     url = f"https://example.com/dedup-{uuid.uuid4()}"
-    url_hash = generate_url_hash(url)
+    url_hash = UrlHash.generate_url_hash(url)
 
     article = Article(
         url=url,
@@ -131,7 +131,7 @@ def test_article_with_analysis_creation(db_session):
 @pytest.mark.integration
 def test_has_analysis_returns_true_when_analysis_exists(db_session):
     """has_analysis should return True for an article that has an analysis."""
-    from src.database import has_analysis
+    from src.infrastructure.persistence.database import has_analysis
 
     article = _make_article(db_session)
     _make_analysis(db_session, article)
@@ -142,7 +142,7 @@ def test_has_analysis_returns_true_when_analysis_exists(db_session):
 @pytest.mark.integration
 def test_has_analysis_returns_false_when_no_analysis(db_session):
     """has_analysis should return False for an article with no analysis."""
-    from src.database import has_analysis
+    from src.infrastructure.persistence.database import has_analysis
 
     article = _make_article(db_session)
 
@@ -156,7 +156,7 @@ def test_has_analysis_returns_false_when_no_analysis(db_session):
 @pytest.mark.integration
 def test_find_missing_analyses_includes_article_without_analysis(db_session):
     """find_missing_analyses should return articles that have no analysis."""
-    from src.database import find_missing_analyses
+    from src.infrastructure.persistence.database import find_missing_analyses
 
     article = _make_article(db_session)
 
@@ -168,7 +168,7 @@ def test_find_missing_analyses_includes_article_without_analysis(db_session):
 @pytest.mark.integration
 def test_find_missing_analyses_excludes_analyzed_articles(db_session):
     """find_missing_analyses should not return articles that already have an analysis."""
-    from src.database import find_missing_analyses
+    from src.infrastructure.persistence.database import find_missing_analyses
 
     article = _make_article(db_session)
     _make_analysis(db_session, article)
@@ -186,13 +186,13 @@ def test_find_missing_analyses_excludes_analyzed_articles(db_session):
 def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
     """scan_missing_analyses should include articles older than min_age_hours."""
     from models.article import Article
-    from src.database import scan_missing_analyses
-    from src.utils.sanitizer import generate_url_hash
+    from src.infrastructure.persistence.database import scan_missing_analyses
+    from src.modules.collection.domain.value_objects.url import UrlHash
 
     url = f"https://example.com/old-{uuid.uuid4()}"
     old_article = Article(
         url=url,
-        url_hash=generate_url_hash(url),
+        url_hash=UrlHash.generate_url_hash(url),
         source="test",
         title="Old Article",
         content="Content",
@@ -210,7 +210,7 @@ def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
 @pytest.mark.integration
 def test_scan_missing_analyses_skips_recent_articles(db_session):
     """scan_missing_analyses should not include recently-scraped articles (race-condition guard)."""
-    from src.database import scan_missing_analyses
+    from src.infrastructure.persistence.database import scan_missing_analyses
 
     # Default scraped_at = now() — well within the 1-hour grace period
     recent_article = _make_article(db_session)
