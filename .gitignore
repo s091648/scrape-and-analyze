@@ -39,7 +39,7 @@ wheels/
 MANIFEST
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov*/
 .tox/
 .nox/
 coverage.xml

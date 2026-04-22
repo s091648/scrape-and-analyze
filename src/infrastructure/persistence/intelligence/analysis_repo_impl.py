@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
 from src.shared.logging import get_logger
@@ -20,6 +22,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
 
         row = AnalysisModel(
             article_id=analysis.article_id,
+            correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
             pain_points=content.pain_points,
             insights=content.insights,
             innovations=content.innovations,

@@ -46,8 +46,7 @@ class ProcessScrapedArticleUseCase:
                 if stored and stored.sections:
                     existing.metadata["sections"] = stored.sections
             logger.info("article_needs_analysis", article_id=str(existing.id))
-            self._event_bus.publish(ArticleProcessedEvent(article=existing))
-            return True
+            return self._event_bus.publish(ArticleProcessedEvent(article=existing))
 
         article = self._build_article(dto)
 
@@ -61,8 +60,7 @@ class ProcessScrapedArticleUseCase:
             self._save_arxiv_metadata(saved, dto.metadata)
 
         logger.info("article_saved", article_id=str(saved.id), url=dto.url)
-        self._event_bus.publish(ArticleProcessedEvent(article=saved))
-        return True
+        return self._event_bus.publish(ArticleProcessedEvent(article=saved))
 
     def _build_article(self, dto: ScrapedArticleDTO) -> Article:
         return Article(
