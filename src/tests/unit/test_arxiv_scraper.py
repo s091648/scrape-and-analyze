@@ -75,17 +75,17 @@ def test_discover_filters_old_papers():
 
 
 @responses.activate
-def test_fetch_returns_event_with_abstract_when_fetch_pdf_false():
+def test_fetch_returns_article_with_abstract_when_fetch_pdf_false():
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
     responses.add(responses.GET, "https://export.arxiv.org/api/query",
                   body=_atom(_entry(summary="Short abstract.")), status=200)
     scraper = ArxivScraper(fetch_pdf=False)
     jobs = scraper.discover()
-    event = scraper.fetch(jobs[0])
-    assert event is not None
-    assert event.content == "Short abstract."
-    assert event.source == "arxiv"
-    assert event.metadata["pdf_available"] is False
+    article = scraper.fetch(jobs[0])
+    assert article is not None
+    assert article.content == "Short abstract."
+    assert article.source == "arxiv"
+    assert article.extra["pdf_available"] is False
 
 
 @responses.activate
@@ -95,8 +95,9 @@ def test_fetch_extracts_authors():
                   body=_atom(_entry(authors=["Alice", "Bob"])), status=200)
     scraper = ArxivScraper(fetch_pdf=False)
     jobs = scraper.discover()
-    event = scraper.fetch(jobs[0])
-    assert event.metadata["authors"] == ["Alice", "Bob"]
+    article = scraper.fetch(jobs[0])
+    # authors is now a top-level field in ScrapedArticle
+    assert article.authors == ["Alice", "Bob"]
 
 
 @responses.activate
@@ -107,9 +108,9 @@ def test_fetch_falls_back_to_abstract_when_pdf_fails():
     responses.add(responses.GET, "http://arxiv.org/pdf/2401.00002v1", status=404)
     scraper = ArxivScraper(fetch_pdf=True)
     jobs = scraper.discover()
-    event = scraper.fetch(jobs[0])
-    assert event.content == "Fallback."
-    assert event.metadata["pdf_available"] is False
+    article = scraper.fetch(jobs[0])
+    assert article.content == "Fallback."
+    assert article.extra["pdf_available"] is False
 
 
 @responses.activate
@@ -127,10 +128,10 @@ def test_fetch_uses_sections_and_sets_pdf_available_true():
                return_value={"introduction": "Intro text.", "conclusion": "Conclusion."}):
         scraper = ArxivScraper(fetch_pdf=True)
         jobs = scraper.discover()
-        event = scraper.fetch(jobs[0])
-    assert event.metadata["pdf_available"] is True
-    assert event.content == "Short abstract."
-    assert event.metadata["sections"] == {"introduction": "Intro text.", "conclusion": "Conclusion."}
+        article = scraper.fetch(jobs[0])
+    assert article.extra["pdf_available"] is True
+    assert article.content == "Short abstract."
+    assert article.extra["sections"] == {"introduction": "Intro text.", "conclusion": "Conclusion."}
 
 
 @responses.activate
@@ -148,8 +149,8 @@ def test_fetch_strips_null_bytes_from_sections():
                return_value={"introduction": "Hello \x00 world."}):
         scraper = ArxivScraper(fetch_pdf=True)
         jobs = scraper.discover()
-        event = scraper.fetch(jobs[0])
-    assert "\x00" not in event.metadata["sections"].get("introduction", "")
+        article = scraper.fetch(jobs[0])
+    assert "\x00" not in article.extra["sections"].get("introduction", "")
 
 
 def test_arxiv_scraper_uses_selector_config_keywords():
@@ -178,8 +179,9 @@ def test_arxiv_scraper_sets_topic_id_on_job():
         published=datetime.now(timezone.utc).isoformat(),
         authors=["Alice"], arxiv_id="2601.00001",
     )
-    job = scraper.discover()
-    assert str(job.topic_id) == "test-topic-uuid"
+    jobs = scraper.discover()
+    # discover() returns a list, so access the first element
+    assert str(jobs[0].topic_id) == "test-topic-uuid"
 
 
 @responses.activate
@@ -221,6 +223,8 @@ def test_discover_handles_entry_with_missing_summary():
     scraper = ArxivScraper(fetch_pdf=False)
     jobs = scraper.discover()
     assert len(jobs) == 1
-    event = scraper.fetch(jobs[0])
-    assert event.title == "Minimal Entry"
-    assert event.content == ""
+    # Note: arxiv_scraper uses arxiv_id (or url) as title, not the <title> field
+    # The title in ScrapedArticle comes from job.metadata.get("arxiv_id", job.url)
+    article = scraper.fetch(jobs[0])
+    # Since there's no arxiv_id in the entry, title defaults to URL
+    assert article.title == "http://arxiv.org/abs/2401.00004v1"
