@@ -89,16 +89,15 @@ def test_upsert_tags_skips_empty_tag_names():
 
 
 def _make_result():
-    from src.analysis.providers.base_llm_provider import AnalysisResult
-    return AnalysisResult(
-        tag_groups=[],
-        pain_points="pain",
-        insights="insight",
-        innovations="innovation",
-        summary="A summary.",
-        input_tokens=10,
-        output_tokens=5,
-    )
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+    return AnalysisContent(pain_points=None,
+        insights=None,
+        innovations=None,
+        summary=None,
+        tag_groups=None
+    ), AnalysisMetadata(model_used="test-model",
+    input_tokens=10,
+    output_tokens=5)
 
 
 def test_update_analysis_dry_run_skips_db(capsys):

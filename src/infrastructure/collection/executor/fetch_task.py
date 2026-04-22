@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from src.modules.collection.application.events import ArticleScrapedEvent
-from src.modules.collection.domain.value_objects import ScrapeJob
+from src.modules.collection.domain.entities import ScrapeJob
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)

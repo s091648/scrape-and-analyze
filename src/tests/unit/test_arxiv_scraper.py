@@ -33,12 +33,12 @@ def _entry(paper_id="2401.00001", version="v1", title="Digital Twins Research",
 
 def test_fetch_pdf_is_true_by_default():
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
-    assert ArxivScraper().fetch_pdf is True
+    assert ArxivScraper()._fetch_pdf is True
 
 
 def test_respects_max_results():
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
-    assert ArxivScraper(max_results=50).max_results == 50
+    assert ArxivScraper(max_results=50)._max_results == 50
 
 
 def test_builds_query_contains_digital_twin_terms():
@@ -178,7 +178,7 @@ def test_arxiv_scraper_sets_topic_id_on_job():
         published=datetime.now(timezone.utc).isoformat(),
         authors=["Alice"], arxiv_id="2601.00001",
     )
-    job = scraper._build_job(entry)
+    job = scraper.discover()
     assert str(job.topic_id) == "test-topic-uuid"
 
 

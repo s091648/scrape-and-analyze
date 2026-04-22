@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 def _make_fetch_task(execute_result=None):
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     job = ScrapeJob(url="http://x.com", source="test", source_type="rss")
     scraper = MagicMock()
     scraper.fetch.return_value = execute_result
@@ -19,7 +19,7 @@ def test_execute_calls_scraper_fetch_and_returns_result():
 
 def test_execute_returns_none_on_exception():
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     job = ScrapeJob(url="http://x.com", source="test", source_type="rss")
     scraper = MagicMock()
     scraper.fetch.side_effect = RuntimeError("boom")

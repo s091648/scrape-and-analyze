@@ -2,7 +2,7 @@ def test_routes_task_to_correct_host_queue():
     from src.infrastructure.collection.executor.host_queue_map import HostQueueMap
     from src.infrastructure.collection.executor.queue_router import QueueRouter
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     from unittest.mock import MagicMock
 
     hqm = HostQueueMap()
@@ -20,7 +20,7 @@ def test_same_host_tasks_share_one_queue():
     from src.infrastructure.collection.executor.host_queue_map import HostQueueMap
     from src.infrastructure.collection.executor.queue_router import QueueRouter
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     from unittest.mock import MagicMock
 
     hqm = HostQueueMap()

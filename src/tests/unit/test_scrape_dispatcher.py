@@ -21,7 +21,7 @@ def test_pipeline_publishes_events_for_each_scraped_article():
     event2 = ArticleScrapedEvent(url="https://example.com/2", title="T2",
                                   content="C", source="test-rss")
 
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     job1 = ScrapeJob(url="https://example.com/1", source="test-rss", source_type="rss")
     job2 = ScrapeJob(url="https://example.com/2", source="test-rss", source_type="rss")
 

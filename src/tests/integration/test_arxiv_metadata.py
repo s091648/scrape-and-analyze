@@ -1,16 +1,19 @@
 import uuid
 from unittest.mock import MagicMock
 import pytest
-from src.analysis.providers.base_llm_provider import AnalysisResult
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.collection.application.events import ArticleScrapedEvent
 
 
 def _make_result():
-    return AnalysisResult(
-        tag_groups=[], pain_points="p", insights="i",
-        innovations="n", summary="s",
-        input_tokens=10, output_tokens=5, model_used="test-model",
-    )
+    return AnalysisContent(pain_points=None,
+        insights=None,
+        innovations=None,
+        summary=None,
+        tag_groups=None
+    ), AnalysisMetadata(model_used="test-model",
+    input_tokens=10,
+    output_tokens=5)
 
 
 def _make_uc(db_session):
@@ -46,7 +49,7 @@ def test_arxiv_article_creates_arxiv_metadata_row(db_session):
         },
     )
     uc = _make_uc(db_session)
-    result = uc.execute(scraped, "test prompt", str(uuid.uuid4()))
+    result = uc.execute(scraped)
     assert result is True
     article = db_session.query(Article).filter_by(url=scraped.url).first()
     assert article is not None

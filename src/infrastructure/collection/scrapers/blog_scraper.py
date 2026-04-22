@@ -10,7 +10,7 @@ from .base_scraper import BaseScraper
 from src.infrastructure.shared.http import get_default_client
 from src.shared.logging import get_logger
 from src.modules.collection.application.events import ArticleScrapedEvent
-from src.modules.collection.domain.value_objects import ScrapeJob
+from src.modules.collection.domain.entities import ScrapeJob
 
 logger = get_logger(__name__)
 

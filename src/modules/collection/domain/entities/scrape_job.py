@@ -1,7 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Dict, Optional, Union
 from uuid import UUID
+from .scrape_job_metadata import ScrapeJobMetadata
 
+
+Metadata = Union[Dict, ScrapeJobMetadata]
 
 @dataclass(frozen=True)
 class ScrapeJob:
@@ -11,4 +14,4 @@ class ScrapeJob:
     source_type: str
     topic_id: Optional[UUID] = None
     prompt_override: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Optional[Metadata] = field(default_factory=dict)

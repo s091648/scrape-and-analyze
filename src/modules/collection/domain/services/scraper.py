@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from src.modules.collection.domain.value_objects import ScrapeJob
+from src.modules.collection.domain.entities import ScrapeJob
 
 
 class Scraper(ABC):

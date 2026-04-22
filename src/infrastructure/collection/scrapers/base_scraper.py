@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import List, Optional
 
 from src.modules.collection.domain.services import Scraper
-from src.modules.collection.domain.value_objects import ScrapeJob
+from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.application.events import ArticleScrapedEvent
 
 

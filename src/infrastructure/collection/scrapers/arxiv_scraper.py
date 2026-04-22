@@ -5,7 +5,7 @@ from src.shared.logging import get_logger
 from src.infrastructure.collection.clients import ArxivClient
 from .base_scraper import BaseScraper
 from src.modules.collection.application.events import ArticleScrapedEvent
-from src.modules.collection.domain.value_objects import ScrapeJob
+from src.modules.collection.domain.entities import ScrapeJob, ScrapeJobMetadata
 from src.infrastructure.collection.parsers import PdfParser
 from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
@@ -42,23 +42,23 @@ class ArxivScraper(BaseScraper):
             max_results=self._max_results,
             days_back=self._days_back,
         )
-        jobs = [
-            ScrapeJob(
+        jobs = []
+        for e in entries:
+            metadata = ScrapeJobMetadata(
+                arxiv_id=e.arxiv_id,
+                abstract=e.abstract,
+                pdf_url=e.pdf_url,
+                authors=e.authors,
+                published=e.published,
+            )
+            jobs.append(ScrapeJob(
                 url=e.url,
                 source="arxiv",
                 source_type="arxiv",
                 topic_id=self._topic_id,
                 prompt_override=self._prompt_override,
-                metadata={
-                    "arxiv_id": e.arxiv_id,
-                    "abstract": e.abstract,
-                    "pdf_url": e.pdf_url,
-                    "authors": e.authors,
-                    "published": e.published,
-                },
-            )
-            for e in entries
-        ]
+                metadata=metadata,
+            ))
         SCRAPER_ARTICLES_FOUND.add(len(jobs), {"source": "arxiv"})
         logger.info("arxiv_discover_complete", count=len(jobs))
         return jobs

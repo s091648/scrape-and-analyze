@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 def _make_fetch_task(url="http://example.com/a", result=None):
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     job = ScrapeJob(url=url, source="test", source_type="rss")
     scraper = MagicMock()
     scraper.fetch.return_value = result
@@ -64,7 +64,7 @@ def test_executor_respects_per_host_exclusion():
         return ArticleScrapedEvent(url=job.url, title="T", content="C", source="test")
 
     from src.infrastructure.collection.executor.fetch_task import FetchTask
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     tasks = []
     for i in range(4):
         job = ScrapeJob(url=f"http://same-host.com/{i}", source="test", source_type="rss")

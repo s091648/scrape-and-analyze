@@ -1,6 +1,6 @@
 def test_scrape_job_accepts_topic_id():
     from uuid import uuid4
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     tid = uuid4()
     job = ScrapeJob(url="https://example.com", source="rss",
                     source_type="rss", topic_id=tid)
@@ -8,7 +8,7 @@ def test_scrape_job_accepts_topic_id():
 
 
 def test_scrape_job_topic_id_defaults_to_none():
-    from src.modules.collection.domain.value_objects import ScrapeJob
+    from src.modules.collection.domain.entities import ScrapeJob
     job = ScrapeJob(url="https://x.com", source="rss", source_type="rss")
     assert job.topic_id is None
 

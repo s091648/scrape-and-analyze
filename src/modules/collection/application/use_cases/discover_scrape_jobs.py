@@ -1,10 +1,9 @@
 from typing import List
 
 from src.shared.logging import get_logger
-from src.modules.collection.domain.entities import ScraperSetting
+from src.modules.collection.domain.entities import ScraperSetting, ScrapeJob
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.factories import ScraperFactory
-from src.modules.collection.domain.value_objects import ScrapeJob
 
 logger = get_logger(__name__)
 
