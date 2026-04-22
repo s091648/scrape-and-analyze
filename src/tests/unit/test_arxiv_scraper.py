@@ -172,15 +172,20 @@ def test_arxiv_scraper_sets_topic_id_on_job():
     from unittest.mock import MagicMock
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
     from src.infrastructure.collection.clients.arxiv_client import ArxivEntry
-    scraper = ArxivScraper(topic_id="test-topic-uuid", fetch_pdf=False)
-    entry = ArxivEntry(
-        url="https://arxiv.org/abs/2601.00001v1",
-        pdf_url=None, title="Test", abstract="Abs.",
-        published=datetime.now(timezone.utc).isoformat(),
-        authors=["Alice"], arxiv_id="2601.00001",
-    )
+    # Create mock client to avoid real HTTP calls
+    client = MagicMock()
+    client.fetch_entries.return_value = [
+        ArxivEntry(
+            url="https://arxiv.org/abs/2601.00001v1",
+            pdf_url=None, title="Test", abstract="Abs.",
+            published=datetime.now(timezone.utc).isoformat(),
+            authors=["Alice"], arxiv_id="2601.00001",
+        )
+    ]
+    scraper = ArxivScraper(topic_id="test-topic-uuid", fetch_pdf=False, client=client)
     jobs = scraper.discover()
     # discover() returns a list, so access the first element
+    assert len(jobs) > 0, "Expected at least one job"
     assert str(jobs[0].topic_id) == "test-topic-uuid"
 
 

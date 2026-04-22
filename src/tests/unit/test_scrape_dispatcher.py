@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 def test_pipeline_publishes_events_for_each_scraped_article():
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
     from src.modules.collection.domain.entities import ScraperSetting
-    from src.modules.collection.application.events import ArticleScrapedEvent
+    from src.modules.collection.domain.value_objects import ScrapedArticle
     from uuid import uuid4
 
     # Mock setting repo
@@ -15,11 +15,11 @@ def test_pipeline_publishes_events_for_each_scraped_article():
     setting_repo = MagicMock()
     setting_repo.get_active_due.return_value = [setting]
 
-    # Mock scraper factory + scraper
-    event1 = ArticleScrapedEvent(url="https://example.com/1", title="T1",
-                                  content="C", source="test-rss")
-    event2 = ArticleScrapedEvent(url="https://example.com/2", title="T2",
-                                  content="C", source="test-rss")
+    # Mock scraper factory + scraper - fetch returns ScrapedArticle (domain object)
+    article1 = ScrapedArticle(url="https://example.com/1", title="T1",
+                              content="C", source="test-rss")
+    article2 = ScrapedArticle(url="https://example.com/2", title="T2",
+                              content="C", source="test-rss")
 
     from src.modules.collection.domain.entities import ScrapeJob
     job1 = ScrapeJob(url="https://example.com/1", source="test-rss", source_type="rss")
@@ -27,7 +27,7 @@ def test_pipeline_publishes_events_for_each_scraped_article():
 
     scraper = MagicMock()
     scraper.discover.return_value = [job1, job2]
-    scraper.fetch.side_effect = [event1, event2]
+    scraper.fetch.side_effect = [article1, article2]
 
     scraper_factory = MagicMock()
     scraper_factory.create_for.return_value = scraper
@@ -41,6 +41,7 @@ def test_pipeline_publishes_events_for_each_scraped_article():
     )
     pipeline.run()
 
+    # Should publish ScrapedArticleDTO for each article
     assert event_bus.publish.call_count == 2
 
 

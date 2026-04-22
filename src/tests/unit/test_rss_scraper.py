@@ -77,10 +77,10 @@ def test_fetch_returns_event_with_all_fields():
 def test_matches_digital_twins_variants():
     from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
     s = RssScraper(url="https://example.com/feed", source="test")
-    assert s._matches_keywords("Digital Twins in Manufacturing") is True
-    assert s._matches_keywords("digital twin technology") is True
-    assert s._matches_keywords("cyber-physical systems") is True
-    assert s._matches_keywords("cyberphysical integration") is True
-    assert s._matches_keywords("DIGITAL TWINS") is True
-    assert s._matches_keywords("Unrelated article about cats") is False
-    assert s._matches_keywords("") is False
+    assert s._matches("Digital Twins in Manufacturing") is True
+    assert s._matches("digital twin technology") is True
+    assert s._matches("cyber-physical systems") is True
+    assert s._matches("cyberphysical integration") is True
+    assert s._matches("DIGITAL TWINS") is True
+    assert s._matches("Unrelated article about cats") is False
+    assert s._matches("") is False

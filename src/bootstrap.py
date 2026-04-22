@@ -95,6 +95,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
+    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -117,6 +118,7 @@ def build_collection_pipeline():
     article_repo = SqlAlchemyArticleRepository(session=session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
+    arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
 
@@ -134,6 +136,7 @@ def build_collection_pipeline():
         article_repo=article_repo,
         dedup_service=dedup_service,
         event_bus=event_bus,
+        arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,

@@ -135,5 +135,5 @@ def test_generate_url_hash_empty_string():
     """generate_url_hash should handle empty string"""
     from src.modules.collection.domain.value_objects.url import UrlHash
 
-    result = UrlHash.UrlHash.generate_url_hash("")
+    result = UrlHash.generate_url_hash("")
     assert len(result) == 64  # SHA-256 of empty string
