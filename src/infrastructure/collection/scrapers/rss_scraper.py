@@ -6,8 +6,8 @@ from src.shared.logging import get_logger
 from src.infrastructure.collection.clients.rss_client import RssClient
 from src.infrastructure.collection.parsers.sanitize_service import SanitizeService
 from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
-from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.entities import ScrapeJob
+from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.infrastructure.collection.parsers import HtmlArticleParser
 
 logger = get_logger(__name__)
@@ -60,17 +60,18 @@ class RssScraper(BaseScraper):
         logger.info("rss_discover_complete", source=self._source, count=len(jobs))
         return jobs
 
-    def fetch(self, job: ScrapeJob) -> Optional[ArticleScrapedEvent]:
+    def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
         fallback = SanitizeService.sanitize_content(job.metadata.get("description"))
         content = self._html_parser.fetch_and_parse(job.url, fallback=fallback)
-        return ArticleScrapedEvent(
+        return ScrapedArticle(
             url=job.url,
             title=job.metadata.get("title", ""),
             content=content,
             source=job.source,
             topic_id=job.topic_id,
             published_at=job.metadata.get("published"),
-            metadata={"author": job.metadata.get("author")},
+            authors=[job.metadata.get("author")] if job.metadata.get("author") else [],
+            extra={"author": job.metadata.get("author")},
         )
 
     def _matches(self, text: str) -> bool:

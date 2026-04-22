@@ -107,7 +107,7 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.events import AnalysisFailedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.events import ArticleScrapedEvent
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -143,9 +143,9 @@ def build_collection_pipeline():
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
-    # collection 內部事件：ArticleScrapedEvent → ProcessScrapedArticleUseCase
+    # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
     article_scraped_handler = ArticleScrapedHandler(use_case=process_article_uc)
-    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
+    event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)

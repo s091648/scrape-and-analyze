@@ -9,8 +9,8 @@ from src.infrastructure.collection.parsers import HtmlArticleParser
 from .base_scraper import BaseScraper
 from src.infrastructure.shared.http import get_default_client
 from src.shared.logging import get_logger
-from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.entities import ScrapeJob
+from src.modules.collection.domain.value_objects import ScrapedArticle
 
 logger = get_logger(__name__)
 
@@ -58,7 +58,7 @@ class BlogScraper(BaseScraper):
         logger.info("blog_discover_complete", source=self._source, count=len(jobs))
         return jobs
 
-    def fetch(self, job: ScrapeJob) -> Optional[ArticleScrapedEvent]:
+    def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
         try:
             response = get_default_client().get(job.url, timeout=30)
         except Exception as e:
@@ -70,7 +70,7 @@ class BlogScraper(BaseScraper):
         if not content:
             return None
 
-        return ArticleScrapedEvent(
+        return ScrapedArticle(
             url=job.url,
             title=title,
             content=content,

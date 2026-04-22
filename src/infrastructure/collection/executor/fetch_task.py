@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
-from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.entities import ScrapeJob
+from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -28,7 +28,7 @@ class FetchTask:
     scraper: Any          # BaseScraper; typed as Any to avoid circular import
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def execute(self) -> Optional[ArticleScrapedEvent]:
+    def execute(self) -> Optional[ScrapedArticle]:
         try:
             return self.scraper.fetch(self.job)
         except Exception as e:

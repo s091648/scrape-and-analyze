@@ -11,7 +11,7 @@ from .queue_selector import (
     WeightedRoundRobinQueueSelector,
 )
 from src.shared.logging import get_logger
-from src.modules.collection.application.events import ArticleScrapedEvent
+from src.modules.collection.domain.value_objects import ScrapedArticle
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ class ScrapeExecutor:
         1. Asks QueueSelector for candidate queue indices (deepest backlog first).
         2. Attempts semaphore.acquire(blocking=False) on each candidate.
         3. On success, dequeues one FetchTask, runs task.execute(), calls
-           on_result() with the ArticleScrapedEvent if one was returned.
+           on_result() with the ScrapedArticle if one was returned.
         4. Releases the semaphore and sleeps `delay` seconds.
         5. Exits when done_flag is True AND all queues are empty.
 
@@ -56,11 +56,11 @@ class ScrapeExecutor:
     def run(
         self,
         tasks: List[FetchTask],
-        on_result: Callable[[ArticleScrapedEvent], None],
+        on_result: Callable[[ScrapedArticle], None],
     ) -> int:
         """
         Route tasks then dispatch workers.  Blocks until all tasks are processed.
-        Returns the number of successful ArticleScrapedEvents produced.
+        Returns the number of successful ScrapedArticles produced.
         """
         if not tasks:
             return 0
