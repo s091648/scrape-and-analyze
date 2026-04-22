@@ -7,6 +7,7 @@ import tenacity
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, TagGroup
 from src.modules.intelligence.domain.services import LLMService
+from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
 
 logger = get_logger(__name__)
 
@@ -18,7 +19,15 @@ _NON_RETRYABLE = (
     ValueError,
     KeyError,
     IndexError,
+    RateLimitExhausted,
 )
+
+
+def _to_str(val) -> str:
+    """Coerce LLM output to str: join lists with newline, pass strings through."""
+    if isinstance(val, list):
+        return "\n".join(str(item) for item in val)
+    return val or ""
 
 
 def _is_retryable(exc: BaseException) -> bool:
@@ -67,6 +76,8 @@ class BaseProvider(LLMService, ABC):
             for attempt in self._retry:
                 with attempt:
                     result = self._call_api(content, prompt)
+        except RateLimitExhausted:
+            raise
         except Exception as e:
             logger.warning("provider_analyze_failed", model=self._model, error=str(e))
             return None
@@ -83,10 +94,10 @@ class BaseProvider(LLMService, ABC):
             for tg in result.get("tag_groups", [])
         ]
         analysis_content = AnalysisContent(
-            pain_points=result.get("pain_points", ""),
-            insights=result.get("insights", ""),
-            innovations=result.get("innovations", ""),
-            summary=result.get("summary", ""),
+            pain_points=_to_str(result.get("pain_points")),
+            insights=_to_str(result.get("insights")),
+            innovations=_to_str(result.get("innovations")),
+            summary=_to_str(result.get("summary")),
             tag_groups=tag_groups,
         )
         analysis_metadata = AnalysisMetadata(
