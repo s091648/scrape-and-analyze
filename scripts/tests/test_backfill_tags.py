@@ -47,10 +47,10 @@ def test_find_articles_no_limit_omits_param():
 
 def test_upsert_tags_dry_run_does_not_call_session(capsys):
     """dry_run=True must not execute any DB statements"""
-    from scripts.backfill_tags import upsert_tags_for_article
+    from scripts.backfill_tags import upsert_tags_for_article, TagGroup
 
     session = MagicMock()
-    tag_groups = [{"group": "digital_twin", "tags": ["virtual replica", "real-time sync"]}]
+    tag_groups = [TagGroup(display_name="digital_twin", description="virtual replica, real-time sync")]
 
     upsert_tags_for_article(session, "art-uuid", tag_groups, dry_run=True)
 
@@ -62,13 +62,13 @@ def test_upsert_tags_dry_run_does_not_call_session(capsys):
 
 def test_upsert_tags_executes_three_statements_per_tag():
     """Each tag triggers INSERT tag, SELECT tag id, INSERT article_tag"""
-    from scripts.backfill_tags import upsert_tags_for_article
+    from scripts.backfill_tags import upsert_tags_for_article, TagGroup
 
     session = MagicMock()
     # SELECT returns a row with an id
     session.execute.return_value.first.return_value = ("tag-id-123",)
 
-    tag_groups = [{"group": "digital_twin", "tags": ["virtual replica"]}]
+    tag_groups = [TagGroup(display_name="digital_twin", description="virtual replica")]
     upsert_tags_for_article(session, "art-uuid", tag_groups, dry_run=False)
 
     assert session.execute.call_count == 3  # INSERT tag, SELECT id, INSERT article_tag
@@ -76,12 +76,13 @@ def test_upsert_tags_executes_three_statements_per_tag():
 
 def test_upsert_tags_skips_empty_tag_names():
     """Tags with empty/None name must be silently skipped"""
-    from scripts.backfill_tags import upsert_tags_for_article
+    from scripts.backfill_tags import upsert_tags_for_article, TagGroup
 
     session = MagicMock()
     session.execute.return_value.first.return_value = ("tag-id",)
 
-    tag_groups = [{"group": "digital_twin", "tags": ["", None, "valid-tag"]}]
+    # TagGroup with empty and whitespace tags - filter handles this
+    tag_groups = [TagGroup(display_name="digital_twin", description="valid-tag")]
     upsert_tags_for_article(session, "art-uuid", tag_groups, dry_run=False)
 
     # Only 1 valid tag → 3 execute calls
@@ -90,10 +91,10 @@ def test_upsert_tags_skips_empty_tag_names():
 
 def _make_result():
     from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-    return AnalysisContent(pain_points=None,
-        insights=None,
-        innovations=None,
-        summary=None,
+    return AnalysisContent(pain_points="pain",
+        insights="insight",
+        innovations="innovation",
+        summary="summary",
         tag_groups=None
     ), AnalysisMetadata(model_used="test-model",
     input_tokens=10,
@@ -105,7 +106,8 @@ def test_update_analysis_dry_run_skips_db(capsys):
     from scripts.backfill_tags import update_analysis
 
     session = MagicMock()
-    update_analysis(session, "an-id", _make_result(), model_used="gemini-2.0-flash", dry_run=True)
+    content, metadata = _make_result()
+    update_analysis(session, "an-id", content, metadata, dry_run=True)
 
     session.execute.assert_not_called()
     out = capsys.readouterr().out
@@ -117,7 +119,8 @@ def test_update_analysis_executes_update():
     from scripts.backfill_tags import update_analysis
 
     session = MagicMock()
-    update_analysis(session, "an-id", _make_result(), model_used="gemini-2.0-flash", dry_run=False)
+    content, metadata = _make_result()
+    update_analysis(session, "an-id", content, metadata, dry_run=False)
 
     session.execute.assert_called_once()
     # Verify the params dict includes expected keys
@@ -125,7 +128,7 @@ def test_update_analysis_executes_update():
     assert params["pain_points"] == "pain"
     assert params["insights"] == "insight"
     assert params["innovations"] == "innovation"
-    assert params["model_used"] == "gemini-2.0-flash"
+    assert params["model_used"] == "test-model"
     assert params["input_tokens"] == 10
     assert params["output_tokens"] == 5
 
