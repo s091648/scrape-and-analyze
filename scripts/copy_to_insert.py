@@ -24,7 +24,8 @@ TABLE_PRIORITY = [
 def priority_key(table_name: str) -> int:
     normalized = table_name.lower()
     for i, p in enumerate(TABLE_PRIORITY):
-        if normalized == p or normalized.endswith("." + p.split(".")[-1]):
+        table_part = p.split(".")[-1]  # e.g., "articles" from "public.articles"
+        if normalized == p or normalized == table_part or normalized.endswith("." + table_part):
             return i
     return len(TABLE_PRIORITY)
 

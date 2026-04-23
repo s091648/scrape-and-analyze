@@ -4,8 +4,9 @@ from uuid import UUID
 from src.shared.logging import get_logger
 from src.infrastructure.collection.clients import ArxivClient
 from .base_scraper import BaseScraper
-from src.modules.collection.application.events import ArticleScrapedEvent
-from src.modules.collection.domain.entities import ScrapeJob, ScrapeJobMetadata
+from src.modules.collection.domain.entities import ScrapeJob
+from src.modules.collection.domain.value_objects import ScrapedArticle
+from src.modules.collection.application.dtos import ScraperMetadataDTO
 from src.infrastructure.collection.parsers import PdfParser
 from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
@@ -44,7 +45,7 @@ class ArxivScraper(BaseScraper):
         )
         jobs = []
         for e in entries:
-            metadata = ScrapeJobMetadata(
+            metadata = ScraperMetadataDTO.for_arxiv(
                 arxiv_id=e.arxiv_id,
                 abstract=e.abstract,
                 pdf_url=e.pdf_url,
@@ -57,13 +58,13 @@ class ArxivScraper(BaseScraper):
                 source_type="arxiv",
                 topic_id=self._topic_id,
                 prompt_override=self._prompt_override,
-                metadata=metadata,
+                metadata=metadata.source_specific,
             ))
         SCRAPER_ARTICLES_FOUND.add(len(jobs), {"source": "arxiv"})
         logger.info("arxiv_discover_complete", count=len(jobs))
         return jobs
 
-    def fetch(self, job: ScrapeJob) -> Optional[ArticleScrapedEvent]:
+    def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
         sections: dict = {}
         pdf_available = False
         pdf_url = job.metadata.get("pdf_url")
@@ -78,15 +79,15 @@ class ArxivScraper(BaseScraper):
                     for name, body in raw_sections.items()
                 }
 
-        return ArticleScrapedEvent(
+        return ScrapedArticle(
             url=job.url,
             title=job.metadata.get("arxiv_id", job.url),
             content=job.metadata.get("abstract", ""),
             source="arxiv",
             topic_id=job.topic_id,
             published_at=job.metadata.get("published"),
-            metadata={
-                "authors": job.metadata.get("authors", []),
+            authors=job.metadata.get("authors", []),
+            extra={
                 "arxiv_id": job.metadata.get("arxiv_id"),
                 "abstract": job.metadata.get("abstract"),
                 "pdf_available": pdf_available,

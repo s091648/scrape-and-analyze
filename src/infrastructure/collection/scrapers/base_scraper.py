@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from src.modules.collection.domain.services import Scraper
 from src.modules.collection.domain.entities import ScrapeJob
-from src.modules.collection.application.events import ArticleScrapedEvent
+from src.modules.collection.domain.value_objects import ScrapedArticle
 
 
 class BaseScraper(Scraper):
@@ -19,9 +19,9 @@ class BaseScraper(Scraper):
         ...
 
     @abstractmethod
-    def fetch(self, job: ScrapeJob) -> Optional[ArticleScrapedEvent]:
+    def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
         """
-        Fetch full article content for *job* and return an ArticleScrapedEvent.
+        Fetch full article content for *job* and return a ScrapedArticle.
         Returns None on any failure.
         """
         ...

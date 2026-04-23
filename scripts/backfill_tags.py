@@ -20,6 +20,8 @@ from src.bootstrap import build_llm_service
 from src.infrastructure.persistence.database import get_session
 from src.shared.logging import get_logger
 
+from src.modules.intelligence.domain.value_objects import TagGroup
+
 logger = get_logger(__name__)
 
 
@@ -85,9 +87,10 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
 def update_analysis(session, analysis_id, content, metadata, dry_run=False):
     """Overwrite pain_points/insights/innovations/token counts on the analyses row."""
     if dry_run:
+        pain_points_preview = content.pain_points[:50] if content.pain_points else ""
         print(
             f"  [DRY RUN] Would update analysis {analysis_id}:"
-            f" pain_points={content.pain_points[:50]!r}..."
+            f" pain_points={pain_points_preview!r}..."
         )
         return
     session.execute(
@@ -121,7 +124,6 @@ def run_backfill(session, llm_service, prompt, dry_run=False, limit=None):
 
     Returns dict: {"processed": int, "skipped": int}
     """
-    from src.shared.domain.entities import Article
 
     rows = find_articles_needing_backfill(session, limit=limit)
     processed = 0
@@ -140,7 +142,8 @@ def run_backfill(session, llm_service, prompt, dry_run=False, limit=None):
 
         content, metadata = result
 
-        upsert_tags_for_article(session, article_id, content.tag_groups, dry_run=dry_run)
+        if content.tag_groups:
+            upsert_tags_for_article(session, article_id, content.tag_groups, dry_run=dry_run)
         update_analysis(session, analysis_id, content, metadata, dry_run=dry_run)
 
         if not dry_run:

@@ -95,6 +95,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
+    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -107,7 +108,7 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.events import AnalysisFailedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.events import ArticleScrapedEvent
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -117,6 +118,7 @@ def build_collection_pipeline():
     article_repo = SqlAlchemyArticleRepository(session=session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
+    arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
 
@@ -134,6 +136,7 @@ def build_collection_pipeline():
         article_repo=article_repo,
         dedup_service=dedup_service,
         event_bus=event_bus,
+        arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -143,9 +146,9 @@ def build_collection_pipeline():
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
-    # collection 內部事件：ArticleScrapedEvent → ProcessScrapedArticleUseCase
+    # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
     article_scraped_handler = ArticleScrapedHandler(use_case=process_article_uc)
-    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
+    event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)

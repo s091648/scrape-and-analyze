@@ -3,8 +3,9 @@ from typing import List, Optional
 from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
-from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.domain.repositories import ScraperSettingRepository
+from src.modules.collection.domain.value_objects import ScrapedArticle
+from src.modules.collection.application.dtos import ScrapedArticleDTO
 from src.shared.application.ports import EventBus
 
 logger = get_logger(__name__)
@@ -19,11 +20,14 @@ class CollectionPipeline:
     2. 為每個 setting 建立對應的 scraper，執行 discover() 取得 ScrapeJob 列表
     3. 將每個 (job, scraper) 包裝成 FetchTask，交給 ScrapeExecutor
     4. ScrapeExecutor 在 Phase 2 以多線程 + per-host BoundedSemaphore 並發抓取
-    5. 每筆抓取結果以 ArticleScrapedEvent 發佈到 EventBus，觸發後續處理流程
+    5. 將每個 ScrapedArticle 轉換為 ScrapedArticleDTO 發佈到 EventBus (跨 context)
     6. 標記 setting 已抓取（更新 last_scraped_at）
 
     注意：此類屬於 infrastructure layer，因此可直接依賴 ConcreteScraperFactory
     與 ScrapeExecutor — 不屬於 application use case。
+
+    Phase 1 → Phase 2 使用 direct call，不經過 EventBus，
+    因為這是同一個 pipeline 內部的兩個階段，不是跨 context 的通訊。
     """
 
     def __init__(
@@ -41,7 +45,7 @@ class CollectionPipeline:
     def run(self) -> int:
         """
         執行一輪完整的 collection pipeline。
-        回傳：成功發佈的 ArticleScrapedEvent 數量。
+        回傳：成功發佈的 ScrapedArticleDTO 數量。
         """
         due_settings = self._setting_repo.get_active_due()
 
@@ -76,14 +80,21 @@ class CollectionPipeline:
             scraped_setting_ids.append(setting.id)
 
         # ── Phase 2: concurrent fetch via ScrapeExecutor ──────────────────
-        published = 0
+        # 直接收集結果，不經過 EventBus (同一個 pipeline 內部)
+        results: List[ScrapedArticle] = []
 
-        def on_result(event: ArticleScrapedEvent) -> None:
-            nonlocal published
-            self._event_bus.publish(event)
-            published += 1
+        def on_result(article: ScrapedArticle) -> None:
+            results.append(article)
 
         self._executor.run(tasks, on_result=on_result)
+
+        # ── Phase 3: 發布 application DTO 到 EventBus (跨 context) ────────
+        # ScrapedArticleDTO 是跨 context 的整合事件，供 handler 接收處理
+        published = 0
+        for article in results:
+            dto = ScrapedArticleDTO.from_scraped_article(article)
+            self._event_bus.publish(dto)
+            published += 1
 
         # ── Mark settings as scraped after all tasks complete ─────────────
         for setting_id in scraped_setting_ids:
