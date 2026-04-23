@@ -36,7 +36,7 @@ class ConcreteScraperFactory(ScraperFactory):
         if setting.source_type == "arxiv":
             return ArxivScraper(
                 max_results=cfg.get("max_results", 30),
-                days_back=cfg.get("days_back", 1),
+                days_back=cfg.get("days_back", 7),
                 keywords=cfg.get("keywords") or None,
                 categories=cfg.get("categories") or None,
                 topic_id=setting.topic_id,

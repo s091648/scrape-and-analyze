@@ -167,7 +167,7 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
     from src.modules.intelligence.domain.value_objects import TagGroup
 
     llm = _mock_llm(_make_llm_result(
-        tag_groups=[TagGroup(display_name=tag_group.display_name, description="")]
+        tag_groups=[TagGroup(display_name=tag_group.display_name, description="test-tag")]
     ))
     event = _make_event()
 

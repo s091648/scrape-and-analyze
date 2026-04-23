@@ -184,11 +184,14 @@ def main():
         print("No tasks to run.")
         return
 
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
+
     event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
     published = [0]
 
-    def on_result(event):
-        event_bus.publish(event)
+    def on_result(article):
+        dto = ScrapedArticleDTO.from_scraped_article(article)
+        event_bus.publish(dto)
         published[0] += 1
 
     executor = ScrapeExecutor()

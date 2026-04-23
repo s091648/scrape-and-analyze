@@ -23,6 +23,7 @@ class ScraperMetadataDTO:
     def for_arxiv(
         cls,
         arxiv_id: Optional[str] = None,
+        title: Optional[str] = None,
         abstract: Optional[str] = None,
         pdf_url: Optional[str] = None,
         authors: Optional[list] = None,
@@ -32,6 +33,7 @@ class ScraperMetadataDTO:
             source_type="arxiv",
             source_specific={
                 "arxiv_id": arxiv_id,
+                "title": title,
                 "abstract": abstract,
                 "pdf_url": pdf_url,
                 "authors": authors or [],

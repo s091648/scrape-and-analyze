@@ -47,6 +47,7 @@ class ArxivScraper(BaseScraper):
         for e in entries:
             metadata = ScraperMetadataDTO.for_arxiv(
                 arxiv_id=e.arxiv_id,
+                title=e.title,
                 abstract=e.abstract,
                 pdf_url=e.pdf_url,
                 authors=e.authors,
@@ -81,7 +82,7 @@ class ArxivScraper(BaseScraper):
 
         return ScrapedArticle(
             url=job.url,
-            title=job.metadata.get("arxiv_id", job.url),
+            title=job.metadata.get("title") or job.metadata.get("arxiv_id", job.url),
             content=job.metadata.get("abstract", ""),
             source="arxiv",
             topic_id=job.topic_id,

@@ -3,6 +3,7 @@ import json
 from google import genai
 
 from src.shared.logging import get_logger
+from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
 from .base_provider import BaseProvider
 
 logger = get_logger(__name__)
@@ -16,10 +17,16 @@ class GeminiProvider(BaseProvider):
 
     def _call_api(self, content: str, prompt: str) -> dict:
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=full_prompt,
-        )
+        try:
+            response = self._client.models.generate_content(
+                model=self._model,
+                contents=full_prompt,
+            )
+        except Exception as e:
+            error_str = str(e)
+            if "RESOURCE_EXHAUSTED" in error_str and "PerDay" in error_str:
+                raise RateLimitExhausted(f"Daily quota exceeded for {self._model}") from e
+            raise
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[-1]

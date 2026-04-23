@@ -30,6 +30,7 @@ def _make_uc(db_session):
         article_repo=SqlAlchemyArticleRepository(session=db_session),
         dedup_service=DedupService(article_repo=SqlAlchemyArticleRepository(session=db_session)),
         event_bus=InMemoryEventBus(),
+        arxiv_metadata_repo=SqlAlchemyArxivMetadataRepository(session=db_session),
     )
 
 

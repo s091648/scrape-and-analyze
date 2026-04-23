@@ -1,5 +1,5 @@
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from src.shared.domain.entities import Article
 from src.shared.domain.repositories import ArticleRepository
@@ -30,6 +30,7 @@ class SqlAlchemyArticleRepository(ArticleRepository):
             published_at=article.published_at,
             metadata_=article.metadata or {},
             topic_id=article.topic_id,
+            correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
         )
         self._session.add(row)
         self._session.flush()
