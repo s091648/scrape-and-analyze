@@ -1,10 +1,10 @@
-from src.shared.application.events import ArticleProcessedEvent
-from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
 
 
-class ArticleProcessedHandler:
-    def __init__(self, use_case: AnalyzeArticleUseCase) -> None:
+class ArticleScrapedHandler:
+    def __init__(self, use_case: ProcessScrapedArticleUseCase) -> None:
         self._use_case = use_case
 
-    def handle(self, event: ArticleProcessedEvent) -> bool:
-        return self._use_case.execute(event.article)
+    def handle(self, dto: ScrapedArticleDTO) -> bool:
+        return self._use_case.execute(dto)

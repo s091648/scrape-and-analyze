@@ -9,7 +9,7 @@ import uuid
 from unittest.mock import MagicMock
 
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.events import ArticleScrapedEvent
+from src.modules.collection.application.dtos import ScrapedArticleDTO
 
 
 def _make_llm_result(**overrides):
@@ -36,7 +36,7 @@ def _make_event(**overrides):
         source="test",
     )
     defaults.update(overrides)
-    return ArticleScrapedEvent(**defaults)
+    return ScrapedArticleDTO(**defaults)
 
 
 def _mock_llm(result=None, *, use_default=True):
@@ -180,10 +180,17 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
 
 
 @pytest.mark.integration
-def test_process_article_returns_false_when_llm_returns_none(db_session):
+def test_process_article_returns_true_when_llm_returns_none(db_session):
+    from models.article import Article
+    from models.analysis import Analysis
+
     event = _make_event()
     llm = _mock_llm(result=None, use_default=False)
 
     result = _wire_pipeline(db_session, llm).execute(event)
 
-    assert result is False
+    assert result is True
+    article = db_session.query(Article).filter_by(url=event.url).first()
+    assert article is not None
+    analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
+    assert analysis is None

@@ -34,8 +34,8 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
                 or_(
                     ScraperSettingModel.last_scraped_at.is_(None),
                     func.now() - ScraperSettingModel.last_scraped_at
-                    > func.make_interval(hours=ScraperSettingModel.frequency)
-                    - func.make_interval(mins=_TOLERANCE_MINUTES),
+                    > func.make_interval(0, 0, 0, 0, ScraperSettingModel.frequency, 0, 0)
+                    - func.make_interval(0, 0, 0, 0, 0, _TOLERANCE_MINUTES, 0),
                 ),
             )
             .all()

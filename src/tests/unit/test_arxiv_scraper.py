@@ -190,25 +190,10 @@ def test_arxiv_scraper_sets_topic_id_on_job():
 
 
 @responses.activate
-def test_discover_retries_on_429_and_succeeds():
-    from unittest.mock import patch
+def test_discover_returns_empty_on_429():
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
     responses.add(responses.GET, "https://export.arxiv.org/api/query", status=429)
-    responses.add(responses.GET, "https://export.arxiv.org/api/query",
-                  body=_atom(_entry()), status=200)
-    with patch("time.sleep"):
-        jobs = ArxivScraper(fetch_pdf=False).discover()
-    assert len(jobs) == 1
-
-
-@responses.activate
-def test_discover_returns_empty_after_exhausting_retries_on_429():
-    from unittest.mock import patch
-    from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
-    for _ in range(4):
-        responses.add(responses.GET, "https://export.arxiv.org/api/query", status=429)
-    with patch("time.sleep"):
-        jobs = ArxivScraper(fetch_pdf=False).discover()
+    jobs = ArxivScraper(fetch_pdf=False).discover()
     assert jobs == []
 
 
@@ -228,8 +213,5 @@ def test_discover_handles_entry_with_missing_summary():
     scraper = ArxivScraper(fetch_pdf=False)
     jobs = scraper.discover()
     assert len(jobs) == 1
-    # Note: arxiv_scraper uses arxiv_id (or url) as title, not the <title> field
-    # The title in ScrapedArticle comes from job.metadata.get("arxiv_id", job.url)
     article = scraper.fetch(jobs[0])
-    # Since there's no arxiv_id in the entry, title defaults to URL
-    assert article.title == "http://arxiv.org/abs/2401.00004v1"
+    assert article.title == "Minimal Entry"

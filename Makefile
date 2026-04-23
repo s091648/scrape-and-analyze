@@ -64,7 +64,7 @@ scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
 
 run:
-	docker compose run --rm app python -m src.main
+	docker compose run --rm app python -m src.entrypoints.cli.main
 
 # optional: override with HOURS=48 LIMIT=20
 _RETRY_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(HOURS),--hours $(HOURS),)
