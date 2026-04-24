@@ -13,8 +13,20 @@ from src.infrastructure.collection.parsers import HtmlArticleParser
 logger = get_logger(__name__)
 
 _DEFAULT_KEYWORDS = [
+    # digital twin core
     r"digital\s+twin", r"digital\s+twins", r"twin\s+technology",
     r"cyber[\-\s]?physical", r"virtual\s+replica",
+    # iot
+    r"internet\s+of\s+things", r"\biot\b",
+    # industrial / manufacturing
+    r"industrial\s+iot", r"iiot",
+    r"smart\s+manufactur", r"smart\s+factor",
+    r"industry\s+4[.\s]?0",
+    r"predictive\s+maintenance",
+    # edge & cloud
+    r"edge\s+computing", r"edge\s+ai",
+    # robotics & autonomy
+    r"robotics", r"autonomous\s+system",
 ]
 
 
@@ -34,8 +46,13 @@ class RssScraper(BaseScraper):
         self._topic_id = topic_id
         self._prompt_override = prompt_override
         self._client = client or RssClient()
-        patterns = keywords if keywords else _DEFAULT_KEYWORDS
-        self._keyword_pattern = re.compile("|".join(patterns), re.IGNORECASE)
+        if keywords is None:
+            patterns = _DEFAULT_KEYWORDS
+        elif keywords:
+            patterns = keywords   # source-specific override
+        else:
+            patterns = None       # empty list → no filter, accept all
+        self._keyword_pattern = re.compile("|".join(patterns), re.IGNORECASE) if patterns else None
         self._html_parser = HtmlArticleParser()
 
     def discover(self) -> List[ScrapeJob]:
@@ -75,4 +92,6 @@ class RssScraper(BaseScraper):
         )
 
     def _matches(self, text: str) -> bool:
+        if self._keyword_pattern is None:
+            return True
         return bool(text and self._keyword_pattern.search(text))

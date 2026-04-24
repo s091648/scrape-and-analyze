@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
 
 from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
@@ -55,29 +56,33 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
-        # ── Phase 1: discover all jobs across every due setting ───────────
+        # ── Phase 1: concurrent discover across all due settings ──────────
         tasks: List[FetchTask] = []
         scraped_setting_ids = []
 
-        for setting in due_settings:
-            try:
-                scraper = self._scraper_factory.create_for(setting)
-                jobs = scraper.discover()
-            except Exception as e:
-                logger.error("discover_failed", source=setting.source, error=str(e))
-                continue
+        def _discover(setting):
+            scraper = self._scraper_factory.create_for(setting)
+            return scraper, scraper.discover()
 
-            logger.info("jobs_discovered", source=setting.source, count=len(jobs))
+        with ThreadPoolExecutor(max_workers=len(due_settings)) as pool:
+            futures = {pool.submit(_discover, s): s for s in due_settings}
+            for future in as_completed(futures):
+                setting = futures[future]
+                try:
+                    scraper, jobs = future.result()
+                except Exception as e:
+                    logger.error("discover_failed", source=setting.source, error=str(e))
+                    continue
 
-            for job in jobs:
-                tasks.append(FetchTask(
-                    url=job.url,
-                    source=setting.source,
-                    job=job,
-                    scraper=scraper,
-                ))
-
-            scraped_setting_ids.append(setting.id)
+                logger.info("jobs_discovered", source=setting.source, count=len(jobs))
+                for job in jobs:
+                    tasks.append(FetchTask(
+                        url=job.url,
+                        source=setting.source,
+                        job=job,
+                        scraper=scraper,
+                    ))
+                scraped_setting_ids.append(setting.id)
 
         # ── Phase 2: concurrent fetch via ScrapeExecutor ──────────────────
         # 直接收集結果，不經過 EventBus (同一個 pipeline 內部)

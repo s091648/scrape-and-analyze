@@ -62,6 +62,14 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             if topic:
                 prompt_override = topic.prompt_override
 
+        from models.scraper_keyword import ScraperKeyword as ScraperKeywordModel
+        keyword_rows = (
+            self._session.query(ScraperKeywordModel)
+            .filter_by(scraper_setting_id=row.id)
+            .all()
+        )
+        keywords = [k.keyword for k in keyword_rows] if keyword_rows else None
+
         return ScraperSetting(
             id=row.id,
             source=row.name,               # ORM: name → entity: source
@@ -71,6 +79,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             topic_id=row.topic_id,
             prompt_override=prompt_override,
             selector_config=row.selector_config or {},
+            keywords=keywords,
             last_scraped_at=row.last_scraped_at,
             is_active=row.is_active,
         )

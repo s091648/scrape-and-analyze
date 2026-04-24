@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 
@@ -14,6 +14,7 @@ class ScraperSetting:
     topic_id: Optional[UUID] = None
     prompt_override: Optional[str] = None
     selector_config: Dict[str, Any] = field(default_factory=dict)
+    keywords: Optional[List[str]] = None
     last_scraped_at: Optional[datetime] = None
     is_active: bool = True
 

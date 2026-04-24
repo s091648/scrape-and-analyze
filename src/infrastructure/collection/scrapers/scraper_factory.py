@@ -16,10 +16,12 @@ class ConcreteScraperFactory(ScraperFactory):
         cfg = setting.selector_config or {}
 
         if setting.source_type == "rss":
+            # DB keywords take precedence; fall back to selector_config["keywords"] for compat
+            keywords = setting.keywords if setting.keywords is not None else cfg.get("keywords") or None
             return RssScraper(
                 url=setting.url,
                 source=setting.source,
-                keywords=cfg.get("keywords") or None,
+                keywords=keywords,
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
             )
