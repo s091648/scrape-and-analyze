@@ -24,12 +24,12 @@ def test_article_entity_accepts_topic_id():
     assert a.topic_id == tid
 
 
-def test_article_scraped_event_accepts_topic_id():
+def test_scraped_article_dto_accepts_topic_id():
     from uuid import uuid4
-    from src.modules.collection.application.events import ArticleScrapedEvent
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
     tid = uuid4()
-    ev = ArticleScrapedEvent(
+    dto = ScrapedArticleDTO(
         url="https://x.com", title="T", content="C",
         source="rss", topic_id=tid,
     )
-    assert ev.topic_id == tid
+    assert dto.topic_id == tid

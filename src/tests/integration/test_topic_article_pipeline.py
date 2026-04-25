@@ -2,7 +2,7 @@ import uuid
 from unittest.mock import MagicMock
 import pytest
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.events import ArticleScrapedEvent
+from src.modules.collection.application.dtos import ScrapedArticleDTO
 
 
 def _make_result():
@@ -50,7 +50,7 @@ def _wire_pipeline(db_session):
 def test_article_gets_topic_id_on_save(db_session, test_topic):
     from models.article import Article
     topic_id = test_topic
-    event = ArticleScrapedEvent(
+    event = ScrapedArticleDTO(
         url=f"https://example.com/{uuid.uuid4()}",
         title="Test Article", content="Body.", source="rss",
         topic_id=topic_id,
