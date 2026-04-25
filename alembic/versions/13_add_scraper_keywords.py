@@ -17,25 +17,26 @@ depends_on = None
 
 def upgrade() -> None:
     # ── New table: scraper_keywords ───────────────────────────────────────
-    # Stores per-ScraperSetting keyword overrides for RSS filtering.
-    # Semantics (in RssScraper):
-    #   0 rows  → use _DEFAULT_KEYWORDS
-    #   1+ rows → use only these keywords (full override)
+    # Stores keyword filter overrides keyed by topic, shared across all
+    # scraper source types (RSS, arxiv, …) for the same topic.
+    # Semantics (in scrapers):
+    #   0 rows for a topic  → use source-specific defaults
+    #   1+ rows for a topic → use only these keywords (full override)
     op.create_table(
         "scraper_keywords",
         sa.Column("id", UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
-        sa.Column("scraper_setting_id", UUID(as_uuid=True),
-                  sa.ForeignKey("scraper_settings.id", ondelete="CASCADE"),
+        sa.Column("topic_id", UUID(as_uuid=True),
+                  sa.ForeignKey("topics.id", ondelete="CASCADE"),
                   nullable=False),
         sa.Column("keyword", sa.String(500), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True),
                   server_default=sa.text("NOW()")),
-        sa.UniqueConstraint("scraper_setting_id", "keyword",
-                            name="uq_scraper_keyword_setting_keyword"),
+        sa.UniqueConstraint("topic_id", "keyword",
+                            name="uq_scraper_keyword_topic_keyword"),
     )
     op.create_index(
-        "idx_scraper_keywords_setting_id", "scraper_keywords", ["scraper_setting_id"]
+        "idx_scraper_keywords_topic_id", "scraper_keywords", ["topic_id"]
     )
 
     # ── Column comments: ID/key column glossary ───────────────────────────
@@ -75,19 +76,20 @@ def upgrade() -> None:
 
     # scraper_keywords
     op.execute("""
-        COMMENT ON COLUMN scraper_keywords.scraper_setting_id IS
-        'FK → scraper_settings.id. The source this keyword override belongs to.'
+        COMMENT ON COLUMN scraper_keywords.topic_id IS
+        'FK → topics.id. Keywords are topic-scoped and shared by all scraper source types
+         (RSS, arxiv, …) for this topic.'
     """)
     op.execute("""
         COMMENT ON COLUMN scraper_keywords.keyword IS
-        'Regex pattern used to filter RSS entries for this source.
-         If 1+ rows exist, they fully replace _DEFAULT_KEYWORDS in RssScraper.
-         If 0 rows exist, RssScraper falls back to _DEFAULT_KEYWORDS.'
+        'Regex pattern used to filter articles for this topic.
+         If 1+ rows exist for a topic, they fully replace source-specific defaults.
+         If 0 rows exist, the scraper falls back to its own default keyword list.'
     """)
 
 
 def downgrade() -> None:
-    op.drop_index("idx_scraper_keywords_setting_id", table_name="scraper_keywords")
+    # Indexes are dropped automatically by PostgreSQL when the table is dropped.
     op.drop_table("scraper_keywords")
 
     # COMMENT ON COLUMN cannot be easily reversed; drop by setting to NULL

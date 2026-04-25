@@ -62,13 +62,26 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             if topic:
                 prompt_override = topic.prompt_override
 
+        # Keywords are topic-scoped: shared by all scrapers (RSS, arxiv, …) for the same topic.
         from models.scraper_keyword import ScraperKeyword as ScraperKeywordModel
         keyword_rows = (
             self._session.query(ScraperKeywordModel)
-            .filter_by(scraper_setting_id=row.id)
+            .filter_by(topic_id=row.topic_id)
             .all()
         )
         keywords = [k.keyword for k in keyword_rows] if keyword_rows else None
+
+        # selector_config may be a typed SelectorConfig (new data with 'type' field),
+        # a raw dict (legacy data), or None. build_selector_config() handles all cases.
+        from src.modules.collection.domain.value_objects.selector_config import (
+            build_selector_config,
+            RssConfig, BlogConfig, ArxivConfig,
+        )
+        raw_cfg = row.selector_config
+        if isinstance(raw_cfg, (RssConfig, BlogConfig, ArxivConfig)):
+            selector_config = raw_cfg
+        else:
+            selector_config = build_selector_config(row.source_type, raw_cfg)
 
         return ScraperSetting(
             id=row.id,
@@ -78,7 +91,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             interval_hours=row.frequency,  # ORM: frequency → entity: interval_hours
             topic_id=row.topic_id,
             prompt_override=prompt_override,
-            selector_config=row.selector_config or {},
+            selector_config=selector_config,
             keywords=keywords,
             last_scraped_at=row.last_scraped_at,
             is_active=row.is_active,

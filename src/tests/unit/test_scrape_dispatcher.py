@@ -33,16 +33,23 @@ def test_pipeline_publishes_events_for_each_scraped_article():
     scraper_factory.create_for.return_value = scraper
 
     event_bus = MagicMock()
+    pipeline_stats = MagicMock()
 
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
         scraper_factory=scraper_factory,
         event_bus=event_bus,
+        pipeline_stats=pipeline_stats,
     )
     pipeline.run()
 
-    # Should publish ScrapedArticleDTO for each article
-    assert event_bus.publish.call_count == 2
+    # Should publish ScrapedArticleDTO for each article (plus PipelineCompletedEvent at end)
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    article_publishes = [
+        c for c in event_bus.publish.call_args_list
+        if isinstance(c.args[0], ScrapedArticleDTO)
+    ]
+    assert len(article_publishes) == 2
 
 
 def test_pipeline_marks_setting_scraped_after_run():
@@ -62,10 +69,14 @@ def test_pipeline_marks_setting_scraped_after_run():
     scraper_factory = MagicMock()
     scraper_factory.create_for.return_value = scraper
 
+    event_bus = MagicMock()
+    pipeline_stats = MagicMock()
+
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
         scraper_factory=scraper_factory,
-        event_bus=MagicMock(),
+        event_bus=event_bus,
+        pipeline_stats=pipeline_stats,
     )
     pipeline.run()
 

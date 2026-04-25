@@ -58,10 +58,10 @@ def main() -> None:
 
     # Randomise start time to avoid hitting arXiv at the top of the hour
     # alongside other cron jobs. Skipped when RUN_IMMEDIATELY=1 (manual triggers).
-    # if not os.environ.get("RUN_IMMEDIATELY"):
-    #     _jitter = random.uniform(0, 900)  # 0–15 minutes
-    #     logger.info("startup_jitter_sleep", seconds=round(_jitter))
-    #     time.sleep(_jitter)
+    if not os.environ.get("RUN_IMMEDIATELY"):
+        _jitter = random.uniform(0, 180)  # 0–3 minutes
+        logger.info("startup_jitter_sleep", seconds=round(_jitter))
+        time.sleep(_jitter)
 
     init_default_client(HttpClient.build_default())
     SCRAPER_RUNS.add(1)

@@ -90,12 +90,13 @@ def _wire_pipeline(db_session, llm_service):
 def test_process_article_creates_article_and_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
+    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
     uc = _wire_pipeline(db_session, _mock_llm())
     result = uc.execute(event)
 
-    assert result is True
+    assert result == ArticleOutcome.NEW
 
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
@@ -116,6 +117,7 @@ def test_process_article_creates_article_and_analysis(db_session):
 @pytest.mark.integration
 def test_process_article_returns_false_for_fully_processed_duplicate(db_session):
     from models.article import Article
+    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
 
@@ -125,7 +127,7 @@ def test_process_article_returns_false_for_fully_processed_duplicate(db_session)
     llm = _mock_llm()
     result = _wire_pipeline(db_session, llm).execute(event)
 
-    assert result is False
+    assert result == ArticleOutcome.DUPLICATE
     llm.analyze.assert_not_called()
     assert db_session.query(Article).filter_by(url=event.url).count() == 1
 
@@ -135,6 +137,7 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
     from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
 
@@ -152,7 +155,7 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
 
     result = _wire_pipeline(db_session, _mock_llm()).execute(event)
 
-    assert result is True
+    assert result == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
     assert analysis is not None
 
@@ -183,13 +186,14 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
 def test_process_article_returns_true_when_llm_returns_none(db_session):
     from models.article import Article
     from models.analysis import Analysis
+    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
     llm = _mock_llm(result=None, use_default=False)
 
     result = _wire_pipeline(db_session, llm).execute(event)
 
-    assert result is True
+    assert result == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()

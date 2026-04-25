@@ -1,6 +1,11 @@
 from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.factories import ScraperFactory
+from src.modules.collection.domain.value_objects.selector_config import (
+    ArxivConfig,
+    BlogConfig,
+    RssConfig,
+)
 from .base_scraper import BaseScraper
 from .rss_scraper import RssScraper
 from .blog_scraper import BlogScraper
@@ -13,34 +18,33 @@ class ConcreteScraperFactory(ScraperFactory):
     """Creates the appropriate BaseScraper for a given ScraperSetting."""
 
     def create_for(self, setting: ScraperSetting) -> BaseScraper:
-        cfg = setting.selector_config or {}
+        cfg = setting.selector_config
 
-        if setting.source_type == "rss":
-            # DB keywords take precedence; fall back to selector_config["keywords"] for compat
-            keywords = setting.keywords if setting.keywords is not None else cfg.get("keywords") or None
+        if isinstance(cfg, RssConfig):
             return RssScraper(
                 url=setting.url,
                 source=setting.source,
-                keywords=keywords,
+                keywords=setting.keywords,
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
             )
 
-        if setting.source_type == "blog":
+        if isinstance(cfg, BlogConfig):
             return BlogScraper(
                 base_url=setting.url,
                 source=setting.source,
-                selectors=cfg.get("selectors", {}),
+                selectors=cfg.selectors,
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
             )
 
-        if setting.source_type == "arxiv":
+        if isinstance(cfg, ArxivConfig):
             return ArxivScraper(
-                max_results=cfg.get("max_results", 30),
-                days_back=cfg.get("days_back", 7),
-                keywords=cfg.get("keywords") or None,
-                categories=cfg.get("categories") or None,
+                max_results=cfg.max_results,
+                days_back=cfg.days_back,
+                # Prefer topic-level keywords from DB; fall back to selector_config legacy field.
+                keywords=setting.keywords or cfg.keywords,
+                categories=cfg.categories,
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
             )

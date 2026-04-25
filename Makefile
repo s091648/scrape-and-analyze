@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -27,6 +27,18 @@ migrate-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	@echo "Running alembic upgrade head against Railway DB..."
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh
+
+# optional: override target revision with DOWNGRADE_REV=<revision> (default: -1, one step back)
+DOWNGRADE_REV ?= -1
+
+migrate-down:
+	@echo "Running alembic downgrade $(DOWNGRADE_REV)..."
+	docker compose run --rm job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
+
+migrate-remote-down:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	@echo "Running alembic downgrade $(DOWNGRADE_REV) against Railway DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
 dump:

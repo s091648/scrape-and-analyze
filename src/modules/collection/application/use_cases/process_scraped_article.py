@@ -47,7 +47,7 @@ class ProcessScrapedArticleUseCase:
                     existing.metadata["sections"] = stored.sections
             logger.info("article_needs_analysis", article_id=str(existing.id))
             self._event_bus.publish(ArticleProcessedEvent(article=existing))
-            return ArticleOutcome.DUPLICATE
+            return ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
 
         article = self._build_article(dto)
 
