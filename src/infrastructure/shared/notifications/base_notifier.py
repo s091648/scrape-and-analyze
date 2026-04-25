@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from src.infrastructure.shared.observability import RunSummary
+
+from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
 
 
 class BaseNotifier(ABC):
     @abstractmethod
-    def send_scrape_summary(self, summary: RunSummary, duration: float) -> None: ...
+    def notify(self, event: PipelineCompletedEvent) -> None: ...
