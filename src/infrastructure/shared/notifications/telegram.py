@@ -2,7 +2,7 @@ import re
 import requests
 from datetime import datetime, timezone
 
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 from .base_notifier import BaseNotifier
 from src.shared.logging import get_logger
 

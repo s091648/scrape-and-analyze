@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 
 
 class BaseNotifier(ABC):

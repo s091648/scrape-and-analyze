@@ -9,7 +9,7 @@ from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.modules.collection.application.dtos import ScrapedArticleDTO
 from src.modules.collection.application.use_cases import PipelineStats
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 from src.shared.application.ports import EventBus
 
 logger = get_logger(__name__)

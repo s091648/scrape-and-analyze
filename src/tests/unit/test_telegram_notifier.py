@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import SourceStats
 
 

@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
 
