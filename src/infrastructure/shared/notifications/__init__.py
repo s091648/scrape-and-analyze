@@ -1,8 +1,11 @@
-from .notification_service import notify_all, get_notifiers
+from .notification_service import NotificationHandler, build_notification_handler
 from .telegram import TelegramNotifier
+from .base_notifier import BaseNotifier
+
 
 __all__ = [
-    "notify_all",
-    "get_notifiers",
+    "NotificationHandler",
+    "build_notification_handler",
     "TelegramNotifier",
+    "BaseNotifier",
 ]
