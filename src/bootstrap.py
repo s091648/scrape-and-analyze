@@ -99,9 +99,12 @@ def build_collection_pipeline():
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
+    from src.infrastructure.collection.handlers import OtelMetricsHandler
+    from src.infrastructure.shared.notifications import build_notification_handler
 
     from src.modules.collection.domain.services import DedupService
-    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
+    from src.modules.collection.application.events import PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
@@ -130,6 +133,7 @@ def build_collection_pipeline():
 
     # ── Domain Services ────────────────────────────────────────────────────
     dedup_service = DedupService(article_repo=article_repo)
+    pipeline_stats = PipelineStats()
 
     # ── Use Cases ──────────────────────────────────────────────────────────
     process_article_uc = ProcessScrapedArticleUseCase(
@@ -147,7 +151,10 @@ def build_collection_pipeline():
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
-    article_scraped_handler = ArticleScrapedHandler(use_case=process_article_uc)
+    article_scraped_handler = ArticleScrapedHandler(
+        use_case=process_article_uc,
+        pipeline_stats=pipeline_stats,
+    )
     event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
@@ -158,12 +165,20 @@ def build_collection_pipeline():
     analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
 
+    # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
+    otel_handler = OtelMetricsHandler()
+    event_bus.subscribe(PipelineCompletedEvent, otel_handler.handle)
+
+    notification_handler = build_notification_handler()
+    event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
+
     # ── Collection Pipeline ─────────────────────────────────────────────────
     scraper_factory = ConcreteScraperFactory()
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
         scraper_factory=scraper_factory,
         event_bus=event_bus,
+        pipeline_stats=pipeline_stats,
     )
 
     logger.info("bootstrap_complete")

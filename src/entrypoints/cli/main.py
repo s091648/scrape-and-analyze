@@ -20,8 +20,7 @@ from src.infrastructure.shared.logging import bind_correlation_id, configure_log
 from src.infrastructure.shared.http import HttpClient, init_default_client
 from src.infrastructure.shared.observability import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics
 from src.infrastructure.shared.observability import init_run_context, get_run_id
-from src.infrastructure.shared.observability import RunSummary
-from src.infrastructure.shared.notifications import notify_all
+
 
 if SENTRY_DSN:
     import sentry_sdk
@@ -76,7 +75,6 @@ def main() -> None:
     logger.info("execution_started", run_id=run_id, correlation_id=correlation_id)
 
     start_time = time.time()
-    summary = RunSummary()
 
     tracer = get_tracer()
     with tracer.start_as_current_span("scraper.run") as span:
@@ -100,7 +98,6 @@ def main() -> None:
                 duration_seconds=duration,
             )
             SCRAPER_DURATION.record(duration)
-            notify_all(summary, duration)
             try:
                 push_metrics()
             except Exception as e:
