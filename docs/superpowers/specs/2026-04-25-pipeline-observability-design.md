@@ -172,21 +172,51 @@ def handle(self, dto: ScrapedArticleDTO) -> bool:
     return outcome != ArticleOutcome.FAILED
 ```
 
-### `TelegramNotifyHandler`
+### `BaseNotifier` interface update
 
-New infrastructure handler. Absorbs the formatting and HTTP logic currently in `notification_service.py` + `telegram.py`. Reads env vars at construction (same as current `get_notifiers()`).
+`BaseNotifier` currently depends on `RunSummary`. Change the interface to accept `PipelineCompletedEvent` directly — the event already carries both stats and duration, so no separate `duration` argument is needed:
 
 ```python
-# src/infrastructure/collection/handlers/telegram_notify_handler.py
-class TelegramNotifyHandler:
-    def __init__(self, token: str, chat_id: str) -> None: ...
+# src/infrastructure/shared/notifications/base_notifier.py
+from abc import ABC, abstractmethod
+from src.modules.collection.application.events import PipelineCompletedEvent
 
-    def handle(self, event: PipelineCompletedEvent) -> None:
-        # format message from event.stats and event.duration_seconds
-        # POST to Telegram API
+class BaseNotifier(ABC):
+    @abstractmethod
+    def notify(self, event: PipelineCompletedEvent) -> None: ...
 ```
 
-`TelegramNotifier` in `infrastructure/shared/notifications/telegram.py` can be kept as the raw HTTP sender and reused, or inlined. The `notify_all()` function and `notification_service.py` are deleted.
+`TelegramNotifier.send_scrape_summary(summary, duration)` is renamed to `notify(event)` and its formatting logic reads `event.stats` and `event.duration_seconds`.
+
+### `NotificationHandler`
+
+`notification_service.py` is refactored in-place into a `NotificationHandler` class. It replaces the module-level `notify_all()` function with an event-handler-compatible `handle()` method, and registers itself on the event bus via bootstrap. Adding a new notifier (e.g. Slack) in future means only implementing `BaseNotifier` and registering it in `get_notifiers()`.
+
+```python
+# src/infrastructure/shared/notifications/notification_service.py
+class NotificationHandler:
+    def __init__(self, notifiers: list[BaseNotifier]) -> None:
+        self._notifiers = notifiers
+
+    def handle(self, event: PipelineCompletedEvent) -> None:
+        for notifier in self._notifiers:
+            try:
+                notifier.notify(event)
+            except Exception as e:
+                logger.warning("notifier_failed", notifier=type(notifier).__name__, error=str(e))
+
+
+def build_notification_handler() -> NotificationHandler:
+    """Reads env vars and constructs the configured notifiers."""
+    notifiers: list[BaseNotifier] = []
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if token and chat_id:
+        notifiers.append(TelegramNotifier(token=token, chat_id=chat_id))
+    return NotificationHandler(notifiers)
+```
+
+Bootstrap subscribes `NotificationHandler.handle` to `PipelineCompletedEvent`.
 
 ### `OtelMetricsHandler`
 
@@ -208,7 +238,8 @@ class OtelMetricsHandler:
 ```python
 from src.modules.collection.application.pipeline_stats import PipelineStats
 from src.modules.collection.application.events import PipelineCompletedEvent
-from src.infrastructure.collection.handlers import TelegramNotifyHandler, OtelMetricsHandler
+from src.infrastructure.collection.handlers import OtelMetricsHandler
+from src.infrastructure.shared.notifications.notification_service import build_notification_handler
 
 pipeline_stats = PipelineStats()
 
@@ -228,11 +259,8 @@ pipeline = CollectionPipeline(
 otel_handler = OtelMetricsHandler()
 event_bus.subscribe(PipelineCompletedEvent, otel_handler.handle)
 
-token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
-if token and chat_id:
-    telegram_handler = TelegramNotifyHandler(token=token, chat_id=chat_id)
-    event_bus.subscribe(PipelineCompletedEvent, telegram_handler.handle)
+notification_handler = build_notification_handler()
+event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
 ```
 
 ### `main.py` changes
@@ -257,7 +285,6 @@ Remove:
 | `src/modules/collection/application/pipeline_stats.py` | `SourceStats`, `PipelineStats` accumulator |
 | `src/modules/collection/application/events/pipeline_completed.py` | `PipelineCompletedEvent` |
 | `src/infrastructure/collection/handlers/__init__.py` | exports |
-| `src/infrastructure/collection/handlers/telegram_notify_handler.py` | Telegram infra handler |
 | `src/infrastructure/collection/handlers/otel_metrics_handler.py` | OTel metrics infra handler |
 
 ### Modified files
@@ -271,6 +298,10 @@ Remove:
 | `src/entrypoints/cli/main.py` | remove `RunSummary`, `notify_all` |
 | `src/modules/collection/application/events/__init__.py` | remove shim, export `PipelineCompletedEvent` |
 | `src/infrastructure/shared/observability/__init__.py` | remove `RunSummary` export |
+| `src/infrastructure/shared/notifications/base_notifier.py` | interface: `send_scrape_summary(RunSummary, float)` → `notify(PipelineCompletedEvent)` |
+| `src/infrastructure/shared/notifications/telegram.py` | implement new `notify(event)` interface |
+| `src/infrastructure/shared/notifications/notification_service.py` | refactor to `NotificationHandler` class + `build_notification_handler()` factory |
+| `src/infrastructure/shared/notifications/__init__.py` | update exports |
 | 6 test files importing `ArticleScrapedEvent` | replace with `ScrapedArticleDTO` |
 
 ### Deleted files
@@ -279,7 +310,6 @@ Remove:
 |---|---|
 | `src/modules/collection/application/events/article_scraped.py` | unreachable dead class |
 | `src/infrastructure/shared/observability/run_summary.py` | replaced by `PipelineStats` |
-| `src/infrastructure/shared/notifications/notification_service.py` | replaced by `TelegramNotifyHandler` |
 
 ---
 
@@ -289,7 +319,8 @@ Remove:
 
 - `test_article_outcome.py` — enum values
 - `test_pipeline_stats.py` — `record()` increments correctly per outcome; thread-safety under concurrent writes
-- `test_telegram_notify_handler.py` — formats message from `PipelineCompletedEvent`; skips send when token/chat_id missing
+- `test_notification_handler.py` — `NotificationHandler.handle()` delegates to all registered notifiers; exceptions in one notifier don't abort others
+- `test_telegram_notifier.py` — formats message from `PipelineCompletedEvent`; HTTP call with correct payload
 - `test_otel_metrics_handler.py` — calls correct counters with correct per-source attributes
 
 ### Unit tests (updated)
