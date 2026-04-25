@@ -10,6 +10,7 @@ from src.modules.collection.domain.repositories import ArxivMetadataRepository
 from src.modules.collection.domain.services import DedupService
 from src.modules.collection.domain.value_objects import UrlHash
 from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.use_cases import ArticleOutcome
 
 logger = get_logger(__name__)
 
@@ -33,20 +34,20 @@ class ProcessScrapedArticleUseCase:
         self._event_bus = event_bus
         self._arxiv_metadata_repo = arxiv_metadata_repo
 
-    def execute(self, dto: ScrapedArticleDTO) -> bool:
+    def execute(self, dto: ScrapedArticleDTO) -> ArticleOutcome:
         existing = self._dedup_service.find_existing(dto.url)
 
         if existing is not None:
             if not self._dedup_service.needs_analysis(existing):
                 logger.info("article_already_analyzed", url=dto.url)
-                return False
-            # Enrich existing arxiv article with stored sections before re-analysis
+                return ArticleOutcome.DUPLICATE
             if existing.source == "arxiv" and self._arxiv_metadata_repo is not None:
                 stored = self._arxiv_metadata_repo.find_by_article_id(existing.id)
                 if stored and stored.sections:
                     existing.metadata["sections"] = stored.sections
             logger.info("article_needs_analysis", article_id=str(existing.id))
-            return self._event_bus.publish(ArticleProcessedEvent(article=existing))
+            self._event_bus.publish(ArticleProcessedEvent(article=existing))
+            return ArticleOutcome.DUPLICATE
 
         article = self._build_article(dto)
 
@@ -54,13 +55,14 @@ class ProcessScrapedArticleUseCase:
             saved = self._article_repo.save(article)
         except Exception as e:
             logger.error("article_save_failed", url=dto.url, error=str(e))
-            return False
+            return ArticleOutcome.FAILED
 
         if saved.source == "arxiv":
             self._save_arxiv_metadata(saved, dto.metadata)
 
         logger.info("article_saved", article_id=str(saved.id), url=dto.url)
-        return self._event_bus.publish(ArticleProcessedEvent(article=saved))
+        self._event_bus.publish(ArticleProcessedEvent(article=saved))
+        return ArticleOutcome.NEW
 
     def _build_article(self, dto: ScrapedArticleDTO) -> Article:
         return Article(

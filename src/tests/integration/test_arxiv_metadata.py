@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.use_cases import ArticleOutcome
 
 
 def _make_result():
@@ -51,7 +52,7 @@ def test_arxiv_article_creates_arxiv_metadata_row(db_session):
     )
     uc = _make_uc(db_session)
     result = uc.execute(scraped)
-    assert result is True
+    assert result == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=scraped.url).first()
     assert article is not None
     meta = db_session.query(ArxivMetadata).filter_by(article_id=article.id).first()

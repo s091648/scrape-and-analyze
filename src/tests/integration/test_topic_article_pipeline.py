@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.use_cases import ArticleOutcome
 
 
 def _make_result():
@@ -57,7 +58,7 @@ def test_article_gets_topic_id_on_save(db_session, test_topic):
     )
     uc = _wire_pipeline(db_session)
     result = uc.execute(event)
-    assert result is True
+    assert result == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
     assert article.topic_id == topic_id
