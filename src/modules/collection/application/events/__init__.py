@@ -1,1 +1,6 @@
-__all__: list[str] = []
+from .pipeline_completed import PipelineCompletedEvent
+
+
+__all__ = [
+    "PipelineCompletedEvent"
+]
