@@ -16,10 +16,6 @@ class ArxivConfig(BaseModel):
     type: Literal["arxiv"] = "arxiv"
     max_results: int = 30
     days_back: int = 7
-    # Deprecated: prefer scraper_keywords table (keyed by topic_id).
-    # Kept for backward compat with existing selector_config JSONB data.
-    keywords: list[str] | None = None
-    categories: list[str] | None = None
 
 
 SelectorConfig = Annotated[
@@ -52,7 +48,5 @@ def build_selector_config(
         return ArxivConfig(
             max_results=raw.get("max_results", 30),
             days_back=raw.get("days_back", 7),
-            keywords=raw.get("keywords") or None,
-            categories=raw.get("categories") or None,
         )
     return None

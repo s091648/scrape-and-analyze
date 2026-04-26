@@ -27,18 +27,19 @@ def db_engine():
     )
 
     # Import every non-auth model so their tables are registered before create_all()
-    from models.article import Base
+    from models.base import Base
+    from models.article import Article              # noqa: F401
     from models.topic import Topic                  # noqa: F401
     from models.arxiv_metadata import ArxivMetadata  # noqa: F401
     from models.analysis import Analysis            # noqa: F401
     from models.failed_task import FailedTask       # noqa: F401
     from models.tag import Tag                      # noqa: F401
     from models.tag_group import TagGroupDefinition  # noqa: F401
-    from models.scraper_setting import ScraperBase, ScraperSetting  # noqa: F401
+    from models.scraper_setting import ScraperSetting  # noqa: F401
+    from models.scraper_keyword import ScraperKeyword  # noqa: F401
 
     # Create all tables inside the test schema
     Base.metadata.create_all(engine)
-    ScraperBase.metadata.create_all(engine)
 
     yield engine
 

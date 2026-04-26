@@ -6,11 +6,12 @@ from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
-from src.modules.collection.domain.value_objects import ScrapedArticle
+from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
 from src.modules.collection.application.dtos import ScrapedArticleDTO
-from src.modules.collection.application.use_cases import PipelineStats
+from src.modules.collection.application.use_cases import PipelineStats, ArticleOutcome
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.shared.application.ports import EventBus
+from src.shared.domain.repositories import ArticleRepository
 
 logger = get_logger(__name__)
 
@@ -23,12 +24,14 @@ class CollectionPipeline:
         event_bus: EventBus,
         pipeline_stats: PipelineStats,
         executor: Optional[ScrapeExecutor] = None,
+        article_repo: Optional[ArticleRepository] = None,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
         self._event_bus = event_bus
         self._pipeline_stats = pipeline_stats
         self._executor = executor or ScrapeExecutor()
+        self._article_repo = article_repo
 
     def run(self) -> int:
         start = time.time()
@@ -71,6 +74,23 @@ class CollectionPipeline:
                         scraper=scraper,
                     ))
                 scraped_setting_ids.append(setting.id)
+
+        # ── Phase 1.5: pre-dedup — skip URLs already fully processed ─────
+        if tasks and self._article_repo is not None:
+            url_hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
+            analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
+            if analyzed:
+                kept, skipped = [], []
+                for h, t in url_hashes.items():
+                    (skipped if h in analyzed else kept).append(t)
+                for t in skipped:
+                    self._pipeline_stats.record(t.source, ArticleOutcome.DUPLICATE)
+                tasks = kept
+                logger.info(
+                    "pre_dedup_filtered",
+                    skipped=len(skipped),
+                    remaining=len(tasks),
+                )
 
         # ── Phase 2: concurrent fetch ─────────────────────────────────────
         results: List[ScrapedArticle] = []

@@ -25,7 +25,7 @@ class PipelineStats:
             s = self._sources[source]
             if outcome == ArticleOutcome.NEW:
                 s.new += 1
-            elif outcome == ArticleOutcome.DUPLICATE:
+            elif outcome in (ArticleOutcome.DUPLICATE, ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS):
                 s.duplicate += 1
             else:
                 s.failed += 1

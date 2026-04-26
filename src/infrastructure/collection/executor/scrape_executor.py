@@ -45,7 +45,7 @@ class ScrapeExecutor:
 
     def __init__(
         self,
-        num_workers: int = 3,
+        num_workers: int = 5,
         delay: float = 5.0,
         selector: Optional[QueueSelector] = None,
     ) -> None:

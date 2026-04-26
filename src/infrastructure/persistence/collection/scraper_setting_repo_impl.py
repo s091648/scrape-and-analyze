@@ -62,14 +62,20 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             if topic:
                 prompt_override = topic.prompt_override
 
-        # Keywords are topic-scoped: shared by all scrapers (RSS, arxiv, …) for the same topic.
+        # Keyword items are topic-scoped: shared by all scrapers for the same topic.
+        # Each row is typed (rss | arxiv_keyword | arxiv_category) via keyword_type.
         from models.scraper_keyword import ScraperKeyword as ScraperKeywordModel
+        from src.modules.collection.domain.value_objects.scraper_keyword import build_scraper_keyword
         keyword_rows = (
             self._session.query(ScraperKeywordModel)
             .filter_by(topic_id=row.topic_id)
+            .order_by(ScraperKeywordModel.created_at)
             .all()
         )
-        keywords = [k.keyword for k in keyword_rows] if keyword_rows else None
+        keyword_items = (
+            [build_scraper_keyword(k.keyword_type, k.keyword) for k in keyword_rows]
+            if keyword_rows else None
+        )
 
         # selector_config may be a typed SelectorConfig (new data with 'type' field),
         # a raw dict (legacy data), or None. build_selector_config() handles all cases.
@@ -92,7 +98,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             topic_id=row.topic_id,
             prompt_override=prompt_override,
             selector_config=selector_config,
-            keywords=keywords,
+            keyword_items=keyword_items,
             last_scraped_at=row.last_scraped_at,
             is_active=row.is_active,
         )

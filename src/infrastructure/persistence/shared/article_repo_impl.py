@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Set
 from uuid import UUID, uuid4
 
 from src.shared.domain.entities import Article
@@ -40,6 +40,19 @@ class SqlAlchemyArticleRepository(ArticleRepository):
     def has_analysis(self, article_id: UUID) -> bool:
         from models.analysis import Analysis
         return self._session.query(Analysis).filter_by(article_id=article_id).first() is not None
+
+    def find_analyzed_url_hashes(self, url_hashes: Set[str]) -> Set[str]:
+        if not url_hashes:
+            return set()
+        from models.article import Article as ArticleModel
+        from models.analysis import Analysis
+        rows = (
+            self._session.query(ArticleModel.url_hash)
+            .join(Analysis, Analysis.article_id == ArticleModel.id)
+            .filter(ArticleModel.url_hash.in_(url_hashes))
+            .all()
+        )
+        return {row.url_hash for row in rows}
 
     @staticmethod
     def _to_entity(row) -> Article:

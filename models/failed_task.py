@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
 
-from models.article import Base
+from models.base import Base
 
 
 class FailedTask(Base):

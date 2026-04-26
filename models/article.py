@@ -1,10 +1,9 @@
 from sqlalchemy import Column, String, Text, DateTime, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
 import uuid
 
-Base = declarative_base()
+from models.base import Base
 
 
 class Article(Base):

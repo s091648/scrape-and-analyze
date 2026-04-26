@@ -179,6 +179,7 @@ def build_collection_pipeline():
         scraper_factory=scraper_factory,
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
+        article_repo=article_repo,
     )
 
     logger.info("bootstrap_complete")

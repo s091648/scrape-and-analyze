@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.database import get_db
 from backend.auth.guards import require_admin
@@ -59,7 +60,18 @@ def update_setting(db: Session, setting_id: UUID, data: ScraperSettingUpdate):
     if not obj:
         return None
     for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(obj, field, value)
+        if field == 'selector_config' and value is not None:
+            existing = {}
+            raw = obj.selector_config
+            if isinstance(raw, dict):
+                existing = raw
+            elif raw is not None and hasattr(raw, 'model_dump'):
+                existing = raw.model_dump()
+            existing.update(value)
+            obj.selector_config = existing
+            flag_modified(obj, 'selector_config')
+        else:
+            setattr(obj, field, value)
     db.commit()
     db.refresh(obj)
     return obj

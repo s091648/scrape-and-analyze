@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 from src.modules.collection.domain.value_objects.selector_config import SelectorConfig
+from src.modules.collection.domain.value_objects.scraper_keyword import ScraperKeywordVO
 
 
 @dataclass
@@ -16,7 +17,7 @@ class ScraperSetting:
     topic_id: Optional[UUID] = None
     prompt_override: Optional[str] = None
     selector_config: Optional[SelectorConfig] = None
-    keywords: Optional[List[str]] = None
+    keyword_items: Optional[List[ScraperKeywordVO]] = None
     last_scraped_at: Optional[datetime] = None
     is_active: bool = True
 

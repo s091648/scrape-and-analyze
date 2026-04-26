@@ -1,13 +1,14 @@
 from sqlalchemy import Column, String, Text, DateTime, Boolean, text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
 import uuid
 
-AuthBase = declarative_base()
+from models.base import Base
+
+AuthBase = Base
 
 
-class User(AuthBase):
+class User(Base):
     __tablename__ = 'users'
     __table_args__ = {'schema': 'auth'}
 

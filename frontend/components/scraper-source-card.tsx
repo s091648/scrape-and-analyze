@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Pencil, X, Check } from 'lucide-react'
+import { Pencil, X, Check, Plus } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,9 +18,14 @@ export interface ScraperSetting {
   url: string
   frequency: number
   is_active: boolean
-  selector_config?: { article_link: string; title: string; content: string } | null
+  selector_config?: Record<string, unknown> | null
   last_scraped_at?: string | null
   activity?: number[] // 14 values oldest→newest (one per day)
+}
+
+export interface RssKeyword {
+  id: string
+  keyword: string
 }
 
 export function formatFrequency(hours: number): string {
@@ -166,25 +171,100 @@ const inputClass =
   'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
 const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
 
+// ── RssKeywordManager ─────────────────────────────────────────────────────────
+
+function RssKeywordManager({
+  keywords,
+  onAdd,
+  onDelete,
+}: {
+  keywords: RssKeyword[]
+  onAdd: (keyword: string) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}) {
+  const [value, setValue] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  async function handleAdd() {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setAdding(true)
+    await onAdd(trimmed)
+    setValue('')
+    setAdding(false)
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Keywords
+        <span className="ml-1 font-normal normal-case">— regex patterns, ORed</span>
+      </p>
+
+      <div className="flex flex-wrap gap-2 min-h-6">
+        {keywords.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">No keywords — uses default filter.</p>
+        )}
+        {keywords.map(kw => (
+          <span key={kw.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs font-mono">
+            {kw.keyword}
+            <button
+              onClick={() => onDelete(kw.id)}
+              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+              aria-label={`Remove ${kw.keyword}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+          placeholder="e.g. digital.twin"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd() } }}
+        />
+        <Button size="sm" variant="outline" onClick={handleAdd} disabled={adding || !value.trim()}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ── SourceCard ────────────────────────────────────────────────────────────────
 
 export function SourceCard({
   setting,
   onUpdate,
   onDelete,
+  rssKeywords,
+  onAddRssKeyword,
+  onDeleteRssKeyword,
 }: {
   setting: ScraperSetting
   onUpdate: (id: string, data: Partial<ScraperSetting>) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  rssKeywords?: RssKeyword[]
+  onAddRssKeyword?: (keyword: string) => Promise<void>
+  onDeleteRssKeyword?: (id: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const blogCfg = setting.selector_config as { article_link?: string; title?: string; content?: string } | null
   const [form, setForm] = useState({
     name: setting.name,
     url: setting.url,
     frequency: setting.frequency,
     is_active: setting.is_active,
-    selector_config: setting.selector_config ?? { article_link: '', title: '', content: '' },
+    selector_config: {
+      article_link: blogCfg?.article_link ?? '',
+      title: blogCfg?.title ?? '',
+      content: blogCfg?.content ?? '',
+    },
   })
   const [saving, setSaving] = useState(false)
   const countdown = useNextScrapeCountdown(setting.last_scraped_at, setting.frequency)
@@ -202,6 +282,8 @@ export function SourceCard({
     setSaving(false)
     setEditing(false)
   }
+
+  const isRss = setting.source_type === 'rss'
 
   // ── Edit mode ───────────────────────────────────────────────────────────────
   if (editing) {
@@ -300,7 +382,7 @@ export function SourceCard({
   // ── View mode ───────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex flex-col gap-3">
           {/* Top row: name + badge/actions */}
           <div className="flex items-start justify-between gap-3">
@@ -356,6 +438,16 @@ export function SourceCard({
             <ActivityGraph activity={setting.activity} />
           </div>
         </div>
+
+        {isRss && rssKeywords && onAddRssKeyword && onDeleteRssKeyword && (
+          <div className="border-t border-border pt-4">
+            <RssKeywordManager
+              keywords={rssKeywords}
+              onAdd={onAddRssKeyword}
+              onDelete={onDeleteRssKeyword}
+            />
+          </div>
+        )}
       </div>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>

@@ -7,6 +7,13 @@ from .selector_config import (
     SelectorConfig,
     build_selector_config,
 )
+from .scraper_keyword import (
+    ArxivCategory,
+    ArxivKeyword,
+    RssKeyword,
+    ScraperKeywordVO,
+    build_scraper_keyword,
+)
 
 
 __all__ = [
@@ -17,4 +24,9 @@ __all__ = [
     'RssConfig',
     'SelectorConfig',
     'build_selector_config',
+    'ArxivCategory',
+    'ArxivKeyword',
+    'RssKeyword',
+    'ScraperKeywordVO',
+    'build_scraper_keyword',
 ]

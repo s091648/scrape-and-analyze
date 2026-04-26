@@ -16,6 +16,7 @@ import {
 import {
   SourceCard,
   ScraperSetting,
+  RssKeyword,
   formatFrequency,
   ActiveBadge,
   ActivityGraph,
@@ -30,9 +31,10 @@ interface ArxivKeyword {
   keyword: string
 }
 
+// Category uses the same shape: `keyword` holds the category code (e.g. "cs.GR")
 interface ArxivCategory {
   id: string
-  category: string
+  keyword: string
 }
 
 // ── Accordion shell ──────────────────────────────────────────────────────────
@@ -98,16 +100,24 @@ function ArxivSettingCard({
 }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const arxivCfg = setting.selector_config as { days_back?: number; max_results?: number } | null
   const [form, setForm] = useState({
     name: setting.name,
     frequency: setting.frequency,
     is_active: setting.is_active,
+    days_back: arxivCfg?.days_back ?? 7,
+    max_results: arxivCfg?.max_results ?? 30,
   })
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
     setSaving(true)
-    await onUpdate(setting.id, form)
+    await onUpdate(setting.id, {
+      name: form.name,
+      frequency: form.frequency,
+      is_active: form.is_active,
+      selector_config: { days_back: form.days_back, max_results: form.max_results },
+    })
     setSaving(false)
     setEditing(false)
   }
@@ -149,6 +159,34 @@ function ArxivSettingCard({
                 {formatFrequency(form.frequency)}
               </p>
             )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                Max results
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                value={form.max_results}
+                onChange={e => setForm(f => ({ ...f, max_results: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 text-muted-foreground">
+                Days back
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                value={form.days_back}
+                onChange={e => setForm(f => ({ ...f, days_back: Number(e.target.value) }))}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Switch
@@ -199,6 +237,9 @@ function ArxivSettingCard({
                   next scrape in {countdown}
                 </p>
                 <p className="text-xs text-muted-foreground">{formatFrequency(setting.frequency)}</p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {arxivCfg?.max_results ?? 30} results · {arxivCfg?.days_back ?? 7}d back
+                </p>
               </div>
               <ActivityGraph activity={setting.activity} />
             </div>
@@ -272,7 +313,7 @@ function AddArxivCard({
         topic_id: selectedTopicId ?? undefined,
       } as any,
       localKeywords.map(k => k.keyword),
-      localCategories.map(c => c.category),
+      localCategories.map(c => c.keyword),
     )
     setSaving(false)
     setExpanded(false)
@@ -348,7 +389,7 @@ function AddArxivCard({
             setLocalKeywords(prev => prev.filter(k => k.id !== id))
           }}
           onAddCategory={async (cat) => {
-            setLocalCategories(prev => [...prev, { id: encodeId(cat), category: cat }])
+            setLocalCategories(prev => [...prev, { id: encodeId(cat), keyword: cat }])
           }}
           onDeleteCategory={async (id) => {
             setLocalCategories(prev => prev.filter(c => c.id !== id))
@@ -561,6 +602,7 @@ export default function ScraperSettingsPage() {
   const [settings, setSettings] = useState<ScraperSetting[]>([])
   const [keywords, setKeywords] = useState<ArxivKeyword[]>([])
   const [categories, setCategories] = useState<ArxivCategory[]>([])
+  const [rssKeywords, setRssKeywords] = useState<RssKeyword[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   if (status === 'unauthenticated') redirect('/login')
@@ -576,12 +618,14 @@ export default function ScraperSettingsPage() {
     setIsLoading(true)
     Promise.all([
       apiFetch(`/scraper-settings?${tq}`, { headers }).then(r => r.json()),
-      apiFetch(`/arxiv-keywords?${tq}`, { headers }).then(r => r.json()),
-      apiFetch(`/arxiv-categories?${tq}`, { headers }).then(r => r.json()),
-    ]).then(([s, k, c]) => {
+      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, { headers }).then(r => r.json()),
+      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, { headers }).then(r => r.json()),
+      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=rss`, { headers }).then(r => r.json()),
+    ]).then(([s, k, c, rk]) => {
       setSettings(Array.isArray(s) ? s : [])
       setKeywords(Array.isArray(k) ? k : [])
       setCategories(Array.isArray(c) ? c : [])
+      setRssKeywords(Array.isArray(rk) ? rk : [])
     }).finally(() => setIsLoading(false))
   }, [token, selectedTopicId])
 
@@ -636,11 +680,11 @@ export default function ScraperSettingsPage() {
     const created = await res.json()
     setSettings(prev => [...prev, created])
 
-    // 2. Add keywords sequentially (they share a single JSONB field)
+    // 2. Add keywords
     const addedKeywords: ArxivKeyword[] = []
     for (const kw of keywords) {
-      const r = await apiFetch(`/arxiv-keywords${tq}`, {
-        method: 'POST', headers, body: JSON.stringify({ keyword: kw }),
+      const r = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, {
+        method: 'POST', headers, body: JSON.stringify({ keyword: kw, keyword_type: 'arxiv_keyword' }),
       })
       if (r.ok) addedKeywords.push(await r.json())
     }
@@ -649,8 +693,8 @@ export default function ScraperSettingsPage() {
     // 3. Add categories
     const addedCategories: ArxivCategory[] = []
     for (const cat of categories) {
-      const r = await apiFetch(`/arxiv-categories${tq}`, {
-        method: 'POST', headers, body: JSON.stringify({ category: cat }),
+      const r = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, {
+        method: 'POST', headers, body: JSON.stringify({ keyword: cat, keyword_type: 'arxiv_category' }),
       })
       if (r.ok) addedCategories.push(await r.json())
     }
@@ -658,10 +702,10 @@ export default function ScraperSettingsPage() {
   }
 
   async function handleAddKeyword(keyword: string) {
-    const res = await apiFetch('/arxiv-keywords', {
+    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ keyword }),
+      body: JSON.stringify({ keyword, keyword_type: 'arxiv_keyword' }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -671,17 +715,17 @@ export default function ScraperSettingsPage() {
 
   async function handleDeleteKeyword(id: string) {
     setKeywords(prev => prev.filter(k => k.id !== id))
-    await apiFetch(`/arxiv-keywords/${id}`, {
+    await apiFetch(`/scraper-keywords/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     })
   }
 
   async function handleAddCategory(category: string) {
-    const res = await apiFetch('/arxiv-categories', {
+    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ category }),
+      body: JSON.stringify({ keyword: category, keyword_type: 'arxiv_category' }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -691,7 +735,27 @@ export default function ScraperSettingsPage() {
 
   async function handleDeleteCategory(id: string) {
     setCategories(prev => prev.filter(c => c.id !== id))
-    await apiFetch(`/arxiv-categories/${id}`, {
+    await apiFetch(`/scraper-keywords/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  }
+
+  async function handleAddRssKeyword(keyword: string) {
+    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=rss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ keyword, keyword_type: 'rss' }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setRssKeywords(prev => [...prev, created])
+    }
+  }
+
+  async function handleDeleteRssKeyword(id: string) {
+    setRssKeywords(prev => prev.filter(k => k.id !== id))
+    await apiFetch(`/scraper-keywords/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -757,7 +821,15 @@ export default function ScraperSettingsPage() {
 
             <AccordionSection title="RSS" badge={rssSettings.length}>
               {rssSettings.map(s => (
-                <SourceCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete} />
+                <SourceCard
+                  key={s.id}
+                  setting={s}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                  rssKeywords={rssKeywords}
+                  onAddRssKeyword={handleAddRssKeyword}
+                  onDeleteRssKeyword={handleDeleteRssKeyword}
+                />
               ))}
               <AddSourceCard sourceType="rss" onAdd={handleCreate} />
             </AccordionSection>

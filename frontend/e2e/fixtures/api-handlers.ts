@@ -122,9 +122,8 @@ export async function mockApiRoutes(page: Page) {
     }
   })
 
-  // arxiv sub-resources (needed by scraper-settings page)
-  await page.route(proxyPrefix('arxiv-keywords'), route => route.fulfill({ json: [] }))
-  await page.route(proxyPrefix('arxiv-categories'), route => route.fulfill({ json: [] }))
+  // scraper keyword sub-resources (needed by scraper-settings page)
+  await page.route(proxyPrefix('scraper-keywords'), route => route.fulfill({ json: [] }))
 
   await page.route(proxyPrefix('articles'), route => route.fulfill({ json: articleListFixture }))
 

@@ -1,15 +1,15 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import declarative_base
 from datetime import datetime, timezone
 import uuid
 
 from src.infrastructure.persistence.types import SelectorConfigColumn
+from models.base import Base
 
-ScraperBase = declarative_base()
+ScraperBase = Base
 
 
-class ScraperSetting(ScraperBase):
+class ScraperSetting(Base):
     __tablename__ = 'scraper_settings'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
 
-from models.article import Base
+from models.base import Base
 
 
 class Analysis(Base):

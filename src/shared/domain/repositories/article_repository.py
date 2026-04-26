@@ -6,7 +6,7 @@ SQLAlchemy implementation.  The concrete implementation lives in
 src/infrastructure/persistence/sqlalchemy_repos/ (Phase 7).
 """
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, Set
 from uuid import UUID
 
 from src.shared.domain.entities import Article
@@ -25,3 +25,7 @@ class ArticleRepository(ABC):
     @abstractmethod
     def has_analysis(self, article_id: UUID) -> bool:
         """Return True if an Analysis record exists for this article."""
+
+    @abstractmethod
+    def find_analyzed_url_hashes(self, url_hashes: Set[str]) -> Set[str]:
+        """Return the subset of url_hashes that already have a completed Analysis."""

@@ -2,6 +2,7 @@ def test_scraper_factory_passes_topic_id_to_rss_scraper():
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.modules.collection.domain.entities import ScraperSetting
     from src.modules.collection.domain.value_objects.selector_config import RssConfig
+    from src.modules.collection.domain.value_objects.scraper_keyword import RssKeyword
     from uuid import uuid4
 
     topic_id = uuid4()
@@ -12,7 +13,7 @@ def test_scraper_factory_passes_topic_id_to_rss_scraper():
         interval_hours=24,
         topic_id=topic_id,
         selector_config=RssConfig(),
-        keywords=[r"3d\s+ai"],
+        keyword_items=[RssKeyword(keyword=r"3d\s+ai")],
     )
     factory = ConcreteScraperFactory()
     scraper = factory.create_for(setting)

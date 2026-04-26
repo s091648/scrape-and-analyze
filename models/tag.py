@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, configure_mappers
 import uuid
 
-from models.article import Base
+from models.base import Base
 from models.tag_group import TagGroupDefinition  # noqa: F401 — registers mapper
 
 

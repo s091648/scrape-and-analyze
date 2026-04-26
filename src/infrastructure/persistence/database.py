@@ -28,7 +28,7 @@ def get_engine():
 
 def init_db() -> None:
     """Create all tables if they don't exist (idempotent)"""
-    from models.article import Base
+    from models.base import Base
     Base.metadata.create_all(get_engine())
 
 
