@@ -15,11 +15,42 @@ env:
 
 jobs:
   # -----------------------------------------------
+  # Stage 0: DB Migration (push to master only)
+  # -----------------------------------------------
+  migrate:
+    name: DB Migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen --all-groups
+        env:
+          UV_SYSTEM_PYTHON: "1"
+
+      - name: Run alembic upgrade
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # -----------------------------------------------
   # Stage 1: Unit Tests (no external dependencies)
   # -----------------------------------------------
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: [migrate]
+    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
     steps:
@@ -38,7 +69,7 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       - name: Run unit tests with coverage
-        run: uv run pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
+        run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -113,7 +144,11 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: unit-test
+    needs: [migrate, unit-test]
+    if: |
+      always() &&
+      needs.unit-test.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
     env:
@@ -151,8 +186,13 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      - name: Run alembic upgrade for test DB
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+
       - name: Run integration tests with coverage
-        run: uv run pytest tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
+        run: uv run pytest src/tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -363,3 +403,35 @@ jobs:
           label: frontend e2e tests
           message: ${{ steps.passrate.outputs.msg }}
           color: ${{ steps.passrate.outputs.color }}
+
+  # -----------------------------------------------
+  # Stage 5: DB Rollback (push to master, on test failure)
+  # -----------------------------------------------
+  rollback:
+    name: DB Rollback
+    runs-on: ubuntu-latest
+    needs: [migrate, unit-test, integration-test]
+    if: |
+      always() &&
+      needs.migrate.result == 'success' &&
+      (needs.unit-test.result == 'failure' || needs.integration-test.result == 'failure')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen --all-groups
+        env:
+          UV_SYSTEM_PYTHON: "1"
+
+      - name: Rollback one revision
+        run: uv run alembic downgrade -1
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

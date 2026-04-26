@@ -11,7 +11,7 @@ from backend.routers.graph import router as graph_router
 from backend.routers.scraper_settings import router as scraper_settings_router
 from backend.routers.auth import router as auth_router
 from backend.routers.topics import router as topics_router
-from backend.routers.arxiv_keywords import router as arxiv_keywords_router, cat_router as arxiv_categories_router
+from backend.routers.scraper_keywords import router as scraper_keywords_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -33,8 +33,7 @@ app.include_router(graph_router)
 app.include_router(scraper_settings_router)
 app.include_router(auth_router)
 app.include_router(topics_router)
-app.include_router(arxiv_keywords_router)
-app.include_router(arxiv_categories_router)
+app.include_router(scraper_keywords_router)
 
 
 @app.get("/health")

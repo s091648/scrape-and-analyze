@@ -9,6 +9,7 @@ dependencies = [
     "structlog>=24.0",
     "alembic>=1.13",
     "geoip2>=4.8",
+    "pydantic"
 ]
 
 [dependency-groups]

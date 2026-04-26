@@ -1,9 +1,14 @@
 import { test, expect } from '@playwright/test'
+import { mockApiRoutes } from './fixtures/api-handlers'
 
 // These tests run unauthenticated — override storageState from playwright.config.ts
 test.use({ storageState: { cookies: [], origins: [] } })
 
 test.describe('Login page', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApiRoutes(page)
+  })
+
   test('login form renders username and password inputs', async ({ page }) => {
     await page.goto('/login')
     await expect(page.getByLabel(/username/i).or(page.getByLabel(/email/i))).toBeVisible()

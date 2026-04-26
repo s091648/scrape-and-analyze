@@ -8,7 +8,6 @@ services:
     volumes:
       - ./src:/app/src
       - ./models:/app/models
-      - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
       - ./providers.toml:/app/providers.toml
     env_file:
@@ -86,7 +85,6 @@ services:
       - ./models:/app/models
       - ./scripts:/app/scripts
       - ./backend:/app/backend
-      - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
       - ./providers.toml:/app/providers.toml
     env_file:

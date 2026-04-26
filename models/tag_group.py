@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from models.article import Base
+from models.base import Base
 import uuid
 
 

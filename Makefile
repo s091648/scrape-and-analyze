@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -27,6 +27,18 @@ migrate-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	@echo "Running alembic upgrade head against Railway DB..."
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh
+
+# optional: override target revision with DOWNGRADE_REV=<revision> (default: -1, one step back)
+DOWNGRADE_REV ?= -1
+
+migrate-down:
+	@echo "Running alembic downgrade $(DOWNGRADE_REV)..."
+	docker compose run --rm job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
+
+migrate-remote-down:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	@echo "Running alembic downgrade $(DOWNGRADE_REV) against Railway DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
 dump:
@@ -64,7 +76,7 @@ scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
 
 run:
-	docker compose run --rm app python -m src.main
+	docker compose run --rm app python -m src.entrypoints.cli.main
 
 # optional: override with HOURS=48 LIMIT=20
 _RETRY_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(HOURS),--hours $(HOURS),)
@@ -77,36 +89,40 @@ retry-failed-remote:
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
 
 # 基礎測試指令
+# 設定預設路徑，如果執行時沒給 path=... 就會用這個
+TEST_PATH ?= src/tests/unit/
+_TEST_ARGS := $(TEST_PATH) -v --tb=short
+
 test:
-	docker compose run --rm test_service python -m pytest tests/unit/ -v --tb=short
+	docker compose run --rm test_service python -m pytest $(_TEST_ARGS) -v --tb=short
 
 # 產生覆蓋率報告的測試指令 (HTML 會出現在專案的 tests/htmlcov/ 目錄下)
 test-cov:
 	docker compose run --rm test_service python -m pytest \
-		tests/unit/ \
+		src/tests/unit/ \
 		-v --tb=short \
 		--cov=src \
-		--cov-report=html:tests/htmlcov \
+		--cov-report=html:src/tests/htmlcov \
 		--cov-report=term
 
 # Integration tests (requires postgres — `docker compose up -d postgres` first if needed)
 test-integration:
-	docker compose run --rm test_service python -m pytest tests/integration/ -v --tb=short -m integration
+	docker compose run --rm test_service python -m pytest src/tests/integration/ -v --tb=short -m integration
 
 # Integration tests with coverage report
 test-integration-cov:
 	docker compose run --rm test_service python -m pytest \
-		tests/integration/ \
+		src/tests/integration/ \
 		-v --tb=short -m integration \
 		--cov=src \
-		--cov-report=html:tests/htmlcov-integration \
+		--cov-report=html:src/tests/htmlcov-integration \
 		--cov-report=term
 
 # Run all tests (unit + integration) with combined coverage
 test-all-cov:
 	docker compose run --rm test_service python -m pytest \
-		tests/ \
+		src/tests/ \
 		-v --tb=short \
 		--cov=src \
-		--cov-report=html:tests/htmlcov-all \
+		--cov-report=html:src/tests/htmlcov-all \
 		--cov-report=term

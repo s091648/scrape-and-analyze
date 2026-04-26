@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, Boolean, Integer, DateTime, Index
 from sqlalchemy.dialects.postgresql import UUID
 
-from models.article import Base
+from models.base import Base
 
 
 class Topic(Base):

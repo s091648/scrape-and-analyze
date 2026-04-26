@@ -36,7 +36,8 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   async function fetchTopics() {
-    const data: Topic[] = await apiFetch('/topics').then(r => r.json())
+    const raw = await apiFetch('/topics').then(r => r.json())
+    const data: Topic[] = Array.isArray(raw) ? raw : []
     setTopics(data)
     const stored = localStorage.getItem(STORAGE_KEY)
     const valid = data.find(t => t.id === stored)

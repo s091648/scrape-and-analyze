@@ -1,13 +1,15 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
 
-ScraperBase = declarative_base()
+from src.infrastructure.persistence.types import SelectorConfigColumn
+from models.base import Base
+
+ScraperBase = Base
 
 
-class ScraperSetting(ScraperBase):
+class ScraperSetting(Base):
     __tablename__ = 'scraper_settings'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -16,7 +18,7 @@ class ScraperSetting(ScraperBase):
     url = Column(Text, nullable=False)
     frequency = Column(Integer, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
-    selector_config = Column(JSONB)
+    selector_config = Column(SelectorConfigColumn, nullable=True)
     last_scraped_at = Column(DateTime(timezone=True), nullable=True)
     topic_id = Column(UUID(as_uuid=True), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

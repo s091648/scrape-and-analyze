@@ -3,7 +3,7 @@ from sqlalchemy import Column, Boolean, String, ForeignKey, Index, UniqueConstra
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, TEXT
 from sqlalchemy.orm import relationship
 
-from models.article import Base
+from models.base import Base
 
 
 class ArxivMetadata(Base):

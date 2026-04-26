@@ -1,4 +1,5 @@
-from models.article import Base, Article
+from models.base import Base
+from models.article import Article
 from models.analysis import Analysis
 from models.failed_task import FailedTask
 from models.tag import Tag, article_tags

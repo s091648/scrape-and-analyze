@@ -67,7 +67,8 @@ function fieldLabel(code: string): string {
 // ── shared types ──────────────────────────────────────────────────────────────
 
 interface Keyword  { id: string; keyword: string }
-interface Category { id: string; category: string }
+// Category uses the same shape as Keyword: `keyword` holds the category code (e.g. "cs.GR")
+interface Category { id: string; keyword: string }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
@@ -193,11 +194,11 @@ export function ArxivKeywordManager({
           )}
           {categories.map(cat => (
             <span key={cat.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
-              <span className="font-mono font-semibold">{cat.category}</span>
+              <span className="font-mono font-semibold">{cat.keyword}</span>
               <button
                 onClick={() => onDeleteCategory(cat.id)}
                 className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
-                aria-label={`Remove category ${cat.category}`}
+                aria-label={`Remove category ${cat.keyword}`}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -215,7 +216,7 @@ export function ArxivKeywordManager({
             {Object.entries(categoryGroups).map(([group, cats]) => (
               <optgroup key={group} label={group}>
                 {cats.map(c => (
-                  <option key={c.value} value={c.value} disabled={categories.some(x => x.category === c.value)}>
+                  <option key={c.value} value={c.value} disabled={categories.some(x => x.keyword === c.value)}>
                     {c.label}
                   </option>
                 ))}
@@ -230,7 +231,7 @@ export function ArxivKeywordManager({
         {categories.length > 0 && (
           <p className="text-[10px] text-muted-foreground font-mono">
             query: <span className="text-foreground">
-              ({categories.map(c => `cat:${c.category}`).join(' OR ')}) AND (keywords…)
+              ({categories.map(c => `cat:${c.keyword}`).join(' OR ')}) AND (keywords…)
             </span>
           </p>
         )}
