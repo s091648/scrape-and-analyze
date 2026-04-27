@@ -1,4 +1,5 @@
 import json
+from typing import Tuple
 
 import requests
 
@@ -16,7 +17,7 @@ class OpenRouterProvider(BaseProvider):
         super().__init__(model=model)
         self._api_key = api_key
 
-    def _call_api(self, content: str, prompt: str) -> dict:
+    def _post(self, content: str, prompt: str) -> dict:
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         response = requests.post(
             _API_URL,
@@ -31,10 +32,22 @@ class OpenRouterProvider(BaseProvider):
             timeout=60,
         )
         response.raise_for_status()
-        data = response.json()
+        return response.json()
+
+    def _call_api(self, content: str, prompt: str) -> dict:
+        data = self._post(content, prompt)
         result = json.loads(data["choices"][0]["message"]["content"])
         usage = data.get("usage", {})
         result["_input_tokens"] = usage.get("prompt_tokens", 0)
         result["_output_tokens"] = usage.get("completion_tokens", 0)
         logger.info("openrouter_api_called", model=self._model)
         return result
+
+    def _call_api_raw(self, content: str, prompt: str) -> Tuple[str, int, int]:
+        data = self._post(content, prompt)
+        text = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("completion_tokens", 0)
+        logger.info("openrouter_api_called_raw", model=self._model)
+        return (text, input_tokens, output_tokens)

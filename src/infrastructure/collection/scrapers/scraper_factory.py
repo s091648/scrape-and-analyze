@@ -30,7 +30,7 @@ def _extract(items, vo_type, attr: str) -> list | None:
 class ConcreteScraperFactory(ScraperFactory):
     """Creates the appropriate BaseScraper for a given ScraperSetting."""
 
-    def create_for(self, setting: ScraperSetting) -> BaseScraper:
+    def create_for(self, setting: ScraperSetting, days_back: int = None) -> BaseScraper:
         cfg = setting.selector_config
 
         if isinstance(cfg, RssConfig):
@@ -52,9 +52,11 @@ class ConcreteScraperFactory(ScraperFactory):
             )
 
         if isinstance(cfg, ArxivConfig):
+            # -1 means no date filter
+            effective_days_back = None if days_back == -1 else (days_back if days_back is not None else cfg.days_back)
             return ArxivScraper(
                 max_results=cfg.max_results,
-                days_back=cfg.days_back,
+                days_back=effective_days_back,
                 keywords=_extract(setting.keyword_items, ArxivKeyword, "keyword"),
                 categories=_extract(setting.keyword_items, ArxivCategory, "keyword"),
                 topic_id=setting.topic_id,

@@ -25,6 +25,7 @@ import {
 import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/contexts/topic-context'
+import { useI18n } from '@/i18n'
 
 interface ArxivKeyword {
   id: string
@@ -599,6 +600,7 @@ function ScraperSourceCardSkeleton() {
 
 export default function ScraperSettingsPage() {
   const { data: session, status } = useSession()
+  const { t } = useI18n()
   const [settings, setSettings] = useState<ScraperSetting[]>([])
   const [keywords, setKeywords] = useState<ArxivKeyword[]>([])
   const [categories, setCategories] = useState<ArxivCategory[]>([])
@@ -768,9 +770,9 @@ export default function ScraperSettingsPage() {
   return (
     <div className="max-w-3xl space-y-10">
       <div className="border-b border-border pb-6">
-        <h1 className="text-2xl font-bold">Scraper Settings</h1>
+        <h1 className="text-2xl font-bold">{t('admin.scraperSettings')}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your news sources and scraping schedule.
+          {t('admin.scraperSettingsDesc')}
         </p>
       </div>
 

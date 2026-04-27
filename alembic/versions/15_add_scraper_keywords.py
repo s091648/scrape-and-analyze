@@ -1,7 +1,7 @@
 """add_scraper_keywords
 
-Revision ID: 13_add_scraper_keywords
-Revises: 12_add_topic_system
+Revision ID: 15_add_scraper_keywords
+Revises: 13_add_translations
 Create Date: 2026-04-25
 """
 from typing import Sequence, Union
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "13_add_scraper_keywords"
-down_revision: Union[str, Sequence[str], None] = "12_add_topic_system"
+revision: str = "15_add_scraper_keywords"
+down_revision: Union[str, Sequence[str], None] = "13_add_translations"
 branch_labels = None
 depends_on = None
 

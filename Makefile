@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -67,13 +67,23 @@ backfill-dry-run:
 # Usage:
 #   make scrape SOURCE=rss
 #   make scrape SOURCE=arxiv LIMIT=10
+#   make scrape SOURCE=arxiv DAYS_BACK=-1  # no date filter (all articles)
 #   make scrape SOURCE=blog NO_ANALYZE=1
 SOURCE ?= rss
 NO_ANALYZE ?=
-_SCRAPE_ARGS := --source $(SOURCE) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_ANALYZE),--no-analyze,)
+_DAYS_BACK := $(if $(DAYS_BACK),--days-back $(DAYS_BACK),)
+_SCRAPE_ARGS := --source $(SOURCE) $(_DAYS_BACK) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_ANALYZE),--no-analyze,)
 
 scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
+
+# Translate article analyses to another language.
+# Usage:
+#   make translate LANG=zh-TW
+#   make translate LANG=zh-TW LIMIT=50
+LANG ?= zh-TW
+translate:
+	docker compose run --rm job_service python -m src.entrypoints.cli.translate --language $(LANG) $(if $(LIMIT),--limit $(LIMIT),)
 
 run:
 	docker compose run --rm app python -m src.entrypoints.cli.main

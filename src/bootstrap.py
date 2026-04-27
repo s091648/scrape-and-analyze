@@ -184,3 +184,50 @@ def build_collection_pipeline():
 
     logger.info("bootstrap_complete")
     return pipeline
+
+
+# ---------------------------------------------------------------------------
+# Translation Pipeline：翻譯流程的依賴組裝
+# ---------------------------------------------------------------------------
+
+def build_translation_pipeline():
+    """
+    組裝翻譯 pipeline。
+
+    回傳翻譯相關服務，可用於定時翻譯任務。
+    """
+    from src.infrastructure.persistence.database import get_session, init_db
+    from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
+    from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
+    from src.modules.translation.application.use_cases import TranslateArticleUseCase
+    from src.modules.translation.application.use_cases.translate_article import TranslateTagsUseCase
+
+    # ── DB 初始化 ──────────────────────────────────────────────────────────
+    init_db()
+    session = get_session()
+
+    # ── Repositories ───────────────────────────────────────────────────────
+    translation_repo = SqlAlchemyTranslationRepository(session=session)
+    tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
+
+    # ── LLM Service ────────────────────────────────────────────────────────
+    llm_service = build_llm_service()
+
+    # ── Use Cases ──────────────────────────────────────────────────────────
+    translate_article_uc = TranslateArticleUseCase(
+        llm_service=llm_service,
+        translation_repository=translation_repo,
+    )
+    translate_tags_uc = TranslateTagsUseCase(
+        llm_service=llm_service,
+        tag_translation_repository=tag_translation_repo,
+    )
+
+    logger.info("translation_bootstrap_complete")
+    return {
+        "use_case": translate_article_uc,
+        "tag_use_case": translate_tags_uc,
+        "session": session,
+        "translation_repository": translation_repo,
+        "tag_translation_repository": tag_translation_repo,
+    }

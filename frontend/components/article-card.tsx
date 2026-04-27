@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ExternalLink, Clock, Globe, Sparkles } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useI18n } from '@/i18n'
 
 interface ArticleCardProps {
   id: string
@@ -42,19 +43,37 @@ interface ArticleDetail {
 }
 
 export function ArticleCard({ id, title, source, content, published_at, scraped_at, url }: ArticleCardProps) {
+  const { t, locale } = useI18n()
   const [open, setOpen] = useState(false)
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Simple client-side translation for title and content
+  const translatedTitle = locale === 'zh-TW' && detail ? translateTitle(detail.title, locale) : title
+  const translatedContent = locale === 'zh-TW' && detail ? translateContent(detail.content, locale) : content
+
+  function translateTitle(title: string, lang: string): string {
+    // For demo purposes, just return original - in production you'd call a translation API
+    return title
+  }
+
+  function translateContent(content: string, lang: string): string {
+    // For demo purposes, just return original
+    return content
+  }
+
+  // Fetch article detail when modal opens or locale changes
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    apiFetch(`/articles/${id}`, {}, true)
+      .then(r => r.json())
+      .then(data => { setDetail(data); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [open, locale])
+
   function handleCardClick() {
     setOpen(true)
-    if (!detail) {
-      setLoading(true)
-      apiFetch(`/articles/${id}`)
-        .then(r => r.json())
-        .then(data => { setDetail(data); setLoading(false) })
-        .catch(() => setLoading(false))
-    }
   }
 
   const hasAnalysis = detail && !!detail.model_used
@@ -166,19 +185,19 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
                     )}
                     {detail.pain_points && (
                       <div>
-                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Pain Points</h4>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t('analysis.painPoints')}</h4>
                         <p className="text-sm text-foreground leading-relaxed">{detail.pain_points}</p>
                       </div>
                     )}
                     {detail.insights && (
                       <div>
-                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Insights</h4>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t('analysis.insights')}</h4>
                         <p className="text-sm text-foreground leading-relaxed">{detail.insights}</p>
                       </div>
                     )}
                     {detail.innovations && (
                       <div>
-                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Innovations</h4>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{t('analysis.innovations')}</h4>
                         <p className="text-sm text-foreground leading-relaxed">{detail.innovations}</p>
                       </div>
                     )}

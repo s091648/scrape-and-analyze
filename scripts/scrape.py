@@ -48,6 +48,12 @@ def parse_args():
         default=None,
         help="Maximum number of articles to process",
     )
+    parser.add_argument(
+        "--days-back",
+        type=int,
+        default=None,
+        help="Number of days back to search (for arxiv). Use -1 for no filter.",
+    )
     return parser.parse_args()
 
 
@@ -96,13 +102,13 @@ def _build_pipeline(no_analyze: bool):
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
-    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    from src.modules.collection.application.dtos import ScrapedArticleDTO
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.events import ArticleScrapedEvent
 
     session = get_session()
     article_repo = SqlAlchemyArticleRepository(session=session)
@@ -112,13 +118,14 @@ def _build_pipeline(no_analyze: bool):
 
     event_bus = InMemoryEventBus()
     dedup = DedupService(article_repo=article_repo)
+    pipeline_stats = PipelineStats()
 
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
         event_bus=event_bus,
     )
-    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc).handle)
+    event_bus.subscribe(ScrapedArticleDTO, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats).handle)
 
     if not no_analyze:
         from src.bootstrap import build_llm_service
@@ -165,7 +172,7 @@ def main():
 
     for setting in settings:
         try:
-            scraper = factory.create_for(setting)
+            scraper = factory.create_for(setting, days_back=args.days_back)
             jobs = scraper.discover()
         except Exception as e:
             logger.error("discover_failed", source=setting.source, error=str(e))
@@ -186,7 +193,7 @@ def main():
 
     from src.modules.collection.application.dtos import ScrapedArticleDTO
 
-    event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
+    event_bus, pipeline_stats = _build_pipeline(no_analyze=args.no_analyze)
     published = [0]
 
     def on_result(article):

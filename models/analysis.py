@@ -19,6 +19,7 @@ class Analysis(Base):
     summary = Column(Text)
     analyzed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     model_used = Column(String(100), nullable=False)
+    language = Column(String(10), nullable=False, default="en")
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
 
