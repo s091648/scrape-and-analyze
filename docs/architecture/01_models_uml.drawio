@@ -1,0 +1,129 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="models-uml" name="Models UML">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Database Models UML and Relationships" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="topic" value="&lt;&lt;Table&gt;&gt;
+topics" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="180" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="topic_con" value="+ id: UUID (PK)
++ name: String(100)
++ display_name: String(200)
++ is_active: Boolean" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="topic">
+          <mxGeometry y="40" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="scraper_setting" value="&lt;&lt;Table&gt;&gt;
+scraper_settings" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="260" y="80" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ss_con" value="+ id: UUID (PK)
++ source_type: String(20)
++ name: String(100)
++ url: Text
++ topic_id: UUID (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="scraper_setting">
+          <mxGeometry y="40" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="scraper_keyword" value="&lt;&lt;Table&gt;&gt;
+scraper_keywords" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="260" y="220" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="sk_con" value="+ id: UUID (PK)
++ topic_id: UUID (FK)
++ keyword_type: String(30)
++ keyword: String(500)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="scraper_keyword">
+          <mxGeometry y="40" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="article" value="&lt;&lt;Table&gt;&gt;
+articles" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="500" y="80" width="180" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="art_con" value="+ id: UUID (PK)
++ url: Text (unique)
++ url_hash: String(64)
++ source: String(50)
++ title: Text
++ topic_id: UUID (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="article">
+          <mxGeometry y="40" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="analysis" value="&lt;&lt;Table&gt;&gt;
+analyses" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="720" y="80" width="180" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="an_con" value="+ id: UUID (PK)
++ article_id: UUID (FK)
++ correlation_id: UUID
++ summary: Text
++ model_used: String(100)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="analysis">
+          <mxGeometry y="40" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="arxiv_meta" value="&lt;&lt;Table&gt;&gt;
+arxiv_metadata" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#e1d5e7;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="720" y="210" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="am_con" value="+ id: UUID (PK)
++ article_id: UUID (FK)
++ arxiv_id: String(50)
++ authors: ARRAY" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="arxiv_meta">
+          <mxGeometry y="40" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_group" value="&lt;&lt;Table&gt;&gt;
+tag_group_definitions" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f8cecc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="500" y="250" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tg_con" value="+ id: UUID (PK)
++ name: String(100)
++ topic_id: UUID (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="tag_group">
+          <mxGeometry y="40" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="tag" value="&lt;&lt;Table&gt;&gt;
+tags" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f8cecc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="720" y="310" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_con" value="+ id: UUID (PK)
++ name: Text
++ tag_group_name: String(100)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="tag">
+          <mxGeometry y="40" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="failed_task" value="&lt;&lt;Table&gt;&gt;
+failed_tasks" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="940" y="80" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ft_con" value="+ id: UUID (PK)
++ task_type: String(50)
++ article_url: Text
++ article_id: UUID (FK)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="failed_task">
+          <mxGeometry y="40" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="rel1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="topic" target="scraper_setting">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="topic" target="scraper_keyword">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="topic" target="article">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="article" target="analysis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;startArrow=ERone;endArrow=ERone;" edge="1" parent="1" source="article" target="arxiv_meta">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="article" target="failed_task">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="topic" target="tag_group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=ERone;endArrow=ERmany;" edge="1" parent="1" source="tag_group" target="tag">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

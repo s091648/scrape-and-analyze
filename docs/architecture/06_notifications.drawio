@@ -1,0 +1,145 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="notifications" name="Notifications Pipeline Integration">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Notifications - Pipeline Completion Report" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pipeline_comp" value="CollectionPipeline.run()" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="160" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_con" value="After Phase 1-3 complete:
+
+1. Gather stats
+2. Create PipelineCompletedEvent
+3. event_bus.publish(event)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="pipeline_comp">
+          <mxGeometry y="40" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="event" value="PipelineCompletedEvent" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="240" y="80" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="event_con" value="@dataclass(frozen=True)
+class PipelineCompletedEvent:
+    stats: List[SourceStats]
+    duration_seconds: float
+
+SourceStats:
+  source, new, duplicate, failed" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=9" vertex="1" parent="event">
+          <mxGeometry y="40" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="eb" value="EventBus" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="460" y="80" width="120" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="eb_con" value="InMemoryEventBus
+(shared kernel)
+
+publish(event)
+  -> dispatches to all handlers" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="eb">
+          <mxGeometry y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="nh" value="NotificationHandler" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#e1d5e7;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="620" y="80" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="nh_con" value="src/infrastructure/shared/
+notifications/notification_service.py
+
+handle(event: PipelineCompletedEvent)
+  iterates notifiers
+  calls notifier.notify(event)
+
+Error handling:
+  logs warning, continues" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="nh">
+          <mxGeometry y="40" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tg" value="TelegramNotifier" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f8cecc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="620" y="210" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="tg_con" value="src/infrastructure/shared/
+notifications/telegram.py
+
+notify(event):
+  - format message as table
+  - POST to Telegram Bot API
+  - parse_mode: MarkdownV2
+
+Message includes:
+  - timestamp (UTC)
+  - duration
+  - source counts" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="tg">
+          <mxGeometry y="40" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="otel_notif" value="OtelMetricsHandler" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="860" y="80" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="otel_notif_con" value="Also listens to
+PipelineCompletedEvent
+
+Actions:
+  * Increment scraper_runs_total
+  * Record duration histogram
+  * Update article counters" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="otel_notif">
+          <mxGeometry y="40" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="sample_msg" value="Sample Message Format" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="280" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="sample_con" value="[BOT] Scraping Task Completed
+
+[DATE] 2026-04-27 10:30 UTC
+[TIME] Duration: 45.2 seconds
+[SOURCE] Source Count: 3
+
+Source    New   Dup   Fail
+-------  ----  ----  ----
+rss       12     3     0
+arxiv      8     2     1 [WARN]
+-------  ----  ----  ----
+Total     25     5     1
+
+[WARN] 1 Error(s), Please check log" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=9;fontFamily=Courier New" vertex="1" parent="sample_msg">
+          <mxGeometry y="30" width="280" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="build_cfg" value="Handler Registration" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="360" y="230" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="bc_con" value="build_notification_handler():
+  - Checks TELEGRAM_BOT_TOKEN
+  - Checks TELEGRAM_CHAT_ID
+  - Creates TelegramNotifier if both exist
+  - Returns NotificationHandler
+
+Call during bootstrap:
+  handler = build_notification_handler()
+  event_bus.subscribe(handler)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="build_cfg">
+          <mxGeometry y="30" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="notif_env" value="Required ENV" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="360" y="360" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ne_con" value="For Telegram notifications:
+
+* TELEGRAM_BOT_TOKEN
+* TELEGRAM_CHAT_ID
+
+(Both required; disabled if missing)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="notif_env">
+          <mxGeometry y="30" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="summary" value="Integration Summary" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="620" y="360" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="sum_con" value="Pipeline -> PipelineCompletedEvent
+  -> EventBus -> Handlers
+
+Parallel handlers:
+  1. NotificationHandler (Telegram)
+  2. OtelMetricsHandler (metrics)
+
+Both receive same event." style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="summary">
+          <mxGeometry y="30" width="200" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

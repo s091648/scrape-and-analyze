@@ -1,0 +1,109 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="http-client" name="HTTP Client and Strategy">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="HTTP Client and Request Strategy" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="250" y="20" width="500" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="http_main" value="HttpClient (Thread-Safe)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="260" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="http_main_con" value="GET Flow:
+
+1. Acquire rate-limit token (domain)
+2. Pick current UA for domain
+3. Build browser-like headers
+4. Send via tenacity retry policy
+5. On 403:
+   - wait with jitter
+   - rotate UA
+   - retry (max 2 rotations)
+6. Return 2xx or raise exception
+
+Config:
+  max_403_rotations=2
+  rotation_delay_base=3.0s" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="http_main">
+          <mxGeometry y="40" width="260" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="rate_limiter" value="DomainRateLimiter" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="340" y="80" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="rl_con" value="Per-domain rate limiting
+
+* connection(domain) context manager
+* Uses semaphore per domain
+* Blocks until token available
+* Thread-safe via threading.Lock
+
+Default: 1 request per domain at a time" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="rate_limiter">
+          <mxGeometry y="40" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ua_pool" value="UserAgentPool" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="340" y="230" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ua_con" value="UA Rotation Strategy
+
+* Pool of browser User-Agents
+* get(domain) -> current UA
+* rotate(domain) -> next UA
+
+get_browser_headers(ua) ->
+  sec-ch-ua, Sec-Fetch-*, etc." style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="ua_pool">
+          <mxGeometry y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="retry" value="Retry Policy (Tenacity)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f8cecc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="220" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="retry_con" value="Retry Matrix:
+
+429 Retry-After:
+  respect header | else 30-60-120-240s
+  max 4 attempts
+
+502/503/504:
+  exponential + jitter 5-10-20-40s
+  max 3 attempts
+
+500:
+  exponential + jitter
+  max 3 attempts
+
+403: NOT retried (UA rotation)
+404/410: NOT retried
+
+Timeout: 2s fixed, max 3
+ConnectionError: exponential + jitter" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=9" vertex="1" parent="retry">
+          <mxGeometry y="40" width="220" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="proxy" value="Proxy Support" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#e1d5e7;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="600" y="300" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="proxy_con" value="* get_proxies() from ENV
+  HTTP_PROXY, HTTPS_PROXY
+* proxy_enabled flag in HttpClient
+* On ProxyError: disable and retry
+* On 407: disable proxy and retry
+
+ArxivClient:
+  Direct requests (no proxy)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="proxy">
+          <mxGeometry y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="env_box" value="Environment Variables" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="env_con" value="* HTTP_PROXY / HTTPS_PROXY
+  Proxy configuration
+
+* User-Agent strings (pool)
+  Browser UA rotation pool
+
+* GRAFANA_OTLP_*
+  For observability backends" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="env_box">
+          <mxGeometry y="30" width="260" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

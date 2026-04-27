@@ -1,0 +1,127 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="collection-pipeline" name="Collection Pipeline Detail">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Collection Pipeline - Infrastructure Detail" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="pipeline" value="CollectionPipeline" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="pipeline_con" value="* Phase 1: Discover
+  get_active_due() -> ScraperSettings
+  scraper.discover() -> ScrapeJobs
+* Phase 1.5: Pre-Dedup
+  find_analyzed_url_hashes()
+* Phase 2: Fetch
+  ScrapeExecutor.run(tasks)
+* Phase 3: Publish DTOs
+  event_bus.publish(ScrapedArticleDTO)
+* Phase 4: Completion
+  PipelineCompletedEvent -> handlers" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="pipeline">
+          <mxGeometry y="40" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="executor" value="ScrapeExecutor" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="320" y="80" width="240" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="executor_con" value="Two-Phase Concurrent Fetch
+
+Phase 1: Route
+  QueueRouter.route(tasks)
+  -> per-host HostQueueMap
+
+Phase 2: Execute
+  ThreadPoolExecutor(num_workers)
+  _try_claim() -> BoundedSemaphore(1)
+  task.execute() -> ScrapedArticle
+
+Config:
+  num_workers=5, delay=5.0s" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="executor">
+          <mxGeometry y="40" width="240" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="host_queue" value="HostQueueMap" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#ffe6cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="hq_con" value="* queues: Dict[str, Queue]
+  per-host request queue
+* semaphores: Dict[str, BoundedSemaphore(1)]
+  max 1 concurrent request per host" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="host_queue">
+          <mxGeometry y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="queue_sel" value="QueueSelector" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#ffe6cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="600" y="190" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="qs_con" value="* WeightedRoundRobinQueueSelector
+  prioritizes deepest backlog first" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="queue_sel">
+          <mxGeometry y="40" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="scrapers" value="Scrapers" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="840" y="80" width="220" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="scrapers_con" value="BaseScraper (abstract)
+  + discover() -> List[ScrapeJob]
+  + fetch(url) -> ScrapedArticle
+
+* RssScraper: uses RssClient
+* ArxivScraper: uses ArxivClient
+* BlogScraper: uses HttpClient + HTMLParser" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="scrapers">
+          <mxGeometry y="40" width="220" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="clients" value="HTTP Clients" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#e1d5e7;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="840" y="280" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="clients_con" value="RssClient
+  + fetch_feed(url) -> List[RssEntry]
+
+ArxivClient
+  + fetch_entries(query, max_results)
+  -> List[ArxivEntry]
+  direct requests.Session (no proxy)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="clients">
+          <mxGeometry y="40" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="parsers" value="Parsers" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#f8cecc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="1100" y="80" width="160" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="parsers_con" value="HtmlParser
+  + parse(html, selector_config)
+  -> title, content
+
+PdfParser
+  + extract_text(url) -> str
+
+SanitizeService
+  + sanitize(html) -> clean HTML" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="parsers">
+          <mxGeometry y="40" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="settings" value="Key Settings" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="settings_con" value="BoundedSemaphore(1):
+  Max 1 concurrent request per host
+
+ThreadPoolExecutor:
+  num_workers=5 workers
+
+Delay:
+  5.0s between requests per worker
+
+Timeout:
+  HTTP: 30s, arXiv: 60s" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="settings">
+          <mxGeometry y="30" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="event_int" value="Event Integration" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="280" y="320" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="event_int_con" value="ScrapedArticle
+  -> ScrapedArticleDTO
+  -> event_bus.publish(dto)
+  -> ArticleScrapedHandler
+  -> ProcessScrapedArticleUC" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="event_int">
+          <mxGeometry y="30" width="200" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
