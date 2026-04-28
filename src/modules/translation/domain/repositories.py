@@ -45,13 +45,6 @@ class TagTranslationRepository(ABC):
         ...
 
     @abstractmethod
-    def find_tag_translations(
-        self, tag_ids: List[UUID], language: str
-    ) -> Dict[UUID, str]:
-        """Find translated tag names for given tag IDs and language."""
-        ...
-
-    @abstractmethod
     def find_tags_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
@@ -63,13 +56,6 @@ class TagTranslationRepository(ABC):
         self, tag_group_definition_id: UUID, language: str, display_name: str
     ) -> None:
         """Save or update a tag group display_name translation."""
-        ...
-
-    @abstractmethod
-    def find_group_translations(
-        self, group_ids: List[UUID], language: str
-    ) -> Dict[UUID, str]:
-        """Find translated group display_names for given IDs and language."""
         ...
 
     @abstractmethod

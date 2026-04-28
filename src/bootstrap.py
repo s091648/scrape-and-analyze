@@ -108,7 +108,7 @@ def build_collection_pipeline():
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent
+    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
     from src.modules.collection.application.dtos import ScrapedArticleDTO
@@ -164,6 +164,31 @@ def build_collection_pipeline():
     # intelligence 失敗事件：AnalysisFailedEvent → AnalysisFailedHandler
     analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
+
+    # translation 事件：AnalysisCompletedEvent → auto-translate
+    from src.modules.translation.application.use_cases.translate_article import TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.translation.application.event_handlers import AnalysisCompletedHandler
+    from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
+    from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
+    from src.config.settings import TRANSLATION_LANGUAGES
+
+    translation_repo = SqlAlchemyTranslationRepository(session=session)
+    tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
+    translate_article_uc = TranslateArticleUseCase(
+        llm_service=llm_service,
+        translation_repository=translation_repo,
+    )
+    translate_tags_uc = TranslateTagsUseCase(
+        llm_service=llm_service,
+        tag_translation_repository=tag_translation_repo,
+    )
+    target_languages = [lang.strip() for lang in TRANSLATION_LANGUAGES.split(",") if lang.strip()]
+    analysis_completed_handler = AnalysisCompletedHandler(
+        translate_article_uc=translate_article_uc,
+        translate_tags_uc=translate_tags_uc,
+        target_languages=target_languages,
+    )
+    event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()

@@ -1,10 +1,10 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid
 
-from models.article import Base
+from models.base import Base
 
 
 class Translation(Base):
@@ -25,4 +25,5 @@ class Translation(Base):
     __table_args__ = (
         Index('idx_translations_analysis_id', 'analysis_id'),
         Index('idx_translations_language', 'language'),
+        UniqueConstraint('analysis_id', 'language', name='uq_translations_analysis_language'),
     )

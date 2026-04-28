@@ -109,32 +109,6 @@ def list_articles(
         scraped_before=scraped_before,
         topic_id=topic_id,
     )
-    # Attach translation data if requested language is not English
-    if lang != "en":
-        from models.translation import Translation
-        from models.analysis import Analysis
-
-        article_ids = [a.id for a in items]
-        # Get translations for these articles
-        analysis_ids_subq = db.query(Analysis.id).filter(
-            Analysis.article_id.in_(article_ids)
-        ).subquery()
-
-        translations = db.query(Translation).filter(
-            Translation.analysis_id.in_(analysis_ids_subq),
-            Translation.language == lang
-        ).all()
-
-        # Build translation lookup
-        trans_lookup = {t.analysis_id: t for t in translations}
-
-        # Attach translations to articles
-        for item in items:
-            if item.analyses:
-                analysis = item.analyses[0]
-                trans = trans_lookup.get(analysis.id)
-                if trans:
-                    item._translation = trans
 
     return PaginatedArticles(items=items, total=total, page=page, size=size)
 

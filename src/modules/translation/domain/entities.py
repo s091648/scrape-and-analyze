@@ -38,19 +38,3 @@ class Translation:
         self.innovations = innovations
         self.created_at = created_at or datetime.utcnow()
         self.updated_at = updated_at or datetime.utcnow()
-
-
-@dataclass
-class TagTranslation:
-    """Domain entity representing a translated tag name."""
-    tag_id: UUID
-    language: str
-    name: str
-
-
-@dataclass
-class TagGroupTranslation:
-    """Domain entity representing a translated tag group display_name."""
-    tag_group_definition_id: UUID
-    language: str
-    display_name: str

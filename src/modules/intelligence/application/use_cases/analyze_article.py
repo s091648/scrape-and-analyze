@@ -9,7 +9,7 @@ from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
 from src.modules.intelligence.domain.services import LLMService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup
-from src.modules.intelligence.application.events import AnalysisFailedEvent
+from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
 logger = get_logger(__name__)
 
@@ -60,6 +60,18 @@ class AnalyzeArticleUseCase:
             input_tokens=analysis_metadata.input_tokens,
             output_tokens=analysis_metadata.output_tokens,
         )
+
+        # Publish success event for downstream (e.g. translation)
+        if self._event_bus is not None:
+            self._event_bus.publish(AnalysisCompletedEvent(
+                analysis_id=analysis.id,
+                article_id=article.id,
+                summary=analysis_content.summary,
+                pain_points=analysis_content.pain_points,
+                insights=analysis_content.insights,
+                innovations=analysis_content.innovations,
+            ))
+
         return True
 
     def _publish_failure(

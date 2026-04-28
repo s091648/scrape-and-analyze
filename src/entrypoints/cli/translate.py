@@ -28,13 +28,9 @@ if SENTRY_DSN:
 
 logger = get_logger(__name__)
 
+from src.modules.translation.application.use_cases.translate_article import LANGUAGE_NAMES
 
-SUPPORTED_LANGUAGES = {
-    "zh-TW": "Traditional Chinese (Taiwan)",
-    "zh-CN": "Simplified Chinese",
-    "ja": "Japanese",
-    "ko": "Korean",
-}
+SUPPORTED_LANGUAGES = LANGUAGE_NAMES
 
 
 def main():

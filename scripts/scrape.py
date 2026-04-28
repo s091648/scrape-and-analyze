@@ -129,6 +129,13 @@ def _build_pipeline(no_analyze: bool):
 
     if not no_analyze:
         from src.bootstrap import build_llm_service
+        from src.modules.intelligence.application.events import AnalysisCompletedEvent
+        from src.modules.translation.application.use_cases.translate_article import TranslateArticleUseCase, TranslateTagsUseCase
+        from src.modules.translation.application.event_handlers import AnalysisCompletedHandler
+        from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
+        from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
+        from src.config.settings import TRANSLATION_LANGUAGES
+
         llm_service = build_llm_service()
         analyze_uc = AnalyzeArticleUseCase(
             llm_service=llm_service,
@@ -138,6 +145,25 @@ def _build_pipeline(no_analyze: bool):
         )
         event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
         event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
+
+        # Auto-translate after analysis
+        translation_repo = SqlAlchemyTranslationRepository(session=session)
+        tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
+        translate_article_uc = TranslateArticleUseCase(
+            llm_service=llm_service,
+            translation_repository=translation_repo,
+        )
+        translate_tags_uc = TranslateTagsUseCase(
+            llm_service=llm_service,
+            tag_translation_repository=tag_translation_repo,
+        )
+        target_languages = [lang.strip() for lang in TRANSLATION_LANGUAGES.split(",") if lang.strip()]
+        analysis_completed_handler = AnalysisCompletedHandler(
+            translate_article_uc=translate_article_uc,
+            translate_tags_uc=translate_tags_uc,
+            target_languages=target_languages,
+        )
+        event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
     return event_bus, process_uc
 
@@ -193,7 +219,7 @@ def main():
 
     from src.modules.collection.application.dtos import ScrapedArticleDTO
 
-    event_bus, pipeline_stats = _build_pipeline(no_analyze=args.no_analyze)
+    event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
     published = [0]
 
     def on_result(article):

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -30,21 +30,6 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
             self._session.add(model)
 
         self._session.commit()
-
-    def find_tag_translations(
-        self, tag_ids: List[UUID], language: str
-    ) -> Dict[UUID, str]:
-        from models.tag_translation import TagTranslation as TagTranslationModel
-
-        if not tag_ids:
-            return {}
-
-        rows = self._session.query(TagTranslationModel).filter(
-            TagTranslationModel.tag_id.in_(tag_ids),
-            TagTranslationModel.language == language,
-        ).all()
-
-        return {row.tag_id: row.name for row in rows}
 
     def find_tags_without_translation(
         self, language: str, limit: int
@@ -87,21 +72,6 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
             self._session.add(model)
 
         self._session.commit()
-
-    def find_group_translations(
-        self, group_ids: List[UUID], language: str
-    ) -> Dict[UUID, str]:
-        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
-
-        if not group_ids:
-            return {}
-
-        rows = self._session.query(TagGroupTranslationModel).filter(
-            TagGroupTranslationModel.tag_group_definition_id.in_(group_ids),
-            TagGroupTranslationModel.language == language,
-        ).all()
-
-        return {row.tag_group_definition_id: row.display_name for row in rows}
 
     def find_groups_without_translation(
         self, language: str, limit: int

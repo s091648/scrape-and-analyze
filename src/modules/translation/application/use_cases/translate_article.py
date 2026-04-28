@@ -67,16 +67,6 @@ Return the translated group names, one per line, in the same order. Do not add a
 
 
 @dataclass
-class TranslationInput:
-    """Input data for translation."""
-    analysis_id: UUID
-    summary: Optional[str]
-    pain_points: Optional[str]
-    insights: Optional[str]
-    innovations: Optional[str]
-
-
-@dataclass
 class TranslationResult:
     """Result of translation operation."""
     analysis_id: UUID
@@ -205,15 +195,8 @@ class TranslateArticleUseCase:
             innovations=innovations or "(empty)",
         )
 
-        content = (
-            f"Summary:\n{summary or ''}\n\n"
-            f"Pain Points:\n{pain_points or ''}\n\n"
-            f"Insights:\n{insights or ''}\n\n"
-            f"Innovations:\n{innovations or ''}"
-        )
-
         try:
-            translated_text = self._llm_service.translate(content, prompt)
+            translated_text = self._llm_service.translate("", prompt)
             if translated_text is None:
                 return None
 

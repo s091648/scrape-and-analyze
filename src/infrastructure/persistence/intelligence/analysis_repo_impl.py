@@ -34,6 +34,9 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
         self._session.add(row)
         self._session.flush()
 
+        # Backfill the DB-generated id into the domain entity
+        analysis.id = row.id
+
         # Resolve tag_groups into Tag rows
         article_row = self._session.query(ArticleModel).filter_by(
             id=analysis.article_id
