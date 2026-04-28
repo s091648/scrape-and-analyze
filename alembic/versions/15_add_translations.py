@@ -1,7 +1,7 @@
 """add_translations
 
 Revision ID: 13_add_translations
-Revises: 12_add_topic_system
+Revises: 14_migrate_arxiv_keywords
 Create Date: 2026-04-24
 """
 from typing import Sequence, Union
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "13_add_translations"
-down_revision: Union[str, Sequence[str], None] = "12_add_topic_system"
+revision: str = "15_add_translations"
+down_revision: Union[str, Sequence[str], None] = "14_migrate_arxiv_keywords"
 branch_labels = None
 depends_on = None
 

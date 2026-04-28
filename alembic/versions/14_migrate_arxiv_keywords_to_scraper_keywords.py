@@ -5,15 +5,15 @@ scraper_keywords table as typed rows ('arxiv_keyword' / 'arxiv_category').
 Adds keyword_type column and drops the old unique constraint.
 
 Revision ID: 16_migrate_arxiv_keywords
-Revises: 15_add_scraper_keywords
+Revises: 13_add_scraper_keywords
 Create Date: 2026-04-26
 """
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "16_migrate_arxiv_keywords"
-down_revision: Union[str, Sequence[str], None] = "15_add_scraper_keywords"
+revision: str = "14_migrate_arxiv_keywords"
+down_revision: Union[str, Sequence[str], None] = "13_add_scraper_keywords"
 branch_labels = None
 depends_on = None
 
