@@ -55,7 +55,7 @@ def _wire_pipeline(db_session, llm_service):
     from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.modules.intelligence.application.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
     from src.shared.application.events import ArticleProcessedEvent
 
@@ -136,7 +136,7 @@ def test_process_article_returns_false_for_fully_processed_duplicate(db_session)
 def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
     from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()

@@ -20,7 +20,7 @@ def _wire_pipeline(db_session):
     from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.modules.intelligence.application.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
     from src.shared.application.events import ArticleProcessedEvent
 

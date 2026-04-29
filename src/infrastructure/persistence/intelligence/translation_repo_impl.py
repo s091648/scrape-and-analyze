@@ -3,10 +3,9 @@ from uuid import UUID
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from src.modules.translation.domain.entities import Translation
-from src.modules.translation.domain.repositories import TranslationRepository
+from src.modules.intelligence.domain.entities import Translation
+from src.modules.intelligence.domain.repositories import TranslationRepository
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -87,28 +86,26 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
         Find analyses that don't have translation for the target language.
         Returns list of dicts with analysis data.
         """
-        query = text("""
-            SELECT a.id, a.article_id, a.summary, a.pain_points, a.insights, a.innovations
-            FROM analyses a
-            WHERE a.language = 'en'
-            AND NOT EXISTS (
-                SELECT 1 FROM translations t
-                WHERE t.analysis_id = a.id AND t.language = :target_lang
-            )
-            ORDER BY a.analyzed_at DESC
-            LIMIT :limit
-        """)
-        result = self._session.execute(query, {"target_lang": language, "limit": limit})
-        rows = result.fetchall()
+        from models.analysis import Analysis as AnalysisModel
+        from models.translation import Translation as TranslationModel
+
+        rows = (
+            self._session.query(AnalysisModel)
+            .filter(AnalysisModel.language == 'en')
+            .filter(~AnalysisModel.translations.any(TranslationModel.language == language))
+            .order_by(AnalysisModel.analyzed_at.desc())
+            .limit(limit)
+            .all()
+        )
 
         return [
             {
-                "analysis_id": row[0],
-                "article_id": row[1],
-                "summary": row[2],
-                "pain_points": row[3],
-                "insights": row[4],
-                "innovations": row[5],
+                "analysis_id": row.id,
+                "article_id": row.article_id,
+                "summary": row.summary,
+                "pain_points": row.pain_points,
+                "insights": row.insights,
+                "innovations": row.innovations,
             }
             for row in rows
         ]

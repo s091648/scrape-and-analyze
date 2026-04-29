@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 def _make_article(db_session, *, url=None, source="test"):
     """Insert and return a committed Article with no analysis."""
     from models.article import Article
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = url or f"https://example.com/{uuid.uuid4()}"
     article = Article(
@@ -53,7 +53,7 @@ def _make_analysis(db_session, article):
 def test_article_deduplication(db_session):
     """Duplicate articles should not be created."""
     from models.article import Article
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = f"https://example.com/dedup-{uuid.uuid4()}"
     url_hash = UrlHash.generate_url_hash(url)
@@ -131,22 +131,24 @@ def test_article_with_analysis_creation(db_session):
 @pytest.mark.integration
 def test_has_analysis_returns_true_when_analysis_exists(db_session):
     """has_analysis should return True for an article that has an analysis."""
-    from src.infrastructure.persistence.database import has_analysis
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
 
     article = _make_article(db_session)
     _make_analysis(db_session, article)
 
-    assert has_analysis(db_session, article.id) is True
+    repo = SqlAlchemyArticleRepository(session=db_session)
+    assert repo.has_analysis(article.id) is True
 
 
 @pytest.mark.integration
 def test_has_analysis_returns_false_when_no_analysis(db_session):
     """has_analysis should return False for an article with no analysis."""
-    from src.infrastructure.persistence.database import has_analysis
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
 
     article = _make_article(db_session)
 
-    assert has_analysis(db_session, article.id) is False
+    repo = SqlAlchemyArticleRepository(session=db_session)
+    assert repo.has_analysis(article.id) is False
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +189,7 @@ def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
     """scan_missing_analyses should include articles older than min_age_hours."""
     from models.article import Article
     from src.infrastructure.persistence.database import scan_missing_analyses
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = f"https://example.com/old-{uuid.uuid4()}"
     old_article = Article(

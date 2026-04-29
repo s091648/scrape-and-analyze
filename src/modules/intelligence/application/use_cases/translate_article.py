@@ -1,81 +1,19 @@
-from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService
-from src.modules.translation.domain.repositories import TranslationRepository, TagTranslationRepository
-from src.modules.translation.domain.entities import Translation
+from src.modules.intelligence.domain.repositories import TranslationRepository, TagTranslationRepository
+from src.modules.intelligence.domain.entities import Translation
+from src.modules.intelligence.domain.value_objects import (
+    ArticleTranslationPrompt,
+    TagTranslationPrompt,
+    GroupTranslationPrompt,
+    TranslationContent,
+    TranslationResult,
+)
 
 logger = get_logger(__name__)
-
-
-# Language names for prompt
-LANGUAGE_NAMES = {
-    "zh-TW": "Traditional Chinese (Taiwan)",
-    "zh-CN": "Simplified Chinese",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "es": "Spanish",
-    "fr": "French",
-    "de": "German",
-}
-
-
-# Translation prompt template
-TRANSLATION_PROMPT = """You are a professional translator. Translate the following article analysis from English to {target_language}.
-
-Only translate the content, do not add any explanations or additional text.
-Keep the same format and structure — use the exact section headers below.
-If any field is not applicable or empty, keep it empty.
-
-Summary:
-{summary}
-
-Pain Points:
-{pain_points}
-
-Insights:
-{insights}
-
-Innovations:
-{innovations}
-
-Translation (use the same section headers: Summary, Pain Points, Insights, Innovations):"""
-
-# Tag translation prompt template
-TAG_TRANSLATION_PROMPT = """You are a professional translator. Translate the following tag names from English to {target_language}.
-These are technical tags used in a research article classification system.
-Keep translations concise and natural in the target language.
-IMPORTANT: Do NOT translate words or phrases that are fully uppercase (e.g., AI, IoT, IIoT, BIM, VR) — keep them as-is.
-
-Tags (one per line):
-{tags}
-
-Return the translated tags, one per line, in the same order. Do not add any other text."""
-
-# Tag group display_name translation prompt template
-GROUP_TRANSLATION_PROMPT = """You are a professional translator. Translate the following tag group display names from English to {target_language}.
-These are category headings for a research article classification system.
-Keep translations concise and natural.
-IMPORTANT: Do NOT translate words or phrases that are fully uppercase or proper nouns (e.g., Digital Twin, AI, IoT, Industry 4.0) — keep them as-is.
-
-Groups (one per line):
-{groups}
-
-Return the translated group names, one per line, in the same order. Do not add any other text."""
-
-
-@dataclass
-class TranslationResult:
-    """Result of translation operation."""
-    analysis_id: UUID
-    language: str
-    summary: Optional[str]
-    pain_points: Optional[str]
-    insights: Optional[str]
-    innovations: Optional[str]
-    success: bool
 
 
 class TranslateArticleUseCase:
@@ -117,27 +55,38 @@ class TranslateArticleUseCase:
                 return TranslationResult(
                     analysis_id=analysis_id,
                     language=target_language,
-                    summary=existing.summary,
-                    pain_points=existing.pain_points,
-                    insights=existing.insights,
-                    innovations=existing.innovations,
+                    content=TranslationContent(
+                        summary=existing.summary,
+                        pain_points=existing.pain_points,
+                        insights=existing.insights,
+                        innovations=existing.innovations,
+                    ),
                     success=True,
                 )
 
-        # Translate using LLM
-        translated = self._translate_with_llm(
-            summary, pain_points, insights, innovations, target_language
+        # Build prompt via value object
+        prompt = ArticleTranslationPrompt().render(
+            target_language=target_language,
+            summary=summary or "(empty)",
+            pain_points=pain_points or "(empty)",
+            insights=insights or "(empty)",
+            innovations=innovations or "(empty)",
         )
+
+        # Translate using LLM
+        translated = self._call_llm(prompt)
 
         if translated is None:
             logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
             return TranslationResult(
                 analysis_id=analysis_id,
                 language=target_language,
-                summary=None,
-                pain_points=None,
-                insights=None,
-                innovations=None,
+                content=TranslationContent(
+                    summary=None,
+                    pain_points=None,
+                    insights=None,
+                    innovations=None,
+                ),
                 success=False,
             )
 
@@ -145,10 +94,10 @@ class TranslateArticleUseCase:
         translation = Translation(
             analysis_id=analysis_id,
             language=target_language,
-            summary=translated["summary"],
-            pain_points=translated["pain_points"],
-            insights=translated["insights"],
-            innovations=translated["innovations"],
+            summary=translated.summary,
+            pain_points=translated.pain_points,
+            insights=translated.insights,
+            innovations=translated.innovations,
         )
 
         try:
@@ -159,72 +108,51 @@ class TranslateArticleUseCase:
             return TranslationResult(
                 analysis_id=analysis_id,
                 language=target_language,
-                summary=None,
-                pain_points=None,
-                insights=None,
-                innovations=None,
+                content=TranslationContent(
+                    summary=None,
+                    pain_points=None,
+                    insights=None,
+                    innovations=None,
+                ),
                 success=False,
             )
 
         return TranslationResult(
             analysis_id=analysis_id,
             language=target_language,
-            summary=translated["summary"],
-            pain_points=translated["pain_points"],
-            insights=translated["insights"],
-            innovations=translated["innovations"],
+            content=translated,
             success=True,
         )
 
-    def _translate_with_llm(
-        self,
-        summary: Optional[str],
-        pain_points: Optional[str],
-        insights: Optional[str],
-        innovations: Optional[str],
-        target_language: str,
-    ) -> Optional[dict]:
+    def _call_llm(self, prompt: ArticleTranslationPrompt) -> Optional[TranslationContent]:
         """Translate content using LLM service."""
-        target_lang_name = LANGUAGE_NAMES.get(target_language, target_language)
-
-        prompt = TRANSLATION_PROMPT.format(
-            target_language=target_lang_name,
-            summary=summary or "(empty)",
-            pain_points=pain_points or "(empty)",
-            insights=insights or "(empty)",
-            innovations=innovations or "(empty)",
-        )
-
         try:
-            translated_text = self._llm_service.translate("", prompt)
+            translated_text = self._llm_service.translate("", prompt.content)
             if translated_text is None:
                 return None
-
             return self._parse_sections(translated_text)
         except Exception as e:
             logger.error("llm_translation_error", error=str(e))
             return None
 
     @staticmethod
-    def _parse_sections(text: str) -> dict:
+    def _parse_sections(text: str) -> TranslationContent:
         """Parse translated text into sections by header."""
         import re
-        sections = {"summary": "", "pain_points": "", "insights": "", "innovations": ""}
         header_map = {
             "summary": "summary",
             "pain points": "pain_points",
             "insights": "insights",
             "innovations": "innovations",
         }
-        # Split on section headers (case-insensitive)
         parts = re.split(r'\n(?=(?:Summary|Pain Points|Insights|Innovations)\s*[:：]\s*)', text, flags=re.IGNORECASE)
+        fields = {"summary": "", "pain_points": "", "insights": "", "innovations": ""}
         for part in parts:
             for header, key in header_map.items():
                 if re.match(rf'^{header}\s*[:：]', part, re.IGNORECASE):
-                    content = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip()
-                    sections[key] = content
+                    fields[key] = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip()
                     break
-        return sections
+        return TranslationContent(**fields)
 
 
 class TranslateTagsUseCase:
@@ -250,13 +178,12 @@ class TranslateTagsUseCase:
         tag_names = [t["name"] for t in tags]
         tag_ids = [t["tag_id"] for t in tags]
 
-        target_lang_name = LANGUAGE_NAMES.get(language, language)
-        prompt = TAG_TRANSLATION_PROMPT.format(
-            target_language=target_lang_name,
-            tags="\n".join(tag_names),
+        prompt = TagTranslationPrompt().render(
+            target_language=language,
+            tags=tag_names,
         )
 
-        translated_text = self._llm_service.translate("", prompt)
+        translated_text = self._llm_service.translate("", prompt.content)
         if translated_text is None:
             logger.error("tag_translation_llm_failed", language=language)
             return {"total": len(tags), "success": 0, "failed": len(tags)}
@@ -290,13 +217,12 @@ class TranslateTagsUseCase:
         display_names = [g["display_name"] for g in groups]
         group_ids = [g["id"] for g in groups]
 
-        target_lang_name = LANGUAGE_NAMES.get(language, language)
-        prompt = GROUP_TRANSLATION_PROMPT.format(
-            target_language=target_lang_name,
-            groups="\n".join(display_names),
+        prompt = GroupTranslationPrompt().render(
+            target_language=language,
+            groups=display_names,
         )
 
-        translated_text = self._llm_service.translate("", prompt)
+        translated_text = self._llm_service.translate("", prompt.content)
         if translated_text is None:
             logger.error("group_translation_llm_failed", language=language)
             return {"total": len(groups), "success": 0, "failed": len(groups)}

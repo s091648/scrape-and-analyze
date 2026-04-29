@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from src.modules.translation.domain.entities import Translation
+from src.modules.intelligence.domain.entities import Translation
 
 
 class TranslationRepository(ABC):
