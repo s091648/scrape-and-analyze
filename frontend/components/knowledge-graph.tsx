@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import { useI18n } from '@/i18n'
 import { useTopic } from '@/contexts/topic-context'
 import dynamic from 'next/dynamic'
 import { apiFetch } from '@/lib/api-fetch'
@@ -67,6 +68,7 @@ interface GroupArticle {
 export function KnowledgeGraph() {
   const [days, setDays] = useState(30)
   const { status } = useSession()
+  const { t, locale } = useI18n()
   const isGuest = status === 'unauthenticated'
   const { selectedTopicId } = useTopic()
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
@@ -115,7 +117,47 @@ export function KnowledgeGraph() {
       .then(r => r.json())
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [days, selectedTopicId, isGuest])
+  }, [days, selectedTopicId, isGuest, locale])
+
+  // Clear article hover cache when locale changes (stale translations)
+  useEffect(() => { articleCacheRef.current.clear() }, [locale])
+
+  function buildTagOverlay(groupName: string, groupNodeId: string, groupColor: string, data: GroupArticle[]) {
+    const uniqueTags = [...new Set(data.flatMap(a => a.tags))]
+    const tagNodes: GraphNode[] = uniqueTags.map(tag => ({
+      id: `tag::${groupName}::${tag}`,
+      type: 'tag' as const,
+      label: tag,
+      color: groupColor,
+      groupName,
+    }))
+    const tagEdges: GraphEdge[] = [
+      ...uniqueTags.map(tag => ({
+        source: groupNodeId,
+        target: `tag::${groupName}::${tag}`,
+      })),
+      ...data.flatMap(article =>
+        article.tags.map(tag => ({
+          source: `tag::${groupName}::${tag}`,
+          target: article.articleId,
+        }))
+      ),
+    ]
+    setOverlayNodes(tagNodes)
+    setOverlayEdges(tagEdges)
+  }
+
+  // Re-fetch group data when locale changes while a group is expanded
+  useEffect(() => {
+    if (!expandedGroup || isGuest) return
+    const node = graphData.nodes.find(n => n.groupName === expandedGroup)
+    apiFetch(`/analyses/graph/group/${encodeURIComponent(expandedGroup)}`)
+      .then(r => r.json())
+      .then((data: GroupArticle[]) => {
+        setGroupData(data)
+        buildTagOverlay(expandedGroup, node?.id || `group:${expandedGroup}`, node?.color || '#6b7280', data)
+      })
+  }, [locale, expandedGroup])
 
   useEffect(() => {
     const el = graphContainerRef.current
@@ -155,35 +197,7 @@ export function KnowledgeGraph() {
           .then(r => r.json())
           .then((data: GroupArticle[]) => {
             setGroupData(data)
-
-            // Build tag overlay nodes and edges
-            const uniqueTags = [...new Set(data.flatMap(a => a.tags))]
-
-            const tagNodes: GraphNode[] = uniqueTags.map(tag => ({
-              id: `tag::${node.groupName}::${tag}`,
-              type: 'tag' as const,
-              label: tag,
-              color: node.color || '#6b7280',
-              groupName: node.groupName,
-            }))
-
-            const tagEdges: GraphEdge[] = [
-              // group → tag
-              ...uniqueTags.map(tag => ({
-                source: node.id,
-                target: `tag::${node.groupName}::${tag}`,
-              })),
-              // tag → article
-              ...data.flatMap(article =>
-                article.tags.map(tag => ({
-                  source: `tag::${node.groupName}::${tag}`,
-                  target: article.articleId,
-                }))
-              ),
-            ]
-
-            setOverlayNodes(tagNodes)
-            setOverlayEdges(tagEdges)
+            buildTagOverlay(node.groupName, node.id, node.color || '#6b7280', data)
           })
       }
     } else if (node.type === 'article') {
@@ -220,13 +234,13 @@ export function KnowledgeGraph() {
       {/* Graph — 60% */}
       <div className="w-[60%] flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">Time window:</label>
+          <label className="text-sm text-muted-foreground">{t('graph.timeWindow')}</label>
           <select
             value={days}
             onChange={e => setDays(Number(e.target.value))}
             className="text-sm border border-border rounded px-2 py-1 bg-background"
           >
-            {[7, 30, 90, 180].map(d => <option key={d} value={d}>{d} days</option>)}
+            {[7, 30, 90, 180].map(d => <option key={d} value={d}>{t('graph.days', { d })}</option>)}
           </select>
         </div>
 
@@ -419,7 +433,7 @@ export function KnowledgeGraph() {
               {selectedArticle.pain_points && (
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Pain Points
+                    {t('analysis.painPoints')}
                   </span>
                   <p className="text-xs text-foreground mt-0.5 leading-relaxed">
                     {selectedArticle.pain_points}
@@ -429,7 +443,7 @@ export function KnowledgeGraph() {
               {selectedArticle.insights && (
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Insights
+                    {t('analysis.insights')}
                   </span>
                   <p className="text-xs text-foreground mt-0.5 leading-relaxed">
                     {selectedArticle.insights}
@@ -439,7 +453,7 @@ export function KnowledgeGraph() {
               {selectedArticle.innovations && (
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Innovations
+                    {t('analysis.innovations')}
                   </span>
                   <p className="text-xs text-foreground mt-0.5 leading-relaxed">
                     {selectedArticle.innovations}
@@ -452,7 +466,7 @@ export function KnowledgeGraph() {
                 className="w-full text-xs font-medium text-center py-2 px-3 rounded-lg border border-border hover:bg-muted/40 transition-colors"
                 onClick={() => openArticleDialog(selectedArticle.articleId)}
               >
-                View Full Article
+                {t('graph.viewFullArticle')}
               </button>
             </div>
           </div>
@@ -510,19 +524,19 @@ export function KnowledgeGraph() {
                     )}
                     {a.pain_points && (
                       <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Pain Points</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('analysis.painPoints')}</span>
                         <p className="text-xs text-foreground mt-0.5 leading-relaxed">{a.pain_points}</p>
                       </div>
                     )}
                     {a.insights && (
                       <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Insights</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('analysis.insights')}</span>
                         <p className="text-xs text-foreground mt-0.5 leading-relaxed">{a.insights}</p>
                       </div>
                     )}
                     {a.innovations && (
                       <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Innovations</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{t('analysis.innovations')}</span>
                         <p className="text-xs text-foreground mt-0.5 leading-relaxed">{a.innovations}</p>
                       </div>
                     )}
@@ -533,7 +547,7 @@ export function KnowledgeGraph() {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center border border-dashed border-border rounded-xl text-sm text-muted-foreground">
-            Click a group node to explore
+            {t('graph.clickToExplore')}
           </div>
         )}
       </div>
@@ -554,7 +568,7 @@ export function KnowledgeGraph() {
               {dialogDetail?.published_at && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
-                  {new Date(dialogDetail.published_at).toLocaleDateString('en-US', {
+                  {new Date(dialogDetail.published_at).toLocaleDateString(locale === 'zh-TW' ? 'zh-TW' : 'en-US', {
                     month: 'short', day: 'numeric', year: 'numeric'
                   })}
                 </span>
@@ -566,7 +580,7 @@ export function KnowledgeGraph() {
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <ExternalLink className="h-3 w-3" />Original
+                  <ExternalLink className="h-3 w-3" />{t('graph.original')}
                 </a>
               )}
             </div>
@@ -586,7 +600,7 @@ export function KnowledgeGraph() {
                 {dialogDetail.pain_points && (
                   <div>
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                      Pain Points
+                      {t('analysis.painPoints')}
                     </h4>
                     <p className="text-sm text-foreground leading-relaxed">{dialogDetail.pain_points}</p>
                   </div>
@@ -594,7 +608,7 @@ export function KnowledgeGraph() {
                 {dialogDetail.insights && (
                   <div>
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                      Insights
+                      {t('analysis.insights')}
                     </h4>
                     <p className="text-sm text-foreground leading-relaxed">{dialogDetail.insights}</p>
                   </div>
@@ -602,7 +616,7 @@ export function KnowledgeGraph() {
                 {dialogDetail.innovations && (
                   <div>
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                      Innovations
+                      {t('analysis.innovations')}
                     </h4>
                     <p className="text-sm text-foreground leading-relaxed">{dialogDetail.innovations}</p>
                   </div>
