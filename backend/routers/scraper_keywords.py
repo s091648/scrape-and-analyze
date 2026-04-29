@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.auth.guards import require_admin
-from src.modules.collection.domain.value_objects.scraper_keyword import VALID_KEYWORD_TYPES
+from src.modules.collection.domain.value_objects import VALID_KEYWORD_TYPES
 
 router = APIRouter(prefix="/scraper-keywords", tags=["scraper-keywords"])
 
