@@ -1,6 +1,6 @@
 """add_tag_translations
 
-Revision ID: 17_add_tag_translations
+Revision ID: 16_add_tag_translations
 Revises: 15_add_translations
 Create Date: 2026-04-27
 """
