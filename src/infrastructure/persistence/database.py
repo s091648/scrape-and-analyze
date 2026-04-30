@@ -78,21 +78,11 @@ def scan_missing_analyses(session, min_age_hours: int = 1) -> List:
 
 
 def find_recent_failures(session, hours: int = 24):
-    """Return failures observed within the last `hours` hours.
-    This function is implemented in a lightweight, ORM-agnostic way
-    to work well in tests that mock the database session.
-    It attempts to use a Failure model if available, otherwise it
-    falls back to a generic query so callers (and tests) can mock
-    the chaining calls (query -> filter -> all).
-    """
-    # Realistic approach would filter on a timestamp column, but for
-    # testability we keep the implementation tolerant to environments
-    # where the Failure model may not exist.
+    """Return unresolved failures observed within the last `hours` hours."""
+    from models.failed_task import FailedTask
+
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    try:
-        from models.failure import Failure  # type: ignore
-        return session.query(Failure).filter(Failure.timestamp >= cutoff).all()
-    except Exception:
-        # Fallback path: generic query so unit tests using mocks can
-        # assert that filter() and all() were called.
-        return session.query(None).filter(None).all()
+    return session.query(FailedTask).filter(
+        FailedTask.failed_at >= cutoff,
+        FailedTask.resolved == False
+    ).all()
