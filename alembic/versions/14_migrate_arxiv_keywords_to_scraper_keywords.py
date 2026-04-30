@@ -4,7 +4,7 @@ Moves ArXiv keywords and categories from selector_config JSONB into the
 scraper_keywords table as typed rows ('arxiv_keyword' / 'arxiv_category').
 Adds keyword_type column and drops the old unique constraint.
 
-Revision ID: 16_migrate_arxiv_keywords
+Revision ID: 14_migrate_arxiv_keywords
 Revises: 13_add_scraper_keywords
 Create Date: 2026-04-26
 """
