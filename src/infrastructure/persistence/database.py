@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 from typing import List
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, not_
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
@@ -39,11 +39,39 @@ def get_session() -> Session:
     return _SessionLocal()
 
 
-def find_recent_failures(session, hours: int = 24) -> List:
-    """Find unresolved failures from last N hours"""
-    from models.failed_task import FailedTask
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    return session.query(FailedTask).filter(
-        FailedTask.resolved == False,
-        FailedTask.failed_at >= cutoff
+def find_missing_analyses(session) -> List:
+    """Find articles that have no analysis."""
+    from models.article import Article
+    from models.analysis import Analysis
+
+    analyzed_ids = session.query(Analysis.article_id).all()
+    analyzed_ids = [aid[0] for aid in analyzed_ids]
+
+    if not analyzed_ids:
+        return session.query(Article).all()
+
+    return session.query(Article).filter(
+        not_(Article.id.in_(analyzed_ids))
     ).all()
+
+
+def scan_missing_analyses(session, min_age_hours: int = 1) -> List:
+    """Find articles older than min_age_hours that have no analysis (zombie detection)."""
+    from models.article import Article
+    from models.analysis import Analysis
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=min_age_hours)
+
+    analyzed_ids = session.query(Analysis.article_id).all()
+    analyzed_ids = [aid[0] for aid in analyzed_ids]
+
+    query = session.query(Article).filter(
+        Article.scraped_at < cutoff
+    )
+
+    if analyzed_ids:
+        query = query.filter(not_(Article.id.in_(analyzed_ids)))
+    else:
+        pass
+
+    return query.all()
