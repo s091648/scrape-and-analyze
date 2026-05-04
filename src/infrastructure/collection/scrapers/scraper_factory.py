@@ -3,12 +3,10 @@ from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.factories import ScraperFactory
 from src.modules.collection.domain.value_objects import (
     ArxivConfig,
-    BlogConfig,
-    RssConfig,
-)
-from src.modules.collection.domain.value_objects.scraper_keyword import (
     ArxivCategory,
     ArxivKeyword,
+    BlogConfig,
+    RssConfig,
     RssKeyword,
 )
 from .base_scraper import BaseScraper

@@ -1,4 +1,4 @@
-from src.modules.collection.application.events.pipeline_completed import PipelineCompletedEvent
+from src.modules.collection.application.events import PipelineCompletedEvent
 from src.infrastructure.shared.observability.otel_metrics import (
     SCRAPER_ARTICLES_NEW,
     SCRAPER_ARTICLES_DUPLICATE,

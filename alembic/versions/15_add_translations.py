@@ -1,6 +1,6 @@
 """add_translations
 
-Revision ID: 13_add_translations
+Revision ID: 15_add_translations
 Revises: 14_migrate_arxiv_keywords
 Create Date: 2026-04-24
 """

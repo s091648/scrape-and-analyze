@@ -29,7 +29,12 @@
   "graph": {
     "title": "Knowledge Graph",
     "signInToExplore": "Sign in to explore the Knowledge Graph",
-    "signInToAccess": "Sign in to access the full visualization"
+    "signInToAccess": "Sign in to access the full visualization",
+    "timeWindow": "Time window:",
+    "days": "{d} days",
+    "viewFullArticle": "View Full Article",
+    "clickToExplore": "Click a group node to explore",
+    "original": "Original"
   },
   "login": {
     "welcomeBack": "Welcome back",

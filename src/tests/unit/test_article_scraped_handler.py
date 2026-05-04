@@ -8,7 +8,7 @@ def _make_dto(source="arxiv") -> ScrapedArticleDTO:
 
 
 def test_handle_new_article_records_new_and_returns_true():
-    from src.modules.collection.application.event_handlers.article_scraped_handler import ArticleScrapedHandler
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     use_case = MagicMock()
     use_case.execute.return_value = ArticleOutcome.NEW
     stats = PipelineStats()
@@ -22,7 +22,7 @@ def test_handle_new_article_records_new_and_returns_true():
 
 
 def test_handle_duplicate_article_records_duplicate_and_returns_true():
-    from src.modules.collection.application.event_handlers.article_scraped_handler import ArticleScrapedHandler
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     use_case = MagicMock()
     use_case.execute.return_value = ArticleOutcome.DUPLICATE
     stats = PipelineStats()
@@ -35,7 +35,7 @@ def test_handle_duplicate_article_records_duplicate_and_returns_true():
 
 
 def test_handle_failed_article_records_failed_and_returns_false():
-    from src.modules.collection.application.event_handlers.article_scraped_handler import ArticleScrapedHandler
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     use_case = MagicMock()
     use_case.execute.return_value = ArticleOutcome.FAILED
     stats = PipelineStats()

@@ -18,9 +18,7 @@ def _make_arxiv_event(topic_id=None):
 
 
 def test_process_uc_builds_article_with_topic_id():
-    from src.modules.collection.application.use_cases.process_scraped_article import (
-        ProcessScrapedArticleUseCase,
-    )
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
     from src.modules.collection.domain.services import DedupService
 
     topic_id = uuid4()
@@ -51,9 +49,7 @@ def test_process_uc_builds_article_with_topic_id():
 
 
 def test_process_uc_builds_article_with_metadata():
-    from src.modules.collection.application.use_cases.process_scraped_article import (
-        ProcessScrapedArticleUseCase,
-    )
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
     from src.modules.collection.domain.services import DedupService
 
     event = _make_arxiv_event()

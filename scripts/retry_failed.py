@@ -69,10 +69,10 @@ def _build_article_entity(article_row):
 def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
     """Re-run analysis on an existing article."""
     from models.article import Article as ArticleModel
-    from src.infrastructure.persistence.database import has_analysis
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import AnalysisFailedHandler
@@ -88,7 +88,8 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
                        failure_id=str(failure.id), article_id=str(failure.article_id))
         return False
 
-    if has_analysis(session, article_row.id):
+    article_repo = SqlAlchemyArticleRepository(session=session)
+    if article_repo.has_analysis(article_row.id):
         logger.info("retry_analyze_already_done", article_id=str(article_row.id))
         return True
 

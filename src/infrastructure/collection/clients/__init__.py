@@ -1,9 +1,7 @@
-from .arxiv_client import ArxivClient, ArxivEntry
-from .rss_client import RssClient, RssEntry
+from .arxiv_client import ArxivClient
+from .rss_client import RssClient
 
 __all__ = [
     "ArxivClient",
-    "ArxivEntry",
     "RssClient",
-    "RssEntry",
 ]

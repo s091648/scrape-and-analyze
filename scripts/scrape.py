@@ -130,10 +130,9 @@ def _build_pipeline(no_analyze: bool):
     if not no_analyze:
         from src.bootstrap import build_llm_service
         from src.modules.intelligence.application.events import AnalysisCompletedEvent
-        from src.modules.translation.application.use_cases.translate_article import TranslateArticleUseCase, TranslateTagsUseCase
-        from src.modules.translation.application.event_handlers import AnalysisCompletedHandler
-        from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
-        from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
+        from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
+        from src.modules.intelligence.application.event_handlers import AnalysisCompletedHandler
+        from src.infrastructure.persistence.intelligence import SqlAlchemyTranslationRepository, SqlAlchemyTagTranslationRepository
         from src.config.settings import TRANSLATION_LANGUAGES
 
         llm_service = build_llm_service()
@@ -162,6 +161,7 @@ def _build_pipeline(no_analyze: bool):
             translate_article_uc=translate_article_uc,
             translate_tags_uc=translate_tags_uc,
             target_languages=target_languages,
+            session_rollback_fn=session.rollback,
         )
         event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 

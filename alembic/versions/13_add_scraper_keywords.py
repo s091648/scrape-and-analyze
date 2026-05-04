@@ -1,6 +1,6 @@
 """add_scraper_keywords
 
-Revision ID: 15_add_scraper_keywords
+Revision ID: 13_add_scraper_keywords
 Revises: 12_add_topic_system
 Create Date: 2026-04-25
 """

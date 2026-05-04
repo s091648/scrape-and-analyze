@@ -106,8 +106,8 @@ def build_collection_pipeline():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.events import PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
-    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
@@ -166,10 +166,7 @@ def build_collection_pipeline():
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
 
     # translation 事件：AnalysisCompletedEvent → auto-translate
-    from src.modules.translation.application.use_cases.translate_article import TranslateArticleUseCase, TranslateTagsUseCase
-    from src.modules.translation.application.event_handlers import AnalysisCompletedHandler
-    from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
-    from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.config.settings import TRANSLATION_LANGUAGES
 
     translation_repo = SqlAlchemyTranslationRepository(session=session)
@@ -187,6 +184,7 @@ def build_collection_pipeline():
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
         target_languages=target_languages,
+        session_rollback_fn=session.rollback,
     )
     event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
@@ -222,10 +220,8 @@ def build_translation_pipeline():
     回傳翻譯相關服務，可用於定時翻譯任務。
     """
     from src.infrastructure.persistence.database import get_session, init_db
-    from src.modules.translation.infrastructure.persistence import SqlAlchemyTranslationRepository
-    from src.modules.translation.infrastructure.persistence.tag_translation_repo_impl import SqlAlchemyTagTranslationRepository
-    from src.modules.translation.application.use_cases import TranslateArticleUseCase
-    from src.modules.translation.application.use_cases.translate_article import TranslateTagsUseCase
+    from src.infrastructure.persistence.intelligence import SqlAlchemyTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()

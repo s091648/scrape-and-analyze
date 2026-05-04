@@ -2,9 +2,8 @@ from typing import List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
-from sqlalchemy import text
 
-from src.modules.translation.domain.repositories import TagTranslationRepository
+from src.modules.intelligence.domain.repositories import TagTranslationRepository
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -34,21 +33,19 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def find_tags_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
-        query = text("""
-            SELECT t.id, t.name, t.tag_group_name
-            FROM tags t
-            WHERE NOT EXISTS (
-                SELECT 1 FROM tag_translations tt
-                WHERE tt.tag_id = t.id AND tt.language = :target_lang
-            )
-            ORDER BY t.name
-            LIMIT :limit
-        """)
-        result = self._session.execute(query, {"target_lang": language, "limit": limit})
-        rows = result.fetchall()
+        from models.tag import Tag as TagModel
+        from models.tag_translation import TagTranslation as TagTranslationModel
+
+        rows = (
+            self._session.query(TagModel)
+            .filter(~TagModel.translations.any(TagTranslationModel.language == language))
+            .order_by(TagModel.name)
+            .limit(limit)
+            .all()
+        )
 
         return [
-            {"tag_id": row[0], "name": row[1], "tag_group_name": row[2]}
+            {"tag_id": row.id, "name": row.name, "tag_group_name": row.tag_group_name}
             for row in rows
         ]
 
@@ -76,20 +73,18 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def find_groups_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
-        query = text("""
-            SELECT tgd.id, tgd.name, tgd.display_name
-            FROM tag_group_definitions tgd
-            WHERE NOT EXISTS (
-                SELECT 1 FROM tag_group_translations tgt
-                WHERE tgt.tag_group_definition_id = tgd.id AND tgt.language = :target_lang
-            )
-            ORDER BY tgd.sort_order
-            LIMIT :limit
-        """)
-        result = self._session.execute(query, {"target_lang": language, "limit": limit})
-        rows = result.fetchall()
+        from models.tag_group import TagGroupDefinition as TagGroupDefinitionModel
+        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
+
+        rows = (
+            self._session.query(TagGroupDefinitionModel)
+            .filter(~TagGroupDefinitionModel.translations.any(TagGroupTranslationModel.language == language))
+            .order_by(TagGroupDefinitionModel.sort_order)
+            .limit(limit)
+            .all()
+        )
 
         return [
-            {"id": row[0], "name": row[1], "display_name": row[2]}
+            {"id": row.id, "name": row.name, "display_name": row.display_name}
             for row in rows
         ]

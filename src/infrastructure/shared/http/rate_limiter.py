@@ -16,7 +16,6 @@ Default limits (RPM):
 import time
 import threading
 from contextlib import contextmanager
-from urllib.parse import urlparse
 
 _DEFAULT_RPM: float = 10.0
 
@@ -107,11 +106,6 @@ class DomainRateLimiter:
             yield
         finally:
             sem.release()
-
-    def acquire_for_url(self, url: str) -> None:
-        """Convenience: extract domain from *url* then call acquire()."""
-        domain = urlparse(url).netloc
-        self.acquire(domain)
 
     # ── internal ──────────────────────────────────────────────────────────
 

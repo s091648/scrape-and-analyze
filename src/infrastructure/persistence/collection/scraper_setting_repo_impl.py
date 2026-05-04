@@ -65,7 +65,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
         # Keyword items are topic-scoped: shared by all scrapers for the same topic.
         # Each row is typed (rss | arxiv_keyword | arxiv_category) via keyword_type.
         from models.scraper_keyword import ScraperKeyword as ScraperKeywordModel
-        from src.modules.collection.domain.value_objects.scraper_keyword import build_scraper_keyword
+        from src.modules.collection.domain.value_objects import build_scraper_keyword
         keyword_rows = (
             self._session.query(ScraperKeywordModel)
             .filter_by(topic_id=row.topic_id)
@@ -79,7 +79,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
 
         # selector_config may be a typed SelectorConfig (new data with 'type' field),
         # a raw dict (legacy data), or None. build_selector_config() handles all cases.
-        from src.modules.collection.domain.value_objects.selector_config import (
+        from src.modules.collection.domain.value_objects import (
             build_selector_config,
             RssConfig, BlogConfig, ArxivConfig,
         )

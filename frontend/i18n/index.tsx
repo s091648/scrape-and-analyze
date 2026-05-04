@@ -20,7 +20,7 @@ interface LanguageInfo {
 interface I18nContextType {
   locale: string
   setLocale: (locale: string) => void
-  t: (key: string) => string
+  t: (key: string, params?: Record<string, string | number>) => string
   availableLanguages: LanguageInfo[]
   resolvedLanguage: string
   isLoading: boolean
@@ -61,7 +61,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('locale', newLocale)
   }
 
-  const t = (key: string): string => {
+  const t = (key: string, params?: Record<string, string | number>): string => {
     const keys = key.split('.')
     let value: any = translations[locale]
 
@@ -82,7 +82,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    return typeof value === 'string' ? value : key
+    if (typeof value !== 'string') return key
+    if (params) {
+      return value.replace(/\{(\w+)\}/g, (_, k) => params[k] != null ? String(params[k]) : `{${k}}`)
+    }
+    return value
   }
 
   return (

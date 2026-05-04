@@ -28,7 +28,7 @@ if SENTRY_DSN:
 
 logger = get_logger(__name__)
 
-from src.modules.translation.application.use_cases.translate_article import LANGUAGE_NAMES
+from src.modules.intelligence.domain.value_objects import LANGUAGE_NAMES
 
 SUPPORTED_LANGUAGES = LANGUAGE_NAMES
 

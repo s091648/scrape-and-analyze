@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, call
 import pytest
 
 from src.shared.domain.entities import Article
-from src.modules.intelligence.application.events import AnalysisFailedEvent
+from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 
 
@@ -60,7 +60,9 @@ def test_execute_success_saves_analysis_and_returns_true(deps):
 
     assert result is True
     deps["analysis_repository"].save.assert_called_once()
-    deps["event_bus"].publish.assert_not_called()
+    deps["event_bus"].publish.assert_called_once()
+    event = deps["event_bus"].publish.call_args[0][0]
+    assert isinstance(event, AnalysisCompletedEvent)
 
 
 # ── LLM failure ─────────────────────────────────────────────────────────────
