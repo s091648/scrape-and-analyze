@@ -106,8 +106,8 @@ class ScrapeExecutor:
                         logger.warning("task_returned_none", url=task.url)
 
                 finally:
-                    host_queue_map.semaphores[claimed_idx].release()
                     time.sleep(self._delay)
+                    host_queue_map.semaphores[claimed_idx].release()
 
             logger.info("worker_stopped", worker_id=worker_id, fetched=fetched)
             return fetched
