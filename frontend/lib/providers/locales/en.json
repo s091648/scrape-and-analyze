@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "articles": "Articles",
+    "knowledgeGraph": "Knowledge Graph"
+  },
+  "login": {
+    "signIn": "Sign in"
+  },
+  "home": {
+    "thereMoreToExplore": "There's more to explore",
+    "signInToReadMore": "to read more articles",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {total}"
+  },
+  "filterBar": {
+    "filters": "Filters",
+    "source": "Source",
+    "tag": "Tag",
+    "published": "Published",
+    "scraped": "Scraped",
+    "search": "Search",
+    "any": "Any",
+    "after": "After",
+    "before": "Before",
+    "range": "Range",
+    "from": "From",
+    "to": "To",
+    "clear": "Clear",
+    "apply": "Apply"
+  },
+  "analysis": {
+    "painPoints": "Pain Points",
+    "insights": "Insights",
+    "innovations": "Innovations"
+  }
+}
