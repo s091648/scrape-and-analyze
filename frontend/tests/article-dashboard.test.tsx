@@ -6,26 +6,28 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
 }))
 
-vi.mock('../lib/api-fetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({
-      items: [{
-        id: 'abc123',
-        title: 'Test Article',
-        source: 'techcrunch',
-        published_at: '2026-02-20T00:00:00Z',
-        scraped_at: '2026-02-21T00:00:00Z',
-        url: 'https://example.com',
-      }],
-      total: 1, page: 1, size: 20,
-    }),
+vi.mock('../lib/api/articles', () => ({
+  fetchArticles: vi.fn().mockResolvedValue({
+    items: [{
+      id: 'abc123',
+      title: 'Test Article',
+      source: 'techcrunch',
+      published_at: '2026-02-20T00:00:00Z',
+      scraped_at: '2026-02-21T00:00:00Z',
+      url: 'https://example.com',
+    }],
+    total: 1, page: 1, size: 20,
   }),
+}))
+
+vi.mock('@/lib/providers', () => ({
+  useTopic: vi.fn(() => ({ selectedTopicId: 'topic-1' })),
+  useI18n: vi.fn(() => ({ t: (key: string) => key, locale: 'en' })),
 }))
 
 describe('Article Dashboard', () => {
   it('renders article title, source, and dates', async () => {
-    const { ArticleCard } = await import('../components/article-card')
+    const { ArticleCard } = await import('../components/features/articles/article-card')
     render(
       <ArticleCard
         id="abc123"
