@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { ChevronDown, Pencil, X, Check, Plus } from 'lucide-react'
-import { apiFetch } from '@/lib/api-fetch'
+import { apiFetch } from '@/lib/api/client'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,10 +21,10 @@ import {
   ActiveBadge,
   ActivityGraph,
   useNextScrapeCountdown,
-} from '@/components/scraper-source-card'
-import { ArxivKeywordManager } from '@/components/arxiv-keyword-manager'
+} from '@/components/features/scraper/scraper-source-card'
+import { ArxivKeywordManager } from '@/components/features/scraper/arxiv-keyword-manager'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTopic } from '@/contexts/topic-context'
+import { useTopic } from '@/lib/providers'
 
 interface ArxivKeyword {
   id: string
