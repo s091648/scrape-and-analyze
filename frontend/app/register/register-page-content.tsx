@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
-import { apiFetch } from '@/lib/api-fetch'
+import { apiFetch } from '@/lib/api/client'
 
 
 export default function RegisterPageContent() {

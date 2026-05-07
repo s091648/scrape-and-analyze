@@ -43,7 +43,7 @@ describe('Article Dashboard', () => {
   })
 
   it('renders failed task section', async () => {
-    const { FailedTaskList } = await import('../components/failed-task-list')
+    const { FailedTaskList } = await import('../components/features/monitoring/failed-task-list')
     render(<FailedTaskList items={[{
       id: 'f1', task_type: 'scrape', article_url: 'https://x.com',
       exception_message: 'Timeout', failed_at: '2026-02-21T00:00:00Z', resolved: false,

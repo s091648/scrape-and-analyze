@@ -6,7 +6,7 @@ const mockApiFetch = vi.fn().mockResolvedValue({
   json: async () => ({ nodes: [], edges: [] }),
 })
 
-vi.mock('../lib/api-fetch', () => ({ apiFetch: mockApiFetch }))
+vi.mock('../lib/api/client', () => ({ apiFetch: mockApiFetch }))
 vi.mock('react-force-graph-2d', () => ({
   default: ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>
 }))
@@ -25,7 +25,7 @@ describe('Knowledge Graph', () => {
   })
 
   it('fetches graph data with days=30 on initial load', async () => {
-    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { KnowledgeGraph } = await import('../components/features/graph/knowledge-graph')
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
@@ -34,7 +34,7 @@ describe('Knowledge Graph', () => {
   })
 
   it('renders graph canvas element', async () => {
-    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { KnowledgeGraph } = await import('../components/features/graph/knowledge-graph')
     const { render, screen } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
@@ -49,7 +49,7 @@ describe('Knowledge Graph', () => {
   })
 
   it('days filter change triggers re-fetch with updated days value', async () => {
-    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { KnowledgeGraph } = await import('../components/features/graph/knowledge-graph')
     const { render, screen } = await import('@testing-library/react')
     const { fireEvent } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
@@ -75,7 +75,7 @@ describe('Knowledge Graph', () => {
     let resolvePromise: (v: any) => void
     const promise = new Promise(r => { resolvePromise = r })
     mockApiFetch.mockReturnValueOnce(promise)
-    const { KnowledgeGraph } = await import('../components/knowledge-graph')
+    const { KnowledgeGraph } = await import('../components/features/graph/knowledge-graph')
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     // Resolve the promise to unblock
