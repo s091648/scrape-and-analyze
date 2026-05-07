@@ -1,6 +1,6 @@
 """normalize_analysis_translations
 
-Revision ID: 17_normalize_analysis_translations
+Revision ID: 17_norm_analysis_trans
 Revises: 16_add_tag_translations
 Create Date: 2026-05-07
 
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "17_normalize_analysis_translations"
+revision: str = "17_norm_analysis_trans"
 down_revision: Union[str, Sequence[str], None] = "16_add_tag_translations"
 branch_labels = None
 depends_on = None
