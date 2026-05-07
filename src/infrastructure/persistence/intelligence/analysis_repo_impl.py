@@ -14,6 +14,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
 
     def save(self, analysis: Analysis) -> None:
         from models.analysis import Analysis as AnalysisModel
+        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
         from models.article import Article as ArticleModel
         from models.tag import Tag
 
@@ -23,10 +24,6 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
         row = AnalysisModel(
             article_id=analysis.article_id,
             correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
-            pain_points=content.pain_points,
-            insights=content.insights,
-            innovations=content.innovations,
-            summary=content.summary,
             model_used=metadata.model_used,
             input_tokens=metadata.input_tokens,
             output_tokens=metadata.output_tokens,
@@ -36,6 +33,17 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
 
         # Backfill the DB-generated id into the domain entity
         analysis.id = row.id
+
+        # Create English translation row with content
+        translation_row = AnalysisTranslationModel(
+            analysis_id=row.id,
+            language='en',
+            summary=content.summary,
+            pain_points=content.pain_points,
+            insights=content.insights,
+            innovations=content.innovations,
+        )
+        self._session.add(translation_row)
 
         # Resolve tag_groups into Tag rows
         article_row = self._session.query(ArticleModel).filter_by(

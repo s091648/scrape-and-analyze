@@ -8,7 +8,7 @@ from .translation_prompt import (
     GroupTranslationPrompt,
     LANGUAGE_NAMES,
 )
-from .translation_content import TranslationContent, TranslationResult
+from .analysis_translation_content import AnalysisTranslationContent, AnalysisTranslationResult
 
 
 __all__ = [
@@ -20,6 +20,6 @@ __all__ = [
     "TagTranslationPrompt",
     "GroupTranslationPrompt",
     "LANGUAGE_NAMES",
-    "TranslationContent",
-    "TranslationResult",
+    "AnalysisTranslationContent",
+    "AnalysisTranslationResult",
 ]

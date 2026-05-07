@@ -247,7 +247,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
 def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session = Depends(get_db)):
     from models.tag import Tag, article_tags as at
-    from models.translation import Translation
+    from models.analysis_translation import AnalysisTranslation
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -260,28 +260,25 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         .all()
     )
 
-    # Get translation if requested language is not English
+    # Get content from analysis_translations (all languages including English)
     pain_points = None
     insights = None
     innovations = None
-    if analysis and lang != "en":
-        translation = db.query(Translation).filter(
-            Translation.analysis_id == analysis.id,
-            Translation.language == lang
+    if analysis:
+        translation = db.query(AnalysisTranslation).filter(
+            AnalysisTranslation.analysis_id == analysis.id,
+            AnalysisTranslation.language == lang
         ).first()
+        if not translation and lang != "en":
+            # Fallback to English if requested language not available
+            translation = db.query(AnalysisTranslation).filter(
+                AnalysisTranslation.analysis_id == analysis.id,
+                AnalysisTranslation.language == "en"
+            ).first()
         if translation:
             pain_points = translation.pain_points
             insights = translation.insights
             innovations = translation.innovations
-        else:
-            # Fallback to English if no translation exists
-            pain_points = analysis.pain_points
-            insights = analysis.insights
-            innovations = analysis.innovations
-    elif analysis:
-        pain_points = analysis.pain_points
-        insights = analysis.insights
-        innovations = analysis.innovations
 
     # Build tag_groups first (which also handles per-tag translation),
     # then derive flat tags list from it for consistency.

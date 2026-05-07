@@ -29,18 +29,27 @@ def _make_article(db_session, *, url=None, source="test"):
 def _make_analysis(db_session, article):
     """Insert and return a committed Analysis linked to the given article."""
     from models.analysis import Analysis
+    from models.analysis_translation import AnalysisTranslation
 
     analysis = Analysis(
         article_id=article.id,
         correlation_id=uuid.uuid4(),
-        pain_points="Pain points",
-        insights="Insights",
-        innovations="Innovations",
         model_used="test-model",
         input_tokens=10,
         output_tokens=5,
     )
     db_session.add(analysis)
+    db_session.flush()
+
+    translation = AnalysisTranslation(
+        analysis_id=analysis.id,
+        language="en",
+        pain_points="Pain points",
+        insights="Insights",
+        innovations="Innovations",
+        summary="Summary",
+    )
+    db_session.add(translation)
     db_session.commit()
     return analysis
 

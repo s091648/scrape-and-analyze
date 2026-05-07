@@ -2,27 +2,27 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from src.modules.intelligence.domain.entities import Translation
-from src.modules.intelligence.domain.repositories import TranslationRepository
+from src.modules.intelligence.domain.entities import AnalysisTranslation
+from src.modules.intelligence.domain.repositories import AnalysisTranslationRepository
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-class SqlAlchemyTranslationRepository(TranslationRepository):
-    """SQLAlchemy implementation of TranslationRepository."""
+class SqlAlchemyAnalysisTranslationRepository(AnalysisTranslationRepository):
+    """SQLAlchemy implementation of AnalysisTranslationRepository."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def save(self, translation: Translation) -> None:
-        """Save or update a translation."""
-        from models.translation import Translation as TranslationModel
+    def save(self, translation: AnalysisTranslation) -> None:
+        """Save or update an analysis translation."""
+        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
 
         # Check if exists
-        existing = self._session.query(TranslationModel).filter_by(
+        existing = self._session.query(AnalysisTranslationModel).filter_by(
             analysis_id=translation.analysis_id,
             language=translation.language,
         ).first()
@@ -36,7 +36,7 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
             existing.updated_at = datetime.utcnow()
         else:
             # Create new
-            model = TranslationModel(
+            model = AnalysisTranslationModel(
                 analysis_id=translation.analysis_id,
                 language=translation.language,
                 summary=translation.summary,
@@ -48,18 +48,18 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
 
         self._session.commit()
         logger.info(
-            "translation_persisted",
+            "analysis_translation_persisted",
             analysis_id=str(translation.analysis_id),
             language=translation.language,
         )
 
     def find_by_analysis_id_and_language(
         self, analysis_id: UUID, language: str
-    ) -> Optional[Translation]:
-        """Find translation by analysis ID and language."""
-        from models.translation import Translation as TranslationModel
+    ) -> Optional[AnalysisTranslation]:
+        """Find analysis translation by analysis ID and language."""
+        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
 
-        model = self._session.query(TranslationModel).filter_by(
+        model = self._session.query(AnalysisTranslationModel).filter_by(
             analysis_id=analysis_id,
             language=language,
         ).first()
@@ -67,7 +67,7 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
         if model is None:
             return None
 
-        return Translation(
+        return AnalysisTranslation(
             id=model.id,
             analysis_id=model.analysis_id,
             language=model.language,
@@ -84,15 +84,17 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
     ) -> List[dict]:
         """
         Find analyses that don't have translation for the target language.
-        Returns list of dicts with analysis data.
+        Returns list of dicts with analysis data (content from English translation).
         """
         from models.analysis import Analysis as AnalysisModel
-        from models.translation import Translation as TranslationModel
+        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
 
         rows = (
             self._session.query(AnalysisModel)
-            .filter(AnalysisModel.language == 'en')
-            .filter(~AnalysisModel.translations.any(TranslationModel.language == language))
+            .filter(~AnalysisModel.analysis_translations.any(
+                AnalysisTranslationModel.language == language
+            ))
+            .options(joinedload(AnalysisModel.analysis_translations))
             .order_by(AnalysisModel.analyzed_at.desc())
             .limit(limit)
             .all()
@@ -102,21 +104,32 @@ class SqlAlchemyTranslationRepository(TranslationRepository):
             {
                 "analysis_id": row.id,
                 "article_id": row.article_id,
-                "summary": row.summary,
-                "pain_points": row.pain_points,
-                "insights": row.insights,
-                "innovations": row.innovations,
+                **_extract_en_content(row),
             }
             for row in rows
         ]
 
     def exists(self, analysis_id: UUID, language: str) -> bool:
         """Check if translation exists for analysis and language."""
-        from models.translation import Translation as TranslationModel
+        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
 
-        count = self._session.query(TranslationModel).filter_by(
+        count = self._session.query(AnalysisTranslationModel).filter_by(
             analysis_id=analysis_id,
             language=language,
         ).count()
 
         return count > 0
+
+
+def _extract_en_content(analysis_row) -> dict:
+    """Extract English content from an analysis row's analysis_translations relationship."""
+    en_trans = next(
+        (t for t in analysis_row.analysis_translations if t.language == 'en'),
+        None,
+    )
+    return {
+        "summary": en_trans.summary if en_trans else None,
+        "pain_points": en_trans.pain_points if en_trans else None,
+        "insights": en_trans.insights if en_trans else None,
+        "innovations": en_trans.innovations if en_trans else None,
+    }

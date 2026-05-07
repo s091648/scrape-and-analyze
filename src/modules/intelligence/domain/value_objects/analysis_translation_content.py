@@ -4,7 +4,7 @@ from uuid import UUID
 
 
 @dataclass
-class TranslationContent:
+class AnalysisTranslationContent:
     """Translated content of an article analysis."""
     summary: Optional[str]
     pain_points: Optional[str]
@@ -13,9 +13,9 @@ class TranslationContent:
 
 
 @dataclass
-class TranslationResult:
+class AnalysisTranslationResult:
     """Result of a translation operation, including content and outcome status."""
     analysis_id: UUID
     language: str
-    content: TranslationContent
+    content: AnalysisTranslationContent
     success: bool

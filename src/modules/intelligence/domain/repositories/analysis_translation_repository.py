@@ -2,22 +2,22 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from src.modules.intelligence.domain.entities import Translation
+from src.modules.intelligence.domain.entities import AnalysisTranslation
 
 
-class TranslationRepository(ABC):
-    """Domain interface for translation persistence."""
+class AnalysisTranslationRepository(ABC):
+    """Domain interface for analysis translation persistence."""
 
     @abstractmethod
-    def save(self, translation: Translation) -> None:
-        """Save or update a translation."""
+    def save(self, translation: AnalysisTranslation) -> None:
+        """Save or update an analysis translation."""
         ...
 
     @abstractmethod
     def find_by_analysis_id_and_language(
         self, analysis_id: UUID, language: str
-    ) -> Optional[Translation]:
-        """Find translation by analysis ID and language."""
+    ) -> Optional[AnalysisTranslation]:
+        """Find analysis translation by analysis ID and language."""
         ...
 
     @abstractmethod
@@ -26,7 +26,7 @@ class TranslationRepository(ABC):
     ) -> List[dict]:
         """
         Find analyses that don't have translation for the target language.
-        Returns list of dicts with analysis data.
+        Returns list of dicts with analysis data (content read from English translation).
         """
         ...
 

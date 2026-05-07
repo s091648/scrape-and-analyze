@@ -148,7 +148,7 @@ def get_group_articles(group_name: str,
                        topic_id: Optional[UUID] = Query(default=None),
                        lang: str = Query(default="en"),
                        db: Session = Depends(get_db)):
-    from models.translation import Translation
+    from models.analysis_translation import AnalysisTranslation
     from models.tag_translation import TagTranslation
     from models.tag_group_translation import TagGroupTranslation
 
@@ -166,16 +166,21 @@ def get_group_articles(group_name: str,
 
     analyses = query_group_articles(db, group_name, topic_id=topic_id)
 
-    # Batch-load analysis translations
-    analysis_trans_map = {}
-    if lang != "en":
-        analysis_ids = [a.id for a in analyses]
-        if analysis_ids:
-            translations = db.query(Translation).filter(
-                Translation.analysis_id.in_(analysis_ids),
-                Translation.language == lang,
-            ).all()
-            analysis_trans_map = {t.analysis_id: t for t in translations}
+    # Batch-load analysis translations (requested language + English fallback)
+    analysis_ids = [a.id for a in analyses]
+    trans_map = {}
+    en_map = {}
+    if analysis_ids:
+        languages_to_load = {lang, "en"} if lang != "en" else {"en"}
+        translations = db.query(AnalysisTranslation).filter(
+            AnalysisTranslation.analysis_id.in_(analysis_ids),
+            AnalysisTranslation.language.in_(languages_to_load),
+        ).all()
+        for t in translations:
+            if t.language == lang:
+                trans_map[t.analysis_id] = t
+            if t.language == "en":
+                en_map[t.analysis_id] = t
 
     # Batch-load tag translations for this group
     tag_trans_map = {}
@@ -206,15 +211,16 @@ def get_group_articles(group_name: str,
         ]
 
         # Use translated content if available, fallback to English
-        trans = analysis_trans_map.get(analysis.id)
-        if lang != "en" and trans:
+        trans = trans_map.get(analysis.id)
+        en_trans = en_map.get(analysis.id)
+        if trans:
             pain_points = trans.pain_points
             insights = trans.insights
             innovations = trans.innovations
-        else:
-            pain_points = analysis.pain_points
-            insights = analysis.insights
-            innovations = analysis.innovations
+        elif en_trans:
+            pain_points = en_trans.pain_points
+            insights = en_trans.insights
+            innovations = en_trans.innovations
 
         result.append({
             'groupName': group_name,

@@ -66,10 +66,6 @@ class AnalyzeArticleUseCase:
             self._event_bus.publish(AnalysisCompletedEvent(
                 analysis_id=analysis.id,
                 article_id=article.id,
-                summary=analysis_content.summary,
-                pain_points=analysis_content.pain_points,
-                insights=analysis_content.insights,
-                innovations=analysis_content.innovations,
             ))
 
         return True

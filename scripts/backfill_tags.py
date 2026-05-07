@@ -85,7 +85,7 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
 
 
 def update_analysis(session, analysis_id, content, metadata, dry_run=False):
-    """Overwrite pain_points/insights/innovations/token counts on the analyses row."""
+    """Overwrite content on analysis_translations and metadata on the analyses row."""
     if dry_run:
         pain_points_preview = content.pain_points[:50] if content.pain_points else ""
         print(
@@ -93,27 +93,40 @@ def update_analysis(session, analysis_id, content, metadata, dry_run=False):
             f" pain_points={pain_points_preview!r}..."
         )
         return
+    # Update metadata on analyses row
     session.execute(
         text("""
             UPDATE analyses
-            SET pain_points   = :pain_points,
-                insights      = :insights,
-                innovations   = :innovations,
-                summary       = :summary,
-                model_used    = :model_used,
+            SET model_used    = :model_used,
                 input_tokens  = :input_tokens,
                 output_tokens = :output_tokens
             WHERE id = :id
         """),
         {
             "id":            str(analysis_id),
-            "pain_points":   content.pain_points,
-            "insights":      content.insights,
-            "innovations":   content.innovations,
-            "summary":       content.summary,
             "model_used":    metadata.model_used,
             "input_tokens":  metadata.input_tokens,
             "output_tokens": metadata.output_tokens,
+        },
+    )
+    # Upsert content on analysis_translations (English row)
+    session.execute(
+        text("""
+            INSERT INTO analysis_translations (id, analysis_id, language, summary, pain_points, insights, innovations, created_at, updated_at)
+            VALUES (gen_random_uuid(), :analysis_id, 'en', :summary, :pain_points, :insights, :innovations, NOW(), NOW())
+            ON CONFLICT (analysis_id, language) DO UPDATE
+            SET summary      = EXCLUDED.summary,
+                pain_points   = EXCLUDED.pain_points,
+                insights      = EXCLUDED.insights,
+                innovations   = EXCLUDED.innovations,
+                updated_at    = NOW()
+        """),
+        {
+            "analysis_id":   str(analysis_id),
+            "summary":       content.summary,
+            "pain_points":   content.pain_points,
+            "insights":      content.insights,
+            "innovations":   content.innovations,
         },
     )
 

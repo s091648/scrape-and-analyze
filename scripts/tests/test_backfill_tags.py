@@ -115,22 +115,24 @@ def test_update_analysis_dry_run_skips_db(capsys):
 
 
 def test_update_analysis_executes_update():
-    """update_analysis should call session.execute exactly once"""
+    """update_analysis should call session.execute twice (analyses metadata + analysis_translations content)"""
     from scripts.backfill_tags import update_analysis
 
     session = MagicMock()
     content, metadata = _make_result()
     update_analysis(session, "an-id", content, metadata, dry_run=False)
 
-    session.execute.assert_called_once()
-    # Verify the params dict includes expected keys
-    params = session.execute.call_args[0][1]
-    assert params["pain_points"] == "pain"
-    assert params["insights"] == "insight"
-    assert params["innovations"] == "innovation"
-    assert params["model_used"] == "test-model"
-    assert params["input_tokens"] == 10
-    assert params["output_tokens"] == 5
+    assert session.execute.call_count == 2
+    # First call: update analyses metadata
+    metadata_params = session.execute.call_args_list[0][0][1]
+    assert metadata_params["model_used"] == "test-model"
+    assert metadata_params["input_tokens"] == 10
+    assert metadata_params["output_tokens"] == 5
+    # Second call: upsert analysis_translations content
+    content_params = session.execute.call_args_list[1][0][1]
+    assert content_params["pain_points"] == "pain"
+    assert content_params["insights"] == "insight"
+    assert content_params["innovations"] == "innovation"
 
 
 def _make_provider(result):

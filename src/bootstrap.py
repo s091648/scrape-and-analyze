@@ -166,14 +166,14 @@ def build_collection_pipeline():
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
 
     # translation 事件：AnalysisCompletedEvent → auto-translate
-    from src.infrastructure.persistence.intelligence import SqlAlchemyTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.config.settings import TRANSLATION_LANGUAGES
 
-    translation_repo = SqlAlchemyTranslationRepository(session=session)
+    analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
-        translation_repository=translation_repo,
+        translation_repository=analysis_translation_repo,
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
@@ -183,6 +183,7 @@ def build_collection_pipeline():
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
+        analysis_translation_repo=analysis_translation_repo,
         target_languages=target_languages,
         session_rollback_fn=session.rollback,
     )
@@ -220,7 +221,7 @@ def build_translation_pipeline():
     回傳翻譯相關服務，可用於定時翻譯任務。
     """
     from src.infrastructure.persistence.database import get_session, init_db
-    from src.infrastructure.persistence.intelligence import SqlAlchemyTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
@@ -228,7 +229,7 @@ def build_translation_pipeline():
     session = get_session()
 
     # ── Repositories ───────────────────────────────────────────────────────
-    translation_repo = SqlAlchemyTranslationRepository(session=session)
+    analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
@@ -237,7 +238,7 @@ def build_translation_pipeline():
     # ── Use Cases ──────────────────────────────────────────────────────────
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
-        translation_repository=translation_repo,
+        translation_repository=analysis_translation_repo,
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
@@ -249,6 +250,6 @@ def build_translation_pipeline():
         "use_case": translate_article_uc,
         "tag_use_case": translate_tags_uc,
         "session": session,
-        "translation_repository": translation_repo,
+        "analysis_translation_repository": analysis_translation_repo,
         "tag_translation_repository": tag_translation_repo,
     }

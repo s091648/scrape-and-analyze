@@ -40,16 +40,50 @@ def test_analysis_model_has_required_fields():
     assert hasattr(Analysis, 'id')
     assert hasattr(Analysis, 'article_id')
     assert hasattr(Analysis, 'correlation_id')
-    assert hasattr(Analysis, 'pain_points')
-    assert hasattr(Analysis, 'insights')
-    assert hasattr(Analysis, 'innovations')
     assert hasattr(Analysis, 'analyzed_at')
     assert hasattr(Analysis, 'model_used')
     assert hasattr(Analysis, 'input_tokens')
     assert hasattr(Analysis, 'output_tokens')
+    # content fields moved to analysis_translations table
+    assert 'pain_points' not in Analysis.__table__.columns
+    assert 'insights' not in Analysis.__table__.columns
+    assert 'innovations' not in Analysis.__table__.columns
+    assert 'summary' not in Analysis.__table__.columns
+    assert 'language' not in Analysis.__table__.columns
     # tags and tag_groups moved to tags / article_tags tables
     assert 'tags' not in Analysis.__table__.columns
     assert 'tag_groups' not in Analysis.__table__.columns
+
+
+def test_analysis_translation_model_has_required_fields():
+    """AnalysisTranslation model should have all required fields"""
+    from models.analysis_translation import AnalysisTranslation
+
+    assert hasattr(AnalysisTranslation, 'id')
+    assert hasattr(AnalysisTranslation, 'analysis_id')
+    assert hasattr(AnalysisTranslation, 'language')
+    assert hasattr(AnalysisTranslation, 'summary')
+    assert hasattr(AnalysisTranslation, 'pain_points')
+    assert hasattr(AnalysisTranslation, 'insights')
+    assert hasattr(AnalysisTranslation, 'innovations')
+    assert hasattr(AnalysisTranslation, 'created_at')
+    assert hasattr(AnalysisTranslation, 'updated_at')
+
+
+def test_analysis_translation_has_foreign_key_to_analysis():
+    """AnalysisTranslation should have foreign key to Analysis"""
+    from models.analysis_translation import AnalysisTranslation
+
+    fk_tables = [fk.column.table.name for fk in AnalysisTranslation.__table__.foreign_keys]
+    assert 'analyses' in fk_tables
+
+
+def test_analysis_translation_analysis_language_is_unique():
+    """AnalysisTranslation should have unique constraint on (analysis_id, language)"""
+    from models.analysis_translation import AnalysisTranslation
+
+    uq_names = {c.name for c in AnalysisTranslation.__table__.constraints}
+    assert 'uq_analysis_translations_analysis_language' in uq_names
 
 
 def test_analysis_has_foreign_key_to_article():
