@@ -1,3 +1,4 @@
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
@@ -25,6 +26,7 @@ class CollectionPipeline:
         pipeline_stats: PipelineStats,
         executor: Optional[ScrapeExecutor] = None,
         article_repo: Optional[ArticleRepository] = None,
+        discover_delay: float = 3.0,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -32,6 +34,7 @@ class CollectionPipeline:
         self._pipeline_stats = pipeline_stats
         self._executor = executor or ScrapeExecutor()
         self._article_repo = article_repo
+        self._discover_delay = discover_delay
 
     def run(self) -> int:
         start = time.time()
@@ -47,13 +50,24 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
-        # ── Phase 1: concurrent discover ──────────────────────────────────
+        # ── Phase 1: concurrent discover (per-source serialized) ──────────
         tasks: List[FetchTask] = []
         scraped_setting_ids = []
+        _source_sems: dict[str, threading.Semaphore] = {}
+        _sems_lock = threading.Lock()
 
         def _discover(setting):
             scraper = self._scraper_factory.create_for(setting)
-            return scraper, scraper.discover()
+            with _sems_lock:
+                if setting.source not in _source_sems:
+                    _source_sems[setting.source] = threading.Semaphore(1)
+            sem = _source_sems[setting.source]
+            sem.acquire()
+            try:
+                return scraper, scraper.discover()
+            finally:
+                time.sleep(self._discover_delay)
+                sem.release()
 
         with ThreadPoolExecutor(max_workers=len(due_settings)) as pool:
             futures = {pool.submit(_discover, s): s for s in due_settings}
