@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { apiFetch } from '@/lib/api-fetch'
+import { apiFetch } from '@/lib/api/client'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 

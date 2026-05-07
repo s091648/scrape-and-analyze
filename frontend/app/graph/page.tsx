@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { KnowledgeGraph } from '@/components/knowledge-graph'
+import { KnowledgeGraph } from '@/components/features/graph/knowledge-graph'
 import { Lock } from 'lucide-react'
 
 export default function GraphPage() {

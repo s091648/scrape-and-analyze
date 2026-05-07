@@ -1,6 +1,6 @@
 'use client'
 
-import { GrafanaPanel } from '@/components/grafana-panel'
+import { GrafanaPanel } from '@/components/features/monitoring/grafana-panel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 interface MonitoringContentProps {

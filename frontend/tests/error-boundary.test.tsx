@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { ErrorBoundary } from '../components/error-boundary'
+import { ErrorBoundary } from '../components/common/error-boundary'
 
 function ThrowingChild() {
   throw new Error('Network error')
