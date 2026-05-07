@@ -7,6 +7,13 @@ const mockApiFetch = vi.fn().mockResolvedValue({
 })
 
 vi.mock('../lib/api/client', () => ({ apiFetch: mockApiFetch }))
+vi.mock('next/dynamic', () => ({
+  default: (_loader: any, _opts?: any) =>
+    ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>,
+}))
+vi.mock('@/lib/providers/topic-provider', () => ({
+  useTopic: () => ({ selectedTopicId: 'test-topic-id' }),
+}))
 vi.mock('react-force-graph-2d', () => ({
   default: ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>
 }))

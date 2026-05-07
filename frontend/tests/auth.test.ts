@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 
+vi.mock('next-auth', () => ({
+  default: vi.fn((config: any) => config),
+}))
+vi.mock('next-auth/providers/credentials', () => ({
+  default: vi.fn((opts: any) => ({ ...opts, type: 'credentials' })),
+}))
 vi.mock('next-auth/providers/google', () => ({
   default: vi.fn((opts) => ({ ...opts, id: opts.id ?? 'google', type: 'oauth' })),
 }))
