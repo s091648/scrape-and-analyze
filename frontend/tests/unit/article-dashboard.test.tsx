@@ -6,7 +6,7 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
 }))
 
-vi.mock('../lib/api/articles', () => ({
+vi.mock('@/lib/api/articles', () => ({
   fetchArticles: vi.fn().mockResolvedValue({
     items: [{
       id: 'abc123',
@@ -27,7 +27,7 @@ vi.mock('@/lib/providers', () => ({
 
 describe('Article Dashboard', () => {
   it('renders article title, source, and dates', async () => {
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(
       <ArticleCard
         id="abc123"
@@ -43,7 +43,7 @@ describe('Article Dashboard', () => {
   })
 
   it('renders failed task section', async () => {
-    const { FailedTaskList } = await import('../components/features/monitoring/failed-task-list')
+    const { FailedTaskList } = await import('@/components/features/monitoring/failed-task-list')
     render(<FailedTaskList items={[{
       id: 'f1', task_type: 'scrape', article_url: 'https://x.com',
       exception_message: 'Timeout', failed_at: '2026-02-21T00:00:00Z', resolved: false,
@@ -57,7 +57,7 @@ describe('Article Dashboard', () => {
     const { useSearchParams, useRouter } = await import('next/navigation')
     vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams('page=2&sort=published_at') as any)
     vi.mocked(useRouter).mockReturnValue({ push: vi.fn() } as any)
-    const { usePagination } = await import('../hooks/use-pagination')
+    const { usePagination } = await import('@/hooks/use-pagination')
     const { result } = renderHook(() => usePagination())
     expect(result.current.page).toBe(2)
     expect(result.current.sort).toBe('published_at')

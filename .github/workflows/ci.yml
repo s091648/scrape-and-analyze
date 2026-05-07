@@ -73,7 +73,7 @@ jobs:
         run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
           flags: unit
@@ -201,7 +201,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ./coverage-integration.xml
           flags: integration
@@ -284,7 +284,8 @@ jobs:
         continue-on-error: true
 
       - name: Upload frontend-unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
+        if: always()
         with:
           files: ./frontend/coverage/lcov.info
           flags: frontend-unit

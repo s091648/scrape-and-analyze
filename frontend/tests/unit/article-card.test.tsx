@@ -21,7 +21,7 @@ const detailFixture = {
   model_used: 'claude-test',
 }
 
-vi.mock('../lib/api/articles', () => ({
+vi.mock('@/lib/api/articles', () => ({
   fetchArticleById: vi.fn().mockResolvedValue({
     id: 'abc',
     title: 'Test Article',
@@ -47,20 +47,20 @@ describe('ArticleCard', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('renders title and source', async () => {
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     expect(screen.getByText('Test Article')).toBeInTheDocument()
     expect(screen.getByText('rss')).toBeInTheDocument()
   })
 
   it('renders formatted published date', async () => {
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     expect(screen.getByText(/jan 1, 2026/i)).toBeInTheDocument()
   })
 
   it('clicking card opens dialog', async () => {
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
@@ -69,9 +69,9 @@ describe('ArticleCard', () => {
   })
 
   it('dialog shows pain_points after loading', async () => {
-    const { fetchArticleById } = await import('../lib/api/articles')
+    const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
@@ -80,9 +80,9 @@ describe('ArticleCard', () => {
   })
 
   it('dialog shows insights after loading', async () => {
-    const { fetchArticleById } = await import('../lib/api/articles')
+    const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
@@ -91,9 +91,9 @@ describe('ArticleCard', () => {
   })
 
   it('dialog shows tag badges', async () => {
-    const { fetchArticleById } = await import('../lib/api/articles')
+    const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
-    const { ArticleCard } = await import('../components/features/articles/article-card')
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {

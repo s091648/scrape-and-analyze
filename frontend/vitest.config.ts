@@ -13,7 +13,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    exclude: ['**/node_modules/**', '**/e2e/**'],
+    exclude: ['**/node_modules/**', '**/tests/integration/**'],
     env: {
       NEXTAUTH_SECRET: 'test-secret',
     },
@@ -24,7 +24,7 @@ export default defineConfig({
       exclude: [
         'components/ui/**',
         '**/*.d.ts',
-        'e2e/**',
+        'tests/integration/**',
       ],
     },
   },

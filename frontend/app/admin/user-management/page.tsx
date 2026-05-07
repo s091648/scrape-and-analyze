@@ -64,7 +64,7 @@ export default function UsersPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ is_allowed: !user.is_allowed }),
-    }, false)
+    })
     if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, is_allowed: !u.is_allowed } : u))
   }
 
@@ -73,7 +73,7 @@ export default function UsersPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role }),
-    }, false)
+    })
     if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, role } : u))
   }
 
@@ -82,7 +82,7 @@ export default function UsersPage() {
     const res = await apiFetch(`/auth/users/${userId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
-    }, false)
+    })
     if (res.ok) setUsers(users.filter(u => u.id !== userId))
   }
 
@@ -96,7 +96,7 @@ export default function UsersPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
-    }, false)
+    })
     if (res.ok) {
       const created = await res.json()
       setUsers([created, ...users])

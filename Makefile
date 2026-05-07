@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote frontend-test frontend-e2e
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -126,3 +126,11 @@ test-all-cov:
 		--cov=src \
 		--cov-report=html:src/tests/htmlcov-all \
 		--cov-report=term
+
+# Frontend unit tests (vitest)
+frontend-test:
+	docker compose run --rm frontend npm run test
+
+# Frontend integration tests (Playwright) — chromium cached in playwright_cache volume
+frontend-e2e:
+	docker compose run --rm frontend sh -c "npx playwright install --with-deps chromium && npm run test:e2e"

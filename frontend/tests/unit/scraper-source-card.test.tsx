@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { formatFrequency, formatCountdown } from '../components/features/scraper/scraper-source-card'
+import { formatFrequency, formatCountdown } from '@/components/features/scraper/scraper-source-card'
 
 const settingFixture = {
   id: 's1',
@@ -46,33 +46,33 @@ describe('SourceCard', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('renders source name and type', async () => {
-    const { SourceCard } = await import('../components/features/scraper/scraper-source-card')
+    const { SourceCard } = await import('@/components/features/scraper/scraper-source-card')
     render(<SourceCard setting={settingFixture} onUpdate={vi.fn()} onDelete={vi.fn()} />)
     expect(screen.getByText('Hacker News')).toBeInTheDocument()
   })
 
   it('shows "active" badge when is_active is true', async () => {
-    const { SourceCard } = await import('../components/features/scraper/scraper-source-card')
+    const { SourceCard } = await import('@/components/features/scraper/scraper-source-card')
     render(<SourceCard setting={settingFixture} onUpdate={vi.fn()} onDelete={vi.fn()} />)
     expect(screen.getByText('active')).toBeInTheDocument()
   })
 
   it('shows "inactive" badge when is_active is false', async () => {
-    const { SourceCard } = await import('../components/features/scraper/scraper-source-card')
+    const { SourceCard } = await import('@/components/features/scraper/scraper-source-card')
     render(<SourceCard setting={{ ...settingFixture, is_active: false }} onUpdate={vi.fn()} onDelete={vi.fn()} />)
     expect(screen.getByText('inactive')).toBeInTheDocument()
   })
 
   it('clicking active badge calls onUpdate with toggled is_active', async () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined)
-    const { SourceCard } = await import('../components/features/scraper/scraper-source-card')
+    const { SourceCard } = await import('@/components/features/scraper/scraper-source-card')
     render(<SourceCard setting={settingFixture} onUpdate={onUpdate} onDelete={vi.fn()} />)
     fireEvent.click(screen.getByText('active'))
     expect(onUpdate).toHaveBeenCalledWith('s1', { is_active: false })
   })
 
   it('ActivityGraph renders bars for non-zero activity data', async () => {
-    const { ActivityGraph } = await import('../components/features/scraper/scraper-source-card')
+    const { ActivityGraph } = await import('@/components/features/scraper/scraper-source-card')
     render(<ActivityGraph activity={[0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1]} />)
     const bars = document.querySelectorAll('[title*="article"]')
     expect(bars.length).toBe(14)

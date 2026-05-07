@@ -19,7 +19,7 @@ describe('apiFetch', () => {
     mockGetSession.mockResolvedValue({ user: { role: 'admin' } })
     ;(global.fetch as any).mockResolvedValue({ status: 401, ok: false })
 
-    const { apiFetch } = await import('../lib/api/client')
+    const { apiFetch } = await import('@/lib/api/client')
     await apiFetch('/articles')
 
     expect(mockSignOut).toHaveBeenCalledWith({
@@ -32,7 +32,7 @@ describe('apiFetch', () => {
     mockGetSession.mockResolvedValue(null)
     ;(global.fetch as any).mockResolvedValue({ status: 401, ok: false })
 
-    const { apiFetch } = await import('../lib/api/client')
+    const { apiFetch } = await import('@/lib/api/client')
     await apiFetch('/articles')
 
     expect(mockSignOut).not.toHaveBeenCalled()
@@ -41,7 +41,7 @@ describe('apiFetch', () => {
   it('prepends /api/proxy to path by default', async () => {
     ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
 
-    const { apiFetch } = await import('../lib/api/client')
+    const { apiFetch } = await import('@/lib/api/client')
     await apiFetch('/articles')
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -53,7 +53,7 @@ describe('apiFetch', () => {
   it('appends lang query param when locale is provided', async () => {
     ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
 
-    const { apiFetch } = await import('../lib/api/client')
+    const { apiFetch } = await import('@/lib/api/client')
     await apiFetch('/articles', {}, 'zh-TW')
 
     expect(global.fetch).toHaveBeenCalledWith(

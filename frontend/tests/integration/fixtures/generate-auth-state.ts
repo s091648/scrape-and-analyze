@@ -3,7 +3,7 @@
  * Generates e2e/fixtures/auth-state.json for Playwright e2e tests.
  *
  * Run locally (NOT in CI — auth-state.json is committed to the repo):
- *   NEXTAUTH_SECRET=<value> npx tsx e2e/fixtures/generate-auth-state.ts
+ *   NEXTAUTH_SECRET=<value> npx tsx tests/integration/fixtures/generate-auth-state.ts
  *
  * The NEXTAUTH_SECRET must match the value in .env AND in the GitHub Actions
  * NEXTAUTH_SECRET secret (so CI can use the same committed auth-state.json).
@@ -40,7 +40,7 @@ async function deriveEncryptionKey(secret: string): Promise<CryptoKey> {
 async function main() {
   const secret = process.env.NEXTAUTH_SECRET
   if (!secret) {
-    throw new Error('NEXTAUTH_SECRET env var is required.\nUsage: NEXTAUTH_SECRET=<value> npx tsx e2e/fixtures/generate-auth-state.ts')
+    throw new Error('NEXTAUTH_SECRET env var is required.\nUsage: NEXTAUTH_SECRET=<value> npx tsx tests/integration/fixtures/generate-auth-state.ts')
   }
 
   const encKey = await deriveEncryptionKey(secret)
