@@ -50,18 +50,18 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
-        # ── Phase 1: concurrent discover (per-source-type serialized) ────────
+        # ── Phase 1: concurrent discover (per-source serialized) ──────────
         tasks: List[FetchTask] = []
         scraped_setting_ids = []
-        _type_sems: dict[str, threading.Semaphore] = {}
+        _source_sems: dict[str, threading.Semaphore] = {}
         _sems_lock = threading.Lock()
 
         def _discover(setting):
             scraper = self._scraper_factory.create_for(setting)
             with _sems_lock:
-                if setting.source_type not in _type_sems:
-                    _type_sems[setting.source_type] = threading.Semaphore(1)
-            sem = _type_sems[setting.source_type]
+                if setting.source not in _source_sems:
+                    _source_sems[setting.source] = threading.Semaphore(1)
+            sem = _source_sems[setting.source]
             sem.acquire()
             try:
                 return scraper, scraper.discover()

@@ -33,7 +33,7 @@ class ArxivScraper(BaseScraper):
         self._categories = categories
         self._topic_id = topic_id
         self._prompt_override = prompt_override
-        self._client = client or ArxivClient()  # fallback for standalone usage
+        self._client = client or ArxivClient()
         self._pdf_parser = PdfParser() if fetch_pdf else None
 
     def discover(self) -> List[ScrapeJob]:
