@@ -52,7 +52,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def save_group_translation(
         self, tag_group_definition_id: UUID, language: str, display_name: str
     ) -> None:
-        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
+        from models.tag_group_translation import TagGroupDefinitionTranslation as TagGroupTranslationModel
 
         existing = self._session.query(TagGroupTranslationModel).filter_by(
             tag_group_definition_id=tag_group_definition_id, language=language,
@@ -74,7 +74,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         self, language: str, limit: int
     ) -> List[dict]:
         from models.tag_group import TagGroupDefinition as TagGroupDefinitionModel
-        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
+        from models.tag_group_translation import TagGroupDefinitionTranslation as TagGroupTranslationModel
 
         rows = (
             self._session.query(TagGroupDefinitionModel)

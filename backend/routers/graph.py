@@ -18,7 +18,7 @@ CACHE_TTL_SECONDS = 300  # 5 minutes
 def load_group_defs(db: Session, lang: str = "en") -> dict:
     """Load tag group definitions as a name→metadata dict, with optional translation."""
     from models.tag_group import TagGroupDefinition
-    from models.tag_group_translation import TagGroupTranslation
+    from models.tag_group_translation import TagGroupDefinitionTranslation
 
     rows = db.query(TagGroupDefinition).order_by(TagGroupDefinition.sort_order).all()
 
@@ -26,9 +26,9 @@ def load_group_defs(db: Session, lang: str = "en") -> dict:
     if lang != "en":
         group_ids = [r.id for r in rows]
         if group_ids:
-            translations = db.query(TagGroupTranslation).filter(
-                TagGroupTranslation.tag_group_definition_id.in_(group_ids),
-                TagGroupTranslation.language == lang,
+            translations = db.query(TagGroupDefinitionTranslation).filter(
+                TagGroupDefinitionTranslation.tag_group_definition_id.in_(group_ids),
+                TagGroupDefinitionTranslation.language == lang,
             ).all()
             group_trans_map = {gt.tag_group_definition_id: gt.display_name for gt in translations}
 
@@ -150,16 +150,16 @@ def get_group_articles(group_name: str,
                        db: Session = Depends(get_db)):
     from models.analysis_translation import AnalysisTranslation
     from models.tag_translation import TagTranslation
-    from models.tag_group_translation import TagGroupTranslation
+    from models.tag_group_translation import TagGroupDefinitionTranslation
 
     group_def = load_group_def(db, group_name)
 
     # Translate group display name
     display_name = group_def.display_name if group_def else group_name
     if lang != "en" and group_def:
-        group_trans = db.query(TagGroupTranslation).filter(
-            TagGroupTranslation.tag_group_definition_id == group_def.id,
-            TagGroupTranslation.language == lang,
+        group_trans = db.query(TagGroupDefinitionTranslation).filter(
+            TagGroupDefinitionTranslation.tag_group_definition_id == group_def.id,
+            TagGroupDefinitionTranslation.language == lang,
         ).first()
         if group_trans:
             display_name = group_trans.display_name
