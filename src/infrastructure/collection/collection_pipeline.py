@@ -1,6 +1,8 @@
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
@@ -25,6 +27,7 @@ class CollectionPipeline:
         pipeline_stats: PipelineStats,
         executor: Optional[ScrapeExecutor] = None,
         article_repo: Optional[ArticleRepository] = None,
+        discover_delay: float = 3.0,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -32,6 +35,7 @@ class CollectionPipeline:
         self._pipeline_stats = pipeline_stats
         self._executor = executor or ScrapeExecutor()
         self._article_repo = article_repo
+        self._discover_delay = discover_delay
 
     def run(self) -> int:
         start = time.time()
@@ -47,13 +51,34 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
-        # ── Phase 1: concurrent discover ──────────────────────────────────
+        # ── Phase 1: concurrent discover (per-host serialized) ──────────────
         tasks: List[FetchTask] = []
         scraped_setting_ids = []
+        _host_sems: dict[str, threading.Semaphore] = {}
+        _sems_lock = threading.Lock()
+
+        def _discover_host(setting) -> str:
+            """Derive a host key for rate-limit grouping. Uses setting.url when
+            available; falls back to a known host for source_types whose API
+            URL is hardcoded in the client (e.g. arxiv → export.arxiv.org)."""
+            if setting.url:
+                return urlparse(setting.url).netloc
+            _KNOWN_HOSTS = {"arxiv": "export.arxiv.org"}
+            return _KNOWN_HOSTS.get(setting.source_type, setting.source_type)
 
         def _discover(setting):
             scraper = self._scraper_factory.create_for(setting)
-            return scraper, scraper.discover()
+            host = _discover_host(setting)
+            with _sems_lock:
+                if host not in _host_sems:
+                    _host_sems[host] = threading.Semaphore(1)
+            sem = _host_sems[host]
+            sem.acquire()
+            try:
+                return scraper, scraper.discover()
+            finally:
+                time.sleep(self._discover_delay)
+                sem.release()
 
         with ThreadPoolExecutor(max_workers=len(due_settings)) as pool:
             futures = {pool.submit(_discover, s): s for s in due_settings}

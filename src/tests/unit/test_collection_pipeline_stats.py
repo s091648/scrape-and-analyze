@@ -4,9 +4,10 @@ from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
 
-def _make_setting(source="arxiv"):
+def _make_setting(source="arxiv", source_type="arxiv"):
     s = MagicMock()
     s.source = source
+    s.source_type = source_type
     s.id = "test-id"
     return s
 
@@ -61,6 +62,7 @@ def test_pipeline_publishes_pipeline_completed_event():
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
         executor=executor,
+        discover_delay=0,
     )
     pipeline.run()
 

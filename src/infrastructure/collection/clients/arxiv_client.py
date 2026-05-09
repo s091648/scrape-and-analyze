@@ -5,15 +5,13 @@ Responsibility: HTTP request + Atom XML parsing only.
 No domain logic (keyword building, date filtering, PDF fetching) lives here.
 Those decisions stay in ArxivScraper (ingestion bounded context).
 
-Uses a direct requests.Session (no proxy) because the arXiv Export API is
-a public academic API that does not require proxy-based IP rotation.
+Accepts an HttpClient so rate limiting, retry, and single-connection
+semaphore are handled transparently by the shared infrastructure.
 """
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-
-import requests
 
 from src.infrastructure.shared.http import get_api_bot_ua
 from src.shared.logging import get_logger
@@ -39,14 +37,16 @@ class ArxivClient:
     """
     Thin HTTP + XML adapter for the arXiv Atom feed API.
 
-    Uses a direct requests.Session by default — no proxy, no UA rotation —
-    because the arXiv Export API is a public academic endpoint that explicitly
-    supports programmatic access and does not require IP obfuscation.
+    Accepts an HttpClient so rate limiting, retry, and single-connection
+    semaphore are handled transparently by the shared infrastructure.
     Pass a custom http_client in tests to inject a mock.
     """
 
     def __init__(self, http_client=None) -> None:
-        self._http = http_client  # None → use requests.get directly
+        if http_client is None:
+            from src.infrastructure.shared.http import get_default_client
+            http_client = get_default_client()
+        self._http = http_client
 
     def fetch_entries(
         self,
@@ -73,22 +73,12 @@ class ArxivClient:
         }
         try:
             # Use descriptive bot UA per arXiv API TOS (not browser UA rotation).
-            # Direct requests.get — no proxy needed for this academic API.
-            if self._http is not None:
-                response = self._http.get(
-                    ARXIV_API_URL,
-                    params=params,
-                    timeout=60,
-                    headers={"User-Agent": get_api_bot_ua()},
-                )
-            else:
-                response = requests.get(
-                    ARXIV_API_URL,
-                    params=params,
-                    timeout=60,
-                    headers={"User-Agent": get_api_bot_ua()},
-                )
-                response.raise_for_status()
+            response = self._http.get(
+                ARXIV_API_URL,
+                params=params,
+                timeout=60,
+                headers={"User-Agent": get_api_bot_ua()},
+            )
         except Exception as e:
             logger.error("arxiv_fetch_failed", error=str(e))
             return []
