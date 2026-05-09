@@ -1,8 +1,11 @@
 import queue
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
+from urllib.parse import urlparse
 
+from .discover_task import DiscoverTask
 from .fetch_task import FetchTask
 from .host_queue_map import HostQueueMap
 from .queue_router import QueueRouter
@@ -15,42 +18,43 @@ from src.modules.collection.domain.value_objects import ScrapedArticle
 
 logger = get_logger(__name__)
 
+_DEFAULT_DISCOVER_DELAYS: Dict[str, float] = {
+    "export.arxiv.org": 30.0,
+    "arxiv.org": 30.0,
+}
+
 
 class ScrapeExecutor:
     """
-    Two-phase concurrent fetch executor.
+    Concurrent fetch executor with optional streaming discover.
 
-    Phase 1 (single-threaded):
-      route() — accepts a flat list of FetchTask objects and assigns each
-      to a per-host queue via QueueRouter.
-
-    Phase 2 (multi-threaded via ThreadPoolExecutor):
-      execute() — spins up num_workers futures.  Each future runs
-      _worker_loop(), which repeatedly:
-        1. Asks QueueSelector for candidate queue indices (deepest backlog first).
-        2. Attempts semaphore.acquire(blocking=False) on each candidate.
-        3. On success, dequeues one FetchTask, runs task.execute(), calls
-           on_result() with the ScrapedArticle if one was returned.
-        4. Releases the semaphore and sleeps `delay` seconds.
-        5. Exits when done_flag is True AND all queues are empty.
+    run()          — fetch-only mode (backward compatible).
+    run_streaming() — unified discover + fetch with per-host serialization.
 
     Per-host mutual exclusion is guaranteed by BoundedSemaphore(1) — at most
     one concurrent request per host at any time.
 
     Args:
-        num_workers: Number of concurrent worker threads (default 3).
-        delay:       Seconds to sleep between requests per worker (default 5.0).
-        selector:    QueueSelector strategy (default WeightedRoundRobinQueueSelector).
+        num_workers:       Number of fetch worker threads (default 5).
+        discover_workers:  Number of discover worker threads (default 1).
+        fetch_delay:       Seconds to sleep between fetches per worker (default 5.0).
+        discover_delays:   Per-host cooldown after discover in seconds.
+                           Keys are hostnames (e.g. "export.arxiv.org": 30.0).
+        selector:          QueueSelector strategy.
     """
 
     def __init__(
         self,
         num_workers: int = 5,
-        delay: float = 5.0,
+        discover_workers: int = 1,
+        fetch_delay: float = 5.0,
+        discover_delays: Optional[Dict[str, float]] = None,
         selector: Optional[QueueSelector] = None,
     ) -> None:
         self._num_workers = num_workers
-        self._delay = delay
+        self._discover_workers = discover_workers
+        self._fetch_delay = fetch_delay
+        self._discover_delays = discover_delays or _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
 
     def run(
@@ -59,13 +63,13 @@ class ScrapeExecutor:
         on_result: Callable[[ScrapedArticle], None],
     ) -> int:
         """
-        Route tasks then dispatch workers.  Blocks until all tasks are processed.
+        Fetch-only mode: route tasks into per-host queues and run fetch workers.
+        Blocks until all tasks are processed.
         Returns the number of successful ScrapedArticles produced.
         """
         if not tasks:
             return 0
 
-        # ── Phase 1: route into per-host queues ──────────────────────────
         host_queue_map = HostQueueMap()
         router = QueueRouter(host_queue_map)
         router.route(tasks)
@@ -76,8 +80,95 @@ class ScrapeExecutor:
             host_count=len(host_queue_map.queues),
         )
 
-        # ── Phase 2: concurrent fetch ─────────────────────────────────────
-        done_flag: list[bool] = [False]   # mutable flag shared with worker closures
+        return self._run_fetch_workers(host_queue_map, on_result)
+
+    def run_streaming(
+        self,
+        discover_tasks: List[DiscoverTask],
+        on_result: Callable[[ScrapedArticle], None],
+    ) -> int:
+        """
+        Streaming discover + fetch mode.
+
+        1. Route DiscoverTasks into per-host queues.
+        2. Run discover workers and fetch workers concurrently.
+           Discover workers execute discover(), route resulting FetchTasks
+           back into queues, then sleep per-host cooldown.
+           Fetch workers execute fetch(), call on_result, then sleep fetch_delay.
+        3. Both share per-host BoundedSemaphore(1) for serialization.
+
+        Blocks until all discover and fetch tasks are processed.
+        Returns the number of successful ScrapedArticles produced.
+        """
+        if not discover_tasks:
+            return 0
+
+        host_queue_map = HostQueueMap()
+        router = QueueRouter(host_queue_map)
+        router.route_discover(discover_tasks)
+
+        logger.info(
+            "executor_streaming_start",
+            discover_tasks=len(discover_tasks),
+            host_count=len(host_queue_map.queues),
+        )
+
+        # Track pending discovers so we know when it's safe to stop.
+        pending_discovers = [len(discover_tasks)]
+        pending_lock = threading.Lock()
+
+        def _on_discover_complete():
+            with pending_lock:
+                pending_discovers[0] -= 1
+
+        total_fetched = 0
+
+        with ThreadPoolExecutor(
+            max_workers=self._discover_workers + self._num_workers
+        ) as pool:
+            futures = []
+
+            # Discover workers
+            for i in range(self._discover_workers):
+                futures.append(pool.submit(
+                    self._discover_worker_loop,
+                    worker_id=i,
+                    host_queue_map=host_queue_map,
+                    router=router,
+                    pending_discovers=pending_discovers,
+                    pending_lock=pending_lock,
+                    on_discover_complete=_on_discover_complete,
+                ))
+
+            # Fetch workers
+            for i in range(self._num_workers):
+                futures.append(pool.submit(
+                    self._fetch_worker_loop,
+                    worker_id=i,
+                    host_queue_map=host_queue_map,
+                    on_result=on_result,
+                    pending_discovers=pending_discovers,
+                    pending_lock=pending_lock,
+                ))
+
+            for future in as_completed(futures):
+                try:
+                    total_fetched += future.result()
+                except Exception as e:
+                    logger.error("worker_raised", error=str(e))
+
+        logger.info("executor_streaming_complete", total_fetched=total_fetched)
+        return total_fetched
+
+    # ── Fetch-only worker pool (backward compatible) ────────────────────
+
+    def _run_fetch_workers(
+        self,
+        host_queue_map: HostQueueMap,
+        on_result: Callable[[ScrapedArticle], None],
+    ) -> int:
+        done_flag: list[bool] = [False]
+        total_fetched = 0
 
         def worker_loop(worker_id: int) -> int:
             logger.info("worker_started", worker_id=worker_id)
@@ -98,26 +189,29 @@ class ScrapeExecutor:
                     except queue.Empty:
                         continue
 
-                    result = task.execute()
-                    if result is not None:
-                        on_result(result)
-                        fetched += 1
-                    else:
-                        logger.warning("task_returned_none", url=task.url)
+                    if isinstance(task, FetchTask):
+                        try:
+                            result = task.execute()
+                            if result is not None:
+                                on_result(result)
+                                fetched += 1
+                            else:
+                                logger.warning("task_returned_none", url=task.url)
+                        except Exception as e:
+                            logger.error("task_execute_failed", url=task.url, error=str(e))
 
                 finally:
-                    time.sleep(self._delay)
+                    time.sleep(self._fetch_delay)
                     host_queue_map.semaphores[claimed_idx].release()
 
             logger.info("worker_stopped", worker_id=worker_id, fetched=fetched)
             return fetched
 
-        total_fetched = 0
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
             futures = [
                 pool.submit(worker_loop, i) for i in range(self._num_workers)
             ]
-            done_flag[0] = True   # all tasks are queued; workers may now drain and exit
+            done_flag[0] = True
 
             for future in as_completed(futures):
                 try:
@@ -128,14 +222,147 @@ class ScrapeExecutor:
         logger.info("executor_phase2_complete", total_fetched=total_fetched)
         return total_fetched
 
+    # ── Streaming worker loops ──────────────────────────────────────────
+
+    def _discover_worker_loop(
+        self,
+        worker_id: int,
+        host_queue_map: HostQueueMap,
+        router: QueueRouter,
+        pending_discovers: list,
+        pending_lock: threading.Lock,
+        on_discover_complete: Callable[[], None],
+    ) -> int:
+        """Worker that processes DiscoverTask items from queues."""
+        logger.info("discover_worker_started", worker_id=worker_id)
+        discover_count = 0
+
+        while True:
+            claimed_idx = self._try_claim(host_queue_map)
+
+            if claimed_idx is None:
+                with pending_lock:
+                    if pending_discovers[0] <= 0 and all(
+                        q.empty() for q in host_queue_map.queues
+                    ):
+                        break
+                time.sleep(0.05)
+                continue
+
+            executed_discover = False
+            try:
+                try:
+                    task = host_queue_map.queues[claimed_idx].get_nowait()
+                except queue.Empty:
+                    continue
+
+                if isinstance(task, DiscoverTask):
+                    fetch_tasks = task.execute()
+                    discover_count += 1
+                    executed_discover = True
+
+                    # Route resulting fetch tasks back into queues
+                    if fetch_tasks:
+                        router.route(fetch_tasks)
+                        logger.info(
+                            "discover_produced_fetch_tasks",
+                            source=task.setting.source,
+                            host=task.host,
+                            count=len(fetch_tasks),
+                        )
+
+                    on_discover_complete()
+                # If it's a FetchTask in this queue, leave it for fetch workers
+                # — put it back and release semaphore
+                elif isinstance(task, FetchTask):
+                    host_queue_map.queues[claimed_idx].put(task)
+
+            finally:
+                # Per-host discover cooldown — hold semaphore during sleep so
+                # no other worker hits this host until cooldown expires.
+                # Only apply when a DiscoverTask was actually executed.
+                if executed_discover:
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
+                    delay = self._discover_delays.get(host, 0.0)
+                    if delay > 0:
+                        time.sleep(delay)
+                host_queue_map.semaphores[claimed_idx].release()
+
+        logger.info(
+            "discover_worker_stopped",
+            worker_id=worker_id,
+            discovers=discover_count,
+        )
+        return 0  # discover workers don't produce fetched articles
+
+    def _fetch_worker_loop(
+        self,
+        worker_id: int,
+        host_queue_map: HostQueueMap,
+        on_result: Callable[[ScrapedArticle], None],
+        pending_discovers: list,
+        pending_lock: threading.Lock,
+    ) -> int:
+        """Worker that processes FetchTask items from queues."""
+        logger.info("fetch_worker_started", worker_id=worker_id)
+        fetched = 0
+
+        while True:
+            claimed_idx = self._try_claim(host_queue_map)
+
+            if claimed_idx is None:
+                with pending_lock:
+                    if pending_discovers[0] <= 0 and all(
+                        q.empty() for q in host_queue_map.queues
+                    ):
+                        break
+                time.sleep(0.05)
+                continue
+
+            executed_fetch = False
+            try:
+                try:
+                    task = host_queue_map.queues[claimed_idx].get_nowait()
+                except queue.Empty:
+                    continue
+
+                if isinstance(task, FetchTask):
+                    executed_fetch = True
+                    try:
+                        result = task.execute()
+                        if result is not None:
+                            on_result(result)
+                            fetched += 1
+                        else:
+                            logger.warning("task_returned_none", url=task.url)
+                    except Exception as e:
+                        logger.error("task_execute_failed", url=task.url, error=str(e))
+                # DiscoverTask — put it back for discover workers
+                elif isinstance(task, DiscoverTask):
+                    host_queue_map.queues[claimed_idx].put(task)
+
+            finally:
+                if executed_fetch:
+                    time.sleep(self._fetch_delay)
+                host_queue_map.semaphores[claimed_idx].release()
+
+        logger.info("fetch_worker_stopped", worker_id=worker_id, fetched=fetched)
+        return fetched
+
+    # ── Shared helpers ──────────────────────────────────────────────────
+
     def _try_claim(self, host_queue_map: HostQueueMap) -> Optional[int]:
-        """
-        Ask the selector for candidate indices and try to acquire each semaphore
-        non-blocking.  Returns the first acquired index, or None.
-        """
         for idx in self._selector.select(host_queue_map.queues):
             if host_queue_map.semaphores[idx].acquire(blocking=False):
                 if not host_queue_map.queues[idx].empty():
                     return idx
                 host_queue_map.semaphores[idx].release()
         return None
+
+    @staticmethod
+    def _host_for_queue(host_queue_map: HostQueueMap, idx: int) -> str:
+        """Reverse-lookup host name from queue index."""
+        for host, i in host_queue_map.host_map.items():
+            if i == idx:
+                return host
+        return ""
