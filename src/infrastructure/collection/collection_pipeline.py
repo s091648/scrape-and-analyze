@@ -82,7 +82,13 @@ class CollectionPipeline:
 
         # ── Pre-dedup: filter URLs already fully processed ──────────────
         if results and self._article_repo is not None:
-            url_hashes = {UrlHash.from_url(a.url).value: a for a in results}
+            url_hashes: dict[str, ScrapedArticle] = {}
+            for a in results:
+                h = UrlHash.from_url(a.url).value
+                if h in url_hashes:
+                    self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                else:
+                    url_hashes[h] = a
             analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
             if analyzed:
                 kept, skipped = [], []

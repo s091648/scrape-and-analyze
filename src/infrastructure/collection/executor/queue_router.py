@@ -1,6 +1,8 @@
 from typing import List
 from urllib.parse import urlparse
 
+from .discover_task import DiscoverTask
+from .fetch_task import FetchTask
 from .host_queue_map import HostQueueMap
 from src.shared.logging import get_logger
 
@@ -20,7 +22,7 @@ class QueueRouter:
     def __init__(self, host_queue_map: HostQueueMap) -> None:
         self._map = host_queue_map
 
-    def route(self, tasks: List) -> None:
+    def route(self, tasks: List[FetchTask]) -> None:
         """Assign each FetchTask to its URL host's queue."""
         for task in tasks:
             host = self._extract_host(task.url)
@@ -28,7 +30,7 @@ class QueueRouter:
             self._map.queues[idx].put(task)
             logger.debug("task_routed", url=task.url, host=host, queue_idx=idx)
 
-    def route_discover(self, tasks: List) -> None:
+    def route_discover(self, tasks: List[DiscoverTask]) -> None:
         """Assign each DiscoverTask to its host's queue."""
         for task in tasks:
             idx = self._map.get_or_create(task.host)

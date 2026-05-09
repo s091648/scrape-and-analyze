@@ -190,12 +190,15 @@ class ScrapeExecutor:
                         continue
 
                     if isinstance(task, FetchTask):
-                        result = task.execute()
-                        if result is not None:
-                            on_result(result)
-                            fetched += 1
-                        else:
-                            logger.warning("task_returned_none", url=task.url)
+                        try:
+                            result = task.execute()
+                            if result is not None:
+                                on_result(result)
+                                fetched += 1
+                            else:
+                                logger.warning("task_returned_none", url=task.url)
+                        except Exception as e:
+                            logger.error("task_execute_failed", url=task.url, error=str(e))
 
                 finally:
                     time.sleep(self._fetch_delay)
@@ -246,6 +249,7 @@ class ScrapeExecutor:
                 time.sleep(0.05)
                 continue
 
+            executed_discover = False
             try:
                 try:
                     task = host_queue_map.queues[claimed_idx].get_nowait()
@@ -255,6 +259,7 @@ class ScrapeExecutor:
                 if isinstance(task, DiscoverTask):
                     fetch_tasks = task.execute()
                     discover_count += 1
+                    executed_discover = True
 
                     # Route resulting fetch tasks back into queues
                     if fetch_tasks:
@@ -275,10 +280,12 @@ class ScrapeExecutor:
             finally:
                 # Per-host discover cooldown — hold semaphore during sleep so
                 # no other worker hits this host until cooldown expires.
-                host = self._host_for_queue(host_queue_map, claimed_idx)
-                delay = self._discover_delays.get(host, 0.0)
-                if delay > 0:
-                    time.sleep(delay)
+                # Only apply when a DiscoverTask was actually executed.
+                if executed_discover:
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
+                    delay = self._discover_delays.get(host, 0.0)
+                    if delay > 0:
+                        time.sleep(delay)
                 host_queue_map.semaphores[claimed_idx].release()
 
         logger.info(
@@ -312,6 +319,7 @@ class ScrapeExecutor:
                 time.sleep(0.05)
                 continue
 
+            executed_fetch = False
             try:
                 try:
                     task = host_queue_map.queues[claimed_idx].get_nowait()
@@ -319,18 +327,23 @@ class ScrapeExecutor:
                     continue
 
                 if isinstance(task, FetchTask):
-                    result = task.execute()
-                    if result is not None:
-                        on_result(result)
-                        fetched += 1
-                    else:
-                        logger.warning("task_returned_none", url=task.url)
+                    executed_fetch = True
+                    try:
+                        result = task.execute()
+                        if result is not None:
+                            on_result(result)
+                            fetched += 1
+                        else:
+                            logger.warning("task_returned_none", url=task.url)
+                    except Exception as e:
+                        logger.error("task_execute_failed", url=task.url, error=str(e))
                 # DiscoverTask — put it back for discover workers
                 elif isinstance(task, DiscoverTask):
                     host_queue_map.queues[claimed_idx].put(task)
 
             finally:
-                time.sleep(self._fetch_delay)
+                if executed_fetch:
+                    time.sleep(self._fetch_delay)
                 host_queue_map.semaphores[claimed_idx].release()
 
         logger.info("fetch_worker_stopped", worker_id=worker_id, fetched=fetched)
