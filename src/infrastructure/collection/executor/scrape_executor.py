@@ -273,12 +273,13 @@ class ScrapeExecutor:
                     host_queue_map.queues[claimed_idx].put(task)
 
             finally:
-                host_queue_map.semaphores[claimed_idx].release()
-                # Per-host discover cooldown
+                # Per-host discover cooldown — hold semaphore during sleep so
+                # no other worker hits this host until cooldown expires.
                 host = self._host_for_queue(host_queue_map, claimed_idx)
                 delay = self._discover_delays.get(host, 0.0)
                 if delay > 0:
                     time.sleep(delay)
+                host_queue_map.semaphores[claimed_idx].release()
 
         logger.info(
             "discover_worker_stopped",
