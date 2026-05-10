@@ -81,7 +81,7 @@ class CollectionPipeline:
         )
 
         # ── Pre-dedup: filter URLs already fully processed ──────────────
-        if results and self._article_repo is not None:
+        if results:
             url_hashes: dict[str, ScrapedArticle] = {}
             for a in results:
                 h = UrlHash.from_url(a.url).value
@@ -89,19 +89,22 @@ class CollectionPipeline:
                     self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
                 else:
                     url_hashes[h] = a
-            analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
-            if analyzed:
-                kept, skipped = [], []
-                for h, a in url_hashes.items():
-                    (skipped if h in analyzed else kept).append(a)
-                for a in skipped:
-                    self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
-                results = kept
-                logger.info(
-                    "post_dedup_filtered",
-                    skipped=len(skipped),
-                    remaining=len(results),
-                )
+            results = list(url_hashes.values())
+
+            if self._article_repo is not None:
+                analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
+                if analyzed:
+                    kept, skipped = [], []
+                    for h, a in url_hashes.items():
+                        (skipped if h in analyzed else kept).append(a)
+                    for a in skipped:
+                        self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                    results = kept
+                    logger.info(
+                        "post_dedup_filtered",
+                        skipped=len(skipped),
+                        remaining=len(results),
+                    )
 
         # ── Publish DTOs to event bus (triggers ArticleScrapedHandler) ─
         published = 0

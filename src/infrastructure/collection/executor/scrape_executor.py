@@ -54,7 +54,7 @@ class ScrapeExecutor:
         self._num_workers = num_workers
         self._discover_workers = discover_workers
         self._fetch_delay = fetch_delay
-        self._discover_delays = discover_delays or _DEFAULT_DISCOVER_DELAYS
+        self._discover_delays = discover_delays if discover_delays is not None else _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
 
     def run(
@@ -257,21 +257,22 @@ class ScrapeExecutor:
                     continue
 
                 if isinstance(task, DiscoverTask):
-                    fetch_tasks = task.execute()
-                    discover_count += 1
-                    executed_discover = True
+                    try:
+                        fetch_tasks = task.execute()
+                        discover_count += 1
+                        executed_discover = True
 
-                    # Route resulting fetch tasks back into queues
-                    if fetch_tasks:
-                        router.route(fetch_tasks)
-                        logger.info(
-                            "discover_produced_fetch_tasks",
-                            source=task.setting.source,
-                            host=task.host,
-                            count=len(fetch_tasks),
-                        )
-
-                    on_discover_complete()
+                        # Route resulting fetch tasks back into queues
+                        if fetch_tasks:
+                            router.route(fetch_tasks)
+                            logger.info(
+                                "discover_produced_fetch_tasks",
+                                source=task.setting.source,
+                                host=task.host,
+                                count=len(fetch_tasks),
+                            )
+                    finally:
+                        on_discover_complete()
                 # If it's a FetchTask in this queue, leave it for fetch workers
                 # — put it back and release semaphore
                 elif isinstance(task, FetchTask):
