@@ -13,6 +13,7 @@ from .base_scraper import BaseScraper
 from .rss_scraper import RssScraper
 from .blog_scraper import BlogScraper
 from .arxiv_scraper import ArxivScraper
+from src.infrastructure.collection.clients import ArxivClient, RssClient
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,12 @@ def _extract(items, vo_type, attr: str) -> list | None:
 class ConcreteScraperFactory(ScraperFactory):
     """Creates the appropriate BaseScraper for a given ScraperSetting."""
 
+    def __init__(self, http_client=None) -> None:
+        if http_client is None:
+            from src.infrastructure.shared.http import get_default_client
+            http_client = get_default_client()
+        self._http_client = http_client
+
     def create_for(self, setting: ScraperSetting, days_back: int = None) -> BaseScraper:
         cfg = setting.selector_config
 
@@ -38,6 +45,7 @@ class ConcreteScraperFactory(ScraperFactory):
                 keywords=_extract(setting.keyword_items, RssKeyword, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
+                client=RssClient(http_client=self._http_client),
             )
 
         if isinstance(cfg, BlogConfig):
@@ -59,6 +67,7 @@ class ConcreteScraperFactory(ScraperFactory):
                 categories=_extract(setting.keyword_items, ArxivCategory, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
+                client=ArxivClient(http_client=self._http_client),
             )
 
         logger.warning("unknown_source_type", source_type=setting.source_type)
