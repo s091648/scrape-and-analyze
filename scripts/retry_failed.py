@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.infrastructure.persistence.database import get_session, init_db, find_recent_failures
+from src.infrastructure.persistence.database import get_session, init_db
 from src.infrastructure.shared.logging import bind_correlation_id
 from src.shared.logging import get_logger
 
@@ -200,7 +200,9 @@ def main():
     session = get_session()
     try:
         if args.hours:
-            failures = find_recent_failures(session, hours=args.hours)
+            from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
+            failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
+            failures = failed_task_repo.find_recent_failures(hours=args.hours)
         else:
             from models.failed_task import FailedTask
             failures = session.query(FailedTask).filter_by(resolved=False).all()

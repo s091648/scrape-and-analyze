@@ -1,4 +1,8 @@
 from uuid import uuid4
+from datetime import datetime, timedelta, timezone
+from typing import List
+
+from sqlalchemy import not_
 
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import AnalysisRepository
@@ -68,3 +72,37 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
 
         self._session.commit()
         logger.info("analysis_saved", article_id=str(analysis.article_id), model=metadata.model_used)
+
+    def find_missing_analyses(self) -> List:
+        """Find articles that have no analysis."""
+        from models.article import Article
+        from models.analysis import Analysis as AnalysisModel
+
+        analyzed_ids = self._session.query(AnalysisModel.article_id).all()
+        analyzed_ids = [aid[0] for aid in analyzed_ids]
+
+        if not analyzed_ids:
+            return self._session.query(Article).all()
+
+        return self._session.query(Article).filter(
+            not_(Article.id.in_(analyzed_ids))
+        ).all()
+
+    def scan_missing_analyses(self, min_age_hours: int = 1) -> List:
+        """Find articles older than min_age_hours that have no analysis (zombie detection)."""
+        from models.article import Article
+        from models.analysis import Analysis as AnalysisModel
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=min_age_hours)
+
+        analyzed_ids = self._session.query(AnalysisModel.article_id).all()
+        analyzed_ids = [aid[0] for aid in analyzed_ids]
+
+        query = self._session.query(Article).filter(
+            Article.scraped_at < cutoff
+        )
+
+        if analyzed_ids:
+            query = query.filter(not_(Article.id.in_(analyzed_ids)))
+
+        return query.all()

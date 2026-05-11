@@ -1,7 +1,5 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta, timezone
-import uuid
 
 
 def test_engine_uses_nullpool():
@@ -13,9 +11,10 @@ def test_engine_uses_nullpool():
 
 
 def test_find_recent_failures_filters_by_time():
-    from src.infrastructure.persistence.database import find_recent_failures
+    from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     mock_session = MagicMock()
     mock_session.query.return_value.filter.return_value.all.return_value = []
-    result = find_recent_failures(mock_session, hours=24)
+    repo = SqlAlchemyFailedTaskRepository(session=mock_session)
+    result = repo.find_recent_failures(hours=24)
     mock_session.query.return_value.filter.assert_called()
     assert result == []
