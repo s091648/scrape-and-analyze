@@ -18,7 +18,7 @@ CACHE_TTL_SECONDS = 300  # 5 minutes
 def load_group_defs(db: Session, lang: str = "en") -> dict:
     """Load tag group definitions as a name→metadata dict, with optional translation."""
     from models.tag_group import TagGroupDefinition
-    from models.tag_group_translation import TagGroupDefinitionTranslation
+    from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     rows = db.query(TagGroupDefinition).order_by(TagGroupDefinition.sort_order).all()
 
@@ -26,9 +26,9 @@ def load_group_defs(db: Session, lang: str = "en") -> dict:
     if lang != "en":
         group_ids = [r.id for r in rows]
         if group_ids:
-            translations = db.query(TagGroupDefinitionTranslation).filter(
-                TagGroupDefinitionTranslation.tag_group_definition_id.in_(group_ids),
-                TagGroupDefinitionTranslation.language == lang,
+            translations = db.query(TagGroupDefinitionsTranslation).filter(
+                TagGroupDefinitionsTranslation.tag_group_definition_id.in_(group_ids),
+                TagGroupDefinitionsTranslation.language == lang,
             ).all()
             group_trans_map = {gt.tag_group_definition_id: gt for gt in translations}
 
@@ -150,8 +150,8 @@ def get_group_articles(group_name: str,
                        lang: str = Query(default="en"),
                        db: Session = Depends(get_db)):
     from models.analyses_translation import AnalysesTranslation
-    from models.tag_translation import TagTranslation
-    from models.tag_group_translation import TagGroupDefinitionTranslation
+    from models.tag_translation import TagsTranslation
+    from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     group_def = load_group_def(db, group_name)
 
@@ -159,9 +159,9 @@ def get_group_articles(group_name: str,
     display_name = group_def.display_name if group_def else group_name
     group_description = group_def.description if group_def else None
     if lang != "en" and group_def:
-        group_trans = db.query(TagGroupDefinitionTranslation).filter(
-            TagGroupDefinitionTranslation.tag_group_definition_id == group_def.id,
-            TagGroupDefinitionTranslation.language == lang,
+        group_trans = db.query(TagGroupDefinitionsTranslation).filter(
+            TagGroupDefinitionsTranslation.tag_group_definition_id == group_def.id,
+            TagGroupDefinitionsTranslation.language == lang,
         ).first()
         if group_trans:
             display_name = group_trans.display_name
@@ -196,9 +196,9 @@ def get_group_articles(group_name: str,
                     if tag.tag_group_name == group_name:
                         tag_ids.add(tag.id)
         if tag_ids:
-            tag_translations = db.query(TagTranslation).filter(
-                TagTranslation.tag_id.in_(tag_ids),
-                TagTranslation.language == lang,
+            tag_translations = db.query(TagsTranslation).filter(
+                TagsTranslation.tag_id.in_(tag_ids),
+                TagsTranslation.language == lang,
             ).all()
             tag_trans_map = {tt.tag_id: tt.name for tt in tag_translations}
 

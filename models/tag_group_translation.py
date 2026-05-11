@@ -6,8 +6,8 @@ import uuid
 from models.base import Base
 
 
-class TagGroupDefinitionTranslation(Base):
-    __tablename__ = 'tag_group_definition_translations'
+class TagGroupDefinitionsTranslation(Base):
+    __tablename__ = 'tag_group_definitions_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tag_group_definition_id = Column(UUID(as_uuid=True), ForeignKey('tag_group_definitions.id'), nullable=False)
@@ -19,7 +19,7 @@ class TagGroupDefinitionTranslation(Base):
     group_def = relationship('TagGroupDefinition', backref='translations')
 
     __table_args__ = (
-        UniqueConstraint('tag_group_definition_id', 'language', name='uq_tag_group_definition_translations_group_language'),
-        Index('idx_tag_group_definition_translations_group_id', 'tag_group_definition_id'),
-        Index('idx_tag_group_definition_translations_language', 'language'),
+        UniqueConstraint('tag_group_definition_id', 'language', name='uq_tag_group_definitions_translation_group_language'),
+        Index('idx_tag_group_definitions_translation_group_id', 'tag_group_definition_id'),
+        Index('idx_tag_group_definitions_translation_language', 'language'),
     )

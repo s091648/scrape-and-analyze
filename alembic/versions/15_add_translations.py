@@ -7,8 +7,8 @@ Create Date: 2026-04-24
 Consolidated migration for i18n support:
 - Add language column to analyses
 - Create analyses_translation table for multi-language analysis content
-- Create tag_translations table for multi-language tag names
-- Create tag_group_definition_translations table for multi-language tag group names and descriptions
+- Create tags_translation table for multi-language tag names
+- Create tag_group_definitions_translation table for multi-language tag group names and descriptions
 - Migrate English content from analyses to analyses_translation
 - Drop content columns from analyses
 """
@@ -76,10 +76,10 @@ def upgrade() -> None:
     )
 
     # ========================================
-    # Step 3: Create tag_translations table
+    # Step 3: Create tags_translation table
     # ========================================
     op.create_table(
-        "tag_translations",
+        "tags_translation",
         sa.Column("id", UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
         sa.Column("tag_id", UUID(as_uuid=True), nullable=False),
@@ -89,19 +89,19 @@ def upgrade() -> None:
                   server_default=sa.text("NOW()")),
     )
     op.create_index(
-        "idx_tag_translations_tag_id", "tag_translations", ["tag_id"]
+        "idx_tags_translation_tag_id", "tags_translation", ["tag_id"]
     )
     op.create_index(
-        "idx_tag_translations_language", "tag_translations", ["language"]
+        "idx_tags_translation_language", "tags_translation", ["language"]
     )
     op.create_unique_constraint(
-        "uq_tag_translations_tag_language",
-        "tag_translations",
+        "uq_tags_translation_tag_language",
+        "tags_translation",
         ["tag_id", "language"],
     )
     op.create_foreign_key(
-        "fk_tag_translations_tag_id",
-        "tag_translations",
+        "fk_tags_translation_tag_id",
+        "tags_translation",
         "tags",
         ["tag_id"],
         ["id"],
@@ -109,10 +109,10 @@ def upgrade() -> None:
     )
 
     # ========================================
-    # Step 4: Create tag_group_definition_translations table
+    # Step 4: Create tag_group_definitions_translation table
     # ========================================
     op.create_table(
-        "tag_group_definition_translations",
+        "tag_group_definitions_translation",
         sa.Column("id", UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
         sa.Column("tag_group_definition_id", UUID(as_uuid=True), nullable=False),
@@ -123,23 +123,23 @@ def upgrade() -> None:
                   server_default=sa.text("NOW()")),
     )
     op.create_index(
-        "idx_tag_group_definition_translations_group_id",
-        "tag_group_definition_translations",
+        "idx_tag_group_definitions_translation_group_id",
+        "tag_group_definitions_translation",
         ["tag_group_definition_id"],
     )
     op.create_index(
-        "idx_tag_group_definition_translations_language",
-        "tag_group_definition_translations",
+        "idx_tag_group_definitions_translation_language",
+        "tag_group_definitions_translation",
         ["language"],
     )
     op.create_unique_constraint(
-        "uq_tag_group_definition_translations_group_language",
-        "tag_group_definition_translations",
+        "uq_tag_group_definitions_translation_group_language",
+        "tag_group_definitions_translation",
         ["tag_group_definition_id", "language"],
     )
     op.create_foreign_key(
-        "fk_tag_group_definition_translations_group_id",
-        "tag_group_definition_translations",
+        "fk_tag_group_definitions_translation_group_id",
+        "tag_group_definitions_translation",
         "tag_group_definitions",
         ["tag_group_definition_id"],
         ["id"],
@@ -215,48 +215,48 @@ def downgrade() -> None:
     op.alter_column("analyses", "language", nullable=False)
 
     # ========================================
-    # Step 5: Drop tag_group_definition_translations
+    # Step 5: Drop tag_group_definitions_translation
     # ========================================
     op.drop_constraint(
-        "fk_tag_group_definition_translations_group_id",
-        "tag_group_definition_translations",
+        "fk_tag_group_definitions_translation_group_id",
+        "tag_group_definitions_translation",
         type_="foreignkey",
     )
     op.drop_unique_constraint(
-        "uq_tag_group_definition_translations_group_language",
-        "tag_group_definition_translations",
+        "uq_tag_group_definitions_translation_group_language",
+        "tag_group_definitions_translation",
     )
     op.drop_index(
-        "idx_tag_group_definition_translations_language",
-        table_name="tag_group_definition_translations",
+        "idx_tag_group_definitions_translation_language",
+        table_name="tag_group_definitions_translation",
     )
     op.drop_index(
-        "idx_tag_group_definition_translations_group_id",
-        table_name="tag_group_definition_translations",
+        "idx_tag_group_definitions_translation_group_id",
+        table_name="tag_group_definitions_translation",
     )
-    op.drop_table("tag_group_definition_translations")
+    op.drop_table("tag_group_definitions_translation")
 
     # ========================================
-    # Step 6: Drop tag_translations
+    # Step 6: Drop tags_translation
     # ========================================
     op.drop_constraint(
-        "fk_tag_translations_tag_id",
-        "tag_translations",
+        "fk_tags_translation_tag_id",
+        "tags_translation",
         type_="foreignkey",
     )
     op.drop_unique_constraint(
-        "uq_tag_translations_tag_language",
-        "tag_translations",
+        "uq_tags_translation_tag_language",
+        "tags_translation",
     )
     op.drop_index(
-        "idx_tag_translations_language",
-        table_name="tag_translations",
+        "idx_tags_translation_language",
+        table_name="tags_translation",
     )
     op.drop_index(
-        "idx_tag_translations_tag_id",
-        table_name="tag_translations",
+        "idx_tags_translation_tag_id",
+        table_name="tags_translation",
     )
-    op.drop_table("tag_translations")
+    op.drop_table("tags_translation")
 
     # ========================================
     # Step 7: Drop analyses_translation

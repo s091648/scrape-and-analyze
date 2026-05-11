@@ -192,8 +192,8 @@ def get_article_by_id(db: Session, article_id: UUID):
 
 def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:
     from models.tag import Tag, article_tags as at
-    from models.tag_translation import TagTranslation
-    from models.tag_group_translation import TagGroupDefinitionTranslation
+    from models.tag_translation import TagsTranslation
+    from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     tags = (
         db.query(Tag)
@@ -208,17 +208,17 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
     tag_trans_map = {}
     group_trans_map = {}
     if lang != "en" and tag_ids:
-        tag_translations = db.query(TagTranslation).filter(
-            TagTranslation.tag_id.in_(tag_ids),
-            TagTranslation.language == lang,
+        tag_translations = db.query(TagsTranslation).filter(
+            TagsTranslation.tag_id.in_(tag_ids),
+            TagsTranslation.language == lang,
         ).all()
         tag_trans_map = {tt.tag_id: tt.name for tt in tag_translations}
 
         group_ids = list({t.group_def.id for t in tags if t.group_def})
         if group_ids:
-            group_translations = db.query(TagGroupDefinitionTranslation).filter(
-                TagGroupDefinitionTranslation.tag_group_definition_id.in_(group_ids),
-                TagGroupDefinitionTranslation.language == lang,
+            group_translations = db.query(TagGroupDefinitionsTranslation).filter(
+                TagGroupDefinitionsTranslation.tag_group_definition_id.in_(group_ids),
+                TagGroupDefinitionsTranslation.language == lang,
             ).all()
             group_trans_map = {gt.tag_group_definition_id: gt for gt in group_translations}
 

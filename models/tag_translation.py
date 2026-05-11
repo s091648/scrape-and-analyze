@@ -6,8 +6,8 @@ import uuid
 from models.base import Base
 
 
-class TagTranslation(Base):
-    __tablename__ = 'tag_translations'
+class TagsTranslation(Base):
+    __tablename__ = 'tags_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tag_id = Column(UUID(as_uuid=True), ForeignKey('tags.id'), nullable=False)
@@ -18,7 +18,7 @@ class TagTranslation(Base):
     tag = relationship('Tag', backref='translations')
 
     __table_args__ = (
-        UniqueConstraint('tag_id', 'language', name='uq_tag_translations_tag_language'),
-        Index('idx_tag_translations_tag_id', 'tag_id'),
-        Index('idx_tag_translations_language', 'language'),
+        UniqueConstraint('tag_id', 'language', name='uq_tags_translation_tag_language'),
+        Index('idx_tags_translation_tag_id', 'tag_id'),
+        Index('idx_tags_translation_language', 'language'),
     )
