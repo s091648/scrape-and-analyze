@@ -14,7 +14,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
 
     def save(self, analysis: Analysis) -> None:
         from models.analysis import Analysis as AnalysisModel
-        from models.analysis_translation import AnalysisTranslation as AnalysisTranslationModel
+        from models.analyses_translation import AnalysesTranslation as AnalysesTranslationModel
         from models.article import Article as ArticleModel
         from models.tag import Tag
 
@@ -35,7 +35,7 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
         analysis.id = row.id
 
         # Create English translation row with content
-        translation_row = AnalysisTranslationModel(
+        translation_row = AnalysesTranslationModel(
             analysis_id=row.id,
             language='en',
             summary=content.summary,

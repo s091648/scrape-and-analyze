@@ -247,7 +247,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
 def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session = Depends(get_db)):
     from models.tag import Tag, article_tags as at
-    from models.analysis_translation import AnalysisTranslation
+    from models.analyses_translation import AnalysesTranslation
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -260,20 +260,20 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         .all()
     )
 
-    # Get content from analysis_translations (all languages including English)
+    # Get content from analyses_translation (all languages including English)
     pain_points = None
     insights = None
     innovations = None
     if analysis:
-        translation = db.query(AnalysisTranslation).filter(
-            AnalysisTranslation.analysis_id == analysis.id,
-            AnalysisTranslation.language == lang
+        translation = db.query(AnalysesTranslation).filter(
+            AnalysesTranslation.analysis_id == analysis.id,
+            AnalysesTranslation.language == lang
         ).first()
         if not translation and lang != "en":
             # Fallback to English if requested language not available
-            translation = db.query(AnalysisTranslation).filter(
-                AnalysisTranslation.analysis_id == analysis.id,
-                AnalysisTranslation.language == "en"
+            translation = db.query(AnalysesTranslation).filter(
+                AnalysesTranslation.analysis_id == analysis.id,
+                AnalysesTranslation.language == "en"
             ).first()
         if translation:
             pain_points = translation.pain_points

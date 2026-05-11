@@ -5,7 +5,7 @@ from uuid import UUID
 
 
 @dataclass
-class AnalysisTranslation:
+class AnalysesTranslation:
     """Domain entity representing a translated analysis content."""
     id: UUID
     analysis_id: UUID

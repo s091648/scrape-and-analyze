@@ -29,7 +29,7 @@ def _make_article(db_session, *, url=None, source="test"):
 def _make_analysis(db_session, article):
     """Insert and return a committed Analysis linked to the given article."""
     from models.analysis import Analysis
-    from models.analysis_translation import AnalysisTranslation
+    from models.analyses_translation import AnalysesTranslation
 
     analysis = Analysis(
         article_id=article.id,
@@ -41,7 +41,7 @@ def _make_analysis(db_session, article):
     db_session.add(analysis)
     db_session.flush()
 
-    translation = AnalysisTranslation(
+    translation = AnalysesTranslation(
         analysis_id=analysis.id,
         language="en",
         pain_points="Pain points",

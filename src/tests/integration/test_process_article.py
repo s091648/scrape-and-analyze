@@ -90,7 +90,7 @@ def _wire_pipeline(db_session, llm_service):
 def test_process_article_creates_article_and_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
-    from models.analysis_translation import AnalysisTranslation
+    from models.analyses_translation import AnalysesTranslation
     from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
@@ -109,8 +109,8 @@ def test_process_article_creates_article_and_analysis(db_session):
     assert analysis.model_used == "test-model"
     assert analysis.input_tokens == 100
 
-    # Content is now stored in analysis_translations
-    en_translation = db_session.query(AnalysisTranslation).filter_by(
+    # Content is now stored in analyses_translation
+    en_translation = db_session.query(AnalysesTranslation).filter_by(
         analysis_id=analysis.id, language="en"
     ).first()
     assert en_translation is not None

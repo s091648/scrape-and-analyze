@@ -115,7 +115,7 @@ def test_update_analysis_dry_run_skips_db(capsys):
 
 
 def test_update_analysis_executes_update():
-    """update_analysis should call session.execute twice (analyses metadata + analysis_translations content)"""
+    """update_analysis should call session.execute twice (analyses metadata + analyses_translation content)"""
     from scripts.backfill_tags import update_analysis
 
     session = MagicMock()
@@ -128,7 +128,7 @@ def test_update_analysis_executes_update():
     assert metadata_params["model_used"] == "test-model"
     assert metadata_params["input_tokens"] == 10
     assert metadata_params["output_tokens"] == 5
-    # Second call: upsert analysis_translations content
+    # Second call: upsert analyses_translation content
     content_params = session.execute.call_args_list[1][0][1]
     assert content_params["pain_points"] == "pain"
     assert content_params["insights"] == "insight"

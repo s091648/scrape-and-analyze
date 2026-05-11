@@ -61,9 +61,9 @@ def test_article_detail_returns_full_data():
     tag_result = MagicMock()
     tag_result.name = "test-tag"
     mock_db.query.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = [(tag_result,)]
-    # Mock AnalysisTranslation query (for content)
+    # Mock AnalysesTranslation query (for content)
     mock_translation = MagicMock(pain_points="...", insights="...", innovations="...")
-    # The query chain: db.query(AnalysisTranslation).filter(...).first()
+    # The query chain: db.query(AnalysesTranslation).filter(...).first()
     mock_db.query.return_value.filter.return_value.first.return_value = mock_translation
 
     def override_get_db():

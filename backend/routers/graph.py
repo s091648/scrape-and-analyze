@@ -148,7 +148,7 @@ def get_group_articles(group_name: str,
                        topic_id: Optional[UUID] = Query(default=None),
                        lang: str = Query(default="en"),
                        db: Session = Depends(get_db)):
-    from models.analysis_translation import AnalysisTranslation
+    from models.analyses_translation import AnalysesTranslation
     from models.tag_translation import TagTranslation
     from models.tag_group_translation import TagGroupDefinitionTranslation
 
@@ -172,9 +172,9 @@ def get_group_articles(group_name: str,
     en_map = {}
     if analysis_ids:
         languages_to_load = {lang, "en"} if lang != "en" else {"en"}
-        translations = db.query(AnalysisTranslation).filter(
-            AnalysisTranslation.analysis_id.in_(analysis_ids),
-            AnalysisTranslation.language.in_(languages_to_load),
+        translations = db.query(AnalysesTranslation).filter(
+            AnalysesTranslation.analysis_id.in_(analysis_ids),
+            AnalysesTranslation.language.in_(languages_to_load),
         ).all()
         for t in translations:
             if t.language == lang:

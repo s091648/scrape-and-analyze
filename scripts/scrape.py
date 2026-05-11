@@ -132,7 +132,7 @@ def _build_pipeline(no_analyze: bool):
         from src.modules.intelligence.application.events import AnalysisCompletedEvent
         from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
         from src.modules.intelligence.application.event_handlers import AnalysisCompletedHandler
-        from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
+        from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
         from src.config.settings import TRANSLATION_LANGUAGES
 
         llm_service = build_llm_service()
@@ -146,11 +146,11 @@ def _build_pipeline(no_analyze: bool):
         event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
         # Auto-translate after analysis
-        analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
+        analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
         tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
         translate_article_uc = TranslateArticleUseCase(
             llm_service=llm_service,
-            translation_repository=analysis_translation_repo,
+            translation_repository=analyses_translation_repo,
         )
         translate_tags_uc = TranslateTagsUseCase(
             llm_service=llm_service,
@@ -160,7 +160,7 @@ def _build_pipeline(no_analyze: bool):
         analysis_completed_handler = AnalysisCompletedHandler(
             translate_article_uc=translate_article_uc,
             translate_tags_uc=translate_tags_uc,
-            analysis_translation_repo=analysis_translation_repo,
+            analyses_translation_repo=analyses_translation_repo,
             target_languages=target_languages,
             session_rollback_fn=session.rollback,
         )

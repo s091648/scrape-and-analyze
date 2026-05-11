@@ -5,9 +5,9 @@ from fastapi.testclient import TestClient
 
 
 def _make_mock_db():
-    """Create a mock DB session for tests that need AnalysisTranslation queries."""
+    """Create a mock DB session for tests that need AnalysesTranslation queries."""
     mock_db = MagicMock()
-    # db.query(AnalysisTranslation).filter(...).all() → returns empty list
+    # db.query(AnalysesTranslation).filter(...).all() → returns empty list
     mock_db.query.return_value.filter.return_value.all.return_value = []
     return mock_db
 

@@ -7,9 +7,9 @@ Usage:
 This can be run as a scheduled job to continuously translate new content.
 
 Architecture:
-    - Domain: AnalysisTranslation entity, AnalysisTranslationRepository interface
-    - Application: TranslateArticleUseCase (depends on LLMService, AnalysisTranslationRepository)
-    - Infrastructure: SqlAlchemyAnalysisTranslationRepository
+    - Domain: AnalysesTranslation entity, AnalysesTranslationRepository interface
+    - Application: TranslateArticleUseCase (depends on LLMService, AnalysesTranslationRepository)
+    - Infrastructure: SqlAlchemyAnalysesTranslationRepository
     - Bootstrap: build_translation_pipeline() assembles dependencies
 """
 import argparse
@@ -66,7 +66,7 @@ def main():
 
     pipeline = build_translation_pipeline()
     translate_use_case = pipeline["use_case"]
-    translation_repo = pipeline["analysis_translation_repository"]
+    translation_repo = pipeline["analyses_translation_repository"]
     tag_translate_use_case = pipeline.get("tag_use_case")
     tag_translation_repo = pipeline.get("tag_translation_repository")
 

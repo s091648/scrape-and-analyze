@@ -1,8 +1,8 @@
 from .analysis import Analysis
-from .analysis_translation import AnalysisTranslation
+from .analyses_translation import AnalysesTranslation
 
 
 __all__ = [
     "Analysis",
-    "AnalysisTranslation",
+    "AnalysesTranslation",
 ]

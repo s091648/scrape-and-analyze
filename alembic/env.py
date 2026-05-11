@@ -7,7 +7,7 @@ from alembic import context
 from models.base import Base
 from models.article import Article  # noqa: F401 — registers Article
 from models.analysis import Analysis  # noqa: F401 — registers Analysis
-from models.analysis_translation import AnalysisTranslation  # noqa: F401 — registers AnalysisTranslation
+from models.analyses_translation import AnalysesTranslation  # noqa: F401 — registers AnalysesTranslation
 from models.failed_task import FailedTask  # noqa: F401 — registers FailedTask
 
 config = context.config

@@ -32,7 +32,7 @@ def db_engine():
     from models.topic import Topic                  # noqa: F401
     from models.arxiv_metadata import ArxivMetadata  # noqa: F401
     from models.analysis import Analysis            # noqa: F401
-    from models.analysis_translation import AnalysisTranslation  # noqa: F401
+    from models.analyses_translation import AnalysesTranslation  # noqa: F401
     from models.failed_task import FailedTask       # noqa: F401
     from models.tag import Tag                      # noqa: F401
     from models.tag_group import TagGroupDefinition  # noqa: F401

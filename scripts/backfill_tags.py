@@ -85,7 +85,7 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
 
 
 def update_analysis(session, analysis_id, content, metadata, dry_run=False):
-    """Overwrite content on analysis_translations and metadata on the analyses row."""
+    """Overwrite content on analyses_translation and metadata on the analyses row."""
     if dry_run:
         pain_points_preview = content.pain_points[:50] if content.pain_points else ""
         print(
@@ -109,10 +109,10 @@ def update_analysis(session, analysis_id, content, metadata, dry_run=False):
             "output_tokens": metadata.output_tokens,
         },
     )
-    # Upsert content on analysis_translations (English row)
+    # Upsert content on analyses_translation (English row)
     session.execute(
         text("""
-            INSERT INTO analysis_translations (id, analysis_id, language, summary, pain_points, insights, innovations, created_at, updated_at)
+            INSERT INTO analyses_translation (id, analysis_id, language, summary, pain_points, insights, innovations, created_at, updated_at)
             VALUES (gen_random_uuid(), :analysis_id, 'en', :summary, :pain_points, :insights, :innovations, NOW(), NOW())
             ON CONFLICT (analysis_id, language) DO UPDATE
             SET summary      = EXCLUDED.summary,

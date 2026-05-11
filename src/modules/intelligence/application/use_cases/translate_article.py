@@ -3,14 +3,14 @@ from uuid import UUID
 
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService
-from src.modules.intelligence.domain.repositories import AnalysisTranslationRepository, TagTranslationRepository
-from src.modules.intelligence.domain.entities import AnalysisTranslation
+from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository, TagTranslationRepository
+from src.modules.intelligence.domain.entities import AnalysesTranslation
 from src.modules.intelligence.domain.value_objects import (
     ArticleTranslationPrompt,
     TagTranslationPrompt,
     GroupTranslationPrompt,
-    AnalysisTranslationContent,
-    AnalysisTranslationResult,
+    AnalysesTranslationContent,
+    AnalysesTranslationResult,
 )
 
 logger = get_logger(__name__)
@@ -22,13 +22,13 @@ class TranslateArticleUseCase:
 
     Depends on:
     - LLMService: for translating content via LLM
-    - AnalysisTranslationRepository: for persisting translations
+    - AnalysesTranslationRepository: for persisting translations
     """
 
     def __init__(
         self,
         llm_service: LLMService,
-        translation_repository: AnalysisTranslationRepository,
+        translation_repository: AnalysesTranslationRepository,
     ) -> None:
         self._llm_service = llm_service
         self._translation_repository = translation_repository
@@ -41,21 +41,21 @@ class TranslateArticleUseCase:
         insights: Optional[str],
         innovations: Optional[str],
         target_language: str,
-    ) -> AnalysisTranslationResult:
+    ) -> AnalysesTranslationResult:
         """
         Translate article analysis to target language.
 
-        Returns AnalysisTranslationResult with translated content or failure flag.
+        Returns AnalysesTranslationResult with translated content or failure flag.
         """
         # Check if translation already exists
         if self._translation_repository.exists(analysis_id, target_language):
             logger.info("translation_already_exists", analysis_id=str(analysis_id), language=target_language)
             existing = self._translation_repository.find_by_analysis_id_and_language(analysis_id, target_language)
             if existing:
-                return AnalysisTranslationResult(
+                return AnalysesTranslationResult(
                     analysis_id=analysis_id,
                     language=target_language,
-                    content=AnalysisTranslationContent(
+                    content=AnalysesTranslationContent(
                         summary=existing.summary,
                         pain_points=existing.pain_points,
                         insights=existing.insights,
@@ -78,10 +78,10 @@ class TranslateArticleUseCase:
 
         if translated is None:
             logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
-            return AnalysisTranslationResult(
+            return AnalysesTranslationResult(
                 analysis_id=analysis_id,
                 language=target_language,
-                content=AnalysisTranslationContent(
+                content=AnalysesTranslationContent(
                     summary=None,
                     pain_points=None,
                     insights=None,
@@ -91,7 +91,7 @@ class TranslateArticleUseCase:
             )
 
         # Save translation
-        translation = AnalysisTranslation(
+        translation = AnalysesTranslation(
             analysis_id=analysis_id,
             language=target_language,
             summary=translated.summary,
@@ -105,10 +105,10 @@ class TranslateArticleUseCase:
             logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
         except Exception as e:
             logger.error("translation_save_failed", analysis_id=str(analysis_id), error=str(e))
-            return AnalysisTranslationResult(
+            return AnalysesTranslationResult(
                 analysis_id=analysis_id,
                 language=target_language,
-                content=AnalysisTranslationContent(
+                content=AnalysesTranslationContent(
                     summary=None,
                     pain_points=None,
                     insights=None,
@@ -117,14 +117,14 @@ class TranslateArticleUseCase:
                 success=False,
             )
 
-        return AnalysisTranslationResult(
+        return AnalysesTranslationResult(
             analysis_id=analysis_id,
             language=target_language,
             content=translated,
             success=True,
         )
 
-    def _call_llm(self, prompt: ArticleTranslationPrompt) -> Optional[AnalysisTranslationContent]:
+    def _call_llm(self, prompt: ArticleTranslationPrompt) -> Optional[AnalysesTranslationContent]:
         """Translate content using LLM service."""
         try:
             translated_text = self._llm_service.translate("", prompt.content)
@@ -136,7 +136,7 @@ class TranslateArticleUseCase:
             return None
 
     @staticmethod
-    def _parse_sections(text: str) -> AnalysisTranslationContent:
+    def _parse_sections(text: str) -> AnalysesTranslationContent:
         """Parse translated text into sections by header."""
         import re
         header_map = {
@@ -152,7 +152,7 @@ class TranslateArticleUseCase:
                 if re.match(rf'^{header}\s*[:：]', part, re.IGNORECASE):
                     fields[key] = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip()
                     break
-        return AnalysisTranslationContent(**fields)
+        return AnalysesTranslationContent(**fields)
 
 
 class TranslateTagsUseCase:
