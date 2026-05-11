@@ -206,7 +206,7 @@ class TranslateTagsUseCase:
         return {"total": len(tags), "success": success, "failed": failed}
 
     def translate_groups(self, language: str, limit: int = 50) -> Dict[str, int]:
-        """Translate tag group display names that are missing translations."""
+        """Translate tag group display names and descriptions that are missing translations."""
         groups = self._tag_repo.find_groups_without_translation(language, limit)
         if not groups:
             logger.info("no_groups_to_translate", language=language)
@@ -214,12 +214,12 @@ class TranslateTagsUseCase:
 
         logger.info("groups_to_translate", count=len(groups), language=language)
 
-        display_names = [g["display_name"] for g in groups]
+        group_lines = [GroupTranslationPrompt.format_group(g["display_name"], g.get("description")) for g in groups]
         group_ids = [g["id"] for g in groups]
 
         prompt = GroupTranslationPrompt().render(
             target_language=language,
-            groups=display_names,
+            groups=group_lines,
         )
 
         translated_text = self._llm_service.translate("", prompt.content)
@@ -233,7 +233,11 @@ class TranslateTagsUseCase:
         for i, group_id in enumerate(group_ids):
             if i < len(translated_lines):
                 try:
-                    self._tag_repo.save_group_translation(group_id, language, translated_lines[i])
+                    # Parse "display_name | description" format from LLM response
+                    parts = translated_lines[i].split("|", 1)
+                    display_name = parts[0].strip()
+                    description = parts[1].strip() if len(parts) > 1 else None
+                    self._tag_repo.save_group_translation(group_id, language, display_name, description)
                     success += 1
                 except Exception as e:
                     logger.warning("group_translation_save_failed", group_id=str(group_id), error=str(e))

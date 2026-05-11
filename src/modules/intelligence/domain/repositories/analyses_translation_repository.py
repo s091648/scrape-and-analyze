@@ -53,9 +53,9 @@ class TagTranslationRepository(ABC):
 
     @abstractmethod
     def save_group_translation(
-        self, tag_group_definition_id: UUID, language: str, display_name: str
+        self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
     ) -> None:
-        """Save or update a tag group display_name translation."""
+        """Save or update a tag group display_name and description translation."""
         ...
 
     @abstractmethod

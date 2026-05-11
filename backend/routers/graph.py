@@ -30,11 +30,12 @@ def load_group_defs(db: Session, lang: str = "en") -> dict:
                 TagGroupDefinitionTranslation.tag_group_definition_id.in_(group_ids),
                 TagGroupDefinitionTranslation.language == lang,
             ).all()
-            group_trans_map = {gt.tag_group_definition_id: gt.display_name for gt in translations}
+            group_trans_map = {gt.tag_group_definition_id: gt for gt in translations}
 
     return {
         r.name: {
-            'display_name': group_trans_map.get(r.id, r.display_name),
+            'display_name': group_trans_map.get(r.id, r).display_name if r.id in group_trans_map else r.display_name,
+            'description': group_trans_map.get(r.id, r).description if r.id in group_trans_map else r.description,
             'color_hex': r.color_hex or '#6b7280',
         }
         for r in rows
@@ -154,8 +155,9 @@ def get_group_articles(group_name: str,
 
     group_def = load_group_def(db, group_name)
 
-    # Translate group display name
+    # Translate group display name and description
     display_name = group_def.display_name if group_def else group_name
+    group_description = group_def.description if group_def else None
     if lang != "en" and group_def:
         group_trans = db.query(TagGroupDefinitionTranslation).filter(
             TagGroupDefinitionTranslation.tag_group_definition_id == group_def.id,
@@ -163,6 +165,7 @@ def get_group_articles(group_name: str,
         ).first()
         if group_trans:
             display_name = group_trans.display_name
+            group_description = group_trans.description
 
     analyses = query_group_articles(db, group_name, topic_id=topic_id)
 
@@ -225,6 +228,7 @@ def get_group_articles(group_name: str,
         result.append({
             'groupName': group_name,
             'displayName': display_name,
+            'groupDescription': group_description,
             'tags': group_tags,
             'articleId': str(analysis.article_id),
             'title': article.title,

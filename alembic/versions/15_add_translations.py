@@ -6,10 +6,10 @@ Create Date: 2026-04-24
 
 Consolidated migration for i18n support:
 - Add language column to analyses
-- Create analysis_translations table for multi-language analysis content
+- Create analyses_translation table for multi-language analysis content
 - Create tag_translations table for multi-language tag names
-- Create tag_group_definition_translations table for multi-language tag group names
-- Migrate English content from analyses to analysis_translations
+- Create tag_group_definition_translations table for multi-language tag group names and descriptions
+- Migrate English content from analyses to analyses_translation
 - Drop content columns from analyses
 """
 from typing import Sequence, Union
@@ -34,10 +34,10 @@ def upgrade() -> None:
     op.create_index("idx_analyses_language", "analyses", ["language"])
 
     # ========================================
-    # Step 2: Create analysis_translations table
+    # Step 2: Create analyses_translation table
     # ========================================
     op.create_table(
-        "analysis_translations",
+        "analyses_translation",
         sa.Column("id", UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
         sa.Column("analysis_id", UUID(as_uuid=True), nullable=False),
@@ -52,23 +52,23 @@ def upgrade() -> None:
                   server_default=sa.text("NOW()")),
     )
     op.create_index(
-        "idx_analysis_translations_analysis_id",
-        "analysis_translations",
+        "idx_analyses_translation_analysis_id",
+        "analyses_translation",
         ["analysis_id"],
     )
     op.create_index(
-        "idx_analysis_translations_language",
-        "analysis_translations",
+        "idx_analyses_translation_language",
+        "analyses_translation",
         ["language"],
     )
     op.create_unique_constraint(
-        "uq_analysis_translations_analysis_language",
-        "analysis_translations",
+        "uq_analyses_translation_analysis_language",
+        "analyses_translation",
         ["analysis_id", "language"],
     )
     op.create_foreign_key(
-        "fk_analysis_translations_analysis_id",
-        "analysis_translations",
+        "fk_analyses_translation_analysis_id",
+        "analyses_translation",
         "analyses",
         ["analysis_id"],
         ["id"],
@@ -118,6 +118,7 @@ def upgrade() -> None:
         sa.Column("tag_group_definition_id", UUID(as_uuid=True), nullable=False),
         sa.Column("language", sa.String(10), nullable=False),
         sa.Column("display_name", sa.String(200), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True),
                   server_default=sa.text("NOW()")),
     )
@@ -150,7 +151,7 @@ def upgrade() -> None:
     # ========================================
     op.execute(
         """
-        INSERT INTO analysis_translations
+        INSERT INTO analyses_translation
             (id, analysis_id, language, summary, pain_points, insights, innovations, created_at, updated_at)
         SELECT
             gen_random_uuid(), id, 'en', summary, pain_points, insights, innovations, analyzed_at, analyzed_at
@@ -188,7 +189,7 @@ def downgrade() -> None:
     op.create_index("idx_analyses_language", "analyses", ["language"])
 
     # ========================================
-    # Step 2: Copy English content back from analysis_translations
+    # Step 2: Copy English content back from analyses_translation
     # ========================================
     op.execute(
         """
@@ -198,15 +199,15 @@ def downgrade() -> None:
             insights = at.insights,
             innovations = at.innovations,
             language = 'en'
-        FROM analysis_translations at
+        FROM analyses_translation at
         WHERE at.analysis_id = analyses.id AND at.language = 'en'
         """
     )
 
     # ========================================
-    # Step 3: Delete English rows from analysis_translations
+    # Step 3: Delete English rows from analyses_translation
     # ========================================
-    op.execute("DELETE FROM analysis_translations WHERE language = 'en'")
+    op.execute("DELETE FROM analyses_translation WHERE language = 'en'")
 
     # ========================================
     # Step 4: Make language NOT NULL
@@ -258,23 +259,23 @@ def downgrade() -> None:
     op.drop_table("tag_translations")
 
     # ========================================
-    # Step 7: Drop analysis_translations
+    # Step 7: Drop analyses_translation
     # ========================================
     op.drop_constraint(
-        "fk_analysis_translations_analysis_id",
-        "analysis_translations",
+        "fk_analyses_translation_analysis_id",
+        "analyses_translation",
         type_="foreignkey",
     )
     op.drop_unique_constraint(
-        "uq_analysis_translations_analysis_language",
-        "analysis_translations",
+        "uq_analyses_translation_analysis_language",
+        "analyses_translation",
     )
     op.drop_index(
-        "idx_analysis_translations_language",
-        table_name="analysis_translations",
+        "idx_analyses_translation_language",
+        table_name="analyses_translation",
     )
     op.drop_index(
-        "idx_analysis_translations_analysis_id",
-        table_name="analysis_translations",
+        "idx_analyses_translation_analysis_id",
+        table_name="analyses_translation",
     )
-    op.drop_table("analysis_translations")
+    op.drop_table("analyses_translation")

@@ -50,7 +50,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         ]
 
     def save_group_translation(
-        self, tag_group_definition_id: UUID, language: str, display_name: str
+        self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
     ) -> None:
         from models.tag_group_translation import TagGroupDefinitionTranslation as TagGroupTranslationModel
 
@@ -60,11 +60,13 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
 
         if existing:
             existing.display_name = display_name
+            existing.description = description
         else:
             model = TagGroupTranslationModel(
                 tag_group_definition_id=tag_group_definition_id,
                 language=language,
                 display_name=display_name,
+                description=description,
             )
             self._session.add(model)
 
@@ -85,6 +87,6 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         )
 
         return [
-            {"id": row.id, "name": row.name, "display_name": row.display_name}
+            {"id": row.id, "name": row.name, "display_name": row.display_name, "description": row.description}
             for row in rows
         ]

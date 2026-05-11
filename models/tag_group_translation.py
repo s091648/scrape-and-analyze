@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, UniqueConstraint, Index, DateTime, func
+from sqlalchemy import Column, String, Text, ForeignKey, UniqueConstraint, Index, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -13,6 +13,7 @@ class TagGroupDefinitionTranslation(Base):
     tag_group_definition_id = Column(UUID(as_uuid=True), ForeignKey('tag_group_definitions.id'), nullable=False)
     language = Column(String(10), nullable=False)
     display_name = Column(String(200), nullable=False)
+    description = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     group_def = relationship('TagGroupDefinition', backref='translations')

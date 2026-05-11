@@ -48,15 +48,15 @@ __TAGS__
 
 Return the translated tags, one per line, in the same order. Do not add any other text."""
 
-_GROUP_TEMPLATE = """You are a professional translator. Translate the following tag group display names from English to __TARGET_LANGUAGE__.
+_GROUP_TEMPLATE = """You are a professional translator. Translate the following tag group display names and descriptions from English to __TARGET_LANGUAGE__.
 These are category headings for a research article classification system.
-Keep translations concise and natural.
+Keep display name translations concise and natural.
 IMPORTANT: Do NOT translate words or phrases that are fully uppercase or proper nouns (e.g., Digital Twin, AI, IoT, Industry 4.0) — keep them as-is.
 
-Groups (one per line):
+Groups (format: display_name | description per line):
 __GROUPS__
 
-Return the translated group names, one per line, in the same order. Do not add any other text."""
+Return the translated groups, one per line, in the same "display_name | description" format, in the same order. Do not add any other text."""
 
 
 @dataclass(frozen=True)
@@ -121,3 +121,9 @@ class GroupTranslationPrompt(BasePrompt):
         filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
         filled = filled.replace("__GROUPS__", "\n".join(groups))
         return GroupTranslationPrompt(_content=filled)
+
+    @staticmethod
+    def format_group(display_name: str, description: str | None) -> str:
+        """Format a group for the prompt: 'display_name | description'."""
+        desc = description or ""
+        return f"{display_name} | {desc}"

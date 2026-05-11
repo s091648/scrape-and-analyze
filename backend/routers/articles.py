@@ -220,7 +220,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
                 TagGroupDefinitionTranslation.tag_group_definition_id.in_(group_ids),
                 TagGroupDefinitionTranslation.language == lang,
             ).all()
-            group_trans_map = {gt.tag_group_definition_id: gt.display_name for gt in group_translations}
+            group_trans_map = {gt.tag_group_definition_id: gt for gt in group_translations}
 
     groups: dict = {}
     for tag in tags:
@@ -228,14 +228,18 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
         if gname not in groups:
             gdef = tag.group_def
             display_name = gname
+            description = None
             if gdef:
                 if lang != "en" and gdef.id in group_trans_map:
-                    display_name = group_trans_map[gdef.id]
+                    display_name = group_trans_map[gdef.id].display_name
+                    description = group_trans_map[gdef.id].description
                 else:
                     display_name = gdef.display_name
+                    description = gdef.description
             groups[gname] = {
                 "group_name": gname,
                 "display_name": display_name,
+                "description": description,
                 "color": gdef.color_hex if gdef else "#6b7280",
                 "tags": [],
             }
