@@ -39,7 +39,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Fetch available languages and resolved language from API
-    fetch('/api/proxy/api/languages')
+    fetch('/api/proxy/languages')
       .then(res => res.json())
       .then(data => {
         setAvailableLanguages(data.available || [])
