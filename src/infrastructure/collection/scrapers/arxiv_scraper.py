@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -25,6 +26,7 @@ class ArxivScraper(BaseScraper):
         topic_id: Optional[UUID] = None,
         prompt_override: Optional[str] = None,
         client: ArxivClient = None,
+        since: Optional[datetime] = None,
     ) -> None:
         self._max_results = max_results
         self._days_back = days_back
@@ -35,13 +37,17 @@ class ArxivScraper(BaseScraper):
         self._prompt_override = prompt_override
         self._client = client or ArxivClient()  # fallback for standalone usage
         self._pdf_parser = PdfParser() if fetch_pdf else None
+        self._since = since
 
     def discover(self) -> List[ScrapeJob]:
         query = self._build_query()
+        # When `since` is set the date range is embedded in the query itself,
+        # so client-side post-filtering via days_back is redundant.
+        days_back = None if self._since else self._days_back
         entries = self._client.fetch_entries(
             query=query,
             max_results=self._max_results,
-            days_back=self._days_back,
+            days_back=days_back,
         )
         jobs = []
         for e in entries:
@@ -108,5 +114,14 @@ class ArxivScraper(BaseScraper):
             cat_clause = " OR ".join(f"cat:{c}" for c in self._categories)
             kw_part = f"({kw_clause})" if " OR " in kw_clause else kw_clause
             cat_part = f"({cat_clause})" if " OR " in cat_clause else cat_clause
-            return f"{cat_part} AND {kw_part}"
-        return kw_clause
+            base = f"{cat_part} AND {kw_part}"
+        else:
+            base = kw_clause
+
+        if self._since:
+            since_str = self._since.astimezone(timezone.utc).strftime("%Y%m%d%H%M")
+            now_str = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+            date_filter = f"submittedDate:[{since_str} TO {now_str}]"
+            return f"({base}) AND {date_filter}"
+
+        return base
