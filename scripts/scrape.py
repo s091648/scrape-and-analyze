@@ -131,6 +131,7 @@ def _build_pipeline(no_analyze: bool):
         from src.modules.intelligence.application.events import AnalysisCompletedEvent
         from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
         from src.modules.intelligence.application.event_handlers import AnalysisCompletedHandler
+        from src.modules.intelligence.domain.value_objects import AnalysisPrompt, ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
         from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
         from src.config.settings import TRANSLATION_LANGUAGES
 
@@ -139,6 +140,7 @@ def _build_pipeline(no_analyze: bool):
             llm_service=llm_service,
             analysis_repository=analysis_repo,
             topic_repository=topic_repo,
+            prompt=AnalysisPrompt(),
         )
         event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
         event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
@@ -149,10 +151,13 @@ def _build_pipeline(no_analyze: bool):
         translate_article_uc = TranslateArticleUseCase(
             llm_service=llm_service,
             translation_repository=analyses_translation_repo,
+            prompt=ArticleTranslationPrompt(),
         )
         translate_tags_uc = TranslateTagsUseCase(
             llm_service=llm_service,
             tag_translation_repository=tag_translation_repo,
+            tag_prompt=TagTranslationPrompt(),
+            group_prompt=GroupTranslationPrompt(),
         )
         target_languages = TRANSLATION_LANGUAGES
         analysis_completed_handler = AnalysisCompletedHandler(

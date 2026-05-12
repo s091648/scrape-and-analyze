@@ -76,6 +76,7 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import AnalysisFailedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.modules.intelligence.application.events import AnalysisFailedEvent
 
     if not failure.article_id:
@@ -111,6 +112,7 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
     result = uc.execute(article)
 
@@ -179,6 +181,7 @@ def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
     event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
     event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)

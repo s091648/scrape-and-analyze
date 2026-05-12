@@ -19,10 +19,12 @@ class AnalyzeArticleUseCase:
         llm_service: LLMService,
         analysis_repository: AnalysisRepository,
         topic_repository: TopicRepository,
+        prompt: AnalysisPrompt,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
         self._topic_repository = topic_repository
+        self._prompt = prompt
 
     def execute(self, article: Article) -> AnalysisResult:
         content = article.get_analysis_content()
@@ -89,7 +91,7 @@ class AnalyzeArticleUseCase:
                     display_name=topic.display_name,
                     description=topic.description or "",
                 )]
-                return AnalysisPrompt().render(
+                return self._prompt.render(
                     topic=topic.display_name,
                     tag_groups=tag_groups,
                 ).content
@@ -98,11 +100,11 @@ class AnalyzeArticleUseCase:
         topics = self._topic_repository.list_active()
         if not topics:
             logger.warning("no_active_topics_using_unrendered_prompt")
-            return AnalysisPrompt().content
+            return self._prompt.content
 
         topic_str = ", ".join(t.display_name for t in topics)
         tag_groups = [
             TagGroup(display_name=t.display_name, description=t.description or "")
             for t in topics
         ]
-        return AnalysisPrompt().render(topic=topic_str, tag_groups=tag_groups).content
+        return self._prompt.render(topic=topic_str, tag_groups=tag_groups).content

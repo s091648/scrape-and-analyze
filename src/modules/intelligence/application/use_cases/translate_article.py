@@ -23,15 +23,18 @@ class TranslateArticleUseCase:
     Depends on:
     - LLMService: for translating content via LLM
     - AnalysesTranslationRepository: for persisting translations
+    - ArticleTranslationPrompt: injected prompt template (infrastructure decides which one)
     """
 
     def __init__(
         self,
         llm_service: LLMService,
         translation_repository: AnalysesTranslationRepository,
+        prompt: ArticleTranslationPrompt,
     ) -> None:
         self._llm_service = llm_service
         self._translation_repository = translation_repository
+        self._prompt = prompt
 
     def execute(
         self,
@@ -64,8 +67,8 @@ class TranslateArticleUseCase:
                     success=True,
                 )
 
-        # Build prompt via value object
-        prompt = ArticleTranslationPrompt().render(
+        # Render prompt from injected template
+        rendered = self._prompt.render(
             target_language=target_language,
             summary=summary or "(empty)",
             pain_points=pain_points or "(empty)",
@@ -74,7 +77,7 @@ class TranslateArticleUseCase:
         )
 
         # Translate using LLM
-        translated = self._call_llm(prompt)
+        translated = self._call_llm(rendered.content)
 
         if translated is None:
             logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
@@ -124,10 +127,10 @@ class TranslateArticleUseCase:
             success=True,
         )
 
-    def _call_llm(self, prompt: ArticleTranslationPrompt) -> Optional[AnalysesTranslationContent]:
+    def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
         """Translate content using LLM service."""
         try:
-            translated_text = self._llm_service.translate("", prompt.content)
+            translated_text = self._llm_service.translate("", prompt_content)
             if translated_text is None:
                 return None
             return self._parse_sections(translated_text)
@@ -162,9 +165,13 @@ class TranslateTagsUseCase:
         self,
         llm_service: LLMService,
         tag_translation_repository: TagTranslationRepository,
+        tag_prompt: TagTranslationPrompt,
+        group_prompt: GroupTranslationPrompt,
     ) -> None:
         self._llm_service = llm_service
         self._tag_repo = tag_translation_repository
+        self._tag_prompt = tag_prompt
+        self._group_prompt = group_prompt
 
     def translate_tags(self, language: str, limit: int = 50) -> Dict[str, int]:
         """Translate tag names that are missing translations."""
@@ -178,12 +185,9 @@ class TranslateTagsUseCase:
         tag_names = [t["name"] for t in tags]
         tag_ids = [t["tag_id"] for t in tags]
 
-        prompt = TagTranslationPrompt().render(
-            target_language=language,
-            tags=tag_names,
-        )
+        rendered = self._tag_prompt.render(target_language=language, tags=tag_names)
 
-        translated_text = self._llm_service.translate("", prompt.content)
+        translated_text = self._llm_service.translate("", rendered.content)
         if translated_text is None:
             logger.error("tag_translation_llm_failed", language=language)
             return {"total": len(tags), "success": 0, "failed": len(tags)}
@@ -217,12 +221,9 @@ class TranslateTagsUseCase:
         group_lines = [GroupTranslationPrompt.format_group(g["display_name"], g.get("description")) for g in groups]
         group_ids = [g["id"] for g in groups]
 
-        prompt = GroupTranslationPrompt().render(
-            target_language=language,
-            groups=group_lines,
-        )
+        rendered = self._group_prompt.render(target_language=language, groups=group_lines)
 
-        translated_text = self._llm_service.translate("", prompt.content)
+        translated_text = self._llm_service.translate("", rendered.content)
         if translated_text is None:
             logger.error("group_translation_llm_failed", language=language)
             return {"total": len(groups), "success": 0, "failed": len(groups)}

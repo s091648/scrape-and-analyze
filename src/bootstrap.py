@@ -109,6 +109,7 @@ def build_collection_pipeline():
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt, ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
@@ -145,6 +146,7 @@ def build_collection_pipeline():
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
@@ -173,10 +175,13 @@ def build_collection_pipeline():
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
         translation_repository=analyses_translation_repo,
+        prompt=ArticleTranslationPrompt(),
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
         tag_translation_repository=tag_translation_repo,
+        tag_prompt=TagTranslationPrompt(),
+        group_prompt=GroupTranslationPrompt(),
     )
     target_languages = TRANSLATION_LANGUAGES
     analysis_completed_handler = AnalysisCompletedHandler(
@@ -221,6 +226,7 @@ def build_translation_pipeline():
     from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.intelligence.domain.value_objects import ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -237,10 +243,13 @@ def build_translation_pipeline():
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
         translation_repository=analyses_translation_repo,
+        prompt=ArticleTranslationPrompt(),
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
         tag_translation_repository=tag_translation_repo,
+        tag_prompt=TagTranslationPrompt(),
+        group_prompt=GroupTranslationPrompt(),
     )
 
     logger.info("translation_bootstrap_complete")

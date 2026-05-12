@@ -57,6 +57,7 @@ def _wire_pipeline(db_session, llm_service):
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.shared.application.events import ArticleProcessedEvent
 
     article_repo = SqlAlchemyArticleRepository(session=db_session)
@@ -73,6 +74,7 @@ def _wire_pipeline(db_session, llm_service):
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
 
     handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)

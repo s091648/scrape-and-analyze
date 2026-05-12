@@ -9,7 +9,7 @@ import pytest
 
 from src.shared.domain.entities import Article
 from src.modules.intelligence.application.use_cases.analysis_result import AnalysisResult
-from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisPrompt
 
 
 def _make_article(**kwargs):
@@ -46,7 +46,7 @@ def _make_uc(deps):
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     deps["topic_repository"].find_by_id.return_value = None
     deps["topic_repository"].list_active.return_value = []
-    return AnalyzeArticleUseCase(**deps)
+    return AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
 
 
 # ── success path ────────────────────────────────────────────────────────────
