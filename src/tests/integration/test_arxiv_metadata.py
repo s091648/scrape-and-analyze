@@ -22,15 +22,10 @@ def _make_uc(db_session):
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.modules.collection.domain.services import DedupService
-    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.infrastructure.shared.events import InMemoryEventBus
-    analyzer = MagicMock()
-    analyzer.analyze.return_value = _make_result()
     return ProcessScrapedArticleUseCase(
         article_repo=SqlAlchemyArticleRepository(session=db_session),
         dedup_service=DedupService(article_repo=SqlAlchemyArticleRepository(session=db_session)),
-        event_bus=InMemoryEventBus(),
         arxiv_metadata_repo=SqlAlchemyArxivMetadataRepository(session=db_session),
     )
 
@@ -51,8 +46,8 @@ def test_arxiv_article_creates_arxiv_metadata_row(db_session):
         },
     )
     uc = _make_uc(db_session)
-    result = uc.execute(scraped)
-    assert result == ArticleOutcome.NEW
+    outcome, _ = uc.execute(scraped)
+    assert outcome == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=scraped.url).first()
     assert article is not None
     meta = db_session.query(ArxivMetadata).filter_by(article_id=article.id).first()

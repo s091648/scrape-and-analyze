@@ -35,14 +35,13 @@ def _wire_pipeline(db_session):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=DedupService(article_repo=article_repo),
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
     )
-    handler = ArticleProcessedHandler(use_case=analyze_uc)
+    handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, handler.handle)
     return process_uc
 
@@ -57,8 +56,8 @@ def test_article_gets_topic_id_on_save(db_session, test_topic):
         topic_id=topic_id,
     )
     uc = _wire_pipeline(db_session)
-    result = uc.execute(event)
-    assert result == ArticleOutcome.NEW
+    outcome, _ = uc.execute(event)
+    assert outcome == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
     assert article.topic_id == topic_id

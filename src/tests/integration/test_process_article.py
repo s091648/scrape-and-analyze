@@ -68,7 +68,6 @@ def _wire_pipeline(db_session, llm_service):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -76,7 +75,7 @@ def _wire_pipeline(db_session, llm_service):
         topic_repository=topic_repo,
     )
 
-    handler = ArticleProcessedHandler(use_case=analyze_uc)
+    handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, handler.handle)
 
     return process_uc
@@ -95,9 +94,9 @@ def test_process_article_creates_article_and_analysis(db_session):
 
     event = _make_event()
     uc = _wire_pipeline(db_session, _mock_llm())
-    result = uc.execute(event)
+    outcome, _ = uc.execute(event)
 
-    assert result == ArticleOutcome.NEW
+    assert outcome == ArticleOutcome.NEW
 
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
@@ -132,9 +131,9 @@ def test_process_article_returns_false_for_fully_processed_duplicate(db_session)
     _wire_pipeline(db_session, _mock_llm()).execute(event)
 
     llm = _mock_llm()
-    result = _wire_pipeline(db_session, llm).execute(event)
+    outcome, _ = _wire_pipeline(db_session, llm).execute(event)
 
-    assert result == ArticleOutcome.DUPLICATE
+    assert outcome == ArticleOutcome.DUPLICATE
     llm.analyze.assert_not_called()
     assert db_session.query(Article).filter_by(url=event.url).count() == 1
 
@@ -160,9 +159,9 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     db_session.add(article)
     db_session.commit()
 
-    result = _wire_pipeline(db_session, _mock_llm()).execute(event)
+    outcome, _ = _wire_pipeline(db_session, _mock_llm()).execute(event)
 
-    assert result == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
+    assert outcome == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
     assert analysis is not None
 

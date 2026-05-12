@@ -139,14 +139,12 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
-        event_bus=event_bus,
         arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
@@ -154,11 +152,12 @@ def build_collection_pipeline():
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
         pipeline_stats=pipeline_stats,
+        event_bus=event_bus,
     )
     event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
-    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)
+    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
 
     # intelligence 失敗事件：AnalysisFailedEvent → AnalysisFailedHandler

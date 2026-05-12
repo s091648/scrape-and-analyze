@@ -34,12 +34,10 @@ def test_process_uc_builds_article_with_topic_id():
     article_repo.save.return_value = saved
 
     dedup = DedupService(article_repo=article_repo)
-    event_bus = MagicMock()
 
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     uc.execute(event)
 
@@ -60,7 +58,6 @@ def test_process_uc_builds_article_with_metadata():
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=DedupService(article_repo=article_repo),
-        event_bus=MagicMock(),
     )
     uc.execute(event)
 

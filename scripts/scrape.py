@@ -123,9 +123,8 @@ def _build_pipeline(no_analyze: bool):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
-    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats).handle)
+    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats, event_bus=event_bus).handle)
 
     if not no_analyze:
         from src.bootstrap import build_llm_service
@@ -140,9 +139,8 @@ def _build_pipeline(no_analyze: bool):
             llm_service=llm_service,
             analysis_repository=analysis_repo,
             topic_repository=topic_repo,
-            event_bus=event_bus,
         )
-        event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
+        event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
         event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
         # Auto-translate after analysis

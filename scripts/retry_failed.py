@@ -111,9 +111,18 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
     )
-    return uc.execute(article)
+    result = uc.execute(article)
+
+    if not result.success:
+        event_bus.publish(AnalysisFailedEvent(
+            article_id=result.article_id,
+            article_url=result.article_url,
+            exception_type=result.exception_type,
+            exception_message=result.exception_message,
+        ))
+
+    return result.success
 
 
 def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
@@ -165,15 +174,13 @@ def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
     )
-    event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
+    event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
     event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
     source = url.split("/")[2] if "/" in url else "unknown"
@@ -183,7 +190,9 @@ def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
         content=content,
         source=source,
     )
-    return process_uc.execute(scraped_event)
+    outcome, _ = process_uc.execute(scraped_event)
+    from src.modules.collection.application.use_cases import ArticleOutcome
+    return outcome != ArticleOutcome.FAILED
 
 
 def main():
