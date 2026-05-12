@@ -162,7 +162,6 @@ def _build_pipeline(no_analyze: bool):
             translate_tags_uc=translate_tags_uc,
             analyses_translation_repo=analyses_translation_repo,
             target_languages=target_languages,
-            session_rollback_fn=session.rollback,
         )
         event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 

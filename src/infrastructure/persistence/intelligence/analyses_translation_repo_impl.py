@@ -120,6 +120,10 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
 
         return count > 0
 
+    def rollback(self) -> None:
+        """Rollback the current database transaction."""
+        self._session.rollback()
+
 
 def _extract_en_content(analysis_row) -> dict:
     """Extract English content from an analysis row's analyses_translation relationship."""

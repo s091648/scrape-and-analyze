@@ -35,6 +35,11 @@ class AnalysesTranslationRepository(ABC):
         """Check if translation exists for analysis and language."""
         ...
 
+    @abstractmethod
+    def rollback(self) -> None:
+        """Rollback the current persistence transaction."""
+        ...
+
 
 class TagTranslationRepository(ABC):
     """Domain interface for tag translation persistence."""
