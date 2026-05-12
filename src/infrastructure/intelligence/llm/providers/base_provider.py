@@ -95,7 +95,7 @@ class BaseProvider(LLMService, ABC):
         self,
         content: str,
         prompt: str,
-    ) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
+    ) -> Optional[tuple[AnalysisContent, AnalysisMetadata]]:
         try:
             for attempt in self._retry:
                 with attempt:
