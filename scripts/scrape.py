@@ -156,7 +156,7 @@ def _build_pipeline(no_analyze: bool):
             llm_service=llm_service,
             tag_translation_repository=tag_translation_repo,
         )
-        target_languages = [lang.strip() for lang in TRANSLATION_LANGUAGES.split(",") if lang.strip()]
+        target_languages = TRANSLATION_LANGUAGES
         analysis_completed_handler = AnalysisCompletedHandler(
             translate_article_uc=translate_article_uc,
             translate_tags_uc=translate_tags_uc,
