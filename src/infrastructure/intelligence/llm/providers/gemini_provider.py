@@ -1,5 +1,4 @@
 import json
-from typing import Tuple
 
 from google import genai
 
@@ -44,20 +43,16 @@ class GeminiProvider(BaseProvider):
         logger.info("gemini_api_called", model=self._model)
         return result
 
-    def _call_api_raw(self, content: str, prompt: str) -> Tuple[str, int, int]:
+    def _call_api_raw(self, content: str, prompt: str) -> str:
         response = self._generate(content, prompt)
         if not response.candidates:
-            return ("", 0, 0)
+            return ""
         candidate = response.candidates[0]
         fr = candidate.finish_reason
         # fr is either an int or a FinishReason enum — accept both
         fr_name = fr.name if hasattr(fr, "name") else str(fr)
         if fr_name not in ("STOP", "1"):
             logger.warning("gemini_blocked", model=self._model, finish_reason=fr_name)
-            return ("", 0, 0)
-        text = (response.text or "").strip()
-        usage = getattr(response, "usage_metadata", None)
-        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
-        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
+            return ""
         logger.info("gemini_api_called_raw", model=self._model)
-        return (text, input_tokens, output_tokens)
+        return (response.text or "").strip()

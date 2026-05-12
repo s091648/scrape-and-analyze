@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional
 
 import tenacity
 
@@ -84,10 +84,9 @@ class BaseProvider(LLMService, ABC):
         ...
 
     @abstractmethod
-    def _call_api_raw(self, content: str, prompt: str) -> Tuple[str, int, int]:
+    def _call_api_raw(self, content: str, prompt: str) -> str:
         """
         Call the provider API and return raw text response.
-        Returns (text, input_tokens, output_tokens).
         Raise on any failure — retry is handled by the base class.
         """
         ...
@@ -143,7 +142,7 @@ class BaseProvider(LLMService, ABC):
         try:
             for attempt in self._translate_retry:
                 with attempt:
-                    text, _, _ = self._call_api_raw(content, prompt)
+                    text = self._call_api_raw(content, prompt)
         except RateLimitExhausted:
             raise
         except Exception as e:
