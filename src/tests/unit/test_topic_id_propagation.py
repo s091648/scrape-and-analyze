@@ -26,9 +26,9 @@ def test_article_entity_accepts_topic_id():
 
 def test_scraped_article_dto_accepts_topic_id():
     from uuid import uuid4
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
     tid = uuid4()
-    dto = ScrapedArticleDTO(
+    dto = ArticleScrapedEvent(
         url="https://x.com", title="T", content="C",
         source="rss", topic_id=tid,
     )

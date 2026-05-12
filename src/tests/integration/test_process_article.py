@@ -9,7 +9,7 @@ import uuid
 from unittest.mock import MagicMock
 
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 
 
 def _make_llm_result(**overrides):
@@ -36,7 +36,7 @@ def _make_event(**overrides):
         source="test",
     )
     defaults.update(overrides)
-    return ScrapedArticleDTO(**defaults)
+    return ArticleScrapedEvent(**defaults)
 
 
 def _mock_llm(result=None, *, use_default=True):

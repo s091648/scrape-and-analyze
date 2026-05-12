@@ -104,7 +104,7 @@ def _build_pipeline(no_analyze: bool):
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent
@@ -125,7 +125,7 @@ def _build_pipeline(no_analyze: bool):
         dedup_service=dedup,
         event_bus=event_bus,
     )
-    event_bus.subscribe(ScrapedArticleDTO, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats).handle)
+    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats).handle)
 
     if not no_analyze:
         from src.bootstrap import build_llm_service
@@ -218,14 +218,14 @@ def main():
         print("No tasks to run.")
         return
 
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
 
     event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
     published = [0]
 
     def on_result(article):
-        dto = ScrapedArticleDTO.from_scraped_article(article)
-        event_bus.publish(dto)
+        event = ArticleScrapedEvent.from_scraped_article(article)
+        event_bus.publish(event)
         published[0] += 1
 
     executor = ScrapeExecutor()

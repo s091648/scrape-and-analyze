@@ -43,11 +43,11 @@ def test_pipeline_publishes_events_for_each_scraped_article():
     )
     pipeline.run()
 
-    # Should publish ScrapedArticleDTO for each article (plus PipelineCompletedEvent at end)
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    # Should publish ArticleScrapedEvent for each article (plus PipelineCompletedEvent at end)
+    from src.modules.collection.application.events import ArticleScrapedEvent
     article_publishes = [
         c for c in event_bus.publish.call_args_list
-        if isinstance(c.args[0], ScrapedArticleDTO)
+        if isinstance(c.args[0], ArticleScrapedEvent)
     ]
     assert len(article_publishes) == 2
 

@@ -2,7 +2,7 @@ import uuid
 from unittest.mock import MagicMock
 import pytest
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome
 
 
@@ -39,7 +39,7 @@ def _make_uc(db_session):
 def test_arxiv_article_creates_arxiv_metadata_row(db_session):
     from models.arxiv_metadata import ArxivMetadata
     from models.article import Article
-    scraped = ScrapedArticleDTO(
+    scraped = ArticleScrapedEvent(
         url=f"https://arxiv.org/abs/{uuid.uuid4()}v1",
         title="Test Paper", content="Abstract.", published_at="2024-01-01",
         source="arxiv",

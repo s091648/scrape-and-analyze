@@ -9,7 +9,7 @@ from src.modules.collection.domain.entities import ArxivMetadata
 from src.modules.collection.domain.repositories import ArxivMetadataRepository
 from src.modules.collection.domain.services import DedupService
 from src.modules.collection.domain.value_objects import UrlHash
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome
 
 logger = get_logger(__name__)
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 class ProcessScrapedArticleUseCase:
     """
-    Receives a ScrapedArticleDTO from infrastructure, applies dedup,
+    Receives an ArticleScrapedEvent from infrastructure, applies dedup,
     persists a new Article (and ArxivMetadata when applicable), and publishes
     ArticleProcessedEvent for downstream contexts to consume.
     """
@@ -34,12 +34,12 @@ class ProcessScrapedArticleUseCase:
         self._event_bus = event_bus
         self._arxiv_metadata_repo = arxiv_metadata_repo
 
-    def execute(self, dto: ScrapedArticleDTO) -> ArticleOutcome:
-        existing = self._dedup_service.find_existing(dto.url)
+    def execute(self, event: ArticleScrapedEvent) -> ArticleOutcome:
+        existing = self._dedup_service.find_existing(event.url)
 
         if existing is not None:
             if not self._dedup_service.needs_analysis(existing):
-                logger.info("article_already_analyzed", url=dto.url)
+                logger.info("article_already_analyzed", url=event.url)
                 return ArticleOutcome.DUPLICATE
             if existing.source == "arxiv" and self._arxiv_metadata_repo is not None:
                 stored = self._arxiv_metadata_repo.find_by_article_id(existing.id)
@@ -49,31 +49,31 @@ class ProcessScrapedArticleUseCase:
             self._event_bus.publish(ArticleProcessedEvent(article=existing))
             return ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
 
-        article = self._build_article(dto)
+        article = self._build_article(event)
 
         try:
             saved = self._article_repo.save(article)
         except Exception as e:
-            logger.error("article_save_failed", url=dto.url, error=str(e))
+            logger.error("article_save_failed", url=event.url, error=str(e))
             return ArticleOutcome.FAILED
 
         if saved.source == "arxiv":
-            self._save_arxiv_metadata(saved, dto.metadata)
+            self._save_arxiv_metadata(saved, event.metadata)
 
-        logger.info("article_saved", article_id=str(saved.id), url=dto.url)
+        logger.info("article_saved", article_id=str(saved.id), url=event.url)
         self._event_bus.publish(ArticleProcessedEvent(article=saved))
         return ArticleOutcome.NEW
 
-    def _build_article(self, dto: ScrapedArticleDTO) -> Article:
+    def _build_article(self, event: ArticleScrapedEvent) -> Article:
         return Article(
-            url=dto.url,
-            url_hash=UrlHash.from_url(dto.url).value,
-            source=dto.source,
-            title=dto.title,
-            content=dto.content,
-            published_at=dto.published_at,
-            topic_id=dto.topic_id,
-            metadata=dto.metadata,
+            url=event.url,
+            url_hash=UrlHash.from_url(event.url).value,
+            source=event.source,
+            title=event.title,
+            content=event.content,
+            published_at=event.published_at,
+            topic_id=event.topic_id,
+            metadata=event.metadata,
         )
 
     def _save_arxiv_metadata(self, article: Article, metadata: dict) -> None:

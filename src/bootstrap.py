@@ -105,14 +105,13 @@ def build_collection_pipeline():
 
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
-    from src.modules.collection.application.events import PipelineCompletedEvent
+    from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -151,12 +150,12 @@ def build_collection_pipeline():
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
-    # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
+    # collection 跨 context 事件：ArticleScrapedEvent → ProcessScrapedArticleUseCase
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
         pipeline_stats=pipeline_stats,
     )
-    event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
+    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)

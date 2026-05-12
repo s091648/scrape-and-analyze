@@ -99,7 +99,7 @@ Assembly is in `src/bootstrap.py`: `build_collection_pipeline()` wires the full 
 1. **Discover** — Each scraper's `discover()` returns `List[ScrapeJob]` from RSS feeds, blog listings, or ArXiv API
 2. **Pre-dedup** — Filter out URLs already analyzed (via `UrlHash`)
 3. **Fetch** — `ScrapeExecutor` runs concurrent fetches (5 workers, per-host semaphore, robots.txt respect for blogs)
-4. **Publish** — Scraped articles published as `ScrapedArticleDTO` on `InMemoryEventBus`
+4. **Publish** — Scraped articles published as `ArticleScrapedEvent` on `InMemoryEventBus`
 5. **Process** — `ArticleScrapedHandler` → `ProcessScrapedArticleUseCase` (dedup + save)
 6. **Analyze** — `ArticleProcessedHandler` → `AnalyzeArticleUseCase` (LLM chain)
 7. **Translate** — `AnalysisCompletedHandler` auto-triggers translation for configured languages

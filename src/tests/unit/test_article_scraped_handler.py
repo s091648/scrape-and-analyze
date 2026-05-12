@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 
 
-def _make_dto(source="arxiv") -> ScrapedArticleDTO:
-    return ScrapedArticleDTO(url="https://example.com", title="T", content="C", source=source)
+def _make_dto(source="arxiv") -> ArticleScrapedEvent:
+    return ArticleScrapedEvent(url="https://example.com", title="T", content="C", source=source)
 
 
 def test_handle_new_article_records_new_and_returns_true():

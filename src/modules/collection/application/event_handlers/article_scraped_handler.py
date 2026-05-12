@@ -1,4 +1,4 @@
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats, ProcessScrapedArticleUseCase
 
 
@@ -11,7 +11,7 @@ class ArticleScrapedHandler:
         self._use_case = use_case
         self._pipeline_stats = pipeline_stats
 
-    def handle(self, dto: ScrapedArticleDTO) -> bool:
-        outcome = self._use_case.execute(dto)
-        self._pipeline_stats.record(dto.source, outcome)
+    def handle(self, event: ArticleScrapedEvent) -> bool:
+        outcome = self._use_case.execute(event)
+        self._pipeline_stats.record(event.source, outcome)
         return outcome != ArticleOutcome.FAILED

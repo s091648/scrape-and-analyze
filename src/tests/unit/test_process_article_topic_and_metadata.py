@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.shared.domain.entities import Article
 
 
 def _make_arxiv_event(topic_id=None):
-    return ScrapedArticleDTO(
+    return ArticleScrapedEvent(
         url=f"https://arxiv.org/abs/{uuid4()}v1",
         title="Paper", content="Abstract.", source="arxiv",
         topic_id=topic_id or uuid4(),
