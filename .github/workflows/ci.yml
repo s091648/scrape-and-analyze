@@ -152,8 +152,16 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      - name: Run alembic upgrade for test DB
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+
       - name: Run backend unit tests with coverage
         run: uv run pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
+        env:
+          PYTHONPATH: .
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Upload backend-unit coverage to Codecov
         uses: codecov/codecov-action@v4
