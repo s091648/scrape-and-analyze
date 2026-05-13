@@ -1,0 +1,21 @@
+flags:
+  unit:
+    paths:
+      - src/
+    carryforward: true
+  integration:
+    paths:
+      - src/
+    carryforward: true
+  backend-unit:
+    paths:
+      - backend/
+    carryforward: true
+  backend-integration:
+    paths:
+      - backend/
+    carryforward: true
+  frontend-unit:
+    paths:
+      - frontend/
+    carryforward: true

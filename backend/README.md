@@ -1,3 +1,6 @@
+![backend unit tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/backend-unit-passrate.json)
+![backend integration tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/backend-integration-passrate.json)
+
 # Backend API
 
 FastAPI service that exposes REST endpoints for the frontend. Handles article browsing, scraper configuration, user authentication, and knowledge graph queries. Shares the PostgreSQL database with the scraper service.
