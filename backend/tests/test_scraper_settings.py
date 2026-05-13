@@ -34,6 +34,7 @@ def test_post_setting_with_admin_token_returns_201():
     mock_setting.url = payload["url"]
     mock_setting.frequency = payload["frequency"]
     mock_setting.is_active = payload["is_active"]
+    mock_setting.topic_id = uuid.uuid4()
     mock_setting.selector_config = None
     mock_setting.created_at = None
     mock_setting.updated_at = None

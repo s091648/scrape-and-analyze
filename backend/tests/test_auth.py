@@ -63,6 +63,7 @@ def test_verify_disabled_user_returns_403():
     mock_user.id = uuid.uuid4()
     mock_user.username = 'disabled'
     mock_user.role = 'user'
+    mock_user.icon = 'icon.png'
     mock_user.is_allowed = False
     mock_user.hashed_password = bcrypt.hashpw(b'pass', bcrypt.gensalt()).decode()
     with patch("backend.routers.auth._get_user_by_username", return_value=mock_user):
@@ -84,6 +85,7 @@ def test_register_credentials_returns_201():
     created.name = "New User"
     created.username = "newuser"
     created.role = "user"
+    created.icon = 'icon.png'
     created.is_allowed = True
     created.google_id = None
     created.created_at = None
@@ -107,6 +109,7 @@ def test_register_google_returns_201():
     created.name = "Google User"
     created.username = None
     created.role = "user"
+    created.icon = 'icon.png'
     created.is_allowed = True
     created.google_id = "google-sub-123"
     created.created_at = None
@@ -141,6 +144,7 @@ def test_google_authorize_known_user_returns_200():
     mock_user.name = "Known"
     mock_user.username = None
     mock_user.role = "user"
+    mock_user.icon = 'icon.png'
     mock_user.is_allowed = True
     mock_user.google_id = "sub-abc"   # already linked
     mock_user.created_at = None
@@ -164,6 +168,7 @@ def test_google_authorize_unlinked_email_returns_409():
     mock_user.name = "Creds User"
     mock_user.username = "credsuser"
     mock_user.role = "user"
+    mock_user.icon = 'icon.png'
     mock_user.is_allowed = True
     mock_user.google_id = None      # <-- no google_id linked yet
     mock_user.created_at = None
@@ -209,6 +214,7 @@ def test_list_users_as_admin_returns_200():
     mock_user.name = "U"
     mock_user.username = "u"
     mock_user.role = "user"
+    mock_user.icon = 'icon.png'
     mock_user.is_allowed = True
     mock_user.google_id = None
     mock_user.created_at = None
@@ -238,6 +244,7 @@ def test_update_user_role_as_admin_returns_200():
     mock_user.name = "U"
     mock_user.username = "u"
     mock_user.role = "admin"
+    mock_user.icon = 'icon.png'
     mock_user.is_allowed = True
     mock_user.google_id = None
     mock_user.created_at = None
@@ -316,7 +323,7 @@ def _make_mock_profile_user(user_id=None):
     mock_user.name = "Profile User"
     mock_user.username = "profileuser"
     mock_user.role = "user"
-    mock_user.icon = None
+    mock_user.icon = "icon.png"
     mock_user.google_id = None
     mock_user.created_at = None
     mock_user.hashed_password = bcrypt.hashpw(b"correctpass", bcrypt.gensalt()).decode()
@@ -332,7 +339,7 @@ def _make_mock_google_user(user_id=None):
     mock_user.name = "Google Only"
     mock_user.username = None
     mock_user.role = "user"
-    mock_user.icon = None
+    mock_user.icon = "icon.png"
     mock_user.google_id = "google-sub-999"
     mock_user.created_at = None
     mock_user.hashed_password = None
