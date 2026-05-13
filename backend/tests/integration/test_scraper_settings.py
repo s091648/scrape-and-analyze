@@ -5,13 +5,19 @@ Unit tests mock all DB calls.  These tests verify that create/update/delete
 operations actually persist and that 404 is raised for missing IDs.
 All endpoints require admin JWT.
 """
+import time
 import uuid
 
 import pytest
-
-from backend.tests.integration.conftest import admin_token
+from jose import jwt
 
 pytestmark = pytest.mark.integration
+
+
+def admin_token() -> str:
+    payload = {"sub": "admin", "role": "admin", "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, "test-secret", algorithm="HS256")
+
 
 _ADMIN_HDR = {"Authorization": f"Bearer {admin_token()}"}
 
