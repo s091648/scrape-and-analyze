@@ -26,7 +26,7 @@ def test_post_setting_with_admin_token_returns_201():
     from backend.main import app
     client = TestClient(app)
     payload = {"source_type": "rss", "name": "test", "url": "https://test.com/feed",
-               "frequency": "daily", "is_active": True}
+               "frequency": 24, "is_active": True}
     mock_setting = MagicMock(spec=[])  # spec=[] prevents attribute magic interception
     mock_setting.id = uuid.uuid4()
     mock_setting.source_type = payload["source_type"]
@@ -34,7 +34,7 @@ def test_post_setting_with_admin_token_returns_201():
     mock_setting.url = payload["url"]
     mock_setting.frequency = payload["frequency"]
     mock_setting.is_active = payload["is_active"]
-    mock_setting.topic_id = uuid.uuid4()
+    mock_setting.topic_id = str(uuid.uuid4())
     mock_setting.selector_config = None
     mock_setting.created_at = None
     mock_setting.updated_at = None

@@ -55,7 +55,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         geo: dict = {}
         if ip:
             try:
-                from src.infrastructure.observability.geoip import get_geo
+                from src.infrastructure.shared.observability.geoip import get_geo
                 geo = get_geo(ip)
             except Exception:
                 pass
