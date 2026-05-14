@@ -2,18 +2,22 @@ flags:
   unit:
     paths:
       - src/
+      - shared/
     carryforward: true
   integration:
     paths:
       - src/
+      - shared/
     carryforward: true
   backend-unit:
     paths:
       - backend/
+      - shared/
     carryforward: true
   backend-integration:
     paths:
       - backend/
+      - shared/
     carryforward: true
   frontend-unit:
     paths:
