@@ -12,6 +12,7 @@ const profileItems = [
 const adminItems = [
   { href: '/admin/topics', label: 'Topics' },
   { href: '/admin/scraper-settings', label: 'Scraper Settings' },
+  { href: '/admin/llm-providers', label: 'LLM Providers' },
   { href: '/admin/user-management', label: 'User Management' },
   { href: '/admin/monitoring', label: 'Monitoring' },
 ]
