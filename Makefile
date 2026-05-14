@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote test test-cov test-integration test-integration-cov test-all-cov test-frontend test-backend test-backend-integration
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -126,3 +126,12 @@ test-all-cov:
 		--cov=src \
 		--cov-report=html:src/tests/htmlcov-all \
 		--cov-report=term
+
+test-frontend:
+	docker compose run --rm frontend npm run test:coverage -- --reporter=verbose --reporter=json --outputFile=test-results.json
+
+test-backend:
+	docker compose run --rm test_service python -m pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov=shared --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
+
+test-backend-integration:
+	docker compose run --rm test_service python -m pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
