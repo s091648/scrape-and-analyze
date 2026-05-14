@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Annotated, Literal, Union
 from pydantic import BaseModel, Field
+from shared.enums.scraper_keyword import VALID_KEYWORD_TYPES
 
 
 class RssKeyword(BaseModel):
@@ -22,9 +23,6 @@ ScraperKeywordVO = Annotated[
     Union[RssKeyword, ArxivKeyword, ArxivCategory],
     Field(discriminator="type"),
 ]
-
-VALID_KEYWORD_TYPES = frozenset({"rss", "arxiv_keyword", "arxiv_category"})
-
 
 def build_scraper_keyword(keyword_type: str, keyword: str) -> RssKeyword | ArxivKeyword | ArxivCategory:
     if keyword_type == "rss":
