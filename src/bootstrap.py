@@ -19,15 +19,12 @@ logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# LLM 層：從 providers.toml 建立 ResilientLLMService
+# LLM 層：從 DB provider config 建立 ResilientLLMService
 # ---------------------------------------------------------------------------
 
-def build_llm_service():
-    """
-    Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
-    根據 article.topic_id 動態 render 後傳入。
-    """
-    from src.config.providers import load_providers
+def build_llm_service(session):
+    """Build ResilientLLMService from DB provider config."""
+    from shared.llm_provider import load_active_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
     )
@@ -36,7 +33,7 @@ def build_llm_service():
 
     handlers: List[ProviderHandler] = []
 
-    for cfg in load_providers():
+    for cfg in load_active_providers(session):
         name = cfg['name']
         model = cfg['model']
         api_key = os.environ.get(cfg['api_key_env'], '')
@@ -69,7 +66,7 @@ def build_llm_service():
         ))
 
     if not handlers:
-        raise ValueError("providers.toml 中未設定任何有效的 LLM provider")
+        raise ValueError("llm_providers table has no active providers")
 
     return ResilientLLMService(handlers=handlers)
 
@@ -130,7 +127,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service()
+    llm_service = build_llm_service(session)
 
     # ── Domain Services ────────────────────────────────────────────────────
     dedup_service = DedupService(article_repo=article_repo)
