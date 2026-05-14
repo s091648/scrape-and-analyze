@@ -70,7 +70,7 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       - name: Run unit tests with coverage
-        run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov-report=xml:coverage.xml --junitxml=pytest.xml
+        run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov=shared --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -178,7 +178,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend unit tests with coverage
-        run: uv run pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
+        run: uv run pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov=shared --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
         env:
           PYTHONPATH: .
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
@@ -290,7 +290,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend integration tests with coverage
-        run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
+        run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
@@ -405,7 +405,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run integration tests with coverage
-        run: uv run pytest src/tests/integration/ -v --tb=short -m integration --cov=src --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
+        run: uv run pytest src/tests/integration/ -v --tb=short -m integration --cov=src --cov=shared --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -496,13 +496,15 @@ jobs:
         run: npm run test:coverage -- --reporter=verbose --reporter=json --outputFile=test-results.json
         continue-on-error: true
 
+      - name: Fix lcov paths for monorepo upload
+        run: sed -i 's|SF:|SF:frontend/|g' coverage/lcov.info
+
       - name: Upload frontend-unit coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: ./frontend/coverage/lcov.info
           flags: frontend-unit
           token: ${{ secrets.CODECOV_TOKEN }}
-          root_dir: ./frontend
 
       - name: Compute pass rate
         id: passrate

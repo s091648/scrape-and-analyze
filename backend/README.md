@@ -1,3 +1,5 @@
+[![backend unit coverage](https://codecov.io/gh/s091648/scrape-and-analyze/graph/badge.svg?token=RADSEJRK64&flag=backend-unit)](https://codecov.io/gh/s091648/scrape-and-analyze?flag=backend-unit)
+[![backend integration coverage](https://codecov.io/gh/s091648/scrape-and-analyze/graph/badge.svg?token=RADSEJRK64&flag=backend-integration)](https://codecov.io/gh/s091648/scrape-and-analyze?flag=backend-integration)
 ![backend unit tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/backend-unit-passrate.json)
 ![backend integration tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/backend-integration-passrate.json)
 
