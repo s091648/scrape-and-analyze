@@ -31,19 +31,15 @@ def upgrade() -> None:
     )
 
     # Seed from providers.toml (values hardcoded here; providers.toml is deleted after this migration)
-    rows = [
-        ('gemini', 'gemini-3-flash-preview',          'GEMINI_API_KEY',     1, True,  5,  250000,  20),
-        ('gemini', 'gemini-3.1-flash-lite-preview',   'GEMINI_API_KEY',     2, True, 15,  250000, 500),
-        ('gemini', 'gemini-2.5-flash',                'GEMINI_API_KEY',     3, True,  5,  250000,  20),
-        ('gemini', 'gemini-2.5-flash-lite',           'GEMINI_API_KEY',     4, True, 10,  250000,  20),
-        ('openrouter', 'deepseek/deepseek-chat',      'OPENROUTER_API_KEY', 4, True, 20,  100000, 200),
-    ]
-    for name, model, api_key_env, priority, is_active, rpm, tpm, rpd in rows:
-        op.execute(
-            f"INSERT INTO llm_providers (id, name, model, api_key_env, priority, is_active, rpm, tpm, rpd) "
-            f"VALUES (gen_random_uuid(), '{name}', '{model}', '{api_key_env}', "
-            f"{priority}, {str(is_active).lower()}, {rpm}, {tpm}, {rpd})"
-        )
+    op.execute("""
+        INSERT INTO llm_providers (id, name, model, api_key_env, priority, is_active, rpm, tpm, rpd)
+        VALUES
+            (gen_random_uuid(), 'gemini', 'gemini-3-flash-preview', 'GEMINI_API_KEY', 1, true, 5, 250000, 20),
+            (gen_random_uuid(), 'gemini', 'gemini-3.1-flash-lite-preview', 'GEMINI_API_KEY', 2, true, 15, 250000, 500),
+            (gen_random_uuid(), 'gemini', 'gemini-2.5-flash', 'GEMINI_API_KEY', 3, true, 5, 250000, 20),
+            (gen_random_uuid(), 'gemini', 'gemini-2.5-flash-lite', 'GEMINI_API_KEY', 4, true, 10, 250000, 20),
+            (gen_random_uuid(), 'openrouter', 'deepseek/deepseek-chat', 'OPENROUTER_API_KEY', 4, true, 20, 100000, 200)
+    """)
 
 
 def downgrade() -> None:
