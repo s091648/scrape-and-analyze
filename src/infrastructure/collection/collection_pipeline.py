@@ -1,9 +1,9 @@
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
+from urllib.parse import urlparse
 
-from src.infrastructure.collection.executor import FetchTask, ScrapeExecutor
+from src.infrastructure.collection.executor import DiscoverTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
@@ -15,6 +15,14 @@ from src.shared.application.ports import EventBus
 from src.shared.domain.repositories import ArticleRepository
 
 logger = get_logger(__name__)
+
+
+def _extract_host(url: str) -> str:
+    try:
+        netloc = urlparse(url).netloc
+        return netloc if netloc else url
+    except Exception:
+        return url
 
 
 class CollectionPipeline:
@@ -50,85 +58,74 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
-        # ── Phase 1: concurrent discover (per-source serialized) ──────────
-        tasks: List[FetchTask] = []
+        # ── Build discover tasks ────────────────────────────────────────
+        discover_tasks: List[DiscoverTask] = []
         scraped_setting_ids = []
         _source_sems: dict[str, threading.Semaphore] = {}
         _sems_lock = threading.Lock()
 
-        def _discover(setting):
+        for setting in due_settings:
             scraper = self._scraper_factory.create_for(setting)
-            with _sems_lock:
-                if setting.source not in _source_sems:
-                    _source_sems[setting.source] = threading.Semaphore(1)
-            sem = _source_sems[setting.source]
-            sem.acquire()
-            try:
-                return scraper, scraper.discover()
-            finally:
-                time.sleep(self._discover_delay)
-                sem.release()
+            host = _extract_host(setting.url)
+            discover_tasks.append(DiscoverTask(
+                setting=setting,
+                scraper=scraper,
+                host=host,
+            ))
+            scraped_setting_ids.append(setting.id)
 
-        with ThreadPoolExecutor(max_workers=len(due_settings)) as pool:
-            futures = {pool.submit(_discover, s): s for s in due_settings}
-            for future in as_completed(futures):
-                setting = futures[future]
-                try:
-                    scraper, jobs = future.result()
-                except Exception as e:
-                    logger.error("discover_failed", source=setting.source, error=str(e))
-                    continue
-
-                logger.info("jobs_discovered", source=setting.source, count=len(jobs))
-                for job in jobs:
-                    tasks.append(FetchTask(
-                        url=job.url,
-                        source=setting.source,
-                        job=job,
-                        scraper=scraper,
-                    ))
-                scraped_setting_ids.append(setting.id)
-
-        # ── Phase 1.5: pre-dedup — skip URLs already fully processed ─────
-        if tasks and self._article_repo is not None:
-            url_hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
-            analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
-            if analyzed:
-                kept, skipped = [], []
-                for h, t in url_hashes.items():
-                    (skipped if h in analyzed else kept).append(t)
-                for t in skipped:
-                    self._pipeline_stats.record(t.source, ArticleOutcome.DUPLICATE)
-                tasks = kept
-                logger.info(
-                    "pre_dedup_filtered",
-                    skipped=len(skipped),
-                    remaining=len(tasks),
-                )
-
-        # ── Phase 2: concurrent fetch ─────────────────────────────────────
+        # ── Streaming discover + fetch ──────────────────────────────────
         results: List[ScrapedArticle] = []
 
         def on_result(article: ScrapedArticle) -> None:
             results.append(article)
 
-        self._executor.run(tasks, on_result=on_result)
+        self._executor.run_streaming(
+            discover_tasks=discover_tasks,
+            on_result=on_result,
+        )
 
-        # ── Phase 3: publish DTOs to event bus (triggers ArticleScrapedHandler) ─
+        # ── Pre-dedup: filter URLs already fully processed ──────────────
+        if results:
+            url_hashes: dict[str, ScrapedArticle] = {}
+            for a in results:
+                h = UrlHash.from_url(a.url).value
+                if h in url_hashes:
+                    self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                else:
+                    url_hashes[h] = a
+            results = list(url_hashes.values())
+
+            if self._article_repo is not None:
+                analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
+                if analyzed:
+                    kept, skipped = [], []
+                    for h, a in url_hashes.items():
+                        (skipped if h in analyzed else kept).append(a)
+                    for a in skipped:
+                        self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                    results = kept
+                    logger.info(
+                        "post_dedup_filtered",
+                        skipped=len(skipped),
+                        remaining=len(results),
+                    )
+
+        # ── Publish DTOs to event bus (triggers ArticleScrapedHandler) ─
         published = 0
         for article in results:
             dto = ScrapedArticleDTO.from_scraped_article(article)
             self._event_bus.publish(dto)
             published += 1
 
-        # ── Mark settings scraped ─────────────────────────────────────────
+        # ── Mark settings scraped ───────────────────────────────────────
         for setting_id in scraped_setting_ids:
             try:
                 self._setting_repo.mark_scraped(setting_id)
             except Exception as e:
                 logger.error("mark_scraped_failed", setting_id=str(setting_id), error=str(e))
 
-        # ── Publish completion event (triggers Telegram + OTel) ───────────
+        # ── Publish completion event (triggers Telegram + OTel) ────────
         duration = time.time() - start
         self._event_bus.publish(PipelineCompletedEvent(
             stats=self._pipeline_stats.get_results(),

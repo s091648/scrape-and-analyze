@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 from queue import Queue
 from typing import List
 
-from .fetch_task import FetchTask
-
 
 class QueueSelector(ABC):
     """
@@ -18,7 +16,7 @@ class QueueSelector(ABC):
     """
 
     @abstractmethod
-    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
+    def select(self, queues: List[Queue]) -> List[int]:
         """
         Return indices of non-empty queues in preferred processing order.
         Returns [] if all queues are empty.
@@ -35,7 +33,7 @@ class RoundRobinQueueSelector(QueueSelector):
     def __init__(self) -> None:
         self._counter: int = 0
 
-    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
+    def select(self, queues: List[Queue]) -> List[int]:
         n = len(queues)
         if n == 0:
             return []
@@ -52,7 +50,7 @@ class WeightedRoundRobinQueueSelector(QueueSelector):
     This is the default selector.
     """
 
-    def select(self, queues: List[Queue[FetchTask]]) -> List[int]:
+    def select(self, queues: List[Queue]) -> List[int]:
         candidates = [
             (i, queues[i].qsize())
             for i in range(len(queues))

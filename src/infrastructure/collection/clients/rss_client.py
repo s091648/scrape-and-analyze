@@ -43,6 +43,24 @@ class RssClient:
         "text/xml;q=0.8, */*;q=0.1"
     )
 
+    # RSS clients never send Sec-Fetch-* or sec-ch-ua — strip the browser
+    # fingerprint so Cloudflare / Akamai don't return an HTML challenge page
+    # instead of XML.  None values are filtered out by requests before sending.
+    # Exclude "br" encoding: brotli is not installed, so Brotli-compressed bytes
+    # would corrupt the feed content.
+    _RSS_HEADERS = {
+        "Accept-Encoding": "gzip, deflate",
+        "Sec-Fetch-Dest": None,
+        "Sec-Fetch-Mode": None,
+        "Sec-Fetch-Site": None,
+        "Sec-Fetch-User": None,
+        "sec-ch-ua": None,
+        "sec-ch-ua-mobile": None,
+        "sec-ch-ua-platform": None,
+        "Upgrade-Insecure-Requests": None,
+        "Cache-Control": None,
+    }
+
     def fetch_feed(self, url: str) -> List[RssEntry]:
         """
         Fetch *url* and return parsed feed entries.
@@ -51,7 +69,9 @@ class RssClient:
         """
         try:
             response = self._http.get(
-                url, timeout=30, headers={"Accept": self._RSS_ACCEPT}
+                url,
+                timeout=30,
+                headers={"Accept": self._RSS_ACCEPT, **self._RSS_HEADERS},
             )
         except Exception as e:
             logger.error("rss_fetch_failed", url=url, error=str(e))

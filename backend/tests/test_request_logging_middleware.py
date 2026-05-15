@@ -33,7 +33,7 @@ def test_middleware_returns_200():
 def test_middleware_logs_ip_and_user_agent():
     """Enriched middleware must log ip and user_agent fields."""
     with patch("backend.middleware.logging.logger") as mock_logger, \
-         patch("src.infrastructure.observability.geoip.get_geo", return_value={}):
+         patch("shared.utils.geoip.get_geo", return_value={}):
         client = TestClient(make_app())
         client.get("/", headers={"User-Agent": "TestBrowser/1.0"})
     kwargs = mock_logger.info.call_args.kwargs
@@ -44,7 +44,7 @@ def test_middleware_logs_ip_and_user_agent():
 def test_middleware_logs_geo_fields_when_available():
     """When GeoIP lookup returns country/city, they must appear in the log."""
     with patch("backend.middleware.logging.logger") as mock_logger, \
-         patch("src.infrastructure.observability.geoip.get_geo", return_value={"country": "TW", "city": "Taipei"}):
+         patch("shared.utils.geoip.get_geo", return_value={"country": "TW", "city": "Taipei"}):
         client = TestClient(make_app())
         client.get("/")
     kwargs = mock_logger.info.call_args.kwargs
@@ -55,7 +55,7 @@ def test_middleware_logs_geo_fields_when_available():
 def test_middleware_logs_anonymous_when_no_auth():
     """Requests without Authorization header must log user_id as anonymous."""
     with patch("backend.middleware.logging.logger") as mock_logger, \
-         patch("src.infrastructure.observability.geoip.get_geo", return_value={}):
+         patch("shared.utils.geoip.get_geo", return_value={}):
         client = TestClient(make_app())
         client.get("/")
     kwargs = mock_logger.info.call_args.kwargs

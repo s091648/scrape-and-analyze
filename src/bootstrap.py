@@ -101,6 +101,7 @@ def build_collection_pipeline():
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
     from src.infrastructure.collection.handlers import OtelMetricsHandler
     from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.shared.http import get_default_client
 
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
@@ -197,7 +198,7 @@ def build_collection_pipeline():
     event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
-    scraper_factory = ConcreteScraperFactory()
+    scraper_factory = ConcreteScraperFactory(http_client=get_default_client())
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
         scraper_factory=scraper_factory,

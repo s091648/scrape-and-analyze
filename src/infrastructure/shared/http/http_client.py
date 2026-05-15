@@ -70,9 +70,13 @@ class HttpClient:
             proxies = self._proxies if self._proxy_enabled else None
             ua = self._ua_pool.get(domain)
             headers = {
-                "User-Agent": ua,
-                **get_browser_headers(ua),
-                **caller_headers,
+                k: v
+                for k, v in {
+                    "User-Agent": ua,
+                    **get_browser_headers(ua),
+                    **caller_headers,
+                }.items()
+                if v is not None
             }
             try:
                 with self._rate_limiter.connection(domain):

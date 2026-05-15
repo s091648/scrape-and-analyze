@@ -1,6 +1,4 @@
 [![codecov](https://codecov.io/gh/s091648/scrape-and-analyze/graph/badge.svg?token=RADSEJRK64)](https://codecov.io/gh/s091648/scrape-and-analyze)
-![unit tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/unit-passrate.json)
-![integration tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/integration-passrate.json)
 
 # Scrape & Analyze
 

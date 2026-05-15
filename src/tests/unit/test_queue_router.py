@@ -33,3 +33,21 @@ def test_same_host_tasks_share_one_queue():
     ])
     assert len(hqm.queues) == 1
     assert hqm.queues[0].qsize() == 2
+
+
+def test_routes_discover_task_to_correct_host_queue():
+    from src.infrastructure.collection.executor.host_queue_map import HostQueueMap
+    from src.infrastructure.collection.executor.queue_router import QueueRouter
+    from src.infrastructure.collection.executor.discover_task import DiscoverTask
+    from unittest.mock import MagicMock
+
+    hqm = HostQueueMap()
+    router = QueueRouter(hqm)
+    setting = MagicMock()
+    scraper = MagicMock()
+    task = DiscoverTask(setting=setting, scraper=scraper, host="export.arxiv.org")
+
+    router.route_discover([task])
+
+    idx = hqm.host_map["export.arxiv.org"]
+    assert hqm.queues[idx].qsize() == 1
