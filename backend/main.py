@@ -35,7 +35,7 @@ app.include_router(scraper_settings_router)
 app.include_router(auth_router)
 app.include_router(topics_router)
 app.include_router(scraper_keywords_router)
-app.include_router(languages_router, prefix="/api", tags=["languages"])
+app.include_router(languages_router)
 
 
 @app.get("/health")
