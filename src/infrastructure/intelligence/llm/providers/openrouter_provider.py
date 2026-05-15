@@ -1,5 +1,4 @@
 import json
-from typing import Tuple
 
 import requests
 
@@ -43,11 +42,7 @@ class OpenRouterProvider(BaseProvider):
         logger.info("openrouter_api_called", model=self._model)
         return result
 
-    def _call_api_raw(self, content: str, prompt: str) -> Tuple[str, int, int]:
+    def _call_api_raw(self, content: str, prompt: str) -> str:
         data = self._post(content, prompt)
-        text = data["choices"][0]["message"]["content"]
-        usage = data.get("usage", {})
-        input_tokens = usage.get("prompt_tokens", 0)
-        output_tokens = usage.get("completion_tokens", 0)
         logger.info("openrouter_api_called_raw", model=self._model)
-        return (text, input_tokens, output_tokens)
+        return data["choices"][0]["message"]["content"]

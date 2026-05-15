@@ -192,8 +192,8 @@ def get_article_by_id(db: Session, article_id: UUID):
 
 def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:
     from models.tag import Tag, article_tags as at
-    from models.tag_translation import TagTranslation
-    from models.tag_group_translation import TagGroupTranslation
+    from models.tag_translation import TagsTranslation
+    from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     tags = (
         db.query(Tag)
@@ -208,19 +208,19 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
     tag_trans_map = {}
     group_trans_map = {}
     if lang != "en" and tag_ids:
-        tag_translations = db.query(TagTranslation).filter(
-            TagTranslation.tag_id.in_(tag_ids),
-            TagTranslation.language == lang,
+        tag_translations = db.query(TagsTranslation).filter(
+            TagsTranslation.tag_id.in_(tag_ids),
+            TagsTranslation.language == lang,
         ).all()
         tag_trans_map = {tt.tag_id: tt.name for tt in tag_translations}
 
         group_ids = list({t.group_def.id for t in tags if t.group_def})
         if group_ids:
-            group_translations = db.query(TagGroupTranslation).filter(
-                TagGroupTranslation.tag_group_definition_id.in_(group_ids),
-                TagGroupTranslation.language == lang,
+            group_translations = db.query(TagGroupDefinitionsTranslation).filter(
+                TagGroupDefinitionsTranslation.tag_group_definition_id.in_(group_ids),
+                TagGroupDefinitionsTranslation.language == lang,
             ).all()
-            group_trans_map = {gt.tag_group_definition_id: gt.display_name for gt in group_translations}
+            group_trans_map = {gt.tag_group_definition_id: gt for gt in group_translations}
 
     groups: dict = {}
     for tag in tags:
@@ -228,14 +228,18 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
         if gname not in groups:
             gdef = tag.group_def
             display_name = gname
+            description = None
             if gdef:
                 if lang != "en" and gdef.id in group_trans_map:
-                    display_name = group_trans_map[gdef.id]
+                    display_name = group_trans_map[gdef.id].display_name
+                    description = group_trans_map[gdef.id].description
                 else:
                     display_name = gdef.display_name
+                    description = gdef.description
             groups[gname] = {
                 "group_name": gname,
                 "display_name": display_name,
+                "description": description,
                 "color": gdef.color_hex if gdef else "#6b7280",
                 "tags": [],
             }
@@ -247,7 +251,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
 def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session = Depends(get_db)):
     from models.tag import Tag, article_tags as at
-    from models.analysis_translation import AnalysisTranslation
+    from models.analyses_translation import AnalysesTranslation
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
@@ -260,20 +264,20 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         .all()
     )
 
-    # Get content from analysis_translations (all languages including English)
+    # Get content from analyses_translation (all languages including English)
     pain_points = None
     insights = None
     innovations = None
     if analysis:
-        translation = db.query(AnalysisTranslation).filter(
-            AnalysisTranslation.analysis_id == analysis.id,
-            AnalysisTranslation.language == lang
+        translation = db.query(AnalysesTranslation).filter(
+            AnalysesTranslation.analysis_id == analysis.id,
+            AnalysesTranslation.language == lang
         ).first()
         if not translation and lang != "en":
             # Fallback to English if requested language not available
-            translation = db.query(AnalysisTranslation).filter(
-                AnalysisTranslation.analysis_id == analysis.id,
-                AnalysisTranslation.language == "en"
+            translation = db.query(AnalysesTranslation).filter(
+                AnalysesTranslation.analysis_id == analysis.id,
+                AnalysesTranslation.language == "en"
             ).first()
         if translation:
             pain_points = translation.pain_points

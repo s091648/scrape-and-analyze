@@ -30,14 +30,14 @@ interface FilterBarProps {
 }
 
 function MultiSelectPopover({
-  label, options, selected, onChange, t,
+  label, options, selected, onChange,
 }: {
   label: string
   options: string[]
   selected: string[]
   onChange: (val: string[]) => void
-  t: (key: string) => string
 }) {
+  const { t } = useI18n()
   function toggle(v: string) {
     onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
   }
@@ -71,15 +71,15 @@ function MultiSelectPopover({
 }
 
 function DateFilter({
-  label, after, before, onAfterChange, onBeforeChange, t,
+  label, after, before, onAfterChange, onBeforeChange,
 }: {
   label: string
   after: string
   before: string
   onAfterChange: (v: string) => void
   onBeforeChange: (v: string) => void
-  t: (key: string) => string
 }) {
+  const { t } = useI18n()
   const [mode, setMode] = useState<DateMode>('any')
 
   useEffect(() => {
@@ -232,14 +232,12 @@ export function FilterBar({
             options={sourceOptions}
             selected={draftSources}
             onChange={setDraftSources}
-            t={t}
           />
           <MultiSelectPopover
             label={t('filterBar.tag')}
             options={tagOptions}
             selected={draftTags}
             onChange={setDraftTags}
-            t={t}
           />
           <DateFilter
             label={t('filterBar.published')}
@@ -247,7 +245,6 @@ export function FilterBar({
             before={draftPubBefore}
             onAfterChange={setDraftPubAfter}
             onBeforeChange={setDraftPubBefore}
-            t={t}
           />
           <DateFilter
             label={t('filterBar.scraped')}
@@ -255,7 +252,6 @@ export function FilterBar({
             before={draftScrapedBefore}
             onAfterChange={setDraftScrapedAfter}
             onBeforeChange={setDraftScrapedBefore}
-            t={t}
           />
           <div className="flex gap-2 ml-auto">
             {activeFilterCount > 0 && (

@@ -1,11 +1,11 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.shared.domain.entities import Article
 
 
 def _make_arxiv_event(topic_id=None):
-    return ScrapedArticleDTO(
+    return ArticleScrapedEvent(
         url=f"https://arxiv.org/abs/{uuid4()}v1",
         title="Paper", content="Abstract.", source="arxiv",
         topic_id=topic_id or uuid4(),
@@ -34,12 +34,10 @@ def test_process_uc_builds_article_with_topic_id():
     article_repo.save.return_value = saved
 
     dedup = DedupService(article_repo=article_repo)
-    event_bus = MagicMock()
 
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     uc.execute(event)
 
@@ -60,7 +58,6 @@ def test_process_uc_builds_article_with_metadata():
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=DedupService(article_repo=article_repo),
-        event_bus=MagicMock(),
     )
     uc.execute(event)
 

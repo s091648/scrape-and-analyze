@@ -6,17 +6,15 @@ from uuid import UUID
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
 
-@dataclass
-class ScrapedArticleDTO:
+@dataclass(frozen=True)
+class ArticleScrapedEvent:
     """
-    Application DTO - 從 scraper fetch() 回傳的 data carrier。
+    Application event — 文章抓取完成後發布的事件。
 
-    這是跨 layer 傳遞的資料物件，不是 domain object。
-    在 infrastructure → application 的邊界使用。
-
+    在 infrastructure → application 邊界使用，由 event bus 廣播給 handler。
     與 ScrapedArticle (domain value object) 的區別：
-    - ScrapedArticle: immutable, 代表領域概念
-    - ScrapedArticleDTO: mutable, 用於資料傳遞和序列化
+    - ScrapedArticle: immutable domain value object
+    - ArticleScrapedEvent: immutable application event
     """
     url: str
     title: str
@@ -28,8 +26,8 @@ class ScrapedArticleDTO:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_scraped_article(cls, article: ScrapedArticle) -> "ScrapedArticleDTO":
-        """從 domain ScrapedArticle 轉換為 DTO"""
+    def from_scraped_article(cls, article: ScrapedArticle) -> "ArticleScrapedEvent":
+        """從 domain ScrapedArticle 轉換為 event"""
         return cls(
             url=article.url,
             title=article.title,
@@ -42,7 +40,7 @@ class ScrapedArticleDTO:
         )
 
     def to_scraped_article(self) -> ScrapedArticle:
-        """從 DTO 轉換為 domain ScrapedArticle"""
+        """從 event 轉換為 domain ScrapedArticle"""
         return ScrapedArticle(
             url=self.url,
             title=self.title,

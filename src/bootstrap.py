@@ -105,14 +105,14 @@ def build_collection_pipeline():
 
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
-    from src.modules.collection.application.events import PipelineCompletedEvent
+    from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt, ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
 
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -140,26 +140,26 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
-        event_bus=event_bus,
         arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
+        prompt=AnalysisPrompt(),
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
-    # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
+    # collection 跨 context 事件：ArticleScrapedEvent → ProcessScrapedArticleUseCase
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
         pipeline_stats=pipeline_stats,
+        event_bus=event_bus,
     )
-    event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
+    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
 
     # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
-    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)
+    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
 
     # intelligence 失敗事件：AnalysisFailedEvent → AnalysisFailedHandler
@@ -167,26 +167,28 @@ def build_collection_pipeline():
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
 
     # translation 事件：AnalysisCompletedEvent → auto-translate
-    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.config.settings import TRANSLATION_LANGUAGES
 
-    analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
+    analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
-        translation_repository=analysis_translation_repo,
+        translation_repository=analyses_translation_repo,
+        prompt=ArticleTranslationPrompt(),
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
         tag_translation_repository=tag_translation_repo,
+        tag_prompt=TagTranslationPrompt(),
+        group_prompt=GroupTranslationPrompt(),
     )
-    target_languages = [lang.strip() for lang in TRANSLATION_LANGUAGES.split(",") if lang.strip()]
+    target_languages = TRANSLATION_LANGUAGES
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
-        analysis_translation_repo=analysis_translation_repo,
+        analyses_translation_repo=analyses_translation_repo,
         target_languages=target_languages,
-        session_rollback_fn=session.rollback,
     )
     event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
@@ -222,15 +224,16 @@ def build_translation_pipeline():
     回傳翻譯相關服務，可用於定時翻譯任務。
     """
     from src.infrastructure.persistence.database import get_session, init_db
-    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.intelligence.domain.value_objects import ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
     session = get_session()
 
     # ── Repositories ───────────────────────────────────────────────────────
-    analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
+    analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
@@ -239,11 +242,14 @@ def build_translation_pipeline():
     # ── Use Cases ──────────────────────────────────────────────────────────
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
-        translation_repository=analysis_translation_repo,
+        translation_repository=analyses_translation_repo,
+        prompt=ArticleTranslationPrompt(),
     )
     translate_tags_uc = TranslateTagsUseCase(
         llm_service=llm_service,
         tag_translation_repository=tag_translation_repo,
+        tag_prompt=TagTranslationPrompt(),
+        group_prompt=GroupTranslationPrompt(),
     )
 
     logger.info("translation_bootstrap_complete")
@@ -251,6 +257,6 @@ def build_translation_pipeline():
         "use_case": translate_article_uc,
         "tag_use_case": translate_tags_uc,
         "session": session,
-        "analysis_translation_repository": analysis_translation_repo,
+        "analyses_translation_repository": analyses_translation_repo,
         "tag_translation_repository": tag_translation_repo,
     }

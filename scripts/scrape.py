@@ -104,7 +104,7 @@ def _build_pipeline(no_analyze: bool):
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent
@@ -123,16 +123,16 @@ def _build_pipeline(no_analyze: bool):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
-    event_bus.subscribe(ScrapedArticleDTO, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats).handle)
+    event_bus.subscribe(ArticleScrapedEvent, ArticleScrapedHandler(use_case=process_uc, pipeline_stats=pipeline_stats, event_bus=event_bus).handle)
 
     if not no_analyze:
         from src.bootstrap import build_llm_service
         from src.modules.intelligence.application.events import AnalysisCompletedEvent
         from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
         from src.modules.intelligence.application.event_handlers import AnalysisCompletedHandler
-        from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysisTranslationRepository, SqlAlchemyTagTranslationRepository
+        from src.modules.intelligence.domain.value_objects import AnalysisPrompt, ArticleTranslationPrompt, TagTranslationPrompt, GroupTranslationPrompt
+        from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
         from src.config.settings import TRANSLATION_LANGUAGES
 
         llm_service = build_llm_service()
@@ -140,29 +140,31 @@ def _build_pipeline(no_analyze: bool):
             llm_service=llm_service,
             analysis_repository=analysis_repo,
             topic_repository=topic_repo,
-            event_bus=event_bus,
+            prompt=AnalysisPrompt(),
         )
-        event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
+        event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
         event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
         # Auto-translate after analysis
-        analysis_translation_repo = SqlAlchemyAnalysisTranslationRepository(session=session)
+        analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
         tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
         translate_article_uc = TranslateArticleUseCase(
             llm_service=llm_service,
-            translation_repository=analysis_translation_repo,
+            translation_repository=analyses_translation_repo,
+            prompt=ArticleTranslationPrompt(),
         )
         translate_tags_uc = TranslateTagsUseCase(
             llm_service=llm_service,
             tag_translation_repository=tag_translation_repo,
+            tag_prompt=TagTranslationPrompt(),
+            group_prompt=GroupTranslationPrompt(),
         )
-        target_languages = [lang.strip() for lang in TRANSLATION_LANGUAGES.split(",") if lang.strip()]
+        target_languages = TRANSLATION_LANGUAGES
         analysis_completed_handler = AnalysisCompletedHandler(
             translate_article_uc=translate_article_uc,
             translate_tags_uc=translate_tags_uc,
-            analysis_translation_repo=analysis_translation_repo,
+            analyses_translation_repo=analyses_translation_repo,
             target_languages=target_languages,
-            session_rollback_fn=session.rollback,
         )
         event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
@@ -218,14 +220,14 @@ def main():
         print("No tasks to run.")
         return
 
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
 
     event_bus, _ = _build_pipeline(no_analyze=args.no_analyze)
     published = [0]
 
     def on_result(article):
-        dto = ScrapedArticleDTO.from_scraped_article(article)
-        event_bus.publish(dto)
+        event = ArticleScrapedEvent.from_scraped_article(article)
+        event_bus.publish(event)
         published[0] += 1
 
     executor = ScrapeExecutor()

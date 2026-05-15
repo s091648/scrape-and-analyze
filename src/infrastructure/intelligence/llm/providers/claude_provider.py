@@ -1,5 +1,4 @@
 import json
-from typing import Tuple
 
 import anthropic
 
@@ -33,10 +32,7 @@ class ClaudeProvider(BaseProvider):
                     output_tokens=response.usage.output_tokens)
         return result
 
-    def _call_api_raw(self, content: str, prompt: str) -> Tuple[str, int, int]:
+    def _call_api_raw(self, content: str, prompt: str) -> str:
         response = self._create_message(content, prompt)
-        text = response.content[0].text
-        input_tokens = response.usage.input_tokens
-        output_tokens = response.usage.output_tokens
         logger.info("claude_api_called_raw", model=self._model)
-        return (text, input_tokens, output_tokens)
+        return response.content[0].text

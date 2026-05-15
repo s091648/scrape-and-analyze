@@ -1,9 +1,9 @@
 from .analysis_repository import AnalysisRepository
-from .analysis_translation_repository import AnalysisTranslationRepository, TagTranslationRepository
+from .analyses_translation_repository import AnalysesTranslationRepository, TagTranslationRepository
 
 
 __all__ = [
     "AnalysisRepository",
-    "AnalysisTranslationRepository",
+    "AnalysesTranslationRepository",
     "TagTranslationRepository",
 ]

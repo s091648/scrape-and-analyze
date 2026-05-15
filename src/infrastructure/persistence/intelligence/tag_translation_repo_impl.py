@@ -16,16 +16,16 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         self._session = session
 
     def save_tag_translation(self, tag_id: UUID, language: str, name: str) -> None:
-        from models.tag_translation import TagTranslation as TagTranslationModel
+        from models.tag_translation import TagsTranslation as TagsTranslationModel
 
-        existing = self._session.query(TagTranslationModel).filter_by(
+        existing = self._session.query(TagsTranslationModel).filter_by(
             tag_id=tag_id, language=language,
         ).first()
 
         if existing:
             existing.name = name
         else:
-            model = TagTranslationModel(tag_id=tag_id, language=language, name=name)
+            model = TagsTranslationModel(tag_id=tag_id, language=language, name=name)
             self._session.add(model)
 
         self._session.commit()
@@ -34,11 +34,11 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         self, language: str, limit: int
     ) -> List[dict]:
         from models.tag import Tag as TagModel
-        from models.tag_translation import TagTranslation as TagTranslationModel
+        from models.tag_translation import TagsTranslation as TagsTranslationModel
 
         rows = (
             self._session.query(TagModel)
-            .filter(~TagModel.translations.any(TagTranslationModel.language == language))
+            .filter(~TagModel.translations.any(TagsTranslationModel.language == language))
             .order_by(TagModel.name)
             .limit(limit)
             .all()
@@ -50,9 +50,9 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         ]
 
     def save_group_translation(
-        self, tag_group_definition_id: UUID, language: str, display_name: str
+        self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
     ) -> None:
-        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
+        from models.tag_group_translation import TagGroupDefinitionsTranslation as TagGroupTranslationModel
 
         existing = self._session.query(TagGroupTranslationModel).filter_by(
             tag_group_definition_id=tag_group_definition_id, language=language,
@@ -60,11 +60,13 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
 
         if existing:
             existing.display_name = display_name
+            existing.description = description
         else:
             model = TagGroupTranslationModel(
                 tag_group_definition_id=tag_group_definition_id,
                 language=language,
                 display_name=display_name,
+                description=description,
             )
             self._session.add(model)
 
@@ -74,7 +76,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         self, language: str, limit: int
     ) -> List[dict]:
         from models.tag_group import TagGroupDefinition as TagGroupDefinitionModel
-        from models.tag_group_translation import TagGroupTranslation as TagGroupTranslationModel
+        from models.tag_group_translation import TagGroupDefinitionsTranslation as TagGroupTranslationModel
 
         rows = (
             self._session.query(TagGroupDefinitionModel)
@@ -85,6 +87,6 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         )
 
         return [
-            {"id": row.id, "name": row.name, "display_name": row.display_name}
+            {"id": row.id, "name": row.name, "display_name": row.display_name, "description": row.description}
             for row in rows
         ]

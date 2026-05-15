@@ -1,4 +1,3 @@
-import threading
 import time
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -8,9 +7,8 @@ from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
 from src.modules.collection.application.use_cases import PipelineStats, ArticleOutcome
-from src.modules.collection.application.events import PipelineCompletedEvent
 from src.shared.application.ports import EventBus
 from src.shared.domain.repositories import ArticleRepository
 
@@ -34,7 +32,6 @@ class CollectionPipeline:
         pipeline_stats: PipelineStats,
         executor: Optional[ScrapeExecutor] = None,
         article_repo: Optional[ArticleRepository] = None,
-        discover_delay: float = 3.0,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -42,7 +39,6 @@ class CollectionPipeline:
         self._pipeline_stats = pipeline_stats
         self._executor = executor or ScrapeExecutor()
         self._article_repo = article_repo
-        self._discover_delay = discover_delay
 
     def run(self) -> int:
         start = time.time()
@@ -61,8 +57,6 @@ class CollectionPipeline:
         # ── Build discover tasks ────────────────────────────────────────
         discover_tasks: List[DiscoverTask] = []
         scraped_setting_ids = []
-        _source_sems: dict[str, threading.Semaphore] = {}
-        _sems_lock = threading.Lock()
 
         for setting in due_settings:
             scraper = self._scraper_factory.create_for(setting)
@@ -111,11 +105,11 @@ class CollectionPipeline:
                         remaining=len(results),
                     )
 
-        # ── Publish DTOs to event bus (triggers ArticleScrapedHandler) ─
+        # ── Publish events to event bus (triggers ArticleScrapedHandler) ─
         published = 0
         for article in results:
-            dto = ScrapedArticleDTO.from_scraped_article(article)
-            self._event_bus.publish(dto)
+            event = ArticleScrapedEvent.from_scraped_article(article)
+            self._event_bus.publish(event)
             published += 1
 
         # ── Mark settings scraped ───────────────────────────────────────

@@ -7,8 +7,8 @@ import uuid
 from models.base import Base
 
 
-class AnalysisTranslation(Base):
-    __tablename__ = 'analysis_translations'
+class AnalysesTranslation(Base):
+    __tablename__ = 'analyses_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     analysis_id = Column(UUID(as_uuid=True), ForeignKey('analyses.id', ondelete='CASCADE'), nullable=False)
@@ -20,10 +20,10 @@ class AnalysisTranslation(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    analysis = relationship("Analysis", backref="analysis_translations")
+    analysis = relationship("Analysis", backref="analyses_translation")
 
     __table_args__ = (
-        Index('idx_analysis_translations_analysis_id', 'analysis_id'),
-        Index('idx_analysis_translations_language', 'language'),
-        UniqueConstraint('analysis_id', 'language', name='uq_analysis_translations_analysis_language'),
+        Index('idx_analyses_translation_analysis_id', 'analysis_id'),
+        Index('idx_analyses_translation_language', 'language'),
+        UniqueConstraint('analysis_id', 'language', name='uq_analyses_translation_analysis_language'),
     )

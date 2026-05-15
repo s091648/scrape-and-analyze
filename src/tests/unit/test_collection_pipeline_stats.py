@@ -56,7 +56,6 @@ def test_pipeline_publishes_pipeline_completed_event():
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
         executor=executor,
-        discover_delay=0,
     )
     pipeline.run()
 

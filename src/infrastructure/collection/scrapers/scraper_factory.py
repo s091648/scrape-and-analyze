@@ -35,7 +35,7 @@ class ConcreteScraperFactory(ScraperFactory):
             http_client = get_default_client()
         self._http_client = http_client
 
-    def create_for(self, setting: ScraperSetting) -> BaseScraper:
+    def create_for(self, setting: ScraperSetting, days_back: int = None) -> BaseScraper:
         cfg = setting.selector_config
 
         if isinstance(cfg, RssConfig):

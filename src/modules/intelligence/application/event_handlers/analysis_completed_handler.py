@@ -1,7 +1,7 @@
 from src.shared.logging import get_logger
 from src.modules.intelligence.application.events import AnalysisCompletedEvent
 from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
-from src.modules.intelligence.domain.repositories import AnalysisTranslationRepository
+from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository
 
 logger = get_logger(__name__)
 
@@ -13,19 +13,17 @@ class AnalysisCompletedHandler:
         self,
         translate_article_uc: TranslateArticleUseCase,
         translate_tags_uc: TranslateTagsUseCase,
-        analysis_translation_repo: AnalysisTranslationRepository,
+        analyses_translation_repo: AnalysesTranslationRepository,
         target_languages: list[str] | None = None,
-        session_rollback_fn=None,
     ) -> None:
         self._translate_article_uc = translate_article_uc
         self._translate_tags_uc = translate_tags_uc
-        self._analysis_translation_repo = analysis_translation_repo
+        self._analyses_translation_repo = analyses_translation_repo
         self._target_languages = target_languages or ["zh-TW"]
-        self._session_rollback = session_rollback_fn
 
     def handle(self, event: AnalysisCompletedEvent) -> None:
-        # Fetch English content from the repository (content is normalized into analysis_translations)
-        en_translation = self._analysis_translation_repo.find_by_analysis_id_and_language(
+        # Fetch English content from the repository (content is normalized into analyses_translation)
+        en_translation = self._analyses_translation_repo.find_by_analysis_id_and_language(
             event.analysis_id, 'en'
         )
         if not en_translation:
@@ -48,7 +46,7 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_translation_failed", analysis_id=str(event.analysis_id), language=lang)
             except Exception as e:
                 logger.error("auto_translation_error", analysis_id=str(event.analysis_id), language=lang, error=str(e))
-                self._try_rollback()
+                self._analyses_translation_repo.rollback()
 
             try:
                 tag_result = self._translate_tags_uc.translate_tags(lang, limit=50)
@@ -56,7 +54,7 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_tag_translation_partial", language=lang, failed=tag_result["failed"])
             except Exception as e:
                 logger.error("auto_tag_translation_error", language=lang, error=str(e))
-                self._try_rollback()
+                self._analyses_translation_repo.rollback()
 
             try:
                 group_result = self._translate_tags_uc.translate_groups(lang, limit=50)
@@ -64,11 +62,4 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_group_translation_partial", language=lang, failed=group_result["failed"])
             except Exception as e:
                 logger.error("auto_group_translation_error", language=lang, error=str(e))
-                self._try_rollback()
-
-    def _try_rollback(self) -> None:
-        if self._session_rollback:
-            try:
-                self._session_rollback()
-            except Exception:
-                pass
+                self._analyses_translation_repo.rollback()

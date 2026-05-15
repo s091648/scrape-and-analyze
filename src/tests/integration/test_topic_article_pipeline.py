@@ -2,7 +2,7 @@ import uuid
 from unittest.mock import MagicMock
 import pytest
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome
 
 
@@ -22,6 +22,7 @@ def _wire_pipeline(db_session):
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.shared.application.events import ArticleProcessedEvent
 
     llm = MagicMock()
@@ -35,14 +36,14 @@ def _wire_pipeline(db_session):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=DedupService(article_repo=article_repo),
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
-    handler = ArticleProcessedHandler(use_case=analyze_uc)
+    handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, handler.handle)
     return process_uc
 
@@ -51,14 +52,14 @@ def _wire_pipeline(db_session):
 def test_article_gets_topic_id_on_save(db_session, test_topic):
     from models.article import Article
     topic_id = test_topic
-    event = ScrapedArticleDTO(
+    event = ArticleScrapedEvent(
         url=f"https://example.com/{uuid.uuid4()}",
         title="Test Article", content="Body.", source="rss",
         topic_id=topic_id,
     )
     uc = _wire_pipeline(db_session)
-    result = uc.execute(event)
-    assert result == ArticleOutcome.NEW
+    outcome, _ = uc.execute(event)
+    assert outcome == ArticleOutcome.NEW
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
     assert article.topic_id == topic_id

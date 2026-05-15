@@ -40,13 +40,12 @@ function TopicRow({
   topic,
   onUpdate,
   onDelete,
-  t,
 }: {
   topic: Topic
   onUpdate: (id: string, data: Partial<Topic>) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  t: (key: string) => string
 }) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [form, setForm] = useState({
@@ -238,7 +237,8 @@ function TopicRow({
 
 // ── Add topic form ────────────────────────────────────────────────────────────
 
-function AddTopicCard({ onAdd, t }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>) => Promise<void>; t: (key: string) => string }) {
+function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>) => Promise<void> }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const emptyForm = {
     name: '',
@@ -478,9 +478,9 @@ export default function TopicsPage() {
         ) : (
           <div className="space-y-3">
             {visible.map(topicItem => (
-              <TopicRow key={topicItem.id} topic={topicItem} onUpdate={handleUpdate} onDelete={handleDelete} t={t} />
+              <TopicRow key={topicItem.id} topic={topicItem} onUpdate={handleUpdate} onDelete={handleDelete} />
             ))}
-            <AddTopicCard onAdd={handleCreate} t={t} />
+            <AddTopicCard onAdd={handleCreate} />
           </div>
         )}
       </div>
