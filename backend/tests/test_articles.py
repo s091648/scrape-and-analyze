@@ -60,7 +60,7 @@ def test_article_detail_returns_full_data():
     # Mock Tag.name query (for flat tags list)
     tag_result = MagicMock()
     tag_result.name = "test-tag"
-    mock_db.query.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = [(tag_result,)]
+    mock_db.query.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = [tag_result]
     # Mock AnalysesTranslation query (for content)
     mock_translation = MagicMock(pain_points="...", insights="...", innovations="...")
     # The query chain: db.query(AnalysesTranslation).filter(...).first()
@@ -69,7 +69,8 @@ def test_article_detail_returns_full_data():
     def override_get_db():
         yield mock_db
 
-    with patch("backend.routers.articles.get_article_by_id", return_value=mock_article):
+    with patch("backend.routers.articles.get_article_by_id", return_value=mock_article), \
+         patch("backend.routers.articles.get_tag_groups_for_article", return_value=[]):
         app.dependency_overrides[get_db] = override_get_db
         try:
             response = client.get(f"/articles/{article_id}?lang=en")

@@ -154,19 +154,14 @@ test-backend-integration-cov:
 # ─── frontend/ tests ──────────────────────────────────────────────────────────
 
 test-frontend:
-	cd frontend && npm run test
+	docker compose run --rm frontend npm run test
 
 test-frontend-e2e:
-	cd frontend && npm run test:e2e
+	docker compose run --rm frontend npm run test:e2e
 
 # ─── combined ─────────────────────────────────────────────────────────────────
 
-# Run unit + integration tests for all three services
+# Run unit + integration tests for all three services; always runs to completion and prints a summary
 test-all:
-	$(MAKE) test-src
-	$(MAKE) test-src-integration
-	$(MAKE) test-backend
-	$(MAKE) test-backend-integration
-	$(MAKE) test-frontend
-	$(MAKE) test-frontend-e2e
+	bash scripts/run_tests.sh
 

@@ -214,6 +214,9 @@ def get_group_articles(group_name: str,
         ]
 
         # Use translated content if available, fallback to English
+        pain_points = None
+        insights = None
+        innovations = None
         trans = trans_map.get(analysis.id)
         en_trans = en_map.get(analysis.id)
         if trans:
