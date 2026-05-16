@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.domain.value_objects import ScrapedArticle
@@ -8,15 +8,9 @@ def _make_setting(source="arxiv", source_type="arxiv"):
     s = MagicMock()
     s.source = source
     s.source_type = source_type
+    s.url = "https://export.arxiv.org/api/query"
     s.id = "test-id"
     return s
-
-
-def _make_scraper(articles):
-    scraper = MagicMock()
-    scraper.discover.return_value = [MagicMock(url=f"http://x.com/{i}") for i in range(len(articles))]
-    scraper.fetch.side_effect = articles
-    return scraper
 
 
 def test_pipeline_publishes_pipeline_completed_event():
@@ -25,11 +19,9 @@ def test_pipeline_publishes_pipeline_completed_event():
     pipeline_stats = PipelineStats()
     event_bus = MagicMock()
 
-    # simulate handler recording outcomes by having event_bus.publish side_effect
     def _fake_publish(event):
         if isinstance(event, PipelineCompletedEvent):
             return True
-        # When ScrapedArticleDTO is published, simulate handler recording NEW
         pipeline_stats.record(event.source, ArticleOutcome.NEW)
         return True
 
@@ -54,7 +46,9 @@ def test_pipeline_publishes_pipeline_completed_event():
     scraper_factory.create_for.return_value = scraper
 
     executor = MagicMock()
-    executor.run.side_effect = lambda tasks, on_result: on_result(article)
+    def _run_streaming(discover_tasks, on_result):
+        on_result(article)
+    executor.run_streaming.side_effect = _run_streaming
 
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
@@ -62,11 +56,9 @@ def test_pipeline_publishes_pipeline_completed_event():
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
         executor=executor,
-        discover_delay=0,
     )
     pipeline.run()
 
-    # verify PipelineCompletedEvent was published
     published_events = [
         call.args[0] for call in event_bus.publish.call_args_list
         if isinstance(call.args[0], PipelineCompletedEvent)

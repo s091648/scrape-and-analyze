@@ -4,21 +4,23 @@ import { usePathname, redirect } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { useTopic } from '@/lib/providers/topic-provider'
+import { useI18n } from '@/i18n'
 
 const profileItems = [
-  { href: '/settings', label: 'Profile' },
+  { href: '/settings', labelKey: 'settings.profile' },
 ]
 
 const adminItems = [
-  { href: '/admin/topics', label: 'Topics' },
-  { href: '/admin/scraper-settings', label: 'Scraper Settings' },
-  { href: '/admin/user-management', label: 'User Management' },
-  { href: '/admin/monitoring', label: 'Monitoring' },
+  { href: '/admin/topics', labelKey: 'admin.topics' },
+  { href: '/admin/scraper-settings', labelKey: 'admin.scraperSettings' },
+  { href: '/admin/user-management', labelKey: 'admin.userManagement' },
+  { href: '/admin/monitoring', labelKey: 'admin.monitoring' },
 ]
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session, status } = useSession()
+  const { t } = useI18n()
 
   if (status === 'unauthenticated') redirect('/login')
 
@@ -40,7 +42,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
               )}
             >
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           ))}
 
@@ -67,7 +69,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     )}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </Link>
                 </div>
               ))}

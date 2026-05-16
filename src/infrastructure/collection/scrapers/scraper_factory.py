@@ -3,12 +3,10 @@ from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.factories import ScraperFactory
 from src.modules.collection.domain.value_objects import (
     ArxivConfig,
-    BlogConfig,
-    RssConfig,
-)
-from src.modules.collection.domain.value_objects.scraper_keyword import (
     ArxivCategory,
     ArxivKeyword,
+    BlogConfig,
+    RssConfig,
     RssKeyword,
 )
 from .base_scraper import BaseScraper
@@ -37,7 +35,7 @@ class ConcreteScraperFactory(ScraperFactory):
             http_client = get_default_client()
         self._http_client = http_client
 
-    def create_for(self, setting: ScraperSetting) -> BaseScraper:
+    def create_for(self, setting: ScraperSetting, days_back: int = None) -> BaseScraper:
         cfg = setting.selector_config
 
         if isinstance(cfg, RssConfig):
@@ -60,14 +58,17 @@ class ConcreteScraperFactory(ScraperFactory):
             )
 
         if isinstance(cfg, ArxivConfig):
+            # -1 means no date filter
+            effective_days_back = None if days_back == -1 else (days_back if days_back is not None else cfg.days_back)
             return ArxivScraper(
                 max_results=cfg.max_results,
-                days_back=cfg.days_back,
+                days_back=effective_days_back,
                 keywords=_extract(setting.keyword_items, ArxivKeyword, "keyword"),
                 categories=_extract(setting.keyword_items, ArxivCategory, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
                 client=ArxivClient(http_client=self._http_client),
+                since=setting.last_scraped_at,
             )
 
         logger.warning("unknown_source_type", source_type=setting.source_type)

@@ -5,7 +5,7 @@ from src.modules.intelligence.domain.value_objects import AnalysisContent, Analy
 
 
 class LLMService(ABC):
-    """Domain interface for LLM-based article analysis."""
+    """Domain interface for LLM-based article analysis and translation."""
 
     @abstractmethod
     def analyze(
@@ -20,5 +20,18 @@ class LLMService(ABC):
         article can be analyzed with a topic-specific rendered prompt.
 
         Returns (AnalysisContent, AnalysisMetadata), or None on failure.
+        """
+        ...
+
+    @abstractmethod
+    def translate(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[str]:
+        """
+        Translate content using the given prompt.
+
+        Returns translated text string, or None on failure.
         """
         ...

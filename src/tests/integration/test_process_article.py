@@ -1,15 +1,19 @@
 """
 Integration tests for the article processing pipeline.
 
-Uses ProcessScrapedArticleUseCase + AnalyzeArticleUseCase wired via InMemoryEventBus
+Uses the full event-driven pipeline wired via InMemoryEventBus
 with real PostgreSQL (isolated test schema) and a mocked LLM service.
+
+Pipeline flow tested:
+  ArticleScrapedHandler → ProcessScrapedArticleUseCase
+  → ArticleProcessedEvent → ArticleProcessedHandler → AnalyzeArticleUseCase
 """
 import pytest
 import uuid
 from unittest.mock import MagicMock
 
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent
 
 
 def _make_llm_result(**overrides):
@@ -36,7 +40,7 @@ def _make_event(**overrides):
         source="test",
     )
     defaults.update(overrides)
-    return ScrapedArticleDTO(**defaults)
+    return ArticleScrapedEvent(**defaults)
 
 
 def _mock_llm(result=None, *, use_default=True):
@@ -48,15 +52,20 @@ def _mock_llm(result=None, *, use_default=True):
 
 
 def _wire_pipeline(db_session, llm_service):
-    """Wire ProcessScrapedArticleUseCase + AnalyzeArticleUseCase with real DB."""
+    """Wire the full event-driven pipeline:
+    ArticleScrapedHandler → ProcessScrapedArticleUseCase
+    → ArticleProcessedEvent → ArticleProcessedHandler → AnalyzeArticleUseCase
+    """
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
-    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.modules.intelligence.application.use_cases.analyze_article import AnalyzeArticleUseCase
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.shared.application.events import ArticleProcessedEvent
 
     article_repo = SqlAlchemyArticleRepository(session=db_session)
@@ -68,18 +77,23 @@ def _wire_pipeline(db_session, llm_service):
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        prompt=AnalysisPrompt(),
     )
 
-    handler = ArticleProcessedHandler(use_case=analyze_uc)
-    event_bus.subscribe(ArticleProcessedEvent, handler.handle)
+    scraped_handler = ArticleScrapedHandler(
+        use_case=process_uc,
+        pipeline_stats=PipelineStats(),
+        event_bus=event_bus,
+    )
+    processed_handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
+    event_bus.subscribe(ArticleProcessedEvent, processed_handler.handle)
 
-    return process_uc
+    return scraped_handler
 
 
 # ---------------------------------------------------------------------------
@@ -90,13 +104,11 @@ def _wire_pipeline(db_session, llm_service):
 def test_process_article_creates_article_and_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
-    from src.modules.collection.application.use_cases import ArticleOutcome
+    from models.analyses_translation import AnalysesTranslation
 
     event = _make_event()
-    uc = _wire_pipeline(db_session, _mock_llm())
-    result = uc.execute(event)
-
-    assert result == ArticleOutcome.NEW
+    handler = _wire_pipeline(db_session, _mock_llm())
+    assert handler.handle(event) is True
 
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
@@ -105,9 +117,15 @@ def test_process_article_creates_article_and_analysis(db_session):
 
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
     assert analysis is not None
-    assert analysis.pain_points == "Test pain points"
     assert analysis.model_used == "test-model"
     assert analysis.input_tokens == 100
+
+    # Content is now stored in analyses_translation
+    en_translation = db_session.query(AnalysesTranslation).filter_by(
+        analysis_id=analysis.id, language="en"
+    ).first()
+    assert en_translation is not None
+    assert en_translation.pain_points == "Test pain points"
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +135,17 @@ def test_process_article_creates_article_and_analysis(db_session):
 @pytest.mark.integration
 def test_process_article_returns_false_for_fully_processed_duplicate(db_session):
     from models.article import Article
-    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
 
     # First call — creates article + analysis
-    _wire_pipeline(db_session, _mock_llm()).execute(event)
+    _wire_pipeline(db_session, _mock_llm()).handle(event)
 
     llm = _mock_llm()
-    result = _wire_pipeline(db_session, llm).execute(event)
+    result = _wire_pipeline(db_session, llm).handle(event)
 
-    assert result == ArticleOutcome.DUPLICATE
+    # ArticleScrapedHandler returns True for DUPLICATE (only FAILED returns False)
+    assert result is True
     llm.analyze.assert_not_called()
     assert db_session.query(Article).filter_by(url=event.url).count() == 1
 
@@ -136,8 +154,7 @@ def test_process_article_returns_false_for_fully_processed_duplicate(db_session)
 def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     from models.article import Article
     from models.analysis import Analysis
-    from src.modules.collection.domain.value_objects.url import UrlHash
-    from src.modules.collection.application.use_cases import ArticleOutcome
+    from src.modules.collection.domain.value_objects import UrlHash
 
     event = _make_event()
 
@@ -153,9 +170,11 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
     db_session.add(article)
     db_session.commit()
 
-    result = _wire_pipeline(db_session, _mock_llm()).execute(event)
+    # DUPLICATE_NEEDS_ANALYSIS still publishes ArticleProcessedEvent,
+    # so the handler returns True (not FAILED)
+    result = _wire_pipeline(db_session, _mock_llm()).handle(event)
+    assert result is True
 
-    assert result == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
     assert analysis is not None
 
@@ -174,7 +193,7 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
     ))
     event = _make_event()
 
-    _wire_pipeline(db_session, llm).execute(event)
+    _wire_pipeline(db_session, llm).handle(event)
 
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
@@ -186,14 +205,15 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
 def test_process_article_returns_true_when_llm_returns_none(db_session):
     from models.article import Article
     from models.analysis import Analysis
-    from src.modules.collection.application.use_cases import ArticleOutcome
 
     event = _make_event()
     llm = _mock_llm(result=None, use_default=False)
 
-    result = _wire_pipeline(db_session, llm).execute(event)
+    # Handler returns True because the article was saved (outcome=NEW),
+    # even though LLM analysis subsequently failed inside the event chain
+    result = _wire_pipeline(db_session, llm).handle(event)
 
-    assert result == ArticleOutcome.NEW
+    assert result is True
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()

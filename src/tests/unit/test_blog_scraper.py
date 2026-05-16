@@ -61,18 +61,9 @@ def test_blog_scraper_extracts_title_and_content():
 @responses.activate
 def test_blog_scraper_checks_robots_txt():
     """BlogScraper should check robots.txt before scraping"""
+    from unittest.mock import patch, MagicMock
+    from urllib.robotparser import RobotFileParser
     from src.infrastructure.collection.scrapers.blog_scraper import BlogScraper
-
-    # Use standard robots.txt format
-    robots_content = "User-agent: *\nDisallow: /private/\n"
-
-    responses.add(
-        responses.GET,
-        "https://example.com/robots.txt",
-        body=robots_content,
-        status=200,
-        headers={"Content-Type": "text/plain"}
-    )
 
     scraper = BlogScraper(
         base_url="https://example.com/blog",
@@ -80,11 +71,19 @@ def test_blog_scraper_checks_robots_txt():
         selectors={'links': 'a', 'title': 'h1', 'content': '.content'}
     )
 
-    # Note: RobotFileParser behavior can vary, so we test basic loading
-    # First call loads the robots.txt
-    scraper._load_robots()
-    # After loading, should have a parser
-    assert scraper._robot_parser is not None
+    # RobotFileParser.read() uses urllib, not requests — responses mock can't intercept it.
+    # Patch _load_robots to inject a pre-configured parser instead.
+    mock_parser = RobotFileParser()
+    mock_parser.set_url("https://example.com/robots.txt")
+    mock_parser.parse(["User-agent: *", "Disallow: /private/"])
+
+    with patch.object(scraper, '_load_robots') as mock_load:
+        scraper._robot_parser = mock_parser
+        scraper._robots_loaded = True
+
+        # Verify _can_fetch respects the robots.txt rules
+        assert scraper._can_fetch("https://example.com/private/page") is False
+        assert scraper._can_fetch("https://example.com/public/page") is True
 
 
 @responses.activate

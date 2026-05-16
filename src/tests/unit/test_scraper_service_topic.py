@@ -2,8 +2,7 @@ def test_scraper_factory_passes_topic_id_to_rss_scraper():
     from unittest.mock import MagicMock
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.modules.collection.domain.entities import ScraperSetting
-    from src.modules.collection.domain.value_objects.selector_config import RssConfig
-    from src.modules.collection.domain.value_objects.scraper_keyword import RssKeyword
+    from src.modules.collection.domain.value_objects import RssConfig, RssKeyword
     from uuid import uuid4
 
     topic_id = uuid4()
@@ -27,7 +26,7 @@ def test_scraper_factory_creates_arxiv_scraper_for_arxiv_source():
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
     from src.modules.collection.domain.entities import ScraperSetting
-    from src.modules.collection.domain.value_objects.selector_config import ArxivConfig
+    from src.modules.collection.domain.value_objects import ArxivConfig
 
     setting = ScraperSetting(
         source="arxiv", source_type="arxiv",

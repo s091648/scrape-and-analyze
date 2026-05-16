@@ -1,12 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Rss, Settings, ChevronDown } from 'lucide-react'
+import { Rss, Settings, ChevronDown, Globe } from 'lucide-react'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
+import { useI18n } from '@/i18n'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -18,8 +19,22 @@ export function NavBar() {
   const userName = session?.user?.name ?? (session?.user as any)?.username ?? session?.user?.email ?? ''
   const [userIcon, setUserIcon] = useState<string | null>(null)
   const [iconLoading, setIconLoading] = useState(false)
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false)
+  const langDropdownRef = useRef<HTMLDivElement>(null)
   const token = (session as any)?.accessToken
   const { topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading } = useTopic()
+  const { locale, setLocale, availableLanguages, t, isLoading: i18nLoading } = useI18n()
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
+        setLangDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (!token) { setUserIcon(null); return }
@@ -27,6 +42,8 @@ export function NavBar() {
     fetchMe(token).then(profile => setUserIcon(profile?.icon ?? null))
       .finally(() => setIconLoading(false))
   }, [token])
+
+  const currentLang = availableLanguages.find(l => l.code === locale)
 
   return (
     <header className="fixed left-0 top-0 right-0 z-50 w-full border-b border-border bg-background">
@@ -86,15 +103,47 @@ export function NavBar() {
         {/* Left nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Articles
+            {t('nav.articles')}
           </Link>
           <Link href="/graph" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
-            Knowledge Graph
+            {t('nav.knowledgeGraph')}
           </Link>
         </div>
 
         {/* Right nav */}
         <div className="ml-auto flex items-center gap-4 shrink-0">
+          {/* Language dropdown */}
+          <div className="relative" ref={langDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+              className="flex items-center gap-1.5 text-sm font-medium px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+            >
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              <span>{i18nLoading ? '...' : currentLang?.native_name || locale}</span>
+            </button>
+            {langDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-border bg-background shadow-lg z-50">
+                {availableLanguages.map(lang => (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => {
+                      setLocale(lang.code)
+                      setLangDropdownOpen(false)
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                      lang.code === locale ? 'font-semibold bg-muted/50' : ''
+                    }`}
+                  >
+                    <span>{lang.native_name}</span>
+                    {lang.code === locale && <span>✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {session && (
             <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">
               <Settings size={20} />
@@ -121,12 +170,12 @@ export function NavBar() {
                 onClick={() => signOut()}
                 className="rounded-full h-8 px-4 text-sm font-medium"
               >
-                Logout
+                {t('nav.logout')}
               </Button>
             </>
           ) : (
             <Button asChild size="sm" className="rounded-full h-8 px-4 text-sm font-medium">
-              <Link href="/login">Login</Link>
+              <Link href="/login">{t('nav.login')}</Link>
             </Button>
           )}
         </div>

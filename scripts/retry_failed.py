@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.infrastructure.persistence.database import get_session, init_db, find_recent_failures
+from src.infrastructure.persistence.database import get_session, init_db
 from src.infrastructure.shared.logging import bind_correlation_id
 from src.shared.logging import get_logger
 
@@ -69,13 +69,14 @@ def _build_article_entity(article_row):
 def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
     """Re-run analysis on an existing article."""
     from models.article import Article as ArticleModel
-    from src.infrastructure.persistence.database import has_analysis
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import AnalysisFailedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.modules.intelligence.application.events import AnalysisFailedEvent
 
     if not failure.article_id:
@@ -88,7 +89,8 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
                        failure_id=str(failure.id), article_id=str(failure.article_id))
         return False
 
-    if has_analysis(session, article_row.id):
+    article_repo = SqlAlchemyArticleRepository(session=session)
+    if article_repo.has_analysis(article_row.id):
         logger.info("retry_analyze_already_done", article_id=str(article_row.id))
         return True
 
@@ -110,9 +112,19 @@ def retry_analyze(session, failure, llm_service, dry_run: bool) -> bool:
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
+        prompt=AnalysisPrompt(),
     )
-    return uc.execute(article)
+    result = uc.execute(article)
+
+    if not result.success:
+        event_bus.publish(AnalysisFailedEvent(
+            article_id=result.article_id,
+            article_url=result.article_url,
+            exception_type=result.exception_type,
+            exception_message=result.exception_message,
+        ))
+
+    return result.success
 
 
 def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
@@ -164,15 +176,14 @@ def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
     process_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
-        event_bus=event_bus,
     )
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
+        prompt=AnalysisPrompt(),
     )
-    event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc).handle)
+    event_bus.subscribe(ArticleProcessedEvent, ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus).handle)
     event_bus.subscribe(AnalysisFailedEvent, AnalysisFailedHandler(failed_task_repository=failed_task_repo).handle)
 
     source = url.split("/")[2] if "/" in url else "unknown"
@@ -182,7 +193,9 @@ def retry_scrape(session, failure, llm_service, dry_run: bool) -> bool:
         content=content,
         source=source,
     )
-    return process_uc.execute(scraped_event)
+    outcome, _ = process_uc.execute(scraped_event)
+    from src.modules.collection.application.use_cases import ArticleOutcome
+    return outcome != ArticleOutcome.FAILED
 
 
 def main():
@@ -199,7 +212,9 @@ def main():
     session = get_session()
     try:
         if args.hours:
-            failures = find_recent_failures(session, hours=args.hours)
+            from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
+            failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
+            failures = failed_task_repo.find_recent_failures(hours=args.hours)
         else:
             from models.failed_task import FailedTask
             failures = session.query(FailedTask).filter_by(resolved=False).all()

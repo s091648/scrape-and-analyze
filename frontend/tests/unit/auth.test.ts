@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
+// next-auth imports next/server internally which doesn't resolve in the jsdom test environment.
 vi.mock('next-auth', () => ({
   default: vi.fn((config: any) => config),
 }))

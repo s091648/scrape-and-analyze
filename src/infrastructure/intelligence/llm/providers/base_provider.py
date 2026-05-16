@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional
 
 import tenacity
 
@@ -22,6 +22,11 @@ _NON_RETRYABLE = (
     RateLimitExhausted,
 )
 
+# For translate(), only rate-limit and network are non-retryable.
+_TRANSLATE_NON_RETRYABLE = (
+    RateLimitExhausted,
+)
+
 
 def _to_str(val) -> str:
     """Coerce LLM output to str: join lists with newline, pass strings through."""
@@ -33,6 +38,11 @@ def _to_str(val) -> str:
 def _is_retryable(exc: BaseException) -> bool:
     """Retry on transient API / network errors; never retry on parse failures."""
     return not isinstance(exc, _NON_RETRYABLE)
+
+
+def _is_translate_retryable(exc: BaseException) -> bool:
+    """For translate(), retry on most errors (no JSON parsing to fail on)."""
+    return not isinstance(exc, _TRANSLATE_NON_RETRYABLE)
 
 
 class BaseProvider(LLMService, ABC):
@@ -58,6 +68,12 @@ class BaseProvider(LLMService, ABC):
             stop=tenacity.stop_after_attempt(3),
             reraise=True,
         )
+        self._translate_retry = tenacity.Retrying(
+            retry=tenacity.retry_if_exception(_is_translate_retryable),
+            wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
+            stop=tenacity.stop_after_attempt(3),
+            reraise=True,
+        )
 
     @abstractmethod
     def _call_api(self, content: str, prompt: str) -> dict:
@@ -67,11 +83,19 @@ class BaseProvider(LLMService, ABC):
         """
         ...
 
+    @abstractmethod
+    def _call_api_raw(self, content: str, prompt: str) -> str:
+        """
+        Call the provider API and return raw text response.
+        Raise on any failure — retry is handled by the base class.
+        """
+        ...
+
     def analyze(
         self,
         content: str,
         prompt: str,
-    ) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
+    ) -> Optional[tuple[AnalysisContent, AnalysisMetadata]]:
         try:
             for attempt in self._retry:
                 with attempt:
@@ -109,3 +133,24 @@ class BaseProvider(LLMService, ABC):
 
     def _validate(self, result: dict) -> bool:
         return all(f in result for f in _REQUIRED_FIELDS)
+
+    def translate(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[str]:
+        try:
+            for attempt in self._translate_retry:
+                with attempt:
+                    text = self._call_api_raw(content, prompt)
+        except RateLimitExhausted:
+            raise
+        except Exception as e:
+            logger.warning("provider_translate_failed", model=self._model, error=str(e))
+            return None
+
+        if not text.strip():
+            logger.warning("provider_translate_empty", model=self._model)
+            return None
+
+        return text

@@ -152,8 +152,6 @@ class TestMain:
         """main() should filter by hours when provided"""
         import sys
         from scripts.retry_failed import main
-        from scripts.retry_failed import find_recent_failures
-        from models.failed_task import FailedTask
 
         monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
         monkeypatch.setattr(sys, "argv", ["retry_failed.py", "--hours", "24"])
@@ -163,13 +161,16 @@ class TestMain:
             mock_session.query.return_value.filter_by.return_value.all.return_value = []
             mock_get_session.return_value = mock_session
 
-            with patch("scripts.retry_failed.find_recent_failures") as mock_find:
-                mock_find.return_value = []
+            with patch("scripts.retry_failed.SqlAlchemyFailedTaskRepository") as mock_repo_cls:
+                mock_repo = MagicMock()
+                mock_repo.find_recent_failures.return_value = []
+                mock_repo_cls.return_value = mock_repo
+
                 mock_session.close = MagicMock()
 
                 with patch("scripts.retry_failed.init_db"):
                     with patch("src.bootstrap.build_llm_service"):
                         main()
 
-        mock_find.assert_called_once()
-        assert mock_find.call_args[1]["hours"] == 24
+        mock_repo.find_recent_failures.assert_called_once()
+        assert mock_repo.find_recent_failures.call_args[1]["hours"] == 24

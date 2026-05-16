@@ -42,6 +42,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 COPY models/ ./models/
+COPY shared/ ./shared/
 COPY backend/ ./backend/
 COPY src/ ./src/
 COPY providers.toml ./providers.toml
