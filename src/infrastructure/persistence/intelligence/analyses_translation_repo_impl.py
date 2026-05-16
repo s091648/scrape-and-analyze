@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session, joinedload
 
-from src.modules.intelligence.domain.entities import AnalysesTranslation
+from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository
 from src.shared.logging import get_logger
 
@@ -17,45 +17,45 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def save(self, translation: AnalysesTranslation) -> None:
-        """Save or update an analysis translation."""
+    def save(self, content: AnalysesContent) -> None:
+        """Save or update an analysis content."""
         from models.analyses_translation import AnalysesTranslation as AnalysesTranslationModel
 
         # Check if exists
         existing = self._session.query(AnalysesTranslationModel).filter_by(
-            analysis_id=translation.analysis_id,
-            language=translation.language,
+            analysis_id=content.analysis_id,
+            language=content.language,
         ).first()
 
         if existing:
             # Update existing
-            existing.summary = translation.summary
-            existing.pain_points = translation.pain_points
-            existing.insights = translation.insights
-            existing.innovations = translation.innovations
+            existing.summary = content.summary
+            existing.pain_points = content.pain_points
+            existing.insights = content.insights
+            existing.innovations = content.innovations
             existing.updated_at = datetime.utcnow()
         else:
             # Create new
             model = AnalysesTranslationModel(
-                analysis_id=translation.analysis_id,
-                language=translation.language,
-                summary=translation.summary,
-                pain_points=translation.pain_points,
-                insights=translation.insights,
-                innovations=translation.innovations,
+                analysis_id=content.analysis_id,
+                language=content.language,
+                summary=content.summary,
+                pain_points=content.pain_points,
+                insights=content.insights,
+                innovations=content.innovations,
             )
             self._session.add(model)
 
         self._session.commit()
         logger.info(
             "analyses_translation_persisted",
-            analysis_id=str(translation.analysis_id),
-            language=translation.language,
+            analysis_id=str(content.analysis_id),
+            language=content.language,
         )
 
     def find_by_analysis_id_and_language(
         self, analysis_id: UUID, language: str
-    ) -> Optional[AnalysesTranslation]:
+    ) -> Optional[AnalysesContent]:
         """Find analysis translation by analysis ID and language."""
         from models.analyses_translation import AnalysesTranslation as AnalysesTranslationModel
 
@@ -67,7 +67,7 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
         if model is None:
             return None
 
-        return AnalysesTranslation(
+        return AnalysesContent(
             id=model.id,
             analysis_id=model.analysis_id,
             language=model.language,
@@ -91,7 +91,7 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
 
         rows = (
             self._session.query(AnalysisModel)
-            .filter(~AnalysisModel.analyses_translation.any(
+            .filter(~AnalysisModel.analyses_content.any(
                 AnalysesTranslationModel.language == language
             ))
             .options(joinedload(AnalysisModel.analyses_translation))

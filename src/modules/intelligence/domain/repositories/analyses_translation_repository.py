@@ -2,22 +2,22 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from src.modules.intelligence.domain.entities import AnalysesTranslation
+from src.modules.intelligence.domain.entities import AnalysesContent
 
 
 class AnalysesTranslationRepository(ABC):
-    """Domain interface for analysis translation persistence."""
+    """Domain interface for analysis content persistence."""
 
     @abstractmethod
-    def save(self, translation: AnalysesTranslation) -> None:
-        """Save or update an analysis translation."""
+    def save(self, content: AnalysesContent) -> None:
+        """Save or update analysis content."""
         ...
 
     @abstractmethod
     def find_by_analysis_id_and_language(
         self, analysis_id: UUID, language: str
-    ) -> Optional[AnalysesTranslation]:
-        """Find analysis translation by analysis ID and language."""
+    ) -> Optional[AnalysesContent]:
+        """Find analysis content by analysis ID and language."""
         ...
 
     @abstractmethod
@@ -25,47 +25,17 @@ class AnalysesTranslationRepository(ABC):
         self, language: str, limit: int
     ) -> List[dict]:
         """
-        Find analyses that don't have translation for the target language.
-        Returns list of dicts with analysis data (content read from English translation).
+        Find analyses that don't have content for the target language.
+        Returns list of dicts with analysis data (content read from English entry).
         """
         ...
 
     @abstractmethod
     def exists(self, analysis_id: UUID, language: str) -> bool:
-        """Check if translation exists for analysis and language."""
+        """Check if content exists for analysis and language."""
         ...
 
     @abstractmethod
     def rollback(self) -> None:
         """Rollback the current persistence transaction."""
-        ...
-
-
-class TagTranslationRepository(ABC):
-    """Domain interface for tag translation persistence."""
-
-    @abstractmethod
-    def save_tag_translation(self, tag_id: UUID, language: str, name: str) -> None:
-        """Save or update a tag translation."""
-        ...
-
-    @abstractmethod
-    def find_tags_without_translation(
-        self, language: str, limit: int
-    ) -> List[dict]:
-        """Find tags that don't have translation for the target language."""
-        ...
-
-    @abstractmethod
-    def save_group_translation(
-        self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
-    ) -> None:
-        """Save or update a tag group display_name and description translation."""
-        ...
-
-    @abstractmethod
-    def find_groups_without_translation(
-        self, language: str, limit: int
-    ) -> List[dict]:
-        """Find tag group definitions without translation for the target language."""
         ...

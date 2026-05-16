@@ -4,7 +4,7 @@ from uuid import UUID
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService
 from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository
-from src.modules.intelligence.domain.entities import AnalysesTranslation
+from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.value_objects import (
     ArticleTranslationPrompt,
     AnalysesTranslationContent,
@@ -92,7 +92,7 @@ class TranslateArticleUseCase:
             )
 
         # Save translation
-        translation = AnalysesTranslation(
+        translation = AnalysesContent(
             analysis_id=analysis_id,
             language=target_language,
             summary=translated.summary,
