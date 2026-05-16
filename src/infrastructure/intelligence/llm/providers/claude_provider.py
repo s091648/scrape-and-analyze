@@ -14,13 +14,16 @@ class ClaudeProvider(BaseProvider):
         super().__init__(model=model)
         self._client = anthropic.Anthropic(api_key=api_key)
 
-    def _call_api(self, content: str, prompt: str) -> dict:
+    def _create_message(self, content: str, prompt: str):
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
-        response = self._client.messages.create(
+        return self._client.messages.create(
             model=self._model,
             max_tokens=1024,
             messages=[{"role": "user", "content": full_prompt}],
         )
+
+    def _call_api(self, content: str, prompt: str) -> dict:
+        response = self._create_message(content, prompt)
         result = json.loads(response.content[0].text)
         result["_input_tokens"] = response.usage.input_tokens
         result["_output_tokens"] = response.usage.output_tokens
@@ -28,3 +31,8 @@ class ClaudeProvider(BaseProvider):
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens)
         return result
+
+    def _call_api_raw(self, content: str, prompt: str) -> str:
+        response = self._create_message(content, prompt)
+        logger.info("claude_api_called_raw", model=self._model)
+        return response.content[0].text

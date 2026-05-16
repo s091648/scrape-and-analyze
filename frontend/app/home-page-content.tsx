@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Newspaper, Lock } from 'lucide-react'
 import { useTopic } from '@/contexts/topic-context'
+import { useI18n } from '@/i18n'
 
 interface Article {
   id: string; title: string; source: string; content: string
@@ -35,6 +36,7 @@ export default function HomePageContent() {
   const { status } = useSession()
   const isGuest = status === 'unauthenticated'
   const searchParams = useSearchParams()
+  const { t } = useI18n()
   const {
     page, sort, order, setPage, setFilters,
     sources, tags, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
@@ -68,7 +70,7 @@ export default function HomePageContent() {
       <div className="flex items-center justify-between border-b border-border pb-6">
         <div className="flex items-center gap-3">
           <Newspaper className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-bold leading-none">Articles</h1>
+          <h1 className="text-2xl font-bold leading-none">{t('nav.articles')}</h1>
           <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-muted text-xs font-medium text-muted-foreground">
             {total}
           </span>
@@ -109,10 +111,10 @@ export default function HomePageContent() {
               <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="text-center space-y-1.5">
-              <p className="text-sm font-medium">There&apos;s more to explore</p>
+              <p className="text-sm font-medium">{t('home.thereMoreToExplore')}</p>
               <p className="text-sm text-muted-foreground">
-                <Link href="/login" className="font-medium text-primary underline underline-offset-4">Sign in</Link>
-                {' '}to read more articles
+                <Link href="/login" className="font-medium text-primary underline underline-offset-4">{t('login.signIn')}</Link>
+                {' '}{t('home.signInToReadMore')}
               </p>
             </div>
           </div>
@@ -130,10 +132,10 @@ export default function HomePageContent() {
             className="rounded-full h-8 px-3 gap-1"
           >
             <ChevronLeft className="h-4 w-4" />
-            Previous
+            {t('home.previous')}
           </Button>
           <span className="text-sm text-muted-foreground">
-            Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
+            {t('home.pageOf').replace('{page}', String(page)).replace('{total}', String(totalPages))}
           </span>
           <Button
             variant="outline"
@@ -142,7 +144,7 @@ export default function HomePageContent() {
             disabled={page >= totalPages}
             className="rounded-full h-8 px-3 gap-1"
           >
-            Next
+            {t('home.next')}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

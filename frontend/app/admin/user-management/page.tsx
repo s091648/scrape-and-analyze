@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api-fetch'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useI18n } from '@/i18n'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -37,6 +38,7 @@ interface User {
 
 export default function UsersPage() {
   const { data: session, status } = useSession()
+  const { t } = useI18n()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -78,7 +80,7 @@ export default function UsersPage() {
   }
 
   async function deleteUser(userId: string) {
-    if (!confirm('Delete this user?')) return
+    if (!confirm(t('admin.confirmDeleteUser'))) return
     const res = await apiFetch(`/auth/users/${userId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
@@ -109,45 +111,45 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage user accounts and roles</p>
+          <h1 className="text-2xl font-bold">{t('admin.userManagement')}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t('admin.userManagementDesc')}</p>
         </div>
         <Button onClick={() => setCreating(!creating)} variant={creating ? 'outline' : 'default'}>
-          {creating ? 'Cancel' : 'Add user'}
+          {creating ? t('admin.cancel') : t('admin.addUser')}
         </Button>
       </div>
 
       {creating && (
         <form onSubmit={createUser}
           className="rounded-2xl border border-border bg-card p-6 space-y-4">
-          <h2 className="font-semibold text-sm">New user</h2>
+          <h2 className="font-semibold text-sm">{t('admin.newUser')}</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t('register.email')}</label>
               <input value={newEmail} onChange={e => setNewEmail(e.target.value)}
                 placeholder="user@example.com"
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Role</label>
+              <label className="text-sm font-medium">{t('admin.role')}</label>
               <select value={newRole} onChange={e => setNewRole(e.target.value as 'admin' | 'user')}
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
+                <option value="user">{t('admin.user')}</option>
+                <option value="admin">{t('admin.admin')}</option>
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Username (optional)</label>
+              <label className="text-sm font-medium">{t('register.username')} ({t('register.displayNameOptional')})</label>
               <input value={newUsername} onChange={e => setNewUsername(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Password (if username set)</label>
+              <label className="text-sm font-medium">{t('login.password')} ({t('admin.ifUsernameSet')})</label>
               <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
           </div>
-          <Button type="submit" size="sm">Create user</Button>
+          <Button type="submit" size="sm">{t('admin.createUser')}</Button>
         </form>
       )}
 
@@ -155,11 +157,11 @@ export default function UsersPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 border-b border-border">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">User</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Auth</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Active</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Joined</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.userColumn')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.authColumn')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.role')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.active')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.joinedColumn')}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -221,8 +223,8 @@ export default function UsersPage() {
                         onChange={e => changeRole(user, e.target.value as 'admin' | 'user')}
                         className="h-8 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
+                        <option value="user">{t('admin.user')}</option>
+                        <option value="admin">{t('admin.admin')}</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">
@@ -238,7 +240,7 @@ export default function UsersPage() {
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => deleteUser(user.id)}
                       >
-                        Delete
+                        {t('admin.delete')}
                       </Button>
                     </td>
                   </tr>
@@ -246,7 +248,7 @@ export default function UsersPage() {
                 {users.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                      No users found
+                      {t('admin.noUsersFound')}
                     </td>
                   </tr>
                 )}

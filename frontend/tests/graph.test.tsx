@@ -14,6 +14,10 @@ vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
   SessionProvider: ({ children }: any) => children,
 }))
+vi.mock('@/contexts/topic-context', () => ({
+  useTopic: () => ({ selectedTopicId: 'topic-test-id', setSelectedTopicId: vi.fn(), topics: [], selectedTopic: null, refresh: vi.fn(), isLoading: false }),
+  TopicProvider: ({ children }: any) => children,
+}))
 
 describe('Knowledge Graph', () => {
   beforeEach(() => {

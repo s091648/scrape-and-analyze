@@ -2,12 +2,14 @@
 
 import { GrafanaPanel } from '@/components/grafana-panel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { useI18n } from '@/i18n'
 
 interface MonitoringContentProps {
   grafanaUrl: string
 }
 
 export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
+  const { t } = useI18n()
   const Panel = (props: Omit<React.ComponentProps<typeof GrafanaPanel>, 'grafanaUrl'>) => (
     <GrafanaPanel {...props} grafanaUrl={grafanaUrl} />
   )
@@ -15,14 +17,14 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
   return (
     <div className="max-w-7xl space-y-6">
       <div className="border-b border-border pb-6">
-        <h1 className="text-2xl font-bold">Monitoring</h1>
+        <h1 className="text-2xl font-bold">{t('admin.monitoring')}</h1>
       </div>
 
       <Tabs defaultValue="operations">
         <TabsList>
-          <TabsTrigger value="operations">Operations</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="traces">Traces</TabsTrigger>
+          <TabsTrigger value="operations">{t('admin.operations')}</TabsTrigger>
+          <TabsTrigger value="logs">{t('admin.logs')}</TabsTrigger>
+          <TabsTrigger value="traces">{t('admin.traces')}</TabsTrigger>
         </TabsList>
 
         {/* ── Operations tab ─────────────────────────────────────────────── */}

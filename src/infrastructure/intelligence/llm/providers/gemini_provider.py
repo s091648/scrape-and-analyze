@@ -15,7 +15,7 @@ class GeminiProvider(BaseProvider):
         super().__init__(model=model)
         self._client = genai.Client(api_key=api_key)
 
-    def _call_api(self, content: str, prompt: str) -> dict:
+    def _generate(self, content: str, prompt: str):
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         try:
             response = self._client.models.generate_content(
@@ -27,6 +27,10 @@ class GeminiProvider(BaseProvider):
             if "RESOURCE_EXHAUSTED" in error_str and "PerDay" in error_str:
                 raise RateLimitExhausted(f"Daily quota exceeded for {self._model}") from e
             raise
+        return response
+
+    def _call_api(self, content: str, prompt: str) -> dict:
+        response = self._generate(content, prompt)
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[-1]
@@ -38,3 +42,17 @@ class GeminiProvider(BaseProvider):
         result["_output_tokens"] = getattr(usage, "candidates_token_count", 0) if usage else 0
         logger.info("gemini_api_called", model=self._model)
         return result
+
+    def _call_api_raw(self, content: str, prompt: str) -> str:
+        response = self._generate(content, prompt)
+        if not response.candidates:
+            return ""
+        candidate = response.candidates[0]
+        fr = candidate.finish_reason
+        # fr is either an int or a FinishReason enum — accept both
+        fr_name = fr.name if hasattr(fr, "name") else str(fr)
+        if fr_name not in ("STOP", "1"):
+            logger.warning("gemini_blocked", model=self._model, finish_reason=fr_name)
+            return ""
+        logger.info("gemini_api_called_raw", model=self._model)
+        return (response.text or "").strip()

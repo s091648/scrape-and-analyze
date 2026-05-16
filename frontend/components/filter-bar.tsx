@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SlidersHorizontal, ChevronDown, X } from 'lucide-react'
 import { apiFetch } from '@/lib/api-fetch'
+import { useI18n } from '@/i18n'
 
 type DateMode = 'any' | 'after' | 'before' | 'range'
 
@@ -36,6 +37,7 @@ function MultiSelectPopover({
   selected: string[]
   onChange: (val: string[]) => void
 }) {
+  const { t } = useI18n()
   function toggle(v: string) {
     onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
   }
@@ -53,7 +55,7 @@ function MultiSelectPopover({
       </PopoverTrigger>
       <PopoverContent className="w-52 p-0" align="start">
         <Command>
-          <CommandInput placeholder={`Search ${label.toLowerCase()}…`} className="h-8 text-xs" />
+          <CommandInput placeholder={`${t('filterBar.search')} ${label.toLowerCase()}…`} className="h-8 text-xs" />
           <CommandList className="max-h-52">
             {options.map(opt => (
               <CommandItem key={opt} value={opt} onSelect={() => toggle(opt)} className="gap-2 text-xs">
@@ -77,6 +79,7 @@ function DateFilter({
   onAfterChange: (v: string) => void
   onBeforeChange: (v: string) => void
 }) {
+  const { t } = useI18n()
   const [mode, setMode] = useState<DateMode>('any')
 
   useEffect(() => {
@@ -94,6 +97,13 @@ function DateFilter({
   }
 
   const hasDate = !!(after || before)
+
+  const modeLabels: Record<DateMode, string> = {
+    any: t('filterBar.any'),
+    after: t('filterBar.after'),
+    before: t('filterBar.before'),
+    range: t('filterBar.range'),
+  }
 
   return (
     <Popover>
@@ -116,13 +126,13 @@ function DateFilter({
                   : 'border-border text-muted-foreground hover:border-foreground'
               }`}
             >
-              {m.charAt(0).toUpperCase() + m.slice(1)}
+              {modeLabels[m]}
             </button>
           ))}
         </div>
         {(mode === 'after' || mode === 'range') && (
           <div>
-            <label className="text-[10px] text-muted-foreground block mb-1">From</label>
+            <label className="text-[10px] text-muted-foreground block mb-1">{t('filterBar.from')}</label>
             <input
               type="date"
               value={after}
@@ -133,7 +143,7 @@ function DateFilter({
         )}
         {(mode === 'before' || mode === 'range') && (
           <div>
-            <label className="text-[10px] text-muted-foreground block mb-1">To</label>
+            <label className="text-[10px] text-muted-foreground block mb-1">{t('filterBar.to')}</label>
             <input
               type="date"
               value={before}
@@ -152,6 +162,7 @@ export function FilterBar({
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
   activeFilterCount, onApply,
 }: FilterBarProps) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [sourceOptions, setSourceOptions] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<string[]>([])
@@ -208,7 +219,7 @@ export function FilterBar({
         onClick={() => setOpen(o => !o)}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
-        Filters
+        {t('filterBar.filters')}
         {activeFilterCount > 0 && (
           <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
         )}
@@ -217,26 +228,26 @@ export function FilterBar({
       {open && (
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
           <MultiSelectPopover
-            label="Source"
+            label={t('filterBar.source')}
             options={sourceOptions}
             selected={draftSources}
             onChange={setDraftSources}
           />
           <MultiSelectPopover
-            label="Tag"
+            label={t('filterBar.tag')}
             options={tagOptions}
             selected={draftTags}
             onChange={setDraftTags}
           />
           <DateFilter
-            label="Published"
+            label={t('filterBar.published')}
             after={draftPubAfter}
             before={draftPubBefore}
             onAfterChange={setDraftPubAfter}
             onBeforeChange={setDraftPubBefore}
           />
           <DateFilter
-            label="Scraped"
+            label={t('filterBar.scraped')}
             after={draftScrapedAfter}
             before={draftScrapedBefore}
             onAfterChange={setDraftScrapedAfter}
@@ -245,10 +256,10 @@ export function FilterBar({
           <div className="flex gap-2 ml-auto">
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={handleClear}>
-                <X className="h-3 w-3" /> Clear
+                <X className="h-3 w-3" /> {t('filterBar.clear')}
               </Button>
             )}
-            <Button size="sm" className="h-8 text-xs" onClick={handleApply}>Apply</Button>
+            <Button size="sm" className="h-8 text-xs" onClick={handleApply}>{t('filterBar.apply')}</Button>
           </div>
         </div>
       )}

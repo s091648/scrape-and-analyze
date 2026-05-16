@@ -30,6 +30,17 @@ class ProviderHandler:
             self.strategy.record_usage(metadata.input_tokens + metadata.output_tokens)
         return result
 
+    def translate(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[str]:
+        self.strategy.acquire(estimated_tokens=len(content) // 4)
+        result = self.provider.translate(content, prompt)
+        if result is not None:
+            self.strategy.record_usage(len(content) // 4 + len(result) // 4)
+        return result
+
 
 class ResilientLLMService(LLMService):
     """
@@ -57,4 +68,23 @@ class ResilientLLMService(LLMService):
                 logger.error("provider_failed", provider=handler.name, error=str(e))
 
         logger.error("all_providers_exhausted")
+        return None
+
+    def translate(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[str]:
+        for handler in self._handlers:
+            try:
+                result = handler.translate(content, prompt)
+                if result is not None:
+                    return result
+                logger.warning("provider_translate_returned_none", provider=handler.name)
+            except RateLimitExhausted:
+                logger.warning("provider_daily_limit_reached", provider=handler.name)
+            except Exception as e:
+                logger.error("provider_translate_failed", provider=handler.name, error=str(e))
+
+        logger.error("all_providers_exhausted_translate")
         return None
