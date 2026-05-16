@@ -109,6 +109,7 @@ function ArxivSettingCard({
   onAddCategory: (category: string) => Promise<void>
   onDeleteCategory: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const arxivCfg = setting.selector_config as { days_back?: number; max_results?: number } | null
@@ -134,6 +135,8 @@ function ArxivSettingCard({
   }
 
   const countdown = useNextScrapeCountdown(setting.last_scraped_at, setting.frequency)
+  const inputCls = 'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
+  const labelCls = 'block text-xs font-medium mb-1 text-muted-foreground'
 
   return (
     <>
@@ -141,27 +144,25 @@ function ArxivSettingCard({
       {editing ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Edit ArXiv Source</span>
+            <span className="text-sm font-semibold">{t('admin.editArxivSource')}</span>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">Name</label>
+            <label className={labelCls}>{t('admin.name')}</label>
             <input
-              className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className={inputCls}
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1 text-muted-foreground">
-              Frequency (hours)
-            </label>
+            <label className={labelCls}>{t('admin.frequencyHours')}</label>
             <input
               type="number"
               min={1}
-              className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className={inputCls}
               value={form.frequency}
               onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
             />
@@ -173,27 +174,23 @@ function ArxivSettingCard({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">
-                Max results
-              </label>
+              <label className={labelCls}>{t('admin.maxResults')}</label>
               <input
                 type="number"
                 min={1}
                 max={500}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={inputCls}
                 value={form.max_results}
                 onChange={e => setForm(f => ({ ...f, max_results: Number(e.target.value) }))}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1 text-muted-foreground">
-                Days back
-              </label>
+              <label className={labelCls}>{t('admin.daysBack')}</label>
               <input
                 type="number"
                 min={1}
                 max={365}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={inputCls}
                 value={form.days_back}
                 onChange={e => setForm(f => ({ ...f, days_back: Number(e.target.value) }))}
               />
@@ -204,15 +201,15 @@ function ArxivSettingCard({
               checked={form.is_active}
               onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
             />
-            <span className="text-sm text-muted-foreground">Active</span>
+            <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
           </div>
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave} disabled={saving}>
               <Check className="h-4 w-4 mr-1" />
-              Save
+              {t('admin.save')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
-              Cancel
+              {t('admin.cancel')}
             </Button>
           </div>
         </div>
@@ -244,9 +241,11 @@ function ArxivSettingCard({
           <div className="flex justify-end">
             <div className="flex flex-col items-end gap-2">
               <div className="text-right leading-tight space-y-0.5">
-                <p className="text-xs font-medium text-orange-500 tabular-nums">
-                  next scrape in {countdown}
-                </p>
+                {setting.is_active && (
+                  <p className="text-xs font-medium text-orange-500 tabular-nums">
+                    {t('admin.nextScrapeIn')} {countdown}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">{formatFrequency(setting.frequency)}</p>
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {arxivCfg?.max_results ?? 30} results · {arxivCfg?.days_back ?? 7}d back
@@ -273,15 +272,15 @@ function ArxivSettingCard({
     <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Delete arXiv source?</DialogTitle>
+          <DialogTitle>{t('admin.deleteArxivSource')}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete <strong>{setting.name}</strong>? This cannot be undone.
+          {t('admin.confirmDeleteSource').replace('{name}', setting.name)}
         </p>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => setConfirmDelete(false)}>{t('admin.cancel')}</Button>
           <Button variant="destructive" onClick={() => { setConfirmDelete(false); onDelete(setting.id) }}>
-            Delete
+            {t('admin.delete')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -301,6 +300,7 @@ function AddArxivCard({
     categories: string[],
   ) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const [form, setForm] = useState({ name: 'arXiv', frequency: 24, is_active: true })
   const [localKeywords, setLocalKeywords] = useState<ArxivKeyword[]>([])
@@ -333,9 +333,9 @@ function AddArxivCard({
     setLocalCategories([])
   }
 
-  const inputClass =
+  const inputCls =
     'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
-  const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
+  const labelCls = 'block text-xs font-medium mb-1 text-muted-foreground'
 
   if (!expanded) {
     return (
@@ -344,7 +344,7 @@ function AddArxivCard({
         className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
       >
         <Plus className="h-4 w-4" />
-        Activate arXiv
+        {t('admin.activateArxiv')}
       </button>
     )
   }
@@ -352,7 +352,7 @@ function AddArxivCard({
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">Activate arXiv Source</span>
+        <span className="text-sm font-semibold">{t('admin.activateArxiv')}</span>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}>
           <X className="h-4 w-4" />
         </Button>
@@ -360,19 +360,19 @@ function AddArxivCard({
 
       <div className="space-y-3">
         <div>
-          <label className={labelClass}>Name</label>
+          <label className={labelCls}>{t('admin.name')}</label>
           <input
-            className={inputClass}
+            className={inputCls}
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
           />
         </div>
         <div>
-          <label className={labelClass}>Frequency (hours)</label>
+          <label className={labelCls}>{t('admin.frequencyHours')}</label>
           <input
             type="number"
             min={1}
-            className={inputClass}
+            className={inputCls}
             value={form.frequency}
             onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
           />
@@ -385,7 +385,7 @@ function AddArxivCard({
             checked={form.is_active}
             onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
           />
-          <span className="text-sm text-muted-foreground">Active</span>
+          <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
         </div>
       </div>
 
@@ -411,10 +411,10 @@ function AddArxivCard({
       <div className="flex gap-2">
         <Button size="sm" onClick={handleSave} disabled={saving || !form.name}>
           <Check className="h-4 w-4 mr-1" />
-          Activate
+          {t('admin.activate')}
         </Button>
         <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>
-          Cancel
+          {t('admin.cancel')}
         </Button>
       </div>
     </div>
@@ -430,6 +430,7 @@ function AddSourceCard({
   sourceType: 'rss' | 'blog'
   onAdd: (data: Omit<ScraperSetting, 'id'>) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const emptyForm = {
     name: '',
@@ -469,14 +470,14 @@ function AddSourceCard({
         className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
       >
         <Plus className="h-4 w-4" />
-        Add source
+        {t('admin.addSource')}
       </button>
     )
   }
 
-  const inputClass =
+  const inputCls =
     'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
-  const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
+  const labelCls = 'block text-xs font-medium mb-1 text-muted-foreground'
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -489,29 +490,29 @@ function AddSourceCard({
 
       <div className="space-y-3">
         <div>
-          <label className={labelClass}>Name</label>
+          <label className={labelCls}>{t('admin.name')}</label>
           <input
-            className={inputClass}
+            className={inputCls}
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             placeholder="e.g. Hacker News"
           />
         </div>
         <div>
-          <label className={labelClass}>URL</label>
+          <label className={labelCls}>{t('admin.url')}</label>
           <input
-            className={inputClass}
+            className={inputCls}
             value={form.url}
             onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
             placeholder="https://..."
           />
         </div>
         <div>
-          <label className={labelClass}>Frequency (hours)</label>
+          <label className={labelCls}>{t('admin.frequencyHours')}</label>
           <input
             type="number"
             min={1}
-            className={inputClass}
+            className={inputCls}
             value={form.frequency}
             onChange={e => setForm(f => ({ ...f, frequency: Number(e.target.value) }))}
           />
@@ -524,19 +525,19 @@ function AddSourceCard({
             checked={form.is_active}
             onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
           />
-          <span className="text-sm text-muted-foreground">Active</span>
+          <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
         </div>
 
         {sourceType === 'blog' && (
           <div className="rounded-lg border border-border p-4 space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              CSS Selectors
+              {t('admin.cssSelectors')}
             </p>
             {(['article_link', 'title', 'content'] as const).map(key => (
               <div key={key}>
-                <label className={labelClass}>{key.replace('_', ' ')}</label>
+                <label className={labelCls}>{key.replace('_', ' ')}</label>
                 <input
-                  className={inputClass}
+                  className={inputCls}
                   value={form.selector_config[key]}
                   placeholder={
                     key === 'article_link'
@@ -559,16 +560,16 @@ function AddSourceCard({
       </div>
 
         <div className="space-y-1.5">
-          <label className={labelClass}>Topic</label>
+          <label className={labelCls}>{t('admin.topics')}</label>
           <select
             value={topicId}
             onChange={e => setTopicId(e.target.value)}
             className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             required
           >
-            <option value="">Select a topic...</option>
-            {topics.map(t => (
-              <option key={t.id} value={t.id}>{t.display_name}</option>
+            <option value="">{t('nav.selectTopic')}</option>
+            {topics.map(tp => (
+              <option key={tp.id} value={tp.id}>{tp.display_name}</option>
             ))}
           </select>
         </div>
@@ -576,10 +577,10 @@ function AddSourceCard({
       <div className="flex gap-2">
         <Button size="sm" onClick={handleAdd} disabled={saving || !form.name || !form.url}>
           <Check className="h-4 w-4 mr-1" />
-          Add
+          {t('admin.add')}
         </Button>
         <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>
-          Cancel
+          {t('admin.cancel')}
         </Button>
       </div>
     </div>

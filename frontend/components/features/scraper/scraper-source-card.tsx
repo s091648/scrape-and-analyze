@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { useI18n } from '@/lib/providers'
 
 export interface ScraperSetting {
   id: string
@@ -150,6 +151,7 @@ export function ActiveBadge({
   active: boolean
   onToggle: () => void
 }) {
+  const { t } = useI18n()
   return (
     <button
       onClick={onToggle}
@@ -160,7 +162,7 @@ export function ActiveBadge({
       }`}
     >
       <GlowDot active={active} />
-      {active ? 'active' : 'inactive'}
+      {active ? t('admin.active') : t('admin.inactive')}
     </button>
   )
 }
@@ -173,7 +175,7 @@ const labelClass = 'block text-xs font-medium mb-1 text-muted-foreground'
 
 // ── RssKeywordManager ─────────────────────────────────────────────────────────
 
-function RssKeywordManager({
+export function RssKeywordManager({
   keywords,
   onAdd,
   onDelete,
@@ -182,6 +184,7 @@ function RssKeywordManager({
   onAdd: (keyword: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [value, setValue] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -197,13 +200,13 @@ function RssKeywordManager({
   return (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        Keywords
-        <span className="ml-1 font-normal normal-case">— regex patterns, ORed</span>
+        {t('admin.keywords')}
+        <span className="ml-1 font-normal normal-case">— {t('admin.rssKeywordsOrDesc')}</span>
       </p>
 
       <div className="flex flex-wrap gap-2 min-h-6">
         {keywords.length === 0 && (
-          <p className="text-xs text-muted-foreground italic">No keywords — uses default filter.</p>
+          <p className="text-xs text-muted-foreground italic">{t('admin.noRssKeywords')}</p>
         )}
         {keywords.map(kw => (
           <span key={kw.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs font-mono">
@@ -252,6 +255,7 @@ export function SourceCard({
   onAddRssKeyword?: (keyword: string) => Promise<void>
   onDeleteRssKeyword?: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const blogCfg = setting.selector_config as { article_link?: string; title?: string; content?: string } | null
@@ -290,7 +294,7 @@ export function SourceCard({
     return (
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Edit Source</span>
+          <span className="text-sm font-semibold">{t('admin.editSource')}</span>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(false)}>
             <X className="h-4 w-4" />
           </Button>
@@ -298,7 +302,7 @@ export function SourceCard({
 
         <div className="space-y-3">
           <div>
-            <label className={labelClass}>Name</label>
+            <label className={labelClass}>{t('admin.name')}</label>
             <input
               className={inputClass}
               value={form.name}
@@ -306,7 +310,7 @@ export function SourceCard({
             />
           </div>
           <div>
-            <label className={labelClass}>URL</label>
+            <label className={labelClass}>{t('admin.url')}</label>
             <input
               className={inputClass}
               value={form.url}
@@ -315,7 +319,7 @@ export function SourceCard({
             />
           </div>
           <div>
-            <label className={labelClass}>Frequency (hours)</label>
+            <label className={labelClass}>{t('admin.frequencyHours')}</label>
             <input
               type="number"
               min={1}
@@ -332,13 +336,13 @@ export function SourceCard({
               checked={form.is_active}
               onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
             />
-            <span className="text-sm text-muted-foreground">Active</span>
+            <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
           </div>
 
           {setting.source_type === 'blog' && (
             <div className="rounded-lg border border-border p-4 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                CSS Selectors
+                {t('admin.cssSelectors')}
               </p>
               {(['article_link', 'title', 'content'] as const).map(key => (
                 <div key={key}>
@@ -369,10 +373,10 @@ export function SourceCard({
         <div className="flex gap-2">
           <Button size="sm" onClick={handleSave} disabled={saving}>
             <Check className="h-4 w-4 mr-1" />
-            Save
+            {t('admin.save')}
           </Button>
           <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
-            Cancel
+            {t('admin.cancel')}
           </Button>
         </div>
       </div>
@@ -414,9 +418,11 @@ export function SourceCard({
           {/* Middle row: countdown + frequency (right-aligned) */}
           <div className="flex justify-end">
             <div className="text-right leading-tight space-y-0.5">
-              <p className="text-xs font-medium text-orange-500 tabular-nums">
-                next scrape in {countdown}
-              </p>
+              {setting.is_active && (
+                <p className="text-xs font-medium text-orange-500 tabular-nums">
+                  {t('admin.nextScrapeIn')} {countdown}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">{formatFrequency(setting.frequency)}</p>
             </div>
           </div>
@@ -453,14 +459,14 @@ export function SourceCard({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete source?</DialogTitle>
+            <DialogTitle>{t('admin.deleteSource')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to delete <strong>{setting.name}</strong>? This cannot be undone.
+            {t('admin.confirmDeleteSource').replace('{name}', setting.name)}
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-              Cancel
+              {t('admin.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -469,7 +475,7 @@ export function SourceCard({
                 onDelete(setting.id)
               }}
             >
-              Delete
+              {t('admin.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

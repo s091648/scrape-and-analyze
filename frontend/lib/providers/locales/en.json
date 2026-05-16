@@ -187,6 +187,26 @@
     "userColumn": "User",
     "authColumn": "Auth",
     "joinedColumn": "Joined",
-    "noUsersFound": "No users found"
+    "noUsersFound": "No users found",
+    "nextScrapeIn": "next scrape in",
+    "noKeywordsYet": "No keywords yet.",
+    "keywordsOrDesc": "ORed in query",
+    "storesAs": "stores as:",
+    "categories": "Categories",
+    "categoriesAndDesc": "ANDed with keywords",
+    "noCategories": "No categories — results are not filtered by subject area.",
+    "selectCategory": "Select category…",
+    "queryPreview": "query:",
+    "editArxivSource": "Edit arXiv Source",
+    "maxResults": "Max results",
+    "daysBack": "Days back",
+    "deleteArxivSource": "Delete arXiv source?",
+    "deleteSource": "Delete source?",
+    "confirmDeleteSource": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
+    "cssSelectors": "CSS Selectors",
+    "activate": "Activate",
+    "noRssKeywords": "No keywords — uses default filter.",
+    "rssKeywordsOrDesc": "regex patterns, ORed",
+    "add": "Add"
   }
 }

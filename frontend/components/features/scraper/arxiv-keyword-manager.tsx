@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/providers'
 
 // ── arXiv field definitions (categories handled separately) ───────────────────
 
@@ -37,7 +38,6 @@ const ARXIV_CATEGORIES = [
   { value: 'physics.app-ph', label: 'physics.app-ph — Applied Physics',      group: 'Physics' },
 ]
 
-
 // ── parse / serialize for keyword strings ─────────────────────────────────────
 
 interface ParsedKeyword {
@@ -64,7 +64,6 @@ function fieldLabel(code: string): string {
 // ── shared types ──────────────────────────────────────────────────────────────
 
 interface Keyword  { id: string; keyword: string }
-// Category uses the same shape as Keyword: `keyword` holds the category code (e.g. "cs.GR")
 interface Category { id: string; keyword: string }
 
 // ── component ─────────────────────────────────────────────────────────────────
@@ -84,6 +83,7 @@ export function ArxivKeywordManager({
   onAddCategory: (category: string) => Promise<void>
   onDeleteCategory: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [kwField, setKwField] = useState<string>('ti')
   const [kwValue, setKwValue] = useState('')
   const [kwAdding, setKwAdding] = useState(false)
@@ -119,13 +119,13 @@ export function ArxivKeywordManager({
       {/* ── Keywords section ── */}
       <div className="space-y-3">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Keywords
-          <span className="ml-1 font-normal normal-case">— ORed in query</span>
+          {t('admin.keywords')}
+          <span className="ml-1 font-normal normal-case">— {t('admin.keywordsOrDesc')}</span>
         </p>
 
         <div className="flex flex-wrap gap-2 min-h-6">
           {keywords.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No keywords yet.</p>
+            <p className="text-xs text-muted-foreground italic">{t('admin.noKeywordsYet')}</p>
           )}
           {keywords.map(kw => {
             const parsed = parseKeyword(kw.keyword)
@@ -173,7 +173,7 @@ export function ArxivKeywordManager({
 
         {kwValue.trim() && (
           <p className="text-[10px] text-muted-foreground font-mono">
-            stores as: <span className="text-foreground">{serializeKeyword(kwField, kwValue)}</span>
+            {t('admin.storesAs')} <span className="text-foreground">{serializeKeyword(kwField, kwValue)}</span>
           </p>
         )}
       </div>
@@ -181,13 +181,13 @@ export function ArxivKeywordManager({
       {/* ── Categories section ── */}
       <div className="space-y-3 border-t border-border pt-4">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Categories
-          <span className="ml-1 font-normal normal-case">— ANDed with keywords</span>
+          {t('admin.categories')}
+          <span className="ml-1 font-normal normal-case">— {t('admin.categoriesAndDesc')}</span>
         </p>
 
         <div className="flex flex-wrap gap-2 min-h-6">
           {categories.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">No categories — results are not filtered by subject area.</p>
+            <p className="text-xs text-muted-foreground italic">{t('admin.noCategories')}</p>
           )}
           {categories.map(cat => (
             <span key={cat.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
@@ -209,7 +209,7 @@ export function ArxivKeywordManager({
             onChange={e => setCatValue(e.target.value)}
             className="h-9 px-2 rounded-lg border border-border bg-background text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="">Select category…</option>
+            <option value="">{t('admin.selectCategory')}</option>
             {Object.entries(categoryGroups).map(([group, cats]) => (
               <optgroup key={group} label={group}>
                 {cats.map(c => (
@@ -227,8 +227,8 @@ export function ArxivKeywordManager({
 
         {categories.length > 0 && (
           <p className="text-[10px] text-muted-foreground font-mono">
-            query: <span className="text-foreground">
-              ({categories.map(c => `cat:${c.keyword}`).join(' OR ')}) AND (keywords…)
+            {t('admin.queryPreview')} <span className="text-foreground">
+              ({categories.map(c => `cat:${c.keyword}`).join(' OR ')}) AND ({t('admin.keywords').toLowerCase()}…)
             </span>
           </p>
         )}

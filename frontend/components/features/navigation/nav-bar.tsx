@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ export function NavBar() {
       .finally(() => setIconLoading(false))
   }, [token])
 
+  const pathname = usePathname()
   const currentLang = availableLanguages.find(l => l.code === locale)
 
   return (
@@ -101,11 +103,25 @@ export function NavBar() {
         </div>
 
         {/* Left nav */}
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
+        <div className="flex items-center gap-1">
+          <Link
+            href="/"
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+              pathname === '/'
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
             {t('nav.articles')}
           </Link>
-          <Link href="/graph" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200">
+          <Link
+            href="/graph"
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+              pathname === '/graph'
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
             {t('nav.knowledgeGraph')}
           </Link>
         </div>

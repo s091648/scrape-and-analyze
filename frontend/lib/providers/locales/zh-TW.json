@@ -187,6 +187,26 @@
     "userColumn": "使用者",
     "authColumn": "認證方式",
     "joinedColumn": "加入日期",
-    "noUsersFound": "找不到使用者"
+    "noUsersFound": "找不到使用者",
+    "nextScrapeIn": "下次抓取倒數",
+    "noKeywordsYet": "尚無關鍵字。",
+    "keywordsOrDesc": "以 OR 連接",
+    "storesAs": "儲存為：",
+    "categories": "分類",
+    "categoriesAndDesc": "以 AND 連接關鍵字",
+    "noCategories": "無分類 — 結果不限定學科領域。",
+    "selectCategory": "選擇分類…",
+    "queryPreview": "查詢：",
+    "editArxivSource": "編輯 arXiv 來源",
+    "maxResults": "最多結果數",
+    "daysBack": "回溯天數",
+    "deleteArxivSource": "刪除 arXiv 來源？",
+    "deleteSource": "刪除來源？",
+    "confirmDeleteSource": "確定要刪除「{name}」？此操作無法復原。",
+    "cssSelectors": "CSS 選擇器",
+    "activate": "啟用",
+    "noRssKeywords": "無關鍵字 — 使用預設過濾器。",
+    "rssKeywordsOrDesc": "Regex 模式，以 OR 連接",
+    "add": "新增"
   }
 }
