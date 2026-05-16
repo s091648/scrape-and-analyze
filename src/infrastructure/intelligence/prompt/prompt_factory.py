@@ -1,5 +1,4 @@
-from abc import ABC, abstractmethod
-
+from src.modules.intelligence.domain.factories import PromptFactory
 from src.modules.intelligence.domain.value_objects import (
     AnalysisPrompt,
     ArticleTranslationPrompt,
@@ -8,21 +7,17 @@ from src.modules.intelligence.domain.value_objects import (
 )
 
 
-class PromptProvider(ABC):
-    """Abstract factory for all prompt value objects used in the intelligence pipeline."""
+class ConcretePromptFactory(PromptFactory):
+    """Creates the default built-in prompt value objects for the intelligence pipeline."""
 
-    @abstractmethod
     def analysis_prompt(self) -> AnalysisPrompt:
-        ...
+        return AnalysisPrompt()
 
-    @abstractmethod
     def article_translation_prompt(self) -> ArticleTranslationPrompt:
-        ...
+        return ArticleTranslationPrompt()
 
-    @abstractmethod
     def tag_translation_prompt(self) -> TagTranslationPrompt:
-        ...
+        return TagTranslationPrompt()
 
-    @abstractmethod
     def group_translation_prompt(self) -> GroupTranslationPrompt:
-        ...
+        return GroupTranslationPrompt()
