@@ -157,11 +157,11 @@ export default function UsersPage() {
         <table className="w-full text-sm">
           <thead className="bg-muted/40 border-b border-border">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">User</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Auth</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Active</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Joined</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.userColumn')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.authColumn')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.role')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.active')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('admin.joinedColumn')}</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -223,8 +223,8 @@ export default function UsersPage() {
                         onChange={e => changeRole(user, e.target.value as 'admin' | 'user')}
                         className="h-8 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
+                        <option value="user">{t('admin.user')}</option>
+                        <option value="admin">{t('admin.admin')}</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">
@@ -240,7 +240,7 @@ export default function UsersPage() {
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => deleteUser(user.id)}
                       >
-                        Delete
+                        {t('admin.delete')}
                       </Button>
                     </td>
                   </tr>
@@ -248,7 +248,7 @@ export default function UsersPage() {
                 {users.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                      No users found
+                      {t('admin.noUsersFound')}
                     </td>
                   </tr>
                 )}

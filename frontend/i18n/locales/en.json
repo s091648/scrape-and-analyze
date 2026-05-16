@@ -183,6 +183,10 @@
     "createUser": "Create user",
     "operations": "Operations",
     "logs": "Logs",
-    "traces": "Traces"
+    "traces": "Traces",
+    "userColumn": "User",
+    "authColumn": "Auth",
+    "joinedColumn": "Joined",
+    "noUsersFound": "No users found"
   }
 }

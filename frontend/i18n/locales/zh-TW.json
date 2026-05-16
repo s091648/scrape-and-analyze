@@ -183,6 +183,10 @@
     "createUser": "建立使用者",
     "operations": "作業",
     "logs": "日誌",
-    "traces": "追蹤"
+    "traces": "追蹤",
+    "userColumn": "使用者",
+    "authColumn": "認證方式",
+    "joinedColumn": "加入日期",
+    "noUsersFound": "找不到使用者"
   }
 }
