@@ -21,9 +21,9 @@ vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
   SessionProvider: ({ children }: any) => children,
 }))
-vi.mock('@/contexts/topic-context', () => ({
-  useTopic: () => ({ selectedTopicId: 'topic-test-id', setSelectedTopicId: vi.fn(), topics: [], selectedTopic: null, refresh: vi.fn(), isLoading: false }),
-  TopicProvider: ({ children }: any) => children,
+vi.mock('@/lib/providers', () => ({
+  useI18n: () => ({ t: (k: string) => k, locale: 'en', setLocale: vi.fn(), availableLanguages: [], resolvedLanguage: 'en', isLoading: false }),
+  useTopic: () => ({ selectedTopicId: 'test-topic-id', topics: [], selectedTopic: null, setSelectedTopicId: vi.fn(), refresh: vi.fn(), isLoading: false }),
 }))
 
 describe('Knowledge Graph', () => {
@@ -40,7 +40,7 @@ describe('Knowledge Graph', () => {
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'))
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'), expect.anything(), expect.anything())
     })
   })
 
@@ -65,7 +65,7 @@ describe('Knowledge Graph', () => {
     const { fireEvent } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'))
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'), expect.anything(), expect.anything())
     })
     // Reset and change days
     mockApiFetch.mockReset()
@@ -76,7 +76,7 @@ describe('Knowledge Graph', () => {
     if (daysSelect) {
       fireEvent.change(daysSelect, { target: { value: '7' } })
       await vi.waitFor(() => {
-        expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=7'))
+        expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=7'), expect.anything(), expect.anything())
       })
     }
     expect(mockApiFetch).toBeDefined()

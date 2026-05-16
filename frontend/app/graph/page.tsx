@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { KnowledgeGraph } from '@/components/features/graph/knowledge-graph'
 import { Lock } from 'lucide-react'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 export default function GraphPage() {
   const { status } = useSession()

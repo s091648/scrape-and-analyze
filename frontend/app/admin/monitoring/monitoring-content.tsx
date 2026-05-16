@@ -2,7 +2,7 @@
 
 import { GrafanaPanel } from '@/components/features/monitoring/grafana-panel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 interface MonitoringContentProps {
   grafanaUrl: string

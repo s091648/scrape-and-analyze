@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
-import { apiFetch } from '@/lib/api/client'
+import { fetchUsers, updateUser, deleteUser as deleteUserApi, createUser } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -55,50 +55,34 @@ export default function UsersPage() {
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch('/auth/users', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+    fetchUsers(token)
       .then(setUsers)
       .finally(() => setIsLoading(false))
   }, [token])
 
   async function toggleAllowed(user: User) {
-    const res = await apiFetch(`/auth/users/${user.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ is_allowed: !user.is_allowed }),
-    })
+    const res = await updateUser(token, user.id, { is_allowed: !user.is_allowed })
     if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, is_allowed: !u.is_allowed } : u))
   }
 
   async function changeRole(user: User, role: 'admin' | 'user') {
-    const res = await apiFetch(`/auth/users/${user.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ role }),
-    })
+    const res = await updateUser(token, user.id, { role })
     if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, role } : u))
   }
 
   async function deleteUser(userId: string) {
     if (!confirm(t('admin.confirmDeleteUser'))) return
-    const res = await apiFetch(`/auth/users/${userId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await deleteUserApi(token, userId)
     if (res.ok) setUsers(users.filter(u => u.id !== userId))
   }
 
-  async function createUser(e: React.FormEvent) {
+  async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
     const body: Record<string, string> = { role: newRole }
     if (newEmail) body.email = newEmail
     if (newUsername) body.username = newUsername
     if (newPassword) body.password = newPassword
-    const res = await apiFetch('/auth/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    })
+    const res = await createUser(token, body)
     if (res.ok) {
       const created = await res.json()
       setUsers([created, ...users])
@@ -120,7 +104,7 @@ export default function UsersPage() {
       </div>
 
       {creating && (
-        <form onSubmit={createUser}
+        <form onSubmit={handleCreateUser}
           className="rounded-2xl border border-border bg-card p-6 space-y-4">
           <h2 className="font-semibold text-sm">{t('admin.newUser')}</h2>
           <div className="grid grid-cols-2 gap-4">

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { apiFetch } from '@/lib/api/client'
 import en from './locales/en.json'
 import zhTW from './locales/zh-TW.json'
 
@@ -38,7 +39,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/proxy/api/languages')
+    apiFetch('/languages')
       .then(res => res.json())
       .then(data => {
         setAvailableLanguages(data.available || [])

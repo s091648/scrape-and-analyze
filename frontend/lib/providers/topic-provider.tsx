@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { apiFetch } from '@/lib/api/client'
+import { fetchTopics } from '@/lib/api/topics'
 
 export interface Topic {
   id: string
@@ -35,9 +35,8 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  async function fetchTopics() {
-    const raw = await apiFetch('/topics').then(r => r.json())
-    const data: Topic[] = Array.isArray(raw) ? raw : []
+  async function loadTopics() {
+    const data = await fetchTopics()
     setTopics(data)
     const stored = localStorage.getItem(STORAGE_KEY)
     const valid = data.find(t => t.id === stored)
@@ -51,7 +50,7 @@ export function TopicProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setIsLoading(true)
-    fetchTopics().finally(() => setIsLoading(false))
+    loadTopics().finally(() => setIsLoading(false))
   }, [])
 
   function setSelectedTopicId(id: string) {
@@ -60,7 +59,7 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   }
 
   async function refresh() {
-    await fetchTopics()
+    await loadTopics()
   }
 
   const selectedTopic = topics.find(t => t.id === selectedTopicId) ?? null

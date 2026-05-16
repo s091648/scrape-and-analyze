@@ -3,7 +3,17 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { ChevronDown, Pencil, X, Check, Plus } from 'lucide-react'
-import { apiFetch } from '@/lib/api/client'
+import {
+  fetchScraperSources,
+  createScraperSource,
+  updateScraperSource,
+  deleteScraperSource,
+} from '@/lib/api/scraper-settings'
+import {
+  fetchScraperKeywords,
+  createTopicKeyword,
+  deleteScraperKeyword,
+} from '@/lib/api/scraper-keywords'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,8 +34,8 @@ import {
 } from '@/components/features/scraper/scraper-source-card'
 import { ArxivKeywordManager } from '@/components/features/scraper/arxiv-keyword-manager'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTopic } from '@/contexts/topic-context'
-import { useI18n } from '@/i18n'
+import { useTopic } from '@/lib/providers'
+import { useI18n } from '@/lib/providers'
 
 interface ArxivKeyword {
   id: string
@@ -615,19 +625,16 @@ export default function ScraperSettingsPage() {
 
   useEffect(() => {
     if (!token || !selectedTopicId) return
-    const headers = { Authorization: `Bearer ${token}` }
-    const tq = `topic_id=${selectedTopicId}`
     setIsLoading(true)
     Promise.all([
-      apiFetch(`/scraper-settings?${tq}`, { headers }).then(r => r.json()),
-      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, { headers }).then(r => r.json()),
-      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, { headers }).then(r => r.json()),
-      apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=rss`, { headers }).then(r => r.json()),
-    ]).then(([s, k, c, rk]) => {
+      fetchScraperSources(selectedTopicId, token),
+      fetchScraperKeywords({ topic_id: selectedTopicId }, token),
+    ]).then(([s, allKeywords]) => {
       setSettings(Array.isArray(s) ? s : [])
-      setKeywords(Array.isArray(k) ? k : [])
-      setCategories(Array.isArray(c) ? c : [])
-      setRssKeywords(Array.isArray(rk) ? rk : [])
+      const kws = Array.isArray(allKeywords) ? allKeywords : []
+      setKeywords(kws.filter(k => k.keyword_type === 'arxiv_keyword'))
+      setCategories(kws.filter(k => k.keyword_type === 'arxiv_category'))
+      setRssKeywords(kws.filter(k => k.keyword_type === 'rss'))
     }).finally(() => setIsLoading(false))
   }, [token, selectedTopicId])
 
@@ -637,31 +644,17 @@ export default function ScraperSettingsPage() {
   async function handleUpdate(id: string, data: Partial<ScraperSetting>) {
     // Optimistic update
     setSettings(prev => prev.map(s => (s.id === id ? { ...s, ...data } : s)))
-    await apiFetch(`/scraper-settings/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
+    await updateScraperSource(id, data, token)
   }
 
   async function handleDelete(id: string) {
     setSettings(prev => prev.filter(s => s.id !== id))
-    await apiFetch(`/scraper-settings/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteScraperSource(id, token)
   }
 
   async function handleCreate(data: Omit<ScraperSetting, 'id'>) {
-    const res = await apiFetch('/scraper-settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setSettings(prev => [...prev, created])
-    }
+    const created = await createScraperSource(data as any, token)
+    setSettings(prev => [...prev, created])
   }
 
   async function handleActivateArxiv(
@@ -669,98 +662,55 @@ export default function ScraperSettingsPage() {
     keywords: string[],
     categories: string[],
   ) {
-    const tq = selectedTopicId ? `?topic_id=${selectedTopicId}` : ''
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-
     // 1. Create the scraper setting
-    const res = await apiFetch('/scraper-settings', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(data),
-    })
-    if (!res.ok) return
-    const created = await res.json()
+    const created = await createScraperSource(data as any, token)
     setSettings(prev => [...prev, created])
 
     // 2. Add keywords
     const addedKeywords: ArxivKeyword[] = []
     for (const kw of keywords) {
-      const r = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, {
-        method: 'POST', headers, body: JSON.stringify({ keyword: kw, keyword_type: 'arxiv_keyword' }),
-      })
-      if (r.ok) addedKeywords.push(await r.json())
+      const added = await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'arxiv_keyword' }, token)
+      addedKeywords.push(added)
     }
     setKeywords(addedKeywords)
 
     // 3. Add categories
     const addedCategories: ArxivCategory[] = []
     for (const cat of categories) {
-      const r = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, {
-        method: 'POST', headers, body: JSON.stringify({ keyword: cat, keyword_type: 'arxiv_category' }),
-      })
-      if (r.ok) addedCategories.push(await r.json())
+      const added = await createTopicKeyword(selectedTopicId, { keyword: cat, keyword_type: 'arxiv_category' }, token)
+      addedCategories.push(added)
     }
     setCategories(addedCategories)
   }
 
   async function handleAddKeyword(keyword: string) {
-    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_keyword`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ keyword, keyword_type: 'arxiv_keyword' }),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setKeywords(prev => [...prev, created])
-    }
+    const created = await createTopicKeyword(selectedTopicId, { keyword, keyword_type: 'arxiv_keyword' }, token)
+    setKeywords(prev => [...prev, created])
   }
 
   async function handleDeleteKeyword(id: string) {
     setKeywords(prev => prev.filter(k => k.id !== id))
-    await apiFetch(`/scraper-keywords/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteScraperKeyword(id, token)
   }
 
   async function handleAddCategory(category: string) {
-    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=arxiv_category`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ keyword: category, keyword_type: 'arxiv_category' }),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setCategories(prev => [...prev, created])
-    }
+    const created = await createTopicKeyword(selectedTopicId, { keyword: category, keyword_type: 'arxiv_category' }, token)
+    setCategories(prev => [...prev, created])
   }
 
   async function handleDeleteCategory(id: string) {
     setCategories(prev => prev.filter(c => c.id !== id))
-    await apiFetch(`/scraper-keywords/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteScraperKeyword(id, token)
   }
 
   async function handleAddRssKeyword(keyword: string) {
-    const res = await apiFetch(`/scraper-keywords?topic_id=${selectedTopicId}&keyword_type=rss`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ keyword, keyword_type: 'rss' }),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setRssKeywords(prev => [...prev, created])
-    }
+    const created = await createTopicKeyword(selectedTopicId, { keyword, keyword_type: 'rss' }, token)
+    setRssKeywords(prev => [...prev, created])
   }
 
   async function handleDeleteRssKeyword(id: string) {
     setRssKeywords(prev => prev.filter(k => k.id !== id))
-    await apiFetch(`/scraper-keywords/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteScraperKeyword(id, token)
   }
 
   const arxivSettings = byType('arxiv')

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { Pencil, X, Check, Plus, RotateCcw } from 'lucide-react'
-import { apiFetch } from '@/lib/api/client'
+import { fetchTopics, updateTopic, deleteTopic, createTopic, type Topic } from '@/lib/api/topics'
 import { useTopic } from '@/lib/providers'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -15,18 +15,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
-interface Topic {
-  id: string
-  name: string
-  display_name: string
-  description: string | null
-  color_hex: string | null
-  prompt_override: string | null
-  sort_order: number | null
-  is_active: boolean
-}
 
 const inputClass =
   'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
@@ -391,44 +381,27 @@ export default function TopicsPage() {
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch(`/topics?include_inactive=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => setTopics(Array.isArray(data) ? data : []))
+    fetchTopics({ include_inactive: true }, token)
+      .then(setTopics)
       .finally(() => setIsLoading(false))
   }, [token])
 
   async function handleUpdate(id: string, data: Partial<Topic>) {
     setTopics(prev => prev.map(t => (t.id === id ? { ...t, ...data } : t)))
-    await apiFetch(`/topics/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
+    await updateTopic(id, data, token)
     await refreshTopicContext()
   }
 
   async function handleDelete(id: string) {
     setTopics(prev => prev.map(t => (t.id === id ? { ...t, is_active: false } : t)))
-    await apiFetch(`/topics/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteTopic(id, token)
     await refreshTopicContext()
   }
 
   async function handleCreate(data: Omit<Topic, 'id' | 'is_active'>) {
-    const res = await apiFetch('/topics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setTopics(prev => [...prev, created])
-      await refreshTopicContext()
-    }
+    const created = await createTopic(data, token)
+    setTopics(prev => [...prev, created])
+    await refreshTopicContext()
   }
 
   const visible = showInactive ? topics : topics.filter(t => t.is_active)

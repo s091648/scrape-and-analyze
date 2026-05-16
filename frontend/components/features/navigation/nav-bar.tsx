@@ -7,7 +7,7 @@ import { Rss, Settings, ChevronDown, Globe } from 'lucide-react'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'

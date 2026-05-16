@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
-import { apiFetch } from '@/lib/api/client'
+import { fetchAnalysesGraph, fetchAnalysesGraphGroup } from '@/lib/api/graph'
+import { fetchArticleById } from '@/lib/api/articles'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -113,8 +114,7 @@ export function KnowledgeGraph() {
     }
     if (!selectedTopicId) return
     setGraphLoading(true)
-    apiFetch(`/analyses/graph?days=${days}&topic_id=${selectedTopicId}`)
-      .then(r => r.json())
+    fetchAnalysesGraph(days, selectedTopicId, locale)
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
   }, [days, selectedTopicId, isGuest, locale])
@@ -151,9 +151,8 @@ export function KnowledgeGraph() {
   useEffect(() => {
     if (!expandedGroup || isGuest) return
     const node = graphData.nodes.find(n => n.groupName === expandedGroup)
-    apiFetch(`/analyses/graph/group/${encodeURIComponent(expandedGroup)}`)
-      .then(r => r.json())
-      .then((data: GroupArticle[]) => {
+    fetchAnalysesGraphGroup<GroupArticle>(expandedGroup, locale)
+      .then((data) => {
         setGroupData(data)
         buildTagOverlay(expandedGroup, node?.id || `group:${expandedGroup}`, node?.color || '#6b7280', data)
       })
@@ -193,9 +192,8 @@ export function KnowledgeGraph() {
         setOverlayEdges([])
         setSelectedArticle(null)
 
-        apiFetch(`/analyses/graph/group/${encodeURIComponent(node.groupName)}`)
-          .then(r => r.json())
-          .then((data: GroupArticle[]) => {
+        fetchAnalysesGraphGroup<GroupArticle>(node.groupName, locale)
+          .then((data) => {
             setGroupData(data)
             buildTagOverlay(node.groupName, node.id, node.color || '#6b7280', data)
           })
@@ -216,8 +214,7 @@ export function KnowledgeGraph() {
     if (!dialogDetail || dialogDetail.id !== articleId) {
       setDialogLoading(true)
       setDialogDetail(null)
-      apiFetch(`/articles/${articleId}`)
-        .then(r => r.json())
+      fetchArticleById(articleId, locale)
         .then(data => { setDialogDetail(data); setDialogLoading(false) })
         .catch(() => setDialogLoading(false))
     }
@@ -288,8 +285,7 @@ export function KnowledgeGraph() {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
                   hoverTimeoutRef.current = setTimeout(() => {
                     if (hoveredNodeIdRef.current !== node.id) return
-                    apiFetch(`/articles/${node.id}`)
-                      .then(r => r.json())
+                    fetchArticleById(node.id, locale)
                       .then(data => {
                         if (hoveredNodeIdRef.current !== node.id) return
                         const art: GroupArticle = {

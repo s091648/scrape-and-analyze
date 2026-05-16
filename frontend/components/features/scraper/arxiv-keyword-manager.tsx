@@ -37,9 +37,6 @@ const ARXIV_CATEGORIES = [
   { value: 'physics.app-ph', label: 'physics.app-ph — Applied Physics',      group: 'Physics' },
 ]
 
-const CATEGORY_LABEL_MAP = Object.fromEntries(
-  ARXIV_CATEGORIES.map(c => [c.value, c.label])
-)
 
 // ── parse / serialize for keyword strings ─────────────────────────────────────
 
