@@ -1,4 +1,7 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote \
+	test-src test-src-cov test-src-integration test-src-integration-cov \
+	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
+	test-frontend test-frontend-e2e test-all
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -98,16 +101,12 @@ retry-failed-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
 
-# 基礎測試指令
-# 設定預設路徑，如果執行時沒給 path=... 就會用這個
-TEST_PATH ?= src/tests/unit/
-_TEST_ARGS := $(TEST_PATH) -v --tb=short
+# ─── src/ tests ───────────────────────────────────────────────────────────────
 
-test:
-	docker compose run --rm test_service python -m pytest $(_TEST_ARGS) -v --tb=short
+test-src:
+	docker compose run --rm test_service python -m pytest src/tests/unit/ -v --tb=short
 
-# 產生覆蓋率報告的測試指令 (HTML 會出現在專案的 tests/htmlcov/ 目錄下)
-test-cov:
+test-src-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/unit/ \
 		-v --tb=short \
@@ -115,12 +114,10 @@ test-cov:
 		--cov-report=html:src/tests/htmlcov \
 		--cov-report=term
 
-# Integration tests (requires postgres — `docker compose up -d postgres` first if needed)
-test-integration:
+test-src-integration:
 	docker compose run --rm test_service python -m pytest src/tests/integration/ -v --tb=short -m integration
 
-# Integration tests with coverage report
-test-integration-cov:
+test-src-integration-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/integration/ \
 		-v --tb=short -m integration \
@@ -128,11 +125,48 @@ test-integration-cov:
 		--cov-report=html:src/tests/htmlcov-integration \
 		--cov-report=term
 
-# Run all tests (unit + integration) with combined coverage
-test-all-cov:
-	docker compose run --rm test_service python -m pytest \
-		src/tests/ \
+# ─── backend/ tests ───────────────────────────────────────────────────────────
+
+test-backend:
+	docker compose run --rm test_service python -m pytest backend/tests/ \
+		--ignore=backend/tests/integration/ \
+		-v --tb=short
+
+test-backend-cov:
+	docker compose run --rm test_service python -m pytest backend/tests/ \
+		--ignore=backend/tests/integration/ \
 		-v --tb=short \
-		--cov=src \
-		--cov-report=html:src/tests/htmlcov-all \
+		--cov=backend \
+		--cov-report=html:backend/tests/htmlcov \
 		--cov-report=term
+
+test-backend-integration:
+	docker compose run --rm test_service python -m pytest backend/tests/integration/ -v --tb=short -m integration
+
+test-backend-integration-cov:
+	docker compose run --rm test_service python -m pytest \
+		backend/tests/integration/ \
+		-v --tb=short -m integration \
+		--cov=backend \
+		--cov-report=html:backend/tests/htmlcov-integration \
+		--cov-report=term
+
+# ─── frontend/ tests ──────────────────────────────────────────────────────────
+
+test-frontend:
+	cd frontend && npm run test
+
+test-frontend-e2e:
+	cd frontend && npm run test:e2e
+
+# ─── combined ─────────────────────────────────────────────────────────────────
+
+# Run unit + integration tests for all three services
+test-all:
+	$(MAKE) test-src
+	$(MAKE) test-src-integration
+	$(MAKE) test-backend
+	$(MAKE) test-backend-integration
+	$(MAKE) test-frontend
+	$(MAKE) test-frontend-e2e
+
