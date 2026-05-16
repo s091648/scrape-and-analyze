@@ -22,22 +22,21 @@ class AnalysisCompletedHandler:
         self._target_languages = target_languages or ["zh-TW"]
 
     def handle(self, event: AnalysisCompletedEvent) -> None:
-        # Fetch English content from the repository (content is normalized into analyses_translation)
-        en_translation = self._analyses_translation_repo.find_by_analysis_id_and_language(
+        en_content = self._analyses_translation_repo.find_by_analysis_id_and_language(
             event.analysis_id, 'en'
         )
-        if not en_translation:
-            logger.warning("no_english_translation_found", analysis_id=str(event.analysis_id))
+        if not en_content:
+            logger.warning("no_english_content_found", analysis_id=str(event.analysis_id))
             return
 
         for lang in self._target_languages:
             try:
                 result = self._translate_article_uc.execute(
                     analysis_id=event.analysis_id,
-                    summary=en_translation.summary,
-                    pain_points=en_translation.pain_points,
-                    insights=en_translation.insights,
-                    innovations=en_translation.innovations,
+                    summary=en_content.summary,
+                    pain_points=en_content.pain_points,
+                    insights=en_content.insights,
+                    innovations=en_content.innovations,
                     target_language=lang,
                 )
                 if result.success:
@@ -46,7 +45,6 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_translation_failed", analysis_id=str(event.analysis_id), language=lang)
             except Exception as e:
                 logger.error("auto_translation_error", analysis_id=str(event.analysis_id), language=lang, error=str(e))
-                self._analyses_translation_repo.rollback()
 
             try:
                 tag_result = self._translate_tags_uc.translate_tags(lang, limit=50)
@@ -54,7 +52,6 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_tag_translation_partial", language=lang, failed=tag_result["failed"])
             except Exception as e:
                 logger.error("auto_tag_translation_error", language=lang, error=str(e))
-                self._analyses_translation_repo.rollback()
 
             try:
                 group_result = self._translate_tags_uc.translate_groups(lang, limit=50)
@@ -62,4 +59,3 @@ class AnalysisCompletedHandler:
                     logger.warning("auto_group_translation_partial", language=lang, failed=group_result["failed"])
             except Exception as e:
                 logger.error("auto_group_translation_error", language=lang, error=str(e))
-                self._analyses_translation_repo.rollback()

@@ -34,8 +34,3 @@ class AnalysesTranslationRepository(ABC):
     def exists(self, analysis_id: UUID, language: str) -> bool:
         """Check if content exists for analysis and language."""
         ...
-
-    @abstractmethod
-    def rollback(self) -> None:
-        """Rollback the current persistence transaction."""
-        ...

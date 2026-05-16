@@ -46,7 +46,11 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
             )
             self._session.add(model)
 
-        self._session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
         logger.info(
             "analyses_translation_persisted",
             analysis_id=str(content.analysis_id),
@@ -91,7 +95,7 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
 
         rows = (
             self._session.query(AnalysisModel)
-            .filter(~AnalysisModel.analyses_content.any(
+            .filter(~AnalysisModel.analyses_translation.any(
                 AnalysesTranslationModel.language == language
             ))
             .options(joinedload(AnalysisModel.analyses_translation))
@@ -119,11 +123,6 @@ class SqlAlchemyAnalysesTranslationRepository(AnalysesTranslationRepository):
         ).count()
 
         return count > 0
-
-    def rollback(self) -> None:
-        """Rollback the current database transaction."""
-        self._session.rollback()
-
 
 def _extract_en_content(analysis_row) -> dict:
     """Extract English content from an analysis row's analyses_translation relationship."""

@@ -28,7 +28,11 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
             model = TagsTranslationModel(tag_id=tag_id, language=language, name=name)
             self._session.add(model)
 
-        self._session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
 
     def find_tags_without_translation(
         self, language: str, limit: int
@@ -70,7 +74,11 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
             )
             self._session.add(model)
 
-        self._session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
 
     def find_groups_without_translation(
         self, language: str, limit: int

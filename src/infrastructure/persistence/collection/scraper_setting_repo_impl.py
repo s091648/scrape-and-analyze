@@ -50,7 +50,11 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
         row = self._session.query(ScraperSettingModel).filter_by(id=setting_id).first()
         if row:
             row.last_scraped_at = datetime.now(timezone.utc)
-            self._session.commit()
+            try:
+                self._session.commit()
+            except Exception:
+                self._session.rollback()
+                raise
 
     def _to_entity(self, row) -> ScraperSetting:
         # prompt_override lives on the related Topic, not on ScraperSetting itself.

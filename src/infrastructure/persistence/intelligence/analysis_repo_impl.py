@@ -70,7 +70,11 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
                     if tag not in article_row.tags:
                         article_row.tags.append(tag)
 
-        self._session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
         logger.info("analysis_saved", article_id=str(analysis.article_id), model=metadata.model_used)
 
     def find_missing_analyses(self) -> List:

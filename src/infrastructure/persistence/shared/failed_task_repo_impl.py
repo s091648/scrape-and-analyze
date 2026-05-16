@@ -25,7 +25,11 @@ class SqlAlchemyFailedTaskRepository(FailedTaskRepository):
             failed_at=task.failed_at,
         )
         self._session.add(row)
-        self._session.commit()
+        try:
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
         logger.info("failed_task_saved", task_type=task.task_type,
                     article_id=str(task.article_id) if task.article_id else None)
 
