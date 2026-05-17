@@ -13,4 +13,4 @@ FROM node:20-slim
 WORKDIR /app
 RUN npm install -g serve
 COPY --from=builder /app/storybook-static ./storybook-static
-CMD ["sh", "-c", "serve -s storybook-static -l ${PORT:-6006}"]
+CMD ["sh", "-c", "serve storybook-static -l ${PORT:-6006}"]
