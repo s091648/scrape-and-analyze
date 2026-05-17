@@ -1,4 +1,11 @@
 import type { StorybookConfig } from '@storybook/nextjs-vite';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const dirname =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 
 const config: StorybookConfig = {
   stories: [
@@ -13,6 +20,12 @@ const config: StorybookConfig = {
   ],
   framework: '@storybook/nextjs-vite',
   staticDirs: ['../public'],
+  viteFinal: async (config) => {
+    const { storybookTest } = await import('@storybook/addon-vitest/vitest-plugin');
+    config.plugins ??= [];
+    config.plugins.push(storybookTest({ configDir: dirname }));
+    return config;
+  },
 };
 
 export default config;
