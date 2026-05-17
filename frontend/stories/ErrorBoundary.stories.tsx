@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { ErrorBoundary } from '../components/common/error-boundary'
 
-function ThrowOnRender() {
+function ThrowOnRender(): never {
   throw new Error('Simulated render error')
 }
 
