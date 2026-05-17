@@ -5,8 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
-import { apiFetch } from '@/lib/api-fetch'
-import { useI18n } from '@/i18n'
+import { registerUser } from '@/lib/api/auth'
+import { useI18n } from '@/lib/providers'
 
 
 export default function RegisterPageContent() {
@@ -22,15 +22,11 @@ export default function RegisterPageContent() {
     setLoading(true)
     const form = new FormData(e.currentTarget)
     try {
-      const res = await apiFetch('/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: form.get('username'),
-          password: form.get('password'),
-          email: form.get('email'),
-          name: form.get('name') || undefined,
-        }),
+      const res = await registerUser({
+        username: form.get('username') as string,
+        password: form.get('password') as string,
+        email: form.get('email') as string,
+        name: (form.get('name') as string) || undefined,
       })
       if (res.status === 409) {
         setError(t('register.emailOrUsernameTaken'))

@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { apiFetch } from '@/lib/api-fetch'
+import { fetchMe, updateMe, changePassword, deleteMe, unlinkGoogle } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 interface Profile {
   id: string
@@ -86,10 +86,10 @@ export default function SettingsPageContent() {
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then((p: Profile) => {
-        setProfile(p)
+    fetchMe(token)
+      .then((p) => {
+        if (!p) return
+        setProfile(p as unknown as Profile)
         setName(p.name ?? '')
         setAvatarSrc(p.icon ?? null)
       })
@@ -100,11 +100,7 @@ export default function SettingsPageContent() {
     const file = e.target.files?.[0]
     if (!file) return
     const dataUrl = await resizeToBase64(file)
-    const res = await apiFetch('/auth/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ icon: dataUrl }),
-    })
+    const res = await updateMe(token, { icon: dataUrl })
     if (res.ok) {
       setAvatarSrc(dataUrl)
       setProfile(prev => prev ? { ...prev, icon: dataUrl } : prev)
@@ -117,11 +113,7 @@ export default function SettingsPageContent() {
     if (!name.trim()) return
     setNameSaving(true)
     setNameMsg(null)
-    const res = await apiFetch('/auth/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: name.trim() }),
-    })
+    const res = await updateMe(token, { name: name.trim() })
     setNameSaving(false)
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, name: name.trim() } : prev)
@@ -136,11 +128,7 @@ export default function SettingsPageContent() {
     if (!currentPassword || !newPassword) return
     setPasswordSaving(true)
     setPasswordMsg(null)
-    const res = await apiFetch('/auth/me/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    })
+    const res = await changePassword(token, { current_password: currentPassword, new_password: newPassword })
     setPasswordSaving(false)
     if (res.ok) {
       setPasswordMsg({ ok: true, text: t('settings.passwordChangedSuccessfully') })
@@ -154,10 +142,7 @@ export default function SettingsPageContent() {
 
   async function handleDeleteAccount() {
     if (!confirm(t('settings.confirmDeleteAccount'))) return
-    const res = await apiFetch('/auth/me', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await deleteMe(token)
     if (res.ok) {
       await signOut({ callbackUrl: '/login' })
     }
@@ -165,10 +150,7 @@ export default function SettingsPageContent() {
 
   async function handleUnlinkGoogle() {
     if (!confirm(t('settings.unlinkGoogleAccount'))) return
-    const res = await apiFetch('/auth/me/link-google', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await unlinkGoogle(token)
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, google_id: null } : prev)
       setLinkMsg({ ok: true, text: t('settings.googleAccountUnlinked') })

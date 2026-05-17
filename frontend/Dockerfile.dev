@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci && npx playwright install chromium
+RUN npm ci
 
 # 程式碼透過 docker-compose volumes 掛載，不在此 COPY
 CMD ["npm", "run", "dev"]

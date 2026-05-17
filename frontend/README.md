@@ -38,8 +38,12 @@ frontend/
 │   └── api-fetch.tsx           # Authenticated HTTP client (attaches JWT)
 ├── middleware.ts               # NextAuth route protection
 ├── globals.css                 # Tailwind CSS v4 theme + global styles
+├── tests/
+│   ├── unit/                   # Vitest + React Testing Library unit tests
+│   └── integration/            # Playwright integration tests (full user flows)
+│       └── fixtures/           # Auth state, API handlers, token generator
 ├── vitest.config.ts            # Unit test config (Vitest + React Testing Library)
-├── playwright.config.ts        # E2E test config (Playwright)
+├── playwright.config.ts        # Integration test config (Playwright)
 └── next.config.ts
 ```
 

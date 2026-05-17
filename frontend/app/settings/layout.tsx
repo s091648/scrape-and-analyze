@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { usePathname, redirect } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { useTopic } from '@/contexts/topic-context'
-import { useI18n } from '@/i18n'
+import { useTopic } from '@/lib/providers/topic-provider'
+import { useI18n } from '@/lib/providers'
 
 const profileItems = [
   { href: '/settings', labelKey: 'settings.profile' },

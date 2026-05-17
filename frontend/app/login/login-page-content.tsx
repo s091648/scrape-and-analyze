@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
-import { useI18n } from '@/i18n'
+import { useI18n } from '@/lib/providers'
 
 export default function LoginPageContent() {
   const { status } = useSession()
