@@ -1,7 +1,8 @@
 .PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
-	test-frontend test-frontend-e2e test-all
+	test-frontend test-frontend-e2e test-all \
+	storybook build-storybook
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -158,6 +159,14 @@ test-frontend:
 
 test-frontend-e2e:
 	docker compose run --rm frontend npm run test:e2e
+
+# ─── storybook ────────────────────────────────────────────────────────────────
+
+storybook:
+	docker compose run --rm -p 6006:6006 frontend npm run storybook
+
+build-storybook:
+	docker compose run --rm -p 6006:6006 frontend sh -c "npm run build-storybook && npx serve -s storybook-static -l 6006"
 
 # ─── combined ─────────────────────────────────────────────────────────────────
 

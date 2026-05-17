@@ -78,7 +78,7 @@ export default function UsersPage() {
 
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault()
-    const body: Record<string, string> = { role: newRole }
+    const body: { email?: string; username?: string; password?: string; role: string } = { role: newRole }
     if (newEmail) body.email = newEmail
     if (newUsername) body.username = newUsername
     if (newPassword) body.password = newPassword

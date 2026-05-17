@@ -663,6 +663,7 @@ export default function ScraperSettingsPage() {
     keywords: string[],
     categories: string[],
   ) {
+    if (!selectedTopicId) return
     // 1. Create the scraper setting
     const created = await createScraperSource(data as any, token)
     setSettings(prev => [...prev, created])
@@ -685,6 +686,7 @@ export default function ScraperSettingsPage() {
   }
 
   async function handleAddKeyword(keyword: string) {
+    if (!selectedTopicId) return
     const created = await createTopicKeyword(selectedTopicId, { keyword, keyword_type: 'arxiv_keyword' }, token)
     setKeywords(prev => [...prev, created])
   }
@@ -695,6 +697,7 @@ export default function ScraperSettingsPage() {
   }
 
   async function handleAddCategory(category: string) {
+    if (!selectedTopicId) return
     const created = await createTopicKeyword(selectedTopicId, { keyword: category, keyword_type: 'arxiv_category' }, token)
     setCategories(prev => [...prev, created])
   }
@@ -705,6 +708,7 @@ export default function ScraperSettingsPage() {
   }
 
   async function handleAddRssKeyword(keyword: string) {
+    if (!selectedTopicId) return
     const created = await createTopicKeyword(selectedTopicId, { keyword, keyword_type: 'rss' }, token)
     setRssKeywords(prev => [...prev, created])
   }
