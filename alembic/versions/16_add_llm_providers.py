@@ -1,15 +1,15 @@
 """add_llm_providers
 
-Revision ID: 15_add_llm_providers
-Revises: 14_migrate_arxiv_keywords
+Revision ID: 16_add_llm_providers
+Revises: 15_add_translations
 Create Date: 2026-05-14
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision = '15_add_llm_providers'
-down_revision = '14_migrate_arxiv_keywords'
+revision = '16_add_llm_providers'
+down_revision = '15_add_translations'
 branch_labels = None
 depends_on = None
 

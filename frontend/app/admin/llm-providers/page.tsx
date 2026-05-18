@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { Pencil, X, Check, Plus } from 'lucide-react'
-import { apiFetch } from '@/lib/api-fetch'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,21 +13,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-
-interface LlmProvider {
-  id: string
-  name: string
-  model: string
-  api_key_env: string
-  priority: number
-  is_active: boolean
-  rpm: number | null
-  tpm: number | null
-  rpd: number | null
-  usage_24h: number
-  created_at: string | null
-  updated_at: string | null
-}
+import {
+  type LlmProvider,
+  fetchLlmProviders,
+  createLlmProvider,
+  updateLlmProvider,
+  deleteLlmProvider,
+} from '@/lib/api'
 
 const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter'] as const
 
@@ -385,39 +376,24 @@ export default function LlmProvidersPage() {
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch('/llm-providers', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => setProviders(Array.isArray(data) ? data : []))
+    fetchLlmProviders(token)
+      .then(data => setProviders(data))
       .finally(() => setIsLoading(false))
   }, [token])
 
   async function handleUpdate(id: string, data: Partial<LlmProvider>) {
     setProviders(prev => prev.map(p => (p.id === id ? { ...p, ...data } : p)))
-    await apiFetch(`/llm-providers/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
+    await updateLlmProvider(id, data, token)
   }
 
   async function handleDelete(id: string) {
     setProviders(prev => prev.filter(p => p.id !== id))
-    await apiFetch(`/llm-providers/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteLlmProvider(id, token)
   }
 
   async function handleCreate(data: Omit<LlmProvider, 'id' | 'usage_24h' | 'created_at' | 'updated_at'>) {
-    const res = await apiFetch('/llm-providers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setProviders(prev => [...prev, created])
-    }
+    const created = await createLlmProvider(data, token)
+    setProviders(prev => [...prev, created])
   }
 
   return (
