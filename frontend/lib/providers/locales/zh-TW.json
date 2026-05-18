@@ -207,6 +207,7 @@
     "activate": "啟用",
     "noRssKeywords": "無關鍵字 — 使用預設過濾器。",
     "rssKeywordsOrDesc": "Regex 模式，以 OR 連接",
-    "add": "新增"
+    "add": "新增",
+    "llmProviders": "模型供應者"
   }
 }

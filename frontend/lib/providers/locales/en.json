@@ -207,6 +207,7 @@
     "activate": "Activate",
     "noRssKeywords": "No keywords — uses default filter.",
     "rssKeywordsOrDesc": "regex patterns, ORed",
-    "add": "Add"
+    "add": "Add",
+    "llmProviders:": "LLM Providers"
   }
 }
