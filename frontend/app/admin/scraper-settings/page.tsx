@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   SourceCard,
+  RssKeywordManager,
   ScraperSetting,
   RssKeyword,
   formatFrequency,
@@ -777,15 +778,19 @@ export default function ScraperSettingsPage() {
             </AccordionSection>
 
             <AccordionSection title="RSS" badge={rssSettings.length}>
+              <div className="rounded-xl border border-border bg-card p-5">
+                <RssKeywordManager
+                  keywords={rssKeywords}
+                  onAdd={handleAddRssKeyword}
+                  onDelete={handleDeleteRssKeyword}
+                />
+              </div>
               {rssSettings.map(s => (
                 <SourceCard
                   key={s.id}
                   setting={s}
                   onUpdate={handleUpdate}
                   onDelete={handleDelete}
-                  rssKeywords={rssKeywords}
-                  onAddRssKeyword={handleAddRssKeyword}
-                  onDeleteRssKeyword={handleDeleteRssKeyword}
                 />
               ))}
               <AddSourceCard sourceType="rss" onAdd={handleCreate} />

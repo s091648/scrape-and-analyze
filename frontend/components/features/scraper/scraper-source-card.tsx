@@ -244,16 +244,10 @@ export function SourceCard({
   setting,
   onUpdate,
   onDelete,
-  rssKeywords,
-  onAddRssKeyword,
-  onDeleteRssKeyword,
 }: {
   setting: ScraperSetting
   onUpdate: (id: string, data: Partial<ScraperSetting>) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  rssKeywords?: RssKeyword[]
-  onAddRssKeyword?: (keyword: string) => Promise<void>
-  onDeleteRssKeyword?: (id: string) => Promise<void>
 }) {
   const { t } = useI18n()
   const [editing, setEditing] = useState(false)
@@ -286,8 +280,6 @@ export function SourceCard({
     setSaving(false)
     setEditing(false)
   }
-
-  const isRss = setting.source_type === 'rss'
 
   // ── Edit mode ───────────────────────────────────────────────────────────────
   if (editing) {
@@ -445,15 +437,6 @@ export function SourceCard({
           </div>
         </div>
 
-        {isRss && rssKeywords && onAddRssKeyword && onDeleteRssKeyword && (
-          <div className="border-t border-border pt-4">
-            <RssKeywordManager
-              keywords={rssKeywords}
-              onAdd={onAddRssKeyword}
-              onDelete={onDeleteRssKeyword}
-            />
-          </div>
-        )}
       </div>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
