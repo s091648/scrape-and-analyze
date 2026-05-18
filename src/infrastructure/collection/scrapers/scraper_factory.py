@@ -60,6 +60,8 @@ class ConcreteScraperFactory(ScraperFactory):
         if isinstance(cfg, ArxivConfig):
             # -1 means no date filter
             effective_days_back = None if days_back == -1 else (days_back if days_back is not None else cfg.days_back)
+            # arXiv 429 = IP-level ban; retrying only extends it.
+            arxiv_http = self._http_client.with_skip_retry_status(frozenset({429}))
             return ArxivScraper(
                 max_results=cfg.max_results,
                 days_back=effective_days_back,
@@ -67,7 +69,7 @@ class ConcreteScraperFactory(ScraperFactory):
                 categories=_extract(setting.keyword_items, ArxivCategory, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
-                client=ArxivClient(http_client=self._http_client),
+                client=ArxivClient(http_client=arxiv_http),
                 since=setting.last_scraped_at,
             )
 

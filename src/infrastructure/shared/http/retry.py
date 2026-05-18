@@ -77,15 +77,41 @@ def _compute_and_log_wait(retry_state: tenacity.RetryCallState) -> float:
     return wait
 
 
-def make_retry_policy(max_attempts: int = 4) -> tenacity.Retrying:
+def make_retry_policy(
+    max_attempts: int = 4,
+    skip_status: frozenset[int] = frozenset(),
+) -> tenacity.Retrying:
     """
     Return a configured ``tenacity.Retrying`` instance.
+
+    Args:
+        max_attempts: Maximum total attempts (initial + retries).
+        skip_status:  HTTP status codes that should NOT trigger a retry.
+                      E.g. ``frozenset({429})`` for APIs where 429 means
+                      an IP-level ban that retrying would only extend.
 
     The returned object is safe to reuse across multiple calls — tenacity
     resets its internal state on each ``for attempt in policy:`` iteration.
     """
+    def _is_retryable_with_skip(exc: BaseException) -> bool:
+        if isinstance(exc, requests.exceptions.HTTPError):
+            if exc.response is None:
+                return True
+            status = exc.response.status_code
+            if status in skip_status:
+                return False
+            return status in _RETRYABLE_STATUS
+        if isinstance(exc, requests.exceptions.ProxyError):
+            return False
+        return isinstance(exc, (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        ))
+
+    predicate = _is_retryable_with_skip if skip_status else _is_retryable
     return tenacity.Retrying(
-        retry=tenacity.retry_if_exception(_is_retryable),
+        retry=tenacity.retry_if_exception(predicate),
         wait=_compute_and_log_wait,
         stop=tenacity.stop_after_attempt(max_attempts),
         reraise=True,
