@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 TEST_SCHEMA = "backend_test"
 
-os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
+os.environ["NEXTAUTH_SECRET"] = "test-secret"
 _JWT_SECRET = "test-secret"
 
 

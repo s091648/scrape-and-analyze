@@ -91,6 +91,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -99,17 +100,17 @@ def build_collection_pipeline():
     from src.infrastructure.collection.handlers import OtelMetricsHandler
     from src.infrastructure.shared.notifications import build_notification_handler
     from src.infrastructure.shared.http import get_default_client
+    from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
-    from src.modules.collection.application.events import PipelineCompletedEvent
+    from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
-    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent
-
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
+    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
     from src.shared.application.events import ArticleProcessedEvent
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.config.settings import TRANSLATION_LANGUAGES
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -118,6 +119,8 @@ def build_collection_pipeline():
     # ── Repositories ───────────────────────────────────────────────────────
     article_repo = SqlAlchemyArticleRepository(session=session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=session)
+    analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
+    tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
     arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
@@ -129,6 +132,9 @@ def build_collection_pipeline():
     # ── LLM Service ────────────────────────────────────────────────────────
     llm_service = build_llm_service(session)
 
+    # ── Prompt Factory ────────────────────────────────────────────────────
+    prompt_factory = ConcretePromptFactory()
+
     # ── Domain Services ────────────────────────────────────────────────────
     dedup_service = DedupService(article_repo=article_repo)
     pipeline_stats = PipelineStats()
@@ -137,31 +143,47 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
-        event_bus=event_bus,
         arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
-        event_bus=event_bus,
+        prompt=prompt_factory.analysis_prompt(),
+    )
+    translate_article_uc = TranslateArticleUseCase(
+        llm_service=llm_service,
+        translation_repository=analyses_translation_repo,
+        prompt=prompt_factory.article_translation_prompt(),
+    )
+    translate_tags_uc = TranslateTagsUseCase(
+        llm_service=llm_service,
+        tag_translation_repository=tag_translation_repo,
+        tag_prompt=prompt_factory.tag_translation_prompt(),
+        group_prompt=prompt_factory.group_translation_prompt(),
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
-    # collection 跨 context 事件：ScrapedArticleDTO → ProcessScrapedArticleUseCase
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
         pipeline_stats=pipeline_stats,
+        event_bus=event_bus,
     )
-    event_bus.subscribe(ScrapedArticleDTO, article_scraped_handler.handle)
+    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
 
-    # 跨 context 整合事件：ArticleProcessedEvent → AnalyzeArticleUseCase
-    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc)
+    article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
 
-    # intelligence 失敗事件：AnalysisFailedEvent → AnalysisFailedHandler
     analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
+
+    analysis_completed_handler = AnalysisCompletedHandler(
+        translate_article_uc=translate_article_uc,
+        translate_tags_uc=translate_tags_uc,
+        analyses_translation_repo=analyses_translation_repo,
+        target_languages=TRANSLATION_LANGUAGES,
+    )
+    event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
@@ -182,3 +204,55 @@ def build_collection_pipeline():
 
     logger.info("bootstrap_complete")
     return pipeline
+
+
+# ---------------------------------------------------------------------------
+# Translation Pipeline：翻譯流程的依賴組裝
+# ---------------------------------------------------------------------------
+
+def build_translation_pipeline():
+    """
+    組裝翻譯 pipeline。
+
+    回傳翻譯相關服務，可用於定時翻譯任務。
+    """
+    from src.infrastructure.persistence.database import get_session, init_db
+    from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
+    from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
+
+    # ── DB 初始化 ──────────────────────────────────────────────────────────
+    init_db()
+    session = get_session()
+
+    # ── Repositories ───────────────────────────────────────────────────────
+    analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
+    tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
+
+    # ── LLM Service ────────────────────────────────────────────────────────
+    llm_service = build_llm_service()
+
+    # ── Prompt Factory ────────────────────────────────────────────────────
+    prompt_factory = ConcretePromptFactory()
+
+    # ── Use Cases ──────────────────────────────────────────────────────────
+    translate_article_uc = TranslateArticleUseCase(
+        llm_service=llm_service,
+        translation_repository=analyses_translation_repo,
+        prompt=prompt_factory.article_translation_prompt(),
+    )
+    translate_tags_uc = TranslateTagsUseCase(
+        llm_service=llm_service,
+        tag_translation_repository=tag_translation_repo,
+        tag_prompt=prompt_factory.tag_translation_prompt(),
+        group_prompt=prompt_factory.group_translation_prompt(),
+    )
+
+    logger.info("translation_bootstrap_complete")
+    return {
+        "use_case": translate_article_uc,
+        "tag_use_case": translate_tags_uc,
+        "session": session,
+        "analyses_translation_repository": analyses_translation_repo,
+        "tag_translation_repository": tag_translation_repo,
+    }

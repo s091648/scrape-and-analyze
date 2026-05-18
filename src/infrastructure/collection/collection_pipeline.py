@@ -7,9 +7,8 @@ from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
-from src.modules.collection.application.dtos import ScrapedArticleDTO
+from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
 from src.modules.collection.application.use_cases import PipelineStats, ArticleOutcome
-from src.modules.collection.application.events import PipelineCompletedEvent
 from src.shared.application.ports import EventBus
 from src.shared.domain.repositories import ArticleRepository
 
@@ -106,11 +105,11 @@ class CollectionPipeline:
                         remaining=len(results),
                     )
 
-        # ── Publish DTOs to event bus (triggers ArticleScrapedHandler) ─
+        # ── Publish events to event bus (triggers ArticleScrapedHandler) ─
         published = 0
         for article in results:
-            dto = ScrapedArticleDTO.from_scraped_article(article)
-            self._event_bus.publish(dto)
+            event = ArticleScrapedEvent.from_scraped_article(article)
+            self._event_bus.publish(event)
             published += 1
 
         # ── Mark settings scraped ───────────────────────────────────────

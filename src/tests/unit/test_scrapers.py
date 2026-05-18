@@ -21,9 +21,9 @@ def test_base_scraper_requires_scrape_method():
 
 
 def test_scraped_article_dto_has_fields():
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
+    from src.modules.collection.application.events import ArticleScrapedEvent
 
-    dto = ScrapedArticleDTO(
+    dto = ArticleScrapedEvent(
         url="https://example.com",
         title="Test",
         content="Content",

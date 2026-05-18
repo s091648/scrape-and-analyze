@@ -1,4 +1,8 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape run retry-failed retry-failed-remote test test-cov test-integration test-integration-cov test-all-cov test-frontend test-backend test-backend-integration
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote \
+	test-src test-src-cov test-src-integration test-src-integration-cov \
+	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
+	test-frontend test-frontend-e2e test-all \
+	storybook build-storybook
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -67,13 +71,23 @@ backfill-dry-run:
 # Usage:
 #   make scrape SOURCE=rss
 #   make scrape SOURCE=arxiv LIMIT=10
+#   make scrape SOURCE=arxiv DAYS_BACK=-1  # no date filter (all articles)
 #   make scrape SOURCE=blog NO_ANALYZE=1
 SOURCE ?= rss
 NO_ANALYZE ?=
-_SCRAPE_ARGS := --source $(SOURCE) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_ANALYZE),--no-analyze,)
+_DAYS_BACK := $(if $(DAYS_BACK),--days-back $(DAYS_BACK),)
+_SCRAPE_ARGS := --source $(SOURCE) $(_DAYS_BACK) $(if $(LIMIT),--limit $(LIMIT),) $(if $(NO_ANALYZE),--no-analyze,)
 
 scrape:
 	docker compose run --rm job_service python /app/scripts/scrape.py $(_SCRAPE_ARGS)
+
+# Translate article analyses to another language.
+# Usage:
+#   make translate LANG=zh-TW
+#   make translate LANG=zh-TW LIMIT=50
+LANG ?= zh-TW
+translate:
+	docker compose run --rm job_service python -m src.entrypoints.cli.translate --language $(LANG) $(if $(LIMIT),--limit $(LIMIT),)
 
 run:
 	docker compose run --rm app python -m src.entrypoints.cli.main
@@ -88,16 +102,12 @@ retry-failed-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
 
-# 基礎測試指令
-# 設定預設路徑，如果執行時沒給 path=... 就會用這個
-TEST_PATH ?= src/tests/unit/
-_TEST_ARGS := $(TEST_PATH) -v --tb=short
+# ─── src/ tests ───────────────────────────────────────────────────────────────
 
-test:
-	docker compose run --rm test_service python -m pytest $(_TEST_ARGS) -v --tb=short
+test-src:
+	docker compose run --rm test_service python -m pytest src/tests/unit/ -v --tb=short
 
-# 產生覆蓋率報告的測試指令 (HTML 會出現在專案的 tests/htmlcov/ 目錄下)
-test-cov:
+test-src-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/unit/ \
 		-v --tb=short \
@@ -105,12 +115,10 @@ test-cov:
 		--cov-report=html:src/tests/htmlcov \
 		--cov-report=term
 
-# Integration tests (requires postgres — `docker compose up -d postgres` first if needed)
-test-integration:
+test-src-integration:
 	docker compose run --rm test_service python -m pytest src/tests/integration/ -v --tb=short -m integration
 
-# Integration tests with coverage report
-test-integration-cov:
+test-src-integration-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/integration/ \
 		-v --tb=short -m integration \
@@ -118,20 +126,51 @@ test-integration-cov:
 		--cov-report=html:src/tests/htmlcov-integration \
 		--cov-report=term
 
-# Run all tests (unit + integration) with combined coverage
-test-all-cov:
-	docker compose run --rm test_service python -m pytest \
-		src/tests/ \
-		-v --tb=short \
-		--cov=src \
-		--cov-report=html:src/tests/htmlcov-all \
-		--cov-report=term
-
-test-frontend:
-	docker compose run --rm frontend npm run test:coverage -- --reporter=verbose --reporter=json --outputFile=test-results.json
+# ─── backend/ tests ───────────────────────────────────────────────────────────
 
 test-backend:
-	docker compose run --rm test_service python -m pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov=shared --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
+	docker compose run --rm test_service python -m pytest backend/tests/ \
+		--ignore=backend/tests/integration/ \
+		-v --tb=short
+
+test-backend-cov:
+	docker compose run --rm test_service python -m pytest backend/tests/ \
+		--ignore=backend/tests/integration/ \
+		-v --tb=short \
+		--cov=backend \
+		--cov-report=html:backend/tests/htmlcov \
+		--cov-report=term
 
 test-backend-integration:
-	docker compose run --rm test_service python -m pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
+	docker compose run --rm test_service python -m pytest backend/tests/integration/ -v --tb=short -m integration
+
+test-backend-integration-cov:
+	docker compose run --rm test_service python -m pytest \
+		backend/tests/integration/ \
+		-v --tb=short -m integration \
+		--cov=backend \
+		--cov-report=html:backend/tests/htmlcov-integration \
+		--cov-report=term
+
+# ─── frontend/ tests ──────────────────────────────────────────────────────────
+
+test-frontend:
+	docker compose run --rm frontend npm run test
+
+test-frontend-e2e:
+	docker compose run --rm frontend npm run test:e2e
+
+# ─── storybook ────────────────────────────────────────────────────────────────
+
+storybook:
+	docker compose run --rm -p 6006:6006 frontend npm run storybook
+
+build-storybook:
+	docker compose run --rm -p 6006:6006 frontend sh -c "npm run build-storybook && npx serve -s storybook-static -l 6006"
+
+# ─── combined ─────────────────────────────────────────────────────────────────
+
+# Run unit + integration tests for all three services; always runs to completion and prints a summary
+test-all:
+	bash scripts/run_tests.sh
+

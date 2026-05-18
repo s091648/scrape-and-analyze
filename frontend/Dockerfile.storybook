@@ -1,0 +1,16 @@
+# frontend/Dockerfile.storybook
+# Multi-stage: build Storybook static site, serve with `serve`.
+# Railway sets $PORT dynamically; `serve -l $PORT` respects it.
+
+FROM node:20-slim AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build-storybook
+
+FROM node:20-slim
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=builder /app/storybook-static ./storybook-static
+CMD ["sh", "-c", "serve storybook-static -l ${PORT:-6006}"]

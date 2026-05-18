@@ -6,6 +6,11 @@ import os
 
 DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
 SENTRY_DSN: str = os.environ.get("SENTRY_DSN", "")
+TRANSLATION_LANGUAGES: list[str] = [
+    lang.strip()
+    for lang in os.environ.get("TRANSLATION_LANGUAGES", "zh-TW").split(",")
+    if lang.strip()
+]
 
 
 def validate_config() -> None:

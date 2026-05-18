@@ -3,8 +3,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from src.modules.collection.domain.value_objects.selector_config import SelectorConfig
-from src.modules.collection.domain.value_objects.scraper_keyword import ScraperKeywordVO
+from src.modules.collection.domain.value_objects import SelectorConfig, ScraperKeywordVO
 
 
 @dataclass

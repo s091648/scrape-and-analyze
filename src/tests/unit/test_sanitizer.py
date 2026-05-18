@@ -80,7 +80,7 @@ def test_sanitize_content_does_not_truncate_short_content():
 
 def test_generate_url_hash_returns_sha256():
     """generate_url_hash should return 64-character SHA-256 hash"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = "https://example.com/article/123"
     result = UrlHash.generate_url_hash(url)
@@ -91,7 +91,7 @@ def test_generate_url_hash_returns_sha256():
 
 def test_generate_url_hash_is_deterministic():
     """Same URL should always produce same hash"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = "https://example.com/article/123"
     hash1 = UrlHash.generate_url_hash(url)
@@ -102,7 +102,7 @@ def test_generate_url_hash_is_deterministic():
 
 def test_generate_url_hash_different_for_different_urls():
     """Different URLs should produce different hashes"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     hash1 = UrlHash.generate_url_hash("https://example.com/1")
     hash2 = UrlHash.generate_url_hash("https://example.com/2")
@@ -112,7 +112,7 @@ def test_generate_url_hash_different_for_different_urls():
 
 def test_generate_url_hash_handles_unicode():
     """generate_url_hash should handle unicode URLs"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = "https://example.com/文章/数字孪生"
     result = UrlHash.generate_url_hash(url)
@@ -123,7 +123,7 @@ def test_generate_url_hash_handles_unicode():
 
 def test_generate_url_hash_handles_special_characters():
     """generate_url_hash should handle special characters in URLs"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = "https://example.com/article?id=123&name=test%20article"
     result = UrlHash.generate_url_hash(url)
@@ -133,7 +133,7 @@ def test_generate_url_hash_handles_special_characters():
 
 def test_generate_url_hash_empty_string():
     """generate_url_hash should handle empty string"""
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     result = UrlHash.generate_url_hash("")
     assert len(result) == 64  # SHA-256 of empty string

@@ -4,12 +4,6 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class SelectorConfig(BaseModel):
-    article_link: str
-    title: str
-    content: str
-
-
 class ScraperSettingCreate(BaseModel):
     source_type: Literal["rss", "blog", "arxiv"]
     name: str

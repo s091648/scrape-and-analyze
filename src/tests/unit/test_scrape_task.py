@@ -11,8 +11,8 @@ def _make_fetch_task(execute_result=None):
 
 
 def test_execute_calls_scraper_fetch_and_returns_result():
-    from src.modules.collection.application.dtos import ScrapedArticleDTO
-    event = ScrapedArticleDTO(url="http://x.com", title="T", content="C", source="test")
+    from src.modules.collection.application.events import ArticleScrapedEvent
+    event = ArticleScrapedEvent(url="http://x.com", title="T", content="C", source="test")
     task = _make_fetch_task(execute_result=event)
     assert task.execute() is event
 
