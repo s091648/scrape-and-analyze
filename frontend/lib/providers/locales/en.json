@@ -208,6 +208,26 @@
     "noRssKeywords": "No keywords — uses default filter.",
     "rssKeywordsOrDesc": "regex patterns, ORed",
     "add": "Add",
-    "llmProviders": "LLM Providers"
+    "llmProviders": "LLM Providers",
+    "llmProvidersDesc": "Manage LLM providers and their rate limits. Lower priority number = tried first.",
+    "editProvider": "Edit Provider",
+    "newProvider": "New Provider",
+    "addProvider": "Add provider",
+    "provider": "Provider",
+    "priority": "Priority",
+    "model": "Model",
+    "modelPlaceholder": "e.g. gemini-2.5-flash",
+    "apiKeyEnvVar": "API Key Env Var",
+    "apiKeyEnvVarPlaceholder": "e.g. GEMINI_API_KEY",
+    "rpm": "RPM",
+    "tpm": "TPM",
+    "rpd": "RPD",
+    "callsInLast24h": "{count} calls in last 24h",
+    "callsInLast24hTooltip": "Estimated from successful analyses. May differ from actual API calls due to retries, failures, or provider-side counting differences.",
+    "deleteProvider": "Delete provider?",
+    "deleteProviderConfirm": "Delete {model}? This cannot be undone.",
+    "priorityConflict": "Priority {priority} is already in use by another provider.",
+    "reorderFailed": "Failed to reorder providers. Please try again.",
+    "dragToReorder": "Drag to reorder"
   }
 }

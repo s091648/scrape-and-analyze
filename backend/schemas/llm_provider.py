@@ -26,6 +26,15 @@ class LlmProviderUpdate(BaseModel):
     rpd: Optional[int] = None
 
 
+class ProviderReorderItem(BaseModel):
+    id: UUID
+    priority: int
+
+
+class LlmProviderReorder(BaseModel):
+    order: list[ProviderReorderItem]
+
+
 class LlmProviderOut(BaseModel):
     id: UUID
     name: str

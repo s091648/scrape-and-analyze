@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.auth.guards import require_admin
-from backend.schemas.llm_provider import LlmProviderCreate, LlmProviderUpdate, LlmProviderOut
+from backend.schemas.llm_provider import LlmProviderCreate, LlmProviderUpdate, LlmProviderOut, LlmProviderReorder
 
 router = APIRouter(prefix="/llm-providers", tags=["llm-providers"])
 
@@ -35,8 +35,18 @@ def get_providers(db: Session):
     return _attach_usage(providers, db)
 
 
+def _check_priority_conflict(db: Session, priority: int, exclude_id: UUID | None = None):
+    from models.llm_provider import LlmProvider
+    q = db.query(LlmProvider).filter(LlmProvider.priority == priority)
+    if exclude_id:
+        q = q.filter(LlmProvider.id != exclude_id)
+    return q.first()
+
+
 def create_provider(db: Session, data: LlmProviderCreate):
     from models.llm_provider import LlmProvider
+    if _check_priority_conflict(db, data.priority):
+        raise HTTPException(status_code=409, detail="Priority already in use by another provider")
     obj = LlmProvider(**data.model_dump())
     db.add(obj)
     db.commit()
@@ -50,6 +60,9 @@ def update_provider(db: Session, provider_id: UUID, data: LlmProviderUpdate):
     obj = db.query(LlmProvider).filter(LlmProvider.id == provider_id).first()
     if not obj:
         return None
+    new_priority = data.priority if data.priority is not None else obj.priority
+    if _check_priority_conflict(db, new_priority, exclude_id=provider_id):
+        raise HTTPException(status_code=409, detail="Priority already in use by another provider")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(obj, field, value)
     db.commit()
@@ -76,6 +89,25 @@ def list_providers(db: Session = Depends(get_db), _=Depends(require_admin)):
 @router.post("", response_model=LlmProviderOut, status_code=201)
 def create(data: LlmProviderCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
     return create_provider(db, data)
+
+
+@router.put("/reorder", response_model=list[LlmProviderOut])
+def reorder(data: LlmProviderReorder, db: Session = Depends(get_db), _=Depends(require_admin)):
+    from models.llm_provider import LlmProvider
+    priorities = {item.id: item.priority for item in data.order}
+    if len(priorities) != len(data.order):
+        raise HTTPException(status_code=400, detail="Duplicate provider IDs in reorder request")
+    if len(set(priorities.values())) != len(priorities):
+        raise HTTPException(status_code=400, detail="Duplicate priority values in reorder request")
+    providers = db.query(LlmProvider).filter(LlmProvider.id.in_(priorities.keys())).all()
+    if len(providers) != len(priorities):
+        raise HTTPException(status_code=404, detail="One or more providers not found")
+    for p in providers:
+        p.priority = priorities[p.id]
+    db.commit()
+    for p in providers:
+        db.refresh(p)
+    return _attach_usage(providers, db)
 
 
 @router.patch("/{provider_id}", response_model=LlmProviderOut)
