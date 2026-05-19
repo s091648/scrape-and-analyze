@@ -14,6 +14,7 @@ interface Props {
 export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
   const { t } = useI18n()
   const [processing, setProcessing] = useState<string | null>(null)
+  const [mergingAll, setMergingAll] = useState(false)
 
   if (suggestions.length === 0) return null
 
@@ -28,11 +29,34 @@ export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
     }
   }
 
+  async function handleMergeAll() {
+    if (!confirm(t('tags.confirmMergeAll', { count: suggestions.length }))) return
+    setMergingAll(true)
+    try {
+      for (const s of suggestions) {
+        await approveSuggestion(s.id, token)
+        onResolved(s.id)
+      }
+    } finally {
+      setMergingAll(false)
+    }
+  }
+
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-5 space-y-3">
-      <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-        {t('tags.pendingMergeSuggestions', { count: suggestions.length })}
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+          {t('tags.pendingMergeSuggestions', { count: suggestions.length })}
+        </h3>
+        <Button
+          size="sm" variant="outline"
+          className="h-7 px-3 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/40"
+          disabled={mergingAll || processing !== null}
+          onClick={handleMergeAll}
+        >
+          {t('tags.mergeAll')}
+        </Button>
+      </div>
       <div className="space-y-2">
         {suggestions.map(s => (
           <div key={s.id} className="flex items-center justify-between gap-3 text-sm">
@@ -47,14 +71,14 @@ export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
             <div className="flex gap-1.5 shrink-0">
               <Button
                 size="sm" variant="outline" className="h-7 px-2 text-xs"
-                disabled={processing === s.id}
+                disabled={processing === s.id || mergingAll}
                 onClick={() => handle(s.id, 'approve')}
               >
                 {t('tags.merge')}
               </Button>
               <Button
                 size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground"
-                disabled={processing === s.id}
+                disabled={processing === s.id || mergingAll}
                 onClick={() => handle(s.id, 'reject')}
               >
                 {t('tags.keepBoth')}

@@ -10,9 +10,18 @@ export interface TagGroupOut {
   id: string
   name: string
   display_name: string
+  description: string | null
   color_hex: string | null
   topic_id: string
   tags: TagOut[]
+}
+
+export interface TagGroupCreate {
+  name: string
+  display_name: string
+  topic_id: string
+  color_hex?: string
+  description?: string
 }
 
 export interface SuggestionOut {
@@ -30,6 +39,16 @@ export async function fetchTagGroups(topicId?: string): Promise<TagGroupOut[]> {
   const qs = topicId ? `?topic_id=${topicId}` : ''
   const res = await apiFetch(`/tag-groups${qs}`)
   if (!res.ok) throw new Error('Failed to fetch tag groups')
+  return res.json()
+}
+
+export async function createTagGroup(body: TagGroupCreate, token: string): Promise<TagGroupOut> {
+  const res = await apiFetch('/tag-groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to create tag group')
   return res.json()
 }
 

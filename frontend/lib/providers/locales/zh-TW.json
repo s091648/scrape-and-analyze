@@ -133,7 +133,20 @@
     "keepBoth": "保留兩者",
     "similar": "{pct}% 相似",
     "tagsCount": "（{count} 個標籤）",
-    "noTagsYet": "尚無標籤"
+    "noTagsYet": "尚無標籤",
+    "collapse": "收合",
+    "expand": "展開",
+    "mergeAll": "全部合併",
+    "confirmMergeAll": "確定核准全部 {count} 筆合併建議？",
+    "addGroup": "新增群組",
+    "groupName": "名稱（slug）",
+    "groupDisplayName": "顯示名稱",
+    "groupColor": "顏色（hex）",
+    "groupDescription": "描述",
+    "createGroup": "建立",
+    "noTopicSelected": "請先選擇主題才能新增群組",
+    "signInToExplore": "登入以瀏覽標籤",
+    "signInToAccess": "瀏覽標籤群組並探索相關文章"
   },
   "common": {
     "loading": "載入中...",

@@ -133,7 +133,20 @@
     "keepBoth": "Keep both",
     "similar": "{pct}% similar",
     "tagsCount": "({count} tags)",
-    "noTagsYet": "No tags yet"
+    "noTagsYet": "No tags yet",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "mergeAll": "Merge All",
+    "confirmMergeAll": "Approve all {count} pending suggestions?",
+    "addGroup": "Add Group",
+    "groupName": "Name (slug)",
+    "groupDisplayName": "Display Name",
+    "groupColor": "Color (hex)",
+    "groupDescription": "Description",
+    "createGroup": "Create",
+    "noTopicSelected": "Select a topic first to add a group",
+    "signInToExplore": "Sign in to explore Tags",
+    "signInToAccess": "to browse tag groups and discover related articles"
   },
   "common": {
     "loading": "Loading...",
