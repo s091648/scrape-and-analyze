@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, Table, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, configure_mappers
+from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 import uuid
 
@@ -39,4 +39,3 @@ class Tag(Base):
     )
 
 
-configure_mappers()

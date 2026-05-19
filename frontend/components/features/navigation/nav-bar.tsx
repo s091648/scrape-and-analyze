@@ -132,7 +132,7 @@ export function NavBar() {
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }`}
           >
-            Tags
+            {t('tags.title')}
           </Link>
         </div>
 

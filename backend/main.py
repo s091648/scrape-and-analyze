@@ -1,4 +1,5 @@
 import os
+import models  # noqa: F401 — registers all ORM mappers at startup
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
