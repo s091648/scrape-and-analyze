@@ -58,8 +58,27 @@ rpm = 20
 tpm = 100000
 rpd = 200
 
-[tag_normalization]
-auto_merge_threshold = 0.92
-suggest_threshold = 0.85
-embedding_model = "text-embedding-004"
+[[embedding]]
+name = "gemini"
+priority = 1
+model = "gemini-embedding-001"
 api_key_env = "GEMINI_API_KEY"
+
+[embedding.strategy]
+type = "sliding_window"
+rpm = 100
+tpm = 30000
+rpd = 1000
+
+
+[[embedding]]
+name = "gemini"
+priority = 2
+model = "gemini-embedding-2"
+api_key_env = "GEMINI_API_KEY"
+
+[embedding.strategy]
+type = "sliding_window"
+rpm = 100
+tpm = 30000
+rpd = 1000

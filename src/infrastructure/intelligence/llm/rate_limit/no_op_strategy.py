@@ -7,3 +7,6 @@ class NoOpStrategy(QuotaStrategy):
 
     def record_usage(self, actual_tokens: int) -> None:
         ...
+
+    def update_batch_size(self, batch_size: int) -> None:
+        ...

@@ -26,6 +26,7 @@ class TagGroupOut(BaseModel):
     id: UUID
     name: str
     display_name: str
+    description: Optional[str]
     color_hex: Optional[str]
     topic_id: UUID
     tags: List[TagOut]
@@ -103,7 +104,8 @@ def list_tag_groups(
         ]
         result.append(TagGroupOut(
             id=grp.id, name=grp.name, display_name=grp.display_name,
-            color_hex=grp.color_hex, topic_id=grp.topic_id, tags=tag_outs,
+            description=grp.description, color_hex=grp.color_hex,
+            topic_id=grp.topic_id, tags=tag_outs,
         ))
     return result
 
@@ -120,7 +122,8 @@ def create_tag_group(
     db.commit()
     db.refresh(grp)
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
-                       color_hex=grp.color_hex, topic_id=grp.topic_id, tags=[])
+                       description=grp.description, color_hex=grp.color_hex,
+                       topic_id=grp.topic_id, tags=[])
 
 
 @router.put("/tag-groups/{group_id}", response_model=TagGroupOut)
@@ -142,7 +145,8 @@ def update_tag_group(
     tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
     tag_outs = [TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id)) for t in tags]
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
-                       color_hex=grp.color_hex, topic_id=grp.topic_id, tags=tag_outs)
+                       description=grp.description, color_hex=grp.color_hex,
+                       topic_id=grp.topic_id, tags=tag_outs)
 
 
 @router.delete("/tag-groups/{group_id}", status_code=204)

@@ -23,18 +23,58 @@ def main():
     logger = get_logger(__name__)
 
     from src.infrastructure.persistence.database import get_session, init_db
-    from src.config.providers import load_tag_normalization_config
-    from src.infrastructure.intelligence.embedding import GeminiEmbeddingProvider
     from sqlalchemy import text
 
     init_db()
     session = get_session()
 
-    cfg = load_tag_normalization_config()
-    provider = GeminiEmbeddingProvider(
-        api_key=os.environ.get(cfg["api_key_env"], ""),
-        model=cfg["embedding_model"],
-    )
+    def build_llm_service():
+        """
+        Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
+        根據 article.topic_id 動態 render 後傳入。
+        """
+        from typing import List
+        from src.config.providers import load_embedding_config
+        from src.infrastructure.intelligence.llm.resilient_llm_service import (
+            ResilientEmbeddingService, EmbeddingProviderHandler
+        )
+        from src.infrastructure.intelligence.llm.embedding import GeminiEmbeddingProvider
+        from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
+
+        emb_handlers: List[EmbeddingProviderHandler] = []
+        
+        # Embedding provider
+        for emb_cfg in load_embedding_config():
+            name = emb_cfg['name']
+            model = emb_cfg['model']
+            api_key = os.environ.get(emb_cfg['api_key_env'], '')
+
+            if name == 'gemini':
+                provider = GeminiEmbeddingProvider(api_key=api_key, model=model)
+
+            s_emb_cfg = emb_cfg.get('strategy', {})
+            if s_emb_cfg.get('type') == 'sliding_window':
+                strategy = SlidingWindowStrategy(
+                    rpm=s_emb_cfg['rpm'],
+                    tpm=s_emb_cfg['tpm'],
+                    rpd=s_emb_cfg['rpd'],
+                )
+            else:
+                strategy = NoOpStrategy()
+            
+            emb_handlers.append(EmbeddingProviderHandler(
+                provider=provider,
+                strategy=strategy,
+                priority=emb_cfg['priority'],
+                name=name,
+            ))
+        
+        if not emb_handlers:
+            raise ValueError("providers.toml 中未設定任何有效的 Embedding provider")
+
+        return ResilientEmbeddingService(handlers=emb_handlers)
+
+    provider = build_llm_service()
 
     # Fetch tags without embeddings
     query = "SELECT id, name FROM tags WHERE embedding IS NULL"
@@ -44,7 +84,7 @@ def main():
 
     logger.info("backfill_start", total=len(rows), dry_run=args.dry_run)
 
-    batch_size = 50
+    batch_size = 10
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         tag_ids = [str(r[0]) for r in batch]

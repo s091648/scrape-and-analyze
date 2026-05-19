@@ -1,4 +1,7 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync backfill backfill-dry-run create-admin scrape translate run retry-failed retry-failed-remote \
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync \
+	backfill backfill-dry-run backfill-embeddings backfill-embeddings-dry-run \
+	backfill-suggestions backfill-suggestions-dry-run \
+	create-admin scrape translate run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-e2e test-all \
@@ -23,14 +26,17 @@ _BACKFILL_ARGS := $(if $(LIMIT),--limit $(LIMIT),)
 pg_init:
 	docker compose run --rm job_service alembic stamp baseline
 
+# optional: override upgrade target with UPGRADE_REV=<revision> (default: head)
+UPGRADE_REV ?=
+
 migrate:
-	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
-	docker compose run --rm job_service /app/scripts/db_migrate.sh
+	@echo "Using REMOTE_URL=$(REMOTE_URL)"
+	docker compose run --rm job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 migrate-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
-	@echo "Running alembic upgrade head against Railway DB..."
-	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh
+	@echo "Running alembic upgrade $(or $(UPGRADE_REV),head) against Railway DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 # optional: override target revision with DOWNGRADE_REV=<revision> (default: -1, one step back)
 DOWNGRADE_REV ?= -1
@@ -66,6 +72,18 @@ backfill:
 
 backfill-dry-run:
 	docker compose run --rm job_service python /app/scripts/backfill_tags.py --dry-run $(_BACKFILL_ARGS)
+
+backfill-embeddings:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py $(_BACKFILL_ARGS)
+
+backfill-embeddings-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --dry-run $(_BACKFILL_ARGS)
+
+backfill-suggestions:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_suggestions.py
+
+backfill-suggestions-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_suggestions.py --dry-run
 
 # Scrape (and optionally analyze) from a specific source.
 # Usage:

@@ -25,10 +25,11 @@ class SlidingWindowStrategy(QuotaStrategy):
 
     _WINDOW = 60.0
 
-    def __init__(self, rpm: int, tpm: int, rpd: int) -> None:
+    def __init__(self, rpm: int, tpm: int, rpd: int, batch_size: int = 1) -> None:
         self.rpm = rpm
         self.tpm = tpm
         self.rpd = rpd
+        self.batch_size = batch_size    
         self._rpm_window: Deque[float] = deque()
         self._tpm_window: Deque[Tuple[float, int]] = deque()
         self._daily_count: int = 0
@@ -48,6 +49,10 @@ class SlidingWindowStrategy(QuotaStrategy):
                 self._tpm_window.pop()
             self._tpm_window.append((now, actual_tokens))
 
+    def update_batch_size(self, batch_size: int) -> None:
+        with self._lock:
+            self.batch_size = batch_size
+
     def _compute_wait(self, estimated_tokens: int) -> float:
         with self._lock:
             if self._daily_count >= self.rpd:
@@ -56,7 +61,7 @@ class SlidingWindowStrategy(QuotaStrategy):
             self._evict_stale(now)
             wait = max(self._rpm_wait(now), self._tpm_wait(now, estimated_tokens))
             if wait == 0:
-                self._rpm_window.append(now)
+                self._rpm_window.extend([now] * self.batch_size)
                 self._daily_count += 1
                 self._tpm_window.append((now, estimated_tokens))
             return wait

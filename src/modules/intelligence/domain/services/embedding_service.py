@@ -3,6 +3,7 @@ from typing import List
 
 
 class EmbeddingService(ABC):
+    """Domain interface for generating text embeddings for tag normalization."""
 
     @abstractmethod
     def embed(self, text: str) -> List[float]:

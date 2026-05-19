@@ -109,29 +109,39 @@ class SqlAlchemyTagRepository(TagRepository):
         if not suggestion:
             return
 
-        # Re-point all article_tags rows from new_tag to existing_tag
+        new_tag_id = str(suggestion.new_tag_id)
+        existing_tag_id = str(suggestion.existing_tag_id)
+
+        # Re-point article_tags from new_tag to existing_tag.                                              
+        # JOIN articles guards against orphaned article_tags rows (article deleted without                 
+        # cleaning up the junction table) which would violate fk_at_article on insert.
         self._session.execute(text("""
             INSERT INTO article_tags (article_id, tag_id)
-            SELECT article_id, :existing_id FROM article_tags WHERE tag_id = :new_id
+            SELECT at.article_id, :existing_id                                                             
+            FROM article_tags at                                                                           
+            INNER JOIN articles a ON a.id = at.article_id                                                  
+            WHERE at.tag_id = :new_id
             ON CONFLICT DO NOTHING
-        """), {"existing_id": str(suggestion.existing_tag_id), "new_id": str(suggestion.new_tag_id)})
+        """), {"existing_id": existing_tag_id, "new_id": new_tag_id})
 
         # Remove old article_tags rows pointing to new_tag
         self._session.execute(text(
             "DELETE FROM article_tags WHERE tag_id = :new_id"
-        ), {"new_id": str(suggestion.new_tag_id)})
+        ), {"new_id": new_tag_id})
 
-        # Delete the new (duplicate) tag
+        # Expunge the ORM object before deleting the tag.
+        # tag_normalization_suggestions.new_tag_id has ondelete='CASCADE', so
+        # DELETE on tags would also delete this suggestion row. If SQLAlchemy still
+        # holds a reference it will try to UPDATE the deleted row → StaleDataError.
+        self._session.expunge(suggestion)
+
+        # Delete the new (duplicate) tag; CASCADE removes the suggestion row too
         self._session.execute(text(
             "DELETE FROM tags WHERE id = :new_id"
-        ), {"new_id": str(suggestion.new_tag_id)})
+        ), {"new_id": new_tag_id})
 
-        # Mark resolved
-        suggestion.status = "approved"
-        suggestion.resolved_at = datetime.now(timezone.utc)
-        suggestion.resolved_by = resolved_by
-
-        logger.info("tag_suggestion_approved", suggestion_id=str(suggestion_id))
+        logger.info("tag_suggestion_approved", suggestion_id=str(suggestion_id),
+                    resolved_by=str(resolved_by))
 
     def reject_suggestion(self, suggestion_id: UUID, resolved_by: UUID) -> None:
         from models.tag_normalization_suggestion import TagNormalizationSuggestion as SuggestionModel

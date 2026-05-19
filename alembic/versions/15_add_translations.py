@@ -25,13 +25,14 @@ depends_on = None
 
 def upgrade() -> None:
     # ========================================
-    # Step 1: Add language column to analyses
+    # Step 1: Add language column to analyses (idempotent)
     # ========================================
-    op.add_column(
-        "analyses",
-        sa.Column("language", sa.String(10), nullable=False, server_default="en"),
+    op.execute(
+        "ALTER TABLE analyses ADD COLUMN IF NOT EXISTS language VARCHAR(10) NOT NULL DEFAULT 'en'"
     )
-    op.create_index("idx_analyses_language", "analyses", ["language"])
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_analyses_language ON analyses (language)"
+    )
 
     # ========================================
     # Step 2: Create analyses_translation table
@@ -222,7 +223,7 @@ def downgrade() -> None:
         "tag_group_definitions_translation",
         type_="foreignkey",
     )
-    op.drop_unique_constraint(
+    op.drop_constraint(
         "uq_tag_group_definitions_translation_group_language",
         "tag_group_definitions_translation",
     )
@@ -244,7 +245,7 @@ def downgrade() -> None:
         "tags_translation",
         type_="foreignkey",
     )
-    op.drop_unique_constraint(
+    op.drop_constraint(
         "uq_tags_translation_tag_language",
         "tags_translation",
     )
@@ -266,7 +267,7 @@ def downgrade() -> None:
         "analyses_translation",
         type_="foreignkey",
     )
-    op.drop_unique_constraint(
+    op.drop_constraint(
         "uq_analyses_translation_analysis_language",
         "analyses_translation",
     )

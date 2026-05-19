@@ -27,15 +27,19 @@ def build_llm_service():
     Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
     根據 article.topic_id 動態 render 後傳入。
     """
-    from src.config.providers import load_providers
+    from src.config.providers import load_providers, load_embedding_config
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
+        ResilientEmbeddingService, EmbeddingProviderHandler
     )
+    from src.infrastructure.intelligence.llm.embedding import GeminiEmbeddingProvider
     from src.infrastructure.intelligence.llm.providers import ClaudeProvider, GeminiProvider, OpenRouterProvider
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
 
     handlers: List[ProviderHandler] = []
+    emb_handlers: List[EmbeddingProviderHandler] = []
 
+    # LLM providers
     for cfg in load_providers():
         name = cfg['name']
         model = cfg['model']
@@ -70,8 +74,37 @@ def build_llm_service():
 
     if not handlers:
         raise ValueError("providers.toml 中未設定任何有效的 LLM provider")
+    
+    # Embedding provider
+    for emb_cfg in load_embedding_config():
+        name = emb_cfg['name']
+        model = emb_cfg['model']
+        api_key = os.environ.get(emb_cfg['api_key_env'], '')
 
-    return ResilientLLMService(handlers=handlers)
+        if name == 'gemini':
+            provider = GeminiEmbeddingProvider(api_key=api_key, model=model)
+
+        s_emb_cfg = emb_cfg.get('strategy', {})
+        if s_emb_cfg.get('type') == 'sliding_window':
+            strategy = SlidingWindowStrategy(
+                rpm=s_emb_cfg['rpm'],
+                tpm=s_emb_cfg['tpm'],
+                rpd=s_emb_cfg['rpd'],
+            )
+        else:
+            strategy = NoOpStrategy()
+        
+        emb_handlers.append(EmbeddingProviderHandler(
+            provider=provider,
+            strategy=strategy,
+            priority=emb_cfg['priority'],
+            name=name,
+        ))
+    
+    if not emb_handlers:
+        raise ValueError("providers.toml 中未設定任何有效的 Embedding provider")
+
+    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +129,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
-    from src.infrastructure.intelligence.embedding import GeminiEmbeddingProvider
+    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -118,7 +151,7 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
     from src.shared.application.events import ArticleProcessedEvent
     from src.config.settings import TRANSLATION_LANGUAGES
-    from src.config.providers import load_tag_normalization_config
+    
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -139,7 +172,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service()
+    llm_service, embedding_service = build_llm_service()
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
@@ -172,19 +205,10 @@ def build_collection_pipeline():
         group_prompt=prompt_factory.group_translation_prompt(),
     )
 
-    # ── Embedding Service ────────────────────────────────────────────────────
-    tag_norm_cfg = load_tag_normalization_config()
-    embedding_service = GeminiEmbeddingProvider(
-        api_key=os.environ.get(tag_norm_cfg['api_key_env'], ''),
-        model=tag_norm_cfg['embedding_model'],
-    )
-
     # ── Normalize Tags Use Case ────────────────────────────────────────────
     normalize_tags_uc = NormalizeTagsUseCase(
         embedding_service=embedding_service,
         tag_repository=tag_repo,
-        auto_merge_threshold=tag_norm_cfg['auto_merge_threshold'],
-        suggest_threshold=tag_norm_cfg['suggest_threshold'],
     )
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
