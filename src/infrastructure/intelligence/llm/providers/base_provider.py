@@ -5,7 +5,8 @@ from typing import Optional
 import tenacity
 
 from src.shared.logging import get_logger
-from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, TagGroup
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+from src.modules.intelligence.domain.value_objects.analysis_tag_group import AnalysisTagGroup
 from src.modules.intelligence.domain.services import LLMService
 from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
 
@@ -91,6 +92,28 @@ class BaseProvider(LLMService, ABC):
         """
         ...
 
+    def _parse_result(self, result: dict) -> tuple[AnalysisContent, AnalysisMetadata]:
+        tag_groups = [
+            AnalysisTagGroup(
+                group_name=tg.get("group", ""),
+                tags=tg.get("tags", []),
+            )
+            for tg in result.get("tag_groups", [])
+        ]
+        analysis_content = AnalysisContent(
+            pain_points=_to_str(result.get("pain_points")),
+            insights=_to_str(result.get("insights")),
+            innovations=_to_str(result.get("innovations")),
+            summary=_to_str(result.get("summary")),
+            tag_groups=tag_groups,
+        )
+        analysis_metadata = AnalysisMetadata(
+            model_used=self._model,
+            input_tokens=result.get("_input_tokens", 0),
+            output_tokens=result.get("_output_tokens", 0),
+        )
+        return analysis_content, analysis_metadata
+
     def analyze(
         self,
         content: str,
@@ -110,26 +133,7 @@ class BaseProvider(LLMService, ABC):
             logger.warning("provider_response_invalid", model=self._model, keys=list(result.keys()))
             return None
 
-        tag_groups = [
-            TagGroup(
-                display_name=tg.get("group", ""),
-                description=", ".join(tg.get("tags", [])),
-            )
-            for tg in result.get("tag_groups", [])
-        ]
-        analysis_content = AnalysisContent(
-            pain_points=_to_str(result.get("pain_points")),
-            insights=_to_str(result.get("insights")),
-            innovations=_to_str(result.get("innovations")),
-            summary=_to_str(result.get("summary")),
-            tag_groups=tag_groups,
-        )
-        analysis_metadata = AnalysisMetadata(
-            model_used=self._model,
-            input_tokens=result.get("_input_tokens", 0),
-            output_tokens=result.get("_output_tokens", 0),
-        )
-        return analysis_content, analysis_metadata
+        return self._parse_result(result)
 
     def _validate(self, result: dict) -> bool:
         return all(f in result for f in _REQUIRED_FIELDS)

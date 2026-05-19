@@ -13,6 +13,7 @@ from backend.routers.auth import router as auth_router
 from backend.routers.topics import router as topics_router
 from backend.routers.scraper_keywords import router as scraper_keywords_router
 from backend.routers.languages import router as languages_router
+from backend.routers.tags import router as tags_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -36,6 +37,7 @@ app.include_router(auth_router)
 app.include_router(topics_router)
 app.include_router(scraper_keywords_router)
 app.include_router(languages_router)
+app.include_router(tags_router)
 
 
 @app.get("/health")

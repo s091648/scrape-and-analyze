@@ -19,8 +19,6 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
     def save(self, analysis: Analysis) -> None:
         from models.analysis import Analysis as AnalysisModel
         from models.analyses_translation import AnalysesTranslation as AnalysesTranslationModel
-        from models.article import Article as ArticleModel
-        from models.tag import Tag
 
         content = analysis.analysis_content
         metadata = analysis.analysis_metadata
@@ -48,27 +46,6 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
             innovations=content.innovations,
         )
         self._session.add(translation_row)
-
-        # Resolve tag_groups into Tag rows
-        article_row = self._session.query(ArticleModel).filter_by(
-            id=analysis.article_id
-        ).first()
-
-        if article_row and content.tag_groups:
-            for tg in content.tag_groups:
-                group_name = tg.display_name
-                for tag_name in tg.description.split(", "):
-                    if not tag_name or not group_name:
-                        continue
-                    tag = self._session.query(Tag).filter_by(
-                        name=tag_name, tag_group_name=group_name
-                    ).first()
-                    if not tag:
-                        tag = Tag(name=tag_name, tag_group_name=group_name)
-                        self._session.add(tag)
-                        self._session.flush()
-                    if tag not in article_row.tags:
-                        article_row.tags.append(tag)
 
         try:
             self._session.commit()

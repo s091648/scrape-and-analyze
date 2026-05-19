@@ -57,3 +57,9 @@ type = "sliding_window"
 rpm = 20
 tpm = 100000
 rpd = 200
+
+[tag_normalization]
+auto_merge_threshold = 0.92
+suggest_threshold = 0.85
+embedding_model = "text-embedding-004"
+api_key_env = "GEMINI_API_KEY"

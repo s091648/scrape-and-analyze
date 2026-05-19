@@ -18,7 +18,7 @@ def test_base_provider_requires_call_api_method():
 
 
 def test_analysis_content_has_all_fields():
-    from src.modules.intelligence.domain.value_objects import AnalysisContent, TagGroup
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisTagGroup
     content = AnalysisContent(
         tag_groups=[],
         pain_points="Some pain points",

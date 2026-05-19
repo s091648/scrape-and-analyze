@@ -4,12 +4,11 @@ from uuid import UUID
 
 
 @dataclass(frozen=True)
-class AnalysisFailedEvent:
-    """Published by ArticleProcessedHandler when LLM analysis or persistence fails."""
+class TranslationFailedEvent:
+    analysis_id: UUID
     article_id: UUID
-    article_url: str
-    task_type: str = "analyze"
-    analysis_id: Optional[UUID] = None
+    task_type: str = "translate_article"
+    article_url: Optional[str] = None
     exception_type: Optional[str] = None
     exception_message: Optional[str] = None
     context: Optional[dict] = None

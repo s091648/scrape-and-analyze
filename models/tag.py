@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Text, Table, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, configure_mappers
+from pgvector.sqlalchemy import Vector
 import uuid
 
 from models.base import Base
@@ -21,6 +22,7 @@ class Tag(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(Text, nullable=False)
     tag_group_name = Column(String(100), nullable=False)
+    embedding = Column(Vector(768), nullable=True)
 
     group_def = relationship(
         'TagGroupDefinition',

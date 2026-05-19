@@ -1,0 +1,241 @@
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from backend.database import get_db
+from backend.auth.guards import require_admin, require_user
+
+router = APIRouter()
+
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
+
+class TagOut(BaseModel):
+    id: UUID
+    name: str
+    article_count: int
+
+    class Config:
+        from_attributes = True
+
+
+class TagGroupOut(BaseModel):
+    id: UUID
+    name: str
+    display_name: str
+    color_hex: Optional[str]
+    topic_id: UUID
+    tags: List[TagOut]
+
+    class Config:
+        from_attributes = True
+
+
+class TagGroupCreate(BaseModel):
+    name: str
+    display_name: str
+    color_hex: Optional[str] = None
+    topic_id: UUID
+    description: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class TagGroupUpdate(BaseModel):
+    display_name: Optional[str] = None
+    color_hex: Optional[str] = None
+    description: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class TagUpdate(BaseModel):
+    name: str
+
+
+class SuggestionOut(BaseModel):
+    id: UUID
+    new_tag_id: UUID
+    new_tag_name: str
+    existing_tag_id: UUID
+    existing_tag_name: str
+    group_name: str
+    similarity_score: float
+    article_id: Optional[UUID]
+
+    class Config:
+        from_attributes = True
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _tag_article_count(db: Session, tag_id: UUID) -> int:
+    from sqlalchemy import text
+    row = db.execute(
+        text("SELECT COUNT(*) FROM article_tags WHERE tag_id = :id"),
+        {"id": str(tag_id)},
+    ).fetchone()
+    return row[0] if row else 0
+
+
+# ── Routes ───────────────────────────────────────────────────────────────────
+
+@router.get("/tag-groups", response_model=List[TagGroupOut])
+def list_tag_groups(
+    topic_id: Optional[UUID] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    from models.tag_group import TagGroupDefinition
+    from models.tag import Tag
+
+    query = db.query(TagGroupDefinition)
+    if topic_id:
+        query = query.filter(TagGroupDefinition.topic_id == topic_id)
+    groups = query.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.display_name).all()
+
+    result = []
+    for grp in groups:
+        tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
+        tag_outs = [
+            TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id))
+            for t in tags
+        ]
+        result.append(TagGroupOut(
+            id=grp.id, name=grp.name, display_name=grp.display_name,
+            color_hex=grp.color_hex, topic_id=grp.topic_id, tags=tag_outs,
+        ))
+    return result
+
+
+@router.post("/tag-groups", response_model=TagGroupOut, status_code=201)
+def create_tag_group(
+    body: TagGroupCreate,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_group import TagGroupDefinition
+    grp = TagGroupDefinition(**body.model_dump())
+    db.add(grp)
+    db.commit()
+    db.refresh(grp)
+    return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
+                       color_hex=grp.color_hex, topic_id=grp.topic_id, tags=[])
+
+
+@router.put("/tag-groups/{group_id}", response_model=TagGroupOut)
+def update_tag_group(
+    group_id: UUID,
+    body: TagGroupUpdate,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_group import TagGroupDefinition
+    from models.tag import Tag
+    grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
+    if not grp:
+        raise HTTPException(status_code=404, detail="Tag group not found")
+    for field, val in body.model_dump(exclude_none=True).items():
+        setattr(grp, field, val)
+    db.commit()
+    db.refresh(grp)
+    tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
+    tag_outs = [TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id)) for t in tags]
+    return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
+                       color_hex=grp.color_hex, topic_id=grp.topic_id, tags=tag_outs)
+
+
+@router.delete("/tag-groups/{group_id}", status_code=204)
+def delete_tag_group(
+    group_id: UUID,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_group import TagGroupDefinition
+    grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
+    if not grp:
+        raise HTTPException(status_code=404, detail="Tag group not found")
+    db.delete(grp)
+    db.commit()
+
+
+@router.put("/tags/{tag_id}", response_model=TagOut)
+def rename_tag(
+    tag_id: UUID,
+    body: TagUpdate,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag import Tag
+    tag = db.query(Tag).filter_by(id=tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    tag.name = body.name
+    db.commit()
+    db.refresh(tag)
+    return TagOut(id=tag.id, name=tag.name, article_count=_tag_article_count(db, tag.id))
+
+
+@router.delete("/tags/{tag_id}", status_code=204)
+def delete_tag(
+    tag_id: UUID,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag import Tag
+    from sqlalchemy import text
+    tag = db.query(Tag).filter_by(id=tag_id).first()
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    db.execute(text("DELETE FROM article_tags WHERE tag_id = :id"), {"id": str(tag_id)})
+    db.delete(tag)
+    db.commit()
+
+
+@router.get("/tag-normalization-suggestions", response_model=List[SuggestionOut])
+def list_suggestions(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    from models.tag import Tag
+    rows = db.query(TagNormalizationSuggestion).filter_by(status="pending").all()
+    result = []
+    for r in rows:
+        new_tag = db.query(Tag).filter_by(id=r.new_tag_id).first()
+        existing_tag = db.query(Tag).filter_by(id=r.existing_tag_id).first()
+        if not new_tag or not existing_tag:
+            continue
+        result.append(SuggestionOut(
+            id=r.id, new_tag_id=r.new_tag_id, new_tag_name=new_tag.name,
+            existing_tag_id=r.existing_tag_id, existing_tag_name=existing_tag.name,
+            group_name=new_tag.tag_group_name, similarity_score=r.similarity_score,
+            article_id=r.article_id,
+        ))
+    return result
+
+
+@router.post("/tag-normalization-suggestions/{suggestion_id}/approve", status_code=200)
+def approve_suggestion(
+    suggestion_id: UUID,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+    repo = SqlAlchemyTagRepository(session=db)
+    repo.approve_suggestion(suggestion_id=suggestion_id, resolved_by=UUID(admin["sub"]))
+    repo.commit()
+    return {"status": "approved"}
+
+
+@router.post("/tag-normalization-suggestions/{suggestion_id}/reject", status_code=200)
+def reject_suggestion(
+    suggestion_id: UUID,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+):
+    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+    repo = SqlAlchemyTagRepository(session=db)
+    repo.reject_suggestion(suggestion_id=suggestion_id, resolved_by=UUID(admin["sub"]))
+    repo.commit()
+    return {"status": "rejected"}

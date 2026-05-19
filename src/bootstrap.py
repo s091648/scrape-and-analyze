@@ -95,6 +95,8 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+    from src.infrastructure.intelligence.embedding import GeminiEmbeddingProvider
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -109,11 +111,14 @@ def build_collection_pipeline():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
-    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase, NormalizeTagsUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisCompletedHandler
+    from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
+    from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import FailedTaskPersistenceHandler
+    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
     from src.shared.application.events import ArticleProcessedEvent
     from src.config.settings import TRANSLATION_LANGUAGES
+    from src.config.providers import load_tag_normalization_config
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -128,6 +133,7 @@ def build_collection_pipeline():
     arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
+    tag_repo = SqlAlchemyTagRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -166,6 +172,21 @@ def build_collection_pipeline():
         group_prompt=prompt_factory.group_translation_prompt(),
     )
 
+    # ── Embedding Service ────────────────────────────────────────────────────
+    tag_norm_cfg = load_tag_normalization_config()
+    embedding_service = GeminiEmbeddingProvider(
+        api_key=os.environ.get(tag_norm_cfg['api_key_env'], ''),
+        model=tag_norm_cfg['embedding_model'],
+    )
+
+    # ── Normalize Tags Use Case ────────────────────────────────────────────
+    normalize_tags_uc = NormalizeTagsUseCase(
+        embedding_service=embedding_service,
+        tag_repository=tag_repo,
+        auto_merge_threshold=tag_norm_cfg['auto_merge_threshold'],
+        suggest_threshold=tag_norm_cfg['suggest_threshold'],
+    )
+
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
@@ -177,16 +198,25 @@ def build_collection_pipeline():
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
 
-    analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
-    event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
+    failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
+    event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(TranslationFailedEvent, failed_task_handler.handle)
+
+    tag_normalization_handler = TagNormalizationHandler(
+        use_case=normalize_tags_uc,
+        event_bus=event_bus,
+    )
+    event_bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
 
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
         analyses_translation_repo=analyses_translation_repo,
+        event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
     )
-    event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
+    event_bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
