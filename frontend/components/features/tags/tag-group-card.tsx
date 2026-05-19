@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Pencil, X, Check, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useI18n } from '@/lib/providers'
 import type { TagGroupOut, TagOut } from '@/lib/api/tags'
 import { renameTag, deleteTag, deleteTagGroup } from '@/lib/api/tags'
 
@@ -80,6 +81,7 @@ function TagBadge({
 }
 
 export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, onTagDeleted }: Props) {
+  const { t } = useI18n()
   const [tags, setTags] = useState<TagOut[]>(group.tags)
 
   return (
@@ -90,7 +92,7 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
             <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: group.color_hex }} />
           )}
           <span className="font-semibold text-sm">{group.display_name}</span>
-          <span className="text-xs text-muted-foreground">({tags.length} tags)</span>
+          <span className="text-xs text-muted-foreground">{t('tags.tagsCount', { count: tags.length })}</span>
         </div>
         {isAdmin && token && (
           <Button
@@ -120,7 +122,7 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
           />
         ))}
         {tags.length === 0 && (
-          <span className="text-xs text-muted-foreground italic">No tags yet</span>
+          <span className="text-xs text-muted-foreground italic">{t('tags.noTagsYet')}</span>
         )}
       </div>
     </div>

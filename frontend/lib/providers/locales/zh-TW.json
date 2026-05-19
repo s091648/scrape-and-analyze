@@ -123,6 +123,18 @@
     "before": "之前",
     "range": "區間"
   },
+  "tags": {
+    "title": "標籤",
+    "description": "瀏覽標籤群組及其文章。",
+    "adminDesc": " 管理員可以重新命名、刪除及合併標籤。",
+    "noGroups": "此主題找不到任何標籤群組。",
+    "pendingMergeSuggestions": "待處理的合併建議（{count}）",
+    "merge": "合併",
+    "keepBoth": "保留兩者",
+    "similar": "{pct}% 相似",
+    "tagsCount": "（{count} 個標籤）",
+    "noTagsYet": "尚無標籤"
+  },
   "common": {
     "loading": "載入中...",
     "error": "發生錯誤"

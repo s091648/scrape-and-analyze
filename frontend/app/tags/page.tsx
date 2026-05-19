@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTopic } from '@/lib/providers'
+import { useTopic, useI18n } from '@/lib/providers'
 import {
   fetchTagGroups, fetchPendingSuggestions,
   type TagGroupOut, type SuggestionOut,
@@ -15,6 +15,7 @@ export default function TagsPage() {
   const token = (session as any)?.accessToken as string | undefined
   const isAdmin = (session?.user as any)?.role === 'admin'
   const { selectedTopic } = useTopic()
+  const { t } = useI18n()
 
   const [groups, setGroups] = useState<TagGroupOut[]>([])
   const [suggestions, setSuggestions] = useState<SuggestionOut[]>([])
@@ -34,10 +35,10 @@ export default function TagsPage() {
   return (
     <div className="container mx-auto px-6 pt-24 pb-16 max-w-4xl space-y-8">
       <div className="border-b border-border pb-6">
-        <h1 className="text-2xl font-bold">Tags</h1>
+        <h1 className="text-2xl font-bold">{t('tags.title')}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Browse tag groups and their articles.
-          {isAdmin && ' Admins can rename, delete, and merge tags.'}
+          {t('tags.description')}
+          {isAdmin && t('tags.adminDesc')}
         </p>
       </div>
 
@@ -63,7 +64,7 @@ export default function TagsPage() {
           ))}
         </div>
       ) : groups.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No tag groups found for this topic.</p>
+        <p className="text-sm text-muted-foreground">{t('tags.noGroups')}</p>
       ) : (
         <div className="space-y-4">
           {groups.map(group => (

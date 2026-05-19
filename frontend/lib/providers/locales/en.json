@@ -123,6 +123,18 @@
     "before": "Before",
     "range": "Range"
   },
+  "tags": {
+    "title": "Tags",
+    "description": "Browse tag groups and their articles.",
+    "adminDesc": " Admins can rename, delete, and merge tags.",
+    "noGroups": "No tag groups found for this topic.",
+    "pendingMergeSuggestions": "Pending Merge Suggestions ({count})",
+    "merge": "Merge",
+    "keepBoth": "Keep both",
+    "similar": "{pct}% similar",
+    "tagsCount": "({count} tags)",
+    "noTagsYet": "No tags yet"
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred"
