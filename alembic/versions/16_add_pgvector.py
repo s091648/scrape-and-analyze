@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision: str = "16_add_pgvector_and_tag_normalization"
+revision: str = "16_add_pgvector"
 down_revision: Union[str, Sequence[str], None] = "15_add_translations"
 branch_labels = None
 depends_on = None

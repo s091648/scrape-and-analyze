@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 revision: str = "17_extend_failed_tasks"
-down_revision: Union[str, Sequence[str], None] = "16_add_pgvector_and_tag_normalization"
+down_revision: Union[str, Sequence[str], None] = "16_add_pgvector"
 branch_labels = None
 depends_on = None
 
