@@ -1,10 +1,11 @@
 'use client'
 import { useState } from 'react'
-import { Pencil, X, Check, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Eye, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
 import type { TagGroupOut, TagOut } from '@/lib/api/tags'
-import { renameTag, deleteTag, deleteTagGroup } from '@/lib/api/tags'
+import { deleteTagGroup } from '@/lib/api/tags'
+import { TagDialog } from './tag-dialog'
 
 interface Props {
   group: TagGroupOut
@@ -19,73 +20,58 @@ function TagBadge({
   tag,
   isAdmin,
   token,
-  groupId,
+  topicId,
   onRenamed,
   onDeleted,
 }: {
   tag: TagOut
   isAdmin: boolean
   token?: string
-  groupId: string
+  topicId: string
   onRenamed: (tagId: string, name: string) => void
   onDeleted: (tagId: string) => void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(tag.name)
-
-  async function handleRename() {
-    if (!token || !value.trim()) return
-    await renameTag(tag.id, value.trim(), token)
-    onRenamed(tag.id, value.trim())
-    setEditing(false)
-  }
-
-  async function handleDelete() {
-    if (!token) return
-    await deleteTag(tag.id, token)
-    onDeleted(tag.id)
-  }
-
-  if (editing) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-background text-xs">
-        <input
-          className="w-24 bg-transparent text-xs focus:outline-none"
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleRename()}
-          autoFocus
-        />
-        <button onClick={handleRename}><Check className="h-3 w-3 text-green-600" /></button>
-        <button onClick={() => { setValue(tag.name); setEditing(false) }}><X className="h-3 w-3" /></button>
-      </span>
-    )
-  }
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
 
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-muted/50 text-xs">
-      {tag.name}
-      {/* Use tabular-nums + no-ligatures to prevent font from rendering (N) as circled ① digits */}
-      <span className="text-muted-foreground tabular-nums [font-variant-ligatures:none]">
-        ({tag.article_count})
+    <>
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-muted/50 text-xs">
+        {tag.name}
+        <span className="text-muted-foreground tabular-nums [font-variant-ligatures:none]">
+          ({tag.article_count})
+        </span>
+        <button
+          onClick={() => setOpen(true)}
+          className="hover:text-foreground text-muted-foreground"
+          aria-label={isAdmin ? t('tags.renameTag') : t('tags.viewTagArticles')}
+        >
+          {isAdmin
+            ? <Pencil className="h-2.5 w-2.5" />
+            : <Eye className="h-2.5 w-2.5" />
+          }
+        </button>
       </span>
-      {isAdmin && (
-        <>
-          <button onClick={() => setEditing(true)} className="hover:text-foreground text-muted-foreground">
-            <Pencil className="h-2.5 w-2.5" />
-          </button>
-          <button onClick={handleDelete} className="hover:text-destructive text-muted-foreground">
-            <X className="h-2.5 w-2.5" />
-          </button>
-        </>
-      )}
-    </span>
+
+      <TagDialog
+        tag={tag}
+        topicId={topicId}
+        isAdmin={isAdmin}
+        token={token}
+        open={open}
+        onOpenChange={setOpen}
+        onRenamed={onRenamed}
+        onDeleted={onDeleted}
+      />
+    </>
   )
 }
 
 export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, onTagDeleted }: Props) {
   const { t } = useI18n()
-  const [tags, setTags] = useState<TagOut[]>(group.tags)
+  const [tags, setTags] = useState<TagOut[]>(
+    [...group.tags].sort((a, b) => b.article_count - a.article_count)
+  )
   const [open, setOpen] = useState(true)
 
   return (
@@ -128,7 +114,7 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
                 tag={tag}
                 isAdmin={isAdmin}
                 token={token}
-                groupId={group.id}
+                topicId={String(group.topic_id)}
                 onRenamed={(tagId, name) => {
                   setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
                   onTagRenamed(group.id, tagId, name)

@@ -146,7 +146,14 @@
     "createGroup": "建立",
     "noTopicSelected": "請先選擇主題才能新增群組",
     "signInToExplore": "登入以瀏覽標籤",
-    "signInToAccess": "瀏覽標籤群組並探索相關文章"
+    "signInToAccess": "瀏覽標籤群組並探索相關文章",
+    "articleCount": "{count} 篇文章",
+    "renameTag": "重新命名標籤",
+    "deleteTag": "刪除標籤",
+    "viewTagArticles": "查看文章",
+    "deleteTagConfirm": "刪除標籤「{name}」？",
+    "deleteTagDesc": "此操作將從所有文章中移除此標籤，且無法復原。",
+    "noArticles": "此標籤尚無任何文章"
   },
   "common": {
     "loading": "載入中...",

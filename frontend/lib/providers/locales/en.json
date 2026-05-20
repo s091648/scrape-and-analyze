@@ -146,7 +146,14 @@
     "createGroup": "Create",
     "noTopicSelected": "Select a topic first to add a group",
     "signInToExplore": "Sign in to explore Tags",
-    "signInToAccess": "to browse tag groups and discover related articles"
+    "signInToAccess": "to browse tag groups and discover related articles",
+    "articleCount": "{count} articles",
+    "renameTag": "Rename tag",
+    "deleteTag": "Delete tag",
+    "viewTagArticles": "View articles",
+    "deleteTagConfirm": "Delete tag \"{name}\"?",
+    "deleteTagDesc": "This will remove the tag from all articles. This cannot be undone.",
+    "noArticles": "No articles with this tag yet"
   },
   "common": {
     "loading": "Loading...",
