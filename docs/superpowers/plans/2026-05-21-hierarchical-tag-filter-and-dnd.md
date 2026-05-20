@@ -1209,7 +1209,7 @@ At the top of `tags/page.tsx`, add after existing imports:
 
 ```tsx
 import {
-  DndContext, DragOverlay, PointerSensor, MouseSensor, TouchSensor,
+  DndContext, DragOverlay, MouseSensor, TouchSensor,
   useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
@@ -1217,7 +1217,7 @@ import { moveTag, batchMoveTags, type TagOut } from '@/lib/api/tags'
 import { PendingChangesPanel } from '@/components/features/tags/pending-changes-panel'
 ```
 
-Note: `TagOut` is already imported via the `fetchTagGroups` import; adjust if needed to avoid duplicate import.
+Note: Merge `moveTag`, `batchMoveTags`, and `type TagOut` into the existing `@/lib/api/tags` import at the top of the file rather than adding a duplicate import line.
 
 - [ ] **Step 2: Add pending state and sensor config inside `TagsPage`**
 
