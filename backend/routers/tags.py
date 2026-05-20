@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -229,10 +231,32 @@ def approve_suggestion(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_admin),
 ):
-    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
-    repo = SqlAlchemyTagRepository(session=db)
-    repo.approve_suggestion(suggestion_id=suggestion_id, resolved_by=UUID(admin["sub"]))
-    repo.commit()
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+
+    new_tag_id = str(suggestion.new_tag_id)
+    existing_tag_id = str(suggestion.existing_tag_id)
+
+    db.execute(text("""
+        INSERT INTO article_tags (article_id, tag_id)
+        SELECT at.article_id, :existing_id
+        FROM article_tags at
+        INNER JOIN articles a ON a.id = at.article_id
+        WHERE at.tag_id = :new_id
+        ON CONFLICT DO NOTHING
+    """), {"existing_id": existing_tag_id, "new_id": new_tag_id})
+
+    db.execute(text("DELETE FROM article_tags WHERE tag_id = :new_id"), {"new_id": new_tag_id})
+
+    # Expunge before deleting the tag — new_tag_id FK has ondelete=CASCADE which
+    # would also delete this suggestion row, causing a StaleDataError if SQLAlchemy
+    # still holds a reference to it.
+    db.expunge(suggestion)
+    db.execute(text("DELETE FROM tags WHERE id = :new_id"), {"new_id": new_tag_id})
+
+    db.commit()
     return {"status": "approved"}
 
 
@@ -242,8 +266,12 @@ def reject_suggestion(
     db: Session = Depends(get_db),
     admin: dict = Depends(require_admin),
 ):
-    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
-    repo = SqlAlchemyTagRepository(session=db)
-    repo.reject_suggestion(suggestion_id=suggestion_id, resolved_by=UUID(admin["sub"]))
-    repo.commit()
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    suggestion.status = "rejected"
+    suggestion.resolved_at = datetime.now(timezone.utc)
+    suggestion.resolved_by = UUID(admin["sub"])
+    db.commit()
     return {"status": "rejected"}
