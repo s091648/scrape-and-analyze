@@ -17,6 +17,7 @@ class Topic(Base):
     prompt_override = Column(Text)
     sort_order = Column(Integer)
     is_active = Column(Boolean, nullable=False, default=True)
+    auto_tag_groups = Column(Boolean, nullable=False, default=True)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -1,10 +1,10 @@
 'use client'
 import { useState } from 'react'
-import { Eye, Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
-import type { TagGroupOut, TagOut } from '@/lib/api/tags'
-import { deleteTagGroup } from '@/lib/api/tags'
+import type { TagGroupOut, TagOut, TagGroupUpdate } from '@/lib/api/tags'
+import { deleteTagGroup, updateTagGroup } from '@/lib/api/tags'
 import { TagDialog } from './tag-dialog'
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onDeleted: (groupId: string) => void
   onTagRenamed: (groupId: string, tagId: string, newName: string) => void
   onTagDeleted: (groupId: string, tagId: string) => void
+  onGroupUpdated: (groupId: string, updated: Partial<TagGroupOut>) => void
 }
 
 function TagBadge({
@@ -31,27 +32,19 @@ function TagBadge({
   onRenamed: (tagId: string, name: string) => void
   onDeleted: (tagId: string) => void
 }) {
-  const { t } = useI18n()
   const [open, setOpen] = useState(false)
 
   return (
     <>
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-muted/50 text-xs">
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-muted/50 text-xs hover:bg-muted cursor-pointer transition-colors"
+      >
         {tag.name}
         <span className="text-muted-foreground tabular-nums [font-variant-ligatures:none]">
           ({tag.article_count})
         </span>
-        <button
-          onClick={() => setOpen(true)}
-          className="hover:text-foreground text-muted-foreground"
-          aria-label={isAdmin ? t('tags.renameTag') : t('tags.viewTagArticles')}
-        >
-          {isAdmin
-            ? <Pencil className="h-2.5 w-2.5" />
-            : <Eye className="h-2.5 w-2.5" />
-          }
-        </button>
-      </span>
+      </button>
 
       <TagDialog
         tag={tag}
@@ -67,12 +60,92 @@ function TagBadge({
   )
 }
 
-export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, onTagDeleted }: Props) {
+function EditGroupForm({
+  group,
+  token,
+  onSaved,
+  onCancel,
+}: {
+  group: TagGroupOut
+  token: string
+  onSaved: (updated: Partial<TagGroupOut>) => void
+  onCancel: () => void
+}) {
+  const { t } = useI18n()
+  const [form, setForm] = useState<TagGroupUpdate>({
+    display_name: group.display_name,
+    color_hex: group.color_hex ?? '',
+    description: group.description ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.display_name?.trim()) return
+    setSaving(true)
+    setError('')
+    try {
+      const body: TagGroupUpdate = {
+        display_name: form.display_name.trim(),
+        ...(form.color_hex?.trim() ? { color_hex: form.color_hex.trim() } : { color_hex: undefined }),
+        ...(form.description?.trim() ? { description: form.description.trim() } : { description: undefined }),
+      }
+      const updated = await updateTagGroup(group.id, body, token)
+      onSaved({ display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
+    } catch (err: any) {
+      setError(err.message ?? 'Error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="pt-2 space-y-3 border-t border-border">
+      {[
+        { key: 'display_name', label: t('tags.groupDisplayName'), required: true },
+        { key: 'color_hex', label: t('tags.groupColor'), required: false, placeholder: '#3b82f6' },
+        { key: 'description', label: t('tags.groupDescription'), required: false },
+      ].map(({ key, label, required, placeholder }) => (
+        <div key={key} className="space-y-1">
+          <label className="text-xs text-muted-foreground">{label}{required && ' *'}</label>
+          <input
+            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            value={(form as any)[key] ?? ''}
+            placeholder={placeholder}
+            onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+            required={required}
+          />
+        </div>
+      ))}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+          <X className="h-3.5 w-3.5 mr-1" />{t('admin.cancel')}
+        </Button>
+        <Button type="submit" size="sm" disabled={saving}>
+          <Check className="h-3.5 w-3.5 mr-1" />{t('admin.save')}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated }: Props) {
   const { t } = useI18n()
   const [tags, setTags] = useState<TagOut[]>(
     [...group.tags].sort((a, b) => b.article_count - a.article_count)
   )
   const [open, setOpen] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [localGroup, setLocalGroup] = useState(group)
+
+  function handleGroupSaved(updated: Partial<TagGroupOut>) {
+    const next = { ...localGroup, ...updated }
+    setLocalGroup(next)
+    onGroupUpdated(group.id, updated)
+    setEditing(false)
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
@@ -82,10 +155,10 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
         >
-          {group.color_hex && (
-            <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: group.color_hex }} />
+          {localGroup.color_hex && (
+            <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: localGroup.color_hex }} />
           )}
-          <span className="font-semibold text-sm">{group.display_name}</span>
+          <span className="font-semibold text-sm">{localGroup.display_name}</span>
           <span className="text-xs text-muted-foreground">{t('tags.tagsCount', { count: tags.length })}</span>
           {open
             ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -93,19 +166,37 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
           }
         </button>
         {isAdmin && token && (
-          <Button
-            variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-            onClick={async () => { await deleteTagGroup(group.id, token); onDeleted(group.id) }}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={() => setEditing(e => !e)}
+              aria-label={t('tags.editGroup')}
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              onClick={async () => { await deleteTagGroup(group.id, token); onDeleted(group.id) }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         )}
       </div>
 
+      {isAdmin && token && editing && (
+        <EditGroupForm
+          group={localGroup}
+          token={token}
+          onSaved={handleGroupSaved}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+
       {open && (
         <>
-          {group.description && (
-            <p className="text-xs text-muted-foreground">{group.description}</p>
+          {localGroup.description && (
+            <p className="text-xs text-muted-foreground">{localGroup.description}</p>
           )}
           <div className="flex flex-wrap gap-1.5">
             {tags.map(tag => (
@@ -114,7 +205,7 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
                 tag={tag}
                 isAdmin={isAdmin}
                 token={token}
-                topicId={String(group.topic_id)}
+                topicId={String(localGroup.topic_id)}
                 onRenamed={(tagId, name) => {
                   setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
                   onTagRenamed(group.id, tagId, name)

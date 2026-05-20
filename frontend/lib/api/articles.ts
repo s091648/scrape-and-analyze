@@ -28,6 +28,7 @@ export interface ArticleDetail extends Article {
 
 export interface ArticleListParams {
   page?: number
+  size?: number
   topic_id?: string
   source?: string[]
   tag?: string[]
@@ -45,6 +46,7 @@ export async function fetchArticles(
 ): Promise<{ items: Article[]; total: number }> {
   const qs = new URLSearchParams()
   if (params.page) qs.set('page', String(params.page))
+  if (params.size) qs.set('size', String(params.size))
   if (params.topic_id) qs.set('topic_id', params.topic_id)
   if (params.sort) qs.set('sort', params.sort)
   if (params.order) qs.set('order', params.order)

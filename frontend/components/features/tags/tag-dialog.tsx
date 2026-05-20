@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Pencil, Trash2, Check, X } from 'lucide-react'
+import { Pencil, Trash2, Check, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,8 @@ import { ArticleCard } from '@/components/features/articles/article-card'
 import { useI18n } from '@/lib/providers'
 import { fetchArticles, type Article } from '@/lib/api/articles'
 import { renameTag, deleteTag, type TagOut } from '@/lib/api/tags'
+
+const PAGE_SIZE = 10
 
 interface TagDialogProps {
   tag: TagOut
@@ -25,6 +27,8 @@ export function TagDialog({
 }: TagDialogProps) {
   const { t, locale } = useI18n()
   const [articles, setArticles] = useState<Article[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loadingArticles, setLoadingArticles] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(tag.name)
@@ -32,18 +36,24 @@ export function TagDialog({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+
   useEffect(() => {
     if (!open) {
       setEditing(false)
       setEditValue(tag.name)
       setConfirmDelete(false)
+      setPage(1)
       return
     }
     setLoadingArticles(true)
-    fetchArticles({ tag: [tag.name], topic_id: topicId || undefined }, locale)
-      .then(data => setArticles(data.items))
+    fetchArticles({ tag: [tag.name], topic_id: topicId || undefined, page, size: PAGE_SIZE }, locale)
+      .then(data => {
+        setArticles(data.items)
+        setTotal(data.total)
+      })
       .finally(() => setLoadingArticles(false))
-  }, [open, tag.name, topicId, locale])
+  }, [open, tag.name, topicId, locale, page])
 
   async function handleRename() {
     if (!token || !editValue.trim()) return
@@ -160,6 +170,30 @@ export function TagDialog({
             </div>
           )}
         </div>
+
+        {!confirmDelete && totalPages > 1 && (
+          <div className="px-6 py-3 border-t border-border shrink-0 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {t('home.pageOf', { page, total: totalPages })}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7"
+                disabled={page === 1 || loadingArticles}
+                onClick={() => setPage(p => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost" size="icon" className="h-7 w-7"
+                disabled={page === totalPages || loadingArticles}
+                onClick={() => setPage(p => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

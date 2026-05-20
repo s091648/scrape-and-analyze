@@ -14,4 +14,5 @@ class Topic:
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: bool = True
+    auto_tag_groups: bool = True
     created_at: Optional[datetime] = None

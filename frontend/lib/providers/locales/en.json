@@ -139,7 +139,7 @@
     "mergeAll": "Merge All",
     "confirmMergeAll": "Approve all {count} pending suggestions?",
     "addGroup": "Add Group",
-    "groupName": "Name (slug)",
+    "groupName": "Name",
     "groupDisplayName": "Display Name",
     "groupColor": "Color (hex)",
     "groupDescription": "Description",
@@ -153,7 +153,8 @@
     "viewTagArticles": "View articles",
     "deleteTagConfirm": "Delete tag \"{name}\"?",
     "deleteTagDesc": "This will remove the tag from all articles. This cannot be undone.",
-    "noArticles": "No articles with this tag yet"
+    "noArticles": "No articles with this tag yet",
+    "editGroup": "Edit group"
   },
   "common": {
     "loading": "Loading...",

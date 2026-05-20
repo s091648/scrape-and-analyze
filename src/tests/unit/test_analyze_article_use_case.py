@@ -39,6 +39,7 @@ def deps():
         "llm_service": MagicMock(),
         "analysis_repository": MagicMock(),
         "topic_repository": MagicMock(),
+        "tag_group_definition_repository": MagicMock(),
     }
 
 

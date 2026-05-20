@@ -129,6 +129,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
@@ -167,6 +168,7 @@ def build_collection_pipeline():
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
     tag_repo = SqlAlchemyTagRepository(session=session)
+    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -191,6 +193,7 @@ def build_collection_pipeline():
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        tag_group_definition_repository=tag_group_def_repo,
         prompt=prompt_factory.analysis_prompt(),
     )
     translate_article_uc = TranslateArticleUseCase(

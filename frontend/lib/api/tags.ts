@@ -24,6 +24,12 @@ export interface TagGroupCreate {
   description?: string
 }
 
+export interface TagGroupUpdate {
+  display_name?: string
+  color_hex?: string
+  description?: string
+}
+
 export interface SuggestionOut {
   id: string
   new_tag_id: string
@@ -49,6 +55,16 @@ export async function createTagGroup(body: TagGroupCreate, token: string): Promi
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error('Failed to create tag group')
+  return res.json()
+}
+
+export async function updateTagGroup(groupId: string, body: TagGroupUpdate, token: string): Promise<TagGroupOut> {
+  const res = await apiFetch(`/tag-groups/${groupId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to update tag group')
   return res.json()
 }
 

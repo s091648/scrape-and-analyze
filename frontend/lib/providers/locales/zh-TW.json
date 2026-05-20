@@ -139,7 +139,7 @@
     "mergeAll": "全部合併",
     "confirmMergeAll": "確定核准全部 {count} 筆合併建議？",
     "addGroup": "新增群組",
-    "groupName": "名稱（slug）",
+    "groupName": "名稱",
     "groupDisplayName": "顯示名稱",
     "groupColor": "顏色（hex）",
     "groupDescription": "描述",
@@ -153,7 +153,8 @@
     "viewTagArticles": "查看文章",
     "deleteTagConfirm": "刪除標籤「{name}」？",
     "deleteTagDesc": "此操作將從所有文章中移除此標籤，且無法復原。",
-    "noArticles": "此標籤尚無任何文章"
+    "noArticles": "此標籤尚無任何文章",
+    "editGroup": "編輯群組"
   },
   "common": {
     "loading": "載入中...",

@@ -174,6 +174,11 @@ def upgrade() -> None:
     op.drop_index("idx_analyses_language", table_name="analyses")
     op.drop_column("analyses", "language")
 
+    # ── Expand alembic_version.version_num to fit longer revision IDs ──
+    op.execute(
+        "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64)"
+    )
+
 
 def downgrade() -> None:
     # ========================================
@@ -280,3 +285,8 @@ def downgrade() -> None:
         table_name="analyses_translation",
     )
     op.drop_table("analyses_translation")
+
+    # ── Restore alembic_version.version_num to VARCHAR(32) ──
+    op.execute(
+        "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(32)"
+    )

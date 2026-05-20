@@ -41,5 +41,6 @@ class SqlAlchemyTopicRepository(TopicRepository):
             prompt_override=row.prompt_override,
             sort_order=row.sort_order,
             is_active=row.is_active,
+            auto_tag_groups=row.auto_tag_groups,
             created_at=row.created_at,
         )

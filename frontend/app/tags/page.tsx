@@ -196,6 +196,7 @@ export default function TagsPage() {
                 onDeleted={() => {}}
                 onTagRenamed={() => {}}
                 onTagDeleted={() => {}}
+                onGroupUpdated={() => {}}
               />
             ))}
           </div>
@@ -264,6 +265,9 @@ export default function TagsPage() {
                       ? { ...g, tags: g.tags.filter(t => t.id !== tagId) }
                       : g
                     )
+                  )}
+                  onGroupUpdated={(groupId, updated) => setGroups(prev =>
+                    prev.map(g => g.id === groupId ? { ...g, ...updated } : g)
                   )}
                 />
               ))}
