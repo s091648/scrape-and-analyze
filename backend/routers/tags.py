@@ -74,7 +74,11 @@ class SuggestionOut(BaseModel):
 def _tag_article_count(db: Session, tag_id: UUID) -> int:
     from sqlalchemy import text
     row = db.execute(
-        text("SELECT COUNT(*) FROM article_tags WHERE tag_id = :id"),
+        text("""
+            SELECT COUNT(*) FROM article_tags at
+            INNER JOIN articles a ON a.id = at.article_id
+            WHERE at.tag_id = :id
+        """),
         {"id": str(tag_id)},
     ).fetchone()
     return row[0] if row else 0

@@ -222,7 +222,10 @@ export default function TagsPage() {
             <PendingSuggestions
               suggestions={suggestions}
               token={token!}
-              onResolved={id => setSuggestions(prev => prev.filter(s => s.id !== id))}
+              onResolved={id => {
+                setSuggestions(prev => prev.filter(s => s.id !== id))
+                fetchTagGroups(selectedTopic?.id).then(setGroups)
+              }}
             />
           )}
 
