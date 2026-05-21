@@ -7,11 +7,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useTopic, useI18n } from '@/lib/providers'
 import {
-  fetchTagGroups, fetchPendingSuggestions, createTagGroup,
-  type TagGroupOut, type SuggestionOut, type TagGroupCreate,
+  fetchTagGroups, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
+  type TagGroupOut, type SuggestionOut, type TagGroupCreate, type TagOut,
 } from '@/lib/api/tags'
 import { TagGroupCard } from '@/components/features/tags/tag-group-card'
 import { PendingSuggestions } from '@/components/features/tags/pending-suggestions'
+import { PendingChangesPanel } from '@/components/features/tags/pending-changes-panel'
+import {
+  DndContext, DragOverlay, MouseSensor, TouchSensor,
+  useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core'
 
 // ── Fake data shown behind paywall for unauthenticated users ──────────────────
 const FAKE_GROUPS: TagGroupOut[] = [
@@ -142,6 +148,121 @@ export default function TagsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddGroup, setShowAddGroup] = useState(false)
 
+  interface PendingMove {
+    tag: TagOut
+    fromGroupId: string
+    toGroupId: string
+    toGroupName: string
+  }
+
+  const [pendingMoves, setPendingMoves] = useState<Map<string, PendingMove>>(new Map())
+  const [activeDragTag, setActiveDragTag] = useState<TagOut | null>(null)
+  const [confirming, setConfirming] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
+
+  function handleDragStart({ active }: DragStartEvent) {
+    setActiveDragTag(active.data.current?.tag ?? null)
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    setActiveDragTag(null)
+    if (!over) return
+
+    const tag: TagOut = active.data.current?.tag
+    const fromGroupId: string = active.data.current?.groupId
+    const toGroupId = String(over.id)
+    if (!tag || fromGroupId === toGroupId) return
+
+    const toGroup = groups.find(g => g.id === toGroupId)
+    if (!toGroup) return
+
+    const existingPending = pendingMoves.get(tag.id)
+    const originalFromGroupId = existingPending?.fromGroupId ?? fromGroupId
+
+    if (toGroupId === originalFromGroupId) {
+      setGroups(prev => prev.map(g =>
+        g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
+        g.id === originalFromGroupId ? { ...g, tags: [...g.tags, tag] } : g
+      ))
+      setPendingMoves(prev => { const next = new Map(prev); next.delete(tag.id); return next })
+      return
+    }
+
+    setGroups(prev => prev.map(g =>
+      g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
+      g.id === toGroupId ? { ...g, tags: [...g.tags, tag] } : g
+    ))
+
+    setPendingMoves(prev => new Map(prev).set(tag.id, {
+      tag,
+      fromGroupId: originalFromGroupId,
+      toGroupId,
+      toGroupName: toGroup.name,
+    }))
+  }
+
+  async function handleConfirm() {
+    if (!token || pendingMoves.size === 0) return
+    setConfirming(true)
+    const moves = [...pendingMoves.values()]
+
+    if (moves.length === 1) {
+      const m = moves[0]
+      try {
+        await moveTag(m.tag.id, m.toGroupName, token)
+        setPendingMoves(new Map())
+      } catch {
+        // leave in pending state for retry
+      }
+    } else {
+      try {
+        const result = await batchMoveTags(
+          moves.map(m => ({ tag_id: m.tag.id, tag_group_name: m.toGroupName })),
+          token,
+        )
+        const failedIds = new Set(result.failed.map(f => f.tag_id))
+        setPendingMoves(prev => {
+          const next = new Map(prev)
+          result.succeeded.forEach(id => next.delete(id))
+          return next
+        })
+        if (result.failed.length > 0) {
+          setGroups(prev => {
+            let next = prev.map(g => ({ ...g, tags: [...g.tags] }))
+            for (const m of moves) {
+              if (!failedIds.has(m.tag.id)) continue
+              next = next
+                .map(g => g.id === m.toGroupId ? { ...g, tags: g.tags.filter(t => t.id !== m.tag.id) } : g)
+                .map(g => g.id === m.fromGroupId ? { ...g, tags: [...g.tags, m.tag] } : g)
+            }
+            return next
+          })
+        }
+      } catch {
+        // leave all pending for retry
+      }
+    }
+    setConfirming(false)
+  }
+
+  function handleDiscard() {
+    const moves = [...pendingMoves.values()]
+    setGroups(prev => {
+      let next = prev.map(g => ({ ...g, tags: [...g.tags] }))
+      for (const m of moves) {
+        next = next
+          .map(g => g.id === m.toGroupId ? { ...g, tags: g.tags.filter(t => t.id !== m.tag.id) } : g)
+          .map(g => g.id === m.fromGroupId ? { ...g, tags: [...g.tags, m.tag] } : g)
+      }
+      return next
+    })
+    setPendingMoves(new Map())
+  }
+
   useEffect(() => {
     if (isGuest) { setLoading(false); return }
     setLoading(true)
@@ -193,6 +314,7 @@ export default function TagsPage() {
                 key={group.id}
                 group={group}
                 isAdmin={false}
+                pendingIncomingTagIds={new Set()}
                 onDeleted={() => {}}
                 onTagRenamed={() => {}}
                 onTagDeleted={() => {}}
@@ -246,32 +368,64 @@ export default function TagsPage() {
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('tags.noGroups')}</p>
           ) : (
-            <div className="space-y-4">
-              {groups.map(group => (
-                <TagGroupCard
-                  key={group.id}
-                  group={group}
-                  isAdmin={isAdmin}
-                  token={token}
-                  onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
-                  onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
-                    prev.map(g => g.id === groupId
-                      ? { ...g, tags: g.tags.map(t => t.id === tagId ? { ...t, name } : t) }
-                      : g
-                    )
-                  )}
-                  onTagDeleted={(groupId, tagId) => setGroups(prev =>
-                    prev.map(g => g.id === groupId
-                      ? { ...g, tags: g.tags.filter(t => t.id !== tagId) }
-                      : g
-                    )
-                  )}
-                  onGroupUpdated={(groupId, updated) => setGroups(prev =>
-                    prev.map(g => g.id === groupId ? { ...g, ...updated } : g)
-                  )}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="space-y-4">
+                {groups.map(group => {
+                  const pendingIncomingTagIds = new Set(
+                    [...pendingMoves.values()]
+                      .filter(m => m.toGroupId === group.id)
+                      .map(m => m.tag.id)
+                  )
+                  return (
+                    <TagGroupCard
+                      key={group.id}
+                      group={group}
+                      isAdmin={isAdmin}
+                      token={token}
+                      pendingIncomingTagIds={pendingIncomingTagIds}
+                      onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
+                      onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
+                        prev.map(g => g.id === groupId
+                          ? { ...g, tags: g.tags.map(t => t.id === tagId ? { ...t, name } : t) }
+                          : g
+                        )
+                      )}
+                      onTagDeleted={(groupId, tagId) => setGroups(prev =>
+                        prev.map(g => g.id === groupId
+                          ? { ...g, tags: g.tags.filter(t => t.id !== tagId) }
+                          : g
+                        )
+                      )}
+                      onGroupUpdated={(groupId, updated) => setGroups(prev =>
+                        prev.map(g => g.id === groupId ? { ...g, ...updated } : g)
+                      )}
+                    />
+                  )
+                })}
+              </div>
+              <DragOverlay>
+                {activeDragTag && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-primary bg-card text-xs shadow-md cursor-grabbing">
+                    {activeDragTag.name}
+                    <span className="text-muted-foreground tabular-nums">
+                      ({activeDragTag.article_count})
+                    </span>
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
+          )}
+          {pendingMoves.size > 0 && (
+            <PendingChangesPanel
+              count={pendingMoves.size}
+              confirming={confirming}
+              onConfirm={handleConfirm}
+              onDiscard={handleDiscard}
+            />
           )}
         </>
       )}
