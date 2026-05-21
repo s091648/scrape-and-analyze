@@ -1349,7 +1349,26 @@ function handleDiscard() {
 }
 ```
 
-- [ ] **Step 4: Wrap tag group cards with DndContext**
+- [ ] **Step 4: Fix guest (fake) TagGroupCard usage**
+
+The page has a guest paywall section that also renders `TagGroupCard` for `FAKE_GROUPS`. Since `pendingIncomingTagIds` is now required, add `pendingIncomingTagIds={new Set()}` to each of those cards:
+
+```tsx
+{FAKE_GROUPS.map(group => (
+  <TagGroupCard
+    key={group.id}
+    group={group}
+    isAdmin={false}
+    pendingIncomingTagIds={new Set()}
+    onDeleted={() => {}}
+    onTagRenamed={() => {}}
+    onTagDeleted={() => {}}
+    onGroupUpdated={() => {}}
+  />
+))}
+```
+
+- [ ] **Step 5: Wrap tag group cards with DndContext**
 
 In the JSX, find the section that renders `{groups.map(group => (<TagGroupCard ... />))}`.
 
@@ -1421,7 +1440,7 @@ In the JSX, find the section that renders `{groups.map(group => (<TagGroupCard .
 )}
 ```
 
-- [ ] **Step 5: Run lint**
+- [ ] **Step 6: Run lint**
 
 ```
 cd frontend && npm run lint
@@ -1429,7 +1448,7 @@ cd frontend && npm run lint
 
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/app/tags/page.tsx
