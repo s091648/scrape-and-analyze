@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# LLM 層：從 DB provider config 建立 ResilientLLMService
+# LLM 層: 從 DB provider config 建立 ResilientLLMService
 # ---------------------------------------------------------------------------
 
 def build_llm_service(session):
@@ -230,7 +230,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service()
+    llm_service = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()

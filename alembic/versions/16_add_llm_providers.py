@@ -28,6 +28,7 @@ def upgrade() -> None:
         sa.Column('rpd', sa.Integer, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.UniqueConstraint('priority', name='uq_llm_providers_priority'),
     )
 
     # Seed from providers.toml (values hardcoded here; providers.toml is deleted after this migration)
@@ -38,7 +39,7 @@ def upgrade() -> None:
             (gen_random_uuid(), 'gemini', 'gemini-3.1-flash-lite-preview', 'GEMINI_API_KEY', 2, true, 15, 250000, 500),
             (gen_random_uuid(), 'gemini', 'gemini-2.5-flash', 'GEMINI_API_KEY', 3, true, 5, 250000, 20),
             (gen_random_uuid(), 'gemini', 'gemini-2.5-flash-lite', 'GEMINI_API_KEY', 4, true, 10, 250000, 20),
-            (gen_random_uuid(), 'openrouter', 'deepseek/deepseek-chat', 'OPENROUTER_API_KEY', 4, true, 20, 100000, 200)
+            (gen_random_uuid(), 'openrouter', 'deepseek/deepseek-chat', 'OPENROUTER_API_KEY', 5, true, 20, 100000, 200)
     """)
 
 

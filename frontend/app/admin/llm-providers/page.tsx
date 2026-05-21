@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Pencil, X, Check, Plus, HelpCircle, GripVertical } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
@@ -397,13 +397,16 @@ function ProviderCardSkeleton() {
 
 export default function LlmProvidersPage() {
   const { t } = useI18n()
+  const router = useRouter()
   const { data: session, status } = useSession()
   const [providers, setProviders] = useState<LlmProvider[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  if (status === 'unauthenticated') redirect('/login')
-  if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
+  useEffect(() => {
+    if (status === 'unauthenticated') router.push('/login')
+    if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') router.push('/settings')
+  }, [status, session, router])
 
   const token = (session as any)?.accessToken
 
@@ -449,19 +452,29 @@ export default function LlmProvidersPage() {
 
   async function handleUpdate(id: string, data: Partial<LlmProvider>) {
     setError(null)
+    const prevProviders = providers
     setProviders(prev => prev.map(p => (p.id === id ? { ...p, ...data } : p)))
     try {
       await updateLlmProvider(id, data, token)
     } catch (e: any) {
+      setProviders(prevProviders)
       if (e?.status === 409) {
         setError(t('admin.priorityConflict', { priority: providers.find(x => x.id === id)?.priority ?? '?' }))
+      } else {
+        setError(t('admin.updateFailed'))
       }
     }
   }
 
   async function handleDelete(id: string) {
+    const prevProviders = providers
     setProviders(prev => prev.filter(p => p.id !== id))
-    await deleteLlmProvider(id, token)
+    try {
+      await deleteLlmProvider(id, token)
+    } catch {
+      setProviders(prevProviders)
+      setError(t('admin.deleteFailed'))
+    }
   }
 
   async function handleCreate(data: Omit<LlmProvider, 'id' | 'usage_24h' | 'created_at' | 'updated_at'>) {

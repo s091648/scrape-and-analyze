@@ -228,6 +228,8 @@
     "deleteProviderConfirm": "刪除 {model}？此操作無法復原。",
     "priorityConflict": "優先順序 {priority} 已被其他供應者使用。",
     "reorderFailed": "重新排序供應者失敗，請再試一次。",
+    "updateFailed": "更新供應者失敗，請再試一次。",
+    "deleteFailed": "刪除供應者失敗，請再試一次。",
     "dragToReorder": "拖曳以重新排序"
   }
 }

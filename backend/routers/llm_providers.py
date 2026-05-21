@@ -102,6 +102,19 @@ def reorder(data: LlmProviderReorder, db: Session = Depends(get_db), _=Depends(r
     providers = db.query(LlmProvider).filter(LlmProvider.id.in_(priorities.keys())).all()
     if len(providers) != len(priorities):
         raise HTTPException(status_code=404, detail="One or more providers not found")
+    conflict = (
+        db.query(LlmProvider)
+        .filter(
+            LlmProvider.id.notin_(priorities.keys()),
+            LlmProvider.priority.in_(priorities.values()),
+        )
+        .first()
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Priority {conflict.priority} is already in use by provider '{conflict.model}' which is not part of this reorder request",
+        )
     for p in providers:
         p.priority = priorities[p.id]
     db.commit()

@@ -228,6 +228,8 @@
     "deleteProviderConfirm": "Delete {model}? This cannot be undone.",
     "priorityConflict": "Priority {priority} is already in use by another provider.",
     "reorderFailed": "Failed to reorder providers. Please try again.",
+    "updateFailed": "Failed to update provider. Please try again.",
+    "deleteFailed": "Failed to delete provider. Please try again.",
     "dragToReorder": "Drag to reorder"
   }
 }
