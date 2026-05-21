@@ -1,16 +1,19 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
 import type { TagGroupOut, TagOut, TagGroupUpdate } from '@/lib/api/tags'
 import { deleteTagGroup, updateTagGroup } from '@/lib/api/tags'
 import { TagDialog } from './tag-dialog'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { cn } from '@/lib/utils'
 
 interface Props {
   group: TagGroupOut
   isAdmin: boolean
   token?: string
+  pendingIncomingTagIds: Set<string>
   onDeleted: (groupId: string) => void
   onTagRenamed: (groupId: string, tagId: string, newName: string) => void
   onTagDeleted: (groupId: string, tagId: string) => void
@@ -22,6 +25,8 @@ function TagBadge({
   isAdmin,
   token,
   topicId,
+  groupId,
+  isPending,
   onRenamed,
   onDeleted,
 }: {
@@ -29,16 +34,34 @@ function TagBadge({
   isAdmin: boolean
   token?: string
   topicId: string
+  groupId: string
+  isPending: boolean
   onRenamed: (tagId: string, name: string) => void
   onDeleted: (tagId: string) => void
 }) {
   const [open, setOpen] = useState(false)
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: tag.id,
+    data: { groupId, tag },
+    disabled: !isAdmin,
+  })
+
   return (
     <>
       <button
+        ref={setNodeRef}
+        {...listeners}
+        {...attributes}
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border bg-muted/50 text-xs hover:bg-muted cursor-pointer transition-colors"
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs transition-colors',
+          isPending
+            ? 'border-green-400 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 animate-wiggle'
+            : 'border-border bg-muted/50 hover:bg-muted cursor-pointer',
+          isDragging && 'opacity-40',
+          isAdmin && 'cursor-grab active:cursor-grabbing',
+        )}
       >
         {tag.name}
         <span className="text-muted-foreground tabular-nums [font-variant-ligatures:none]">
@@ -131,7 +154,10 @@ function EditGroupForm({
   )
 }
 
-export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated }: Props) {
+export function TagGroupCard({
+  group, isAdmin, token, pendingIncomingTagIds,
+  onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated,
+}: Props) {
   const { t } = useI18n()
   const [tags, setTags] = useState<TagOut[]>(
     [...group.tags].sort((a, b) => b.article_count - a.article_count)
@@ -139,6 +165,14 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
   const [open, setOpen] = useState(true)
   const [editing, setEditing] = useState(false)
   const [localGroup, setLocalGroup] = useState(group)
+
+  const tagIdsKey = group.tags.map(t => t.id).join(',')
+  useEffect(() => {
+    setTags([...group.tags].sort((a, b) => b.article_count - a.article_count))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagIdsKey])
+
+  const { setNodeRef, isOver } = useDroppable({ id: group.id })
 
   function handleGroupSaved(updated: Partial<TagGroupOut>) {
     const next = { ...localGroup, ...updated }
@@ -148,7 +182,13 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-xl border border-border bg-card p-5 space-y-3 transition-colors',
+        isOver && 'border-primary/50 bg-primary/5',
+      )}
+    >
       <div className="flex items-center justify-between">
         <button
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
@@ -206,6 +246,8 @@ export function TagGroupCard({ group, isAdmin, token, onDeleted, onTagRenamed, o
                 isAdmin={isAdmin}
                 token={token}
                 topicId={String(localGroup.topic_id)}
+                groupId={String(group.id)}
+                isPending={pendingIncomingTagIds.has(tag.id)}
                 onRenamed={(tagId, name) => {
                   setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
                   onTagRenamed(group.id, tagId, name)
