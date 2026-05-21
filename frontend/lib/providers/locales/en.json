@@ -121,7 +121,8 @@
     "any": "Any",
     "after": "After",
     "before": "Before",
-    "range": "Range"
+    "range": "Range",
+    "noTagsFound": "No tags found"
   },
   "tags": {
     "title": "Tags",
