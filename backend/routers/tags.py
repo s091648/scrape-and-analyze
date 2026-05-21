@@ -54,7 +54,8 @@ class TagGroupUpdate(BaseModel):
 
 
 class TagUpdate(BaseModel):
-    name: str
+    name: Optional[str] = None
+    tag_group_name: Optional[str] = None
 
 
 class SuggestionOut(BaseModel):
@@ -180,7 +181,10 @@ def rename_tag(
     tag = db.query(Tag).filter_by(id=tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
-    tag.name = body.name
+    if body.name is not None:
+        tag.name = body.name
+    if body.tag_group_name is not None:
+        tag.tag_group_name = body.tag_group_name
     db.commit()
     db.refresh(tag)
     return TagOut(id=tag.id, name=tag.name, article_count=_tag_article_count(db, tag.id))
