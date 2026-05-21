@@ -94,6 +94,34 @@ export async function deleteTag(tagId: string, token: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete tag')
 }
 
+export async function moveTag(tagId: string, tagGroupName: string, token: string): Promise<TagOut> {
+  const res = await apiFetch(`/tags/${tagId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tag_group_name: tagGroupName }),
+  })
+  if (!res.ok) throw new Error('Failed to move tag')
+  return res.json()
+}
+
+export interface BatchMoveResult {
+  succeeded: string[]
+  failed: { tag_id: string; error: string }[]
+}
+
+export async function batchMoveTags(
+  moves: { tag_id: string; tag_group_name: string }[],
+  token: string,
+): Promise<BatchMoveResult> {
+  const res = await apiFetch('/tags/batch-move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(moves),
+  })
+  if (!res.ok) throw new Error('Failed to batch move tags')
+  return res.json()
+}
+
 export async function fetchPendingSuggestions(token: string): Promise<SuggestionOut[]> {
   const res = await apiFetch('/tag-normalization-suggestions', {
     headers: { Authorization: `Bearer ${token}` },
