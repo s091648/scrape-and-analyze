@@ -155,7 +155,10 @@
     "deleteTagConfirm": "刪除標籤「{name}」？",
     "deleteTagDesc": "此操作將從所有文章中移除此標籤，且無法復原。",
     "noArticles": "此標籤尚無任何文章",
-    "editGroup": "編輯群組"
+    "editGroup": "編輯群組",
+    "pendingChanges": "{count} 個待確認變更",
+    "confirmMoves": "確認",
+    "discardMoves": "放棄"
   },
   "common": {
     "loading": "載入中...",

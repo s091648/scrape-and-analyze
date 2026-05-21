@@ -155,7 +155,10 @@
     "deleteTagConfirm": "Delete tag \"{name}\"?",
     "deleteTagDesc": "This will remove the tag from all articles. This cannot be undone.",
     "noArticles": "No articles with this tag yet",
-    "editGroup": "Edit group"
+    "editGroup": "Edit group",
+    "pendingChanges": "{count} pending change(s)",
+    "confirmMoves": "Confirm",
+    "discardMoves": "Discard"
   },
   "common": {
     "loading": "Loading...",
