@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { SlidersHorizontal, X } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
-import { fetchArticleFilterSources, fetchArticleFilterTags } from '@/lib/api/articles'
-import { useI18n } from '@/lib/providers'
+import { fetchArticleFilterSources } from '@/lib/api/articles'
+import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
+import { useI18n, useTopic } from '@/lib/providers'
+import { GroupedTagSelect } from './grouped-tag-select'
 
 interface FilterBarProps {
   sources: string[]
@@ -32,9 +34,10 @@ export function FilterBar({
   activeFilterCount, onApply,
 }: FilterBarProps) {
   const { t, locale } = useI18n()
+  const { selectedTopicId } = useTopic()
   const [open, setOpen] = useState(false)
   const [sourceOptions, setSourceOptions] = useState<string[]>([])
-  const [tagOptions, setTagOptions] = useState<string[]>([])
+  const [tagGroups, setTagGroups] = useState<TagGroupOut[]>([])
 
   const [draftSources, setDraftSources] = useState(activeSources)
   const [draftTags, setDraftTags] = useState(activeTags)
@@ -45,8 +48,8 @@ export function FilterBar({
 
   useEffect(() => {
     fetchArticleFilterSources(locale).then(setSourceOptions)
-    fetchArticleFilterTags(locale).then(setTagOptions)
-  }, [locale])
+    fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroups)
+  }, [locale, selectedTopicId])
 
   useEffect(() => {
     setDraftSources(activeSources)
@@ -108,12 +111,13 @@ export function FilterBar({
             onChange={setDraftSources}
             searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.source').toLowerCase()}…`}
           />
-          <MultiSelectPopover
+          <GroupedTagSelect
             label={t('filterBar.tag')}
-            options={tagOptions}
+            groups={tagGroups}
             selected={draftTags}
             onChange={setDraftTags}
             searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.tag').toLowerCase()}…`}
+            emptyText={t('filterBar.noTagsFound')}
           />
           <DateFilter
             label={t('filterBar.published')}
