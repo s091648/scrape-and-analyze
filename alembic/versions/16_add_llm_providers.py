@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column('rpd', sa.Integer, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint('priority', name='uq_llm_providers_priority'),
+        sa.UniqueConstraint('priority', name='uq_llm_providers_priority', deferrable=True, initially='deferred'),
     )
 
     # Seed from providers.toml (values hardcoded here; providers.toml is deleted after this migration)

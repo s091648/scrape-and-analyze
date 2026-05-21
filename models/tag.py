@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, Table, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, configure_mappers
+from sqlalchemy.orm import relationship
 import uuid
 
 from models.base import Base
@@ -35,6 +35,3 @@ class Tag(Base):
         UniqueConstraint('name', 'tag_group_name', name='uq_tag_name_group'),
         Index('idx_tags_group', 'tag_group_name'),
     )
-
-
-configure_mappers()
