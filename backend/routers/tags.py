@@ -58,6 +58,16 @@ class TagUpdate(BaseModel):
     tag_group_name: Optional[str] = None
 
 
+class TagMoveItem(BaseModel):
+    tag_id: UUID
+    tag_group_name: str
+
+
+class BatchMoveResult(BaseModel):
+    succeeded: List[str]
+    failed: List[dict]
+
+
 class SuggestionOut(BaseModel):
     id: UUID
     new_tag_id: UUID
@@ -204,6 +214,30 @@ def delete_tag(
     db.execute(text("DELETE FROM article_tags WHERE tag_id = :id"), {"id": str(tag_id)})
     db.delete(tag)
     db.commit()
+
+
+@router.post("/tags/batch-move", response_model=BatchMoveResult)
+def batch_move_tags(
+    body: List[TagMoveItem],
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag import Tag
+    succeeded = []
+    failed = []
+    for item in body:
+        try:
+            tag = db.query(Tag).filter_by(id=item.tag_id).first()
+            if not tag:
+                failed.append({"tag_id": str(item.tag_id), "error": "Tag not found"})
+                continue
+            tag.tag_group_name = item.tag_group_name
+            db.commit()
+            succeeded.append(str(item.tag_id))
+        except Exception as e:
+            db.rollback()
+            failed.append({"tag_id": str(item.tag_id), "error": str(e)})
+    return BatchMoveResult(succeeded=succeeded, failed=failed)
 
 
 @router.get("/tag-normalization-suggestions", response_model=List[SuggestionOut])
