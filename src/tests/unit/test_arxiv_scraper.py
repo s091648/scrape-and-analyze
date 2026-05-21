@@ -1,3 +1,4 @@
+import pytest
 import responses
 from datetime import datetime, timedelta, timezone
 
@@ -189,12 +190,16 @@ def test_arxiv_scraper_sets_topic_id_on_job():
     assert str(jobs[0].topic_id) == "test-topic-uuid"
 
 
-@responses.activate
-def test_discover_returns_empty_on_429():
+def test_discover_raises_on_429():
+    from unittest.mock import MagicMock
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
-    responses.add(responses.GET, "https://export.arxiv.org/api/query", status=429)
-    jobs = ArxivScraper(fetch_pdf=False).discover()
-    assert jobs == []
+    from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
+
+    mock_client = MagicMock()
+    mock_client.fetch_entries.side_effect = ArxivRateLimitedError("429 Too Many Requests")
+    scraper = ArxivScraper(fetch_pdf=False, client=mock_client)
+    with pytest.raises(ArxivRateLimitedError):
+        scraper.discover()
 
 
 @responses.activate

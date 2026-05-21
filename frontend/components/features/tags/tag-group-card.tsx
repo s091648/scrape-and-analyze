@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X, Settings2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
 import type { TagGroupOut, TagOut, TagGroupUpdate } from '@/lib/api/tags'
@@ -54,6 +54,7 @@ function TagBadge({
         {...listeners}
         {...attributes}
         onClick={() => setOpen(true)}
+        data-pending-change={isPending ? tag.id : undefined}
         className={cn(
           'inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs transition-colors',
           isPending
@@ -163,14 +164,27 @@ export function TagGroupCard({
     [...group.tags].sort((a, b) => b.article_count - a.article_count)
   )
   const [open, setOpen] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const [hasOverflow, setHasOverflow] = useState(false)
   const [editing, setEditing] = useState(false)
   const [localGroup, setLocalGroup] = useState(group)
+  const tagContainerRef = useRef<HTMLDivElement>(null)
 
   const tagIdsKey = group.tags.map(t => t.id).join(',')
   useEffect(() => {
     setTags([...group.tags].sort((a, b) => b.article_count - a.article_count))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagIdsKey])
+
+  useEffect(() => {
+    if (!open || expanded) { setHasOverflow(false); return }
+    const el = tagContainerRef.current
+    if (!el) return
+    const id = requestAnimationFrame(() => {
+      setHasOverflow(el.scrollHeight > el.clientHeight)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [tags, open, expanded])
 
   const { setNodeRef, isOver } = useDroppable({ id: group.id })
 
@@ -212,7 +226,7 @@ export function TagGroupCard({
               onClick={() => setEditing(e => !e)}
               aria-label={t('tags.editGroup')}
             >
-              <Settings2 className="h-3.5 w-3.5" />
+              <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
@@ -238,30 +252,56 @@ export function TagGroupCard({
           {localGroup.description && (
             <p className="text-xs text-muted-foreground">{localGroup.description}</p>
           )}
-          <div className="flex flex-wrap gap-1.5">
-            {tags.map(tag => (
-              <TagBadge
-                key={tag.id}
-                tag={tag}
-                isAdmin={isAdmin}
-                token={token}
-                topicId={String(localGroup.topic_id)}
-                groupId={String(group.id)}
-                isPending={pendingIncomingTagIds.has(tag.id)}
-                onRenamed={(tagId, name) => {
-                  setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
-                  onTagRenamed(group.id, tagId, name)
-                }}
-                onDeleted={tagId => {
-                  setTags(prev => prev.filter(t => t.id !== tagId))
-                  onTagDeleted(group.id, tagId)
-                }}
-              />
-            ))}
-            {tags.length === 0 && (
-              <span className="text-xs text-muted-foreground italic">{t('tags.noTagsYet')}</span>
+          <div className="relative">
+            <div
+              ref={tagContainerRef}
+              className={cn(
+                'flex flex-wrap gap-1.5 overflow-hidden',
+                !expanded && 'max-h-28',
+              )}
+            >
+              {tags.map(tag => (
+                <TagBadge
+                  key={tag.id}
+                  tag={tag}
+                  isAdmin={isAdmin}
+                  token={token}
+                  topicId={String(localGroup.topic_id)}
+                  groupId={String(group.id)}
+                  isPending={pendingIncomingTagIds.has(tag.id)}
+                  onRenamed={(tagId, name) => {
+                    setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
+                    onTagRenamed(group.id, tagId, name)
+                  }}
+                  onDeleted={tagId => {
+                    setTags(prev => prev.filter(t => t.id !== tagId))
+                    onTagDeleted(group.id, tagId)
+                  }}
+                />
+              ))}
+              {tags.length === 0 && (
+                <span className="text-xs text-muted-foreground italic">{t('tags.noTagsYet')}</span>
+              )}
+            </div>
+            {!expanded && hasOverflow && (
+              <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-card to-transparent flex items-end justify-center pb-2">
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {t('tags.expand')}
+                </button>
+              </div>
             )}
           </div>
+          {expanded && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('tags.collapse')}
+            </button>
+          )}
         </>
       )}
     </div>

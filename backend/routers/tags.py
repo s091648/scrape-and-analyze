@@ -84,16 +84,26 @@ class SuggestionOut(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-def _tag_article_count(db: Session, tag_id: UUID) -> int:
+def _tag_article_count(db: Session, tag_id: UUID, topic_id: Optional[UUID] = None) -> int:
     from sqlalchemy import text
-    row = db.execute(
-        text("""
-            SELECT COUNT(*) FROM article_tags at
-            INNER JOIN articles a ON a.id = at.article_id
-            WHERE at.tag_id = :id
-        """),
-        {"id": str(tag_id)},
-    ).fetchone()
+    if topic_id:
+        row = db.execute(
+            text("""
+                SELECT COUNT(*) FROM article_tags at
+                INNER JOIN articles a ON a.id = at.article_id
+                WHERE at.tag_id = :id AND a.topic_id = :topic_id
+            """),
+            {"id": str(tag_id), "topic_id": str(topic_id)},
+        ).fetchone()
+    else:
+        row = db.execute(
+            text("""
+                SELECT COUNT(*) FROM article_tags at
+                INNER JOIN articles a ON a.id = at.article_id
+                WHERE at.tag_id = :id
+            """),
+            {"id": str(tag_id)},
+        ).fetchone()
     return row[0] if row else 0
 
 
@@ -116,7 +126,7 @@ def list_tag_groups(
     for grp in groups:
         tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
         tag_outs = [
-            TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id))
+            TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id, grp.topic_id))
             for t in tags
         ]
         result.append(TagGroupOut(
@@ -160,7 +170,7 @@ def update_tag_group(
     db.commit()
     db.refresh(grp)
     tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
-    tag_outs = [TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id)) for t in tags]
+    tag_outs = [TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id, grp.topic_id)) for t in tags]
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
                        description=grp.description, color_hex=grp.color_hex,
                        topic_id=grp.topic_id, tags=tag_outs)
