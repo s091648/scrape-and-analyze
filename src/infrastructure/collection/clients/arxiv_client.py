@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+import requests
+
 from src.infrastructure.shared.http import get_api_bot_ua
 from src.shared.logging import get_logger
 
@@ -20,6 +22,10 @@ logger = get_logger(__name__)
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
+
+
+class ArxivRateLimitedError(Exception):
+    """arXiv API returned HTTP 429. Signals callers to abort remaining arxiv tasks for this run."""
 
 
 @dataclass
@@ -79,6 +85,11 @@ class ArxivClient:
                 timeout=60,
                 headers={"User-Agent": get_api_bot_ua()},
             )
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                raise ArxivRateLimitedError(str(exc)) from exc
+            logger.error("arxiv_fetch_failed", error=str(exc))
+            return []
         except Exception as e:
             logger.error("arxiv_fetch_failed", error=str(e))
             return []

@@ -1,6 +1,8 @@
+import pytest
 from unittest.mock import MagicMock
 from src.infrastructure.collection.executor.discover_task import DiscoverTask
 from src.infrastructure.collection.executor.fetch_task import FetchTask
+from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.modules.collection.domain.entities import ScrapeJob
 
 
@@ -39,3 +41,14 @@ def test_discover_task_execute_returns_empty_on_empty_discover():
     results = task.execute()
 
     assert results == []
+
+
+def test_discover_task_propagates_arxiv_rate_limited_error():
+    """ArxivRateLimitedError must not be silenced — the executor needs it to abort remaining tasks."""
+    scraper = MagicMock()
+    scraper.discover.side_effect = ArxivRateLimitedError("429 Too Many Requests")
+    setting = MagicMock()
+
+    task = DiscoverTask(setting=setting, scraper=scraper, host="export.arxiv.org")
+    with pytest.raises(ArxivRateLimitedError):
+        task.execute()

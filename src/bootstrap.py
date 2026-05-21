@@ -196,6 +196,28 @@ def build_collection_pipeline():
     event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
+    from datetime import datetime, timezone
+    from src.infrastructure.collection.executor import ScrapeExecutor
+    from src.modules.collection.domain.entities import FailedTask
+
+    # TODO: once DiscoverFailedEvent + DiscoverFailedHandler are merged from the
+    # feature branch, replace this direct repo.save() with:
+    #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
+    def _on_discover_failed(task, exc) -> None:
+        failed = FailedTask(
+            task_type="arxiv_discover",
+            exception_type=type(exc).__name__,
+            exception_message=str(exc),
+            failed_at=datetime.now(timezone.utc),
+        )
+        try:
+            failed_task_repo.save(failed)
+            logger.info("arxiv_discover_failure_recorded", source=task.setting.source)
+        except Exception as e:
+            logger.error("failed_task_save_error", source=task.setting.source, error=str(e))
+
+    executor = ScrapeExecutor(on_discover_failed=_on_discover_failed)
+
     scraper_factory = ConcreteScraperFactory(http_client=get_default_client())
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
@@ -203,6 +225,7 @@ def build_collection_pipeline():
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
         article_repo=article_repo,
+        executor=executor,
     )
 
     logger.info("bootstrap_complete")
