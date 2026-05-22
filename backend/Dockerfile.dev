@@ -19,4 +19,4 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --all-groups
 
 # 程式碼透過 docker compose volumes 掛載，不在此 COPY
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

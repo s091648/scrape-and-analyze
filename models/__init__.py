@@ -7,3 +7,6 @@ from models.tag import Tag, article_tags
 from models.tag_group import TagGroupDefinition
 from models.auth import AuthBase, User
 from models.scraper_setting import ScraperBase, ScraperSetting
+from sqlalchemy.orm import configure_mappers
+
+configure_mappers()

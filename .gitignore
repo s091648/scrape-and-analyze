@@ -5,10 +5,10 @@
 # -----------------------------
 # Environment & Secrets
 # -----------------------------
-.env
-.env.local
-.env.*.local
-.env.production
+/.env
+/.env.local
+/.env.*.local
+/.env.production
 *.pem
 *.key
 credentials.json
