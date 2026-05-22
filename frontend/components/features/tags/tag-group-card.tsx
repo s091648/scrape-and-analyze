@@ -297,7 +297,7 @@ export function TagGroupCard({
           {expanded && (
             <button
               onClick={() => setExpanded(false)}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               {t('tags.collapse')}
             </button>

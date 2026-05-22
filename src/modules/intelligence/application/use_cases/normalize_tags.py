@@ -27,8 +27,8 @@ class NormalizeTagsUseCase:
         self,
         embedding_service: EmbeddingService,
         tag_repository: TagRepository,
-        auto_merge_threshold: float = 0.92,
-        suggest_threshold: float = 0.85,
+        auto_merge_threshold: float = 0.95,
+        suggest_threshold: float = 0.90,
     ) -> None:
         self._embedding_service = embedding_service
         self._tag_repository = tag_repository
