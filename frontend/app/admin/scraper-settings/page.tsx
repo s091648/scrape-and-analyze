@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
-import { ChevronDown, Pencil, X, Check, Plus } from 'lucide-react'
+import { Pencil, X, Check, Plus } from 'lucide-react'
 import {
   fetchScraperSources,
   createScraperSource,
@@ -35,6 +35,7 @@ import {
 } from '@/components/features/scraper/scraper-source-card'
 import { ArxivKeywordManager } from '@/components/features/scraper/arxiv-keyword-manager'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AccordionSection } from '@/components/ui/accordion-section'
 import { useTopic } from '@/lib/providers'
 import { useI18n } from '@/lib/providers'
 
@@ -47,44 +48,6 @@ interface ArxivKeyword {
 interface ArxivCategory {
   id: string
   keyword: string
-}
-
-// ── Accordion shell ──────────────────────────────────────────────────────────
-
-function AccordionSection({
-  title,
-  badge,
-  children,
-}: {
-  title: string
-  badge?: number
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(true)
-  return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-card hover:bg-muted/40 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold capitalize">{title}</span>
-          {badge !== undefined && (
-            <span className="inline-flex h-5 min-w-5 px-1.5 rounded-full bg-muted text-xs text-muted-foreground items-center justify-center">
-              {badge}
-            </span>
-          )}
-        </div>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-2 space-y-3 bg-muted/20">{children}</div>
-      )}
-    </div>
-  )
 }
 
 // ── ArXiv card (singleton, no URL, no delete) ────────────────────────────────

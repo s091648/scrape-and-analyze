@@ -267,6 +267,9 @@
     "reorderFailed": "重新排序供應者失敗，請再試一次。",
     "updateFailed": "更新供應者失敗，請再試一次。",
     "deleteFailed": "刪除供應者失敗，請再試一次。",
-    "dragToReorder": "拖曳以重新排序"
+    "dragToReorder": "拖曳以重新排序",
+    "providerType": "類型",
+    "type_llm": "LLM",
+    "type_embedding": "Embedding"
   }
 }

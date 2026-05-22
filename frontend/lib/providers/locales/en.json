@@ -267,6 +267,9 @@
     "reorderFailed": "Failed to reorder providers. Please try again.",
     "updateFailed": "Failed to update provider. Please try again.",
     "deleteFailed": "Failed to delete provider. Please try again.",
-    "dragToReorder": "Drag to reorder"
+    "dragToReorder": "Drag to reorder",
+    "providerType": "Type",
+    "type_llm": "LLM",
+    "type_embedding": "Embedding"
   }
 }
