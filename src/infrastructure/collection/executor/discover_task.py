@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, List
 
 from .fetch_task import FetchTask
+from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,6 +28,8 @@ class DiscoverTask:
     def execute(self) -> List[FetchTask]:
         try:
             jobs = self.scraper.discover()
+        except ArxivRateLimitedError:
+            raise
         except Exception as e:
             logger.error(
                 "discover_failed",

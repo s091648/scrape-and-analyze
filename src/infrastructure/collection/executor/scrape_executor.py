@@ -13,6 +13,7 @@ from .queue_selector import (
     QueueSelector,
     WeightedRoundRobinQueueSelector,
 )
+from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.shared.logging import get_logger
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
@@ -50,12 +51,16 @@ class ScrapeExecutor:
         fetch_delay: float = 5.0,
         discover_delays: Optional[Dict[str, float]] = None,
         selector: Optional[QueueSelector] = None,
+        on_discover_failed: Optional[Callable] = None,
     ) -> None:
         self._num_workers = num_workers
         self._discover_workers = discover_workers
         self._fetch_delay = fetch_delay
         self._discover_delays = discover_delays if discover_delays is not None else _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
+        self._on_discover_failed = on_discover_failed
+        self._aborted_hosts: set[str] = set()
+        self._abort_lock = threading.Lock()
 
     def run(
         self,
@@ -257,22 +262,53 @@ class ScrapeExecutor:
                     continue
 
                 if isinstance(task, DiscoverTask):
-                    try:
-                        fetch_tasks = task.execute()
-                        discover_count += 1
-                        executed_discover = True
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
 
-                        # Route resulting fetch tasks back into queues
-                        if fetch_tasks:
-                            router.route(fetch_tasks)
-                            logger.info(
-                                "discover_produced_fetch_tasks",
-                                source=task.setting.source,
-                                host=task.host,
-                                count=len(fetch_tasks),
+                    with self._abort_lock:
+                        is_aborted = host in self._aborted_hosts
+
+                    if is_aborted:
+                        # A prior discover for this host returned 429 — skip without hitting the API.
+                        logger.warning(
+                            "discover_skipped_aborted_host",
+                            source=task.setting.source,
+                            host=host,
+                        )
+                        if self._on_discover_failed is not None:
+                            self._on_discover_failed(
+                                task,
+                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
                             )
-                    finally:
                         on_discover_complete()
+                        # executed_discover stays False → no cooldown, semaphore released by outer finally
+                    else:
+                        try:
+                            fetch_tasks = task.execute()
+                            discover_count += 1
+                            executed_discover = True
+
+                            # Route resulting fetch tasks back into queues
+                            if fetch_tasks:
+                                router.route(fetch_tasks)
+                                logger.info(
+                                    "discover_produced_fetch_tasks",
+                                    source=task.setting.source,
+                                    host=task.host,
+                                    count=len(fetch_tasks),
+                                )
+                        except ArxivRateLimitedError as exc:
+                            # First 429 for this host — abort all remaining discovers this run.
+                            with self._abort_lock:
+                                self._aborted_hosts.add(host)
+                            logger.warning(
+                                "discover_rate_limited_host_aborted",
+                                host=host,
+                                source=task.setting.source,
+                            )
+                            if self._on_discover_failed is not None:
+                                self._on_discover_failed(task, exc)
+                        finally:
+                            on_discover_complete()
                 # If it's a FetchTask in this queue, leave it for fetch workers
                 # — put it back and release semaphore
                 elif isinstance(task, FetchTask):

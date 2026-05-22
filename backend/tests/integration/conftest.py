@@ -33,6 +33,7 @@ def db_engine():
     from models.tag import Tag                           # noqa: F401
     from models.tag_group import TagGroupDefinition      # noqa: F401
     from models.scraper_setting import ScraperSetting    # noqa: F401
+    from models.llm_provider import LlmProvider          # noqa: F401
 
     Base.metadata.create_all(engine)
 

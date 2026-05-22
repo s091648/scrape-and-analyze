@@ -10,7 +10,6 @@ services:
       - ./models:/app/models
       - ./shared:/app/shared
       - ./pytest.ini:/app/pytest.ini
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -90,7 +89,6 @@ services:
       - ./scripts:/app/scripts
       - ./backend:/app/backend
       - ./pytest.ini:/app/pytest.ini
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -112,7 +110,6 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:

@@ -19,15 +19,12 @@ logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# LLM 層：從 providers.toml 建立 ResilientLLMService
+# LLM 層: 從 DB provider config 建立 ResilientLLMService
 # ---------------------------------------------------------------------------
 
-def build_llm_service():
-    """
-    Prompt 不在此處注入——每次 analyze() call 時由 AnalyzeArticleUseCase
-    根據 article.topic_id 動態 render 後傳入。
-    """
-    from src.config.providers import load_providers, load_embedding_config
+def build_llm_service(session):
+    """Build ResilientLLMService from DB provider config."""
+    from shared.llm_provider import load_active_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
         ResilientEmbeddingService, EmbeddingProviderHandler
@@ -39,8 +36,7 @@ def build_llm_service():
     handlers: List[ProviderHandler] = []
     emb_handlers: List[EmbeddingProviderHandler] = []
 
-    # LLM providers
-    for cfg in load_providers():
+    for cfg in load_active_providers(session):
         name = cfg['name']
         model = cfg['model']
         api_key = os.environ.get(cfg['api_key_env'], '')
@@ -73,38 +69,9 @@ def build_llm_service():
         ))
 
     if not handlers:
-        raise ValueError("providers.toml 中未設定任何有效的 LLM provider")
-    
-    # Embedding provider
-    for emb_cfg in load_embedding_config():
-        name = emb_cfg['name']
-        model = emb_cfg['model']
-        api_key = os.environ.get(emb_cfg['api_key_env'], '')
+        raise ValueError("llm_providers table has no active providers")
 
-        if name == 'gemini':
-            provider = GeminiEmbeddingProvider(api_key=api_key, model=model)
-
-        s_emb_cfg = emb_cfg.get('strategy', {})
-        if s_emb_cfg.get('type') == 'sliding_window':
-            strategy = SlidingWindowStrategy(
-                rpm=s_emb_cfg['rpm'],
-                tpm=s_emb_cfg['tpm'],
-                rpd=s_emb_cfg['rpd'],
-            )
-        else:
-            strategy = NoOpStrategy()
-        
-        emb_handlers.append(EmbeddingProviderHandler(
-            provider=provider,
-            strategy=strategy,
-            priority=emb_cfg['priority'],
-            name=name,
-        ))
-    
-    if not emb_handlers:
-        raise ValueError("providers.toml 中未設定任何有效的 Embedding provider")
-
-    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
+    return ResilientLLMService(handlers=handlers)
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +141,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service, embedding_service = build_llm_service()
+    llm_service, embedding_service = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
@@ -253,6 +220,28 @@ def build_collection_pipeline():
     event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
+    from datetime import datetime, timezone
+    from src.infrastructure.collection.executor import ScrapeExecutor
+    from src.modules.collection.domain.entities import FailedTask
+
+    # TODO: once DiscoverFailedEvent + DiscoverFailedHandler are merged from the
+    # feature branch, replace this direct repo.save() with:
+    #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
+    def _on_discover_failed(task, exc) -> None:
+        failed = FailedTask(
+            task_type="arxiv_discover",
+            exception_type=type(exc).__name__,
+            exception_message=str(exc),
+            failed_at=datetime.now(timezone.utc),
+        )
+        try:
+            failed_task_repo.save(failed)
+            logger.info("arxiv_discover_failure_recorded", source=task.setting.source)
+        except Exception as e:
+            logger.error("failed_task_save_error", source=task.setting.source, error=str(e))
+
+    executor = ScrapeExecutor(on_discover_failed=_on_discover_failed)
+
     scraper_factory = ConcreteScraperFactory(http_client=get_default_client())
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
@@ -260,6 +249,7 @@ def build_collection_pipeline():
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
         article_repo=article_repo,
+        executor=executor,
     )
 
     logger.info("bootstrap_complete")
@@ -290,7 +280,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service()
+    llm_service = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
