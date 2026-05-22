@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -9,6 +9,7 @@ class LlmProviderCreate(BaseModel):
     model: str = Field(min_length=1)
     api_key_env: str = Field(min_length=1)
     priority: int = Field(ge=1)
+    type: Literal['llm', 'embedding'] = 'llm'
     is_active: bool = True
     rpm: Optional[int] = Field(default=None, ge=0)
     tpm: Optional[int] = Field(default=None, ge=0)
@@ -20,6 +21,7 @@ class LlmProviderUpdate(BaseModel):
     model: Optional[str] = Field(default=None, min_length=1)
     api_key_env: Optional[str] = Field(default=None, min_length=1)
     priority: Optional[int] = Field(default=None, ge=1)
+    type: Optional[Literal['llm', 'embedding']] = None
     is_active: Optional[bool] = None
     rpm: Optional[int] = Field(default=None, ge=0)
     tpm: Optional[int] = Field(default=None, ge=0)
@@ -41,6 +43,7 @@ class LlmProviderOut(BaseModel):
     model: str
     api_key_env: str
     priority: int
+    type: str
     is_active: bool
     rpm: Optional[int] = None
     tpm: Optional[int] = None

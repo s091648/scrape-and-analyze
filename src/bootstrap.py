@@ -2,7 +2,7 @@
 bootstrap.py — 依賴組裝入口點（取代舊有的 composition_root.py）
 
 職責：
-  - 從設定檔（providers.toml、環境變數）讀取組態
+  - 從 DB（llm_providers 表）及環境變數讀取組態
   - 建立所有 infrastructure 物件（DB session、repositories、LLM providers）
   - 組裝 event bus 並完成 handler 訂閱
   - 回傳可執行的 CollectionPipeline
@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 def build_llm_service(session):
-    """Build ResilientLLMService from DB provider config."""
-    from shared.llm_provider import load_active_providers
+    """Build (ResilientLLMService, ResilientEmbeddingService) from DB provider config."""
+    from shared.llm_provider import load_active_providers, load_active_embedding_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
         ResilientEmbeddingService, EmbeddingProviderHandler
@@ -33,45 +33,55 @@ def build_llm_service(session):
     from src.infrastructure.intelligence.llm.providers import ClaudeProvider, GeminiProvider, OpenRouterProvider
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
 
-    handlers: List[ProviderHandler] = []
-    emb_handlers: List[EmbeddingProviderHandler] = []
+    def _make_strategy(cfg):
+        s = cfg.get('strategy', {})
+        if s.get('type') == 'sliding_window':
+            return SlidingWindowStrategy(rpm=s['rpm'], tpm=s['tpm'], rpd=s['rpd'])
+        return NoOpStrategy()
 
+    handlers: List[ProviderHandler] = []
     for cfg in load_active_providers(session):
         name = cfg['name']
-        model = cfg['model']
         api_key = os.environ.get(cfg['api_key_env'], '')
-
         if name == 'claude':
-            provider = ClaudeProvider(api_key=api_key, model=model)
+            provider = ClaudeProvider(api_key=api_key, model=cfg['model'])
         elif name == 'gemini':
-            provider = GeminiProvider(api_key=api_key, model=model)
+            provider = GeminiProvider(api_key=api_key, model=cfg['model'])
         elif name == 'openrouter':
-            provider = OpenRouterProvider(api_key=api_key, model=model)
+            provider = OpenRouterProvider(api_key=api_key, model=cfg['model'])
         else:
             logger.warning("unknown_provider_skipped", name=name)
             continue
-
-        s_cfg = cfg.get('strategy', {})
-        if s_cfg.get('type') == 'sliding_window':
-            strategy = SlidingWindowStrategy(
-                rpm=s_cfg['rpm'],
-                tpm=s_cfg['tpm'],
-                rpd=s_cfg['rpd'],
-            )
-        else:
-            strategy = NoOpStrategy()
-
         handlers.append(ProviderHandler(
             provider=provider,
-            strategy=strategy,
+            strategy=_make_strategy(cfg),
             priority=cfg['priority'],
             name=name,
         ))
 
     if not handlers:
-        raise ValueError("llm_providers table has no active providers")
+        raise ValueError("llm_providers table has no active LLM providers")
 
-    return ResilientLLMService(handlers=handlers)
+    emb_handlers: List[EmbeddingProviderHandler] = []
+    for cfg in load_active_embedding_providers(session):
+        name = cfg['name']
+        api_key = os.environ.get(cfg['api_key_env'], '')
+        if name == 'gemini':
+            provider = GeminiEmbeddingProvider(api_key=api_key, model=cfg['model'])
+        else:
+            logger.warning("unknown_embedding_provider_skipped", name=name)
+            continue
+        emb_handlers.append(EmbeddingProviderHandler(
+            provider=provider,
+            strategy=_make_strategy(cfg),
+            priority=cfg['priority'],
+            name=name,
+        ))
+
+    if not emb_handlers:
+        raise ValueError("llm_providers table has no active embedding providers")
+
+    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +290,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service(session)
+    llm_service, _ = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()

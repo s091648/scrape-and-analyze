@@ -5,7 +5,7 @@ Backfill normalized tags for articles that have analyses but no article_tags ent
 Usage:
     DATABASE_URL=... python scripts/backfill_tags.py [--dry-run] [--limit N]
 
-Provider selection and rate limiting are controlled by providers.toml (same as main.py).
+Provider selection and rate limiting are controlled by the llm_providers DB table.
 """
 import argparse
 import os
@@ -170,7 +170,7 @@ def run_backfill(session, llm_service, prompt, dry_run=False, limit=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Backfill normalized tags via LLM re-analysis (providers.toml)."
+        description="Backfill normalized tags via LLM re-analysis."
     )
     parser.add_argument(
         "--dry-run", action="store_true",

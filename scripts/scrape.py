@@ -13,7 +13,7 @@ Source types:
     arxiv  — arXiv API, config loaded from database (source_type='arxiv')
 
 Bypasses frequency check — designed for manual one-off execution.
-Provider selection and rate limiting are controlled by providers.toml.
+Provider selection and rate limiting are controlled by the llm_providers DB table.
 """
 import argparse
 import os

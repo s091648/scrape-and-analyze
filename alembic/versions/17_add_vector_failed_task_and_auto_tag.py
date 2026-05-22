@@ -1,22 +1,20 @@
-"""squash_pgvector_extend_tasks_add_auto_tag_groups
+"""squash_pgvector_extend_tasks_add_auto_tag_groups_add_embedding_providers
 
 Squashes migrations 16 (pgvector + tag_normalization_suggestions) and
-17 (extend failed_tasks), and adds auto_tag_groups boolean to topics.
+17 (extend failed_tasks), adds auto_tag_groups boolean to topics,
+and extends llm_providers with a type column + seeds embedding providers.
 
-Requires alembic_version.version_num >= VARCHAR(64); 15_add_translations
-expands the column before this revision is stamped.
-
-Revision ID: 16_add_vector_failed_task_and_auto_tag
-Revises: 15_add_translations
-Create Date: 2026-05-21
+Revision ID: 17_add_vector_failed_task_and_auto_tag
+Revises: 16_add_llm_providers
+Create Date: 2026-05-22
 """
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-revision: str = "16_add_vector_failed_task_and_auto_tag"
-down_revision: Union[str, Sequence[str], None] = "15_add_translations"
+revision: str = "17_add_vector_failed_task_and_auto_tag"
+down_revision: Union[str, Sequence[str], None] = "16_add_llm_providers"
 branch_labels = None
 depends_on = None
 
@@ -86,8 +84,46 @@ def upgrade() -> None:
         server_default=sa.text("true"),
     ))
 
+    # ── llm_providers: add type column ──
+
+    op.add_column(
+        "llm_providers",
+        sa.Column("type", sa.String(20), nullable=False, server_default="llm"),
+    )
+
+    # Replace priority-only unique constraint with (priority, type) unique constraint
+    op.drop_constraint("uq_llm_providers_priority", "llm_providers", type_="unique")
+    op.execute("""
+        ALTER TABLE llm_providers
+        ADD CONSTRAINT uq_llm_providers_priority_type
+        UNIQUE (priority, type)
+        DEFERRABLE INITIALLY DEFERRED
+    """)
+
+    # Seed embedding providers
+    op.execute("""
+        INSERT INTO llm_providers (id, name, model, api_key_env, priority, type, is_active, rpm, tpm, rpd)
+        VALUES
+            (gen_random_uuid(), 'gemini', 'gemini-embedding-001', 'GEMINI_API_KEY', 1, 'embedding', true, 100, 30000, 1000),
+            (gen_random_uuid(), 'gemini', 'gemini-embedding-2', 'GEMINI_API_KEY', 2, 'embedding', true, 100, 30000, 1000)
+    """)
+
 
 def downgrade() -> None:
+    # ── reverse llm_providers embedding changes (added last, reversed first) ──
+
+    op.execute("DELETE FROM llm_providers WHERE type = 'embedding'")
+    op.execute("ALTER TABLE llm_providers DROP CONSTRAINT uq_llm_providers_priority_type")
+    op.execute("""
+        ALTER TABLE llm_providers
+        ADD CONSTRAINT uq_llm_providers_priority
+        UNIQUE (priority)
+        DEFERRABLE INITIALLY DEFERRED
+    """)
+    op.drop_column("llm_providers", "type")
+
+    # ── reverse remaining changes ──
+
     op.drop_column("topics", "auto_tag_groups")
 
     op.drop_column("failed_tasks", "traceback")

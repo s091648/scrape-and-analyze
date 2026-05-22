@@ -35,9 +35,12 @@ def get_providers(db: Session):
     return _attach_usage(providers, db)
 
 
-def _check_priority_conflict(db: Session, priority: int, exclude_id: UUID | None = None):
+def _check_priority_conflict(db: Session, priority: int, provider_type: str, exclude_id: UUID | None = None):
     from models.llm_provider import LlmProvider
-    q = db.query(LlmProvider).filter(LlmProvider.priority == priority)
+    q = db.query(LlmProvider).filter(
+        LlmProvider.priority == priority,
+        LlmProvider.type == provider_type,
+    )
     if exclude_id:
         q = q.filter(LlmProvider.id != exclude_id)
     return q.first()
@@ -45,8 +48,8 @@ def _check_priority_conflict(db: Session, priority: int, exclude_id: UUID | None
 
 def create_provider(db: Session, data: LlmProviderCreate):
     from models.llm_provider import LlmProvider
-    if _check_priority_conflict(db, data.priority):
-        raise HTTPException(status_code=409, detail="Priority already in use by another provider")
+    if _check_priority_conflict(db, data.priority, data.type):
+        raise HTTPException(status_code=409, detail="Priority already in use by another provider of the same type")
     obj = LlmProvider(**data.model_dump())
     db.add(obj)
     db.commit()
@@ -61,8 +64,9 @@ def update_provider(db: Session, provider_id: UUID, data: LlmProviderUpdate):
     if not obj:
         return None
     new_priority = data.priority if data.priority is not None else obj.priority
-    if _check_priority_conflict(db, new_priority, exclude_id=provider_id):
-        raise HTTPException(status_code=409, detail="Priority already in use by another provider")
+    new_type = data.type if data.type is not None else obj.type
+    if _check_priority_conflict(db, new_priority, new_type, exclude_id=provider_id):
+        raise HTTPException(status_code=409, detail="Priority already in use by another provider of the same type")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(obj, field, value)
     db.commit()
@@ -102,11 +106,13 @@ def reorder(data: LlmProviderReorder, db: Session = Depends(get_db), _=Depends(r
     providers = db.query(LlmProvider).filter(LlmProvider.id.in_(priorities.keys())).all()
     if len(providers) != len(priorities):
         raise HTTPException(status_code=404, detail="One or more providers not found")
+    types_in_batch = {p.type for p in providers}
     conflict = (
         db.query(LlmProvider)
         .filter(
             LlmProvider.id.notin_(priorities.keys()),
             LlmProvider.priority.in_(priorities.values()),
+            LlmProvider.type.in_(types_in_batch),
         )
         .first()
     )
