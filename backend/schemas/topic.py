@@ -20,6 +20,7 @@ class TopicUpdate(BaseModel):
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
+    auto_tag_groups: Optional[bool] = None
 
 
 class TopicOut(BaseModel):
@@ -31,6 +32,7 @@ class TopicOut(BaseModel):
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: bool
+    auto_tag_groups: bool
     created_at: Optional[datetime] = None
 
     class Config:

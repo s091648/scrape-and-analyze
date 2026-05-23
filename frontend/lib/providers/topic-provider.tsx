@@ -8,6 +8,7 @@ export interface Topic {
   display_name: string
   color_hex: string | null
   sort_order: number | null
+  auto_tag_groups: boolean
 }
 
 interface TopicContextValue {

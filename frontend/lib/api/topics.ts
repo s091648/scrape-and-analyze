@@ -9,6 +9,7 @@ export interface Topic {
   prompt_override: string | null
   sort_order: number | null
   is_active: boolean
+  auto_tag_groups: boolean
 }
 
 function authHeader(token?: string): Record<string, string> {
