@@ -3,7 +3,7 @@ Domain entity for FailedTask — pure dataclass, zero ORM dependency.
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional
 from uuid import UUID, uuid4
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Annotated, Literal, Union
 from pydantic import BaseModel, Field
-from shared.enums.scraper_keyword import VALID_KEYWORD_TYPES
 
 
 class RssKeyword(BaseModel):

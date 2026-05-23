@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, call
 import pytest
 
 from src.shared.domain.entities import Article
-from src.modules.intelligence.application.use_cases.analysis_result import AnalysisResult
+from src.modules.intelligence.application.use_cases import AnalysisResult
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisPrompt
 
 
@@ -43,11 +43,11 @@ def deps():
     }
 
 
-def _make_uc(deps):
+def _make_uc(deps, embedding_service=None):
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     deps["topic_repository"].find_by_id.return_value = None
     deps["topic_repository"].list_active.return_value = []
-    return AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    return AnalyzeArticleUseCase(**deps, embedding_service=embedding_service, prompt=AnalysisPrompt())
 
 
 # ── success path ────────────────────────────────────────────────────────────
@@ -119,3 +119,41 @@ def test_analysis_result_optional_fields_default_to_none():
     assert result.analysis is None
     assert result.exception_type is None
     assert result.exception_message is None
+
+
+def test_upsert_generates_embedding_for_new_tag_groups(deps):
+    """In auto mode, _upsert_generated_tag_groups calls embedding_service.embed_batch."""
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisTagGroup
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+
+    embedding_svc = MagicMock()
+    embedding_svc.embed_batch.return_value = [[0.1] * 768, [0.2] * 768]
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.auto_tag_groups = True
+    deps["topic_repository"].find_by_id.return_value = topic
+    deps["topic_repository"].list_active.return_value = []
+
+    tag_groups = [
+        AnalysisTagGroup(group_name="research_methods", tags=["transformer"]),
+        AnalysisTagGroup(group_name="applications", tags=["cv"]),
+    ]
+    content = AnalysisContent(
+        tag_groups=tag_groups, pain_points="p", insights="i", innovations="n", summary="s"
+    )
+    metadata = AnalysisMetadata(model_used="test", input_tokens=1, output_tokens=1)
+    deps["llm_service"].analyze.return_value = (content, metadata)
+
+    uc = AnalyzeArticleUseCase(
+        **deps,
+        embedding_service=embedding_svc,
+        prompt=AnalysisPrompt(),
+    )
+    article = _make_article(topic_id=uuid.uuid4())
+    uc.execute(article)
+
+    embedding_svc.embed_batch.assert_called_once()
+    called_texts = embedding_svc.embed_batch.call_args[0][0]
+    assert any("research_methods" in t for t in called_texts)
+    assert any("applications" in t for t in called_texts)

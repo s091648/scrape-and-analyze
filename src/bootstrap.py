@@ -172,6 +172,7 @@ def build_collection_pipeline():
         topic_repository=topic_repo,
         tag_group_definition_repository=tag_group_def_repo,
         prompt=prompt_factory.analysis_prompt(),
+        embedding_service=embedding_service,
     )
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,

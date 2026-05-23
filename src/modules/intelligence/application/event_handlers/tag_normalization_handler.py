@@ -5,7 +5,7 @@ from src.modules.intelligence.application.events import (
     TagNormalizationCompletedEvent,
     TagNormalizationFailedEvent,
 )
-from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsUseCase
+from src.modules.intelligence.application.use_cases import NormalizeTagsUseCase
 
 logger = get_logger(__name__)
 

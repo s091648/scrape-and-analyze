@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from src.modules.intelligence.domain.entities.tag_normalization_suggestion import TagNormalizationSuggestion
+from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
 
 
 @dataclass

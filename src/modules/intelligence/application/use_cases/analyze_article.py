@@ -9,9 +9,9 @@ from src.modules.intelligence.domain.repositories import (
     AnalysisRepository,
     TagGroupDefinitionRepository,
 )
-from src.modules.intelligence.domain.services import LLMService
+from src.modules.intelligence.domain.services import LLMService, EmbeddingService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup, AnalysisTagGroup
-from src.modules.intelligence.application.use_cases.analysis_result import AnalysisResult
+from src.modules.intelligence.application.use_cases import AnalysisResult
 
 logger = get_logger(__name__)
 
@@ -24,12 +24,14 @@ class AnalyzeArticleUseCase:
         topic_repository: TopicRepository,
         tag_group_definition_repository: TagGroupDefinitionRepository,
         prompt: AnalysisPrompt,
+        embedding_service: Optional[EmbeddingService] = None,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
         self._topic_repository = topic_repository
         self._tag_group_definition_repository = tag_group_definition_repository
         self._prompt = prompt
+        self._embedding_service = embedding_service
 
     def execute(self, article: Article) -> AnalysisResult:
         content = article.get_analysis_content()
@@ -143,16 +145,30 @@ class AnalyzeArticleUseCase:
         topic_id: UUID,
     ) -> None:
         """Persist LLM-generated tag group keys as TagGroupDefinition rows (auto mode)."""
-        for tg in tag_groups:
-            group_key = tg.group_name
-            if not group_key:
-                continue
+        valid = [(tg, tg.group_name) for tg in tag_groups if tg.group_name]
+        if not valid:
+            return
+
+        # Batch-embed all group names for cosine similarity later
+        embeddings: List[Optional[List[float]]] = [None] * len(valid)
+        if self._embedding_service is not None:
+            try:
+                texts = [
+                    f"{gk} - {gk.replace('_', ' ').title()}"
+                    for _, gk in valid
+                ]
+                embeddings = self._embedding_service.embed_batch(texts)
+            except Exception as e:
+                logger.warning("tag_group_embedding_failed", error=str(e))
+
+        for (tg, group_key), embedding in zip(valid, embeddings):
             display_name = group_key.replace("_", " ").title()
             try:
                 self._tag_group_definition_repository.upsert(
                     name=group_key,
                     display_name=display_name,
                     topic_id=topic_id,
+                    embedding=embedding,
                 )
             except Exception as e:
                 logger.warning(

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from src.modules.intelligence.domain.services.embedding_service import EmbeddingService
-from src.modules.intelligence.domain.repositories.tag_repository import TagRepository
-from src.modules.intelligence.domain.entities.tag_normalization_suggestion import TagNormalizationSuggestion
+from src.modules.intelligence.domain.services import EmbeddingService
+from src.modules.intelligence.domain.repositories import TagRepository
+from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
