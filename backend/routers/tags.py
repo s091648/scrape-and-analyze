@@ -82,6 +82,25 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
+class SimilarGroupOut(BaseModel):
+    id: UUID
+    similarity_score: float
+
+
+class TagGroupOut(BaseModel):
+    id: UUID
+    name: str
+    display_name: str
+    description: Optional[str]
+    color_hex: Optional[str]
+    topic_id: UUID
+    tags: List[TagOut]
+    similar_groups: List[SimilarGroupOut] = []
+
+    class Config:
+        from_attributes = True
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _embed_text(text: str) -> Optional[list]:
@@ -104,7 +123,49 @@ def _embed_text(text: str) -> Optional[list]:
         return None
 
 
+def _similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: float = 0.80) -> List[SimilarGroupOut]:
+    rows = db.execute(text("""
+        SELECT b.id, 1 - (a.embedding <=> b.embedding) AS score
+        FROM tag_group_definitions a
+        JOIN tag_group_definitions b
+          ON b.topic_id = a.topic_id AND b.id != a.id
+        WHERE a.id = :group_id
+          AND a.embedding IS NOT NULL
+          AND b.embedding IS NOT NULL
+          AND 1 - (a.embedding <=> b.embedding) >= :threshold
+        ORDER BY score DESC
+        LIMIT 5
+    """), {"group_id": str(group_id), "threshold": threshold}).fetchall()
+    return [SimilarGroupOut(id=row[0], similarity_score=float(row[1])) for row in rows]
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
+
+@router.get("/tag-groups", response_model=List[TagGroupOut])
+def list_tag_groups(
+    topic_id: Optional[UUID] = Query(default=None),
+    include_similarity: bool = Query(default=False),
+    db: Session = Depends(get_db),
+):
+    # ... (existing group query unchanged) ...
+
+    result = []
+    for grp in groups:
+        # ... (existing tag_outs logic unchanged) ...
+
+        similar = (
+            _similar_groups(db, grp.id, grp.topic_id)
+            if include_similarity and topic_id
+            else []
+        )
+        result.append(TagGroupOut(
+            id=grp.id, name=grp.name, display_name=grp.display_name,
+            description=grp.description, color_hex=grp.color_hex,
+            topic_id=grp.topic_id, tags=tag_outs,
+            similar_groups=similar,
+        ))
+    return result
+
 
 @router.post("/tag-groups", response_model=TagGroupOut, status_code=201)
 def create_tag_group(
@@ -132,22 +193,6 @@ def create_tag_group(
         )
         db.commit()
 
-    return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
-                       description=grp.description, color_hex=grp.color_hex,
-                       topic_id=grp.topic_id, tags=[])
-
-
-@router.post("/tag-groups", response_model=TagGroupOut, status_code=201)
-def create_tag_group(
-    body: TagGroupCreate,
-    db: Session = Depends(get_db),
-    _: dict = Depends(require_admin),
-):
-    from models.tag_group import TagGroupDefinition
-    grp = TagGroupDefinition(**body.model_dump())
-    db.add(grp)
-    db.commit()
-    db.refresh(grp)
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
                        description=grp.description, color_hex=grp.color_hex,
                        topic_id=grp.topic_id, tags=[])

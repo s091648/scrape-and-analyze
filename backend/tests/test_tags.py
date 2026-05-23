@@ -218,3 +218,39 @@ def test_create_tag_group_succeeds_even_without_gemini_key(monkeypatch):
         assert response.status_code == 201
     finally:
         app.dependency_overrides.clear()
+
+def test_list_tag_groups_include_similarity_returns_similar_groups():
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    topic_id = uuid.uuid4()
+    grp_id = uuid.uuid4()
+    similar_id = uuid.uuid4()
+
+    mock_group = MagicMock()
+    mock_group.id = grp_id
+    mock_group.name = "research_methods"
+    mock_group.display_name = "Research Methods"
+    mock_group.description = None
+    mock_group.color_hex = None
+    mock_group.topic_id = topic_id
+    mock_group.embedding = [0.1] * 768
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
+    # First execute() call = tag JOIN, second = similarity query
+    mock_db.execute.side_effect = [
+        MagicMock(fetchall=lambda: []),                          # tags
+        MagicMock(fetchall=lambda: [(similar_id, 0.85)]),       # similarity
+    ]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        response = client.get(f"/tag-groups?topic_id={topic_id}&include_similarity=true")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data[0]["similar_groups"]) == 1
+        assert data[0]["similar_groups"][0]["similarity_score"] == pytest.approx(0.85)
+    finally:
+        app.dependency_overrides.clear()
