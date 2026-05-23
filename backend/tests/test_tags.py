@@ -184,3 +184,37 @@ def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
         assert data[0]["tags"][0]["article_count"] == 3
     finally:
         app.dependency_overrides.clear()
+
+def test_create_tag_group_succeeds_even_without_gemini_key(monkeypatch):
+    """Tag group creation works even if GEMINI_API_KEY is absent."""
+    import os
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    grp_id = uuid.uuid4()
+    topic_id = uuid.uuid4()
+
+    mock_grp = MagicMock()
+    mock_grp.id = grp_id
+    mock_grp.name = "test_group"
+    mock_grp.display_name = "Test Group"
+    mock_grp.description = None
+    mock_grp.color_hex = None
+    mock_grp.topic_id = topic_id
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter_by.return_value.first.return_value = mock_grp
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        response = client.post(
+            "/tag-groups",
+            json={"name": "test_group", "display_name": "Test Group", "topic_id": str(topic_id)},
+            headers={"Authorization": f"Bearer {make_admin_token()}"},
+        )
+        assert response.status_code == 201
+    finally:
+        app.dependency_overrides.clear()

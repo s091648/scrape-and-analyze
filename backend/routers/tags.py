@@ -82,52 +82,59 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _embed_text(text: str) -> Optional[list]:
+    """Generate a 768-dim embedding via Gemini. Returns None on any failure."""
+    import os
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=api_key)
+        result = client.models.embed_content(
+            model="gemini-embedding-001",
+            contents=text,
+            config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY"),
+        )
+        return result.embeddings[0].values
+    except Exception:
+        return None
+
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
-@router.get("/tag-groups", response_model=List[TagGroupOut])
-def list_tag_groups(
-    topic_id: Optional[UUID] = Query(default=None),
+@router.post("/tag-groups", response_model=TagGroupOut, status_code=201)
+def create_tag_group(
+    body: TagGroupCreate,
     db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
 ):
     from models.tag_group import TagGroupDefinition
+    from sqlalchemy import text as sa_text
 
-    query = db.query(TagGroupDefinition)
-    if topic_id:
-        query = query.filter(TagGroupDefinition.topic_id == topic_id)
-    groups = query.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.display_name).all()
+    grp = TagGroupDefinition(**body.model_dump())
+    db.add(grp)
+    db.commit()
+    db.refresh(grp)
 
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
+    embed_text = f"{grp.name} - {grp.display_name}. {grp.description or ''}"
+    vec = _embed_text(embed_text)
+    if vec is not None:
+        vec_str = "[" + ",".join(str(x) for x in vec) + "]"
+        db.execute(
+            sa_text(
+                "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector) WHERE id = :id"
+            ),
+            {"vec": vec_str, "id": str(grp.id)},
+        )
+        db.commit()
 
-    result = []
-    for grp in groups:
-        if topic_id:
-            rows = (
-                db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-                .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-                .join(Article, Article.id == article_tags_table.c.article_id)
-                .filter(Tag.tag_group_name == grp.name, Article.topic_id == grp.topic_id)
-                .group_by(Tag.id, Tag.name)
-                .order_by(Tag.name)
-                .all()
-            )
-        else:
-            rows = (
-                db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-                .outerjoin(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-                .filter(Tag.tag_group_name == grp.name)
-                .group_by(Tag.id, Tag.name)
-                .order_by(Tag.name)
-                .all()
-            )
-        tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
-        result.append(TagGroupOut(
-            id=grp.id, name=grp.name, display_name=grp.display_name,
-            description=grp.description, color_hex=grp.color_hex,
-            topic_id=grp.topic_id, tags=tag_outs,
-        ))
-    return result
+    return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
+                       description=grp.description, color_hex=grp.color_hex,
+                       topic_id=grp.topic_id, tags=[])
 
 
 @router.post("/tag-groups", response_model=TagGroupOut, status_code=201)

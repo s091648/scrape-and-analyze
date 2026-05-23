@@ -10,7 +10,8 @@ dependencies = [
     "structlog>=24.0",
     "alembic>=1.13",
     "geoip2>=4.8",
-    "pydantic"
+    "pydantic",
+    "google-genai"
 ]
 
 [dependency-groups]
@@ -20,7 +21,6 @@ scraper = [
     "requests",
     "feedparser",
     "anthropic",
-    "google-genai",
     "tenacity",
     "lxml",
     "pymupdf>=1.24",
