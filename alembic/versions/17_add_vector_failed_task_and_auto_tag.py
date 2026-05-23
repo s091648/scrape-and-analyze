@@ -108,8 +108,27 @@ def upgrade() -> None:
             (gen_random_uuid(), 'gemini', 'gemini-embedding-2', 'GEMINI_API_KEY', 2, 'embedding', true, 100, 30000, 1000)
     """)
 
+    # ── tag_group_definitions: embedding vector ──
+
+    op.add_column(
+        "tag_group_definitions",
+        sa.Column("embedding", sa.Text(), nullable=True),
+    )
+    op.execute(
+        "ALTER TABLE tag_group_definitions ALTER COLUMN embedding "
+        "TYPE vector(768) USING embedding::vector"
+    )
+    op.execute(
+        "CREATE INDEX idx_tag_group_defs_embedding "
+        "ON tag_group_definitions USING hnsw (embedding vector_cosine_ops)"
+    )
+
 
 def downgrade() -> None:
+    # ── reverse tag_group_definitions embedding (added last, reversed first) ──
+    op.execute("DROP INDEX IF EXISTS idx_tag_group_defs_embedding")
+    op.drop_column("tag_group_definitions", "embedding")
+
     # ── reverse llm_providers embedding changes (added last, reversed first) ──
 
     op.execute("DELETE FROM llm_providers WHERE type = 'embedding'")
