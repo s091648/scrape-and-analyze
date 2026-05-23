@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import func, distinct, text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -82,30 +82,6 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-def _tag_article_count(db: Session, tag_id: UUID, topic_id: Optional[UUID] = None) -> int:
-    from sqlalchemy import text
-    if topic_id:
-        row = db.execute(
-            text("""
-                SELECT COUNT(*) FROM article_tags at
-                INNER JOIN articles a ON a.id = at.article_id
-                WHERE at.tag_id = :id AND a.topic_id = :topic_id
-            """),
-            {"id": str(tag_id), "topic_id": str(topic_id)},
-        ).fetchone()
-    else:
-        row = db.execute(
-            text("""
-                SELECT COUNT(*) FROM article_tags at
-                INNER JOIN articles a ON a.id = at.article_id
-                WHERE at.tag_id = :id
-            """),
-            {"id": str(tag_id)},
-        ).fetchone()
-    return row[0] if row else 0
-
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
@@ -115,20 +91,37 @@ def list_tag_groups(
     db: Session = Depends(get_db),
 ):
     from models.tag_group import TagGroupDefinition
-    from models.tag import Tag
 
     query = db.query(TagGroupDefinition)
     if topic_id:
         query = query.filter(TagGroupDefinition.topic_id == topic_id)
     groups = query.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.display_name).all()
 
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+
     result = []
     for grp in groups:
-        tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
-        tag_outs = [
-            TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id, grp.topic_id))
-            for t in tags
-        ]
+        if topic_id:
+            rows = (
+                db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+                .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+                .join(Article, Article.id == article_tags_table.c.article_id)
+                .filter(Tag.tag_group_name == grp.name, Article.topic_id == grp.topic_id)
+                .group_by(Tag.id, Tag.name)
+                .order_by(Tag.name)
+                .all()
+            )
+        else:
+            rows = (
+                db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+                .outerjoin(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+                .filter(Tag.tag_group_name == grp.name)
+                .group_by(Tag.id, Tag.name)
+                .order_by(Tag.name)
+                .all()
+            )
+        tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
         result.append(TagGroupOut(
             id=grp.id, name=grp.name, display_name=grp.display_name,
             description=grp.description, color_hex=grp.color_hex,
@@ -161,7 +154,8 @@ def update_tag_group(
     _: dict = Depends(require_admin),
 ):
     from models.tag_group import TagGroupDefinition
-    from models.tag import Tag
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
         raise HTTPException(status_code=404, detail="Tag group not found")
@@ -169,8 +163,16 @@ def update_tag_group(
         setattr(grp, field, val)
     db.commit()
     db.refresh(grp)
-    tags = db.query(Tag).filter_by(tag_group_name=grp.name).order_by(Tag.name).all()
-    tag_outs = [TagOut(id=t.id, name=t.name, article_count=_tag_article_count(db, t.id, grp.topic_id)) for t in tags]
+    rows = (
+        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+        .join(Article, Article.id == article_tags_table.c.article_id)
+        .filter(Tag.tag_group_name == grp.name, Article.topic_id == grp.topic_id)
+        .group_by(Tag.id, Tag.name)
+        .order_by(Tag.name)
+        .all()
+    )
+    tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
                        description=grp.description, color_hex=grp.color_hex,
                        topic_id=grp.topic_id, tags=tag_outs)
@@ -197,7 +199,7 @@ def rename_tag(
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    from models.tag import Tag
+    from models.tag import Tag, article_tags as article_tags_table
     tag = db.query(Tag).filter_by(id=tag_id).first()
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -207,7 +209,12 @@ def rename_tag(
         tag.tag_group_name = body.tag_group_name
     db.commit()
     db.refresh(tag)
-    return TagOut(id=tag.id, name=tag.name, article_count=_tag_article_count(db, tag.id))
+    count = (
+        db.query(func.count(distinct(article_tags_table.c.article_id)))
+        .filter(article_tags_table.c.tag_id == tag.id)
+        .scalar()
+    ) or 0
+    return TagOut(id=tag.id, name=tag.name, article_count=count)
 
 
 @router.delete("/tags/{tag_id}", status_code=204)

@@ -41,8 +41,10 @@ class ArxivScraper(BaseScraper):
 
     def discover(self) -> List[ScrapeJob]:
         query = self._build_query()
-        # When `since` is set the date range is embedded in the query itself,
-        # so client-side post-filtering via days_back is redundant.
+        # `since` (last_scraped_at) is the primary mechanism — it embeds a
+        # submittedDate range directly in the arXiv query for server-side filtering.
+        # `days_back` is a bootstrap fallback used only on the very first scrape
+        # when last_scraped_at is NULL; after that it is never reached in normal runs.
         days_back = None if self._since else self._days_back
         entries = self._client.fetch_entries(
             query=query,

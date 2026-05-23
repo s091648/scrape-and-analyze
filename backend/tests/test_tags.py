@@ -1,6 +1,7 @@
 import uuid
 import time
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from jose import jwt
 
@@ -27,14 +28,14 @@ def test_rename_tag_updates_name():
     mock_tag = make_mock_tag()
     mock_db = MagicMock()
     mock_db.query.return_value.filter_by.return_value.first.return_value = mock_tag
+    mock_db.query.return_value.filter.return_value.scalar.return_value = 5
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
-        with patch("backend.routers.tags._tag_article_count", return_value=5):
-            response = client.put(
-                f"/tags/{mock_tag.id}",
-                json={"name": "BERT"},
-                headers={"Authorization": f"Bearer {make_admin_token()}"},
-            )
+        response = client.put(
+            f"/tags/{mock_tag.id}",
+            json={"name": "BERT"},
+            headers={"Authorization": f"Bearer {make_admin_token()}"},
+        )
         assert response.status_code == 200
         assert mock_tag.name == "BERT"
     finally:
@@ -48,14 +49,14 @@ def test_move_tag_updates_group():
     mock_tag = make_mock_tag()
     mock_db = MagicMock()
     mock_db.query.return_value.filter_by.return_value.first.return_value = mock_tag
+    mock_db.query.return_value.filter.return_value.scalar.return_value = 0
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
-        with patch("backend.routers.tags._tag_article_count", return_value=0):
-            response = client.put(
-                f"/tags/{mock_tag.id}",
-                json={"tag_group_name": "applications"},
-                headers={"Authorization": f"Bearer {make_admin_token()}"},
-            )
+        response = client.put(
+            f"/tags/{mock_tag.id}",
+            json={"tag_group_name": "applications"},
+            headers={"Authorization": f"Bearer {make_admin_token()}"},
+        )
         assert response.status_code == 200
         assert mock_tag.tag_group_name == "applications"
     finally:
@@ -110,5 +111,76 @@ def test_batch_move_missing_tag_goes_to_failed():
         data = response.json()
         assert len(data["succeeded"]) == 0
         assert data["failed"][0]["tag_id"] == missing_id
+    finally:
+        app.dependency_overrides.clear()
+
+def test_list_tag_groups_with_topic_id_excludes_zero_count_tags():
+    """When topic_id is given, only tags that have articles in that topic appear."""
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    topic_id = uuid.uuid4()
+    grp_id = uuid.uuid4()
+
+    mock_group = MagicMock()
+    mock_group.id = grp_id
+    mock_group.name = "research_methods"
+    mock_group.display_name = "Research Methods"
+    mock_group.description = None
+    mock_group.color_hex = None
+    mock_group.topic_id = topic_id
+    mock_group.embedding = None
+
+    mock_db = MagicMock()
+    # Group query chain: query().filter().order_by().all()
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
+    # Tag ORM query chain: query().join().join().filter().group_by().order_by().all()
+    mock_db.query.return_value.join.return_value.join.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = []
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        response = client.get(f"/tag-groups?topic_id={topic_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["tags"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
+    """Tags present in the topic appear with their article count."""
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    topic_id = uuid.uuid4()
+    grp_id = uuid.uuid4()
+    tag_id = uuid.uuid4()
+
+    mock_group = MagicMock()
+    mock_group.id = grp_id
+    mock_group.name = "research_methods"
+    mock_group.display_name = "Research Methods"
+    mock_group.description = None
+    mock_group.color_hex = None
+    mock_group.topic_id = topic_id
+    mock_group.embedding = None
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
+    # Tag ORM query chain returns one row with attribute access
+    mock_tag_row = SimpleNamespace(id=tag_id, name="Transformer", article_count=3)
+    mock_db.query.return_value.join.return_value.join.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
+
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        response = client.get(f"/tag-groups?topic_id={topic_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data[0]["tags"]) == 1
+        assert data[0]["tags"][0]["name"] == "Transformer"
+        assert data[0]["tags"][0]["article_count"] == 3
     finally:
         app.dependency_overrides.clear()
