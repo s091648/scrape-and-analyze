@@ -26,7 +26,7 @@ def test_high_similarity_reuses_existing_tag_without_saving_new():
     article_id = uuid.uuid4()
     existing_tag = TagData(id=uuid.uuid4(), name="real-time sync", tag_group_name="digital_twin")
 
-    embed_svc.embed.return_value = [0.1] * 768
+    embed_svc.embed_batch.return_value = [[0.1] * 768]
     tag_repo.find_similar.return_value = [(existing_tag, 0.95)]  # above auto_merge
 
     uc.execute(analysis_id=analysis_id, article_id=article_id,
@@ -44,7 +44,7 @@ def test_mid_similarity_saves_new_tag_and_creates_suggestion():
     existing_tag = TagData(id=uuid.uuid4(), name="real-time sync", tag_group_name="digital_twin")
     new_tag = TagData(id=uuid.uuid4(), name="real time sync", tag_group_name="digital_twin")
 
-    embed_svc.embed.return_value = [0.1] * 768
+    embed_svc.embed_batch.return_value = [[0.1] * 768]
     tag_repo.find_similar.return_value = [(existing_tag, 0.88)]  # mid range
     tag_repo.save.return_value = new_tag
 
@@ -64,7 +64,7 @@ def test_low_similarity_saves_new_tag_without_suggestion():
     uc, embed_svc, tag_repo = _make_use_case()
     new_tag = TagData(id=uuid.uuid4(), name="brand new concept", tag_group_name="digital_twin")
 
-    embed_svc.embed.return_value = [0.1] * 768
+    embed_svc.embed_batch.return_value = [[0.1] * 768]
     tag_repo.find_similar.return_value = []  # no similar tags
     tag_repo.save.return_value = new_tag
 
@@ -84,7 +84,7 @@ def test_empty_tag_name_is_skipped():
     uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
                tag_groups=[("g", ["", "   "])])
 
-    embed_svc.embed.assert_not_called()
+    embed_svc.embed_batch.assert_not_called()
     tag_repo.save.assert_not_called()
 
 
@@ -95,6 +95,7 @@ def test_execute_returns_success_result():
     tag_repo.find_similar.return_value = []
     tag_repo.save.return_value = TagData(id=uuid.uuid4(), name="t", tag_group_name="g")
 
+    embed_svc.embed_batch.return_value = [[0.1] * 768]
     result = uc.execute(analysis_id=a_id, article_id=uuid.uuid4(),
                         tag_groups=[("g", ["t"])])
 
