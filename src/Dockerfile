@@ -27,6 +27,5 @@ COPY shared/ ./shared/
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
-COPY providers.toml .
 
 CMD ["/app/.venv/bin/python", "-m", "src.entrypoints.cli.main"]

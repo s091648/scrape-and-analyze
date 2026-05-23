@@ -51,7 +51,7 @@ class ArxivClient:
     def __init__(self, http_client=None) -> None:
         if http_client is None:
             from src.infrastructure.shared.http import get_default_client
-            http_client = get_default_client()
+            http_client = get_default_client().with_skip_retry_status(frozenset({429}))
         self._http = http_client
 
     def fetch_entries(
@@ -87,6 +87,7 @@ class ArxivClient:
             )
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
+                logger.warning("arxiv_rate_limited", url=ARXIV_API_URL)
                 raise ArxivRateLimitedError(str(exc)) from exc
             logger.error("arxiv_fetch_failed", error=str(exc))
             return []
