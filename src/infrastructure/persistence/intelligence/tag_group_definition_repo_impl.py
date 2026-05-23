@@ -39,15 +39,27 @@ class SqlAlchemyTagGroupDefinitionRepository(TagGroupDefinitionRepository):
         display_name: str,
         topic_id: UUID,
         description: Optional[str] = None,
+        embedding: Optional[List[float]] = None,
     ) -> None:
         from models.tag_group import TagGroupDefinition
+        from sqlalchemy import text
 
         existing = (
             self._session.query(TagGroupDefinition)
             .filter_by(name=name, topic_id=topic_id)
             .first()
         )
+
         if existing:
+            if embedding is not None and existing.embedding is None:
+                vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+                self._session.execute(
+                    text(
+                        "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector)"
+                        " WHERE id = :id"
+                    ),
+                    {"vec": vec_str, "id": str(existing.id)},
+                )
             return
 
         grp = TagGroupDefinition(
@@ -58,4 +70,14 @@ class SqlAlchemyTagGroupDefinitionRepository(TagGroupDefinitionRepository):
         )
         self._session.add(grp)
         self._session.flush()
+
+        if embedding is not None:
+            vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+            self._session.execute(
+                text(
+                    "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector)"
+                    " WHERE id = :id"
+                ),
+                {"vec": vec_str, "id": str(grp.id)},
+            )
         logger.info("tag_group_definition_created", name=name, topic_id=str(topic_id))

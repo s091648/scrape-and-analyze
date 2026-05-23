@@ -25,6 +25,8 @@ class TagGroupDefinitionRepository(ABC):
         display_name: str,
         topic_id: UUID,
         description: Optional[str] = None,
+        embedding: Optional[List[float]] = None,
     ) -> None:
-        """Insert a TagGroupDefinition if it does not already exist for this topic."""
+        """Insert a TagGroupDefinition if it does not already exist for this topic.
+        If embedding is provided and the row already exists with no embedding, update it."""
         ...
