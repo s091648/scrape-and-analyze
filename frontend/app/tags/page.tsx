@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Plus, X, Lock } from 'lucide-react'
+import { Network, Plus, X, Lock } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -31,6 +31,10 @@ const FAKE_GROUPS: TagGroupOut[] = [
       { id: 'f3', name: 'Reinforcement Learning', article_count: 27 },
       { id: 'f4', name: 'Graph Neural Network', article_count: 19 },
     ],
+    similar_groups: [
+      { id: 'fake-2', similarity_score: 0.75 },
+      { id: 'fake-3', similarity_score: 0.6 },
+    ],
   },
   {
     id: 'fake-2', name: 'applications', display_name: 'Applications',
@@ -40,6 +44,10 @@ const FAKE_GROUPS: TagGroupOut[] = [
       { id: 'f6', name: 'Natural Language Processing', article_count: 29 },
       { id: 'f7', name: 'Robotics', article_count: 14 },
     ],
+    similar_groups: [
+      { id: 'fake-1', similarity_score: 0.75 },
+      { id: 'fake-3', similarity_score: 0.6 },
+    ],
   },
   {
     id: 'fake-3', name: 'evaluation', display_name: 'Evaluation & Benchmarks',
@@ -48,6 +56,10 @@ const FAKE_GROUPS: TagGroupOut[] = [
       { id: 'f8', name: 'MMLU', article_count: 22 },
       { id: 'f9', name: 'HumanEval', article_count: 17 },
       { id: 'f10', name: 'HELM', article_count: 11 },
+    ],
+    similar_groups: [
+      { id: 'fake-1', similarity_score: 0.75 },
+      { id: 'fake-2', similarity_score: 0.6 },
     ],
   },
 ]
@@ -134,6 +146,86 @@ function AddGroupDialog({
   )
 }
 
+// ── Similarity Lines ─────────────────────────────────────────────────────────
+function SimilarityLines({
+  groups,
+  groupRefs,
+}: {
+  groups: TagGroupOut[]
+  groupRefs: React.RefObject<Map<string, HTMLDivElement>>
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [lines, setLines] = useState<{ x1: number; y1: number; x2: number; y2: number; score: number; key: string }[]>([])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const containerRect = container.getBoundingClientRect()
+    const rendered: { x1: number; y1: number; x2: number; y2: number; score: number; key: string }[] = []
+    const seen = new Set<string>()
+
+    for (const group of groups) {
+      for (const sim of group.similar_groups) {
+        const pairKey = [group.id, sim.id].sort().join('-')
+        if (seen.has(pairKey)) continue
+        seen.add(pairKey)
+
+        const fromEl = groupRefs.current?.get(group.id)
+        const toEl = groupRefs.current?.get(sim.id)
+        if (!fromEl || !toEl) continue
+
+        const fromRect = fromEl.getBoundingClientRect()
+        const toRect = toEl.getBoundingClientRect()
+
+        rendered.push({
+          x1: fromRect.left + fromRect.width / 2 - containerRect.left,
+          y1: fromRect.top + fromRect.height / 2 - containerRect.top,
+          x2: toRect.left + toRect.width / 2 - containerRect.left,
+          y2: toRect.top + toRect.height / 2 - containerRect.top,
+          score: sim.similarity_score,
+          key: pairKey,
+        })
+      }
+    }
+    setLines(rendered)
+  }, [groups, groupRefs])
+
+  const totalHeight = containerRef.current?.scrollHeight ?? 0
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none" style={{ height: totalHeight }}>
+      <svg width="100%" height={totalHeight} className="absolute inset-0">
+        {lines.map(l => {
+          const mx = (l.x1 + l.x2) / 2
+          const my = (l.y1 + l.y2) / 2 - 30
+          return (
+            <g key={l.key}>
+              <path
+                d={`M ${l.x1} ${l.y1} Q ${mx} ${my} ${l.x2} ${l.y2}`}
+                fill="none"
+                stroke="rgb(251 191 36)"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                opacity={0.7}
+              />
+              <text
+                x={mx}
+                y={my - 4}
+                textAnchor="middle"
+                className="text-[10px]"
+                fill="rgb(180 130 20)"
+              >
+                {(l.score * 100).toFixed(0)}%
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function TagsPage() {
   const { data: session, status } = useSession()
@@ -152,6 +244,9 @@ export default function TagsPage() {
   const [autoTagGroups, setAutoTagGroups] = useState<boolean>(
     selectedTopic?.auto_tag_groups ?? true
   )
+
+  const [showSimilarities, setShowSimilarities] = useState(false)
+  const groupRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Sync autoTagGroups when topic changes
   useEffect(() => {
@@ -289,12 +384,12 @@ export default function TagsPage() {
     setLoading(true)
     const topicId = selectedTopic?.id
     Promise.all([
-      fetchTagGroups(topicId),
+      fetchTagGroups(topicId, isAdmin && showSimilarities),
       isAdmin && token ? fetchPendingSuggestions(token) : Promise.resolve([]),
     ])
       .then(([g, s]) => { setGroups(g); setSuggestions(s) })
       .finally(() => setLoading(false))
-  }, [selectedTopic?.id, isAdmin, token, isGuest])
+  }, [selectedTopic?.id, isAdmin, token, isGuest, showSimilarities])
 
   return (
     <div className="container mx-auto px-6 pt-24 pb-16 max-w-4xl space-y-8">
@@ -334,6 +429,20 @@ export default function TagsPage() {
                 <Plus className="h-3.5 w-3.5" />
                 {t('tags.addGroup')}
               </Button>
+            </div>
+          )}
+          {/* ── Show Similarities Toggle ── */}
+          {isAdmin && showSimilarities !== undefined && groups.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-similarities"
+                checked={showSimilarities}
+                onCheckedChange={setShowSimilarities}
+              />
+              <label htmlFor="show-similarities" className="text-xs text-muted-foreground cursor-pointer select-none flex items-center gap-1">
+                <Network className="h-3 w-3" />
+                Show Similarities
+              </label>
             </div>
           )}
         </div>
@@ -408,39 +517,49 @@ export default function TagsPage() {
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <div className="space-y-4">
+              <div className="relative space-y-4">
                 {groups.map(group => {
+                  const isSimilar = showSimilarities && isAdmin && group.similar_groups.length > 0
                   const pendingIncomingTagIds = new Set(
                     [...pendingMoves.values()]
                       .filter(m => m.toGroupId === group.id)
                       .map(m => m.tag.id)
                   )
                   return (
-                    <TagGroupCard
+                    <div
                       key={group.id}
-                      group={group}
-                      isAdmin={isAdmin}
-                      token={token}
-                      pendingIncomingTagIds={pendingIncomingTagIds}
-                      onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
-                      onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
-                        prev.map(g => g.id === groupId
-                          ? { ...g, tags: g.tags.map(t => t.id === tagId ? { ...t, name } : t) }
-                          : g
-                        )
-                      )}
-                      onTagDeleted={(groupId, tagId) => setGroups(prev =>
-                        prev.map(g => g.id === groupId
-                          ? { ...g, tags: g.tags.filter(t => t.id !== tagId) }
-                          : g
-                        )
-                      )}
-                      onGroupUpdated={(groupId, updated) => setGroups(prev =>
-                        prev.map(g => g.id === groupId ? { ...g, ...updated } : g)
-                      )}
-                    />
+                      ref={el => { if (el) groupRefs.current.set(group.id, el) }}
+                      className={isSimilar ? 'rounded-xl ring-2 ring-amber-400/60' : ''}
+                    >
+                      <TagGroupCard
+                        key={group.id}
+                        group={group}
+                        isAdmin={isAdmin}
+                        token={token}
+                        pendingIncomingTagIds={pendingIncomingTagIds}
+                        onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
+                        onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
+                          prev.map(g => g.id === groupId
+                            ? { ...g, tags: g.tags.map(t => t.id === tagId ? { ...t, name } : t) }
+                            : g
+                          )
+                        )}
+                        onTagDeleted={(groupId, tagId) => setGroups(prev =>
+                          prev.map(g => g.id === groupId
+                            ? { ...g, tags: g.tags.filter(t => t.id !== tagId) }
+                            : g
+                          )
+                        )}
+                        onGroupUpdated={(groupId, updated) => setGroups(prev =>
+                          prev.map(g => g.id === groupId ? { ...g, ...updated } : g)
+                        )}
+                      />
+                    </div>
                   )
                 })}
+                {showSimilarities && isAdmin && (
+                  <SimilarityLines groups={groups} groupRefs={groupRefs} />
+                )}
               </div>
               <DragOverlay>
                 {activeDragTag && (

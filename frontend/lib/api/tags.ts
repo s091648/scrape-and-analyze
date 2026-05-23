@@ -6,6 +6,11 @@ export interface TagOut {
   article_count: number
 }
 
+export interface SimilarGroupOut {
+  id: string
+  similarity_score: number
+}
+
 export interface TagGroupOut {
   id: string
   name: string
@@ -14,6 +19,7 @@ export interface TagGroupOut {
   color_hex: string | null
   topic_id: string
   tags: TagOut[]
+  similar_groups: SimilarGroupOut[]
 }
 
 export interface TagGroupCreate {
@@ -41,11 +47,17 @@ export interface SuggestionOut {
   article_id: string | null
 }
 
-export async function fetchTagGroups(topicId?: string): Promise<TagGroupOut[]> {
-  const qs = topicId ? `?topic_id=${topicId}` : ''
-  const res = await apiFetch(`/tag-groups${qs}`)
-  if (!res.ok) throw new Error('Failed to fetch tag groups')
-  return res.json()
+export async function fetchTagGroups(
+  topicId?: string,
+  includeSimilarity?: boolean,
+): Promise<TagGroupOut[]> {
+  const params = new URLSearchParams()
+  if (topicId) params.set('topic_id', topicId)
+  if (includeSimilarity) params.set('include_similarity', 'true')
+  const query = params.toString() ? `?${params}` : ''
+  const res = await apiFetch(`/tag-groups${query}`)
+  const raw = await res.json()
+  return Array.isArray(raw) ? raw : []
 }
 
 export async function createTagGroup(body: TagGroupCreate, token: string): Promise<TagGroupOut> {
