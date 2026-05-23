@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Plus, X, Lock } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { useTopic, useI18n } from '@/lib/providers'
 import {
   fetchTagGroups, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
@@ -148,6 +149,26 @@ export default function TagsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddGroup, setShowAddGroup] = useState(false)
 
+  const [autoTagGroups, setAutoTagGroups] = useState<boolean>(
+    selectedTopic?.auto_tag_groups ?? true
+  )
+
+  // Sync autoTagGroups when topic changes
+  useEffect(() => {
+    setAutoTagGroups(selectedTopic?.auto_tag_groups ?? true)
+  }, [selectedTopic?.id])
+
+  async function handleAutoTagGroupsToggle(checked: boolean) {
+    if (!selectedTopic || !token) return
+    setAutoTagGroups(checked)  // optimistic
+    try {
+      const { updateTopic } = await import('@/lib/api/topics')
+      await updateTopic(selectedTopic.id, { auto_tag_groups: checked }, token)
+    } catch {
+      setAutoTagGroups(!checked)  // rollback on failure
+    }
+  }
+
   interface PendingMove {
     tag: TagOut
     fromGroupId: string
@@ -287,19 +308,33 @@ export default function TagsPage() {
             </p>
           </div>
           {isAdmin && token && (
-            <Button
-              size="sm" variant="outline" className="shrink-0 gap-1.5"
-              onClick={() => {
-                if (!selectedTopic?.id) {
-                  alert(t('tags.noTopicSelected'))
-                  return
-                }
-                setShowAddGroup(true)
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t('tags.addGroup')}
-            </Button>
+            <div className="flex items-center gap-3 shrink-0">
+              {selectedTopic && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="auto-tag-groups"
+                    checked={autoTagGroups}
+                    onCheckedChange={handleAutoTagGroupsToggle}
+                  />
+                  <label htmlFor="auto-tag-groups" className="text-xs text-muted-foreground cursor-pointer select-none">
+                    Auto Tag Groups
+                  </label>
+                </div>
+              )}
+              <Button
+                size="sm" variant="outline" className="shrink-0 gap-1.5"
+                onClick={() => {
+                  if (!selectedTopic?.id) {
+                    alert(t('tags.noTopicSelected'))
+                    return
+                  }
+                  setShowAddGroup(true)
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t('tags.addGroup')}
+              </Button>
+            </div>
           )}
         </div>
       </div>
