@@ -402,6 +402,20 @@ export default function TagsPage() {
               {isAdmin && t('tags.adminDesc')}
             </p>
           </div>
+          {/* ── Show Similarities Toggle ── */}
+          {isAdmin && showSimilarities !== undefined && groups.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-similarities"
+                checked={showSimilarities}
+                onCheckedChange={setShowSimilarities}
+              />
+              <label htmlFor="show-similarities" className="text-xs text-muted-foreground cursor-pointer select-none flex items-center gap-1">
+                <Network className="h-3 w-3" />
+                Show Similarities
+              </label>
+            </div>
+          )}
           {isAdmin && token && (
             <div className="flex items-center gap-3 shrink-0">
               {selectedTopic && (
@@ -429,20 +443,6 @@ export default function TagsPage() {
                 <Plus className="h-3.5 w-3.5" />
                 {t('tags.addGroup')}
               </Button>
-            </div>
-          )}
-          {/* ── Show Similarities Toggle ── */}
-          {isAdmin && showSimilarities !== undefined && groups.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="show-similarities"
-                checked={showSimilarities}
-                onCheckedChange={setShowSimilarities}
-              />
-              <label htmlFor="show-similarities" className="text-xs text-muted-foreground cursor-pointer select-none flex items-center gap-1">
-                <Network className="h-3 w-3" />
-                Show Similarities
-              </label>
             </div>
           )}
         </div>

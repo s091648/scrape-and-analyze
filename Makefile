@@ -1,6 +1,10 @@
 .PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync \
 	backfill backfill-dry-run backfill-embeddings backfill-embeddings-dry-run \
+	backfill-tag-group-embeddings backfill-tag-group-embeddings-dry-run \
+	backfill-tag-group-definitions backfill-tag-group-definitions-dry-run \
+	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
+	data-migrate data-migrate-list data-migrate-down \
 	create-admin scrape translate run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
@@ -78,6 +82,34 @@ backfill-embeddings:
 
 backfill-embeddings-dry-run:
 	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --dry-run $(_BACKFILL_ARGS)
+
+backfill-tag-group-embeddings:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --only tag-groups $(_BACKFILL_ARGS)
+
+backfill-tag-group-embeddings-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --only tag-groups --dry-run $(_BACKFILL_ARGS)
+
+backfill-tag-group-definitions:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py $(_BACKFILL_ARGS)
+
+backfill-tag-group-definitions-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py --dry-run $(_BACKFILL_ARGS)
+
+audit-tag-groups:
+	docker compose run --rm job_service python /app/scripts/audit_tag_groups.py
+
+# optional: override NAME=001_backfill_tag_group_definitions
+NAME ?=
+
+data-migrate:
+	docker compose run --rm job_service python /app/scripts/run_data_migrations.py
+
+data-migrate-list:
+	docker compose run --rm job_service python /app/scripts/run_data_migrations.py --list
+
+data-migrate-down:
+	@test -n "$(NAME)" || (echo "NAME must be set (e.g. NAME=001_backfill_tag_group_definitions)"; exit 1)
+	docker compose run --rm job_service python /app/scripts/run_data_migrations.py --down $(NAME)
 
 backfill-suggestions:
 	docker compose run --rm job_service python /app/scripts/backfill_tag_suggestions.py
