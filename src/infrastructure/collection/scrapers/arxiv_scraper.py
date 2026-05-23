@@ -3,7 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients import ArxivClient
+from src.infrastructure.collection.clients import ArxivClient, ArxivRateLimitedError
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
@@ -44,11 +44,15 @@ class ArxivScraper(BaseScraper):
         # When `since` is set the date range is embedded in the query itself,
         # so client-side post-filtering via days_back is redundant.
         days_back = None if self._since else self._days_back
-        entries = self._client.fetch_entries(
-            query=query,
-            max_results=self._max_results,
-            days_back=days_back,
-        )
+        try:
+            entries = self._client.fetch_entries(
+                query=query,
+                max_results=self._max_results,
+                days_back=days_back,
+            )
+        except ArxivRateLimitedError as e:
+            logger.warning("arxiv_rate_limited", message=str(e))
+            return []
         jobs = []
         for e in entries:
             metadata = ScraperMetadataDTO.for_arxiv(
