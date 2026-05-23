@@ -62,14 +62,21 @@ class NormalizeTagsUseCase:
         article_id: UUID,
         tag_groups: List[Tuple[str, List[str]]],
     ) -> None:
+        tagged: List[Tuple[str, str]] = []
         for group_name, tag_names in tag_groups:
             for tag_name in tag_names:
-                if not tag_name or not tag_name.strip():
-                    continue
-                self._process_tag(tag_name.strip(), group_name, article_id)
+                if tag_name and tag_name.strip():
+                    tagged.append((tag_name.strip(), group_name))
 
-    def _process_tag(self, tag_name: str, group_name: str, article_id: UUID) -> None:
-        embedding = self._embedding_service.embed(tag_name)
+        if not tagged:
+            return
+
+        embeddings = self._embedding_service.embed_batch([t for t, _ in tagged])
+
+        for (tag_name, group_name), embedding in zip(tagged, embeddings):
+            self._process_tag(tag_name, group_name, article_id, embedding)
+
+    def _process_tag(self, tag_name: str, group_name: str, article_id: UUID, embedding: List[float]) -> None:
         similar = self._tag_repository.find_similar(embedding, group_name, self._suggest_threshold)
 
         if similar:

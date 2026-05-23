@@ -62,7 +62,7 @@ class SlidingWindowStrategy(QuotaStrategy):
             wait = max(self._rpm_wait(now), self._tpm_wait(now, estimated_tokens))
             if wait == 0:
                 self._rpm_window.extend([now] * self.batch_size)
-                self._daily_count += 1
+                self._daily_count += self.batch_size
                 self._tpm_window.append((now, estimated_tokens))
             return wait
 
@@ -74,7 +74,9 @@ class SlidingWindowStrategy(QuotaStrategy):
             self._tpm_window.popleft()
 
     def _rpm_wait(self, now: float) -> float:
-        if len(self._rpm_window) < self.rpm:
+        if len(self._rpm_window) + self.batch_size <= self.rpm:
+            return 0.0
+        if not self._rpm_window:
             return 0.0
         return self._WINDOW - (now - self._rpm_window[0])
 

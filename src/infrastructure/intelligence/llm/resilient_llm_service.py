@@ -158,6 +158,7 @@ class EmbeddingProviderHandler:
     _can_count_tokens: bool = True
 
     def embed(self, text: str) -> List[float]:
+        self.strategy.update_batch_size(1)
         self.strategy.acquire(max(1, len(text) // 4))
         if self._can_count_tokens:
             try:
@@ -177,18 +178,18 @@ class EmbeddingProviderHandler:
         estimated = max(1, sum(len(t) for t in texts) // 4)
         self.strategy.update_batch_size(len(texts))
         self.strategy.acquire(estimated)
-        if self._can_count_tokens:
-            try:
-                token = self.provider.count_tokens(texts)
-            except Exception as e:
-                logger.error("count_tokens_failed", provider=self.name, error=str(e))
-                self._can_count_tokens = False
-                token = len(texts) // 4
-        else:
-            token = len(texts) // 4
         result = self.provider.embed_batch(texts)
         if result is not None:
-            self.strategy.record_usage(token)
+            if self._can_count_tokens:
+                try:
+                    actual = self.provider.count_tokens(" ".join(texts))
+                except Exception as e:
+                    logger.error("count_tokens_failed", provider=self.name, error=str(e))
+                    self._can_count_tokens = False
+                    actual = estimated
+            else:
+                actual = estimated
+            self.strategy.record_usage(actual)
         return result
 
 
