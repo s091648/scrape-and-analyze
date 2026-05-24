@@ -16,12 +16,14 @@ interface Props {
   pendingIncomingTagIds: Set<string>
   isMergeMode?: boolean
   isMergeSource?: boolean
+  selectedTagIds?: Set<string>
   onDeleted: (groupId: string) => void
   onTagRenamed: (groupId: string, tagId: string, newName: string) => void
   onTagDeleted: (groupId: string, tagId: string) => void
   onGroupUpdated: (groupId: string, updated: Partial<TagGroupOut>) => void
   onMergeRequested?: (groupId: string) => void
   onMergeTargetSelected?: (groupId: string) => void
+  onTagSelectionToggle?: (tagId: string) => void
 }
 
 function TagBadge({
@@ -31,8 +33,10 @@ function TagBadge({
   topicId,
   groupId,
   isPending,
+  isSelected,
   onRenamed,
   onDeleted,
+  onSelectionToggle,
 }: {
   tag: TagOut
   isAdmin: boolean
@@ -40,8 +44,10 @@ function TagBadge({
   topicId: string
   groupId: string
   isPending: boolean
+  isSelected: boolean
   onRenamed: (tagId: string, name: string) => void
   onDeleted: (tagId: string) => void
+  onSelectionToggle: () => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -57,12 +63,21 @@ function TagBadge({
         ref={setNodeRef}
         {...listeners}
         {...attributes}
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          if (isAdmin && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault()
+            onSelectionToggle()
+            return
+          }
+          setOpen(true)
+        }}
         data-pending-change={isPending ? tag.id : undefined}
         className={cn(
           'inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs transition-colors',
           isPending
             ? 'border-green-400 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 animate-wiggle'
+            : isSelected
+            ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/40'
             : 'border-border bg-muted/50 hover:bg-muted cursor-pointer',
           isDragging && 'opacity-40',
           isAdmin && 'cursor-grab active:cursor-grabbing',
@@ -182,8 +197,9 @@ function EditGroupForm({
 export function TagGroupCard({
   group, isAdmin, token, pendingIncomingTagIds,
   isMergeMode = false, isMergeSource = false,
+  selectedTagIds,
   onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated,
-  onMergeRequested, onMergeTargetSelected,
+  onMergeRequested, onMergeTargetSelected, onTagSelectionToggle,
 }: Props) {
   const { t } = useI18n()
   const [tags, setTags] = useState<TagOut[]>(
@@ -340,6 +356,8 @@ export function TagGroupCard({
                   topicId={String(localGroup.topic_id)}
                   groupId={String(group.id)}
                   isPending={pendingIncomingTagIds.has(tag.id)}
+                  isSelected={selectedTagIds?.has(tag.id) ?? false}
+                  onSelectionToggle={() => onTagSelectionToggle?.(tag.id)}
                   onRenamed={(tagId, name) => {
                     setTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t))
                     onTagRenamed(group.id, tagId, name)

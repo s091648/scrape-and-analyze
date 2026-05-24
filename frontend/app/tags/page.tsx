@@ -481,6 +481,9 @@ export default function TagsPage() {
   const [activeDragTag, setActiveDragTag] = useState<TagOut | null>(null)
   const [activeDragGroup, setActiveDragGroup] = useState<TagGroupOut | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
+  const activeDragTagIdsRef = useRef<Set<string>>(new Set())
+  const [activeDragCount, setActiveDragCount] = useState(0)
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -490,14 +493,26 @@ export default function TagsPage() {
   function handleDragStart({ active }: DragStartEvent) {
     if (active.data.current?.type === 'group') {
       setActiveDragGroup(active.data.current.group ?? null)
-    } else {
-      setActiveDragTag(active.data.current?.tag ?? null)
+      return
     }
+    const tag: TagOut = active.data.current?.tag
+    setActiveDragTag(tag ?? null)
+    // If dragging a selected tag, move the whole selection; otherwise just this tag
+    const tagIds = selectedTagIds.has(tag.id)
+      ? new Set(selectedTagIds)
+      : new Set([tag.id])
+    if (!selectedTagIds.has(tag.id)) setSelectedTagIds(new Set())
+    activeDragTagIdsRef.current = tagIds
+    setActiveDragCount(tagIds.size)
   }
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     setActiveDragTag(null)
     setActiveDragGroup(null)
+    const tagIdsToMove = activeDragTagIdsRef.current
+    activeDragTagIdsRef.current = new Set()
+    setActiveDragCount(0)
+
     if (!over) return
 
     // Group merge via drag
@@ -511,38 +526,54 @@ export default function TagsPage() {
       return
     }
 
-    // Tag move
-    const tag: TagOut = active.data.current?.tag
-    const fromGroupId: string = active.data.current?.groupId
     const toGroupId = String(over.id)
-    if (!tag || fromGroupId === toGroupId) return
-
     const toGroup = groups.find(g => g.id === toGroupId)
     if (!toGroup) return
 
-    const existingPending = pendingMoves.get(tag.id)
-    const originalFromGroupId = existingPending?.fromGroupId ?? fromGroupId
-
-    if (toGroupId === originalFromGroupId) {
-      setGroups(prev => prev.map(g =>
-        g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
-        g.id === originalFromGroupId ? { ...g, tags: [...g.tags, tag] } : g
-      ))
-      setPendingMoves(prev => { const next = new Map(prev); next.delete(tag.id); return next })
-      return
+    type MoveItem = { tag: TagOut; fromGroupId: string; originalFromGroupId: string }
+    const moves: MoveItem[] = []
+    for (const tagId of tagIdsToMove) {
+      const fromGroup = groups.find(g => g.tags.some(t => t.id === tagId))
+      if (!fromGroup || fromGroup.id === toGroupId) continue
+      const tag = fromGroup.tags.find(t => t.id === tagId)!
+      const existingPending = pendingMoves.get(tagId)
+      const originalFromGroupId = existingPending?.fromGroupId ?? fromGroup.id
+      moves.push({ tag, fromGroupId: fromGroup.id, originalFromGroupId })
     }
 
-    setGroups(prev => prev.map(g =>
-      g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
-      g.id === toGroupId ? { ...g, tags: [...g.tags, tag] } : g
-    ))
+    if (moves.length === 0) return
 
-    setPendingMoves(prev => new Map(prev).set(tag.id, {
-      tag,
-      fromGroupId: originalFromGroupId,
-      toGroupId,
-      toGroupName: toGroup.name,
-    }))
+    setGroups(prev => {
+      let next = prev
+      for (const { tag, fromGroupId, originalFromGroupId } of moves) {
+        if (toGroupId === originalFromGroupId) {
+          next = next.map(g =>
+            g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
+            g.id === originalFromGroupId ? { ...g, tags: [...g.tags, tag] } : g
+          )
+        } else {
+          next = next.map(g =>
+            g.id === fromGroupId ? { ...g, tags: g.tags.filter(t => t.id !== tag.id) } :
+            g.id === toGroupId ? { ...g, tags: [...g.tags, tag] } : g
+          )
+        }
+      }
+      return next
+    })
+
+    setPendingMoves(prev => {
+      const next = new Map(prev)
+      for (const { tag, originalFromGroupId } of moves) {
+        if (toGroupId === originalFromGroupId) {
+          next.delete(tag.id)
+        } else {
+          next.set(tag.id, { tag, fromGroupId: originalFromGroupId, toGroupId, toGroupName: toGroup.name })
+        }
+      }
+      return next
+    })
+
+    setSelectedTagIds(new Set())
   }
 
   async function handleConfirm() {
@@ -684,6 +715,16 @@ export default function TagsPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [isolatedPair])
 
+  // Clear tag selection on Escape
+  useEffect(() => {
+    if (selectedTagIds.size === 0) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSelectedTagIds(new Set())
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedTagIds.size])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b border-border pb-6 gap-4">
@@ -773,6 +814,22 @@ export default function TagsPage() {
             onClick={() => setMergingGroupId(null)}
           >
             Cancel (Esc)
+          </button>
+        </div>
+      )}
+
+      {/* ── Multi-select banner ── */}
+      {selectedTagIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/5 px-4 py-2.5 text-sm">
+          <span className="text-primary font-medium flex items-center gap-1.5">
+            <Tags className="h-4 w-4" />
+            {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''} selected — drag any selected tag to move all
+          </span>
+          <button
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setSelectedTagIds(new Set())}
+          >
+            Clear (Esc)
           </button>
         </div>
       )}
@@ -890,6 +947,13 @@ export default function TagsPage() {
                         pendingIncomingTagIds={pendingIncomingTagIds}
                         isMergeMode={isMergeMode}
                         isMergeSource={isMergeSource}
+                        selectedTagIds={selectedTagIds}
+                        onTagSelectionToggle={tagId => setSelectedTagIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(tagId)) next.delete(tagId)
+                          else next.add(tagId)
+                          return next
+                        })}
                         onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
                         onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
                           prev.map(g => g.id === groupId
@@ -925,10 +989,16 @@ export default function TagsPage() {
               <DragOverlay>
                 {activeDragTag && (
                   <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-primary bg-card text-xs shadow-md cursor-grabbing">
-                    {activeDragTag.name}
-                    <span className="text-muted-foreground tabular-nums">
-                      ({activeDragTag.article_count})
-                    </span>
+                    {activeDragCount > 1 ? (
+                      <span>{activeDragCount} tags</span>
+                    ) : (
+                      <>
+                        {activeDragTag.name}
+                        <span className="text-muted-foreground tabular-nums">
+                          ({activeDragTag.article_count})
+                        </span>
+                      </>
+                    )}
                   </div>
                 )}
                 {activeDragGroup && (
