@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Optional
 from uuid import UUID
 
 
@@ -7,5 +8,6 @@ class AnalysisCompletedEvent:
     """Published by ArticleProcessedHandler after successful analysis save."""
     analysis_id: UUID
     article_id: UUID
+    topic_id: Optional[UUID] = None
     tag_groups: tuple = field(default_factory=tuple)
     # tuple of (group_name: str, tags: list[str]) — passed through to TagNormalizationHandler

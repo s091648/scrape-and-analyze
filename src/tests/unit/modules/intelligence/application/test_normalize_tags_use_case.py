@@ -51,7 +51,7 @@ def test_mid_similarity_saves_new_tag_and_creates_suggestion():
     uc.execute(analysis_id=analysis_id, article_id=article_id,
                tag_groups=[("digital_twin", ["real time sync"])])
 
-    tag_repo.save.assert_called_once_with("real time sync", "digital_twin", [0.1] * 768)
+    tag_repo.save.assert_called_once_with("real time sync", "digital_twin", [0.1] * 768, None)
     tag_repo.link_to_article.assert_called_once_with(new_tag.id, article_id)
     tag_repo.save_suggestion.assert_called_once()
     suggestion: TagNormalizationSuggestion = tag_repo.save_suggestion.call_args[0][0]

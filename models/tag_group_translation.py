@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, ForeignKey, UniqueConstraint, Index, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import uuid
 
 from models.base import Base
@@ -16,7 +16,7 @@ class TagGroupDefinitionsTranslation(Base):
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    group_def = relationship('TagGroupDefinition', backref='translations')
+    group_def = relationship('TagGroupDefinition', backref=backref('translations', cascade='all, delete-orphan'))
 
     __table_args__ = (
         UniqueConstraint('tag_group_definition_id', 'language', name='uq_tag_group_definitions_translation_group_language'),

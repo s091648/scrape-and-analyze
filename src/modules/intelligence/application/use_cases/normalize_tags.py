@@ -40,9 +40,10 @@ class NormalizeTagsUseCase:
         analysis_id: UUID,
         article_id: UUID,
         tag_groups: List[Tuple[str, List[str]]],
+        topic_id: Optional[UUID] = None,
     ) -> NormalizeTagsResult:
         try:
-            self._process(analysis_id, article_id, tag_groups)
+            self._process(analysis_id, article_id, tag_groups, topic_id)
             self._tag_repository.commit()
             return NormalizeTagsResult(success=True, analysis_id=analysis_id, article_id=article_id)
         except Exception as e:
@@ -61,6 +62,7 @@ class NormalizeTagsUseCase:
         analysis_id: UUID,
         article_id: UUID,
         tag_groups: List[Tuple[str, List[str]]],
+        topic_id: Optional[UUID],
     ) -> None:
         tagged: List[Tuple[str, str]] = []
         for group_name, tag_names in tag_groups:
@@ -74,23 +76,30 @@ class NormalizeTagsUseCase:
         embeddings = self._embedding_service.embed_batch([t for t, _ in tagged])
 
         for (tag_name, group_name), embedding in zip(tagged, embeddings):
-            self._process_tag(tag_name, group_name, article_id, embedding)
+            self._process_tag(tag_name, group_name, article_id, embedding, topic_id)
 
-    def _process_tag(self, tag_name: str, group_name: str, article_id: UUID, embedding: List[float]) -> None:
-        similar = self._tag_repository.find_similar(embedding, group_name, self._suggest_threshold)
+    def _process_tag(
+        self,
+        tag_name: str,
+        group_name: str,
+        article_id: UUID,
+        embedding: List[float],
+        topic_id: Optional[UUID],
+    ) -> None:
+        similar = self._tag_repository.find_similar(
+            embedding, group_name, topic_id, self._suggest_threshold
+        )
 
         if similar:
             best_tag, best_score = similar[0]
 
             if best_score >= self._auto_merge_threshold:
-                # Auto-merge: reuse existing tag
                 self._tag_repository.link_to_article(best_tag.id, article_id)
                 logger.info("tag_auto_merged", tag=tag_name, merged_into=best_tag.name,
                             similarity=best_score)
                 return
 
-            # Mid-range: save new tag and create pending suggestion
-            new_tag = self._tag_repository.save(tag_name, group_name, embedding)
+            new_tag = self._tag_repository.save(tag_name, group_name, embedding, topic_id)
             self._tag_repository.link_to_article(new_tag.id, article_id)
             suggestion = TagNormalizationSuggestion(
                 new_tag_id=new_tag.id,
@@ -103,7 +112,6 @@ class NormalizeTagsUseCase:
                         similarity=best_score)
             return
 
-        # No similar tag found: save as new
-        new_tag = self._tag_repository.save(tag_name, group_name, embedding)
+        new_tag = self._tag_repository.save(tag_name, group_name, embedding, topic_id)
         self._tag_repository.link_to_article(new_tag.id, article_id)
         logger.info("tag_created", tag=tag_name, group=group_name)

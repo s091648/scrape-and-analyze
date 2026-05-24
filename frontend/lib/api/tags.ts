@@ -47,6 +47,12 @@ export interface SuggestionOut {
   article_id: string | null
 }
 
+export async function fetchTagGroup(groupId: string): Promise<TagGroupOut> {
+  const res = await apiFetch(`/tag-groups/${groupId}`)
+  if (!res.ok) throw new Error('Failed to fetch tag group')
+  return res.json()
+}
+
 export async function fetchTagGroups(
   topicId?: string,
   includeSimilarity?: boolean,
@@ -106,11 +112,11 @@ export async function deleteTag(tagId: string, token: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete tag')
 }
 
-export async function moveTag(tagId: string, tagGroupName: string, token: string): Promise<TagOut> {
+export async function moveTag(tagId: string, tagGroupId: string, token: string): Promise<TagOut> {
   const res = await apiFetch(`/tags/${tagId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ tag_group_name: tagGroupName }),
+    body: JSON.stringify({ tag_group_id: tagGroupId }),
   })
   if (!res.ok) throw new Error('Failed to move tag')
   return res.json()
@@ -122,7 +128,7 @@ export interface BatchMoveResult {
 }
 
 export async function batchMoveTags(
-  moves: { tag_id: string; tag_group_name: string }[],
+  moves: { tag_id: string; tag_group_id: string }[],
   token: string,
 ): Promise<BatchMoveResult> {
   const res = await apiFetch('/tags/batch-move', {

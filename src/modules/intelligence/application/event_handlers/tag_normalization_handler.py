@@ -21,6 +21,7 @@ class TagNormalizationHandler:
             analysis_id=event.analysis_id,
             article_id=event.article_id,
             tag_groups=list(event.tag_groups),
+            topic_id=event.topic_id,
         )
 
         if result.success:

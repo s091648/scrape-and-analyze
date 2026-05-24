@@ -20,6 +20,7 @@ class ArticleProcessedHandler:
             self._event_bus.publish(AnalysisCompletedEvent(
                 analysis_id=result.analysis.id,
                 article_id=result.article_id,
+                topic_id=event.article.topic_id,
                 tag_groups=raw_tag_groups,
             ))
         else:

@@ -10,25 +10,25 @@ from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
 class TagData:
     id: Optional[UUID]
     name: str
-    tag_group_name: str
+    tag_group_name: str  # human-readable; resolved from group_def.name in impl
     embedding: Optional[List[float]] = None
 
 
 class TagRepository(ABC):
 
     @abstractmethod
-    def find_by_group(self, group_name: str) -> List[TagData]:
+    def find_by_group(self, group_name: str, topic_id: UUID) -> List[TagData]:
         ...
 
     @abstractmethod
     def find_similar(
-        self, embedding: List[float], group_name: str, threshold: float
+        self, embedding: List[float], group_name: str, topic_id: UUID, threshold: float
     ) -> List[Tuple[TagData, float]]:
         """Return list of (tag, cosine_similarity) pairs above threshold, sorted by similarity desc."""
         ...
 
     @abstractmethod
-    def save(self, name: str, tag_group_name: str, embedding: List[float]) -> TagData:
+    def save(self, name: str, tag_group_name: str, embedding: List[float], topic_id: UUID) -> TagData:
         """Upsert a tag and return it with its DB-assigned id."""
         ...
 

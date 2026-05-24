@@ -110,12 +110,7 @@ def main():
         embed_table("tags", "name", "tags")
 
     if only != "tags":
-        # embed display_name if present, fall back to name
-        embed_table(
-            "tag_group_definitions",
-            "COALESCE(NULLIF(display_name, ''), name)",
-            "tag_group_defs",
-        )
+        embed_table("tag_group_definitions", "name", "tag_group_defs")
 
 
 if __name__ == "__main__":

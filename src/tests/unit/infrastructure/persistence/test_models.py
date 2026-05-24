@@ -129,7 +129,7 @@ def test_tag_model_has_required_fields():
     from models.tag import Tag
     assert hasattr(Tag, 'id')
     assert hasattr(Tag, 'name')
-    assert hasattr(Tag, 'tag_group_name')
+    assert hasattr(Tag, 'tag_group_id')
 
 
 def test_tag_name_group_is_unique():
@@ -138,7 +138,7 @@ def test_tag_name_group_is_unique():
     assert 'uq_tag_name_group' in uq_names
 
 
-def test_tag_group_name_has_index():
+def test_tag_group_id_has_index():
     from models.tag import Tag
     idx_names = {i.name for i in Tag.__table__.indexes}
     assert 'idx_tags_group' in idx_names

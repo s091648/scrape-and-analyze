@@ -16,54 +16,77 @@ class SqlAlchemyTagRepository(TagRepository):
     def __init__(self, session) -> None:
         self._session = session
 
-    def find_by_group(self, group_name: str) -> List[TagData]:
+    def find_by_group(self, group_name: str, topic_id: UUID) -> List[TagData]:
         from models.tag import Tag
-        rows = self._session.query(Tag).filter_by(tag_group_name=group_name).all()
+        from models.tag_group import TagGroupDefinition
+        rows = (
+            self._session.query(Tag)
+            .join(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
+            .filter(TagGroupDefinition.name == group_name, TagGroupDefinition.topic_id == topic_id)
+            .all()
+        )
         return [
-            TagData(id=r.id, name=r.name, tag_group_name=r.tag_group_name,
+            TagData(id=r.id, name=r.name, tag_group_name=r.group_def.name,
                     embedding=list(r.embedding) if r.embedding is not None else None)
             for r in rows
         ]
 
     def find_similar(
-        self, embedding: List[float], group_name: str, threshold: float
+        self, embedding: List[float], group_name: str, topic_id: Optional[UUID], threshold: float
     ) -> List[Tuple[TagData, float]]:
+        if topic_id is None:
+            return []
         vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
         rows = self._session.execute(text("""
-            SELECT id, name, tag_group_name,
-                   1 - (embedding <=> CAST(:vec AS vector)) AS similarity
-            FROM tags
-            WHERE tag_group_name = :group_name
-              AND embedding IS NOT NULL
-              AND (1 - (embedding <=> CAST(:vec AS vector))) >= :threshold
-            ORDER BY embedding <=> CAST(:vec AS vector)
+            SELECT t.id, t.name, tgd.name AS group_name,
+                   1 - (t.embedding <=> CAST(:vec AS vector)) AS similarity
+            FROM tags t
+            JOIN tag_group_definitions tgd ON tgd.id = t.tag_group_id
+            WHERE tgd.name = :group_name
+              AND tgd.topic_id = :topic_id
+              AND t.embedding IS NOT NULL
+              AND (1 - (t.embedding <=> CAST(:vec AS vector))) >= :threshold
+            ORDER BY t.embedding <=> CAST(:vec AS vector)
             LIMIT 5
-        """), {"vec": vec_str, "group_name": group_name, "threshold": threshold}).fetchall()
+        """), {
+            "vec": vec_str,
+            "group_name": group_name,
+            "topic_id": str(topic_id),
+            "threshold": threshold,
+        }).fetchall()
 
         return [
             (TagData(id=row[0], name=row[1], tag_group_name=row[2]), float(row[3]))
             for row in rows
         ]
 
-    def save(self, name: str, tag_group_name: str, embedding: List[float]) -> TagData:
+    def save(self, name: str, tag_group_name: str, embedding: List[float], topic_id: Optional[UUID]) -> TagData:
         from models.tag import Tag
+        from models.tag_group import TagGroupDefinition
         vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
+        if topic_id is None:
+            raise ValueError("topic_id is required to save a tag")
+
+        group = self._session.query(TagGroupDefinition).filter_by(
+            name=tag_group_name, topic_id=topic_id
+        ).first()
+        if not group:
+            raise ValueError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
+
         tag = self._session.query(Tag).filter_by(
-            name=name, tag_group_name=tag_group_name
+            name=name, tag_group_id=group.id
         ).first()
         if not tag:
-            tag = Tag(name=name, tag_group_name=tag_group_name)
+            tag = Tag(name=name, tag_group_id=group.id)
             self._session.add(tag)
             self._session.flush()
 
-        # Update embedding using raw SQL to avoid SQLAlchemy vector serialization issues
         self._session.execute(text(
             "UPDATE tags SET embedding = CAST(:vec AS vector) WHERE id = :id"
         ), {"vec": vec_str, "id": str(tag.id)})
 
-        return TagData(id=tag.id, name=tag.name, tag_group_name=tag.tag_group_name,
-                       embedding=embedding)
+        return TagData(id=tag.id, name=tag.name, tag_group_name=tag_group_name, embedding=embedding)
 
     def link_to_article(self, tag_id: UUID, article_id: UUID) -> None:
         from models.article import Article
@@ -112,30 +135,20 @@ class SqlAlchemyTagRepository(TagRepository):
         new_tag_id = str(suggestion.new_tag_id)
         existing_tag_id = str(suggestion.existing_tag_id)
 
-        # Re-point article_tags from new_tag to existing_tag.                                              
-        # JOIN articles guards against orphaned article_tags rows (article deleted without                 
-        # cleaning up the junction table) which would violate fk_at_article on insert.
         self._session.execute(text("""
             INSERT INTO article_tags (article_id, tag_id)
-            SELECT at.article_id, :existing_id                                                             
-            FROM article_tags at                                                                           
-            INNER JOIN articles a ON a.id = at.article_id                                                  
+            SELECT at.article_id, :existing_id
+            FROM article_tags at
+            INNER JOIN articles a ON a.id = at.article_id
             WHERE at.tag_id = :new_id
             ON CONFLICT DO NOTHING
         """), {"existing_id": existing_tag_id, "new_id": new_tag_id})
 
-        # Remove old article_tags rows pointing to new_tag
         self._session.execute(text(
             "DELETE FROM article_tags WHERE tag_id = :new_id"
         ), {"new_id": new_tag_id})
 
-        # Expunge the ORM object before deleting the tag.
-        # tag_normalization_suggestions.new_tag_id has ondelete='CASCADE', so
-        # DELETE on tags would also delete this suggestion row. If SQLAlchemy still
-        # holds a reference it will try to UPDATE the deleted row → StaleDataError.
         self._session.expunge(suggestion)
-
-        # Delete the new (duplicate) tag; CASCADE removes the suggestion row too
         self._session.execute(text(
             "DELETE FROM tags WHERE id = :new_id"
         ), {"new_id": new_tag_id})

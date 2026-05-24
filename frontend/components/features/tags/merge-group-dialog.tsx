@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button'
 import type { TagGroupOut } from '@/lib/api/tags'
 import { mergeTagGroups } from '@/lib/api/tags'
 
+function toSlug(v: string): string {
+  return v.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+function toTitle(v: string): string {
+  return v.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+}
+
 interface MergeForm {
   name: string
   display_name: string
@@ -133,7 +141,13 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
                     className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     value={(form as any)[key]}
                     placeholder={placeholder}
-                    onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                    onChange={e => {
+                      const val = key === 'name' ? toSlug(e.target.value) : e.target.value
+                      setForm(prev => ({ ...prev, [key]: val }))
+                    }}
+                    onBlur={key === 'display_name'
+                      ? e => setForm(prev => ({ ...prev, display_name: toTitle(e.target.value) }))
+                      : undefined}
                     required={required}
                   />
                 )}

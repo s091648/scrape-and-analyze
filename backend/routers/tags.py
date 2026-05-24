@@ -1,9 +1,10 @@
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, distinct, text
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,20 @@ from backend.database import get_db
 from backend.auth.guards import require_admin, require_user
 
 router = APIRouter()
+
+
+# ── Name helpers ─────────────────────────────────────────────────────────────
+
+def _to_slug(v: str) -> str:
+    """Normalise to snake_case slug: lowercase, non-alphanumerics → underscores."""
+    v = v.lower().strip()
+    v = re.sub(r'[^a-z0-9]+', '_', v)
+    return v.strip('_')
+
+
+def _to_title(v: str) -> str:
+    """Title-case: capitalise first letter of each word, preserve spacing."""
+    return ' '.join(w.capitalize() for w in v.strip().split())
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -32,9 +47,15 @@ class TagGroupOut(BaseModel):
     color_hex: Optional[str]
     topic_id: UUID
     tags: List[TagOut]
+    similar_groups: List['SimilarGroupOut'] = []
 
     class Config:
         from_attributes = True
+
+
+class SimilarGroupOut(BaseModel):
+    id: UUID
+    similarity_score: float
 
 
 class TagGroupCreate(BaseModel):
@@ -44,6 +65,16 @@ class TagGroupCreate(BaseModel):
     topic_id: UUID
     description: Optional[str] = None
     sort_order: Optional[int] = None
+
+    @field_validator('name')
+    @classmethod
+    def normalize_name(cls, v: str) -> str:
+        return _to_slug(v)
+
+    @field_validator('display_name')
+    @classmethod
+    def normalize_display_name(cls, v: str) -> str:
+        return _to_title(v)
 
 
 class TagGroupUpdate(BaseModel):
@@ -55,12 +86,12 @@ class TagGroupUpdate(BaseModel):
 
 class TagUpdate(BaseModel):
     name: Optional[str] = None
-    tag_group_name: Optional[str] = None
+    tag_group_id: Optional[UUID] = None
 
 
 class TagMoveItem(BaseModel):
     tag_id: UUID
-    tag_group_name: str
+    tag_group_id: UUID
 
 
 class BatchMoveResult(BaseModel):
@@ -82,22 +113,6 @@ class SuggestionOut(BaseModel):
         from_attributes = True
 
 
-class SimilarGroupOut(BaseModel):
-    id: UUID
-    similarity_score: float
-
-
-class TagGroupOut(BaseModel):
-    id: UUID
-    name: str
-    display_name: str
-    description: Optional[str]
-    color_hex: Optional[str]
-    topic_id: UUID
-    tags: List[TagOut]
-    similar_groups: List[SimilarGroupOut] = []
-
-
 class TagGroupMergeRequest(BaseModel):
     group_a_id: UUID
     group_b_id: UUID
@@ -105,6 +120,16 @@ class TagGroupMergeRequest(BaseModel):
     result_display_name: str
     result_color_hex: Optional[str] = None
     result_description: Optional[str] = None
+
+    @field_validator('result_name')
+    @classmethod
+    def normalize_result_name(cls, v: str) -> str:
+        return _to_slug(v)
+
+    @field_validator('result_display_name')
+    @classmethod
+    def normalize_result_display_name(cls, v: str) -> str:
+        return _to_title(v)
 
     class Config:
         from_attributes = True
@@ -148,6 +173,21 @@ def _similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: floa
     return [SimilarGroupOut(id=row[0], similarity_score=float(row[1])) for row in rows]
 
 
+def _tag_outs_for_group(db: Session, grp) -> List[TagOut]:
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+    rows = (
+        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+        .join(Article, Article.id == article_tags_table.c.article_id)
+        .filter(Tag.tag_group_id == grp.id)
+        .group_by(Tag.id, Tag.name)
+        .order_by(Tag.name)
+        .all()
+    )
+    return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @router.get("/tag-groups", response_model=List[TagGroupOut])
@@ -157,8 +197,6 @@ def list_tag_groups(
     db: Session = Depends(get_db),
 ):
     from models.tag_group import TagGroupDefinition
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
 
     q = db.query(TagGroupDefinition)
     if topic_id:
@@ -167,17 +205,6 @@ def list_tag_groups(
 
     result = []
     for grp in groups:
-        rows = (
-            db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-            .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-            .join(Article, Article.id == article_tags_table.c.article_id)
-            .filter(Tag.tag_group_name == grp.name, Article.topic_id == grp.topic_id)
-            .group_by(Tag.id, Tag.name)
-            .order_by(Tag.name)
-            .all()
-        )
-        tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
-
         similar = (
             _similar_groups(db, grp.id, grp.topic_id)
             if include_similarity and topic_id
@@ -186,7 +213,7 @@ def list_tag_groups(
         result.append(TagGroupOut(
             id=grp.id, name=grp.name, display_name=grp.display_name,
             description=grp.description, color_hex=grp.color_hex,
-            topic_id=grp.topic_id, tags=tag_outs,
+            topic_id=grp.topic_id, tags=_tag_outs_for_group(db, grp),
             similar_groups=similar,
         ))
     return result
@@ -206,8 +233,7 @@ def create_tag_group(
     db.commit()
     db.refresh(grp)
 
-    embed_text = f"{grp.name} - {grp.display_name}. {grp.description or ''}"
-    vec = _embed_text(embed_text)
+    vec = _embed_text(grp.name)
     if vec is not None:
         vec_str = "[" + ",".join(str(x) for x in vec) + "]"
         db.execute(
@@ -230,8 +256,8 @@ def merge_tag_groups(
     _: dict = Depends(require_admin),
 ):
     from models.tag_group import TagGroupDefinition
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
+    from models.tag import Tag
+    from sqlalchemy import text as sa_text
 
     group_a = db.query(TagGroupDefinition).filter_by(id=body.group_a_id).first()
     group_b = db.query(TagGroupDefinition).filter_by(id=body.group_b_id).first()
@@ -240,12 +266,25 @@ def merge_tag_groups(
     if group_a.topic_id != group_b.topic_id:
         raise HTTPException(status_code=400, detail="Groups must belong to the same topic")
 
+    existing_result = (
+        db.query(TagGroupDefinition)
+        .filter(
+            TagGroupDefinition.name == body.result_name,
+            TagGroupDefinition.topic_id == group_a.topic_id,
+            TagGroupDefinition.id.notin_([group_a.id, group_b.id]),
+        )
+        .first()
+    )
+
     if body.result_name == group_a.name:
         result_group = group_a
         groups_to_delete = [group_b]
     elif body.result_name == group_b.name:
         result_group = group_b
         groups_to_delete = [group_a]
+    elif existing_result:
+        result_group = existing_result
+        groups_to_delete = [group_a, group_b]
     else:
         result_group = TagGroupDefinition(
             name=body.result_name,
@@ -262,9 +301,44 @@ def merge_tag_groups(
     result_group.color_hex = body.result_color_hex
     result_group.description = body.result_description
 
+    source_ids = [g.id for g in groups_to_delete]
+
+    # Deduplicate within source tags (same name across two source groups)
+    source_tags = db.query(Tag).filter(Tag.tag_group_id.in_(source_ids)).all()
+    seen: dict = {}
+    for t in source_tags:
+        if t.name in seen:
+            keep, drop = seen[t.name], t
+            db.execute(sa_text("""
+                INSERT INTO article_tags (article_id, tag_id)
+                SELECT article_id, :keep FROM article_tags WHERE tag_id = :drop
+                ON CONFLICT DO NOTHING
+            """), {"keep": str(keep.id), "drop": str(drop.id)})
+            db.execute(sa_text("DELETE FROM article_tags WHERE tag_id = :drop"), {"drop": str(drop.id)})
+            db.execute(sa_text("DELETE FROM tags WHERE id = :drop"), {"drop": str(drop.id)})
+        else:
+            seen[t.name] = t
+    db.flush()
+
+    # Deduplicate source tags against existing tags already in result group
+    existing_result_tags = {
+        t.name: t for t in db.query(Tag).filter(Tag.tag_group_id == result_group.id).all()
+    }
+    for name, existing_t in existing_result_tags.items():
+        if name in seen:
+            drop = seen.pop(name)
+            db.execute(sa_text("""
+                INSERT INTO article_tags (article_id, tag_id)
+                SELECT article_id, :keep FROM article_tags WHERE tag_id = :drop
+                ON CONFLICT DO NOTHING
+            """), {"keep": str(existing_t.id), "drop": str(drop.id)})
+            db.execute(sa_text("DELETE FROM article_tags WHERE tag_id = :drop"), {"drop": str(drop.id)})
+            db.execute(sa_text("DELETE FROM tags WHERE id = :drop"), {"drop": str(drop.id)})
+    db.flush()
+
     db.query(Tag).filter(
-        Tag.tag_group_name.in_([group_a.name, group_b.name])
-    ).update({"tag_group_name": body.result_name}, synchronize_session=False)
+        Tag.tag_group_id.in_(source_ids)
+    ).update({"tag_group_id": result_group.id}, synchronize_session=False)
 
     for grp in groups_to_delete:
         db.delete(grp)
@@ -272,21 +346,26 @@ def merge_tag_groups(
     db.commit()
     db.refresh(result_group)
 
-    rows = (
-        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-        .join(Article, Article.id == article_tags_table.c.article_id)
-        .filter(Tag.tag_group_name == result_group.name, Article.topic_id == result_group.topic_id)
-        .group_by(Tag.id, Tag.name)
-        .order_by(Tag.name)
-        .all()
-    )
-    tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
     return TagGroupOut(
         id=result_group.id, name=result_group.name, display_name=result_group.display_name,
         description=result_group.description, color_hex=result_group.color_hex,
-        topic_id=result_group.topic_id, tags=tag_outs, similar_groups=[],
+        topic_id=result_group.topic_id, tags=_tag_outs_for_group(db, result_group),
+        similar_groups=[],
     )
+
+
+@router.get("/tag-groups/{group_id}", response_model=TagGroupOut)
+def get_tag_group(
+    group_id: UUID,
+    db: Session = Depends(get_db),
+):
+    from models.tag_group import TagGroupDefinition
+    grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
+    if not grp:
+        raise HTTPException(status_code=404, detail="Tag group not found")
+    return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
+                       description=grp.description, color_hex=grp.color_hex,
+                       topic_id=grp.topic_id, tags=_tag_outs_for_group(db, grp))
 
 
 @router.put("/tag-groups/{group_id}", response_model=TagGroupOut)
@@ -297,8 +376,6 @@ def update_tag_group(
     _: dict = Depends(require_admin),
 ):
     from models.tag_group import TagGroupDefinition
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
         raise HTTPException(status_code=404, detail="Tag group not found")
@@ -306,19 +383,9 @@ def update_tag_group(
         setattr(grp, field, val)
     db.commit()
     db.refresh(grp)
-    rows = (
-        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-        .join(Article, Article.id == article_tags_table.c.article_id)
-        .filter(Tag.tag_group_name == grp.name, Article.topic_id == grp.topic_id)
-        .group_by(Tag.id, Tag.name)
-        .order_by(Tag.name)
-        .all()
-    )
-    tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
                        description=grp.description, color_hex=grp.color_hex,
-                       topic_id=grp.topic_id, tags=tag_outs)
+                       topic_id=grp.topic_id, tags=_tag_outs_for_group(db, grp))
 
 
 @router.delete("/tag-groups/{group_id}", status_code=204)
@@ -348,8 +415,8 @@ def rename_tag(
         raise HTTPException(status_code=404, detail="Tag not found")
     if body.name is not None:
         tag.name = body.name
-    if body.tag_group_name is not None:
-        tag.tag_group_name = body.tag_group_name
+    if body.tag_group_id is not None:
+        tag.tag_group_id = body.tag_group_id
     db.commit()
     db.refresh(tag)
     count = (
@@ -391,7 +458,7 @@ def batch_move_tags(
             if not tag:
                 failed.append({"tag_id": str(item.tag_id), "error": "Tag not found"})
                 continue
-            tag.tag_group_name = item.tag_group_name
+            tag.tag_group_id = item.tag_group_id
             db.commit()
             succeeded.append(str(item.tag_id))
         except Exception as e:
@@ -417,7 +484,7 @@ def list_suggestions(
         result.append(SuggestionOut(
             id=r.id, new_tag_id=r.new_tag_id, new_tag_name=new_tag.name,
             existing_tag_id=r.existing_tag_id, existing_tag_name=existing_tag.name,
-            group_name=new_tag.tag_group_name, similarity_score=r.similarity_score,
+            group_name=new_tag.group_def.name, similarity_score=r.similarity_score,
             article_id=r.article_id,
         ))
     return result
@@ -448,9 +515,6 @@ def approve_suggestion(
 
     db.execute(text("DELETE FROM article_tags WHERE tag_id = :new_id"), {"new_id": new_tag_id})
 
-    # Expunge before deleting the tag — new_tag_id FK has ondelete=CASCADE which
-    # would also delete this suggestion row, causing a StaleDataError if SQLAlchemy
-    # still holds a reference to it.
     db.expunge(suggestion)
     db.execute(text("DELETE FROM tags WHERE id = :new_id"), {"new_id": new_tag_id})
 

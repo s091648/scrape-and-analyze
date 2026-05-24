@@ -52,13 +52,13 @@ def main():
     all_tags = (
         session.query(Tag)
         .filter(Tag.embedding.isnot(None))
-        .order_by(Tag.tag_group_name)
+        .order_by(Tag.tag_group_id)
         .all()
     )
 
     by_group: dict[str, list[Tag]] = defaultdict(list)
     for tag in all_tags:
-        by_group[tag.tag_group_name].append(tag)
+        by_group[str(tag.tag_group_id)].append(tag)
 
     logger.info(
         "backfill_suggestions_start",

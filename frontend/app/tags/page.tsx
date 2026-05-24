@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useTopic, useI18n } from '@/lib/providers'
 import {
-  fetchTagGroups, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
+  fetchTagGroups, fetchTagGroup, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
   type TagGroupOut, type SuggestionOut, type TagGroupCreate, type TagOut,
 } from '@/lib/api/tags'
 import { TagGroupCard } from '@/components/features/tags/tag-group-card'
@@ -180,10 +180,14 @@ function SimilarityLines({
   groups,
   groupRefs,
   onMergeRequested,
+  onLineClicked,
+  isolatedPair,
 }: {
   groups: TagGroupOut[]
   groupRefs: React.RefObject<Map<string, HTMLDivElement>>
   onMergeRequested: (groupAId: string, groupBId: string) => void
+  onLineClicked: (groupAId: string, groupBId: string) => void
+  isolatedPair: { a: string; b: string } | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [lines, setLines] = useState<LineData[]>([])
@@ -209,9 +213,11 @@ function SimilarityLines({
     }
     const raw: Raw[] = []
     const seen = new Set<string>()
+    const visibleGroupIds = new Set(groups.map(g => g.id))
 
     for (const group of groups) {
       for (const sim of group.similar_groups) {
+        if (!visibleGroupIds.has(sim.id)) continue
         const pairKey = [group.id, sim.id].sort().join('-')
         if (seen.has(pairKey)) continue
         seen.add(pairKey)
@@ -302,20 +308,24 @@ function SimilarityLines({
       >
         {lines.map(l => {
           const isHovered = hoveredKey === l.key
+          const isIsolated = isolatedPair &&
+            ((l.groupAId === isolatedPair.a && l.groupBId === isolatedPair.b) ||
+             (l.groupAId === isolatedPair.b && l.groupBId === isolatedPair.a))
           const t = Math.min(1, Math.max(0, (l.score - 0.9) / 0.1))
           const baseOpacity = 0.15 + t * 0.85
-          const opacity = isHovered ? 1 : baseOpacity
-          const strokeWidth = isHovered ? 3 : 0.75 + t * 2.25
-          const color = 'rgb(251,191,36)'
+          const opacity = isHovered || isIsolated ? 1 : baseOpacity
+          const strokeWidth = isHovered || isIsolated ? 3 : 0.75 + t * 2.25
+          const color = isIsolated ? 'rgb(99,102,241)' : 'rgb(251,191,36)'
           const d = `M ${l.x1} ${l.y1} H ${l.pivot} V ${l.y2} H ${l.x2}`
 
           return (
             <g
               key={l.key}
               opacity={opacity}
-              style={{ pointerEvents: 'auto' }}
+              style={{ pointerEvents: 'auto', cursor: 'pointer' }}
               onMouseEnter={() => setHoveredKey(l.key)}
               onMouseLeave={() => setHoveredKey(null)}
+              onClick={() => onLineClicked(l.groupAId, l.groupBId)}
             >
               <path d={d} fill="none" stroke="transparent" strokeWidth={16} />
               <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} />
@@ -340,12 +350,14 @@ function SimilarityLines({
                     <rect
                       x={l.pivot - pillW / 2} y={midY - pillH / 2}
                       width={pillW} height={pillH} rx={pillH / 2}
-                      fill="rgb(254,243,199)" stroke="rgb(251,191,36)" strokeWidth={0.75}
+                      fill={isIsolated ? 'rgb(238,242,255)' : 'rgb(254,243,199)'}
+                      stroke={isIsolated ? 'rgb(99,102,241)' : 'rgb(251,191,36)'} strokeWidth={0.75}
                     />
                     <text
                       x={l.pivot} y={midY}
                       textAnchor="middle" dominantBaseline="middle"
-                      fontSize={9} fontWeight="600" fill="rgb(146,64,14)"
+                      fontSize={9} fontWeight="600"
+                      fill={isIsolated ? 'rgb(67,56,202)' : 'rgb(146,64,14)'}
                     >
                       {label}
                     </text>
@@ -408,6 +420,7 @@ export default function TagsPage() {
   )
 
   const [showSimilarities, setShowSimilarities] = useState(false)
+  const similaritiesInitialized = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
   const groupRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -425,10 +438,26 @@ export default function TagsPage() {
   const [mergingGroupId, setMergingGroupId] = useState<string | null>(null)
   const [mergeGroupPair, setMergeGroupPair] = useState<[TagGroupOut, TagGroupOut] | null>(null)
 
+  // ── Isolated line state ──
+  const [isolatedPair, setIsolatedPair] = useState<{ a: string; b: string } | null>(null)
+
+  const displayedGroups = useMemo(() => {
+    if (!isolatedPair) return filteredGroups
+    return filteredGroups.filter(g => g.id === isolatedPair.a || g.id === isolatedPair.b)
+  }, [filteredGroups, isolatedPair])
+
   // Sync autoTagGroups when topic changes
   useEffect(() => {
     setAutoTagGroups(selectedTopic?.auto_tag_groups ?? true)
   }, [selectedTopic?.id])
+
+  // Default similarities on for admins (fires once when session confirms admin)
+  useEffect(() => {
+    if (isAdmin && !similaritiesInitialized.current) {
+      setShowSimilarities(true)
+      similaritiesInitialized.current = true
+    }
+  }, [isAdmin])
 
   async function handleAutoTagGroupsToggle(checked: boolean) {
     if (!selectedTopic || !token) return
@@ -524,7 +553,7 @@ export default function TagsPage() {
     if (moves.length === 1) {
       const m = moves[0]
       try {
-        await moveTag(m.tag.id, m.toGroupName, token)
+        await moveTag(m.tag.id, m.toGroupId, token)
         setPendingMoves(new Map())
       } catch {
         // leave in pending state for retry
@@ -532,7 +561,7 @@ export default function TagsPage() {
     } else {
       try {
         const result = await batchMoveTags(
-          moves.map(m => ({ tag_id: m.tag.id, tag_group_name: m.toGroupName })),
+          moves.map(m => ({ tag_id: m.tag.id, tag_group_id: m.toGroupId })),
           token,
         )
         const failedIds = new Set(result.failed.map(f => f.tag_id))
@@ -574,6 +603,11 @@ export default function TagsPage() {
     setPendingMoves(new Map())
   }
 
+  // ── Line click to isolate ──
+  function handleLineClicked(groupAId: string, groupBId: string) {
+    setIsolatedPair({ a: groupAId, b: groupBId })
+  }
+
   // ── Merge handlers ──
   function handleMergeRequested(groupId: string) {
     setMergingGroupId(prev => prev === groupId ? null : groupId)
@@ -595,28 +629,39 @@ export default function TagsPage() {
     setMergeGroupPair([groupA, groupB])
   }
 
-  function handleMerged(result: TagGroupOut) {
+  async function handleMerged(result: TagGroupOut) {
     if (!mergeGroupPair) return
     const [groupA, groupB] = mergeGroupPair
-    setGroups(prev => {
-      const idxA = prev.findIndex(g => g.id === groupA.id)
-      return prev
-        .map((g, i) => i === idxA ? result : g)
-        .filter(g => g.id !== groupB.id)
-    })
     setMergeGroupPair(null)
+
+    try {
+      const freshGroups = await fetchTagGroups(selectedTopic?.id, isAdmin && showSimilarities)
+      setGroups(freshGroups)
+    } catch {
+      // Fall back to local optimistic update
+      let fresh = result
+      try { fresh = await fetchTagGroup(result.id) } catch {}
+      setGroups(prev => {
+        const idxA = prev.findIndex(g => g.id === groupA.id)
+        const withoutBoth = prev.filter(g => g.id !== groupA.id && g.id !== groupB.id)
+        const insertAt = idxA === -1 ? withoutBoth.length : Math.min(idxA, withoutBoth.length)
+        return [...withoutBoth.slice(0, insertAt), fresh, ...withoutBoth.slice(insertAt)]
+      })
+    }
   }
 
   useEffect(() => {
     if (isGuest) { setLoading(false); return }
     setLoading(true)
     const topicId = selectedTopic?.id
+    let cancelled = false
     Promise.all([
       fetchTagGroups(topicId, isAdmin && showSimilarities),
       isAdmin && token ? fetchPendingSuggestions(token) : Promise.resolve([]),
     ])
-      .then(([g, s]) => { setGroups(g); setSuggestions(s) })
-      .finally(() => setLoading(false))
+      .then(([g, s]) => { if (!cancelled) { setGroups(g); setSuggestions(s) } })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [selectedTopic?.id, isAdmin, token, isGuest, showSimilarities])
 
   // Cancel merge mode on Escape
@@ -628,6 +673,16 @@ export default function TagsPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [mergingGroupId])
+
+  // Cancel isolated line on Escape
+  useEffect(() => {
+    if (!isolatedPair) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsolatedPair(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isolatedPair])
 
   return (
     <div className="space-y-6">
@@ -686,6 +741,26 @@ export default function TagsPage() {
       </div>
 
       <div className="max-w-3xl mx-auto w-full space-y-6">
+      {/* ── Isolated line banner ── */}
+      {isolatedPair && (() => {
+        const groupA = groups.find(g => g.id === isolatedPair.a)
+        const groupB = groups.find(g => g.id === isolatedPair.b)
+        return (
+          <div className="flex items-center justify-between rounded-lg border border-indigo-400/40 bg-indigo-500/5 px-4 py-2.5 text-sm">
+            <span className="text-indigo-500 font-medium flex items-center gap-1.5">
+              <Network className="h-4 w-4" />
+              Viewing similarity: <strong>{groupA?.display_name}</strong> ↔ <strong>{groupB?.display_name}</strong>
+            </span>
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setIsolatedPair(null)}
+            >
+              Show All (Esc)
+            </button>
+          </div>
+        )
+      })()}
+
       {/* ── Merge mode banner ── */}
       {mergingGroupId && (
         <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-primary/5 px-4 py-2.5 text-sm">
@@ -793,7 +868,7 @@ export default function TagsPage() {
               onDragEnd={handleDragEnd}
             >
               <div className="relative space-y-4">
-                {filteredGroups.map(group => {
+                {displayedGroups.map(group => {
                   const isSimilar = showSimilarities && isAdmin && group.similar_groups.length > 0
                   const pendingIncomingTagIds = new Set(
                     [...pendingMoves.values()]
@@ -805,7 +880,7 @@ export default function TagsPage() {
                   return (
                     <div
                       key={group.id}
-                      ref={el => { if (el) groupRefs.current.set(group.id, el) }}
+                      ref={el => { if (el) groupRefs.current.set(group.id, el); else groupRefs.current.delete(group.id) }}
                       className={isSimilar ? 'rounded-xl ring-2 ring-amber-400/60' : ''}
                     >
                       <TagGroupCard
@@ -839,9 +914,11 @@ export default function TagsPage() {
                 })}
                 {showSimilarities && isAdmin && (
                   <SimilarityLines
-                    groups={filteredGroups}
+                    groups={displayedGroups}
                     groupRefs={groupRefs}
                     onMergeRequested={handleMergeFromLine}
+                    onLineClicked={handleLineClicked}
+                    isolatedPair={isolatedPair}
                   />
                 )}
               </div>
