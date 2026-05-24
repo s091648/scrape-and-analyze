@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X } from 'lucide-react'
+import { Pencil, Trash2, ChevronDown, ChevronUp, Check, X, GripVertical, GitMerge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
 import type { TagGroupOut, TagOut, TagGroupUpdate } from '@/lib/api/tags'
@@ -14,10 +14,14 @@ interface Props {
   isAdmin: boolean
   token?: string
   pendingIncomingTagIds: Set<string>
+  isMergeMode?: boolean
+  isMergeSource?: boolean
   onDeleted: (groupId: string) => void
   onTagRenamed: (groupId: string, tagId: string, newName: string) => void
   onTagDeleted: (groupId: string, tagId: string) => void
   onGroupUpdated: (groupId: string, updated: Partial<TagGroupOut>) => void
+  onMergeRequested?: (groupId: string) => void
+  onMergeTargetSelected?: (groupId: string) => void
 }
 
 function TagBadge({
@@ -133,13 +137,33 @@ function EditGroupForm({
       ].map(({ key, label, required, placeholder }) => (
         <div key={key} className="space-y-1">
           <label className="text-xs text-muted-foreground">{label}{required && ' *'}</label>
-          <input
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            value={(form as any)[key] ?? ''}
-            placeholder={placeholder}
-            onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-            required={required}
-          />
+          {key === 'color_hex' ? (
+            <div className="flex gap-2 items-center">
+              <div className="relative h-[34px] w-[34px] shrink-0 cursor-pointer rounded-md border border-border overflow-hidden">
+                <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+                <input
+                  type="color"
+                  value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex ?? '') ? form.color_hex! : '#e5e7eb'}
+                  onChange={e => setForm(prev => ({ ...prev, color_hex: e.target.value }))}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+              </div>
+              <input
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                value={form.color_hex ?? ''}
+                placeholder={placeholder}
+                onChange={e => setForm(prev => ({ ...prev, color_hex: e.target.value }))}
+              />
+            </div>
+          ) : (
+            <input
+              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={(form as any)[key] ?? ''}
+              placeholder={placeholder}
+              onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+              required={required}
+            />
+          )}
         </div>
       ))}
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -157,7 +181,9 @@ function EditGroupForm({
 
 export function TagGroupCard({
   group, isAdmin, token, pendingIncomingTagIds,
+  isMergeMode = false, isMergeSource = false,
   onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated,
+  onMergeRequested, onMergeTargetSelected,
 }: Props) {
   const { t } = useI18n()
   const [tags, setTags] = useState<TagOut[]>(
@@ -188,6 +214,17 @@ export function TagGroupCard({
 
   const { setNodeRef, isOver } = useDroppable({ id: group.id })
 
+  const {
+    attributes: groupDragAttrs,
+    listeners: groupDragListeners,
+    setNodeRef: setGroupDragRef,
+    isDragging: isGroupDragging,
+  } = useDraggable({
+    id: `group-drag-${group.id}`,
+    data: { type: 'group', group: localGroup },
+    disabled: !isAdmin || !token,
+  })
+
   function handleGroupSaved(updated: Partial<TagGroupOut>) {
     const next = { ...localGroup, ...updated }
     setLocalGroup(next)
@@ -199,11 +236,37 @@ export function TagGroupCard({
     <div
       ref={setNodeRef}
       className={cn(
-        'rounded-xl border border-border bg-card p-5 space-y-3 transition-colors',
-        isOver && 'border-primary/50 bg-primary/5',
+        'relative rounded-xl border border-border bg-card p-5 space-y-3 transition-colors',
+        isOver && !isGroupDragging && 'border-primary/50 bg-primary/5',
+        isMergeSource && 'ring-2 ring-primary/60',
+        isGroupDragging && 'opacity-50',
       )}
     >
-      <div className="flex items-center justify-between">
+      {/* Merge mode overlay */}
+      {isMergeMode && (
+        <div
+          className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-[2px] flex items-center justify-center z-10 cursor-pointer border-2 border-dashed border-primary/40 hover:border-primary hover:bg-background/30 transition-all"
+          onClick={() => onMergeTargetSelected?.(group.id)}
+        >
+          <div className="text-sm font-medium text-primary flex items-center gap-1.5">
+            <GitMerge className="h-4 w-4" />
+            Merge here
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-1">
+        {/* Group drag handle */}
+        {isAdmin && token && (
+          <div
+            ref={setGroupDragRef}
+            {...groupDragListeners}
+            {...groupDragAttrs}
+            className="cursor-grab active:cursor-grabbing touch-none shrink-0 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
+        )}
         <button
           className="flex items-center gap-2 flex-1 min-w-0 text-left"
           onClick={() => setOpen(o => !o)}
@@ -221,6 +284,14 @@ export function TagGroupCard({
         </button>
         {isAdmin && token && (
           <div className="flex items-center gap-1 shrink-0">
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
+              onClick={() => onMergeRequested?.(group.id)}
+              aria-label="Merge group"
+              title="Merge group"
+            >
+              <GitMerge className="h-3.5 w-3.5" />
+            </Button>
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
               onClick={() => setEditing(e => !e)}

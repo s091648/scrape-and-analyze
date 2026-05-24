@@ -134,6 +134,25 @@ export async function batchMoveTags(
   return res.json()
 }
 
+export interface TagGroupMergeRequest {
+  group_a_id: string
+  group_b_id: string
+  result_name: string
+  result_display_name: string
+  result_color_hex?: string
+  result_description?: string
+}
+
+export async function mergeTagGroups(body: TagGroupMergeRequest, token: string): Promise<TagGroupOut> {
+  const res = await apiFetch('/tag-groups/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to merge tag groups')
+  return res.json()
+}
+
 export async function fetchPendingSuggestions(token: string): Promise<SuggestionOut[]> {
   const res = await apiFetch('/tag-normalization-suggestions', {
     headers: { Authorization: `Bearer ${token}` },

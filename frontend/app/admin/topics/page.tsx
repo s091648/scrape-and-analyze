@@ -86,18 +86,21 @@ function TopicRow({
               <div>
                 <label className={labelClass}>{t('admin.colorHex')}</label>
                 <div className="flex gap-2 items-center">
+                  <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+                    <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                      onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </div>
                   <input
-                    className={inputClass}
+                    className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={form.color_hex}
                     placeholder="#3b82f6"
                     onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
                   />
-                  {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-                    <span
-                      className="h-7 w-7 rounded-full shrink-0 border border-border"
-                      style={{ backgroundColor: form.color_hex }}
-                    />
-                  )}
                 </div>
               </div>
             </div>
@@ -303,18 +306,21 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
         <div>
           <label className={labelClass}>{t('admin.colorHex')}</label>
           <div className="flex gap-2 items-center">
+            <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+              <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
             <input
-              className={inputClass}
+              className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               value={form.color_hex}
               placeholder="#3b82f6"
               onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
             />
-            {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-              <span
-                className="h-7 w-7 rounded-full shrink-0 border border-border"
-                style={{ backgroundColor: form.color_hex }}
-              />
-            )}
           </div>
         </div>
         <div>

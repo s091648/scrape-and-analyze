@@ -97,6 +97,15 @@ class TagGroupOut(BaseModel):
     tags: List[TagOut]
     similar_groups: List[SimilarGroupOut] = []
 
+
+class TagGroupMergeRequest(BaseModel):
+    group_a_id: UUID
+    group_b_id: UUID
+    result_name: str
+    result_display_name: str
+    result_color_hex: Optional[str] = None
+    result_description: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -123,7 +132,7 @@ def _embed_text(text: str) -> Optional[list]:
         return None
 
 
-def _similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: float = 0.80) -> List[SimilarGroupOut]:
+def _similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: float = 0.90) -> List[SimilarGroupOut]:
     rows = db.execute(text("""
         SELECT b.id, 1 - (a.embedding <=> b.embedding) AS score
         FROM tag_group_definitions a
@@ -212,6 +221,72 @@ def create_tag_group(
     return TagGroupOut(id=grp.id, name=grp.name, display_name=grp.display_name,
                        description=grp.description, color_hex=grp.color_hex,
                        topic_id=grp.topic_id, tags=[])
+
+
+@router.post("/tag-groups/merge", response_model=TagGroupOut)
+def merge_tag_groups(
+    body: TagGroupMergeRequest,
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_group import TagGroupDefinition
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+
+    group_a = db.query(TagGroupDefinition).filter_by(id=body.group_a_id).first()
+    group_b = db.query(TagGroupDefinition).filter_by(id=body.group_b_id).first()
+    if not group_a or not group_b:
+        raise HTTPException(status_code=404, detail="Tag group not found")
+    if group_a.topic_id != group_b.topic_id:
+        raise HTTPException(status_code=400, detail="Groups must belong to the same topic")
+
+    if body.result_name == group_a.name:
+        result_group = group_a
+        groups_to_delete = [group_b]
+    elif body.result_name == group_b.name:
+        result_group = group_b
+        groups_to_delete = [group_a]
+    else:
+        result_group = TagGroupDefinition(
+            name=body.result_name,
+            display_name=body.result_display_name,
+            color_hex=body.result_color_hex,
+            description=body.result_description,
+            topic_id=group_a.topic_id,
+        )
+        db.add(result_group)
+        db.flush()
+        groups_to_delete = [group_a, group_b]
+
+    result_group.display_name = body.result_display_name
+    result_group.color_hex = body.result_color_hex
+    result_group.description = body.result_description
+
+    db.query(Tag).filter(
+        Tag.tag_group_name.in_([group_a.name, group_b.name])
+    ).update({"tag_group_name": body.result_name}, synchronize_session=False)
+
+    for grp in groups_to_delete:
+        db.delete(grp)
+
+    db.commit()
+    db.refresh(result_group)
+
+    rows = (
+        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+        .join(Article, Article.id == article_tags_table.c.article_id)
+        .filter(Tag.tag_group_name == result_group.name, Article.topic_id == result_group.topic_id)
+        .group_by(Tag.id, Tag.name)
+        .order_by(Tag.name)
+        .all()
+    )
+    tag_outs = [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+    return TagGroupOut(
+        id=result_group.id, name=result_group.name, display_name=result_group.display_name,
+        description=result_group.description, color_hex=result_group.color_hex,
+        topic_id=result_group.topic_id, tags=tag_outs, similar_groups=[],
+    )
 
 
 @router.put("/tag-groups/{group_id}", response_model=TagGroupOut)

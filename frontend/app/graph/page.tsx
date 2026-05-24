@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { KnowledgeGraph } from '@/components/features/graph/knowledge-graph'
-import { Lock } from 'lucide-react'
+import { Lock, Network } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
 
 export default function GraphPage() {
@@ -13,6 +13,7 @@ export default function GraphPage() {
   return (
     <div className="flex flex-col gap-6 h-full">
       <div className="flex items-center gap-3 border-b border-border pb-6">
+        <Network className="h-5 w-5 text-primary" />
         <h1 className="text-2xl font-bold leading-none">{t('graph.title')}</h1>
       </div>
 

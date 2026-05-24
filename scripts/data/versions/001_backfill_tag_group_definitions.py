@@ -22,42 +22,21 @@ requires_api = False
 alembic_revision = "17_add_vector_failed_task_and_auto_tag"
 
 _SQL_MISSING_PAIRS = """
-WITH from_analyses AS (
-    SELECT DISTINCT
-        elem->>'group'  AS grp_name,
-        ar.topic_id
-    FROM analyses an
-    JOIN articles ar ON ar.id = an.article_id
-    CROSS JOIN LATERAL jsonb_array_elements(an.tag_groups) AS elem
-    WHERE an.tag_groups IS NOT NULL
-      AND jsonb_typeof(an.tag_groups) = 'array'
-      AND (elem->>'group') IS NOT NULL
-      AND (elem->>'group') <> ''
-),
-from_tags AS (
-    SELECT DISTINCT
-        t.tag_group_name  AS grp_name,
-        ar.topic_id
-    FROM tags t
-    JOIN article_tags at2 ON at2.tag_id   = t.id
-    JOIN articles     ar  ON ar.id        = at2.article_id
-    WHERE t.tag_group_name IS NOT NULL
-      AND t.tag_group_name <> ''
-),
-all_pairs AS (
-    SELECT grp_name, topic_id FROM from_analyses
-    UNION
-    SELECT grp_name, topic_id FROM from_tags
-)
-SELECT ap.grp_name, ap.topic_id
-FROM   all_pairs ap
-WHERE  NOT EXISTS (
-    SELECT 1
-    FROM   tag_group_definitions tgd
-    WHERE  tgd.name      = ap.grp_name
-      AND  tgd.topic_id  = ap.topic_id
-)
-ORDER BY ap.grp_name
+SELECT DISTINCT
+    t.tag_group_name  AS grp_name,
+    ar.topic_id
+FROM tags t
+JOIN article_tags at2 ON at2.tag_id   = t.id
+JOIN articles     ar  ON ar.id        = at2.article_id
+WHERE t.tag_group_name IS NOT NULL
+  AND t.tag_group_name <> ''
+  AND NOT EXISTS (
+      SELECT 1
+      FROM   tag_group_definitions tgd
+      WHERE  tgd.name     = t.tag_group_name
+        AND  tgd.topic_id = ar.topic_id
+  )
+ORDER BY t.tag_group_name
 """
 
 

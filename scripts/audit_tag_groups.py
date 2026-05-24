@@ -43,28 +43,22 @@ GROUP BY t.tag_group_name, tp.name
 ORDER BY tag_count DESC, t.tag_group_name
 """
 
-_SQL_ORPHAN_ANALYSES = """
+_SQL_DUPLICATE_CASING = """
 SELECT
-    elem->>'group'   AS grp_name,
-    tp.name          AS topic_name,
-    COUNT(DISTINCT an.id) AS analysis_count
-FROM analyses an
-JOIN articles ar ON ar.id = an.article_id
-JOIN topics   tp ON tp.id = ar.topic_id
-CROSS JOIN LATERAL jsonb_array_elements(an.tag_groups) AS elem
-WHERE an.tag_groups IS NOT NULL
-  AND jsonb_typeof(an.tag_groups) = 'array'
-  AND (elem->>'group') IS NOT NULL
-  AND (elem->>'group') <> ''
+    LOWER(REPLACE(t.tag_group_name, ' ', '_')) AS normalized,
+    array_agg(DISTINCT t.tag_group_name ORDER BY t.tag_group_name) AS variants,
+    tp.name AS topic_name,
+    COUNT(DISTINCT t.id) AS tag_count
+FROM tags t
+JOIN article_tags  at2 ON at2.tag_id   = t.id
+JOIN articles      ar  ON ar.id        = at2.article_id
+JOIN topics        tp  ON tp.id        = ar.topic_id
+WHERE t.tag_group_name IS NOT NULL
+  AND t.tag_group_name <> ''
   AND (:topic IS NULL OR tp.name = :topic)
-  AND NOT EXISTS (
-      SELECT 1
-      FROM   tag_group_definitions tgd
-      WHERE  tgd.name     = elem->>'group'
-        AND  tgd.topic_id = ar.topic_id
-  )
-GROUP BY elem->>'group', tp.name
-ORDER BY analysis_count DESC, grp_name
+GROUP BY LOWER(REPLACE(t.tag_group_name, ' ', '_')), tp.name
+HAVING COUNT(DISTINCT t.tag_group_name) > 1
+ORDER BY tag_count DESC
 """
 
 
@@ -98,21 +92,24 @@ def main():
     else:
         print("  ✓ none")
 
-    # ── Section 2: orphan group keys in analyses.tag_groups ───────────────────
-    orphan_analyses = session.execute(text(_SQL_ORPHAN_ANALYSES), params).fetchall()
-    print(f"\n[2] analyses.tag_groups keys with no matching definition: {len(orphan_analyses)} group(s)\n")
-    if orphan_analyses:
-        print(f"  {'GROUP KEY':<40} {'TOPIC':<20} {'# ANALYSES'}")
-        print("  " + "-" * 70)
-        for row in orphan_analyses:
-            print(f"  {row.grp_name:<40} {row.topic_name:<20} {row.analysis_count}")
+    # ── Section 2: duplicate-casing variants of the same group name ──────────
+    duplicates = session.execute(text(_SQL_DUPLICATE_CASING), params).fetchall()
+    print(f"\n[2] tag_group_name casing variants (same normalized key, different spellings): {len(duplicates)} group(s)\n")
+    if duplicates:
+        print(f"  {'NORMALIZED KEY':<40} {'TOPIC':<20} {'VARIANTS'}")
+        print("  " + "-" * 90)
+        for row in duplicates:
+            variants = ", ".join(row.variants)
+            print(f"  {row.normalized:<40} {row.topic_name:<20} {variants}")
+        print("\n  NOTE: These will each get a separate _unsupervised definition.")
+        print("        Clean up via admin dashboard after backfill.")
     else:
         print("  ✓ none")
 
-    total = len(orphan_tags) + len(orphan_analyses)
+    total_orphans = len(orphan_tags)
     print(f"\n{'═' * 55}")
-    print(f"  Total issues: {total}")
-    if total:
+    print(f"  Orphan groups to backfill: {total_orphans}")
+    if total_orphans:
         print("  Run: make backfill-tag-group-definitions to fix")
     print()
 

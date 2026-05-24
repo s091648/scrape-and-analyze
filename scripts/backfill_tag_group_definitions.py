@@ -26,47 +26,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import text
 
 _SQL_MISSING_PAIRS = """
-WITH from_analyses AS (
-    SELECT DISTINCT
-        elem->>'group'  AS grp_name,
-        ar.topic_id
-    FROM analyses an
-    JOIN articles ar ON ar.id = an.article_id
-    CROSS JOIN LATERAL jsonb_array_elements(an.tag_groups) AS elem
-    WHERE an.tag_groups IS NOT NULL
-      AND jsonb_typeof(an.tag_groups) = 'array'
-      AND (elem->>'group') IS NOT NULL
-      AND (elem->>'group') <> ''
-      AND (:topic IS NULL OR ar.topic_id = (
-              SELECT id FROM topics WHERE name = :topic))
-),
-from_tags AS (
-    SELECT DISTINCT
-        t.tag_group_name  AS grp_name,
-        ar.topic_id
-    FROM tags t
-    JOIN article_tags at2 ON at2.tag_id   = t.id
-    JOIN articles     ar  ON ar.id        = at2.article_id
-    WHERE t.tag_group_name IS NOT NULL
-      AND t.tag_group_name <> ''
-      AND (:topic IS NULL OR ar.topic_id = (
-              SELECT id FROM topics WHERE name = :topic))
-),
-all_pairs AS (
-    SELECT grp_name, topic_id FROM from_analyses
-    UNION
-    SELECT grp_name, topic_id FROM from_tags
-)
-SELECT ap.grp_name, ap.topic_id, tp.name AS topic_name
-FROM   all_pairs ap
-JOIN   topics tp ON tp.id = ap.topic_id
-WHERE  NOT EXISTS (
-    SELECT 1
-    FROM   tag_group_definitions tgd
-    WHERE  tgd.name     = ap.grp_name
-      AND  tgd.topic_id = ap.topic_id
-)
-ORDER BY tp.name, ap.grp_name
+SELECT DISTINCT
+    t.tag_group_name  AS grp_name,
+    ar.topic_id,
+    tp.name           AS topic_name
+FROM tags t
+JOIN article_tags at2 ON at2.tag_id   = t.id
+JOIN articles     ar  ON ar.id        = at2.article_id
+JOIN topics       tp  ON tp.id        = ar.topic_id
+WHERE t.tag_group_name IS NOT NULL
+  AND t.tag_group_name <> ''
+  AND (:topic IS NULL OR tp.name = :topic)
+  AND NOT EXISTS (
+      SELECT 1
+      FROM   tag_group_definitions tgd
+      WHERE  tgd.name     = t.tag_group_name
+        AND  tgd.topic_id = ar.topic_id
+  )
+ORDER BY tp.name, t.tag_group_name
 """
 
 
