@@ -142,7 +142,7 @@ def get_filter_tags(topic_id: Optional[UUID] = Query(default=None),
 class TagGroupOut(BaseModel):
     group_name: str
     display_name: str
-    color: str
+    color: Optional[str] = None
     tags: list[str]
 
 
@@ -192,14 +192,16 @@ def get_article_by_id(db: Session, article_id: UUID):
 
 def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:
     from models.tag import Tag, article_tags as at
+    from models.tag_group import TagGroupDefinition
     from models.tag_translation import TagsTranslation
     from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     tags = (
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
+        .join(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
         .filter(at.c.article_id == article_id)
-        .order_by(Tag.tag_group_name, Tag.name)
+        .order_by(TagGroupDefinition.name, Tag.name)
         .all()
     )
 
@@ -224,7 +226,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 
     groups: dict = {}
     for tag in tags:
-        gname = tag.tag_group_name
+        gname = tag.group_def.name if tag.group_def else "unknown"
         if gname not in groups:
             gdef = tag.group_def
             display_name = gname
@@ -240,7 +242,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
                 "group_name": gname,
                 "display_name": display_name,
                 "description": description,
-                "color": gdef.color_hex if gdef else "#6b7280",
+                "color": gdef.color_hex if gdef else None,
                 "tags": [],
             }
         tag_name = tag_trans_map.get(tag.id, tag.name) if lang != "en" else tag.name

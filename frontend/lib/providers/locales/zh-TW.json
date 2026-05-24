@@ -122,7 +122,9 @@
     "after": "之後",
     "before": "之前",
     "range": "區間",
-    "noTagsFound": "找不到標籤"
+    "noTagsFound": "找不到標籤",
+    "recent": "近期",
+    "days": "天"
   },
   "tags": {
     "title": "標籤",

@@ -83,8 +83,10 @@ export function FilterBar({
     after: t('filterBar.after'),
     before: t('filterBar.before'),
     range: t('filterBar.range'),
+    recent: t('filterBar.recent'),
     from: t('filterBar.from'),
     to: t('filterBar.to'),
+    days: t('filterBar.days'),
   }
 
   return (

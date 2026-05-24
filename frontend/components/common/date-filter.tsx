@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown } from 'lucide-react'
 
-type DateMode = 'any' | 'after' | 'before' | 'range'
+type DateMode = 'any' | 'after' | 'before' | 'range' | 'recent'
 
 interface DateFilterProps {
   label: string
@@ -18,21 +18,35 @@ interface DateFilterProps {
     after: string
     before: string
     range: string
+    recent: string
     from: string
     to: string
+    days: string
   }
+}
+
+function toDateString(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function recentAfterDate(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return toDateString(d)
 }
 
 export function DateFilter({
   label, after, before, onAfterChange, onBeforeChange, labels,
 }: DateFilterProps) {
   const [mode, setMode] = useState<DateMode>('any')
+  const [recentDays, setRecentDays] = useState(30)
 
   useEffect(() => {
     if (after && before) setMode('range')
-    else if (after) setMode('after')
-    else if (before) setMode('before')
-    else setMode('any')
+    else if (!after && !before) setMode('any')
+    // Don't override range/recent when user is still filling in one date
+    else if (after && !before) setMode(prev => (prev === 'range' || prev === 'recent') ? prev : 'after')
+    else if (!after && before) setMode(prev => prev === 'range' ? 'range' : 'before')
   }, [after, before])
 
   function handleModeChange(m: DateMode) {
@@ -40,9 +54,21 @@ export function DateFilter({
     if (m === 'any') { onAfterChange(''); onBeforeChange('') }
     if (m === 'after') onBeforeChange('')
     if (m === 'before') onAfterChange('')
+    if (m === 'recent') {
+      onAfterChange(recentAfterDate(recentDays))
+      onBeforeChange('')
+    }
+  }
+
+  function handleRecentDaysChange(days: number) {
+    const clamped = Math.min(180, Math.max(1, days))
+    setRecentDays(clamped)
+    onAfterChange(recentAfterDate(clamped))
+    onBeforeChange('')
   }
 
   const hasDate = !!(after || before)
+  const modes: DateMode[] = ['any', 'after', 'before', 'range', 'recent']
 
   return (
     <Popover>
@@ -53,9 +79,9 @@ export function DateFilter({
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-60 p-3 space-y-3" align="start">
+      <PopoverContent className="w-64 p-3 space-y-3" align="start">
         <div className="flex gap-1">
-          {(['any', 'after', 'before', 'range'] as DateMode[]).map(m => (
+          {modes.map(m => (
             <button
               key={m}
               onClick={() => handleModeChange(m)}
@@ -69,6 +95,19 @@ export function DateFilter({
             </button>
           ))}
         </div>
+        {mode === 'recent' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={180}
+              value={recentDays}
+              onChange={e => handleRecentDaysChange(Number(e.target.value))}
+              className="w-16 text-xs border border-border rounded px-2 py-1 bg-background"
+            />
+            <span className="text-xs text-muted-foreground">{labels.days}</span>
+          </div>
+        )}
         {(mode === 'after' || mode === 'range') && (
           <div>
             <label className="text-[10px] text-muted-foreground block mb-1">{labels.from}</label>

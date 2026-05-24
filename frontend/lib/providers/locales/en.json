@@ -122,7 +122,9 @@
     "after": "After",
     "before": "Before",
     "range": "Range",
-    "noTagsFound": "No tags found"
+    "noTagsFound": "No tags found",
+    "recent": "Recent",
+    "days": "days"
   },
   "tags": {
     "title": "Tags",

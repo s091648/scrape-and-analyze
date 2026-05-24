@@ -4,12 +4,13 @@ import { useSession } from 'next-auth/react'
 import { useI18n } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
-import { fetchAnalysesGraph, fetchAnalysesGraphGroup } from '@/lib/api/graph'
+import { fetchAnalysesGraph, fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
 import { fetchArticleById } from '@/lib/api/articles'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ExternalLink, X, Globe, Clock } from 'lucide-react'
+import { FilterBar } from '@/components/features/articles/filter-bar'
 
 const ForceGraph = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
@@ -67,11 +68,16 @@ interface GroupArticle {
 }
 
 export function KnowledgeGraph() {
-  const [days, setDays] = useState(30)
   const { status } = useSession()
   const { t, locale } = useI18n()
   const isGuest = status === 'unauthenticated'
   const { selectedTopicId } = useTopic()
+
+  const [graphFilters, setGraphFilters] = useState<Omit<GraphFilters, 'topic_id'>>({
+    published_after: (() => {
+      const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10)
+    })(),
+  })
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedGroupLabel, setExpandedGroupLabel] = useState('')
@@ -114,10 +120,10 @@ export function KnowledgeGraph() {
     }
     if (!selectedTopicId) return
     setGraphLoading(true)
-    fetchAnalysesGraph(days, selectedTopicId, locale)
+    fetchAnalysesGraph({ topic_id: selectedTopicId, ...graphFilters }, locale)
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [days, selectedTopicId, isGuest, locale])
+  }, [graphFilters, selectedTopicId, isGuest, locale])
 
   // Clear article hover cache when locale changes (stale translations)
   useEffect(() => { articleCacheRef.current.clear() }, [locale])
@@ -230,16 +236,31 @@ export function KnowledgeGraph() {
     <div className="flex gap-4 h-[calc(100vh-14rem)]">
       {/* Graph — 60% */}
       <div className="w-[60%] flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">{t('graph.timeWindow')}</label>
-          <select
-            value={days}
-            onChange={e => setDays(Number(e.target.value))}
-            className="text-sm border border-border rounded px-2 py-1 bg-background"
-          >
-            {[7, 30, 90, 180].map(d => <option key={d} value={d}>{t('graph.days', { d })}</option>)}
-          </select>
-        </div>
+        {!isGuest && (
+          <FilterBar
+            sources={graphFilters.source ?? []}
+            tags={graphFilters.tag ?? []}
+            publishedAfter={graphFilters.published_after ?? ''}
+            publishedBefore={graphFilters.published_before ?? ''}
+            scrapedAfter={graphFilters.scraped_after ?? ''}
+            scrapedBefore={graphFilters.scraped_before ?? ''}
+            activeFilterCount={
+              (graphFilters.source?.length ? 1 : 0) +
+              (graphFilters.tag?.length ? 1 : 0) +
+              ((graphFilters.published_after || graphFilters.published_before) ? 1 : 0) +
+              ((graphFilters.scraped_after || graphFilters.scraped_before) ? 1 : 0)
+            }
+            onApply={updates => setGraphFilters(prev => ({
+              ...prev,
+              source: updates.source,
+              tag: updates.tag,
+              published_after: updates.published_after,
+              published_before: updates.published_before,
+              scraped_after: updates.scraped_after,
+              scraped_before: updates.scraped_before,
+            }))}
+          />
+        )}
 
         <div
           ref={graphContainerRef}
