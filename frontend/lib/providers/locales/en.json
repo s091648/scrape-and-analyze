@@ -160,7 +160,14 @@
     "editGroup": "Edit group",
     "pendingChanges": "{count} pending change(s)",
     "confirmMoves": "Confirm",
-    "discardMoves": "Discard"
+    "discardMoves": "Discard",
+    "tagMode": "Tag Generation Mode",
+    "unsupervised": "Unsupervised",
+    "unsupervisedDesc": "LLM freely generates all tag groups",
+    "semiSupervised": "Semi-supervised",
+    "semiSupervisedDesc": "LLM uses existing groups as hints; may add new ones",
+    "supervised": "Supervised",
+    "supervisedDesc": "LLM is constrained to predefined groups only"
   },
   "common": {
     "loading": "Loading...",

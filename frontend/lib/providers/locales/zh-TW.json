@@ -160,7 +160,14 @@
     "editGroup": "編輯群組",
     "pendingChanges": "{count} 個待確認變更",
     "confirmMoves": "確認",
-    "discardMoves": "放棄"
+    "discardMoves": "放棄",
+    "tagMode": "標籤生成模式",
+    "unsupervised": "非監督式",
+    "unsupervisedDesc": "LLM 自由生成所有標籤群組",
+    "semiSupervised": "半監督式",
+    "semiSupervisedDesc": "LLM 參考現有群組，也可新增",
+    "supervised": "監督式",
+    "supervisedDesc": "LLM 只能使用預定義的標籤群組"
   },
   "common": {
     "loading": "載入中...",
