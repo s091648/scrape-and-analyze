@@ -131,7 +131,7 @@ def test_upsert_generates_embedding_for_new_tag_groups(deps):
 
     topic = MagicMock()
     topic.display_name = "AI"
-    topic.auto_tag_groups = True
+    topic.tag_mode = 'unsupervised'
     deps["topic_repository"].find_by_id.return_value = topic
     deps["topic_repository"].list_active.return_value = []
 
@@ -157,3 +157,80 @@ def test_upsert_generates_embedding_for_new_tag_groups(deps):
     called_texts = embedding_svc.embed_batch.call_args[0][0]
     assert any("research_methods" in t for t in called_texts)
     assert any("applications" in t for t in called_texts)
+
+
+def test_build_prompt_uses_supervised_template_when_tag_mode_supervised(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.domain.repositories import TagGroupDefinitionRepository
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.tag_mode = 'supervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+
+    group = MagicMock()
+    group.name = "research_methods"
+    group.display_name = "Research Methods"
+    group.description = ""
+    deps["tag_group_definition_repository"].find_by_topic_id.return_value = [group]
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    called_prompt = deps["llm_service"].analyze.call_args[0][1]
+    assert "research_methods" in called_prompt
+    assert "ONLY these exact key strings" in called_prompt
+
+
+def test_build_prompt_uses_semi_supervised_template_when_tag_mode_semi(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.tag_mode = 'semi_supervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+
+    group = MagicMock()
+    group.name = "applications"
+    group.display_name = "Applications"
+    group.description = ""
+    deps["tag_group_definition_repository"].find_by_topic_id.return_value = [group]
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    called_prompt = deps["llm_service"].analyze.call_args[0][1]
+    assert "applications" in called_prompt
+    assert "EXISTING TAG GROUPS" in called_prompt
+
+
+def test_supervised_mode_does_not_upsert_tag_groups(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisTagGroup
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.tag_mode = 'supervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+
+    group = MagicMock()
+    group.name = "research_methods"
+    group.display_name = "Research Methods"
+    group.description = ""
+    deps["tag_group_definition_repository"].find_by_topic_id.return_value = [group]
+
+    tag_groups = [AnalysisTagGroup(group_name="new_group", tags=["tag1"])]
+    content = AnalysisContent(
+        tag_groups=tag_groups, pain_points="p", insights="i", innovations="n", summary="s"
+    )
+    deps["llm_service"].analyze.return_value = (
+        content,
+        AnalysisMetadata(model_used="test", input_tokens=1, output_tokens=1),
+    )
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    deps["tag_group_definition_repository"].upsert.assert_not_called()

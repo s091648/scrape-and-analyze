@@ -3,6 +3,7 @@ from uuid import UUID
 
 from src.shared.domain.entities import Article
 from src.shared.domain.repositories import TopicRepository
+from src.shared.domain.value_objects.tag_mode import TagMode
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import (
@@ -50,12 +51,13 @@ class AnalyzeArticleUseCase:
 
         analysis_content, analysis_metadata = result
 
-        # In auto mode, persist any new tag groups the LLM generated so that
-        # downstream tag saving (NormalizeTagsUseCase) always has a matching
-        # TagGroupDefinition row.
+        # In unsupervised + semi mode, persist any new tag groups the LLM
+        # generated so that downstream tag saving (NormalizeTagsUseCase) always
+        # has a matching TagGroupDefinition row. Supervised mode skips upsert
+        # because all groups must be predefined.
         if article.topic_id is not None:
             topic = self._topic_repository.find_by_id(article.topic_id)
-            if topic is not None and topic.auto_tag_groups:
+            if topic is not None and topic.tag_mode != TagMode.SUPERVISED:
                 self._upsert_generated_tag_groups(
                     analysis_content.tag_groups or [],
                     article.topic_id,
@@ -101,17 +103,17 @@ class AnalyzeArticleUseCase:
         Render an AnalysisPrompt for the article's topic.
 
         Priority:
-          1. article has a topic_id + topic is found in DB
-               → auto mode:  render_auto (LLM generates groups)
-               → fixed mode: render_fixed with DB TagGroupDefinitions
-          2. no topic_id → render_auto with all active topics merged (broad context)
-          3. no topics in DB → return unrendered auto template (best-effort)
+          1. article has a topic_id + topic found in DB
+               → supervised:      render_fixed (constrained to predefined groups)
+               → semi_supervised: render_semi  (existing groups as hints, new allowed)
+               → unsupervised:    render_auto  (LLM generates freely)
+          2. no topic_id → render_auto with all active topics merged
+          3. no topics in DB → return unrendered auto template
         """
         if topic_id is not None:
             topic = self._topic_repository.find_by_id(topic_id)
             if topic is not None:
-                if not topic.auto_tag_groups:
-                    # Fixed mode: constrain LLM to predefined groups
+                if topic.tag_mode == TagMode.SUPERVISED:
                     db_groups = self._tag_group_definition_repository.find_by_topic_id(topic_id)
                     if db_groups:
                         tag_groups = [
@@ -122,15 +124,25 @@ class AnalyzeArticleUseCase:
                             topic=topic.display_name,
                             tag_groups=tag_groups,
                         ).content
-                    # Fixed mode but no groups defined yet → fall through to auto
                     logger.warning(
-                        "fixed_mode_no_groups_falling_back_to_auto",
+                        "supervised_mode_no_groups_falling_back_to_auto",
                         topic_id=str(topic_id),
                     )
 
+                elif topic.tag_mode == TagMode.SEMI_SUPERVISED:
+                    db_groups = self._tag_group_definition_repository.find_by_topic_id(topic_id)
+                    if db_groups:
+                        tag_groups = [
+                            TagGroup(name=g.name, display_name=g.display_name, description=g.description or "")
+                            for g in db_groups
+                        ]
+                        return self._prompt.render_semi(
+                            topic=topic.display_name,
+                            tag_groups=tag_groups,
+                        ).content
+
                 return self._prompt.render_auto(topic=topic.display_name).content
 
-        # Fallback: merge all active topics in auto mode
         topics = self._topic_repository.list_active()
         if not topics:
             logger.warning("no_active_topics_using_unrendered_prompt")
@@ -144,7 +156,7 @@ class AnalyzeArticleUseCase:
         tag_groups: List[AnalysisTagGroup],
         topic_id: UUID,
     ) -> None:
-        """Persist LLM-generated tag group keys as TagGroupDefinition rows (auto mode)."""
+        """Persist LLM-generated tag group keys as TagGroupDefinition rows (unsupervised + semi mode)."""
         valid = [(tg, tg.group_name) for tg in tag_groups if tg.group_name]
         if not valid:
             return
