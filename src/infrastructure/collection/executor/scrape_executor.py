@@ -91,6 +91,7 @@ class ScrapeExecutor:
         self,
         discover_tasks: List[DiscoverTask],
         on_result: Callable[[ScrapedArticle], None],
+        pre_fetch_filter: Optional[Callable[[List[FetchTask]], List[FetchTask]]] = None,
     ) -> int:
         """
         Streaming discover + fetch mode.
@@ -143,6 +144,7 @@ class ScrapeExecutor:
                     pending_discovers=pending_discovers,
                     pending_lock=pending_lock,
                     on_discover_complete=_on_discover_complete,
+                    pre_fetch_filter=pre_fetch_filter,
                 ))
 
             # Fetch workers
@@ -237,6 +239,7 @@ class ScrapeExecutor:
         pending_discovers: list,
         pending_lock: threading.Lock,
         on_discover_complete: Callable[[], None],
+        pre_fetch_filter: Optional[Callable[[List[FetchTask]], List[FetchTask]]] = None,
     ) -> int:
         """Worker that processes DiscoverTask items from queues."""
         logger.info("discover_worker_started", worker_id=worker_id)
@@ -289,6 +292,8 @@ class ScrapeExecutor:
 
                             # Route resulting fetch tasks back into queues
                             if fetch_tasks:
+                                if pre_fetch_filter is not None:
+                                    fetch_tasks = pre_fetch_filter(fetch_tasks)
                                 router.route(fetch_tasks)
                                 logger.info(
                                     "discover_produced_fetch_tasks",
