@@ -6,6 +6,7 @@ import { Network, Plus, X, Lock, GitMerge, Tags, Search } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { TagModeSelector, type TagMode } from '@/components/features/tags/tag-mode-selector'
 import { useTopic, useI18n } from '@/lib/providers'
 import {
   fetchTagGroups, fetchTagGroup, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
@@ -415,8 +416,8 @@ export default function TagsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddGroup, setShowAddGroup] = useState(false)
 
-  const [autoTagGroups, setAutoTagGroups] = useState<boolean>(
-    selectedTopic?.auto_tag_groups ?? true
+  const [tagMode, setTagMode] = useState<TagMode>(
+    (selectedTopic?.tag_mode ?? 'unsupervised') as TagMode
   )
 
   const [showSimilarities, setShowSimilarities] = useState(false)
@@ -446,9 +447,8 @@ export default function TagsPage() {
     return filteredGroups.filter(g => g.id === isolatedPair.a || g.id === isolatedPair.b)
   }, [filteredGroups, isolatedPair])
 
-  // Sync autoTagGroups when topic changes
   useEffect(() => {
-    setAutoTagGroups(selectedTopic?.auto_tag_groups ?? true)
+    setTagMode((selectedTopic?.tag_mode ?? 'unsupervised') as TagMode)
   }, [selectedTopic?.id])
 
   // Default similarities on for admins (fires once when session confirms admin)
@@ -459,14 +459,15 @@ export default function TagsPage() {
     }
   }, [isAdmin])
 
-  async function handleAutoTagGroupsToggle(checked: boolean) {
-    if (!selectedTopic || !token) return
-    setAutoTagGroups(checked)
+  async function handleTagModeChange(mode: TagMode) {
+    if (!selectedTopic) return
+    const prev = tagMode
+    setTagMode(mode)
     try {
       const { updateTopic } = await import('@/lib/api/topics')
-      await updateTopic(selectedTopic.id, { auto_tag_groups: checked }, token)
+      await updateTopic(selectedTopic.id, { tag_mode: mode }, token)
     } catch {
-      setAutoTagGroups(!checked)
+      setTagMode(prev)
     }
   }
 
@@ -754,14 +755,8 @@ export default function TagsPage() {
             )}
             {selectedTopic && (
               <div className="flex items-center gap-2">
-                <Switch
-                  id="auto-tag-groups"
-                  checked={autoTagGroups}
-                  onCheckedChange={handleAutoTagGroupsToggle}
-                />
-                <label htmlFor="auto-tag-groups" className="text-xs text-muted-foreground cursor-pointer select-none">
-                  Auto Tag Groups
-                </label>
+                <span className="text-xs text-muted-foreground">{t('tags.tagMode')}</span>
+                <TagModeSelector value={tagMode} onChange={handleTagModeChange} />
               </div>
             )}
             <Button
