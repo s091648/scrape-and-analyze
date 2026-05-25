@@ -142,6 +142,11 @@ class TagGroupMergeRequest(BaseModel):
     def normalize_result_display_name(cls, v: str) -> str:
         return _to_title(v)
 
+
+class TagGroupReorderItem(BaseModel):
+    id: UUID
+    sort_order: int
+
     class Config:
         from_attributes = True
 
@@ -187,15 +192,15 @@ def _similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: floa
 def _tag_outs_for_group(db: Session, grp) -> List[TagOut]:
     from models.tag import Tag, article_tags as article_tags_table
     from models.article import Article
-    rows = (
+    q = (
         db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
         .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
         .join(Article, Article.id == article_tags_table.c.article_id)
         .filter(Tag.tag_group_id == grp.id)
-        .group_by(Tag.id, Tag.name)
-        .order_by(Tag.name)
-        .all()
     )
+    if grp.topic_id:
+        q = q.filter(Article.topic_id == grp.topic_id)
+    rows = q.group_by(Tag.id, Tag.name).order_by(Tag.name).all()
     return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
 
 
@@ -364,6 +369,18 @@ def merge_tag_groups(
         topic_id=result_group.topic_id, tags=_tag_outs_for_group(db, result_group),
         similar_groups=[],
     )
+
+
+@router.post("/tag-groups/reorder", status_code=204)
+def reorder_tag_groups(
+    body: List[TagGroupReorderItem],
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    from models.tag_group import TagGroupDefinition
+    for item in body:
+        db.query(TagGroupDefinition).filter_by(id=item.id).update({"sort_order": item.sort_order})
+    db.commit()
 
 
 @router.get("/tag-groups/{group_id}", response_model=TagGroupOut)

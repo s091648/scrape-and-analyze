@@ -12,7 +12,7 @@ from src.modules.intelligence.domain.repositories import (
 )
 from src.modules.intelligence.domain.services import LLMService, EmbeddingService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup, AnalysisTagGroup
-from src.modules.intelligence.application.use_cases import AnalysisResult
+from .analysis_result import AnalysisResult
 
 logger = get_logger(__name__)
 

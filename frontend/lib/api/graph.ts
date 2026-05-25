@@ -54,10 +54,20 @@ export async function fetchAnalysesGraph(
 
 export async function fetchAnalysesGraphGroup<T = unknown>(
   groupName: string,
+  filters?: Omit<GraphFilters, 'topic_id'> & { topic_id?: string },
   locale?: string,
 ): Promise<T[]> {
+  const params = new URLSearchParams()
+  if (filters?.topic_id) params.set('topic_id', filters.topic_id)
+  if (filters?.published_after) params.set('published_after', filters.published_after)
+  if (filters?.published_before) params.set('published_before', filters.published_before)
+  if (filters?.scraped_after) params.set('scraped_after', filters.scraped_after)
+  if (filters?.scraped_before) params.set('scraped_before', filters.scraped_before)
+  filters?.source?.forEach(s => params.append('source', s))
+  filters?.tag?.forEach(t => params.append('tag', t))
+  const qs = params.toString()
   const res = await apiFetch(
-    `/analyses/graph/group/${encodeURIComponent(groupName)}`,
+    `/analyses/graph/group/${encodeURIComponent(groupName)}${qs ? `?${qs}` : ''}`,
     {},
     locale,
   )

@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Network, Plus, X, Lock, GitMerge, Tags, Search } from 'lucide-react'
+import { Network, Plus, X, Lock, GitMerge, Tags, Search, GripVertical } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -10,6 +10,7 @@ import { TagModeSelector, type TagMode } from '@/components/features/tags/tag-mo
 import { useTopic, useI18n } from '@/lib/providers'
 import {
   fetchTagGroups, fetchTagGroup, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
+  reorderTagGroups,
   type TagGroupOut, type SuggestionOut, type TagGroupCreate, type TagOut,
 } from '@/lib/api/tags'
 import { TagGroupCard } from '@/components/features/tags/tag-group-card'
@@ -19,7 +20,7 @@ import { MergeGroupDialog } from '@/components/features/tags/merge-group-dialog'
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor,
   useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from '@dnd-kit/core'
 
 // ── Fake data shown behind paywall for unauthenticated users ──────────────────
@@ -479,12 +480,17 @@ export default function TagsPage() {
   }
 
   const [pendingMoves, setPendingMoves] = useState<Map<string, PendingMove>>(new Map())
+  const [overZoneId, setOverZoneId] = useState<string | null>(null)
   const [activeDragTag, setActiveDragTag] = useState<TagOut | null>(null)
   const [activeDragGroup, setActiveDragGroup] = useState<TagGroupOut | null>(null)
+  const [isGroupDragActive, setIsGroupDragActive] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set())
   const activeDragTagIdsRef = useRef<Set<string>>(new Set())
   const [activeDragCount, setActiveDragCount] = useState(0)
+  const dragStartGroupsRef = useRef<TagGroupOut[] | null>(null)
+  const currentGroupsRef = useRef<TagGroupOut[]>(groups)
+  useEffect(() => { currentGroupsRef.current = groups }, [groups])
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -492,8 +498,10 @@ export default function TagsPage() {
   )
 
   function handleDragStart({ active }: DragStartEvent) {
-    if (active.data.current?.type === 'group') {
+    if (active.data.current?.type === 'group-sort') {
       setActiveDragGroup(active.data.current.group ?? null)
+      setIsGroupDragActive(true)
+      dragStartGroupsRef.current = [...groups]
       return
     }
     const tag: TagOut = active.data.current?.tag
@@ -507,25 +515,70 @@ export default function TagsPage() {
     setActiveDragCount(tagIds.size)
   }
 
+  function handleDragOver({ active, over }: DragOverEvent) {
+    if (active.data.current?.type === 'group-sort') {
+      setOverZoneId(over ? String(over.id) : null)
+    }
+  }
+
   function handleDragEnd({ active, over }: DragEndEvent) {
     setActiveDragTag(null)
     setActiveDragGroup(null)
+    setIsGroupDragActive(false)
+    setOverZoneId(null)
     const tagIdsToMove = activeDragTagIdsRef.current
     activeDragTagIdsRef.current = new Set()
     setActiveDragCount(0)
 
-    if (!over) return
+    // Group sort / merge
+    if (active.data.current?.type === 'group-sort') {
+      dragStartGroupsRef.current = null
+      if (!over) return
 
-    // Group merge via drag
-    if (active.data.current?.type === 'group') {
-      const draggedGroup: TagGroupOut = active.data.current.group
-      const targetGroupId = String(over.id)
-      if (draggedGroup.id === targetGroupId) return
-      const targetGroup = groups.find(g => g.id === targetGroupId)
-      if (!targetGroup) return
-      setMergeGroupPair([draggedGroup, targetGroup])
+      const overId = String(over.id)
+      const draggedGroupId = active.data.current.group.id
+
+      if (overId.startsWith('merge:')) {
+        const targetGroupId = overId.slice('merge:'.length)
+        if (targetGroupId !== draggedGroupId) {
+          handleMergeFromLine(draggedGroupId, targetGroupId)
+        }
+        return
+      }
+
+      let targetGroupId: string | null = null
+      let insertBefore = false
+
+      if (overId.startsWith('sort-above:')) {
+        targetGroupId = overId.slice('sort-above:'.length)
+        insertBefore = true
+      } else if (overId.startsWith('sort-below:')) {
+        targetGroupId = overId.slice('sort-below:'.length)
+        insertBefore = false
+      }
+
+      if (!targetGroupId || targetGroupId === draggedGroupId) return
+
+      setGroups(prev => {
+        const dragged = prev.find(g => g.id === draggedGroupId)
+        if (!dragged) return prev
+        const without = prev.filter(g => g.id !== draggedGroupId)
+        const targetIdx = without.findIndex(g => g.id === targetGroupId)
+        if (targetIdx === -1) return prev
+        const insertAt = insertBefore ? targetIdx : targetIdx + 1
+        const newOrder = [...without.slice(0, insertAt), dragged, ...without.slice(insertAt)]
+        if (token) {
+          reorderTagGroups(
+            newOrder.map((g, i) => ({ id: g.id, sort_order: i })),
+            token,
+          ).catch(() => {})
+        }
+        return newOrder
+      })
       return
     }
+
+    if (!over) return
 
     const toGroupId = String(over.id)
     const toGroup = groups.find(g => g.id === toGroupId)
@@ -917,10 +970,11 @@ export default function TagsPage() {
             <DndContext
               sensors={sensors}
               onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
             >
               <div className="relative space-y-4">
-                {displayedGroups.map(group => {
+                {displayedGroups.map((group, idx) => {
                   const isSimilar = showSimilarities && isAdmin && group.similar_groups.length > 0
                   const pendingIncomingTagIds = new Set(
                     [...pendingMoves.values()]
@@ -929,6 +983,18 @@ export default function TagsPage() {
                   )
                   const isMergeSource = mergingGroupId === group.id
                   const isMergeMode = !!mergingGroupId && !isMergeSource
+                  const isDraggedCard = activeDragGroup?.id === group.id
+                  const prevGroupId = displayedGroups[idx - 1]?.id
+                  const nextGroupId = displayedGroups[idx + 1]?.id
+                  const oz = overZoneId ?? ''
+                  const showTopInsert = !isDraggedCard && isGroupDragActive && (
+                    oz === `sort-above:${group.id}` ||
+                    (prevGroupId != null && oz === `sort-below:${prevGroupId}`)
+                  )
+                  const showBottomInsert = !isDraggedCard && isGroupDragActive && (
+                    oz === `sort-below:${group.id}` ||
+                    (nextGroupId != null && oz === `sort-above:${nextGroupId}`)
+                  )
                   return (
                     <div
                       key={group.id}
@@ -942,6 +1008,9 @@ export default function TagsPage() {
                         pendingIncomingTagIds={pendingIncomingTagIds}
                         isMergeMode={isMergeMode}
                         isMergeSource={isMergeSource}
+                        isGroupDragActive={isGroupDragActive}
+                        showTopInsert={showTopInsert}
+                        showBottomInsert={showBottomInsert}
                         selectedTagIds={selectedTagIds}
                         onTagSelectionToggle={tagId => setSelectedTagIds(prev => {
                           const next = new Set(prev)
@@ -997,9 +1066,9 @@ export default function TagsPage() {
                   </div>
                 )}
                 {activeDragGroup && (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary bg-card text-xs shadow-md cursor-grabbing">
-                    <GitMerge className="h-3.5 w-3.5 text-primary" />
-                    Merging: {activeDragGroup.display_name}
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs shadow-md cursor-grabbing opacity-80">
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                    {activeDragGroup.display_name}
                   </div>
                 )}
               </DragOverlay>

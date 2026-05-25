@@ -47,7 +47,7 @@ export function TagDialog({
       return
     }
     setLoadingArticles(true)
-    fetchArticles({ tag: [tag.name], topic_id: topicId || undefined, page, size: PAGE_SIZE }, locale)
+    fetchArticles({ tag_id: [tag.id], topic_id: topicId || undefined, page, size: PAGE_SIZE }, locale)
       .then(data => {
         setArticles(data.items)
         setTotal(data.total)

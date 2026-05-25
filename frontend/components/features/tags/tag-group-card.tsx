@@ -16,6 +16,9 @@ interface Props {
   pendingIncomingTagIds: Set<string>
   isMergeMode?: boolean
   isMergeSource?: boolean
+  isGroupDragActive?: boolean
+  showTopInsert?: boolean
+  showBottomInsert?: boolean
   selectedTagIds?: Set<string>
   onDeleted: (groupId: string) => void
   onTagRenamed: (groupId: string, tagId: string, newName: string) => void
@@ -179,10 +182,12 @@ function EditGroupForm({
               value={(form as any)[key] ?? ''}
               placeholder={placeholder}
               onChange={e => {
-                const val = key === 'name' ? e.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') : e.target.value
+                const val = key === 'name' ? e.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, '_') : e.target.value
                 setForm(prev => ({ ...prev, [key]: val }))
               }}
-              onBlur={key === 'display_name'
+              onBlur={key === 'name'
+                ? e => setForm(prev => ({ ...prev, name: e.target.value.replace(/^_+|_+$/g, '') }))
+                : key === 'display_name'
                 ? e => setForm(prev => ({ ...prev, display_name: e.target.value.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) }))
                 : undefined}
               required={required}
@@ -206,7 +211,8 @@ function EditGroupForm({
 
 export function TagGroupCard({
   group, isAdmin, token, pendingIncomingTagIds,
-  isMergeMode = false, isMergeSource = false,
+  isMergeMode = false, isMergeSource = false, isGroupDragActive = false,
+  showTopInsert = false, showBottomInsert = false,
   selectedTagIds,
   onDeleted, onTagRenamed, onTagDeleted, onGroupUpdated,
   onMergeRequested, onMergeTargetSelected, onTagSelectionToggle,
@@ -238,7 +244,19 @@ export function TagGroupCard({
     return () => cancelAnimationFrame(id)
   }, [tags, open, expanded])
 
-  const { setNodeRef, isOver } = useDroppable({ id: group.id })
+  const { setNodeRef, isOver } = useDroppable({ id: group.id, disabled: isGroupDragActive })
+  const { setNodeRef: sortAboveRef, isOver: isOverSortAbove } = useDroppable({
+    id: `sort-above:${group.id}`,
+    disabled: !isGroupDragActive,
+  })
+  const { setNodeRef: mergeZoneRef, isOver: isOverMerge } = useDroppable({
+    id: `merge:${group.id}`,
+    disabled: !isGroupDragActive,
+  })
+  const { setNodeRef: sortBelowRef, isOver: isOverSortBelow } = useDroppable({
+    id: `sort-below:${group.id}`,
+    disabled: !isGroupDragActive,
+  })
 
   const {
     attributes: groupDragAttrs,
@@ -247,7 +265,7 @@ export function TagGroupCard({
     isDragging: isGroupDragging,
   } = useDraggable({
     id: `group-drag-${group.id}`,
-    data: { type: 'group', group: localGroup },
+    data: { type: 'group-sort', group: localGroup },
     disabled: !isAdmin || !token,
   })
 
@@ -268,8 +286,8 @@ export function TagGroupCard({
         isGroupDragging && 'opacity-50',
       )}
     >
-      {/* Merge mode overlay */}
-      {isMergeMode && (
+      {/* Merge mode overlay (click-based) */}
+      {isMergeMode && !isGroupDragActive && (
         <div
           className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-[2px] flex items-center justify-center z-10 cursor-pointer border-2 border-dashed border-primary/40 hover:border-primary hover:bg-background/30 transition-all"
           onClick={() => onMergeTargetSelected?.(group.id)}
@@ -278,6 +296,35 @@ export function TagGroupCard({
             <GitMerge className="h-4 w-4" />
             Merge here
           </div>
+        </div>
+      )}
+
+      {/* Top insert indicator */}
+      {showTopInsert && (
+        <div className="absolute top-0 inset-x-0 h-1 bg-green-400 rounded-t-xl z-20 pointer-events-none" />
+      )}
+      {/* Bottom insert indicator */}
+      {showBottomInsert && (
+        <div className="absolute bottom-0 inset-x-0 h-1 bg-green-400 rounded-b-xl z-20 pointer-events-none" />
+      )}
+
+      {/* Tripartite drop zones during group drag — sort zones are invisible hit areas */}
+      {isGroupDragActive && !isGroupDragging && (
+        <div className="absolute inset-0 rounded-xl overflow-hidden z-10 flex flex-col pointer-events-none">
+          <div ref={sortAboveRef} className="flex-[3] pointer-events-auto" />
+          <div
+            ref={mergeZoneRef}
+            className={cn(
+              'flex-[4] flex items-center justify-center gap-1.5 text-xs font-semibold border-y border-dashed transition-colors pointer-events-auto',
+              isOverMerge
+                ? 'bg-indigo-500/20 border-indigo-400 text-indigo-600 dark:text-indigo-400'
+                : 'bg-transparent border-transparent text-transparent',
+            )}
+          >
+            <GitMerge className="h-3.5 w-3.5" />
+            Drop to merge
+          </div>
+          <div ref={sortBelowRef} className="flex-[3] pointer-events-auto" />
         </div>
       )}
 

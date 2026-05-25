@@ -64,6 +64,16 @@ def main():
     init_db()
     session = get_session()
 
+    col_exists = session.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='tags' AND column_name='tag_group_name'"
+    )).first()
+    if not col_exists:
+        print("tags.tag_group_name no longer exists (dropped by migration 18).")
+        print("tag_group_definitions backfill was handled inline by that migration.")
+        session.close()
+        return
+
     rows = session.execute(
         text(_SQL_MISSING_PAIRS), {"topic": args.topic}
     ).fetchall()

@@ -86,8 +86,18 @@ def query_analyses(
     return query.all()
 
 
-def query_group_articles(db: Session, group_name: str, topic_id=None) -> list:
-    """Return all analyses whose article has at least one tag in the given group."""
+def query_group_articles(
+    db: Session,
+    group_name: str,
+    topic_id=None,
+    published_after: Optional[datetime] = None,
+    published_before: Optional[datetime] = None,
+    scraped_after: Optional[datetime] = None,
+    scraped_before: Optional[datetime] = None,
+    sources: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> list:
+    """Return analyses whose article has at least one tag in the given group, with optional filters."""
     from models.analysis import Analysis
     from models.article import Article
     from models.tag import Tag, article_tags as at
@@ -103,6 +113,24 @@ def query_group_articles(db: Session, group_name: str, topic_id=None) -> list:
     )
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
+    if published_after:
+        query = query.filter(Article.published_at >= published_after)
+    if published_before:
+        query = query.filter(Article.published_at <= published_before)
+    if scraped_after:
+        query = query.filter(Article.scraped_at >= scraped_after)
+    if scraped_before:
+        query = query.filter(Article.scraped_at <= scraped_before)
+    if sources:
+        query = query.filter(Article.source.in_(sources))
+    if tags:
+        from models.tag import Tag as T2, article_tags as at2
+        query = (
+            query
+            .join(at2, at2.c.article_id == Article.id)
+            .join(T2, T2.id == at2.c.tag_id)
+            .filter(T2.name.in_(tags))
+        )
     return query.all()
 
 
@@ -197,10 +225,18 @@ def get_graph(
 
 
 @router.get('/analyses/graph/group/{group_name}')
-def get_group_articles(group_name: str,
-                       topic_id: Optional[UUID] = Query(default=None),
-                       lang: str = Query(default="en"),
-                       db: Session = Depends(get_db)):
+def get_group_articles(
+    group_name: str,
+    topic_id: Optional[UUID] = Query(default=None),
+    lang: str = Query(default="en"),
+    published_after: Optional[datetime] = Query(default=None),
+    published_before: Optional[datetime] = Query(default=None),
+    scraped_after: Optional[datetime] = Query(default=None),
+    scraped_before: Optional[datetime] = Query(default=None),
+    source: Optional[List[str]] = Query(default=None),
+    tag: Optional[List[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
     from models.analyses_translation import AnalysesTranslation
     from models.tag_translation import TagsTranslation
     from models.tag_group_translation import TagGroupDefinitionsTranslation
@@ -220,7 +256,16 @@ def get_group_articles(group_name: str,
             display_name = group_trans.display_name
             group_description = group_trans.description
 
-    analyses = query_group_articles(db, group_name, topic_id=topic_id)
+    analyses = query_group_articles(
+        db, group_name,
+        topic_id=topic_id,
+        published_after=published_after,
+        published_before=published_before,
+        scraped_after=scraped_after,
+        scraped_before=scraped_before,
+        sources=source or [],
+        tags=tag or [],
+    )
 
     # Batch-load analysis translations (requested language + English fallback)
     analysis_ids = [a.id for a in analyses]

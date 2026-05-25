@@ -40,6 +40,7 @@ def get_articles_paginated(
     size: int,
     sources: List[str] | None = None,
     tags: List[str] | None = None,
+    tag_ids: List[UUID] | None = None,
     published_after: Optional[date] = None,
     published_before: Optional[date] = None,
     scraped_after: Optional[date] = None,
@@ -55,6 +56,13 @@ def get_articles_paginated(
 
     if sources:
         query = query.filter(Article.source.in_(sources))
+
+    if tag_ids:
+        from models.tag import article_tags as at
+        from sqlalchemy import select
+        for tag_id in tag_ids:
+            tag_subq = select(at.c.article_id).where(at.c.tag_id == tag_id).scalar_subquery()
+            query = query.filter(Article.id.in_(tag_subq))
 
     if tags:
         from models.tag import Tag, article_tags as at
@@ -91,6 +99,7 @@ def list_articles(
     order: Literal["asc", "desc"] = "desc",
     source: List[str] = Query(default=[]),
     tag: List[str] = Query(default=[]),
+    tag_id: List[UUID] = Query(default=[]),
     published_after: Optional[date] = Query(default=None),
     published_before: Optional[date] = Query(default=None),
     scraped_after: Optional[date] = Query(default=None),
@@ -103,6 +112,7 @@ def list_articles(
         db, sort, order, page, size,
         sources=source or None,
         tags=tag or None,
+        tag_ids=tag_id or None,
         published_after=published_after,
         published_before=published_before,
         scraped_after=scraped_after,

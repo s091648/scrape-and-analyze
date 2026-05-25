@@ -89,14 +89,14 @@ backfill-tag-group-embeddings:
 backfill-tag-group-embeddings-dry-run:
 	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --only tag-groups --dry-run $(_BACKFILL_ARGS)
 
-backfill-tag-group-definitions:
-	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py $(_BACKFILL_ARGS)
+# backfill-tag-group-definitions:
+# 	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py $(_BACKFILL_ARGS)
 
-backfill-tag-group-definitions-dry-run:
-	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py --dry-run $(_BACKFILL_ARGS)
+# backfill-tag-group-definitions-dry-run:
+# 	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py --dry-run $(_BACKFILL_ARGS)
 
-audit-tag-groups:
-	docker compose run --rm job_service python /app/scripts/audit_tag_groups.py
+# audit-tag-groups:
+# 	docker compose run --rm job_service python /app/scripts/audit_tag_groups.py
 
 # optional: override NAME=001_backfill_tag_group_definitions
 NAME ?=

@@ -41,6 +41,15 @@ ORDER BY t.tag_group_name
 
 
 def up(session) -> None:
+    col_exists = session.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='tags' AND column_name='tag_group_name'"
+    )).first()
+    if not col_exists:
+        print("    tags.tag_group_name no longer exists (dropped by migration 18).")
+        print("    backfill was handled inline by migration 18 — nothing to do.")
+        return
+
     rows = session.execute(text(_SQL_MISSING_PAIRS)).fetchall()
     if not rows:
         print("    no missing tag_group_definitions found")
@@ -65,6 +74,14 @@ def up(session) -> None:
 
 
 def down(session) -> None:
+    col_exists = session.execute(text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name='tags' AND column_name='tag_group_name'"
+    )).first()
+    if not col_exists:
+        print("    tags.tag_group_name no longer exists — down() is a no-op.")
+        return
+
     result = session.execute(text("""
         DELETE FROM tag_group_definitions
         WHERE display_name LIKE '%_unsupervised'

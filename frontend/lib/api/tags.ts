@@ -160,6 +160,18 @@ export async function mergeTagGroups(body: TagGroupMergeRequest, token: string):
   return res.json()
 }
 
+export async function reorderTagGroups(
+  items: { id: string; sort_order: number }[],
+  token: string,
+): Promise<void> {
+  const res = await apiFetch('/tag-groups/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(items),
+  })
+  if (!res.ok) throw new Error('Failed to reorder tag groups')
+}
+
 export async function fetchPendingSuggestions(token: string): Promise<SuggestionOut[]> {
   const res = await apiFetch('/tag-normalization-suggestions', {
     headers: { Authorization: `Bearer ${token}` },
