@@ -74,9 +74,9 @@ class AnalysisPrompt(BasePrompt):
       - render_fixed(topic, tag_groups): LLM constrained to predefined DB tag groups.
       - render_semi(topic, tag_groups):  LLM sees existing groups as hints, may create new.
 
-    Use render_auto when topic.auto_tag_groups is True (default).
-    Use render_fixed when topic.auto_tag_groups is False (admin has defined groups).
-    Use render_semi for semi-supervised mode (existing groups as suggestions).
+    Use render_auto for unsupervised mode (topic.tag_mode == TagMode.UNSUPERVISED).
+    Use render_fixed for supervised mode (topic.tag_mode == TagMode.SUPERVISED).
+    Use render_semi for semi-supervised mode (topic.tag_mode == TagMode.SEMI_SUPERVISED).
     """
 
     _content: str = _AUTO_TEMPLATE
