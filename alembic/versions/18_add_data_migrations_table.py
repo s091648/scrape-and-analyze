@@ -1,8 +1,10 @@
-"""add_data_migrations_table_and_tag_group_id_fk
+"""add_data_migrations_table_and_tag_group_id_fk_and_tag_mode
 
 Add data_migrations tracking table.
 Replace tags.tag_group_name (string join) with tags.tag_group_id (UUID FK)
 to fix cross-topic group name collisions and simplify merge/rename operations.
+Replace topics.auto_tag_groups (boolean) with topics.tag_mode (VARCHAR(20))
+supporting 'unsupervised', 'semi_supervised', 'supervised'.
 
 Revision ID: 18_add_data_migrations_table
 Revises: 17_add_vector_failed_task_and_auto_tag
@@ -120,8 +122,44 @@ def upgrade() -> None:
     # 8. Drop tag_group_name
     op.drop_column("tags", "tag_group_name")
 
+    # ── topics: replace auto_tag_groups with tag_mode ──
+
+    # 9. Add tag_mode column
+    op.add_column(
+        "topics",
+        sa.Column("tag_mode", sa.String(20), nullable=False, server_default="unsupervised"),
+    )
+
+    # 10. Migrate: auto_tag_groups=true → 'unsupervised', false → 'supervised'
+    op.execute(
+        "UPDATE topics SET tag_mode = CASE WHEN auto_tag_groups = TRUE "
+        "THEN 'unsupervised' ELSE 'supervised' END"
+    )
+
+    # 11. Remove server_default, drop auto_tag_groups
+    op.alter_column("topics", "tag_mode", server_default=None)
+    op.drop_column("topics", "auto_tag_groups")
+
 
 def downgrade() -> None:
+    # ── reverse topics.tag_mode change ──
+
+    op.add_column(
+        "topics",
+        sa.Column(
+            "auto_tag_groups",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
+    )
+    op.execute(
+        "UPDATE topics SET auto_tag_groups = CASE WHEN tag_mode = 'supervised' "
+        "THEN FALSE ELSE TRUE END"
+    )
+    op.alter_column("topics", "auto_tag_groups", server_default=None)
+    op.drop_column("topics", "tag_mode")
+
     # ── reverse tags schema change ──
 
     # 1. Re-add tag_group_name (nullable for backfill)
@@ -138,18 +176,48 @@ def downgrade() -> None:
         WHERE tgd.id = t.tag_group_id
     """)
 
-    # 3. Set NOT NULL
+    # 3. De-duplicate: (name, tag_group_name) may collide across topics
+    #    since the old schema lacked topic scoping. Delete article_tags for
+    #    duplicates first, then delete the duplicate tags, keeping one per pair.
+    op.execute("""
+        DELETE FROM article_tags
+        WHERE tag_id IN (
+            SELECT t.id FROM tags t
+            JOIN (
+                SELECT name, tag_group_name, MIN(id) AS keep_id
+                FROM tags
+                GROUP BY name, tag_group_name
+                HAVING COUNT(*) > 1
+            ) dup ON t.name = dup.name AND t.tag_group_name = dup.tag_group_name
+            WHERE t.id <> dup.keep_id
+        )
+    """)
+    op.execute("""
+        DELETE FROM tags
+        WHERE id IN (
+            SELECT t.id FROM tags t
+            JOIN (
+                SELECT name, tag_group_name, MIN(id) AS keep_id
+                FROM tags
+                GROUP BY name, tag_group_name
+                HAVING COUNT(*) > 1
+            ) dup ON t.name = dup.name AND t.tag_group_name = dup.tag_group_name
+            WHERE t.id <> dup.keep_id
+        )
+    """)
+
+    # 4. Set NOT NULL
     op.alter_column("tags", "tag_group_name", nullable=False)
 
-    # 4. Swap index
+    # 6. Swap index
     op.drop_index("idx_tags_group", table_name="tags")
     op.create_index("idx_tags_group", "tags", ["tag_group_name"])
 
-    # 5. Swap unique constraint
+    # 7. Swap unique constraint
     op.drop_constraint("uq_tag_name_group", "tags", type_="unique")
     op.create_unique_constraint("uq_tag_name_group", "tags", ["name", "tag_group_name"])
 
-    # 6. Drop FK and tag_group_id
+    # 8. Drop FK and tag_group_id
     op.drop_constraint("fk_tags_tag_group_id", "tags", type_="foreignkey")
     op.drop_column("tags", "tag_group_id")
 
