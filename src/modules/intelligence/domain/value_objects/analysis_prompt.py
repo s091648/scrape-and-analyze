@@ -47,18 +47,36 @@ TAG GROUPS — use ONLY these exact key strings in the "group" field, no others:
 __TAG_GROUPS__
 """ + _COMMON_EXTRACTION
 
+# ── Semi-supervised mode: LLM sees existing groups as hints, may create new ──
+
+_SEMI_TEMPLATE = """You are a professional technology analyst specializing in __TOPIC__.
+
+Analyze the following article and classify it into relevant tag groups.
+The following tag groups already exist for this topic — prefer reusing them when they fit,
+but you may also create new snake_case groups if the article covers something genuinely different:
+
+EXISTING TAG GROUPS:
+__TAG_GROUPS__
+
+For each applicable group, generate 2-4 specific sub-tags describing the article's focus.
+Assign 1-3 groups total; only include groups truly relevant to the article.
+If none of the existing groups fit well, feel free to create new snake_case group keys.
+""" + _COMMON_EXTRACTION
+
 
 @dataclass(frozen=True)
 class AnalysisPrompt(BasePrompt):
     """
     Prompt value object for article analysis.
 
-    Two rendering modes:
+    Three rendering modes:
       - render_auto(topic):              LLM freely generates tag group keys.
       - render_fixed(topic, tag_groups): LLM constrained to predefined DB tag groups.
+      - render_semi(topic, tag_groups):  LLM sees existing groups as hints, may create new.
 
     Use render_auto when topic.auto_tag_groups is True (default).
     Use render_fixed when topic.auto_tag_groups is False (admin has defined groups).
+    Use render_semi for semi-supervised mode (existing groups as suggestions).
     """
 
     _content: str = _AUTO_TEMPLATE
@@ -68,9 +86,12 @@ class AnalysisPrompt(BasePrompt):
         return self._content
 
     def render(self, **kwargs) -> 'AnalysisPrompt':
-        """Compatibility shim; prefer render_auto() or render_fixed()."""
+        """Compatibility shim; prefer render_auto(), render_fixed(), or render_semi()."""
         topic = kwargs.get("topic", "")
         tag_groups = kwargs.get("tag_groups", [])
+        mode = kwargs.get("mode", "fixed" if tag_groups else "auto")
+        if mode == "semi" and tag_groups:
+            return self.render_semi(topic, tag_groups)
         if tag_groups:
             return self.render_fixed(topic, tag_groups)
         return self.render_auto(topic)
@@ -83,6 +104,12 @@ class AnalysisPrompt(BasePrompt):
     def render_fixed(self, topic: str, tag_groups: List[TagGroup]) -> 'AnalysisPrompt':
         """Fill __TOPIC__ and __TAG_GROUPS__; LLM must use the provided group keys."""
         filled = _FIXED_TEMPLATE.replace("__TOPIC__", topic)
+        filled = filled.replace("__TAG_GROUPS__", self._format_fixed_groups(tag_groups))
+        return AnalysisPrompt(_content=filled)
+
+    def render_semi(self, topic: str, tag_groups: List[TagGroup]) -> 'AnalysisPrompt':
+        """Fill __TOPIC__ and __TAG_GROUPS__; LLM may reuse or create new groups."""
+        filled = _SEMI_TEMPLATE.replace("__TOPIC__", topic)
         filled = filled.replace("__TAG_GROUPS__", self._format_fixed_groups(tag_groups))
         return AnalysisPrompt(_content=filled)
 
