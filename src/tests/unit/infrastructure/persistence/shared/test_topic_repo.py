@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+from src.shared.domain.value_objects.tag_mode import TagMode
+
 
 def _make_topic_row(name="digital-twins"):
     row = MagicMock()
@@ -12,6 +14,7 @@ def _make_topic_row(name="digital-twins"):
     row.prompt_override = None
     row.sort_order = 1
     row.is_active = True
+    row.tag_mode = 'unsupervised'
     row.created_at = None
     return row
 
@@ -39,3 +42,16 @@ def test_find_by_id_returns_none_when_not_found():
     session.query.return_value.filter_by.return_value.first.return_value = None
     repo = SqlAlchemyTopicRepository(session=session)
     assert repo.find_by_id(uuid4()) is None
+
+
+def test_to_entity_maps_tag_mode():
+    from src.infrastructure.persistence.shared.topic_repo_impl import (
+        SqlAlchemyTopicRepository,
+    )
+    row = _make_topic_row()
+    row.tag_mode = 'semi_supervised'
+    session = MagicMock()
+    session.query.return_value.filter_by.return_value.first.return_value = row
+    repo = SqlAlchemyTopicRepository(session=session)
+    topic = repo.find_by_id(row.id)
+    assert topic.tag_mode == TagMode.SEMI_SUPERVISED
