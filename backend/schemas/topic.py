@@ -1,7 +1,14 @@
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
+
+
+class TagMode(str, Enum):
+    unsupervised = 'unsupervised'
+    semi_supervised = 'semi_supervised'
+    supervised = 'supervised'
 
 
 class TopicCreate(BaseModel):
@@ -11,6 +18,7 @@ class TopicCreate(BaseModel):
     color_hex: Optional[str] = None
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
+    tag_mode: TagMode = TagMode.unsupervised
 
 
 class TopicUpdate(BaseModel):
@@ -20,7 +28,7 @@ class TopicUpdate(BaseModel):
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
-    auto_tag_groups: Optional[bool] = None
+    tag_mode: Optional[TagMode] = None
 
 
 class TopicOut(BaseModel):
@@ -32,7 +40,7 @@ class TopicOut(BaseModel):
     prompt_override: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: bool
-    auto_tag_groups: bool
+    tag_mode: TagMode
     created_at: Optional[datetime] = None
 
     class Config:
