@@ -31,6 +31,7 @@ export interface TagGroupCreate {
 }
 
 export interface TagGroupUpdate {
+  name?: string
   display_name?: string
   color_hex?: string
   description?: string

@@ -116,6 +116,7 @@ function EditGroupForm({
 }) {
   const { t } = useI18n()
   const [form, setForm] = useState<TagGroupUpdate>({
+    name: group.name,
     display_name: group.display_name,
     color_hex: group.color_hex ?? '',
     description: group.description ?? '',
@@ -125,17 +126,18 @@ function EditGroupForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.display_name?.trim()) return
+    if (!form.display_name?.trim() || !form.name?.trim()) return
     setSaving(true)
     setError('')
     try {
       const body: TagGroupUpdate = {
+        name: form.name.trim(),
         display_name: form.display_name.trim(),
         ...(form.color_hex?.trim() ? { color_hex: form.color_hex.trim() } : { color_hex: undefined }),
         ...(form.description?.trim() ? { description: form.description.trim() } : { description: undefined }),
       }
       const updated = await updateTagGroup(group.id, body, token)
-      onSaved({ display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
+      onSaved({ name: updated.name, display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
     } catch (err: any) {
       setError(err.message ?? 'Error')
     } finally {
@@ -146,10 +148,11 @@ function EditGroupForm({
   return (
     <form onSubmit={handleSubmit} className="pt-2 space-y-3 border-t border-border">
       {[
-        { key: 'display_name', label: t('tags.groupDisplayName'), required: true },
+        { key: 'name', label: t('tags.groupName'), required: true, hint: 'snake_case (e.g. machine_learning)' },
+        { key: 'display_name', label: t('tags.groupDisplayName'), required: true, hint: 'Pascal Case with spaces (e.g. Machine Learning)' },
         { key: 'color_hex', label: t('tags.groupColor'), required: false, placeholder: '#3b82f6' },
         { key: 'description', label: t('tags.groupDescription'), required: false },
-      ].map(({ key, label, required, placeholder }) => (
+      ].map(({ key, label, required, placeholder, hint }) => (
         <div key={key} className="space-y-1">
           <label className="text-xs text-muted-foreground">{label}{required && ' *'}</label>
           {key === 'color_hex' ? (
@@ -175,10 +178,17 @@ function EditGroupForm({
               className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               value={(form as any)[key] ?? ''}
               placeholder={placeholder}
-              onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+              onChange={e => {
+                const val = key === 'name' ? e.target.value.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') : e.target.value
+                setForm(prev => ({ ...prev, [key]: val }))
+              }}
+              onBlur={key === 'display_name'
+                ? e => setForm(prev => ({ ...prev, display_name: e.target.value.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) }))
+                : undefined}
               required={required}
             />
           )}
+          {hint && <p className="text-[11px] text-muted-foreground/70">{hint}</p>}
         </div>
       ))}
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -244,7 +254,7 @@ export function TagGroupCard({
   function handleGroupSaved(updated: Partial<TagGroupOut>) {
     const next = { ...localGroup, ...updated }
     setLocalGroup(next)
-    onGroupUpdated(group.id, updated)
+    onGroupUpdated(group.id, { name: updated.name, display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
     setEditing(false)
   }
 

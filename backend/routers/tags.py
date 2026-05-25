@@ -78,10 +78,21 @@ class TagGroupCreate(BaseModel):
 
 
 class TagGroupUpdate(BaseModel):
+    name: Optional[str] = None
     display_name: Optional[str] = None
     color_hex: Optional[str] = None
     description: Optional[str] = None
     sort_order: Optional[int] = None
+
+    @field_validator('name')
+    @classmethod
+    def normalize_name(cls, v: str) -> str:
+        return _to_slug(v)
+
+    @field_validator('display_name')
+    @classmethod
+    def normalize_display_name(cls, v: str) -> str:
+        return _to_title(v)
 
 
 class TagUpdate(BaseModel):
@@ -257,6 +268,7 @@ def merge_tag_groups(
 ):
     from models.tag_group import TagGroupDefinition
     from models.tag import Tag
+    from models.topic import Topic  # noqa: F401 — register table for FK resolution
     from sqlalchemy import text as sa_text
 
     group_a = db.query(TagGroupDefinition).filter_by(id=body.group_a_id).first()
@@ -379,6 +391,12 @@ def update_tag_group(
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
         raise HTTPException(status_code=404, detail="Tag group not found")
+    if body.name is not None and body.name != grp.name:
+        existing = db.query(TagGroupDefinition).filter_by(
+            name=body.name, topic_id=grp.topic_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="A tag group with this name already exists in this topic")
     for field, val in body.model_dump(exclude_none=True).items():
         setattr(grp, field, val)
     db.commit()

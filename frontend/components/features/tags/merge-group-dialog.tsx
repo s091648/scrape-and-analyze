@@ -101,10 +101,20 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">Quick fill from</p>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => fillFrom(groupA)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => fillFrom(groupA)}
+                  style={groupA.color_hex ? { borderColor: groupA.color_hex, color: groupA.color_hex } : undefined}
+                >
+                  {groupA.color_hex && (
+                    <span className="h-2 w-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: groupA.color_hex }} />
+                  )}
                   {groupA.display_name}
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => fillFrom(groupB)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => fillFrom(groupB)}
+                  style={groupB.color_hex ? { borderColor: groupB.color_hex, color: groupB.color_hex } : undefined}
+                >
+                  {groupB.color_hex && (
+                    <span className="h-2 w-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: groupB.color_hex }} />
+                  )}
                   {groupB.display_name}
                 </Button>
               </div>
