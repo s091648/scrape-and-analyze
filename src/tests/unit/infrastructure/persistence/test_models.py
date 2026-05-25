@@ -155,3 +155,15 @@ def test_article_has_tags_backref():
     # importing tag module registers the backref
     import models.tag  # noqa: F401
     assert hasattr(Article, 'tags')
+
+
+def test_topic_model_has_tag_mode_column():
+    from models.topic import Topic
+    assert hasattr(Topic, 'tag_mode')
+    col = Topic.__table__.columns['tag_mode']
+    assert str(col.type) == 'VARCHAR(20)'
+
+
+def test_topic_model_has_no_auto_tag_groups_column():
+    from models.topic import Topic
+    assert 'auto_tag_groups' not in Topic.__table__.columns
