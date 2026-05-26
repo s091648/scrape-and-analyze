@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients import ArxivClient
+from src.infrastructure.collection.clients import ArxivClient, ArxivRateLimitedError
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
@@ -38,11 +38,15 @@ class ArxivScraper(BaseScraper):
 
     def discover(self) -> List[ScrapeJob]:
         query = self._build_query()
-        entries = self._client.fetch_entries(
-            query=query,
-            max_results=self._max_results,
-            days_back=self._days_back,
-        )
+        try:
+            entries = self._client.fetch_entries(
+                query=query,
+                max_results=self._max_results,
+                days_back=self._days_back,
+            )
+        except ArxivRateLimitedError as e:
+            logger.warning("arxiv_rate_limited", message=str(e))
+            return []
         jobs = []
         for e in entries:
             metadata = ScraperMetadataDTO.for_arxiv(
