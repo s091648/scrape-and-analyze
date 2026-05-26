@@ -67,7 +67,7 @@ export function ArticleDetailDialog({
                         <div key={group.group_name}>
                           <span
                             className="text-[10px] font-semibold uppercase tracking-wide"
-                            style={{ color: group.color }}
+                            style={{ color: group.color || 'hsl(var(--muted-foreground))' }}
                           >
                             {group.display_name}
                           </span>

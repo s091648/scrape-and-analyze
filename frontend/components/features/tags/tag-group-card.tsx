@@ -218,6 +218,7 @@ export function TagGroupCard({
   onMergeRequested, onMergeTargetSelected, onTagSelectionToggle,
 }: Props) {
   const { t } = useI18n()
+  const isUngrouped = group.id === null
   const [tags, setTags] = useState<TagOut[]>(
     [...group.tags].sort((a, b) => b.article_count - a.article_count)
   )
@@ -244,18 +245,18 @@ export function TagGroupCard({
     return () => cancelAnimationFrame(id)
   }, [tags, open, expanded])
 
-  const { setNodeRef, isOver } = useDroppable({ id: group.id, disabled: isGroupDragActive })
+  const { setNodeRef, isOver } = useDroppable({ id: group.id ?? '__ungrouped__', disabled: isGroupDragActive || isUngrouped })
   const { setNodeRef: sortAboveRef, isOver: isOverSortAbove } = useDroppable({
-    id: `sort-above:${group.id}`,
-    disabled: !isGroupDragActive,
+    id: `sort-above:${group.id ?? '__ungrouped__'}`,
+    disabled: !isGroupDragActive || isUngrouped,
   })
   const { setNodeRef: mergeZoneRef, isOver: isOverMerge } = useDroppable({
-    id: `merge:${group.id}`,
+    id: `merge:${group.id ?? '__ungrouped__'}`,
     disabled: !isGroupDragActive,
   })
   const { setNodeRef: sortBelowRef, isOver: isOverSortBelow } = useDroppable({
-    id: `sort-below:${group.id}`,
-    disabled: !isGroupDragActive,
+    id: `sort-below:${group.id ?? '__ungrouped__'}`,
+    disabled: !isGroupDragActive || isUngrouped,
   })
 
   const {
@@ -264,9 +265,9 @@ export function TagGroupCard({
     setNodeRef: setGroupDragRef,
     isDragging: isGroupDragging,
   } = useDraggable({
-    id: `group-drag-${group.id}`,
+    id: `group-drag-${group.id ?? '__ungrouped__'}`,
     data: { type: 'group-sort', group: localGroup },
-    disabled: !isAdmin || !token,
+    disabled: !isAdmin || !token || isUngrouped,
   })
 
   function handleGroupSaved(updated: Partial<TagGroupOut>) {
@@ -330,7 +331,7 @@ export function TagGroupCard({
 
       <div className="flex items-center gap-1">
         {/* Group drag handle */}
-        {isAdmin && token && (
+        {isAdmin && token && !isUngrouped && (
           <div
             ref={setGroupDragRef}
             {...groupDragListeners}
@@ -355,7 +356,7 @@ export function TagGroupCard({
             : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           }
         </button>
-        {isAdmin && token && (
+        {isAdmin && token && !isUngrouped && (
           <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
@@ -382,7 +383,7 @@ export function TagGroupCard({
         )}
       </div>
 
-      {isAdmin && token && editing && (
+      {isAdmin && token && editing && !isUngrouped && (
         <EditGroupForm
           group={localGroup}
           token={token}

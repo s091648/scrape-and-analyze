@@ -997,8 +997,8 @@ export default function TagsPage() {
                   )
                   return (
                     <div
-                      key={group.id}
-                      ref={el => { if (el) groupRefs.current.set(group.id, el); else groupRefs.current.delete(group.id) }}
+                      key={group.id ?? '__ungrouped__'}
+                      ref={el => { if (el && group.id) groupRefs.current.set(group.id, el); else if (group.id) groupRefs.current.delete(group.id) }}
                       className={isSimilar ? 'rounded-xl ring-2 ring-amber-400/60' : ''}
                     >
                       <TagGroupCard
@@ -1018,7 +1018,24 @@ export default function TagsPage() {
                           else next.add(tagId)
                           return next
                         })}
-                        onDeleted={groupId => setGroups(prev => prev.filter(g => g.id !== groupId))}
+                        onDeleted={groupId => setGroups(prev => {
+                          const deleted = prev.find(g => g.id === groupId)
+                          const tagsToRehome = deleted?.tags ?? []
+                          const without = prev.filter(g => g.id !== groupId)
+                          if (tagsToRehome.length === 0) return without
+                          const ungrouped = without.find(g => g.id === null)
+                          if (ungrouped) {
+                            return without.map(g => g.id === null
+                              ? { ...g, tags: [...ungrouped.tags, ...tagsToRehome] }
+                              : g
+                            )
+                          }
+                          return [...without, {
+                            id: null, name: 'ungrouped', display_name: 'Ungrouped',
+                            description: null, color_hex: null, topic_id: deleted?.topic_id ?? null,
+                            tags: tagsToRehome, similar_groups: [],
+                          }]
+                        })}
                         onTagRenamed={(groupId, tagId, name) => setGroups(prev =>
                           prev.map(g => g.id === groupId
                             ? { ...g, tags: g.tags.map(t => t.id === tagId ? { ...t, name } : t) }
@@ -1042,7 +1059,7 @@ export default function TagsPage() {
                 })}
                 {showSimilarities && isAdmin && (
                   <SimilarityLines
-                    groups={displayedGroups}
+                    groups={displayedGroups.filter(g => g.id !== null)}
                     groupRefs={groupRefs}
                     onMergeRequested={handleMergeFromLine}
                     onLineClicked={handleLineClicked}

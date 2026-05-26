@@ -40,12 +40,12 @@ class TagOut(BaseModel):
 
 
 class TagGroupOut(BaseModel):
-    id: UUID
+    id: Optional[UUID] = None  # None for virtual "Ungrouped"
     name: str
     display_name: str
     description: Optional[str]
     color_hex: Optional[str]
-    topic_id: UUID
+    topic_id: Optional[UUID] = None  # None for virtual "Ungrouped"
     tags: List[TagOut]
     similar_groups: List['SimilarGroupOut'] = []
 
@@ -98,6 +98,7 @@ class TagGroupUpdate(BaseModel):
 class TagUpdate(BaseModel):
     name: Optional[str] = None
     tag_group_id: Optional[UUID] = None
+    ungroup: Optional[bool] = None  # set tag_group_id to NULL
 
 
 class TagMoveItem(BaseModel):
@@ -204,6 +205,20 @@ def _tag_outs_for_group(db: Session, grp) -> List[TagOut]:
     return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
 
 
+def _ungrouped_tag_outs(db: Session, topic_id: UUID) -> List[TagOut]:
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+    q = (
+        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
+        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+        .join(Article, Article.id == article_tags_table.c.article_id)
+        .filter(Tag.tag_group_id.is_(None))
+        .filter(Article.topic_id == topic_id)
+    )
+    rows = q.group_by(Tag.id, Tag.name).order_by(Tag.name).all()
+    return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @router.get("/tag-groups", response_model=List[TagGroupOut])
@@ -232,6 +247,18 @@ def list_tag_groups(
             topic_id=grp.topic_id, tags=_tag_outs_for_group(db, grp),
             similar_groups=similar,
         ))
+
+    # Append virtual "Ungrouped" group if there are ungrouped tags
+    if topic_id:
+        ungrouped_tags = _ungrouped_tag_outs(db, topic_id)
+        if ungrouped_tags:
+            result.append(TagGroupOut(
+                id=None, name="ungrouped", display_name="Ungrouped",
+                description=None, color_hex=None,
+                topic_id=topic_id, tags=ungrouped_tags,
+                similar_groups=[],
+            ))
+
     return result
 
 
@@ -450,7 +477,9 @@ def rename_tag(
         raise HTTPException(status_code=404, detail="Tag not found")
     if body.name is not None:
         tag.name = body.name
-    if body.tag_group_id is not None:
+    if body.ungroup:
+        tag.tag_group_id = None
+    elif body.tag_group_id is not None:
         tag.tag_group_id = body.tag_group_id
     db.commit()
     db.refresh(tag)
@@ -519,7 +548,7 @@ def list_suggestions(
         result.append(SuggestionOut(
             id=r.id, new_tag_id=r.new_tag_id, new_tag_name=new_tag.name,
             existing_tag_id=r.existing_tag_id, existing_tag_name=existing_tag.name,
-            group_name=new_tag.group_def.name, similarity_score=r.similarity_score,
+            group_name=new_tag.group_def.name if new_tag.group_def else "ungrouped", similarity_score=r.similarity_score,
             article_id=r.article_id,
         ))
     return result
