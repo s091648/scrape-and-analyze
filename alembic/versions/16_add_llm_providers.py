@@ -36,7 +36,7 @@ def upgrade() -> None:
         INSERT INTO llm_providers (id, name, model, api_key_env, priority, is_active, rpm, tpm, rpd)
         VALUES
             (gen_random_uuid(), 'gemini', 'gemini-3-flash-preview', 'GEMINI_API_KEY', 1, true, 5, 250000, 20),
-            (gen_random_uuid(), 'gemini', 'gemini-3.1-flash-lite-preview', 'GEMINI_API_KEY', 2, true, 15, 250000, 500),
+            (gen_random_uuid(), 'gemini', 'gemini-3.1-flash-lite', 'GEMINI_API_KEY', 2, true, 15, 250000, 500),
             (gen_random_uuid(), 'gemini', 'gemini-2.5-flash', 'GEMINI_API_KEY', 3, true, 5, 250000, 20),
             (gen_random_uuid(), 'gemini', 'gemini-2.5-flash-lite', 'GEMINI_API_KEY', 4, true, 10, 250000, 20),
             (gen_random_uuid(), 'openrouter', 'deepseek/deepseek-chat', 'OPENROUTER_API_KEY', 5, true, 20, 100000, 200)

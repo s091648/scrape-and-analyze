@@ -46,7 +46,7 @@ def test_pipeline_publishes_pipeline_completed_event():
     scraper_factory.create_for.return_value = scraper
 
     executor = MagicMock()
-    def _run_streaming(discover_tasks, on_result):
+    def _run_streaming(discover_tasks, on_result, **_kwargs):
         on_result(article)
     executor.run_streaming.side_effect = _run_streaming
 
