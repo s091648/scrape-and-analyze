@@ -407,7 +407,7 @@ export default function TagsPage() {
   const { data: session, status } = useSession()
   const token = (session as any)?.accessToken as string | undefined
   const isAdmin = (session?.user as any)?.role === 'admin'
-  const { selectedTopic } = useTopic()
+  const { selectedTopic, refresh: refreshTopics } = useTopic()
   const { t } = useI18n()
 
   const isGuest = status === 'unauthenticated'
@@ -467,6 +467,7 @@ export default function TagsPage() {
     try {
       const { updateTopic } = await import('@/lib/api/topics')
       await updateTopic(selectedTopic.id, { tag_mode: mode }, token)
+      refreshTopics()
     } catch {
       setTagMode(prev)
     }
