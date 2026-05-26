@@ -12,12 +12,12 @@ export interface SimilarGroupOut {
 }
 
 export interface TagGroupOut {
-  id: string
+  id: string | null  // null for virtual "Ungrouped" group
   name: string
   display_name: string
   description: string | null
   color_hex: string | null
-  topic_id: string
+  topic_id: string | null  // null for virtual "Ungrouped" group
   tags: TagOut[]
   similar_groups: SimilarGroupOut[]
 }

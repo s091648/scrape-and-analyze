@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text, Table, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, Text, Table, ForeignKey, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
@@ -23,8 +23,8 @@ class Tag(Base):
     name = Column(Text, nullable=False)
     tag_group_id = Column(
         UUID(as_uuid=True),
-        ForeignKey('tag_group_definitions.id', ondelete='CASCADE'),
-        nullable=False,
+        ForeignKey('tag_group_definitions.id', ondelete='SET NULL'),
+        nullable=True,
     )
     embedding = Column(Vector(768), nullable=True)
 
@@ -36,6 +36,10 @@ class Tag(Base):
     articles = relationship('Article', secondary=article_tags, backref='tags')
 
     __table_args__ = (
-        UniqueConstraint('name', 'tag_group_id', name='uq_tag_name_group'),
+        Index(
+            'uq_tag_name_group', 'name', 'tag_group_id',
+            unique=True,
+            postgresql_where=text('tag_group_id IS NOT NULL'),
+        ),
         Index('idx_tags_group', 'tag_group_id'),
     )

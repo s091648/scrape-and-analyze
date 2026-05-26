@@ -209,7 +209,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
     tags = (
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
-        .join(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
+        .outerjoin(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
         .filter(at.c.article_id == article_id)
         .order_by(TagGroupDefinition.name, Tag.name)
         .all()
@@ -236,7 +236,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 
     groups: dict = {}
     for tag in tags:
-        gname = tag.group_def.name if tag.group_def else "unknown"
+        gname = tag.group_def.name if tag.group_def else "ungrouped"
         if gname not in groups:
             gdef = tag.group_def
             display_name = gname
@@ -248,6 +248,8 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
                 else:
                     display_name = gdef.display_name
                     description = gdef.description
+            else:
+                display_name = "Ungrouped"
             groups[gname] = {
                 "group_name": gname,
                 "display_name": display_name,
@@ -257,7 +259,10 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
             }
         tag_name = tag_trans_map.get(tag.id, tag.name) if lang != "en" else tag.name
         groups[gname]["tags"].append(tag_name)
-    return list(groups.values())
+
+    result = list(groups.values())
+    result.sort(key=lambda g: (g["group_name"] == "ungrouped", g["display_name"]))
+    return result
 
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)

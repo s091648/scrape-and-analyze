@@ -49,7 +49,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         )
 
         return [
-            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_def.name}
+            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_def.name if row.group_def else "ungrouped"}
             for row in rows
         ]
 
