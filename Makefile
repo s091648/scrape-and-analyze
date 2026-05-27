@@ -25,11 +25,6 @@ DUMP_FILE ?= /app/db_dumps/railway_dump.sql
 LIMIT ?=
 _BACKFILL_ARGS := $(if $(LIMIT),--limit $(LIMIT),)
 
-# Use ONLY when DB tables already exist but have no alembic_version record
-# (e.g. migrating a legacy DB to alembic management). Do NOT use on a fresh DB.
-pg_init:
-	docker compose run --rm job_service alembic stamp baseline
-
 # optional: override upgrade target with UPGRADE_REV=<revision> (default: head)
 UPGRADE_REV ?=
 
