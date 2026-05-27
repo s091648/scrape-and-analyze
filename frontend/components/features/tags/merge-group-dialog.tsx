@@ -59,8 +59,8 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
     setError('')
     try {
       const result = await mergeTagGroups({
-        group_a_id: groupA.id,
-        group_b_id: groupB.id,
+        group_a_id: groupA.id!,
+        group_b_id: groupB.id!,
         result_name: form.name.trim(),
         result_display_name: form.display_name.trim(),
         result_color_hex: form.color_hex.trim() || undefined,

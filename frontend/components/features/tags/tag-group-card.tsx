@@ -21,8 +21,8 @@ interface Props {
   showBottomInsert?: boolean
   selectedTagIds?: Set<string>
   onDeleted: (groupId: string) => void
-  onTagRenamed: (groupId: string, tagId: string, newName: string) => void
-  onTagDeleted: (groupId: string, tagId: string) => void
+  onTagRenamed: (groupId: string | null, tagId: string, newName: string) => void
+  onTagDeleted: (groupId: string | null, tagId: string) => void
   onGroupUpdated: (groupId: string, updated: Partial<TagGroupOut>) => void
   onMergeRequested?: (groupId: string) => void
   onMergeTargetSelected?: (groupId: string) => void
@@ -139,7 +139,7 @@ function EditGroupForm({
         ...(form.color_hex?.trim() ? { color_hex: form.color_hex.trim() } : { color_hex: undefined }),
         ...(form.description?.trim() ? { description: form.description.trim() } : { description: undefined }),
       }
-      const updated = await updateTagGroup(group.id, body, token)
+      const updated = await updateTagGroup(group.id!, body, token)
       onSaved({ name: updated.name, display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
     } catch (err: any) {
       setError(err.message ?? 'Error')
@@ -273,7 +273,7 @@ export function TagGroupCard({
   function handleGroupSaved(updated: Partial<TagGroupOut>) {
     const next = { ...localGroup, ...updated }
     setLocalGroup(next)
-    onGroupUpdated(group.id, { name: updated.name, display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
+    onGroupUpdated(group.id!, { name: updated.name, display_name: updated.display_name, color_hex: updated.color_hex, description: updated.description })
     setEditing(false)
   }
 
@@ -288,10 +288,10 @@ export function TagGroupCard({
       )}
     >
       {/* Merge mode overlay (click-based) */}
-      {isMergeMode && !isGroupDragActive && (
+      {isMergeMode && !isGroupDragActive && group.id && (
         <div
           className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-[2px] flex items-center justify-center z-10 cursor-pointer border-2 border-dashed border-primary/40 hover:border-primary hover:bg-background/30 transition-all"
-          onClick={() => onMergeTargetSelected?.(group.id)}
+          onClick={() => onMergeTargetSelected?.(group.id!)}
         >
           <div className="text-sm font-medium text-primary flex items-center gap-1.5">
             <GitMerge className="h-4 w-4" />
@@ -360,7 +360,7 @@ export function TagGroupCard({
           <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
-              onClick={() => onMergeRequested?.(group.id)}
+              onClick={() => onMergeRequested?.(group.id!)}
               aria-label="Merge group"
               title="Merge group"
             >
@@ -375,7 +375,7 @@ export function TagGroupCard({
             </Button>
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              onClick={async () => { await deleteTagGroup(group.id, token); onDeleted(group.id) }}
+              onClick={async () => { await deleteTagGroup(group.id!, token); onDeleted(group.id!) }}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>

@@ -729,7 +729,7 @@ export default function TagsPage() {
     } catch {
       // Fall back to local optimistic update
       let fresh = result
-      try { fresh = await fetchTagGroup(result.id) } catch {}
+      try { fresh = await fetchTagGroup(result.id!) } catch {}
       setGroups(prev => {
         const idxA = prev.findIndex(g => g.id === groupA.id)
         const withoutBoth = prev.filter(g => g.id !== groupA.id && g.id !== groupB.id)
