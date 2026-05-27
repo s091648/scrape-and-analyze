@@ -571,7 +571,9 @@ export default function TagsPage() {
         const newOrder = [...without.slice(0, insertAt), dragged, ...without.slice(insertAt)]
         if (token) {
           reorderTagGroups(
-            newOrder.map((g, i) => ({ id: g.id, sort_order: i })),
+            newOrder
+              .map((g, i) => ({ id: g.id, sort_order: i }))
+              .filter((g): g is { id: string; sort_order: number } => g.id !== null),
             token,
           ).catch(() => {})
         }
@@ -590,7 +592,7 @@ export default function TagsPage() {
     const moves: MoveItem[] = []
     for (const tagId of tagIdsToMove) {
       const fromGroup = groups.find(g => g.tags.some(t => t.id === tagId))
-      if (!fromGroup || fromGroup.id === toGroupId) continue
+      if (!fromGroup || fromGroup.id === null || fromGroup.id === toGroupId) continue
       const tag = fromGroup.tags.find(t => t.id === tagId)!
       const existingPending = pendingMoves.get(tagId)
       const originalFromGroupId = existingPending?.fromGroupId ?? fromGroup.id

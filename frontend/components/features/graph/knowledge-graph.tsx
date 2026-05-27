@@ -192,13 +192,14 @@ export function KnowledgeGraph() {
           <FilterBar
             sources={graphFilters.source ?? []}
             tags={graphFilters.tag ?? []}
+            tagGroups={graphFilters.tag_group ?? []}
             publishedAfter={graphFilters.published_after ?? ''}
             publishedBefore={graphFilters.published_before ?? ''}
             scrapedAfter={graphFilters.scraped_after ?? ''}
             scrapedBefore={graphFilters.scraped_before ?? ''}
             activeFilterCount={
               (graphFilters.source?.length ? 1 : 0) +
-              (graphFilters.tag?.length ? 1 : 0) +
+              (graphFilters.tag?.length || graphFilters.tag_group?.length ? 1 : 0) +
               ((graphFilters.published_after || graphFilters.published_before) ? 1 : 0) +
               ((graphFilters.scraped_after || graphFilters.scraped_before) ? 1 : 0)
             }
@@ -206,6 +207,7 @@ export function KnowledgeGraph() {
               ...prev,
               source: updates.source,
               tag: updates.tag,
+              tag_group: updates.tag_group,
               published_after: updates.published_after,
               published_before: updates.published_before,
               scraped_after: updates.scraped_after,

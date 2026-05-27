@@ -10,8 +10,10 @@ import type { TagGroupOut } from '@/lib/api/tags'
 interface GroupedTagSelectProps {
   label: string
   groups: TagGroupOut[]
-  selected: string[]
-  onChange: (val: string[]) => void
+  selectedTags: string[]
+  selectedGroups: string[]
+  onTagsChange: (val: string[]) => void
+  onGroupsChange: (val: string[]) => void
   searchPlaceholder?: string
   emptyText?: string
 }
@@ -32,12 +34,12 @@ function highlight(text: string, query: string) {
 }
 
 export function GroupedTagSelect({
-  label, groups, selected, onChange,
+  label, groups, selectedTags, selectedGroups, onTagsChange, onGroupsChange,
   searchPlaceholder = 'Search tags…',
   emptyText = 'No tags found',
 }: GroupedTagSelectProps) {
   const [search, setSearch] = useState('')
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())  // keyed by group name
 
   const q = search.toLowerCase()
 
@@ -47,33 +49,45 @@ export function GroupedTagSelect({
   })).filter(g => !search || g.display_name.toLowerCase().includes(q) || g.matchedTags.length > 0)
 
   function toggleGroup(g: TagGroupOut) {
-    const names = g.tags.map(t => t.name)
-    const allSelected = names.every(n => selected.includes(n))
-    onChange(allSelected
-      ? selected.filter(s => !names.includes(s))
-      : [...selected, ...names.filter(n => !selected.includes(n))]
-    )
+    const isSelected = selectedGroups.includes(g.name)
+    if (isSelected) {
+      onGroupsChange(selectedGroups.filter(n => n !== g.name))
+    } else {
+      // selecting a group clears any individual tag selections for that group to avoid redundancy
+      const groupTagNames = g.tags.map(t => t.name)
+      onGroupsChange([...selectedGroups, g.name])
+      onTagsChange(selectedTags.filter(t => !groupTagNames.includes(t)))
+    }
   }
 
-  function toggleTag(name: string) {
-    onChange(selected.includes(name) ? selected.filter(s => s !== name) : [...selected, name])
+  function toggleTag(tag: { name: string }, group: TagGroupOut) {
+    const isSelected = selectedTags.includes(tag.name)
+    if (isSelected) {
+      onTagsChange(selectedTags.filter(s => s !== tag.name))
+    } else {
+      // selecting an individual tag deselects its parent group
+      onGroupsChange(selectedGroups.filter(n => n !== group.name))
+      onTagsChange([...selectedTags, tag.name])
+    }
   }
 
-  function toggleExpand(id: string) {
+  function toggleExpand(name: string) {
     setExpandedGroups(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      next.has(name) ? next.delete(name) : next.add(name)
       return next
     })
   }
+
+  const totalSelected = selectedGroups.length + selectedTags.length
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           {label}
-          {selected.length > 0 && (
-            <Badge variant="secondary" className="h-4 px-1 text-[10px]">{selected.length}</Badge>
+          {totalSelected > 0 && (
+            <Badge variant="secondary" className="h-4 px-1 text-[10px]">{totalSelected}</Badge>
           )}
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </Button>
@@ -92,16 +106,16 @@ export function GroupedTagSelect({
             <p className="text-xs text-muted-foreground text-center py-4">{emptyText}</p>
           )}
           {visibleGroups.map(g => {
-            const allSelected = g.tags.every(t => selected.includes(t.name))
-            const someSelected = g.tags.some(t => selected.includes(t.name))
-            const isExpanded = expandedGroups.has(g.id) || !!search
+            const groupSelected = selectedGroups.includes(g.name)
+            const someTagsSelected = g.tags.some(t => selectedTags.includes(t.name))
+            const isExpanded = expandedGroups.has(g.name) || !!search
 
             return (
               <div key={g.id}>
                 {/* Group row */}
                 <div className="flex items-center gap-1.5 px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
                   <Checkbox
-                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                    checked={groupSelected ? true : someTagsSelected ? 'indeterminate' : false}
                     onCheckedChange={() => toggleGroup(g)}
                     className="h-3.5 w-3.5 shrink-0"
                   />
@@ -116,7 +130,7 @@ export function GroupedTagSelect({
                   </button>
                   <button
                     className="text-muted-foreground hover:text-foreground shrink-0"
-                    onClick={e => { e.stopPropagation(); toggleExpand(g.id) }}
+                    onClick={e => { e.stopPropagation(); toggleExpand(g.name) }}
                     aria-label={isExpanded ? 'Collapse' : 'Expand'}
                   >
                     {isExpanded
@@ -131,11 +145,11 @@ export function GroupedTagSelect({
                   <button
                     key={tag.id}
                     className="flex items-center gap-2 pl-7 pr-2 py-1 w-full hover:bg-muted/50 text-left"
-                    onClick={() => toggleTag(tag.name)}
+                    onClick={() => toggleTag(tag, g)}
                   >
                     <Checkbox
-                      checked={selected.includes(tag.name)}
-                      onCheckedChange={() => toggleTag(tag.name)}
+                      checked={groupSelected || selectedTags.includes(tag.name)}
+                      onCheckedChange={() => toggleTag(tag, g)}
                       className="h-3 w-3 shrink-0 pointer-events-none"
                     />
                     <span className="text-xs">{highlight(tag.name, search)}</span>

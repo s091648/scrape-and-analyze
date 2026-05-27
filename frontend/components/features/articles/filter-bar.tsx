@@ -13,6 +13,7 @@ import { GroupedTagSelect } from './grouped-tag-select'
 interface FilterBarProps {
   sources: string[]
   tags: string[]
+  tagGroups: string[]
   publishedAfter: string
   publishedBefore: string
   scrapedAfter: string
@@ -21,6 +22,7 @@ interface FilterBarProps {
   onApply: (updates: {
     source?: string[]
     tag?: string[]
+    tag_group?: string[]
     published_after?: string
     published_before?: string
     scraped_after?: string
@@ -29,7 +31,7 @@ interface FilterBarProps {
 }
 
 export function FilterBar({
-  sources: activeSources, tags: activeTags,
+  sources: activeSources, tags: activeTags, tagGroups: activeTagGroups,
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
   activeFilterCount, onApply,
 }: FilterBarProps) {
@@ -37,10 +39,11 @@ export function FilterBar({
   const { selectedTopicId } = useTopic()
   const [open, setOpen] = useState(false)
   const [sourceOptions, setSourceOptions] = useState<string[]>([])
-  const [tagGroups, setTagGroups] = useState<TagGroupOut[]>([])
+  const [tagGroupOptions, setTagGroupOptions] = useState<TagGroupOut[]>([])
 
   const [draftSources, setDraftSources] = useState(activeSources)
   const [draftTags, setDraftTags] = useState(activeTags)
+  const [draftTagGroups, setDraftTagGroups] = useState(activeTagGroups)
   const [draftPubAfter, setDraftPubAfter] = useState(publishedAfter)
   const [draftPubBefore, setDraftPubBefore] = useState(publishedBefore)
   const [draftScrapedAfter, setDraftScrapedAfter] = useState(scrapedAfter)
@@ -48,22 +51,23 @@ export function FilterBar({
 
   useEffect(() => {
     fetchArticleFilterSources(locale).then(setSourceOptions)
-    fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroups)
+    fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions)
   }, [locale, selectedTopicId])
 
   useEffect(() => {
     setDraftSources(activeSources)
     setDraftTags(activeTags)
+    setDraftTagGroups(activeTagGroups)
     setDraftPubAfter(publishedAfter)
     setDraftPubBefore(publishedBefore)
     setDraftScrapedAfter(scrapedAfter)
     setDraftScrapedBefore(scrapedBefore)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(activeSources), JSON.stringify(activeTags), publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
+  }, [JSON.stringify(activeSources), JSON.stringify(activeTags), JSON.stringify(activeTagGroups), publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
 
   function handleApply() {
     onApply({
-      source: draftSources, tag: draftTags,
+      source: draftSources, tag: draftTags, tag_group: draftTagGroups,
       published_after: draftPubAfter, published_before: draftPubBefore,
       scraped_after: draftScrapedAfter, scraped_before: draftScrapedBefore,
     })
@@ -71,10 +75,10 @@ export function FilterBar({
   }
 
   function handleClear() {
-    setDraftSources([]); setDraftTags([])
+    setDraftSources([]); setDraftTags([]); setDraftTagGroups([])
     setDraftPubAfter(''); setDraftPubBefore('')
     setDraftScrapedAfter(''); setDraftScrapedBefore('')
-    onApply({ source: [], tag: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '' })
+    onApply({ source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '' })
     setOpen(false)
   }
 
@@ -115,9 +119,11 @@ export function FilterBar({
           />
           <GroupedTagSelect
             label={t('filterBar.tag')}
-            groups={tagGroups}
-            selected={draftTags}
-            onChange={setDraftTags}
+            groups={tagGroupOptions}
+            selectedTags={draftTags}
+            selectedGroups={draftTagGroups}
+            onTagsChange={setDraftTags}
+            onGroupsChange={setDraftTagGroups}
             searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.tag').toLowerCase()}…`}
             emptyText={t('filterBar.noTagsFound')}
           />

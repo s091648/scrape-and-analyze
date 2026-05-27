@@ -6,6 +6,7 @@ const groups: TagGroupOut[] = [
   {
     id: 'g1', name: 'research', display_name: 'Research Methods',
     description: null, color_hex: '#6366f1', topic_id: 't1',
+    similar_groups: [],
     tags: [
       { id: 'tag1', name: 'Transformer', article_count: 10 },
       { id: 'tag2', name: 'Diffusion', article_count: 5 },
@@ -14,61 +15,72 @@ const groups: TagGroupOut[] = [
   {
     id: 'g2', name: 'applications', display_name: 'Applications',
     description: null, color_hex: null, topic_id: 't1',
+    similar_groups: [],
     tags: [
       { id: 'tag3', name: 'Computer Vision', article_count: 8 },
     ],
   },
 ]
 
+const defaultProps = {
+  label: 'Tag',
+  groups,
+  selectedTags: [] as string[],
+  selectedGroups: [] as string[],
+  onTagsChange: () => {},
+  onGroupsChange: () => {},
+}
+
 describe('GroupedTagSelect', () => {
   it('renders a trigger button with label', async () => {
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={[]} onChange={() => {}} />)
+    render(<GroupedTagSelect {...defaultProps} />)
     expect(screen.getByRole('button', { name: /tag/i })).toBeInTheDocument()
   })
 
-  it('shows selected count badge when tags are selected', async () => {
+  it('shows badge count for selected tags', async () => {
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={['Transformer']} onChange={() => {}} />)
+    render(<GroupedTagSelect {...defaultProps} selectedTags={['Transformer']} />)
     expect(screen.getByText('1')).toBeInTheDocument()
   })
 
-  it('clicking group header selects all tags in that group', async () => {
-    const onChange = vi.fn()
+  it('shows badge count summing selected groups and tags', async () => {
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={[]} onChange={onChange} />)
-    // Open popover
-    fireEvent.click(screen.getByRole('button', { name: /tag/i }))
-    // Click group header
-    fireEvent.click(screen.getByText('Research Methods'))
-    expect(onChange).toHaveBeenCalledWith(['Transformer', 'Diffusion'])
+    render(<GroupedTagSelect {...defaultProps} selectedGroups={['research']} selectedTags={['Computer Vision']} />)
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
-  it('clicking group header when all selected deselects all', async () => {
-    const onChange = vi.fn()
+  it('clicking group header calls onGroupsChange with that group name', async () => {
+    const onGroupsChange = vi.fn()
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={['Transformer', 'Diffusion']} onChange={onChange} />)
+    render(<GroupedTagSelect {...defaultProps} onGroupsChange={onGroupsChange} />)
     fireEvent.click(screen.getByRole('button', { name: /tag/i }))
     fireEvent.click(screen.getByText('Research Methods'))
-    expect(onChange).toHaveBeenCalledWith([])
+    expect(onGroupsChange).toHaveBeenCalledWith(['research'])
+  })
+
+  it('clicking group header when already selected removes it', async () => {
+    const onGroupsChange = vi.fn()
+    const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
+    render(<GroupedTagSelect {...defaultProps} selectedGroups={['research']} onGroupsChange={onGroupsChange} />)
+    fireEvent.click(screen.getByRole('button', { name: /tag/i }))
+    fireEvent.click(screen.getByText('Research Methods'))
+    expect(onGroupsChange).toHaveBeenCalledWith([])
   })
 
   it('search filters to matching tag names and shows their group', async () => {
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={[]} onChange={() => {}} />)
+    render(<GroupedTagSelect {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /tag/i }))
     fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'Transformer' } })
-    // Tag match is visible
     expect(screen.getByText('Transformer')).toBeInTheDocument()
-    // Its parent group is visible even though "Research Methods" doesn't match
     expect(screen.getByText('Research Methods')).toBeInTheDocument()
-    // Non-matching group is hidden
     expect(screen.queryByText('Applications')).not.toBeInTheDocument()
   })
 
   it('shows empty text when search has no matches', async () => {
     const { GroupedTagSelect } = await import('@/components/features/articles/grouped-tag-select')
-    render(<GroupedTagSelect label="Tag" groups={groups} selected={[]} onChange={() => {}} emptyText="No tags found" />)
+    render(<GroupedTagSelect {...defaultProps} emptyText="No tags found" />)
     fireEvent.click(screen.getByRole('button', { name: /tag/i }))
     fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'xyznonexistent' } })
     expect(screen.getByText('No tags found')).toBeInTheDocument()

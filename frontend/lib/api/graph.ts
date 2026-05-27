@@ -34,6 +34,7 @@ export interface GraphFilters {
   scraped_before?: string
   source?: string[]
   tag?: string[]
+  tag_group?: string[]
 }
 
 export async function fetchAnalysesGraph(

@@ -44,12 +44,14 @@ const mockTagGroups: TagGroupOut[] = [
     id: 'g1', name: 'research', display_name: 'Research Methods',
     description: null, color_hex: null, topic_id: 'topic-1',
     tags: [{ id: 't1', name: 'AI', article_count: 5 }],
+    similar_groups: [],
   },
 ]
 
 const defaultProps = {
   sources: [],
   tags: [],
+  tagGroups: [],
   publishedAfter: '',
   publishedBefore: '',
   scrapedAfter: '',
@@ -113,7 +115,7 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
     expect(onApply).toHaveBeenCalledWith({
-      source: [], tag: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
+      source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
     })
   })
 

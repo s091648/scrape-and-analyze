@@ -41,6 +41,7 @@ def get_articles_paginated(
     sources: List[str] | None = None,
     tags: List[str] | None = None,
     tag_ids: List[UUID] | None = None,
+    tag_groups: List[str] | None = None,
     published_after: Optional[date] = None,
     published_before: Optional[date] = None,
     scraped_after: Optional[date] = None,
@@ -73,6 +74,18 @@ def get_articles_paginated(
             ).where(Tag.name == tag_name).scalar_subquery()
             query = query.filter(Article.id.in_(tag_subq))
 
+    if tag_groups:
+        from models.tag import Tag, article_tags as at
+        from models.tag_group import TagGroupDefinition
+        from sqlalchemy import select
+        for group_name in tag_groups:
+            group_subq = select(at.c.article_id).join(
+                Tag, Tag.id == at.c.tag_id
+            ).join(
+                TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id
+            ).where(TagGroupDefinition.name == group_name).scalar_subquery()
+            query = query.filter(Article.id.in_(group_subq))
+
     if published_after:
         query = query.filter(Article.published_at >= published_after)
     if published_before:
@@ -100,6 +113,7 @@ def list_articles(
     source: List[str] = Query(default=[]),
     tag: List[str] = Query(default=[]),
     tag_id: List[UUID] = Query(default=[]),
+    tag_group: List[str] = Query(default=[]),
     published_after: Optional[date] = Query(default=None),
     published_before: Optional[date] = Query(default=None),
     scraped_after: Optional[date] = Query(default=None),
@@ -113,6 +127,7 @@ def list_articles(
         sources=source or None,
         tags=tag or None,
         tag_ids=tag_id or None,
+        tag_groups=tag_group or None,
         published_after=published_after,
         published_before=published_before,
         scraped_after=scraped_after,

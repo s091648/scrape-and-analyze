@@ -17,6 +17,7 @@ def db_engine():
     # Root engine (no search_path) — used only for schema creation/teardown
     root_engine = create_engine(base_url)
     with root_engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{TEST_SCHEMA}"'))
         conn.commit()
 
