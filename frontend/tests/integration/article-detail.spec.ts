@@ -8,6 +8,9 @@ test.describe('Article detail dialog', () => {
 
   test('clicking article card opens detail dialog', async ({ page }) => {
     await page.goto('/')
+    // Wait for topic URL sync to complete so the article list is stable before clicking
+    await page.waitForURL(/topic=/)
+    await expect(page.getByText('Digital Twin Innovation')).toBeVisible()
     await page.getByText('Digital Twin Innovation').click()
     await expect(page.getByRole('dialog')).toBeVisible()
   })
