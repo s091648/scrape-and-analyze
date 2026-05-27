@@ -219,6 +219,7 @@ function SimilarityLines({
 
     for (const group of groups) {
       for (const sim of group.similar_groups) {
+        if (!group.id || !sim.id) continue
         if (!visibleGroupIds.has(sim.id)) continue
         const pairKey = [group.id, sim.id].sort().join('-')
         if (seen.has(pairKey)) continue

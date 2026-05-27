@@ -3,13 +3,15 @@ import { createContext, useContext, useEffect, useState, ReactNode, Suspense } f
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { fetchTopics } from '@/lib/api/topics'
 
+export type TagMode = 'unsupervised' | 'semi_supervised' | 'supervised'
+
 export interface Topic {
   id: string
   name: string
   display_name: string
   color_hex: string | null
   sort_order: number | null
-  auto_tag_groups: boolean
+  tag_mode: TagMode
 }
 
 interface TopicContextValue {

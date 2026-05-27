@@ -35,12 +35,12 @@ describe('Knowledge Graph', () => {
     })
   })
 
-  it('fetches graph data with days=30 on initial load', async () => {
+  it('fetches graph data with published_after on initial load', async () => {
     const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'), expect.anything(), expect.anything())
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
   })
 
@@ -59,13 +59,13 @@ describe('Knowledge Graph', () => {
     expect(groupColor).not.toEqual(articleColor)
   })
 
-  it('days filter change triggers re-fetch with updated days value', async () => {
+  it('days filter change triggers re-fetch with updated published_after', async () => {
     const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render, screen } = await import('@testing-library/react')
     const { fireEvent } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=30'), expect.anything(), expect.anything())
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
     // Reset and change days
     mockApiFetch.mockReset()
@@ -76,7 +76,7 @@ describe('Knowledge Graph', () => {
     if (daysSelect) {
       fireEvent.change(daysSelect, { target: { value: '7' } })
       await vi.waitFor(() => {
-        expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('days=7'), expect.anything(), expect.anything())
+        expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
       })
     }
     expect(mockApiFetch).toBeDefined()
