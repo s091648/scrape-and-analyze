@@ -1,5 +1,6 @@
 import uuid
 import time
+import pytest
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
@@ -51,14 +52,15 @@ def test_move_tag_updates_group():
     mock_db.query.return_value.filter_by.return_value.first.return_value = mock_tag
     mock_db.query.return_value.filter.return_value.scalar.return_value = 0
     app.dependency_overrides[get_db] = lambda: mock_db
+    new_group_id = uuid.uuid4()
     try:
         response = client.put(
             f"/tags/{mock_tag.id}",
-            json={"tag_group_name": "applications"},
+            json={"tag_group_id": str(new_group_id)},
             headers={"Authorization": f"Bearer {make_admin_token()}"},
         )
         assert response.status_code == 200
-        assert mock_tag.tag_group_name == "applications"
+        assert mock_tag.tag_group_id == new_group_id
     finally:
         app.dependency_overrides.clear()
 
@@ -70,6 +72,7 @@ def test_batch_move_all_succeed():
     tag1 = make_mock_tag("Tag1", "g1")
     tag2 = make_mock_tag("Tag2", "g1")
     tags_by_id = {str(tag1.id): tag1, str(tag2.id): tag2}
+    dest_group_id = str(uuid.uuid4())
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter_by.side_effect = lambda **kw: MagicMock(
@@ -80,8 +83,8 @@ def test_batch_move_all_succeed():
         response = client.post(
             "/tags/batch-move",
             json=[
-                {"tag_id": str(tag1.id), "tag_group_name": "g2"},
-                {"tag_id": str(tag2.id), "tag_group_name": "g2"},
+                {"tag_id": str(tag1.id), "tag_group_id": dest_group_id},
+                {"tag_id": str(tag2.id), "tag_group_id": dest_group_id},
             ],
             headers={"Authorization": f"Bearer {make_admin_token()}"},
         )
@@ -104,7 +107,7 @@ def test_batch_move_missing_tag_goes_to_failed():
     try:
         response = client.post(
             "/tags/batch-move",
-            json=[{"tag_id": missing_id, "tag_group_name": "g2"}],
+            json=[{"tag_id": missing_id, "tag_group_id": str(uuid.uuid4())}],
             headers={"Authorization": f"Bearer {make_admin_token()}"},
         )
         assert response.status_code == 200
@@ -170,9 +173,9 @@ def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
-    # Tag ORM query chain returns one row with attribute access
+    # Tag ORM query chain: join().join().filter(tag_group_id).filter(topic_id).group_by().order_by().all()
     mock_tag_row = SimpleNamespace(id=tag_id, name="Transformer", article_count=3)
-    mock_db.query.return_value.join.return_value.join.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
+    mock_db.query.return_value.join.return_value.join.return_value.filter.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
@@ -239,10 +242,9 @@ def test_list_tag_groups_include_similarity_returns_similar_groups():
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
-    # First execute() call = tag JOIN, second = similarity query
+    # Tags use ORM (db.query), not db.execute; only similarity uses db.execute
     mock_db.execute.side_effect = [
-        MagicMock(fetchall=lambda: []),                          # tags
-        MagicMock(fetchall=lambda: [(similar_id, 0.85)]),       # similarity
+        MagicMock(fetchall=lambda: [(similar_id, 0.85)]),  # similarity
     ]
 
     app.dependency_overrides[get_db] = lambda: mock_db

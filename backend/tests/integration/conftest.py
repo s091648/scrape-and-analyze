@@ -18,12 +18,13 @@ def db_engine():
 
     root_engine = create_engine(base_url)
     with root_engine.connect() as conn:
+        conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{TEST_SCHEMA}"'))
         conn.commit()
 
     engine = create_engine(
         base_url,
-        connect_args={"options": f"-csearch_path={TEST_SCHEMA}"},
+        connect_args={"options": f"-csearch_path={TEST_SCHEMA},public"},
     )
 
     from models.base import Base
@@ -35,7 +36,12 @@ def db_engine():
     from models.scraper_setting import ScraperSetting    # noqa: F401
     from models.llm_provider import LlmProvider          # noqa: F401
 
-    Base.metadata.create_all(engine)
+    # Exclude auth-schema tables (User) — those exist only in public.
+    # Use checkfirst=False so SQLAlchemy creates tables in the test schema
+    # even when identically-named tables exist in the public schema (which
+    # would otherwise cause has_table() to return True and skip creation).
+    non_auth = [t for t in Base.metadata.sorted_tables if t.schema != "auth"]
+    Base.metadata.create_all(engine, tables=non_auth, checkfirst=False)
 
     yield engine
 

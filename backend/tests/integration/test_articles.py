@@ -120,7 +120,7 @@ def test_articles_filter_by_multiple_sources(db_session, api_client):
 
 def _seed_tag(db_session, tag_name="ml"):
     from models.tag import Tag
-    tag = Tag(id=uuid.uuid4(), name=tag_name, tag_group_name="tech")
+    tag = Tag(id=uuid.uuid4(), name=tag_name)
     db_session.add(tag)
     db_session.flush()
     return tag
@@ -279,7 +279,7 @@ def test_article_detail_with_tags_and_group(db_session, api_client):
     db_session.flush()
 
     from models.tag import Tag
-    tag = Tag(name="image-classification", tag_group_name="vision")
+    tag = Tag(name="image-classification", tag_group_id=tg.id)
     db_session.add(tag)
     a = _article(title="CV Paper")
     db_session.add(a)
