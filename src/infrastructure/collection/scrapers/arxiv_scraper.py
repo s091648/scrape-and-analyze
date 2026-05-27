@@ -53,7 +53,7 @@ class ArxivScraper(BaseScraper):
             )
         except ArxivRateLimitedError as e:
             logger.warning("arxiv_rate_limited", message=str(e))
-            return []
+            raise
         jobs = []
         for e in entries:
             jobs.append(ScrapeJob(

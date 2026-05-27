@@ -134,7 +134,7 @@ def test_tag_model_has_required_fields():
 
 def test_tag_name_group_is_unique():
     from models.tag import Tag
-    uq_names = {c.name for c in Tag.__table__.constraints}
+    uq_names = {i.name for i in Tag.__table__.indexes}
     assert 'uq_tag_name_group' in uq_names
 
 
