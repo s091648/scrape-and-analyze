@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report:
-- Version change: 1.0.0 → 1.1.0 (MINOR: expanded Atomic Frontend Architecture principle)
-- Modified principles: II. Atomic Frontend Architecture — added component reuse and Storybook story requirements
+- Version change: 1.1.0 → 1.1.1 (PATCH: clarification added to Test Discipline principle)
+- Modified principles: III. Test Discipline — added explicit Docker-only test execution rule
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
   - .specify/templates/plan-template.md: ✅ compatible
   - .specify/templates/spec-template.md: ✅ compatible
-  - .specify/templates/tasks-template.md: ✅ compatible (Storybook story task should be added when new components are introduced)
+  - .specify/templates/tasks-template.md: ✅ compatible (test tasks should reference make test / make test-integration)
 - Follow-up TODOs: None
 -->
 
@@ -82,6 +82,11 @@ visually verified before integration.
   down isolated PostgreSQL schemas. Backend integration conftest MUST
   use savepoint-based transaction wrapping so endpoint `db.commit()`
   does not escape the outer rollback.
+- **Docker-only test execution**: All test runs MUST be executed inside
+  Docker containers via Makefile targets (`make test` for unit,
+  `make test-integration` for integration). Running pytest directly on
+  the host (`uv run pytest`) is permitted only for IDE test discovery;
+  CI and all acceptance runs MUST use Docker.
 - **CI gates**: Unit tests run first; integration/E2E only after unit
   pass. Coverage uploaded to Codecov with carryforward.
 
@@ -251,4 +256,4 @@ type errors.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-28
+**Version**: 1.1.1 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-28
