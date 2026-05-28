@@ -76,9 +76,23 @@ class CollectionPipeline:
         def on_result(article: ScrapedArticle) -> None:
             results.append(article)
 
+        def _pre_fetch_filter(tasks):
+            hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
+            analyzed = self._article_repo.find_analyzed_url_hashes(set(hashes.keys()))
+            if not analyzed:
+                return tasks
+            kept = [t for h, t in hashes.items() if h not in analyzed]
+            skipped = len(tasks) - len(kept)
+            if skipped:
+                logger.info("pre_fetch_dedup_filtered", skipped=skipped, remaining=len(kept))
+            return kept
+
+        pre_fetch_filter = _pre_fetch_filter if self._article_repo is not None else None
+
         self._executor.run_streaming(
             discover_tasks=discover_tasks,
             on_result=on_result,
+            pre_fetch_filter=pre_fetch_filter,
         )
 
         # ── Pre-dedup: filter URLs already fully processed ──────────────

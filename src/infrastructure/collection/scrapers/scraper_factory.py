@@ -70,7 +70,6 @@ class ConcreteScraperFactory(ScraperFactory):
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
                 client=ArxivClient(http_client=arxiv_http),
-                since=setting.last_scraped_at,
             )
 
         logger.warning("unknown_source_type", source_type=setting.source_type)
