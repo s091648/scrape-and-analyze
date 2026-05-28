@@ -1,25 +1,9 @@
 from typing import Any, Dict, List
 
 
-def load_active_providers(session) -> List[Dict[str, Any]]:
-    """Load active LLM provider configs from DB, sorted by priority.
-
-    Returns dicts in the same shape bootstrap.py expects:
-      {'name', 'model', 'api_key_env', 'priority', 'strategy'}
-    where strategy is {'type': 'sliding_window', 'rpm', 'tpm', 'rpd'}
-    or {'type': 'noop'} when any rate-limit field is None.
-    """
-    from models.llm_provider import LlmProvider
-
-    providers = (
-        session.query(LlmProvider)
-        .filter(LlmProvider.is_active.is_(True))
-        .order_by(LlmProvider.priority)
-        .all()
-    )
-
+def _build_provider_dicts(orm_rows) -> List[Dict[str, Any]]:
     result = []
-    for p in providers:
+    for p in orm_rows:
         if all(v is not None for v in (p.rpm, p.tpm, p.rpd)):
             strategy: Dict[str, Any] = {
                 'type': 'sliding_window',
@@ -37,5 +21,30 @@ def load_active_providers(session) -> List[Dict[str, Any]]:
             'priority': p.priority,
             'strategy': strategy,
         })
-
     return result
+
+
+def load_active_providers(session) -> List[Dict[str, Any]]:
+    """Load active LLM provider configs from DB, sorted by priority."""
+    from models.llm_provider import LlmProvider
+
+    rows = (
+        session.query(LlmProvider)
+        .filter(LlmProvider.is_active.is_(True), LlmProvider.type == 'llm')
+        .order_by(LlmProvider.priority)
+        .all()
+    )
+    return _build_provider_dicts(rows)
+
+
+def load_active_embedding_providers(session) -> List[Dict[str, Any]]:
+    """Load active embedding provider configs from DB, sorted by priority."""
+    from models.llm_provider import LlmProvider
+
+    rows = (
+        session.query(LlmProvider)
+        .filter(LlmProvider.is_active.is_(True), LlmProvider.type == 'embedding')
+        .order_by(LlmProvider.priority)
+        .all()
+    )
+    return _build_provider_dicts(rows)

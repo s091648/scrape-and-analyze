@@ -12,17 +12,12 @@ test.describe('Knowledge graph page', () => {
     await expect(page.locator('canvas')).toBeVisible({ timeout: 10_000 })
   })
 
-  test('days filter change triggers new request', async ({ page }) => {
+  test('initial graph request includes published_after and topic_id', async ({ page }) => {
     await page.goto('/graph')
-    // Wait for initial request with days=30
-    await page.waitForRequest(req => req.url().includes('days=30'))
-
-    // Find the days selector and change it to 7
-    const daysInput = page.getByRole('combobox').first()
-    if (await daysInput.count() > 0) {
-      const requestPromise = page.waitForRequest(req => req.url().includes('days=7'))
-      await daysInput.selectOption('7')
-      await requestPromise
-    }
+    // The component defaults to published_after ~30 days ago; wait for that request
+    const req = await page.waitForRequest(
+      r => r.url().includes('analyses/graph') && r.url().includes('published_after=')
+    )
+    expect(req.url()).toContain('topic_id=')
   })
 })

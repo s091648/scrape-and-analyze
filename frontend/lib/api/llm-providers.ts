@@ -7,6 +7,7 @@ export interface LlmProvider {
   api_key_env: string
   priority: number
   is_active: boolean
+  type: 'llm' | 'embedding'
   rpm: number | null
   tpm: number | null
   rpd: number | null

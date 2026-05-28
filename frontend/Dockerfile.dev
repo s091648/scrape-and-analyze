@@ -35,5 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package*.json ./
 RUN npm install
 
+# Download Playwright browsers
+RUN npx playwright install
+
 # 程式碼透過 docker-compose volumes 掛載，不在此 COPY
 CMD ["npm", "run", "dev"]

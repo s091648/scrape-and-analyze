@@ -2,7 +2,7 @@
 bootstrap.py — 依賴組裝入口點（取代舊有的 composition_root.py）
 
 職責：
-  - 從設定檔（providers.toml、環境變數）讀取組態
+  - 從 DB（llm_providers 表）及環境變數讀取組態
   - 建立所有 infrastructure 物件（DB session、repositories、LLM providers）
   - 組裝 event bus 並完成 handler 訂閱
   - 回傳可執行的 CollectionPipeline
@@ -23,52 +23,65 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 def build_llm_service(session):
-    """Build ResilientLLMService from DB provider config."""
-    from shared.llm_provider import load_active_providers
+    """Build (ResilientLLMService, ResilientEmbeddingService) from DB provider config."""
+    from shared.llm_provider import load_active_providers, load_active_embedding_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         ResilientLLMService, ProviderHandler,
+        ResilientEmbeddingService, EmbeddingProviderHandler
     )
+    from src.infrastructure.intelligence.llm.embedding import GeminiEmbeddingProvider
     from src.infrastructure.intelligence.llm.providers import ClaudeProvider, GeminiProvider, OpenRouterProvider
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
 
-    handlers: List[ProviderHandler] = []
+    def _make_strategy(cfg):
+        s = cfg.get('strategy', {})
+        if s.get('type') == 'sliding_window':
+            return SlidingWindowStrategy(rpm=s['rpm'], tpm=s['tpm'], rpd=s['rpd'])
+        return NoOpStrategy()
 
+    handlers: List[ProviderHandler] = []
     for cfg in load_active_providers(session):
         name = cfg['name']
-        model = cfg['model']
         api_key = os.environ.get(cfg['api_key_env'], '')
-
         if name == 'claude':
-            provider = ClaudeProvider(api_key=api_key, model=model)
+            provider = ClaudeProvider(api_key=api_key, model=cfg['model'])
         elif name == 'gemini':
-            provider = GeminiProvider(api_key=api_key, model=model)
+            provider = GeminiProvider(api_key=api_key, model=cfg['model'])
         elif name == 'openrouter':
-            provider = OpenRouterProvider(api_key=api_key, model=model)
+            provider = OpenRouterProvider(api_key=api_key, model=cfg['model'])
         else:
             logger.warning("unknown_provider_skipped", name=name)
             continue
-
-        s_cfg = cfg.get('strategy', {})
-        if s_cfg.get('type') == 'sliding_window':
-            strategy = SlidingWindowStrategy(
-                rpm=s_cfg['rpm'],
-                tpm=s_cfg['tpm'],
-                rpd=s_cfg['rpd'],
-            )
-        else:
-            strategy = NoOpStrategy()
-
         handlers.append(ProviderHandler(
             provider=provider,
-            strategy=strategy,
+            strategy=_make_strategy(cfg),
             priority=cfg['priority'],
             name=name,
         ))
 
     if not handlers:
-        raise ValueError("llm_providers table has no active providers")
+        raise ValueError("llm_providers table has no active LLM providers")
 
-    return ResilientLLMService(handlers=handlers)
+    emb_handlers: List[EmbeddingProviderHandler] = []
+    for cfg in load_active_embedding_providers(session):
+        name = cfg['name']
+        api_key = os.environ.get(cfg['api_key_env'], '')
+        if name == 'gemini':
+            provider = GeminiEmbeddingProvider(api_key=api_key, model=cfg['model'])
+        else:
+            logger.warning("unknown_embedding_provider_skipped", name=name)
+            continue
+        emb_handlers.append(EmbeddingProviderHandler(
+            provider=provider,
+            strategy=_make_strategy(cfg),
+            priority=cfg['priority'],
+            name=name,
+        ))
+
+    if not emb_handlers:
+        raise ValueError("llm_providers table has no active embedding providers")
+
+    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +105,9 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
+    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
@@ -106,11 +122,14 @@ def build_collection_pipeline():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
-    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase
-    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisFailedHandler, AnalysisCompletedHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, TranslateArticleUseCase, TranslateTagsUseCase, NormalizeTagsUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisCompletedHandler
+    from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
+    from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import FailedTaskPersistenceHandler
+    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
     from src.shared.application.events import ArticleProcessedEvent
     from src.config.settings import TRANSLATION_LANGUAGES
+    
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -125,12 +144,14 @@ def build_collection_pipeline():
     arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
+    tag_repo = SqlAlchemyTagRepository(session=session)
+    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service(session)
+    llm_service, embedding_service = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
@@ -149,7 +170,9 @@ def build_collection_pipeline():
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        tag_group_definition_repository=tag_group_def_repo,
         prompt=prompt_factory.analysis_prompt(),
+        embedding_service=embedding_service,
     )
     translate_article_uc = TranslateArticleUseCase(
         llm_service=llm_service,
@@ -163,6 +186,12 @@ def build_collection_pipeline():
         group_prompt=prompt_factory.group_translation_prompt(),
     )
 
+    # ── Normalize Tags Use Case ────────────────────────────────────────────
+    normalize_tags_uc = NormalizeTagsUseCase(
+        embedding_service=embedding_service,
+        tag_repository=tag_repo,
+    )
+
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
@@ -174,16 +203,25 @@ def build_collection_pipeline():
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
 
-    analysis_failed_handler = AnalysisFailedHandler(failed_task_repository=failed_task_repo)
-    event_bus.subscribe(AnalysisFailedEvent, analysis_failed_handler.handle)
+    failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
+    event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(TranslationFailedEvent, failed_task_handler.handle)
+
+    tag_normalization_handler = TagNormalizationHandler(
+        use_case=normalize_tags_uc,
+        event_bus=event_bus,
+    )
+    event_bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
 
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
         analyses_translation_repo=analyses_translation_repo,
+        event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
     )
-    event_bus.subscribe(AnalysisCompletedEvent, analysis_completed_handler.handle)
+    event_bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
@@ -253,7 +291,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service = build_llm_service(session)
+    llm_service, _ = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()

@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { fetchArticleFilterSources, fetchArticleFilterTags } from '@/lib/api/articles'
+import { fetchArticleFilterSources } from '@/lib/api/articles'
+import { fetchTagGroups } from '@/lib/api/tags'
+import type { TagGroupOut } from '@/lib/api/tags'
 
 vi.mock('@/lib/api/articles', () => ({
   fetchArticleFilterSources: vi.fn(),
-  fetchArticleFilterTags: vi.fn(),
+}))
+
+vi.mock('@/lib/api/tags', () => ({
+  fetchTagGroups: vi.fn(),
 }))
 
 vi.mock('@/lib/providers', () => ({
@@ -26,15 +31,27 @@ vi.mock('@/lib/providers', () => ({
         'filterBar.to': 'To',
         'filterBar.clear': 'Clear',
         'filterBar.apply': 'Apply',
+        'filterBar.noTagsFound': 'No tags found',
       }
       return map[key] ?? key
     },
   }),
+  useTopic: () => ({ selectedTopicId: 'topic-1' }),
 }))
+
+const mockTagGroups: TagGroupOut[] = [
+  {
+    id: 'g1', name: 'research', display_name: 'Research Methods',
+    description: null, color_hex: null, topic_id: 'topic-1',
+    tags: [{ id: 't1', name: 'AI', article_count: 5 }],
+    similar_groups: [],
+  },
+]
 
 const defaultProps = {
   sources: [],
   tags: [],
+  tagGroups: [],
   publishedAfter: '',
   publishedBefore: '',
   scrapedAfter: '',
@@ -43,9 +60,9 @@ const defaultProps = {
   onApply: vi.fn(),
 }
 
-function setupApiMock(sourceOptions = ['rss', 'blog'], tagOptions = ['AI', 'IoT']) {
+function setupApiMock(sourceOptions = ['rss', 'blog'], tagGroups = mockTagGroups) {
   vi.mocked(fetchArticleFilterSources).mockResolvedValue(sourceOptions)
-  vi.mocked(fetchArticleFilterTags).mockResolvedValue(tagOptions)
+  vi.mocked(fetchTagGroups).mockResolvedValue(tagGroups)
 }
 
 describe('FilterBar', () => {
@@ -98,16 +115,16 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
     expect(onApply).toHaveBeenCalledWith({
-      source: [], tag: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
+      source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
     })
   })
 
-  it('fetches source and tag options on mount', async () => {
+  it('fetches source options and tag groups on mount', async () => {
     const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
     await waitFor(() => {
       expect(fetchArticleFilterSources).toHaveBeenCalled()
-      expect(fetchArticleFilterTags).toHaveBeenCalled()
+      expect(fetchTagGroups).toHaveBeenCalledWith('topic-1')
     })
   })
 })

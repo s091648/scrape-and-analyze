@@ -13,7 +13,10 @@ class FailedTask:
     id: UUID = field(default_factory=uuid4)
     article_url: Optional[str] = None
     article_id: Optional[UUID] = None
+    analysis_id: Optional[UUID] = None
     exception_type: Optional[str] = None
     exception_message: Optional[str] = None
+    context: Optional[dict] = None
+    traceback: Optional[str] = None
     failed_at: Optional[datetime] = None
     resolved: bool = False

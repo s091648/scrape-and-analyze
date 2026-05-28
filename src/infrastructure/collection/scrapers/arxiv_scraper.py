@@ -6,7 +6,6 @@ from src.infrastructure.collection.clients import ArxivClient, ArxivRateLimitedE
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
-from src.modules.collection.application.dtos import ScraperMetadataDTO
 from src.infrastructure.collection.parsers import PdfParser
 from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
@@ -46,24 +45,23 @@ class ArxivScraper(BaseScraper):
             )
         except ArxivRateLimitedError as e:
             logger.warning("arxiv_rate_limited", message=str(e))
-            return []
+            raise
         jobs = []
         for e in entries:
-            metadata = ScraperMetadataDTO.for_arxiv(
-                arxiv_id=e.arxiv_id,
-                title=e.title,
-                abstract=e.abstract,
-                pdf_url=e.pdf_url,
-                authors=e.authors,
-                published=e.published,
-            )
             jobs.append(ScrapeJob(
                 url=e.url,
                 source="arxiv",
                 source_type="arxiv",
                 topic_id=self._topic_id,
                 prompt_override=self._prompt_override,
-                metadata=metadata.source_specific,
+                metadata={
+                    "arxiv_id": e.arxiv_id,
+                    "title": e.title,
+                    "abstract": e.abstract,
+                    "pdf_url": e.pdf_url,
+                    "authors": e.authors or [],
+                    "published": e.published,
+                },
             ))
         SCRAPER_ARTICLES_FOUND.add(len(jobs), {"source": "arxiv"})
         logger.info("arxiv_discover_complete", count=len(jobs))

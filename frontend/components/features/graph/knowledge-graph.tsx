@@ -4,12 +4,12 @@ import { useSession } from 'next-auth/react'
 import { useI18n } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
-import { fetchAnalysesGraph, fetchAnalysesGraphGroup } from '@/lib/api/graph'
+import { fetchAnalysesGraph, fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
 import { fetchArticleById } from '@/lib/api/articles'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ExternalLink, X, Globe, Clock } from 'lucide-react'
+import { FilterBar } from '@/components/features/articles/filter-bar'
 
 const ForceGraph = dynamic(() => import('react-force-graph-2d'), { ssr: false })
 
@@ -67,20 +67,21 @@ interface GroupArticle {
 }
 
 export function KnowledgeGraph() {
-  const [days, setDays] = useState(30)
   const { status } = useSession()
   const { t, locale } = useI18n()
   const isGuest = status === 'unauthenticated'
   const { selectedTopicId } = useTopic()
+
+  const [graphFilters, setGraphFilters] = useState<Omit<GraphFilters, 'topic_id'>>({
+    published_after: (() => {
+      const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10)
+    })(),
+  })
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedGroupLabel, setExpandedGroupLabel] = useState('')
   const [expandedGroupColor, setExpandedGroupColor] = useState('#6b7280')
   const [groupData, setGroupData] = useState<GroupArticle[]>([])
-
-  // Overlay state (tag nodes + edges injected on group expand)
-  const [overlayNodes, setOverlayNodes] = useState<GraphNode[]>([])
-  const [overlayEdges, setOverlayEdges] = useState<GraphEdge[]>([])
 
   // Article selection state
   const [selectedArticle, setSelectedArticle] = useState<GroupArticle | null>(null)
@@ -114,48 +115,20 @@ export function KnowledgeGraph() {
     }
     if (!selectedTopicId) return
     setGraphLoading(true)
-    fetchAnalysesGraph(days, selectedTopicId, locale)
+    fetchAnalysesGraph({ topic_id: selectedTopicId, ...graphFilters }, locale)
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [days, selectedTopicId, isGuest, locale])
+  }, [graphFilters, selectedTopicId, isGuest, locale])
 
   // Clear article hover cache when locale changes (stale translations)
   useEffect(() => { articleCacheRef.current.clear() }, [locale])
 
-  function buildTagOverlay(groupName: string, groupNodeId: string, groupColor: string, data: GroupArticle[]) {
-    const uniqueTags = [...new Set(data.flatMap(a => a.tags))]
-    const tagNodes: GraphNode[] = uniqueTags.map(tag => ({
-      id: `tag::${groupName}::${tag}`,
-      type: 'tag' as const,
-      label: tag,
-      color: groupColor,
-      groupName,
-    }))
-    const tagEdges: GraphEdge[] = [
-      ...uniqueTags.map(tag => ({
-        source: groupNodeId,
-        target: `tag::${groupName}::${tag}`,
-      })),
-      ...data.flatMap(article =>
-        article.tags.map(tag => ({
-          source: `tag::${groupName}::${tag}`,
-          target: article.articleId,
-        }))
-      ),
-    ]
-    setOverlayNodes(tagNodes)
-    setOverlayEdges(tagEdges)
-  }
-
   // Re-fetch group data when locale changes while a group is expanded
   useEffect(() => {
     if (!expandedGroup || isGuest) return
-    const node = graphData.nodes.find(n => n.groupName === expandedGroup)
-    fetchAnalysesGraphGroup<GroupArticle>(expandedGroup, locale)
-      .then((data) => {
-        setGroupData(data)
-        buildTagOverlay(expandedGroup, node?.id || `group:${expandedGroup}`, node?.color || '#6b7280', data)
-      })
+    fetchAnalysesGraphGroup<GroupArticle>(expandedGroup, { ...graphFilters, topic_id: selectedTopicId ?? undefined }, locale)
+      .then(setGroupData)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale, expandedGroup])
 
   useEffect(() => {
@@ -169,34 +142,25 @@ export function KnowledgeGraph() {
     return () => obs.disconnect()
   }, [])
 
-  // Merged graph data: base nodes/edges + tag overlay
   const mergedGraphData = useMemo(() => ({
-    nodes: [...graphData.nodes, ...overlayNodes],
-    links: [...graphData.edges, ...overlayEdges],
-  }), [graphData, overlayNodes, overlayEdges])
+    nodes: graphData.nodes,
+    links: graphData.edges,
+  }), [graphData])
 
   function handleNodeClick(node: any) {
     if (node.type === 'group') {
       if (expandedGroupRef.current === node.groupName) {
-        // Collapse
         setExpandedGroup(null)
         setGroupData([])
-        setOverlayNodes([])
-        setOverlayEdges([])
         setSelectedArticle(null)
       } else {
         setExpandedGroup(node.groupName)
         setExpandedGroupLabel(node.label)
         setExpandedGroupColor(node.color || '#6b7280')
-        setOverlayNodes([])
-        setOverlayEdges([])
         setSelectedArticle(null)
 
-        fetchAnalysesGraphGroup<GroupArticle>(node.groupName, locale)
-          .then((data) => {
-            setGroupData(data)
-            buildTagOverlay(node.groupName, node.id, node.color || '#6b7280', data)
-          })
+        fetchAnalysesGraphGroup<GroupArticle>(node.groupName, { ...graphFilters, topic_id: selectedTopicId ?? undefined }, locale)
+          .then(setGroupData)
       }
     } else if (node.type === 'article') {
       const article = groupDataRef.current.find(a => a.articleId === node.id)
@@ -220,26 +184,37 @@ export function KnowledgeGraph() {
     }
   }
 
-  // Aggregate unique tags across all articles in the selected group
-  const aggregateTags = useMemo(() =>
-    [...new Set(groupData.flatMap(a => a.tags))],
-    [groupData]
-  )
-
   return (
     <div className="flex gap-4 h-[calc(100vh-14rem)]">
       {/* Graph — 60% */}
       <div className="w-[60%] flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">{t('graph.timeWindow')}</label>
-          <select
-            value={days}
-            onChange={e => setDays(Number(e.target.value))}
-            className="text-sm border border-border rounded px-2 py-1 bg-background"
-          >
-            {[7, 30, 90, 180].map(d => <option key={d} value={d}>{t('graph.days', { d })}</option>)}
-          </select>
-        </div>
+        {!isGuest && (
+          <FilterBar
+            sources={graphFilters.source ?? []}
+            tags={graphFilters.tag ?? []}
+            tagGroups={graphFilters.tag_group ?? []}
+            publishedAfter={graphFilters.published_after ?? ''}
+            publishedBefore={graphFilters.published_before ?? ''}
+            scrapedAfter={graphFilters.scraped_after ?? ''}
+            scrapedBefore={graphFilters.scraped_before ?? ''}
+            activeFilterCount={
+              (graphFilters.source?.length ? 1 : 0) +
+              (graphFilters.tag?.length || graphFilters.tag_group?.length ? 1 : 0) +
+              ((graphFilters.published_after || graphFilters.published_before) ? 1 : 0) +
+              ((graphFilters.scraped_after || graphFilters.scraped_before) ? 1 : 0)
+            }
+            onApply={updates => setGraphFilters(prev => ({
+              ...prev,
+              source: updates.source,
+              tag: updates.tag,
+              tag_group: updates.tag_group,
+              published_after: updates.published_after,
+              published_before: updates.published_before,
+              scraped_after: updates.scraped_after,
+              scraped_before: updates.scraped_before,
+            }))}
+          />
+        )}
 
         <div
           ref={graphContainerRef}
@@ -480,8 +455,6 @@ export function KnowledgeGraph() {
                 onClick={() => {
                   setExpandedGroup(null)
                   setGroupData([])
-                  setOverlayNodes([])
-                  setOverlayEdges([])
                   setSelectedArticle(null)
                 }}
                 aria-label="Close"
@@ -489,15 +462,6 @@ export function KnowledgeGraph() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-
-            {/* Tag badges */}
-            {aggregateTags.length > 0 && (
-              <div className="px-4 py-3 border-b border-border shrink-0 flex flex-wrap gap-1.5">
-                {aggregateTags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                ))}
-              </div>
-            )}
 
             {/* Article list */}
             <div className="flex-1 min-h-0 overflow-y-auto">

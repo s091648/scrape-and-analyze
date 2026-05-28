@@ -46,6 +46,7 @@ export function NavBar() {
 
   const pathname = usePathname()
   const currentLang = availableLanguages.find(l => l.code === locale)
+  const topicParam = selectedTopic ? `?topic=${selectedTopic.id}` : ''
 
   return (
     <header className="fixed left-0 top-0 right-0 z-50 w-full border-b border-border bg-background">
@@ -105,7 +106,7 @@ export function NavBar() {
         {/* Left nav */}
         <div className="flex items-center gap-1">
           <Link
-            href="/"
+            href={`/${topicParam}`}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
               pathname === '/'
                 ? 'bg-muted text-foreground'
@@ -115,7 +116,7 @@ export function NavBar() {
             {t('nav.articles')}
           </Link>
           <Link
-            href="/graph"
+            href={`/graph${topicParam}`}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
               pathname === '/graph'
                 ? 'bg-muted text-foreground'
@@ -123,6 +124,16 @@ export function NavBar() {
             }`}
           >
             {t('nav.knowledgeGraph')}
+          </Link>
+          <Link
+            href={`/tags${topicParam}`}
+            className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+              pathname === '/tags'
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            {t('tags.title')}
           </Link>
         </div>
 

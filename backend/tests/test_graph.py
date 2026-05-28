@@ -3,6 +3,15 @@ import uuid
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
+# Stable UUIDs for mock group definitions
+_DT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
+_AI_UUID = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
+_GROUP_NAME_TO_UUID = {
+    'digital_twin': _DT_UUID,
+    'ai_ml': _AI_UUID,
+}
+
 
 def _make_mock_db():
     """Create a mock DB session for tests that need AnalysesTranslation queries."""
@@ -16,6 +25,7 @@ def make_mock_tag(name, group_name):
     t = MagicMock()
     t.name = name
     t.tag_group_name = group_name
+    t.tag_group_id = _GROUP_NAME_TO_UUID.get(group_name, uuid.uuid4())
     return t
 
 
@@ -40,14 +50,15 @@ def make_mock_analysis(tag_groups):
 
 
 _MOCK_GROUP_DEFS = {
-    'digital_twin': {'display_name': 'Digital Twin', 'color_hex': '#6366f1'},
-    'ai_ml': {'display_name': 'AI & Machine Learning', 'color_hex': '#f59e0b'},
+    _DT_UUID: {'name': 'digital_twin', 'display_name': 'Digital Twin', 'color_hex': '#6366f1'},
+    _AI_UUID: {'name': 'ai_ml', 'display_name': 'AI & Machine Learning', 'color_hex': '#f59e0b'},
 }
 
 
 def _mock_group_def(name='digital_twin', display='Digital Twin'):
     m = MagicMock()
     m.display_name = display
+    m.id = _GROUP_NAME_TO_UUID.get(name, uuid.uuid4())
     return m
 
 
@@ -98,8 +109,8 @@ def test_graph_different_days_different_cache():
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
-        client.get('/analyses/graph?days=30')
-        client.get('/analyses/graph?days=90')
+        client.get('/analyses/graph?source=techcrunch')
+        client.get('/analyses/graph?source=arxiv')
     assert mock_q.call_count == 2
 
 

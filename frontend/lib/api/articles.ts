@@ -28,9 +28,12 @@ export interface ArticleDetail extends Article {
 
 export interface ArticleListParams {
   page?: number
+  size?: number
   topic_id?: string
   source?: string[]
   tag?: string[]
+  tag_id?: string[]
+  tag_group?: string[]
   published_after?: string
   published_before?: string
   scraped_after?: string
@@ -45,11 +48,14 @@ export async function fetchArticles(
 ): Promise<{ items: Article[]; total: number }> {
   const qs = new URLSearchParams()
   if (params.page) qs.set('page', String(params.page))
+  if (params.size) qs.set('size', String(params.size))
   if (params.topic_id) qs.set('topic_id', params.topic_id)
   if (params.sort) qs.set('sort', params.sort)
   if (params.order) qs.set('order', params.order)
   params.source?.forEach(s => qs.append('source', s))
   params.tag?.forEach(t => qs.append('tag', t))
+  params.tag_id?.forEach(id => qs.append('tag_id', id))
+  params.tag_group?.forEach(g => qs.append('tag_group', g))
   if (params.published_after) qs.set('published_after', params.published_after)
   if (params.published_before) qs.set('published_before', params.published_before)
   if (params.scraped_after) qs.set('scraped_after', params.scraped_after)

@@ -17,6 +17,7 @@ def _wire_pipeline(db_session):
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
@@ -31,6 +32,7 @@ def _wire_pipeline(db_session):
     article_repo = SqlAlchemyArticleRepository(session=db_session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
     topic_repo = SqlAlchemyTopicRepository(session=db_session)
+    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=db_session)
     event_bus = InMemoryEventBus()
 
     process_uc = ProcessScrapedArticleUseCase(
@@ -41,6 +43,7 @@ def _wire_pipeline(db_session):
         llm_service=llm,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        tag_group_definition_repository=tag_group_def_repo,
         prompt=AnalysisPrompt(),
     )
     handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)

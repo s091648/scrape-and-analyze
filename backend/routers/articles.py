@@ -40,6 +40,8 @@ def get_articles_paginated(
     size: int,
     sources: List[str] | None = None,
     tags: List[str] | None = None,
+    tag_ids: List[UUID] | None = None,
+    tag_groups: List[str] | None = None,
     published_after: Optional[date] = None,
     published_before: Optional[date] = None,
     scraped_after: Optional[date] = None,
@@ -56,6 +58,13 @@ def get_articles_paginated(
     if sources:
         query = query.filter(Article.source.in_(sources))
 
+    if tag_ids:
+        from models.tag import article_tags as at
+        from sqlalchemy import select
+        for tag_id in tag_ids:
+            tag_subq = select(at.c.article_id).where(at.c.tag_id == tag_id).scalar_subquery()
+            query = query.filter(Article.id.in_(tag_subq))
+
     if tags:
         from models.tag import Tag, article_tags as at
         from sqlalchemy import select
@@ -64,6 +73,18 @@ def get_articles_paginated(
                 Tag, Tag.id == at.c.tag_id
             ).where(Tag.name == tag_name).scalar_subquery()
             query = query.filter(Article.id.in_(tag_subq))
+
+    if tag_groups:
+        from models.tag import Tag, article_tags as at
+        from models.tag_group import TagGroupDefinition
+        from sqlalchemy import select
+        for group_name in tag_groups:
+            group_subq = select(at.c.article_id).join(
+                Tag, Tag.id == at.c.tag_id
+            ).join(
+                TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id
+            ).where(TagGroupDefinition.name == group_name).scalar_subquery()
+            query = query.filter(Article.id.in_(group_subq))
 
     if published_after:
         query = query.filter(Article.published_at >= published_after)
@@ -91,6 +112,8 @@ def list_articles(
     order: Literal["asc", "desc"] = "desc",
     source: List[str] = Query(default=[]),
     tag: List[str] = Query(default=[]),
+    tag_id: List[UUID] = Query(default=[]),
+    tag_group: List[str] = Query(default=[]),
     published_after: Optional[date] = Query(default=None),
     published_before: Optional[date] = Query(default=None),
     scraped_after: Optional[date] = Query(default=None),
@@ -103,6 +126,8 @@ def list_articles(
         db, sort, order, page, size,
         sources=source or None,
         tags=tag or None,
+        tag_ids=tag_id or None,
+        tag_groups=tag_group or None,
         published_after=published_after,
         published_before=published_before,
         scraped_after=scraped_after,
@@ -142,7 +167,7 @@ def get_filter_tags(topic_id: Optional[UUID] = Query(default=None),
 class TagGroupOut(BaseModel):
     group_name: str
     display_name: str
-    color: str
+    color: Optional[str] = None
     tags: list[str]
 
 
@@ -192,14 +217,16 @@ def get_article_by_id(db: Session, article_id: UUID):
 
 def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:
     from models.tag import Tag, article_tags as at
+    from models.tag_group import TagGroupDefinition
     from models.tag_translation import TagsTranslation
     from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     tags = (
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
+        .outerjoin(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
         .filter(at.c.article_id == article_id)
-        .order_by(Tag.tag_group_name, Tag.name)
+        .order_by(TagGroupDefinition.name, Tag.name)
         .all()
     )
 
@@ -224,7 +251,7 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
 
     groups: dict = {}
     for tag in tags:
-        gname = tag.tag_group_name
+        gname = tag.group_def.name if tag.group_def else "ungrouped"
         if gname not in groups:
             gdef = tag.group_def
             display_name = gname
@@ -236,16 +263,21 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
                 else:
                     display_name = gdef.display_name
                     description = gdef.description
+            else:
+                display_name = "Ungrouped"
             groups[gname] = {
                 "group_name": gname,
                 "display_name": display_name,
                 "description": description,
-                "color": gdef.color_hex if gdef else "#6b7280",
+                "color": gdef.color_hex if gdef else None,
                 "tags": [],
             }
         tag_name = tag_trans_map.get(tag.id, tag.name) if lang != "en" else tag.name
         groups[gname]["tags"].append(tag_name)
-    return list(groups.values())
+
+    result = list(groups.values())
+    result.sort(key=lambda g: (g["group_name"] == "ungrouped", g["display_name"]))
+    return result
 
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)

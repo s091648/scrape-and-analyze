@@ -9,6 +9,7 @@ export interface Topic {
   prompt_override: string | null
   sort_order: number | null
   is_active: boolean
+  tag_mode: 'unsupervised' | 'semi_supervised' | 'supervised'
 }
 
 function authHeader(token?: string): Record<string, string> {
@@ -29,7 +30,7 @@ export async function fetchTopics(
 }
 
 export async function createTopic(
-  body: Partial<Pick<Topic, 'name' | 'display_name' | 'color_hex' | 'description' | 'prompt_override' | 'sort_order' | 'is_active'>>,
+  body: Partial<Pick<Topic, 'name' | 'display_name' | 'color_hex' | 'description' | 'prompt_override' | 'sort_order' | 'is_active' | 'tag_mode'>>,
   token?: string,
   locale?: string,
 ): Promise<Topic> {

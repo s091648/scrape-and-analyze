@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from models.base import Base
 
@@ -13,6 +13,8 @@ class LlmProvider(Base):
     model = Column(String(100), nullable=False, unique=True)
     api_key_env = Column(String(100), nullable=False)
     priority = Column(Integer, nullable=False)
+    type = Column(String(20), nullable=False, default='llm')
+    type = Column(String(20), nullable=False, default='llm')
     is_active = Column(Boolean, nullable=False, default=True)
     rpm = Column(Integer, nullable=True)
     tpm = Column(Integer, nullable=True)

@@ -13,6 +13,7 @@ export function usePagination() {
   // Memoized so array identity is stable between renders when URL hasn't changed
   const sources = useMemo(() => searchParams.getAll('source'), [searchParams])
   const tags = useMemo(() => searchParams.getAll('tag'), [searchParams])
+  const tagGroups = useMemo(() => searchParams.getAll('tag_group'), [searchParams])
   const publishedAfter = searchParams.get('published_after') || ''
   const publishedBefore = searchParams.get('published_before') || ''
   const scrapedAfter = searchParams.get('scraped_after') || ''
@@ -34,6 +35,7 @@ export function usePagination() {
   function setFilters(updates: {
     source?: string[]
     tag?: string[]
+    tag_group?: string[]
     published_after?: string
     published_before?: string
     scraped_after?: string
@@ -50,6 +52,9 @@ export function usePagination() {
     const newTags = updates.tag ?? tags
     newTags.forEach(t => params.append('tag', t))
 
+    const newTagGroups = updates.tag_group ?? tagGroups
+    newTagGroups.forEach(g => params.append('tag_group', g))
+
     const pa = updates.published_after ?? publishedAfter
     const pb = updates.published_before ?? publishedBefore
     const sa = updates.scraped_after ?? scrapedAfter
@@ -64,14 +69,14 @@ export function usePagination() {
 
   const activeFilterCount = [
     sources.length > 0,
-    tags.length > 0,
+    tags.length > 0 || tagGroups.length > 0,
     !!(publishedAfter || publishedBefore),
     !!(scrapedAfter || scrapedBefore),
   ].filter(Boolean).length
 
   return {
     page, sort, order,
-    sources, tags, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
+    sources, tags, tagGroups, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
     setPage, setSort, setFilters,
     activeFilterCount,
   }

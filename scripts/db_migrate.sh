@@ -12,6 +12,7 @@ if [ "$MODE" = "downgrade" ]; then
     echo "Running alembic downgrade ${TARGET} (DATABASE_URL=${DATABASE_URL:-<unset>})"
     alembic downgrade "$TARGET"
 else
-    echo "Running alembic upgrade head (DATABASE_URL=${DATABASE_URL:-<unset>})"
-    alembic upgrade head
+    TARGET="${REV:-head}"
+    echo "Running alembic upgrade ${TARGET} (DATABASE_URL=${DATABASE_URL:-<unset>})"
+    alembic upgrade "$TARGET"
 fi

@@ -1,7 +1,7 @@
 # backend/routers/graph.py
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any, List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -10,13 +10,13 @@ from backend.database import get_db
 
 router = APIRouter()
 
-# In-process cache: {(days, topic_id, lang): (result, expires_at)}
+# In-process cache: {cache_key: (result, expires_at)}
 _cache: dict[tuple, tuple[Any, float]] = {}
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
 def load_group_defs(db: Session, lang: str = "en") -> dict:
-    """Load tag group definitions as a name→metadata dict, with optional translation."""
+    """Returns {group_uuid: {name, display_name, color_hex, description}}."""
     from models.tag_group import TagGroupDefinition
     from models.tag_group_translation import TagGroupDefinitionsTranslation
 
@@ -33,9 +33,10 @@ def load_group_defs(db: Session, lang: str = "en") -> dict:
             group_trans_map = {gt.tag_group_definition_id: gt for gt in translations}
 
     return {
-        r.name: {
-            'display_name': group_trans_map.get(r.id, r).display_name if r.id in group_trans_map else r.display_name,
-            'description': group_trans_map.get(r.id, r).description if r.id in group_trans_map else r.description,
+        r.id: {
+            'name': r.name,
+            'display_name': group_trans_map[r.id].display_name if r.id in group_trans_map else r.display_name,
+            'description': group_trans_map[r.id].description if r.id in group_trans_map else r.description,
             'color_hex': r.color_hex or '#6b7280',
         }
         for r in rows
@@ -48,37 +49,93 @@ def load_group_def(db: Session, group_name: str):
     return db.query(TagGroupDefinition).filter_by(name=group_name).first()
 
 
-def query_analyses(db: Session, days: int, topic_id=None) -> list:
+def query_analyses(
+    db: Session,
+    topic_id=None,
+    published_after: Optional[datetime] = None,
+    published_before: Optional[datetime] = None,
+    scraped_after: Optional[datetime] = None,
+    scraped_before: Optional[datetime] = None,
+    sources: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> list:
     from models.analysis import Analysis
     from models.article import Article
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    query = db.query(Analysis).join(Article, Article.id == Analysis.article_id).filter(
-        Analysis.analyzed_at >= cutoff
-    )
+    query = db.query(Analysis).join(Article, Article.id == Analysis.article_id)
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
+    if published_after:
+        query = query.filter(Article.published_at >= published_after)
+    if published_before:
+        query = query.filter(Article.published_at <= published_before)
+    if scraped_after:
+        query = query.filter(Article.scraped_at >= scraped_after)
+    if scraped_before:
+        query = query.filter(Article.scraped_at <= scraped_before)
+    if sources:
+        query = query.filter(Article.source.in_(sources))
+    if tags:
+        from models.tag import Tag, article_tags as at
+        query = (
+            query
+            .join(at, at.c.article_id == Article.id)
+            .join(Tag, Tag.id == at.c.tag_id)
+            .filter(Tag.name.in_(tags))
+            .distinct()
+        )
     return query.all()
 
 
-def query_group_articles(db: Session, group_name: str, topic_id=None) -> list:
-    """Return all analyses whose article has at least one tag in the given group."""
+def query_group_articles(
+    db: Session,
+    group_name: str,
+    topic_id=None,
+    published_after: Optional[datetime] = None,
+    published_before: Optional[datetime] = None,
+    scraped_after: Optional[datetime] = None,
+    scraped_before: Optional[datetime] = None,
+    sources: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> list:
+    """Return analyses whose article has at least one tag in the given group, with optional filters."""
     from models.analysis import Analysis
     from models.article import Article
     from models.tag import Tag, article_tags as at
+    from models.tag_group import TagGroupDefinition
     query = (
         db.query(Analysis)
         .join(Article, Article.id == Analysis.article_id)
         .join(at, at.c.article_id == Article.id)
         .join(Tag, Tag.id == at.c.tag_id)
-        .filter(Tag.tag_group_name == group_name)
+        .join(TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id)
+        .filter(TagGroupDefinition.name == group_name)
         .distinct()
     )
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
+    if published_after:
+        query = query.filter(Article.published_at >= published_after)
+    if published_before:
+        query = query.filter(Article.published_at <= published_before)
+    if scraped_after:
+        query = query.filter(Article.scraped_at >= scraped_after)
+    if scraped_before:
+        query = query.filter(Article.scraped_at <= scraped_before)
+    if sources:
+        query = query.filter(Article.source.in_(sources))
+    if tags:
+        from models.tag import Tag as T2, article_tags as at2
+        query = (
+            query
+            .join(at2, at2.c.article_id == Article.id)
+            .join(T2, T2.id == at2.c.tag_id)
+            .filter(T2.name.in_(tags))
+        )
     return query.all()
 
 
 def build_graph(analyses: list, group_defs: dict) -> dict:
+    """group_defs is keyed by TagGroupDefinition.id (UUID)."""
     nodes = []
     edges = []
     group_node_ids: set = set()
@@ -98,14 +155,16 @@ def build_graph(analyses: list, group_defs: dict) -> dict:
 
         seen_groups: set = set()
         for tag in (analysis.article.tags if analysis.article else []):
-            group_name = tag.tag_group_name
-            if not group_name or group_name in seen_groups:
+            gdef = group_defs.get(tag.tag_group_id)
+            if not gdef:
+                continue
+            group_name = gdef['name']
+            if group_name in seen_groups:
                 continue
             seen_groups.add(group_name)
             group_node_id = f'group:{group_name}'
             if group_node_id not in group_node_ids:
                 group_node_ids.add(group_node_id)
-                gdef = group_defs.get(group_name, {})
                 nodes.append({
                     'id': group_node_id,
                     'type': 'group',
@@ -126,11 +185,23 @@ def build_graph(analyses: list, group_defs: dict) -> dict:
 
 
 @router.get('/analyses/graph')
-def get_graph(days: int = Query(30, ge=1, le=365),
-              topic_id: Optional[UUID] = Query(default=None),
-              lang: str = Query(default="en"),
-              db: Session = Depends(get_db)):
-    cache_key = (days, str(topic_id), lang)
+def get_graph(
+    topic_id: Optional[UUID] = Query(default=None),
+    lang: str = Query(default="en"),
+    published_after: Optional[datetime] = Query(default=None),
+    published_before: Optional[datetime] = Query(default=None),
+    scraped_after: Optional[datetime] = Query(default=None),
+    scraped_before: Optional[datetime] = Query(default=None),
+    source: Optional[List[str]] = Query(default=None),
+    tag: Optional[List[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    cache_key = (
+        str(topic_id), lang,
+        str(published_after), str(published_before),
+        str(scraped_after), str(scraped_before),
+        tuple(sorted(source or [])), tuple(sorted(tag or [])),
+    )
     now = time.time()
     if cache_key in _cache:
         result, expires_at = _cache[cache_key]
@@ -138,22 +209,40 @@ def get_graph(days: int = Query(30, ge=1, le=365),
             return result
 
     group_defs = load_group_defs(db, lang=lang)
-    analyses = query_analyses(db, days, topic_id=topic_id)
+    analyses = query_analyses(
+        db,
+        topic_id=topic_id,
+        published_after=published_after,
+        published_before=published_before,
+        scraped_after=scraped_after,
+        scraped_before=scraped_before,
+        sources=source or [],
+        tags=tag or [],
+    )
     result = build_graph(analyses, group_defs)
     _cache[cache_key] = (result, now + CACHE_TTL_SECONDS)
     return result
 
 
 @router.get('/analyses/graph/group/{group_name}')
-def get_group_articles(group_name: str,
-                       topic_id: Optional[UUID] = Query(default=None),
-                       lang: str = Query(default="en"),
-                       db: Session = Depends(get_db)):
+def get_group_articles(
+    group_name: str,
+    topic_id: Optional[UUID] = Query(default=None),
+    lang: str = Query(default="en"),
+    published_after: Optional[datetime] = Query(default=None),
+    published_before: Optional[datetime] = Query(default=None),
+    scraped_after: Optional[datetime] = Query(default=None),
+    scraped_before: Optional[datetime] = Query(default=None),
+    source: Optional[List[str]] = Query(default=None),
+    tag: Optional[List[str]] = Query(default=None),
+    db: Session = Depends(get_db),
+):
     from models.analyses_translation import AnalysesTranslation
     from models.tag_translation import TagsTranslation
     from models.tag_group_translation import TagGroupDefinitionsTranslation
 
     group_def = load_group_def(db, group_name)
+    group_id = group_def.id if group_def else None
 
     # Translate group display name and description
     display_name = group_def.display_name if group_def else group_name
@@ -167,7 +256,16 @@ def get_group_articles(group_name: str,
             display_name = group_trans.display_name
             group_description = group_trans.description
 
-    analyses = query_group_articles(db, group_name, topic_id=topic_id)
+    analyses = query_group_articles(
+        db, group_name,
+        topic_id=topic_id,
+        published_after=published_after,
+        published_before=published_before,
+        scraped_after=scraped_after,
+        scraped_before=scraped_before,
+        sources=source or [],
+        tags=tag or [],
+    )
 
     # Batch-load analysis translations (requested language + English fallback)
     analysis_ids = [a.id for a in analyses]
@@ -185,15 +283,15 @@ def get_group_articles(group_name: str,
             if t.language == "en":
                 en_map[t.analysis_id] = t
 
-    # Batch-load tag translations for this group
+    # Batch-load tag translations for this group (compare by FK id, no lazy load)
     tag_trans_map = {}
-    if lang != "en":
+    if lang != "en" and group_id:
         from models.tag import Tag
         tag_ids = set()
         for analysis in analyses:
             if analysis.article:
                 for tag in analysis.article.tags:
-                    if tag.tag_group_name == group_name:
+                    if tag.tag_group_id == group_id:
                         tag_ids.add(tag.id)
         if tag_ids:
             tag_translations = db.query(TagsTranslation).filter(
@@ -210,7 +308,7 @@ def get_group_articles(group_name: str,
         group_tags = [
             tag_trans_map.get(t.id, t.name) if lang != "en" else t.name
             for t in (article.tags if article else [])
-            if t.tag_group_name == group_name
+            if t.tag_group_id == group_id
         ]
 
         # Use translated content if available, fallback to English

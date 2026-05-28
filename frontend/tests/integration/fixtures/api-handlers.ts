@@ -138,6 +138,9 @@ export async function mockApiRoutes(page: Page) {
     route.fulfill({ json: articleDetailFixture })
   )
 
+  // Tag groups — needed by FilterBar (must come before catch-all)
+  await page.route(proxyPrefix('tag-groups'), route => route.fulfill({ json: [] }))
+
   // Topics — needed by TopicContext on every page load (must be last = highest priority)
   await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))
 }

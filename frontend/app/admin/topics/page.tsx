@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
+import { TagModeSelector, type TagMode } from '@/components/features/tags/tag-mode-selector'
 
 
 const inputClass =
@@ -45,6 +46,7 @@ function TopicRow({
     prompt_override: topic.prompt_override ?? '',
     sort_order: topic.sort_order ?? 0,
     is_active: topic.is_active,
+    tag_mode: (topic.tag_mode ?? 'unsupervised') as TagMode,
   })
   const [saving, setSaving] = useState(false)
 
@@ -57,6 +59,7 @@ function TopicRow({
       prompt_override: form.prompt_override || null,
       sort_order: form.sort_order,
       is_active: form.is_active,
+      tag_mode: form.tag_mode,
     })
     setSaving(false)
     setEditing(false)
@@ -86,18 +89,21 @@ function TopicRow({
               <div>
                 <label className={labelClass}>{t('admin.colorHex')}</label>
                 <div className="flex gap-2 items-center">
+                  <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+                    <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                      onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </div>
                   <input
-                    className={inputClass}
+                    className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={form.color_hex}
                     placeholder="#3b82f6"
                     onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
                   />
-                  {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-                    <span
-                      className="h-7 w-7 rounded-full shrink-0 border border-border"
-                      style={{ backgroundColor: form.color_hex }}
-                    />
-                  )}
                 </div>
               </div>
             </div>
@@ -140,6 +146,14 @@ function TopicRow({
                 />
                 <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
               </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>{t('tags.tagMode')}</label>
+              <TagModeSelector
+                value={form.tag_mode}
+                onChange={v => setForm(f => ({ ...f, tag_mode: v }))}
+              />
             </div>
 
             <div className="flex gap-2">
@@ -237,6 +251,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
     color_hex: '',
     prompt_override: '',
     sort_order: 0,
+    tag_mode: 'unsupervised' as TagMode,
   }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -251,6 +266,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
       color_hex: form.color_hex || null,
       prompt_override: form.prompt_override || null,
       sort_order: form.sort_order || null,
+      tag_mode: form.tag_mode,
     })
     setSaving(false)
     setExpanded(false)
@@ -303,18 +319,21 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
         <div>
           <label className={labelClass}>{t('admin.colorHex')}</label>
           <div className="flex gap-2 items-center">
+            <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+              <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
             <input
-              className={inputClass}
+              className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               value={form.color_hex}
               placeholder="#3b82f6"
               onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
             />
-            {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-              <span
-                className="h-7 w-7 rounded-full shrink-0 border border-border"
-                style={{ backgroundColor: form.color_hex }}
-              />
-            )}
           </div>
         </div>
         <div>
@@ -346,6 +365,14 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
           placeholder={t('admin.promptOverridePlaceholder')}
           value={form.prompt_override}
           onChange={e => setForm(f => ({ ...f, prompt_override: e.target.value }))}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>{t('tags.tagMode')}</label>
+        <TagModeSelector
+          value={form.tag_mode}
+          onChange={v => setForm(f => ({ ...f, tag_mode: v }))}
         />
       </div>
 

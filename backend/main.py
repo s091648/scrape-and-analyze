@@ -1,4 +1,5 @@
 import os
+import models  # noqa: F401 — registers all ORM mappers at startup
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from backend.routers.auth import router as auth_router
 from backend.routers.topics import router as topics_router
 from backend.routers.scraper_keywords import router as scraper_keywords_router
 from backend.routers.languages import router as languages_router
+from backend.routers.tags import router as tags_router
 from backend.routers.llm_providers import router as llm_providers_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
@@ -38,6 +40,7 @@ app.include_router(topics_router)
 app.include_router(scraper_keywords_router)
 app.include_router(llm_providers_router)
 app.include_router(languages_router)
+app.include_router(tags_router)
 
 
 @app.get("/health")

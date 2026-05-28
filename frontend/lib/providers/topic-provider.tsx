@@ -1,6 +1,9 @@
 'use client'
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, Suspense } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { fetchTopics } from '@/lib/api/topics'
+
+export type TagMode = 'unsupervised' | 'semi_supervised' | 'supervised'
 
 export interface Topic {
   id: string
@@ -8,6 +11,7 @@ export interface Topic {
   display_name: string
   color_hex: string | null
   sort_order: number | null
+  tag_mode: TagMode
 }
 
 interface TopicContextValue {
@@ -30,9 +34,48 @@ const TopicContext = createContext<TopicContextValue>({
 
 const STORAGE_KEY = 'selectedTopicId'
 
+// Inner component — must be wrapped in <Suspense> (Next.js App Router requirement for useSearchParams in layouts)
+function TopicUrlSync({
+  topics,
+  selectedTopicId,
+  initialized,
+  onTopicFromUrl,
+}: {
+  topics: Topic[]
+  selectedTopicId: string | null
+  initialized: boolean
+  onTopicFromUrl: (id: string) => void
+}) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  // URL → state: run once topics are loaded, honour ?topic= for sharing/bookmarking
+  useEffect(() => {
+    if (!initialized || topics.length === 0) return
+    const urlId = searchParams.get('topic')
+    if (urlId && topics.find(t => t.id === urlId) && urlId !== selectedTopicId) {
+      onTopicFromUrl(urlId)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, topics.length])
+
+  // State → URL: keep URL in sync with current topic
+  useEffect(() => {
+    if (!selectedTopicId) return
+    if (searchParams.get('topic') === selectedTopicId) return
+    // Replace with only ?topic=, clearing page-specific params (pagination, filters)
+    router.replace(`${pathname}?topic=${selectedTopicId}`, { scroll: false })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTopicId])
+
+  return null
+}
+
 export function TopicProvider({ children }: { children: ReactNode }) {
   const [topics, setTopics] = useState<Topic[]>([])
   const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   async function loadTopics() {
@@ -46,6 +89,7 @@ export function TopicProvider({ children }: { children: ReactNode }) {
       if (initial) localStorage.setItem(STORAGE_KEY, initial)
       return initial
     })
+    setInitialized(true)
   }
 
   useEffect(() => {
@@ -66,6 +110,14 @@ export function TopicProvider({ children }: { children: ReactNode }) {
 
   return (
     <TopicContext.Provider value={{ topics, selectedTopicId, selectedTopic, setSelectedTopicId, refresh, isLoading }}>
+      <Suspense fallback={null}>
+        <TopicUrlSync
+          topics={topics}
+          selectedTopicId={selectedTopicId}
+          initialized={initialized}
+          onTopicFromUrl={setSelectedTopicId}
+        />
+      </Suspense>
       {children}
     </TopicContext.Provider>
   )

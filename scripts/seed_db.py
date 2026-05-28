@@ -90,9 +90,10 @@ def seed():
         ]
         tags = {}
         for tag_name, group_name in tag_defs:
+            group_def = tag_groups[group_name]
             existing = db.query(Tag).filter(
                 Tag.name == tag_name,
-                Tag.tag_group_name == group_name,
+                Tag.tag_group_id == group_def.id,
             ).first()
             if existing:
                 tags[tag_name] = existing
@@ -100,7 +101,7 @@ def seed():
                 t = Tag(
                     id=uuid.uuid4(),
                     name=tag_name,
-                    tag_group_name=group_name,
+                    tag_group_id=group_def.id,
                 )
                 db.add(t)
                 tags[tag_name] = t

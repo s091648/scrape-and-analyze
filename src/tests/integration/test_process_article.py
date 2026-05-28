@@ -51,14 +51,16 @@ def _mock_llm(result=None, *, use_default=True):
     return llm
 
 
-def _wire_pipeline(db_session, llm_service):
+def _wire_pipeline(db_session, llm_service, embedding_service=None):
     """Wire the full event-driven pipeline:
     ArticleScrapedHandler → ProcessScrapedArticleUseCase
     → ArticleProcessedEvent → ArticleProcessedHandler → AnalyzeArticleUseCase
+    → AnalysisCompletedEvent → TagNormalizationHandler → NormalizeTagsUseCase (if embedding_service provided)
     """
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
     from src.modules.collection.domain.services import DedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
@@ -71,6 +73,7 @@ def _wire_pipeline(db_session, llm_service):
     article_repo = SqlAlchemyArticleRepository(session=db_session)
     analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
     topic_repo = SqlAlchemyTopicRepository(session=db_session)
+    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=db_session)
     event_bus = InMemoryEventBus()
     dedup = DedupService(article_repo=article_repo)
 
@@ -82,6 +85,7 @@ def _wire_pipeline(db_session, llm_service):
         llm_service=llm_service,
         analysis_repository=analysis_repo,
         topic_repository=topic_repo,
+        tag_group_definition_repository=tag_group_def_repo,
         prompt=AnalysisPrompt(),
     )
 
@@ -92,6 +96,20 @@ def _wire_pipeline(db_session, llm_service):
     )
     processed_handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, processed_handler.handle)
+
+    if embedding_service is not None:
+        from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+        from src.modules.intelligence.application.use_cases import NormalizeTagsUseCase
+        from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
+        from src.modules.intelligence.application.events import AnalysisCompletedEvent
+
+        tag_repo = SqlAlchemyTagRepository(session=db_session)
+        normalize_uc = NormalizeTagsUseCase(
+            embedding_service=embedding_service,
+            tag_repository=tag_repo,
+        )
+        tag_norm_handler = TagNormalizationHandler(use_case=normalize_uc, event_bus=event_bus)
+        event_bus.subscribe(AnalysisCompletedEvent, tag_norm_handler.handle)
 
     return scraped_handler
 
@@ -186,14 +204,17 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
 @pytest.mark.integration
 def test_process_article_creates_tags_and_links_to_article(db_session, tag_group):
     from models.article import Article
-    from src.modules.intelligence.domain.value_objects import TagGroup
+    from src.modules.intelligence.domain.value_objects import AnalysisTagGroup
+
+    embedding_svc = MagicMock()
+    embedding_svc.embed_batch.return_value = [[0.1] * 768]
 
     llm = _mock_llm(_make_llm_result(
-        tag_groups=[TagGroup(display_name=tag_group.display_name, description="test-tag")]
+        tag_groups=[AnalysisTagGroup(group_name=tag_group.name, tags=["test-tag"])]
     ))
-    event = _make_event()
+    event = _make_event(topic_id=tag_group.topic_id)
 
-    _wire_pipeline(db_session, llm).handle(event)
+    _wire_pipeline(db_session, llm, embedding_svc).handle(event)
 
     article = db_session.query(Article).filter_by(url=event.url).first()
     assert article is not None

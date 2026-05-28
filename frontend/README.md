@@ -2,6 +2,8 @@
 ![frontend unit tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/frontend-unit-passrate.json)
 ![frontend e2e tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/frontend-e2e-passrate.json)
 
+[![Notion](https://img.shields.io/badge/Storybook-FF4785?logo=storybook&logoColor=white)](https://satisfied-luck-production.up.railway.app/)
+
 # Frontend
 
 Next.js 16 + React 19 web application for browsing AI-analyzed articles, managing scraper sources, and visualizing tag relationships as a knowledge graph.

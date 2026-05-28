@@ -21,6 +21,7 @@ def _mock_provider(**kwargs):
         model='gemini-test',
         api_key_env='GEMINI_API_KEY',
         priority=1,
+        type='llm',
         is_active=True,
         rpm=5,
         tpm=250000,

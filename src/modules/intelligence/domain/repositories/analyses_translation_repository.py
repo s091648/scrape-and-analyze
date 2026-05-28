@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID
 
 from src.modules.intelligence.domain.entities import AnalysesContent

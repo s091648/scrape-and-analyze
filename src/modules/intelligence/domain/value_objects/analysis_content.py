@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional
-from .tag_group import TagGroup
+from typing import Optional, List
+from .analysis_tag_group import AnalysisTagGroup
 
 
 @dataclass
@@ -9,4 +9,4 @@ class AnalysisContent:
     insights: Optional[str]
     innovations: Optional[str]
     summary: Optional[str]
-    tag_groups: Optional[list[TagGroup]]
+    tag_groups: Optional[List[AnalysisTagGroup]]

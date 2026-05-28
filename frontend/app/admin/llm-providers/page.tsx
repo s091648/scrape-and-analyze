@@ -6,6 +6,7 @@ import { Pencil, X, Check, Plus, HelpCircle, GripVertical } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AccordionSection } from '@/components/ui/accordion-section'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import {
   Dialog,
@@ -41,6 +42,7 @@ import {
 import { useI18n } from '@/lib/providers'
 
 const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter'] as const
+const PROVIDER_TYPES = ['llm', 'embedding'] as const
 
 // ── Sortable Provider Card ────────────────────────────────────────────────────
 
@@ -62,6 +64,7 @@ function SortableProviderCard({
     model: provider.model,
     api_key_env: provider.api_key_env,
     is_active: provider.is_active,
+    type: provider.type ?? 'llm',
     rpm: provider.rpm ?? '',
     tpm: provider.tpm ?? '',
     rpd: provider.rpd ?? '',
@@ -79,7 +82,7 @@ function SortableProviderCard({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
   }
 
   const inputClass =
@@ -93,6 +96,7 @@ function SortableProviderCard({
       model: form.model,
       api_key_env: form.api_key_env,
       is_active: form.is_active,
+      type: form.type as 'llm' | 'embedding',
       rpm: form.rpm !== '' ? Number(form.rpm) : null,
       tpm: form.tpm !== '' ? Number(form.tpm) : null,
       rpd: form.rpd !== '' ? Number(form.rpd) : null,
@@ -112,15 +116,29 @@ function SortableProviderCard({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div>
-              <label className={labelClass}>{t('admin.provider')}</label>
-              <select
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className={inputClass}
-              >
-                {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>{t('admin.provider')}</label>
+                <select
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className={inputClass}
+                >
+                  {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>{t('admin.providerType')}</label>
+                <select
+                  value={form.type}
+                  onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' }))}
+                  className={inputClass}
+                >
+                  {PROVIDER_TYPES.map(pt => (
+                    <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div>
               <label className={labelClass}>{t('admin.model')}</label>
@@ -253,9 +271,10 @@ function SortableProviderCard({
 
 // ── Add Provider Card ─────────────────────────────────────────────────────────
 
-function AddProviderCard({ onAdd, nextPriority }: {
+function AddProviderCard({ onAdd, nextPriority, defaultType }: {
   onAdd: (data: Omit<LlmProvider, 'id' | 'usage_24h' | 'created_at' | 'updated_at'>) => Promise<void>
   nextPriority: number
+  defaultType: 'llm' | 'embedding'
 }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
@@ -265,6 +284,7 @@ function AddProviderCard({ onAdd, nextPriority }: {
     model: '',
     api_key_env: '',
     is_active: true,
+    type: defaultType,
     rpm: '' as number | string,
     tpm: '' as number | string,
     rpd: '' as number | string,
@@ -284,6 +304,7 @@ function AddProviderCard({ onAdd, nextPriority }: {
       api_key_env: form.api_key_env,
       priority: nextPriority,
       is_active: form.is_active,
+      type: form.type as 'llm' | 'embedding',
       rpm: form.rpm !== '' ? Number(form.rpm) : null,
       tpm: form.tpm !== '' ? Number(form.tpm) : null,
       rpd: form.rpd !== '' ? Number(form.rpd) : null,
@@ -313,15 +334,29 @@ function AddProviderCard({ onAdd, nextPriority }: {
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <div>
-        <label className={labelClass}>{t('admin.provider')}</label>
-        <select
-          value={form.name}
-          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          className={inputClass}
-        >
-          {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>{t('admin.provider')}</label>
+          <select
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className={inputClass}
+          >
+            {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>{t('admin.providerType')}</label>
+          <select
+            value={form.type}
+            onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' }))}
+            className={inputClass}
+          >
+            {PROVIDER_TYPES.map(pt => (
+              <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <div>
         <label className={labelClass}>{t('admin.model')}</label>
@@ -393,6 +428,71 @@ function ProviderCardSkeleton() {
   )
 }
 
+// ── Provider Section ──────────────────────────────────────────────────────────
+
+function ProviderSection({
+  title,
+  type,
+  providers,
+  sensors,
+  onDragEnd,
+  onUpdate,
+  onDelete,
+  onAdd,
+  nextPriority,
+}: {
+  title: string
+  type: 'llm' | 'embedding'
+  providers: LlmProvider[]
+  sensors: ReturnType<typeof useSensors>
+  onDragEnd: (event: DragEndEvent) => Promise<void>
+  onUpdate: (id: string, data: Partial<LlmProvider>) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  onAdd: (data: Omit<LlmProvider, 'id' | 'usage_24h' | 'created_at' | 'updated_at'>) => Promise<void>
+  nextPriority: number
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+
+  return (
+    <AccordionSection title={title} badge={providers.length}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={async (event) => {
+          setIsDragging(false)
+          await onDragEnd(event)
+        }}
+        onDragCancel={() => setIsDragging(false)}
+      >
+        <div
+          className={[
+            'rounded-lg transition-all duration-150 space-y-2',
+            isDragging
+              ? 'ring-2 ring-dashed ring-primary/50 bg-primary/5 p-2'
+              : '',
+          ].join(' ')}
+        >
+          <SortableContext
+            items={providers.map(p => p.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {providers.map(p => (
+              <SortableProviderCard
+                key={p.id}
+                provider={p}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+              />
+            ))}
+          </SortableContext>
+        </div>
+      </DndContext>
+      <AddProviderCard onAdd={onAdd} nextPriority={nextPriority} defaultType={type} />
+    </AccordionSection>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function LlmProvidersPage() {
@@ -423,30 +523,46 @@ export default function LlmProvidersPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  const llmProviders = providers.filter(p => (p.type ?? 'llm') === 'llm').sort((a, b) => a.priority - b.priority)
+  const embeddingProviders = providers.filter(p => p.type === 'embedding').sort((a, b) => a.priority - b.priority)
 
-    const oldIndex = providers.findIndex(p => p.id === active.id)
-    const newIndex = providers.findIndex(p => p.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
+  function makeDragEndHandler(type: 'llm' | 'embedding') {
+    return async function handleDragEnd(event: DragEndEvent) {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
 
-    const reordered = [...providers]
-    const [moved] = reordered.splice(oldIndex, 1)
-    reordered.splice(newIndex, 0, moved)
+      const typeProviders = providers
+        .filter(p => (p.type ?? 'llm') === type)
+        .sort((a, b) => a.priority - b.priority)
 
-    const withNewPriorities = reordered.map((p, i) => ({ ...p, priority: i + 1 }))
-    setProviders(withNewPriorities)
+      const oldIndex = typeProviders.findIndex(p => p.id === active.id)
+      const newIndex = typeProviders.findIndex(p => p.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
 
-    try {
-      const result = await reorderLlmProviders(
-        withNewPriorities.map(p => ({ id: p.id, priority: p.priority })),
-        token,
-      )
-      setProviders(result.sort((a, b) => a.priority - b.priority))
-    } catch {
-      setProviders(providers)
-      setError(t('admin.reorderFailed'))
+      const reordered = [...typeProviders]
+      const [moved] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, moved)
+
+      const withNewPriorities = reordered.map((p, i) => ({ ...p, priority: i + 1 }))
+      const snapshot = providers
+      setProviders([
+        ...providers.filter(p => (p.type ?? 'llm') !== type),
+        ...withNewPriorities,
+      ])
+
+      try {
+        const result = await reorderLlmProviders(
+          withNewPriorities.map(p => ({ id: p.id, priority: p.priority })),
+          token,
+        )
+        setProviders(prev => [
+          ...prev.filter(p => (p.type ?? 'llm') !== type),
+          ...result.filter(p => (p.type ?? 'llm') === type).sort((a, b) => a.priority - b.priority),
+        ])
+      } catch {
+        setProviders(snapshot)
+        setError(t('admin.reorderFailed'))
+      }
     }
   }
 
@@ -489,7 +605,8 @@ export default function LlmProvidersPage() {
     }
   }
 
-  const nextPriority = providers.length > 0 ? Math.max(...providers.map(p => p.priority)) + 1 : 1
+  const llmNextPriority = llmProviders.length > 0 ? Math.max(...llmProviders.map(p => p.priority)) + 1 : 1
+  const embeddingNextPriority = embeddingProviders.length > 0 ? Math.max(...embeddingProviders.map(p => p.priority)) + 1 : 1
 
   return (
     <TooltipProvider>
@@ -505,32 +622,47 @@ export default function LlmProvidersPage() {
         <p className="text-sm text-destructive">{error}</p>
       )}
 
-      <div className="space-y-3">
-        {isLoading ? (
-          [0, 1, 2].map(i => <ProviderCardSkeleton key={i} />)
-        ) : (
-          <DndContext
+      {isLoading ? (
+        <div className="space-y-4">
+          {[0, 1].map(i => (
+            <div key={i} className="rounded-xl border border-border overflow-hidden">
+              <div className="px-5 py-4 bg-card flex items-center justify-between">
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-4 w-4" />
+              </div>
+              <div className="px-4 pb-4 pt-2 space-y-3 bg-muted/20">
+                <ProviderCardSkeleton />
+                <ProviderCardSkeleton />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <ProviderSection
+            title={t('admin.type_llm')}
+            type="llm"
+            providers={llmProviders}
             sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={providers.map(p => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {providers.map(p => (
-                <SortableProviderCard
-                  key={p.id}
-                  provider={p}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
-        <AddProviderCard onAdd={handleCreate} nextPriority={nextPriority} />
-      </div>
+            onDragEnd={makeDragEndHandler('llm')}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onAdd={handleCreate}
+            nextPriority={llmNextPriority}
+          />
+          <ProviderSection
+            title={t('admin.type_embedding')}
+            type="embedding"
+            providers={embeddingProviders}
+            sensors={sensors}
+            onDragEnd={makeDragEndHandler('embedding')}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onAdd={handleCreate}
+            nextPriority={embeddingNextPriority}
+          />
+        </div>
+      )}
     </div>
     </TooltipProvider>
   )

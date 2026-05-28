@@ -3,6 +3,7 @@ from uuid import UUID
 
 from src.shared.domain.entities import Topic
 from src.shared.domain.repositories import TopicRepository
+from src.shared.domain.value_objects.tag_mode import TagMode
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -41,5 +42,6 @@ class SqlAlchemyTopicRepository(TopicRepository):
             prompt_override=row.prompt_override,
             sort_order=row.sort_order,
             is_active=row.is_active,
+            tag_mode=TagMode(row.tag_mode),
             created_at=row.created_at,
         )

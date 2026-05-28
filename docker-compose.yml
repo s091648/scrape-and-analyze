@@ -54,7 +54,7 @@ services:
     command: npx next dev
 
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     env_file:
       - .env
     ports:

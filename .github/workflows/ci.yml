@@ -144,7 +144,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
@@ -256,7 +256,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
@@ -371,7 +371,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
