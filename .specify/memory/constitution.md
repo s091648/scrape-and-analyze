@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report:
-- Version change: N/A → 1.0.0 (initial constitution)
-- Modified principles: N/A (new document)
-- Added sections: All (Core Principles, Technology Stack, Development Workflow, Governance)
-- Removed sections: N/A
+- Version change: 1.0.0 → 1.1.0 (MINOR: expanded Atomic Frontend Architecture principle)
+- Modified principles: II. Atomic Frontend Architecture — added component reuse and Storybook story requirements
+- Added sections: None
+- Removed sections: None
 - Templates requiring updates:
-  - .specify/templates/plan-template.md: ✅ compatible (Constitution Check section exists)
-  - .specify/templates/spec-template.md: ✅ compatible (requirements structure aligns)
-  - .specify/templates/tasks-template.md: ✅ compatible (phase structure aligns)
+  - .specify/templates/plan-template.md: ✅ compatible
+  - .specify/templates/spec-template.md: ✅ compatible
+  - .specify/templates/tasks-template.md: ✅ compatible (Storybook story task should be added when new components are introduced)
 - Follow-up TODOs: None
 -->
 
@@ -50,8 +50,24 @@ Frontend components MUST follow a modified atomic design hierarchy:
 - **`components/providers/`** — Context providers (Session, Topic, I18n,
   ErrorBoundary). Wrap at layout level only.
 
+Component reuse and documentation rules:
+
+- **Reuse first**: Before creating a new component, existing components
+  in `components/ui/`, `components/common/`, and `components/features/`
+  MUST be evaluated for reuse or composition. New components MUST only
+  be introduced when no existing component can reasonably satisfy the
+  requirement.
+- **Storybook story required**: Every new component added to
+  `components/common/` or `components/features/` MUST ship with a
+  corresponding Storybook story (`.stories.tsx`) in the same directory.
+  Stories MUST cover at minimum the default state and any significant
+  variants or interactive states. Shadcn/UI primitives in
+  `components/ui/` are exempt from this rule.
+
 Rationale: Clear component boundaries prevent feature coupling and keep
-UI primitives reusable across admin and public routes.
+UI primitives reusable across admin and public routes. Mandatory
+Storybook stories ensure new shared components are discoverable and
+visually verified before integration.
 
 ### III. Test Discipline
 
@@ -235,4 +251,4 @@ type errors.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-28
+**Version**: 1.1.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-28
