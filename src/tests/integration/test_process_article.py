@@ -239,3 +239,159 @@ def test_process_article_returns_true_when_llm_returns_none(db_session):
     assert article is not None
     analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
     assert analysis is None
+
+
+# ---------------------------------------------------------------------------
+# ArXiv metadata persistence (US1-AC2, FR-005)
+# ---------------------------------------------------------------------------
+
+def _wire_pipeline_with_arxiv_repo(db_session, llm_service):
+    """Wire pipeline with a real SqlAlchemyArxivMetadataRepository."""
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
+    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
+    from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
+    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
+    from src.modules.intelligence.domain.value_objects import AnalysisPrompt
+    from src.shared.application.events import ArticleProcessedEvent
+
+    article_repo = SqlAlchemyArticleRepository(session=db_session)
+    arxiv_repo = SqlAlchemyArxivMetadataRepository(session=db_session)
+    analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
+    topic_repo = SqlAlchemyTopicRepository(session=db_session)
+    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=db_session)
+    event_bus = InMemoryEventBus()
+    dedup = DedupService(article_repo=article_repo)
+
+    process_uc = ProcessScrapedArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=dedup,
+        arxiv_metadata_repo=arxiv_repo,
+    )
+    analyze_uc = AnalyzeArticleUseCase(
+        llm_service=llm_service,
+        analysis_repository=analysis_repo,
+        topic_repository=topic_repo,
+        tag_group_definition_repository=tag_group_def_repo,
+        prompt=AnalysisPrompt(),
+    )
+    scraped_handler = ArticleScrapedHandler(
+        use_case=process_uc,
+        pipeline_stats=PipelineStats(),
+        event_bus=event_bus,
+    )
+    processed_handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
+    event_bus.subscribe(ArticleProcessedEvent, processed_handler.handle)
+    return scraped_handler
+
+
+@pytest.mark.integration
+def test_process_arxiv_article_persists_metadata(db_session):
+    from models.arxiv_metadata import ArxivMetadata as ArxivMetadataModel
+    from models.article import Article as ArticleModel
+
+    event = ArticleScrapedEvent(
+        url=f"https://arxiv.org/abs/{uuid.uuid4()}",
+        title="ArXiv Test Paper",
+        content="Abstract text here.",
+        source="arxiv",
+        metadata={
+            "arxiv_id": "2501.00001",
+            "authors": ["Author A", "Author B"],
+            "pdf_available": True,
+            "sections": {"introduction": "Intro text."},
+        },
+    )
+    handler = _wire_pipeline_with_arxiv_repo(db_session, _mock_llm())
+    assert handler.handle(event) is True
+
+    article = db_session.query(ArticleModel).filter_by(url=event.url).first()
+    assert article is not None
+
+    meta = db_session.query(ArxivMetadataModel).filter_by(article_id=article.id).first()
+    assert meta is not None
+    assert meta.arxiv_id == "2501.00001"
+    assert "Author A" in meta.authors
+    assert meta.pdf_available is True
+
+
+# ---------------------------------------------------------------------------
+# ArXiv section merging on re-queue (US3-AC2, FR-007)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+def test_requeue_arxiv_article_merges_sections_from_stored_metadata(db_session):
+    from models.article import Article as ArticleModel
+    from models.arxiv_metadata import ArxivMetadata as ArxivMetadataModel
+    from src.modules.collection.domain.value_objects import UrlHash
+    from src.shared.application.events import ArticleProcessedEvent
+
+    url = f"https://arxiv.org/abs/{uuid.uuid4()}"
+    url_hash = UrlHash.from_url(url).value
+
+    # Pre-insert article without analysis
+    article_row = ArticleModel(
+        url=url,
+        url_hash=url_hash,
+        source="arxiv",
+        title="Re-queue Test Paper",
+        content="Abstract only.",
+        correlation_id=uuid.uuid4(),
+    )
+    db_session.add(article_row)
+    db_session.flush()
+
+    # Pre-insert ArxivMetadata with sections
+    meta_row = ArxivMetadataModel(
+        article_id=article_row.id,
+        arxiv_id="2501.99999",
+        authors=["Test Author"],
+        pdf_available=True,
+        sections={"introduction": "This is the full intro."},
+    )
+    db_session.add(meta_row)
+    db_session.commit()
+
+    # Capture the ArticleProcessedEvent to inspect the re-queued article
+    captured = []
+
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
+    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
+    from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
+    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+
+    article_repo = SqlAlchemyArticleRepository(session=db_session)
+    arxiv_repo = SqlAlchemyArxivMetadataRepository(session=db_session)
+    event_bus = InMemoryEventBus()
+    dedup = DedupService(article_repo=article_repo)
+    process_uc = ProcessScrapedArticleUseCase(
+        article_repo=article_repo,
+        dedup_service=dedup,
+        arxiv_metadata_repo=arxiv_repo,
+    )
+    handler = ArticleScrapedHandler(
+        use_case=process_uc,
+        pipeline_stats=PipelineStats(),
+        event_bus=event_bus,
+    )
+    event_bus.subscribe(ArticleProcessedEvent, lambda e: captured.append(e.article))
+
+    event = ArticleScrapedEvent(
+        url=url,
+        title="Re-queue Test Paper",
+        content="Abstract only.",
+        source="arxiv",
+    )
+    result = handler.handle(event)
+
+    assert result is True
+    assert len(captured) == 1
+    assert captured[0].metadata.get("sections") == {"introduction": "This is the full intro."}
