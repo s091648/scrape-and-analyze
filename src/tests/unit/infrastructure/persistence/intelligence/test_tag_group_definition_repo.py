@@ -69,8 +69,11 @@ class TestUpsert:
         embedding = [0.1, 0.2, 0.3]
         repo.upsert('existing', 'Existing', topic_id, embedding=embedding)
         session.execute.assert_called_once()
-        call_args = session.execute.call_args
-        assert 'vector' in call_args[0][0]
+        # execute() is called with (text_clause, params_dict) as positional args
+        call_args = session.execute.call_args[0]
+        assert len(call_args) >= 2
+        params = call_args[1]
+        assert params['vec'] == '[0.1,0.2,0.3]'
 
     def test_does_not_update_embedding_when_existing_already_has_one(self, repo, session):
         existing = MagicMock()
@@ -83,13 +86,13 @@ class TestUpsert:
 
     def test_sets_embedding_on_new_record(self, repo, session):
         session.query.return_value.filter_by.return_value.first.return_value = None
-        new_record = MagicMock()
-        new_record.id = uuid.uuid4()
-        # Mock TagGroupDefinition constructor to return our mock
-        with patch('src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl.TagGroupDefinition') as MockModel:
-            MockModel.return_value = new_record
-            topic_id = uuid.uuid4()
-            embedding = [0.1, 0.2]
-            repo.upsert('new', 'New', topic_id, embedding=embedding)
-            session.add.assert_called_once_with(new_record)
-            session.execute.assert_called_once()
+        topic_id = uuid.uuid4()
+        embedding = [0.1, 0.2]
+        repo.upsert('new', 'New', topic_id, embedding=embedding)
+        session.add.assert_called_once()
+        session.flush.assert_called_once()
+        session.execute.assert_called_once()
+        call_args = session.execute.call_args[0]
+        assert len(call_args) >= 2
+        params = call_args[1]
+        assert params['vec'] == '[0.1,0.2]'

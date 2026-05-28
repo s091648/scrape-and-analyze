@@ -83,14 +83,11 @@ class TestSave:
         group.id = uuid.uuid4()
         # First .filter_by() for group lookup, second for tag lookup
         session.query.return_value.filter_by.return_value.first.side_effect = [group, None]
-        new_tag = MagicMock()
-        new_tag.id = uuid.uuid4()
-        new_tag.name = 'new_tag'
-        with patch('src.infrastructure.persistence.intelligence.tag_repo_impl.Tag') as MockTag:
-            MockTag.return_value = new_tag
-            result = repo.save('new_tag', 'ai_ml', [0.1] * 768, uuid.uuid4())
+        topic_id = uuid.uuid4()
+        result = repo.save('new_tag', 'ai_ml', [0.1] * 768, topic_id)
         session.add.assert_called_once()
         session.execute.assert_called_once()
+        assert result.name == 'new_tag'
 
     def test_updates_embedding_on_existing_tag(self, repo, session):
         group = MagicMock()
@@ -112,7 +109,7 @@ class TestLinkToArticle:
         tag = MagicMock()
         session.query.return_value.filter_by.return_value.first.side_effect = [article, tag]
         repo.link_to_article(uuid.uuid4(), uuid.uuid4())
-        article.tags.append.assert_not_called()  # tag not in tags, so append is called
+        # tag not in article.tags, so append is called
         assert tag in article.tags
 
     def test_skips_if_tag_already_linked(self, repo, session):
@@ -130,12 +127,12 @@ class TestSaveSuggestion:
             new_tag_id=uuid.uuid4(),
             existing_tag_id=uuid.uuid4(),
             similarity_score=0.9,
+            article_id=uuid.uuid4(),
             status='pending',
         )
         mock_row = MagicMock()
         mock_row.id = uuid.uuid4()
-        with patch('src.infrastructure.persistence.intelligence.tag_repo_impl.TagNormalizationSuggestion', create=True) as MockModel:
-            MockModel.return_value = mock_row
+        with patch('models.tag_normalization_suggestion.TagNormalizationSuggestion', return_value=mock_row):
             result = repo.save_suggestion(suggestion)
         session.add.assert_called_once()
         session.flush.assert_called_once()

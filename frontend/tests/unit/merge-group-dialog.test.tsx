@@ -61,8 +61,9 @@ describe('MergeGroupDialog', () => {
   it('shows quick-fill buttons for both groups', async () => {
     const { MergeGroupDialog } = await import('@/components/features/tags/merge-group-dialog')
     render(<MergeGroupDialog {...defaultProps} />)
-    expect(screen.getByText('AI Research')).toBeInTheDocument()
-    expect(screen.getByText('ML Applications')).toBeInTheDocument()
+    // "AI Research" appears in both header and quick-fill button — use getAllByText
+    expect(screen.getAllByText('AI Research').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('ML Applications').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows combined tag count in preview', async () => {

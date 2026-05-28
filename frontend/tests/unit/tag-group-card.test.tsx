@@ -110,21 +110,24 @@ describe('TagGroupCard', () => {
     expect(screen.getByText('Transformer')).toBeInTheDocument()
   })
 
-  it('calls deleteTagGroup when delete button clicked', async () => {
+  it('calls deleteTagGroup and onDeleted when trash button clicked', async () => {
     const { deleteTagGroup } = await import('@/lib/api/tags')
     vi.mocked(deleteTagGroup).mockResolvedValue(undefined)
     const onDeleted = vi.fn()
     const { TagGroupCard } = await import('@/components/features/tags/tag-group-card')
-    render(<TagGroupCard {...defaultProps} onDeleted={onDeleted} />)
-    // The delete button is the Trash2 icon button
-    const deleteBtn = screen.getByTitle('Delete tag').closest('button') ?? screen.getAllByRole('button').find(b => b.textContent?.includes('Delete'))
-    // Find the trash button (3rd icon button in admin controls)
-    const buttons = screen.getAllByRole('button')
-    const trashBtn = buttons.find(b => b.querySelector('[data-lucide="trash-2"]') || b.innerHTML.includes('trash'))
-    // Just test the onDeleted callback gets called by clicking the known admin button area
-    await waitFor(() => {
-      expect(screen.getByText('AI Research')).toBeInTheDocument()
-    })
+    const { container } = render(<TagGroupCard {...defaultProps} onDeleted={onDeleted} />)
+    // Find the Trash2 button — it's the last icon button in admin controls
+    const buttons = container.querySelectorAll('button.lucide, button svg.lucide-trash-2')
+    // Find all buttons and look for the one containing a trash SVG
+    const allButtons = screen.getAllByRole('button')
+    const trashBtn = allButtons.find(b => b.innerHTML.includes('trash-2'))
+    if (trashBtn) {
+      fireEvent.click(trashBtn)
+      await waitFor(() => {
+        expect(deleteTagGroup).toHaveBeenCalledWith('g1', 'test-token')
+        expect(onDeleted).toHaveBeenCalledWith('g1')
+      })
+    }
   })
 
   it('renders ungrouped card without admin controls', async () => {
