@@ -24,7 +24,9 @@ def db_engine():
     # Test engine — all unqualified table references route to the test schema
     engine = create_engine(
         base_url,
-        connect_args={"options": f"-csearch_path={TEST_SCHEMA}"},
+        # Include `public` so types installed by extensions (eg. pgvector)
+        # are visible when the test schema is set as the first search_path.
+        connect_args={"options": f"-csearch_path={TEST_SCHEMA},public"},
     )
 
     # Import every non-auth model so their tables are registered before create_all()
@@ -67,6 +69,7 @@ class TagGroupRef:
     """Lightweight reference to a TagGroupDefinition row (avoids detached-instance errors)."""
     name: str
     display_name: str
+    topic_id: object = None  # UUID of the owning topic
 
 
 @pytest.fixture(scope="session")
@@ -116,4 +119,4 @@ def tag_group(db_engine, test_topic):
     finally:
         session.close()
 
-    return TagGroupRef(name=name, display_name="Test Technology")
+    return TagGroupRef(name=name, display_name="Test Technology", topic_id=test_topic)
