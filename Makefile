@@ -1,7 +1,9 @@
 .PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync \
 	backfill backfill-dry-run backfill-embeddings backfill-embeddings-dry-run \
 	backfill-tag-group-embeddings backfill-tag-group-embeddings-dry-run \
+	backfill-embeddings-remote backfill-tag-group-embeddings-remote \
 	backfill-tag-group-definitions backfill-tag-group-definitions-dry-run \
+	backfill-tag-group-definitions-remote \
 	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
 	data-migrate data-migrate-list data-migrate-down \
@@ -84,16 +86,14 @@ backfill-tag-group-embeddings:
 backfill-tag-group-embeddings-dry-run:
 	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --only tag-groups --dry-run $(_BACKFILL_ARGS)
 
-# backfill-tag-group-definitions:
-# 	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py $(_BACKFILL_ARGS)
+backfill-embeddings-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --remote $(_BACKFILL_ARGS)
 
-# backfill-tag-group-definitions-dry-run:
-# 	docker compose run --rm job_service python /app/scripts/backfill_tag_group_definitions.py --dry-run $(_BACKFILL_ARGS)
+backfill-tag-group-embeddings-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	docker compose run --rm job_service python /app/scripts/backfill_tag_embeddings.py --only tag-groups --remote $(_BACKFILL_ARGS)
 
-# audit-tag-groups:
-# 	docker compose run --rm job_service python /app/scripts/audit_tag_groups.py
-
-# optional: override NAME=001_backfill_tag_group_definitions
 NAME ?=
 
 data-migrate:
