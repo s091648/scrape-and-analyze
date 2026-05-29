@@ -6,29 +6,6 @@ Run via: make test-integration
 import uuid
 import pytest
 
-from src.tests.integration.conftest import (
-    integration_engine,
-    integration_session,
-    BASE_SCHEMA,
-)
-
-
-@pytest.mark.integration
-@pytest.fixture
-def db_session():
-    """Provide a session with rollback for test isolation."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    import os
-
-    db_url = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
-    engine = create_engine(db_url)
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    yield session
-    session.rollback()
-    session.close()
-
 
 # ── T004: Partial unique index on tags ─────────────────────────────────────
 
@@ -41,7 +18,7 @@ class TestTagPartialUniqueIndex:
         from models.tag_group import TagGroupDefinition
         from models.topic import Topic
 
-        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", tag_mode="unsupervised")
+        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", display_name="Test Topic", tag_mode="unsupervised")
         db_session.add(topic)
         db_session.flush()
 
@@ -89,7 +66,7 @@ class TestTagGroupOperationsIntegration:
         from models.tag_group import TagGroupDefinition
         from models.topic import Topic
 
-        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", tag_mode="unsupervised")
+        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", display_name="Test Topic", tag_mode="unsupervised")
         db_session.add(topic)
         db_session.flush()
 
@@ -110,6 +87,7 @@ class TestTagGroupOperationsIntegration:
 
         db_session.delete(group)
         db_session.flush()
+        db_session.expire_all()
 
         # Tag should still exist but ungrouped
         refreshed_tag = db_session.query(Tag).filter_by(id=tag_id).first()
@@ -124,7 +102,7 @@ class TestTagGroupOperationsIntegration:
         from models.topic import Topic
         from models.article import Article
 
-        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", tag_mode="unsupervised")
+        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", display_name="Test Topic", tag_mode="unsupervised")
         db_session.add(topic)
         db_session.flush()
 
@@ -173,7 +151,7 @@ class TestTagNormalizationIntegration:
         from models.tag_group import TagGroupDefinition
         from models.topic import Topic
 
-        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", tag_mode="unsupervised")
+        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", display_name="Test Topic", tag_mode="unsupervised")
         db_session.add(topic)
         db_session.flush()
 
@@ -203,7 +181,7 @@ class TestTagNormalizationIntegration:
         from models.topic import Topic
         from models.article import Article
 
-        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", tag_mode="unsupervised")
+        topic = Topic(name=f"test-topic-{uuid.uuid4()!s:.8}", display_name="Test Topic", tag_mode="unsupervised")
         db_session.add(topic)
         db_session.flush()
 
@@ -222,7 +200,11 @@ class TestTagNormalizationIntegration:
 
         article = Article(
             title="Test Article",
-            url="https://example.com/test",
+            url=f"https://example.com/test-{uuid.uuid4()}",
+            url_hash=uuid.uuid4().hex,
+            source="rss",
+            content="Test content",
+            correlation_id=uuid.uuid4(),
             topic_id=topic.id,
         )
         db_session.add(article)

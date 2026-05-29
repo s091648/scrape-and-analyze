@@ -16,13 +16,11 @@ from src.infrastructure.persistence.intelligence.analyses_translation_repo_impl 
 )
 
 
-@pytest.mark.integration
 @pytest.fixture
 def translation_repo(db_session):
     return SqlAlchemyAnalysesTranslationRepository(db_session)
 
 
-@pytest.mark.integration
 @pytest.fixture
 def analysis_with_en_translation(db_session, tag_group):
     """Create an Article + Analysis + English AnalysesTranslation row."""
@@ -34,14 +32,15 @@ def analysis_with_en_translation(db_session, tag_group):
         source="rss",
         title="Integration Test Article",
         content="Test content",
+        correlation_id=uuid.uuid4(),
     )
     db_session.add(article)
     db_session.flush()
 
     analysis = Analysis(
         article_id=article.id,
-        tag_group_name=tag_group.name,
-        language="en",
+        correlation_id=uuid.uuid4(),
+        model_used="test-model",
     )
     db_session.add(analysis)
     db_session.flush()

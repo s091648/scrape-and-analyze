@@ -17,25 +17,23 @@ from src.infrastructure.persistence.intelligence.tag_translation_repo_impl impor
 )
 
 
-@pytest.mark.integration
 @pytest.fixture
 def tag_repo(db_session):
     return SqlAlchemyTagTranslationRepository(db_session)
 
 
-@pytest.mark.integration
 @pytest.fixture
 def test_tag(db_session, tag_group):
+    tg = db_session.query(TagGroupDefinition).filter_by(name=tag_group.name).first()
     tag = Tag(
         name=f"test_tag_{uuid.uuid4().hex[:8]}",
-        tag_group_name=tag_group.name,
+        tag_group_id=tg.id,
     )
     db_session.add(tag)
     db_session.flush()
     return tag
 
 
-@pytest.mark.integration
 @pytest.fixture
 def test_group(db_session, test_topic):
     group = TagGroupDefinition(

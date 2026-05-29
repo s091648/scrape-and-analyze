@@ -25,6 +25,29 @@ from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import PipelineStats
 
 
+_TEST_SOURCE_NAMES = [
+    "never-scraped",
+    "past-tolerance",
+    "within-tolerance",
+    "inactive-source",
+    "mark-scraped-test",
+]
+
+
+@pytest.fixture(autouse=True)
+def cleanup_scheduler_rows(db_session):
+    """Delete committed test rows before and after each test to prevent cross-run pollution."""
+    db_session.query(ScraperSettingModel).filter(
+        ScraperSettingModel.name.in_(_TEST_SOURCE_NAMES)
+    ).delete(synchronize_session=False)
+    db_session.commit()
+    yield
+    db_session.query(ScraperSettingModel).filter(
+        ScraperSettingModel.name.in_(_TEST_SOURCE_NAMES)
+    ).delete(synchronize_session=False)
+    db_session.commit()
+
+
 def _make_setting(
     topic_id,
     source="test-rss",
@@ -106,12 +129,12 @@ def test_source_within_tolerance_is_not_due(db_session, test_topic):
     The SQL uses strict '>' so a source whose elapsed time equals the
     interval-minus-tolerance threshold is excluded.
     """
-    three_point_five_hours_ago = datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)
+    three_hours_twenty_ago = datetime.now(timezone.utc) - timedelta(hours=3, minutes=20)
     setting = _make_setting(
         topic_id=test_topic,
         source="within-tolerance",
         frequency=4,
-        last_scraped_at=three_point_five_hours_ago,
+        last_scraped_at=three_hours_twenty_ago,
     )
     db_session.add(setting)
     db_session.commit()
