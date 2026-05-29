@@ -78,6 +78,6 @@ describe('TagModeSelector', () => {
     render(<TagModeSelector value="unsupervised" onChange={onChange} />)
     await user.click(screen.getByText('Supervised'))
     // The component itself calls onChange; API error handling is the parent's responsibility
-    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('supervised')
   })
 })
