@@ -52,3 +52,25 @@ def test_openrouter_provider_returns_none_on_invalid_json():
         result = provider.analyze('content', 'prompt')
 
     assert result is None
+
+
+# ── T016: Retry on transient HTTP error ───────────────────────────────────────
+
+def test_openrouter_provider_retries_on_transient_http_error():
+    import requests as req_lib
+    from src.infrastructure.intelligence.llm.providers.openrouter_provider import OpenRouterProvider
+
+    payload = json.dumps({
+        'tag_groups': [], 'pain_points': 'p', 'insights': 'i',
+        'innovations': 'n', 'summary': 's'
+    })
+    error_resp = MagicMock()
+    error_resp.status_code = 500
+    error_resp.raise_for_status.side_effect = req_lib.HTTPError("Server error 500")
+
+    with patch('src.infrastructure.intelligence.llm.providers.openrouter_provider.requests.post',
+               side_effect=[error_resp, _mock_response(payload)]):
+        provider = OpenRouterProvider(api_key='test', model='deepseek/deepseek-chat')
+        result = provider.analyze('content', 'prompt')
+
+    assert result is not None

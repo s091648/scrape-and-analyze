@@ -206,6 +206,134 @@ def test_build_prompt_uses_semi_supervised_template_when_tag_mode_semi(deps):
     assert "EXISTING TAG GROUPS" in called_prompt
 
 
+# ── US1: ArXiv content truncation ────────────────────────────────────────────
+
+def test_arxiv_content_truncated_to_15000_chars(deps):
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+    uc = _make_uc(deps)
+    big_sections = {"introduction": "a" * 9000, "methods": "b" * 9000}
+    article = _make_article(source="arxiv", metadata={"sections": big_sections})
+
+    uc.execute(article)
+
+    called_content = deps["llm_service"].analyze.call_args[0][0]
+    assert len(called_content) <= 15000
+
+
+# ── US1: Token recording ──────────────────────────────────────────────────────
+
+def test_analysis_metadata_recorded_on_success(deps):
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+    content = AnalysisContent(tag_groups=[], pain_points="p", insights="i", innovations="n", summary="s")
+    metadata = AnalysisMetadata(model_used="gemini-3-flash", input_tokens=1234, output_tokens=567)
+    deps["llm_service"].analyze.return_value = (content, metadata)
+    uc = _make_uc(deps)
+
+    result = uc.execute(_make_article())
+
+    assert result.success is True
+    assert result.analysis.analysis_metadata.model_used == "gemini-3-flash"
+    assert result.analysis.analysis_metadata.input_tokens == 1234
+    assert result.analysis.analysis_metadata.output_tokens == 567
+
+
+# ── US1: No topic_id uses all active topics ───────────────────────────────────
+
+def test_no_topic_id_uses_all_active_topics_auto_mode(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+
+    topic1 = MagicMock()
+    topic1.display_name = "Machine Learning"
+    topic2 = MagicMock()
+    topic2.display_name = "Computer Vision"
+    deps["topic_repository"].list_active.return_value = [topic1, topic2]
+    deps["topic_repository"].find_by_id.return_value = None
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=None))
+
+    called_prompt = deps["llm_service"].analyze.call_args[0][1]
+    assert "Machine Learning" in called_prompt
+    assert "Computer Vision" in called_prompt
+    assert "ONLY these exact key strings" not in called_prompt
+
+
+# ── US2: Supervised fallback to auto when no tag groups ───────────────────────
+
+def test_supervised_fallback_to_auto_when_no_tag_groups(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+
+    topic = MagicMock()
+    topic.display_name = "AI Research"
+    topic.tag_mode = 'supervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+    deps["tag_group_definition_repository"].find_by_topic_id.return_value = []
+    deps["topic_repository"].list_active.return_value = []
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    called_prompt = deps["llm_service"].analyze.call_args[0][1]
+    assert "ONLY these exact key strings" not in called_prompt
+    assert "AI Research" in called_prompt
+
+
+# ── US2: Semi-supervised also upserts tag groups ──────────────────────────────
+
+def test_semi_supervised_mode_also_upserts_tag_groups(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.domain.value_objects import AnalysisTagGroup
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.tag_mode = 'semi_supervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+    deps["topic_repository"].list_active.return_value = []
+
+    tag_groups = [AnalysisTagGroup(group_name="new_category", tags=["tag1"])]
+    content = AnalysisContent(
+        tag_groups=tag_groups, pain_points="p", insights="i", innovations="n", summary="s"
+    )
+    metadata = AnalysisMetadata(model_used="test", input_tokens=1, output_tokens=1)
+    deps["llm_service"].analyze.return_value = (content, metadata)
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    deps["tag_group_definition_repository"].upsert.assert_called()
+
+
+# ── US5: Embedding failure does not block persistence ─────────────────────────
+
+def test_embedding_failure_does_not_block_analysis_persistence(deps):
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+    from src.modules.intelligence.domain.value_objects import AnalysisTagGroup
+
+    embedding_svc = MagicMock()
+    embedding_svc.embed_batch.side_effect = RuntimeError("embedding service down")
+
+    topic = MagicMock()
+    topic.display_name = "AI"
+    topic.tag_mode = 'unsupervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+    deps["topic_repository"].list_active.return_value = []
+
+    tag_groups = [AnalysisTagGroup(group_name="methods", tags=["transformer"])]
+    content = AnalysisContent(
+        tag_groups=tag_groups, pain_points="p", insights="i", innovations="n", summary="s"
+    )
+    metadata = AnalysisMetadata(model_used="test", input_tokens=1, output_tokens=1)
+    deps["llm_service"].analyze.return_value = (content, metadata)
+
+    uc = AnalyzeArticleUseCase(**deps, embedding_service=embedding_svc, prompt=AnalysisPrompt())
+    result = uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    assert result.success is True
+    deps["analysis_repository"].save.assert_called_once()
+
+
 def test_supervised_mode_does_not_upsert_tag_groups(deps):
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisTagGroup
