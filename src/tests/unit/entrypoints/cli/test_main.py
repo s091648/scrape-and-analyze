@@ -130,26 +130,28 @@ def test_main_binds_correlation_id_to_structlog(all_mocks):
 
 # ── T031: Sentry initialized at import time with traces_sample_rate=0.1 ───
 
-def test_sentry_initialized_when_dsn_set(monkeypatch):
-    monkeypatch.setenv("SENTRY_DSN", "https://test@sentry.io/123")
-    with patch("sentry_sdk.init") as mock_init:
-        import importlib
-        import src.entrypoints.cli.main as main_mod
+def test_sentry_initialized_when_dsn_set():
+    import importlib
+    import src.config.settings as settings_mod
+    import src.entrypoints.cli.main as main_mod
+    with patch("sentry_sdk.init") as mock_init, \
+         patch.object(settings_mod, "SENTRY_DSN", "https://test@sentry.io/123"):
         importlib.reload(main_mod)
         mock_init.assert_called_once_with(dsn="https://test@sentry.io/123", traces_sample_rate=0.1)
-    # Reset module state
-    monkeypatch.delenv("SENTRY_DSN", raising=False)
     importlib.reload(main_mod)
 
 
 # ── T032: Sentry NOT initialized when DSN not set ─────────────────────────
 
 def test_sentry_not_initialized_when_dsn_missing():
-    with patch("sentry_sdk.init") as mock_init:
-        import importlib
-        import src.entrypoints.cli.main as main_mod
+    import importlib
+    import src.config.settings as settings_mod
+    import src.entrypoints.cli.main as main_mod
+    with patch("sentry_sdk.init") as mock_init, \
+         patch.object(settings_mod, "SENTRY_DSN", ""):
         importlib.reload(main_mod)
         mock_init.assert_not_called()
+    importlib.reload(main_mod)
 
 
 # ── T033: push_metrics() failure does not prevent shutdown_tracing() ───────

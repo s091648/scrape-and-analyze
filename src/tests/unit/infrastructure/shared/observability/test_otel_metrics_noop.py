@@ -37,34 +37,38 @@ def test_metrics_become_dummy_without_env(monkeypatch):
 
 def test_scraper_runs_counter_incremented_on_start():
     """CLI entrypoint calls SCRAPER_RUNS.add(1) at startup."""
+    mock_tracer = MagicMock()
+    mock_span = MagicMock()
+    mock_span.__enter__ = MagicMock(return_value=mock_span)
+    mock_span.__exit__ = MagicMock(return_value=False)
+    mock_tracer.start_as_current_span.return_value = mock_span
     with patch("src.entrypoints.cli.main.SCRAPER_RUNS") as mock_runs, \
          patch("src.entrypoints.cli.main.validate_config"), \
          patch("src.entrypoints.cli.main.configure_logging"), \
          patch("src.entrypoints.cli.main.init_default_client"), \
          patch("src.entrypoints.cli.main.init_run_context", return_value=("rid", "cid")), \
          patch("src.entrypoints.cli.main.bind_correlation_id"), \
-         patch("src.entrypoints.cli.main.get_tracer"), \
          patch("src.entrypoints.cli.main.SCRAPER_DURATION"), \
          patch("src.entrypoints.cli.main.push_metrics"), \
-         patch("src.entrypoints.cli.main.shutdown_tracing"), \
+         patch("src.infrastructure.shared.observability.shutdown_tracing"), \
+         patch("src.infrastructure.shared.observability.get_tracer", return_value=mock_tracer), \
          patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}), \
          patch("src.bootstrap.build_collection_pipeline") as mock_build:
         mock_pipeline = MagicMock()
         mock_pipeline.run.return_value = None
         mock_build.return_value = mock_pipeline
-        mock_tracer = MagicMock()
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer.start_as_current_span.return_value = mock_span
-        with patch("src.entrypoints.cli.main.get_tracer", return_value=mock_tracer):
-            from src.entrypoints.cli.main import main
-            main()
+        from src.entrypoints.cli.main import main
+        main()
     mock_runs.add.assert_called_with(1)
 
 
 def test_scraper_duration_recorded_on_exit():
     """CLI entrypoint calls SCRAPER_DURATION.record(duration) in finally block."""
+    mock_tracer = MagicMock()
+    mock_span = MagicMock()
+    mock_span.__enter__ = MagicMock(return_value=mock_span)
+    mock_span.__exit__ = MagicMock(return_value=False)
+    mock_tracer.start_as_current_span.return_value = mock_span
     with patch("src.entrypoints.cli.main.SCRAPER_RUNS"), \
          patch("src.entrypoints.cli.main.validate_config"), \
          patch("src.entrypoints.cli.main.configure_logging"), \
@@ -73,26 +77,26 @@ def test_scraper_duration_recorded_on_exit():
          patch("src.entrypoints.cli.main.bind_correlation_id"), \
          patch("src.entrypoints.cli.main.SCRAPER_DURATION") as mock_duration, \
          patch("src.entrypoints.cli.main.push_metrics"), \
-         patch("src.entrypoints.cli.main.shutdown_tracing"), \
-         patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}):
-        mock_tracer = MagicMock()
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer.start_as_current_span.return_value = mock_span
-        with patch("src.entrypoints.cli.main.get_tracer", return_value=mock_tracer), \
-             patch("src.bootstrap.build_collection_pipeline") as mock_build:
-            mock_pipeline = MagicMock()
-            mock_pipeline.run.return_value = None
-            mock_build.return_value = mock_pipeline
-            from src.entrypoints.cli.main import main
-            main()
+         patch("src.infrastructure.shared.observability.shutdown_tracing"), \
+         patch("src.infrastructure.shared.observability.get_tracer", return_value=mock_tracer), \
+         patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}), \
+         patch("src.bootstrap.build_collection_pipeline") as mock_build:
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = None
+        mock_build.return_value = mock_pipeline
+        from src.entrypoints.cli.main import main
+        main()
     mock_duration.record.assert_called_once()
     assert mock_duration.record.call_args[0][0] >= 0
 
 
 def test_push_metrics_called_on_exit():
     """CLI entrypoint calls push_metrics() during process shutdown."""
+    mock_tracer = MagicMock()
+    mock_span = MagicMock()
+    mock_span.__enter__ = MagicMock(return_value=mock_span)
+    mock_span.__exit__ = MagicMock(return_value=False)
+    mock_tracer.start_as_current_span.return_value = mock_span
     with patch("src.entrypoints.cli.main.SCRAPER_RUNS"), \
          patch("src.entrypoints.cli.main.validate_config"), \
          patch("src.entrypoints.cli.main.configure_logging"), \
@@ -101,18 +105,13 @@ def test_push_metrics_called_on_exit():
          patch("src.entrypoints.cli.main.bind_correlation_id"), \
          patch("src.entrypoints.cli.main.SCRAPER_DURATION"), \
          patch("src.entrypoints.cli.main.push_metrics") as mock_push, \
-         patch("src.entrypoints.cli.main.shutdown_tracing"), \
-         patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}):
-        mock_tracer = MagicMock()
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer.start_as_current_span.return_value = mock_span
-        with patch("src.entrypoints.cli.main.get_tracer", return_value=mock_tracer), \
-             patch("src.bootstrap.build_collection_pipeline") as mock_build:
-            mock_pipeline = MagicMock()
-            mock_pipeline.run.return_value = None
-            mock_build.return_value = mock_pipeline
-            from src.entrypoints.cli.main import main
-            main()
+         patch("src.infrastructure.shared.observability.shutdown_tracing"), \
+         patch("src.infrastructure.shared.observability.get_tracer", return_value=mock_tracer), \
+         patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}), \
+         patch("src.bootstrap.build_collection_pipeline") as mock_build:
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = None
+        mock_build.return_value = mock_pipeline
+        from src.entrypoints.cli.main import main
+        main()
     mock_push.assert_called_once()

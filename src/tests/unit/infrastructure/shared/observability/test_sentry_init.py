@@ -49,8 +49,9 @@ def test_sentry_init_in_translate_entrypoint():
         import importlib
         import src.config.settings as settings_mod
         importlib.reload(settings_mod)
-        with patch("src.entrypoints.cli.translate.validate_config"), \
-             patch("src.entrypoints.cli.translate.configure_logging"):
-            import src.entrypoints.cli.translate as translate_mod
-            importlib.reload(translate_mod)
+        # Ensure translate module is in sys.modules (first import may call sentry_sdk.init)
+        importlib.import_module("src.entrypoints.cli.translate")
+        mock_init.reset_mock()
+        # Reload to verify module-level sentry init fires
+        importlib.reload(importlib.import_module("src.entrypoints.cli.translate"))
     mock_init.assert_called_once()

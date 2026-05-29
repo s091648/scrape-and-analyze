@@ -27,7 +27,7 @@ def test_unsupported_language_exits_with_error():
 
 # ── Fetches untranslated analyses and calls use case ────────────────────────
 
-@patch("src.entrypoints.cli.translate.build_translation_pipeline")
+@patch("src.bootstrap.build_translation_pipeline")
 @patch("src.entrypoints.cli.translate.init_default_client")
 @patch("src.entrypoints.cli.translate.configure_logging")
 @patch("src.entrypoints.cli.translate.validate_config")
@@ -69,7 +69,7 @@ def test_fetches_untranslated_and_calls_execute(mock_validate, mock_logging, moc
 
 # ── Calls translate_tags and translate_groups after article loop ─────────────
 
-@patch("src.entrypoints.cli.translate.build_translation_pipeline")
+@patch("src.bootstrap.build_translation_pipeline")
 @patch("src.entrypoints.cli.translate.init_default_client")
 @patch("src.entrypoints.cli.translate.configure_logging")
 @patch("src.entrypoints.cli.translate.validate_config")
@@ -103,9 +103,9 @@ def test_calls_tag_and_group_translation(mock_validate, mock_logging, mock_http,
 
 # ── Default limit is 10 ─────────────────────────────────────────────────────
 
-@patch("src.entrypoints.cli.translate.build_translation_pipeline")
+@patch("src.bootstrap.build_translation_pipeline")
 @patch("src.entrypoints.cli.translate.init_default_client")
-@patch("src.entrysteps.cli.translate.configure_logging")
+@patch("src.entrypoints.cli.translate.configure_logging")
 @patch("src.entrypoints.cli.translate.validate_config")
 def test_default_limit_is_10(mock_validate, mock_logging, mock_http, mock_pipeline):
     mock_repo = MagicMock()

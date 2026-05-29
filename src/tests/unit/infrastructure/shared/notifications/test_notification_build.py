@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 def test_build_notification_handler_without_env():
     """Returns handler with empty notifiers list when env vars are missing."""
-    with patch.dict("os.environ", {}, clear=False):
+    with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": ""}, clear=False):
         from src.infrastructure.shared.notifications.notification_service import build_notification_handler
         handler = build_notification_handler()
     assert len(handler._notifiers) == 0
@@ -22,7 +22,7 @@ def test_build_notification_handler_with_telegram_env():
 
 def test_build_notification_handler_missing_token():
     """Returns handler with empty notifiers when only TELEGRAM_CHAT_ID is set."""
-    with patch.dict("os.environ", {"TELEGRAM_CHAT_ID": "chat456"}, clear=False):
+    with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "", "TELEGRAM_CHAT_ID": "chat456"}, clear=False):
         from src.infrastructure.shared.notifications.notification_service import build_notification_handler
         handler = build_notification_handler()
     assert len(handler._notifiers) == 0
@@ -30,7 +30,7 @@ def test_build_notification_handler_missing_token():
 
 def test_build_notification_handler_missing_chat_id():
     """Returns handler with empty notifiers when only TELEGRAM_BOT_TOKEN is set."""
-    with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "bot123"}, clear=False):
+    with patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "bot123", "TELEGRAM_CHAT_ID": ""}, clear=False):
         from src.infrastructure.shared.notifications.notification_service import build_notification_handler
         handler = build_notification_handler()
     assert len(handler._notifiers) == 0

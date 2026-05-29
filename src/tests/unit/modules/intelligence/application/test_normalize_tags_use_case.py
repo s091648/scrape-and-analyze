@@ -105,10 +105,8 @@ def test_execute_returns_success_result():
 
 # ── T007: Auto-merge log entry ──────────────────────────────────────────────
 
-@patch("src.modules.intelligence.application.use_cases.normalize_tags.get_logger")
-def test_auto_merge_emits_tag_auto_merged_log(mock_get_logger):
-    mock_logger = MagicMock()
-    mock_get_logger.return_value = mock_logger
+@patch("src.modules.intelligence.application.use_cases.normalize_tags.logger")
+def test_auto_merge_emits_tag_auto_merged_log(mock_logger):
     uc, embed_svc, tag_repo = _make_use_case()
     existing_tag = TagData(id=uuid.uuid4(), name="real-time sync", tag_group_name="digital_twin")
 
@@ -128,10 +126,8 @@ def test_auto_merge_emits_tag_auto_merged_log(mock_get_logger):
 
 # ── T008: Suggestion log entry ─────────────────────────────────────────────
 
-@patch("src.modules.intelligence.application.use_cases.normalize_tags.get_logger")
-def test_suggestion_emits_tag_suggestion_created_log(mock_get_logger):
-    mock_logger = MagicMock()
-    mock_get_logger.return_value = mock_logger
+@patch("src.modules.intelligence.application.use_cases.normalize_tags.logger")
+def test_suggestion_emits_tag_suggestion_created_log(mock_logger):
     uc, embed_svc, tag_repo = _make_use_case(auto_merge=0.95, suggest=0.85)
     existing_tag = TagData(id=uuid.uuid4(), name="real-time sync", tag_group_name="digital_twin")
     new_tag = TagData(id=uuid.uuid4(), name="real time sync", tag_group_name="digital_twin")
@@ -153,10 +149,8 @@ def test_suggestion_emits_tag_suggestion_created_log(mock_get_logger):
 
 # ── T009: New-tag log entry ────────────────────────────────────────────────
 
-@patch("src.modules.intelligence.application.use_cases.normalize_tags.get_logger")
-def test_new_tag_emits_tag_created_log(mock_get_logger):
-    mock_logger = MagicMock()
-    mock_get_logger.return_value = mock_logger
+@patch("src.modules.intelligence.application.use_cases.normalize_tags.logger")
+def test_new_tag_emits_tag_created_log(mock_logger):
     uc, embed_svc, tag_repo = _make_use_case()
     new_tag = TagData(id=uuid.uuid4(), name="brand new", tag_group_name="digital_twin")
 
@@ -224,15 +218,16 @@ def test_embed_batch_called_once_with_all_tag_names():
 def test_exact_auto_merge_threshold_triggers_auto_merge():
     uc, embed_svc, tag_repo = _make_use_case(auto_merge=0.95, suggest=0.90)
     existing_tag = TagData(id=uuid.uuid4(), name="tag-a", tag_group_name="g")
+    article_id = uuid.uuid4()
 
     embed_svc.embed_batch.return_value = [[0.1] * 768]
     tag_repo.find_similar.return_value = [(existing_tag, 0.95)]
 
-    uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
+    uc.execute(analysis_id=uuid.uuid4(), article_id=article_id,
                tag_groups=[("g", ["tag a"])])
 
     tag_repo.save.assert_not_called()
-    tag_repo.link_to_article.assert_called_once_with(existing_tag.id, uuid.uuid4())
+    tag_repo.link_to_article.assert_called_once_with(existing_tag.id, article_id)
 
 
 def test_exact_suggest_threshold_creates_suggestion():

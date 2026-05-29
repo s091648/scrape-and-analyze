@@ -59,6 +59,7 @@ def test_notify_with_empty_stats_sends_message():
 
 def test_notify_posts_to_correct_url():
     """POST URL must match https://api.telegram.org/bot{token}/sendMessage."""
+    from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event()
     with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
         mock_response = MagicMock()
@@ -72,6 +73,7 @@ def test_notify_posts_to_correct_url():
 
 def test_notify_sends_markdownv2():
     """POST payload must include parse_mode='MarkdownV2'."""
+    from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event()
     with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
         mock_response = MagicMock()

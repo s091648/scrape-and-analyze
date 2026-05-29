@@ -8,7 +8,6 @@ from src.infrastructure.shared.logging import bind_correlation_id, configure_log
 
 def _parse_log_line(capsys):
     """Helper: read captured output, find the JSON log line, parse it."""
-    configure_logging()
     captured = capsys.readouterr()
     match = re.search(r'\{.*\}', captured.out)
     assert match is not None, f"JSON not found in output: {captured.out}"
@@ -16,6 +15,7 @@ def _parse_log_line(capsys):
 
 
 def test_logger_outputs_json_format(capsys):
+    configure_logging()
     logger = get_logger(__name__)
     logger.info("test_event", key="value")
     log_entry = _parse_log_line(capsys)
@@ -24,6 +24,7 @@ def test_logger_outputs_json_format(capsys):
 
 
 def test_bind_correlation_id_adds_to_logs(capsys):
+    configure_logging()
     bind_correlation_id("test-corr-123")
     logger = get_logger(__name__)
     logger.info("test_event")
@@ -33,6 +34,7 @@ def test_bind_correlation_id_adds_to_logs(capsys):
 
 def test_log_entry_has_level_field(capsys):
     """Every log entry must contain a 'level' field matching the severity."""
+    configure_logging()
     logger = get_logger(__name__)
     logger.warning("warning_event")
     log_entry = _parse_log_line(capsys)
@@ -43,6 +45,7 @@ def test_log_entry_has_level_field(capsys):
 def test_log_entry_has_iso8601_timestamp(capsys):
     """The 'timestamp' field must be a valid ISO 8601 string."""
     from datetime import datetime
+    configure_logging()
     logger = get_logger(__name__)
     logger.info("ts_event")
     log_entry = _parse_log_line(capsys)
@@ -53,6 +56,7 @@ def test_log_entry_has_iso8601_timestamp(capsys):
 
 def test_correlation_id_bound_across_log_entries(capsys):
     """Multiple log entries within a single run share the same correlation_id."""
+    configure_logging()
     bind_correlation_id("shared-corr-999")
     logger = get_logger(__name__)
     logger.info("first_event")

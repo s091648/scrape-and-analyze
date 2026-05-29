@@ -38,7 +38,7 @@ def mock_build_pipeline():
 
 @pytest.fixture()
 def mock_push_metrics():
-    with patch("src.infrastructure.shared.observability.push_metrics") as m:
+    with patch("src.entrypoints.cli.main.push_metrics") as m:
         yield m
 
 

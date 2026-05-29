@@ -13,6 +13,7 @@ bootstrap.py — 依賴組裝入口點（取代舊有的 composition_root.py）
 import os
 from typing import List
 
+from src.infrastructure.persistence.database import get_session, init_db
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -99,7 +100,6 @@ def build_collection_pipeline():
       若需要 per-article transaction 隔離，可改為在 handler 內部
       建立獨立 session（future work）。
     """
-    from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
@@ -277,7 +277,6 @@ def build_translation_pipeline():
 
     回傳翻譯相關服務，可用於定時翻譯任務。
     """
-    from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
     from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory

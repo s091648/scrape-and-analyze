@@ -80,9 +80,9 @@ def test_post_fetch_dedup_removes_duplicate_urls():
     mock_article_repo.find_analyzed_url_hashes.return_value = set()
 
     # Create articles with duplicate URLs
-    article1 = ScrapedArticle(title="A1", url="https://example.com/dup", source="test", content="c1", published_date=None)
-    article2 = ScrapedArticle(title="A2", url="https://example.com/dup", source="test", content="c2", published_date=None)
-    article3 = ScrapedArticle(title="A3", url="https://example.com/unique", source="test", content="c3", published_date=None)
+    article1 = ScrapedArticle(title="A1", url="https://example.com/dup", source="test", content="c1", published_at=None)
+    article2 = ScrapedArticle(title="A2", url="https://example.com/dup", source="test", content="c2", published_at=None)
+    article3 = ScrapedArticle(title="A3", url="https://example.com/unique", source="test", content="c3", published_at=None)
 
     mock_executor = MagicMock()
     def streaming_with_dupes(discover_tasks, on_result, pre_fetch_filter=None):
@@ -98,8 +98,13 @@ def test_post_fetch_dedup_removes_duplicate_urls():
         article_repo=mock_article_repo,
         executor=mock_executor,
     )
+    from src.modules.collection.application.events import ArticleScrapedEvent
     result = pipeline.run()
 
     # 3 articles fetched, but 2 had the same URL, so only 2 unique articles published
     assert result == 2
-    assert mock_event_bus.publish.call_count == 2
+    article_publishes = sum(
+        1 for c in mock_event_bus.publish.call_args_list
+        if isinstance(c.args[0], ArticleScrapedEvent)
+    )
+    assert article_publishes == 2

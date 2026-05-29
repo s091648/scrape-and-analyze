@@ -40,6 +40,7 @@ def test_loki_handler_attached_with_env(monkeypatch):
     monkeypatch.setenv("GRAFANA_LOKI_USER", "user")
     monkeypatch.setenv("GRAFANA_API_KEY", "key")
     root = logging.getLogger()
+    initial_handlers = root.handlers[:]
     for h in root.handlers[:]:
         root.removeHandler(h)
     mock_loki_handler = MagicMock()
@@ -49,3 +50,8 @@ def test_loki_handler_attached_with_env(monkeypatch):
         from src.infrastructure.shared.observability.loki_logging import configure_loki
         configure_loki()
     assert mock_loki_handler in root.handlers
+    # Restore root logger: remove test handlers, re-add original ones
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+    for h in initial_handlers:
+        root.addHandler(h)
