@@ -334,6 +334,31 @@ def test_embedding_failure_does_not_block_analysis_persistence(deps):
     deps["analysis_repository"].save.assert_called_once()
 
 
+# ── T039: Unsupervised mode prompt allows free group key generation ──────────
+
+def test_unsupervised_mode_prompt_allows_free_group_key_generation(deps):
+    """In unsupervised mode, the prompt does NOT constrain LLM to predefined groups."""
+    from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
+
+    topic = MagicMock()
+    topic.display_name = "AI Research"
+    topic.tag_mode = 'unsupervised'
+    deps["topic_repository"].find_by_id.return_value = topic
+    deps["topic_repository"].list_active.return_value = []
+    deps["llm_service"].analyze.return_value = _make_llm_result()
+
+    uc = AnalyzeArticleUseCase(**deps, prompt=AnalysisPrompt())
+    uc.execute(_make_article(topic_id=uuid.uuid4()))
+
+    called_prompt = deps["llm_service"].analyze.call_args[0][1]
+    # Unsupervised prompt must NOT contain constraint phrases from supervised/semi
+    assert "ONLY these exact key strings" not in called_prompt
+    assert "EXISTING TAG GROUPS" not in called_prompt
+    # Unsupervised prompt must encourage free group generation
+    assert "tag groups of your choosing" in called_prompt
+    assert "AI Research" in called_prompt
+
+
 def test_supervised_mode_does_not_upsert_tag_groups(deps):
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisTagGroup

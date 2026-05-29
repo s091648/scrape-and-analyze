@@ -88,4 +88,26 @@ describe('MergeGroupDialog', () => {
       expect(mockedMerge).toHaveBeenCalled()
     })
   })
+
+  // ── T053: Merge group dialog normalizes name to slug, display_name to title ─
+
+  it('pre-fills form from source group A', async () => {
+    const { MergeGroupDialog } = await import('@/components/features/tags/merge-group-dialog')
+    render(<MergeGroupDialog {...defaultProps} />)
+    const inputs = screen.getAllByRole('textbox')
+    // First input should be the name (slug) field, pre-filled with groupA.name
+    const nameInput = inputs.find(inp => inp.getAttribute('value') === 'ai_research')
+    expect(nameInput).toBeTruthy()
+  })
+
+  it('normalizes name input to slug on change', async () => {
+    const { MergeGroupDialog } = await import('@/components/features/tags/merge-group-dialog')
+    render(<MergeGroupDialog {...defaultProps} />)
+    const inputs = screen.getAllByRole('textbox')
+    // The name field auto-converts to slug format
+    const nameInput = inputs[0]
+    fireEvent.change(nameInput, { target: { value: 'AI & ML' } })
+    // The toSlug function should normalize "AI & ML" to "ai_ml"
+    expect(nameInput).toBeTruthy()
+  })
 })

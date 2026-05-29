@@ -119,4 +119,57 @@ describe('TagDialog', () => {
       expect(onRenamed).toHaveBeenCalledWith('t1', 'Diffusion')
     })
   })
+
+  // ── T030: Tag dialog rename calls API and shows updated name ────────────────
+
+  it('shows updated name after successful rename', async () => {
+    const { renameTag } = await import('@/lib/api/tags')
+    vi.mocked(renameTag).mockResolvedValue({ id: 't1', name: 'Diffusion', article_count: 10 })
+    const onRenamed = vi.fn()
+    const { TagDialog } = await import('@/components/features/tags/tag-dialog')
+    render(<TagDialog {...defaultProps} onRenamed={onRenamed} />)
+    fireEvent.click(screen.getByLabelText('Rename tag'))
+    const input = screen.getByDisplayValue('Transformer')
+    fireEvent.change(input, { target: { value: 'Diffusion' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(onRenamed).toHaveBeenCalledWith('t1', 'Diffusion')
+    })
+  })
+
+  // ── T031: Tag dialog error handling on delete failure ────────────────────────
+
+  it('handles deleteTag API failure gracefully', async () => {
+    const { deleteTag } = await import('@/lib/api/tags')
+    vi.mocked(deleteTag).mockRejectedValue(new Error('Network error'))
+    const onDeleted = vi.fn()
+    const { TagDialog } = await import('@/components/features/tags/tag-dialog')
+    render(<TagDialog {...defaultProps} onDeleted={onDeleted} />)
+    fireEvent.click(screen.getByLabelText('Delete tag'))
+    fireEvent.click(screen.getByText('Delete'))
+    await waitFor(() => {
+      expect(deleteTag).toHaveBeenCalledWith('t1', 'test-token')
+    })
+    // onDeleted should NOT be called on failure
+    expect(onDeleted).not.toHaveBeenCalled()
+  })
+
+  // ── T067: Tag dialog error handling on rename failure ───────────────────────
+
+  it('handles renameTag API failure gracefully', async () => {
+    const { renameTag } = await import('@/lib/api/tags')
+    vi.mocked(renameTag).mockRejectedValue(new Error('Server error'))
+    const onRenamed = vi.fn()
+    const { TagDialog } = await import('@/components/features/tags/tag-dialog')
+    render(<TagDialog {...defaultProps} onRenamed={onRenamed} />)
+    fireEvent.click(screen.getByLabelText('Rename tag'))
+    const input = screen.getByDisplayValue('Transformer')
+    fireEvent.change(input, { target: { value: 'Diffusion' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(renameTag).toHaveBeenCalledWith('t1', 'Diffusion', 'test-token')
+    })
+    // onRenamed should NOT be called on failure
+    expect(onRenamed).not.toHaveBeenCalled()
+  })
 })

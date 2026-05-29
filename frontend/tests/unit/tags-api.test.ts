@@ -298,4 +298,19 @@ describe('tags API', () => {
       await expect(rejectSuggestion('s1', token)).rejects.toThrow('Failed to reject suggestion')
     })
   })
+
+  // ── T032: moveTag with null group_id (ungrouping) ──────────────────────────
+
+  describe('moveTag with null group_id', () => {
+    it('sends ungroup: true when group_id is null', async () => {
+      const updated = { id: 't1', name: 'tag' }
+      mockOk(updated)
+      const { moveTag } = await import('@/lib/api/tags')
+      const result = await moveTag('t1', null, token)
+      expect(mockApiFetch).toHaveBeenCalledWith('/tags/t1', expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ ungroup: true }),
+      }))
+    })
+  })
 })
