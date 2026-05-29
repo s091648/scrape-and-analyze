@@ -1,4 +1,4 @@
-import { v4 as uuid } from "uuid";
+const uuid = () => crypto.randomUUID();
 
 export function makeMockTagGroup(overrides: Record<string, unknown> = {}) {
   return {
