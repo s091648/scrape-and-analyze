@@ -10,7 +10,7 @@ SECRET = "test-secret"
 
 
 def make_admin_token():
-    payload = {"sub": "admin", "role": "admin", "exp": int(time.time()) + 3600}
+    payload = {"sub": str(uuid.uuid4()), "role": "admin", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
