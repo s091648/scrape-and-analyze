@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -45,7 +45,11 @@ export default function HomePageContent() {
     () => searchParams.get('article')
   )
 
-  const searchParamsString = searchParams.toString()
+  const fetchSearchParamsString = useMemo(() => {
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete('article')
+    return p.toString()
+  }, [searchParams])
 
   const handleArticleOpenChange = useCallback((articleId: string, open: boolean) => {
     setOpenArticleId(open ? articleId : null)
@@ -81,7 +85,7 @@ export default function HomePageContent() {
     )
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [searchParamsString, selectedTopicId, isPaywall, isGuestMode, locale])
+  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale])
 
   const totalPages = Math.ceil(total / 20)
 
