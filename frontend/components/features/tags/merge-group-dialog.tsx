@@ -10,7 +10,7 @@ function toSlug(v: string): string {
 }
 
 function toTitle(v: string): string {
-  return v.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+  return v.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1))
 }
 
 interface MergeForm {
@@ -152,12 +152,18 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
                     value={(form as any)[key]}
                     placeholder={placeholder}
                     onChange={e => {
-                      const val = key === 'name' ? toSlug(e.target.value) : e.target.value
+                      const val = key === 'name'
+                        ? e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]+/g, '_')
+                        : e.target.value
                       setForm(prev => ({ ...prev, [key]: val }))
                     }}
-                    onBlur={key === 'display_name'
-                      ? e => setForm(prev => ({ ...prev, display_name: toTitle(e.target.value) }))
-                      : undefined}
+                    onBlur={
+                      key === 'name'
+                        ? e => setForm(prev => ({ ...prev, name: toSlug(e.target.value) }))
+                        : key === 'display_name'
+                        ? e => setForm(prev => ({ ...prev, display_name: toTitle(e.target.value) }))
+                        : undefined
+                    }
                     required={required}
                   />
                 )}
