@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { userEvent, within } from '@storybook/test'
+import { userEvent, within } from 'storybook/test'
 import { ArticleCard } from '../components/features/articles/article-card'
 
 const meta: Meta<typeof ArticleCard> = {
