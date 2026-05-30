@@ -7,9 +7,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <SessionProviderWrapper>
       <I18nProvider>
-        <GuestModeProvider>
-          <TopicProvider>{children}</TopicProvider>
-        </GuestModeProvider>
+        <TopicProvider>
+          <GuestModeProvider>{children}</GuestModeProvider>
+        </TopicProvider>
       </I18nProvider>
     </SessionProviderWrapper>
   )
