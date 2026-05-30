@@ -12,6 +12,7 @@ vi.mock('@/lib/api/articles', () => ({
       id: 'abc123',
       title: 'Test Article',
       source: 'techcrunch',
+      content: 'Test article content.',
       published_at: '2026-02-20T00:00:00Z',
       scraped_at: '2026-02-21T00:00:00Z',
       url: 'https://example.com',
@@ -33,6 +34,7 @@ describe('Article Dashboard', () => {
         id="abc123"
         title="Test Article"
         source="techcrunch"
+        content="Test article content."
         published_at="2026-02-20T00:00:00Z"
         scraped_at="2026-02-21T00:00:00Z"
         url="https://example.com"

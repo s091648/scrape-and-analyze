@@ -169,6 +169,17 @@
     "supervised": "監督式",
     "supervisedDesc": "LLM 只能使用預定義的標籤群組"
   },
+  "copy": {
+    "success": "連結已複製！",
+    "failed": "複製失敗",
+    "shareArticle": "分享文章"
+  },
+  "guest": {
+    "continueAsGuest": "以訪客身份繼續",
+    "restrictedTitle": "需要帳號",
+    "restrictedMessage": "請登入或建立帳號以使用設定功能。",
+    "graphLimitedPreview": "目前顯示有限預覽，登入後可查看完整圖譜。"
+  },
   "common": {
     "loading": "載入中...",
     "error": "發生錯誤"
