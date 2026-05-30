@@ -1,14 +1,14 @@
 <!--
 Sync Impact Report:
-- Version change: 1.1.1 → 1.1.2 (PATCH: VitePress markdown compatibility rule added to Code Style section)
-- Modified principles: VII. Code Style & Quality Standards — added VitePress-compatible Markdown rule
+- Version change: 1.1.2 → 1.2.0 (MINOR: Mandatory test tasks rule added to Test Discipline section)
+- Modified principles: III. Test Discipline — added "Mandatory test tasks in every tasks.md" rule
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
+  - .specify/templates/tasks-template.md: ⚠️ NEEDS UPDATE — remove "Tests are OPTIONAL" language; make test phase mandatory with project-specific paths
   - .specify/templates/plan-template.md: ✅ compatible
-  - .specify/templates/spec-template.md: ✅ compatible (authors should follow new markdown rule)
-  - .specify/templates/tasks-template.md: ✅ compatible
-- Follow-up TODOs: None
+  - .specify/templates/spec-template.md: ✅ compatible
+- Follow-up TODOs: Update tasks-template.md to reflect mandatory test tasks
 -->
 
 # Scrape-and-Analyze Constitution
@@ -89,9 +89,24 @@ visually verified before integration.
   CI and all acceptance runs MUST use Docker.
 - **CI gates**: Unit tests run first; integration/E2E only after unit
   pass. Coverage uploaded to Codecov with carryforward.
+- **Mandatory test tasks in every tasks.md**: Every feature
+  implementation MUST include at least one dedicated test phase in
+  `tasks.md`. Tests are NOT optional and MUST NOT be omitted even if
+  not explicitly requested in the spec. The test phase MUST use the
+  project's established test directories and frameworks:
+  - Frontend unit tests → `frontend/tests/unit/` (Vitest)
+  - Frontend E2E tests → `frontend/tests/integration/` (Playwright)
+  - Backend unit tests → `backend/tests/` (pytest)
+  - Scraper unit tests → `src/tests/unit/` (pytest)
+  - Scraper integration tests → `src/tests/integration/` (pytest,
+    `@pytest.mark.integration`)
+  The tasks template instruction "Tests are OPTIONAL" does NOT apply
+  to this project. `speckit-tasks` MUST always generate test tasks.
 
 Rationale: Isolated, deterministic tests prevent flaky CI and ensure
 fast feedback loops. Schema isolation avoids cross-test contamination.
+Mandatory test tasks in every feature prevent the recurring gap where
+implementation is complete but automated coverage is absent.
 
 ### IV. Docker-First Local Development
 
@@ -265,4 +280,4 @@ type errors.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.1.2 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-30
+**Version**: 1.2.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-30
