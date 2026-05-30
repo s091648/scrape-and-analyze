@@ -7,6 +7,9 @@ hero:
   tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 7 features
   actions:
     - theme: brand
+      text: Speckit SDD Guide
+      link: /guide/speckit
+    - theme: alt
       text: Project Constitution
       link: /constitution
     - theme: alt

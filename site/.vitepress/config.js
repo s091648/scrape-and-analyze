@@ -8,6 +8,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
+      { text: 'Speckit Guide', link: '/guide/speckit' },
       { text: 'Constitution', link: '/constitution' },
       { text: 'Specs', link: '/specs/001-article-collection/spec' },
     ],
@@ -15,6 +16,7 @@ export default defineConfig({
       {
         text: 'Project',
         items: [
+          { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Constitution', link: '/constitution' },
         ],
       },
