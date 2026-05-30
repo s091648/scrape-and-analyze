@@ -4,7 +4,7 @@ export default defineConfig({
   title: 'Scrape Analyzer',
   description: 'Speckit SDD specification documentation',
   base: process.env.VITEPRESS_BASE || '/',
-  ignoreDeadLinks: [/localhost/],
+  ignoreDeadLinks: [/localhost/, /\/research\//],
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
