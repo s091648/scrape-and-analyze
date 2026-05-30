@@ -1,13 +1,13 @@
 <!--
 Sync Impact Report:
-- Version change: 1.1.0 → 1.1.1 (PATCH: clarification added to Test Discipline principle)
-- Modified principles: III. Test Discipline — added explicit Docker-only test execution rule
+- Version change: 1.1.1 → 1.1.2 (PATCH: VitePress markdown compatibility rule added to Code Style section)
+- Modified principles: VII. Code Style & Quality Standards — added VitePress-compatible Markdown rule
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
   - .specify/templates/plan-template.md: ✅ compatible
-  - .specify/templates/spec-template.md: ✅ compatible
-  - .specify/templates/tasks-template.md: ✅ compatible (test tasks should reference make test / make test-integration)
+  - .specify/templates/spec-template.md: ✅ compatible (authors should follow new markdown rule)
+  - .specify/templates/tasks-template.md: ✅ compatible
 - Follow-up TODOs: None
 -->
 
@@ -172,6 +172,15 @@ infrastructure.
   `TranslateArticleUseCase` and `TranslateTagsUseCase`.
 - **No TODO comments in production code**: Either implement the
   feature or create a tracked issue. No placeholder implementations.
+- **VitePress-compatible Markdown**: All spec and documentation
+  markdown files rendered via VitePress MUST avoid bare angle-bracket
+  syntax outside of fenced code blocks. Generic type expressions
+  (e.g., `Array<T>`, `Record<K, V>`) and placeholder tokens
+  (e.g., `<ISO_8601>`, `<UUID>`) MUST be wrapped in backticks or
+  escaped as `&lt;`/`&gt;`. Vue's production compiler (`npm run build`)
+  is stricter than the dev-server runtime — bare `<…>` outside code
+  blocks is treated as an unclosed HTML element and fails the build
+  even if `npm run dev` renders correctly.
 
 Rationale: Consistent style reduces review friction. Committed
 `uv.lock` and strict TypeScript prevent dependency drift and runtime
@@ -256,4 +265,4 @@ type errors.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.1.1 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-28
+**Version**: 1.1.2 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-05-30
