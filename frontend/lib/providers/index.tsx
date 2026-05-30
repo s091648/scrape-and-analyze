@@ -1,12 +1,15 @@
 import SessionProviderWrapper from '@/components/providers/session-provider'
 import { I18nProvider } from './i18n-provider'
 import { TopicProvider } from './topic-provider'
+import { GuestModeProvider } from './guest-mode-provider'
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <SessionProviderWrapper>
       <I18nProvider>
-        <TopicProvider>{children}</TopicProvider>
+        <GuestModeProvider>
+          <TopicProvider>{children}</TopicProvider>
+        </GuestModeProvider>
       </I18nProvider>
     </SessionProviderWrapper>
   )
@@ -14,3 +17,4 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
 export { useI18n } from './i18n-provider'
 export { useTopic, type Topic } from './topic-provider'
+export { useGuestMode } from './guest-mode-provider'

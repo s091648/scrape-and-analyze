@@ -1,20 +1,47 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check } from 'lucide-react'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
 import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
-import { useI18n } from '@/lib/providers'
+import { useI18n, useTopic } from '@/lib/providers'
 import type { ArticleDetail } from '@/lib/api/articles'
 
 export type { Article }
 
-export function ArticleCard({ id, title, source, content, published_at, scraped_at, url }: Article) {
-  const { locale } = useI18n()
-  const [open, setOpen] = useState(false)
+interface ArticleCardProps extends Article {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function ArticleCard({ id, title, source, content, published_at, scraped_at, url, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+  const { locale, t } = useI18n()
+  const { selectedTopicId } = useTopic()
+  const isControlled = controlledOpen !== undefined
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? controlledOpen! : internalOpen
+  const setOpen = isControlled
+    ? (v: boolean) => controlledOnOpenChange?.(v)
+    : setInternalOpen
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  async function handleShare(e: React.MouseEvent) {
+    e.stopPropagation()
+    const params = new URLSearchParams()
+    if (selectedTopicId) params.set('topic', selectedTopicId)
+    params.set('article', id)
+    const shareUrl = `${window.location.origin}/?${params.toString()}`
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard unavailable — silently ignore (T009 aria-label still present)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -34,15 +61,27 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
               <span className="flex-1">{title}</span>
-              <a
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="shrink-0 mt-0.5"
-              >
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-              </a>
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  aria-label={t('copy.shareArticle')}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                >
+                  {copied
+                    ? <Check className="h-3.5 w-3.5 text-green-500" />
+                    : <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  }
+                </button>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                </a>
+              </div>
             </div>
           </CardTitle>
         </CardHeader>

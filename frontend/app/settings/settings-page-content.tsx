@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { fetchMe, updateMe, changePassword, deleteMe, unlinkGoogle } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useI18n } from '@/lib/providers'
+import { useI18n, useGuestMode } from '@/lib/providers'
 
 interface Profile {
   id: string
@@ -48,7 +49,31 @@ function initials(name: string | null | undefined): string {
 export default function SettingsPageContent() {
   const { data: session } = useSession()
   const { t } = useI18n()
+  const { isGuestMode } = useGuestMode()
   const token = (session as any)?.accessToken
+
+  if (isGuestMode) {
+    return (
+      <div className="space-y-4 max-w-md">
+        <h2 className="text-xl font-bold">{t('guest.restrictedTitle')}</h2>
+        <p className="text-sm text-muted-foreground">{t('guest.restrictedMessage')}</p>
+        <div className="flex gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+          >
+            {t('login.signIn')}
+          </Link>
+          <Link
+            href="/register"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+          >
+            {t('login.register')}
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
