@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { useI18n } from '@/lib/providers'
+import { useI18n, useGuestMode } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
 import { fetchAnalysesGraph, fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
@@ -51,6 +51,41 @@ const GUEST_GRAPH: GraphData = {
   ],
 }
 
+export function applyArticleFilter(data: GraphData, filter: Set<string>): GraphData {
+  const keptArticleIds = new Set(
+    data.nodes
+      .filter(n => n.type === 'article' && filter.has(n.articleId ?? n.id))
+      .map(n => n.id)
+  )
+  const keptTagIds = new Set(
+    data.nodes
+      .filter(n => {
+        if (n.type !== 'tag') return false
+        return data.edges.some(
+          e => (e.source === n.id && keptArticleIds.has(e.target)) ||
+               (e.target === n.id && keptArticleIds.has(e.source))
+        )
+      })
+      .map(n => n.id)
+  )
+  const keptGroupIds = new Set(
+    data.nodes
+      .filter(n => {
+        if (n.type !== 'group') return false
+        return data.edges.some(
+          e => (e.source === n.id && keptTagIds.has(e.target)) ||
+               (e.target === n.id && keptTagIds.has(e.source))
+        )
+      })
+      .map(n => n.id)
+  )
+  const allKept = new Set([...keptArticleIds, ...keptTagIds, ...keptGroupIds])
+  return {
+    nodes: data.nodes.filter(n => allKept.has(n.id)),
+    edges: data.edges.filter(e => allKept.has(e.source) && allKept.has(e.target)),
+  }
+}
+
 interface GroupArticle {
   groupName: string
   displayName: string
@@ -66,10 +101,11 @@ interface GroupArticle {
   innovations: string | null
 }
 
-export function KnowledgeGraph() {
+export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<string> }) {
   const { status } = useSession()
   const { t, locale } = useI18n()
-  const isGuest = status === 'unauthenticated'
+  const { isGuestMode } = useGuestMode()
+  const isPaywall = status === 'unauthenticated' && !isGuestMode
   const { selectedTopicId } = useTopic()
 
   const [graphFilters, setGraphFilters] = useState<Omit<GraphFilters, 'topic_id'>>({
@@ -107,8 +143,7 @@ export function KnowledgeGraph() {
   useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
 
   useEffect(() => {
-    // Guests see fake data — API is never called (prevents data leakage via devtools)
-    if (isGuest) {
+    if (isPaywall) {
       setGraphData(GUEST_GRAPH)
       setGraphLoading(false)
       return
@@ -118,14 +153,14 @@ export function KnowledgeGraph() {
     fetchAnalysesGraph({ topic_id: selectedTopicId, ...graphFilters }, locale)
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
       .finally(() => setGraphLoading(false))
-  }, [graphFilters, selectedTopicId, isGuest, locale])
+  }, [graphFilters, selectedTopicId, isPaywall, locale])
 
   // Clear article hover cache when locale changes (stale translations)
   useEffect(() => { articleCacheRef.current.clear() }, [locale])
 
   // Re-fetch group data when locale changes while a group is expanded
   useEffect(() => {
-    if (!expandedGroup || isGuest) return
+    if (!expandedGroup || isPaywall) return
     fetchAnalysesGraphGroup<GroupArticle>(expandedGroup, { ...graphFilters, topic_id: selectedTopicId ?? undefined }, locale)
       .then(setGroupData)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,10 +177,15 @@ export function KnowledgeGraph() {
     return () => obs.disconnect()
   }, [])
 
+  const displayGraphData = useMemo(() => {
+    if (articleIdFilter) return applyArticleFilter(graphData, articleIdFilter)
+    return graphData
+  }, [graphData, articleIdFilter])
+
   const mergedGraphData = useMemo(() => ({
-    nodes: graphData.nodes,
-    links: graphData.edges,
-  }), [graphData])
+    nodes: displayGraphData.nodes,
+    links: displayGraphData.edges,
+  }), [displayGraphData])
 
   function handleNodeClick(node: any) {
     if (node.type === 'group') {
@@ -188,7 +228,7 @@ export function KnowledgeGraph() {
     <div className="flex gap-4 h-[calc(100vh-14rem)]">
       {/* Graph — 60% */}
       <div className="w-[60%] flex flex-col gap-3">
-        {!isGuest && (
+        {!isPaywall && !isGuestMode && (
           <FilterBar
             sources={graphFilters.source ?? []}
             tags={graphFilters.tag ?? []}

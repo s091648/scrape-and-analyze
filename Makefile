@@ -11,7 +11,8 @@
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-e2e test-all \
-	storybook build-storybook
+	storybook build-storybook \
+	site-preview
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -212,6 +213,12 @@ storybook:
 
 build-storybook:
 	docker compose run --rm -p 6006:6006 frontend sh -c "npm run build-storybook && npx serve -s storybook-static -l 6006"
+
+# ─── site preview ─────────────────────────────────────────────────────────────
+
+site-preview:
+	node -e "const{rmSync,cpSync}=require('fs');rmSync('site/specs',{recursive:true,force:true});cpSync('specs','site/specs',{recursive:true})"
+	cd site && npm install && npm run dev
 
 # ─── combined ─────────────────────────────────────────────────────────────────
 

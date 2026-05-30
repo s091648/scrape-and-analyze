@@ -212,7 +212,7 @@ def seed():
             db.add(analysis)
             db.flush()
 
-            AnalysesTranslation(
+            translation = AnalysesTranslation(
                 id=uuid.uuid4(),
                 analysis_id=analysis.id,
                 language="en",
@@ -221,6 +221,7 @@ def seed():
                 insights="The integration of ML with physics-based models shows promise for reducing computational overhead while maintaining prediction accuracy.",
                 innovations="Novel approaches include hybrid simulation-ML pipelines and edge computing architectures for near-real-time twin updates.",
             )
+            db.add(translation)
         db.flush()
         print("  Analyses + translations created")
 

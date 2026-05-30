@@ -1,7 +1,7 @@
 from sqlalchemy import TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
-from shared.selector_config import ArxivConfig, BlogConfig, RssConfig, SelectorConfig, _adapter
+from shared.selector_config import ArxivConfig, BlogConfig, RssConfig, _adapter
 
 
 class SelectorConfigColumn(TypeDecorator):
@@ -28,4 +28,4 @@ class SelectorConfigColumn(TypeDecorator):
             return None
         if "type" in value:
             return _adapter.validate_python(value)
-        return value  # legacy: repo handles via build_selector_config()
+        return value

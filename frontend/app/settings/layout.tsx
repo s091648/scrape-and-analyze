@@ -4,7 +4,7 @@ import { usePathname, redirect } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import { useTopic } from '@/lib/providers/topic-provider'
-import { useI18n } from '@/lib/providers'
+import { useI18n, useGuestMode } from '@/lib/providers'
 
 const profileItems = [
   { href: '/settings', labelKey: 'settings.profile' },
@@ -22,8 +22,9 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const { t } = useI18n()
+  const { isGuestMode } = useGuestMode()
 
-  if (status === 'unauthenticated') redirect('/login')
+  if (status === 'unauthenticated' && !isGuestMode) redirect('/login')
 
   const isAdmin = (session?.user as any)?.role === 'admin'
   const { selectedTopic } = useTopic()

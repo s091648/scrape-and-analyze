@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { fetchArticles, type Article } from '@/lib/api/articles'
@@ -10,7 +10,7 @@ import { FilterBar } from '@/components/features/articles/filter-bar'
 import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Newspaper, Lock } from 'lucide-react'
-import { useTopic, useI18n } from '@/lib/providers'
+import { useTopic, useI18n, useGuestMode } from '@/lib/providers'
 
 const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) => ({
   id: `guest-${i}`,
@@ -27,8 +27,10 @@ const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) =
 
 export default function HomePageContent() {
   const { status } = useSession()
-  const isGuest = status === 'unauthenticated'
+  const { isGuestMode } = useGuestMode()
+  const isPaywall = status === 'unauthenticated' && !isGuestMode
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { t, locale } = useI18n()
   const {
     page, sort, order, setPage, setFilters,
@@ -39,17 +41,35 @@ export default function HomePageContent() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const { selectedTopicId } = useTopic()
+  const [openArticleId, setOpenArticleId] = useState<string | null>(
+    () => searchParams.get('article')
+  )
 
-  const searchParamsString = searchParams.toString()
+  const fetchSearchParamsString = useMemo(() => {
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete('article')
+    return p.toString()
+  }, [searchParams])
+
+  const handleArticleOpenChange = useCallback((articleId: string, open: boolean) => {
+    setOpenArticleId(open ? articleId : null)
+    const params = new URLSearchParams(searchParams.toString())
+    if (open) {
+      params.set('article', articleId)
+    } else {
+      params.delete('article')
+    }
+    router.replace(`/?${params.toString()}`, { scroll: false })
+  }, [searchParams, router])
 
   useEffect(() => {
-    if (isGuest) { setIsLoading(false); return }
+    if (isPaywall) { setIsLoading(false); return }
     if (!selectedTopicId) return
     setIsLoading(true)
 
     fetchArticles(
       {
-        page,
+        page: isGuestMode ? 1 : page,
         topic_id: selectedTopicId,
         sort,
         order,
@@ -65,7 +85,7 @@ export default function HomePageContent() {
     )
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [searchParamsString, selectedTopicId, isGuest, locale])
+  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale])
 
   const totalPages = Math.ceil(total / 20)
 
@@ -97,17 +117,24 @@ export default function HomePageContent() {
         <div className="grid gap-3 lg:grid-cols-2">
           {isLoading
             ? Array.from({ length: 6 }).map((_, i) => <ArticleCardSkeleton key={i} />)
-            : isGuest
+            : isPaywall
               ? GUEST_PLACEHOLDER_ARTICLES.map(a => (
                   <div key={a.id} className="select-none pointer-events-none blur-[2px] opacity-70">
                     <ArticleCard {...a} />
                   </div>
                 ))
-              : articles.map(a => <ArticleCard key={a.id} {...a} />)
+              : articles.map(a => (
+                  <ArticleCard
+                    key={a.id}
+                    {...a}
+                    open={openArticleId === a.id}
+                    onOpenChange={(v) => handleArticleOpenChange(a.id, v)}
+                  />
+                ))
           }
         </div>
 
-        {!isLoading && isGuest && (
+        {!isLoading && isPaywall && (
           <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-background via-background/90 to-transparent flex flex-col items-center justify-end pb-10 gap-4">
             <div className="flex items-center justify-center h-12 w-12 rounded-full border border-border bg-background shadow-sm">
               <Lock className="h-5 w-5 text-muted-foreground" />
@@ -123,7 +150,7 @@ export default function HomePageContent() {
         )}
       </div>
 
-      {!isGuest && totalPages > 1 && (
+      {status === 'authenticated' && totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 pt-4 border-t border-border">
           <Button
             variant="outline"

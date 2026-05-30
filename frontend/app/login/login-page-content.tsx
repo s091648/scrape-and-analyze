@@ -5,12 +5,13 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Rss } from 'lucide-react'
-import { useI18n } from '@/lib/providers'
+import { useI18n, useGuestMode } from '@/lib/providers'
 
 export default function LoginPageContent() {
   const { status } = useSession()
   const router = useRouter()
   const { t } = useI18n()
+  const { enterGuestMode } = useGuestMode()
   const [error, setError] = useState('')
   const searchParams = useSearchParams()
 
@@ -123,6 +124,14 @@ export default function LoginPageContent() {
               {t('login.register')}
             </Link>
           </p>
+
+          <Button
+            variant="ghost"
+            className="w-full text-sm text-muted-foreground"
+            onClick={() => { enterGuestMode(); router.push('/') }}
+          >
+            {t('guest.continueAsGuest')}
+          </Button>
         </div>
       </div>
     </div>

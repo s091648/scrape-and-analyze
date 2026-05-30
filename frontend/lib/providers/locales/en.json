@@ -169,6 +169,24 @@
     "supervised": "Supervised",
     "supervisedDesc": "LLM is constrained to predefined groups only"
   },
+  "copy": {
+    "success": "Link copied!",
+    "failed": "Failed to copy",
+    "shareArticle": "Share article"
+  },
+  "share": {
+    "openInApp": "Open in App →",
+    "signInForMore": "Sign in to read more →",
+    "articleNotFound": "Article not found",
+    "articleNotFoundDesc": "This article may have been removed or the link is invalid.",
+    "backToArticles": "Back to articles"
+  },
+  "guest": {
+    "continueAsGuest": "Continue as Guest",
+    "restrictedTitle": "Account required",
+    "restrictedMessage": "Sign in or create an account to access settings.",
+    "graphLimitedPreview": "Viewing a limited preview — sign in for the full graph."
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred"

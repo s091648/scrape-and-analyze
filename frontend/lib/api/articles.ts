@@ -66,6 +66,7 @@ export async function fetchArticles(
 
 export async function fetchArticleById(id: string, locale?: string): Promise<ArticleDetail> {
   const res = await apiFetch(`/articles/${id}`, {}, locale)
+  if (!res.ok) throw new Error(`${res.status}`)
   return res.json()
 }
 

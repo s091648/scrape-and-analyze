@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+import { userEvent, within } from '@storybook/test'
 import { ArticleCard } from '../components/features/articles/article-card'
 
 const meta: Meta<typeof ArticleCard> = {
@@ -42,5 +43,16 @@ export const BlogSource: Story = {
       'Over the past year, our ML platform team has been working on reducing the inference latency of our recommendation models. Through a combination of model distillation, quantization, and batching optimizations, we achieved a 60% reduction in p99 latency.',
     url: 'https://engineering.atspotify.com/2026/05/ml-inference-latency',
     scraped_at: '2026-05-10T08:00:00Z',
+  },
+}
+
+export const ShareFeedback: Story = {
+  name: 'Share — copy feedback',
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const card = canvas.queryByRole('article') ?? canvasElement.querySelector('[class*=rounded-2xl]')
+    await userEvent.hover(card ?? canvasElement)
+    const shareBtn = canvas.getByLabelText('Share article')
+    await userEvent.click(shareBtn)
   },
 }
