@@ -13,7 +13,7 @@ SUPPORTED_LANGUAGES = [
 def resolve_language_from_ip(ip: str) -> str:
     """Resolve preferred language from IP using geoip."""
     try:
-        from src.infrastructure.shared.observability.geoip import get_geo
+        from shared.utils.geoip import get_geo
 
         geo = get_geo(ip)
         country = geo.get("country", "")
