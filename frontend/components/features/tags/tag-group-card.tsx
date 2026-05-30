@@ -188,7 +188,7 @@ function EditGroupForm({
               onBlur={key === 'name'
                 ? e => setForm(prev => ({ ...prev, name: e.target.value.replace(/^_+|_+$/g, '') }))
                 : key === 'display_name'
-                ? e => setForm(prev => ({ ...prev, display_name: e.target.value.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) }))
+                ? e => setForm(prev => ({ ...prev, display_name: e.target.value.trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1)) }))
                 : undefined}
               required={required}
             />
@@ -234,6 +234,12 @@ export function TagGroupCard({
     setTags([...group.tags].sort((a, b) => b.article_count - a.article_count))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagIdsKey])
+
+  const groupMetaKey = `${group.name}:${group.display_name}:${group.color_hex ?? ''}:${group.description ?? ''}`
+  useEffect(() => {
+    setLocalGroup(group)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupMetaKey])
 
   useEffect(() => {
     if (!open || expanded) { setHasOverflow(false); return }

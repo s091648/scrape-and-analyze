@@ -114,7 +114,7 @@ Batch update sort_order for tag groups.
 **Body**:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| groups | Array<{id: UUID, sort_order: int}> | Yes | |
+| groups | `Array<{id: UUID, sort_order: int}>` | Yes | |
 
 **Response**: 200 OK
 
@@ -157,7 +157,7 @@ Move multiple tags to a different group.
 **Body**:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| tag_ids | Array<UUID> | Yes | Tags to move |
+| tag_ids | `Array<UUID>` | Yes | Tags to move |
 | tag_group_id | UUID or null | Yes | Target group (null = ungrouped) |
 
 **Response**: 200 OK
