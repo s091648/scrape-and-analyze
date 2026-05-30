@@ -41,6 +41,8 @@ vi.mock('@/lib/api/articles', () => ({
 
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ locale: 'en', t: (key: string) => key }),
+  useTopic: () => ({ selectedTopicId: 'topic-1', topics: [], selectedTopic: null }),
+  useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
 }))
 
 describe('ArticleCard', () => {

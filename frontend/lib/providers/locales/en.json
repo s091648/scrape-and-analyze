@@ -169,6 +169,17 @@
     "supervised": "Supervised",
     "supervisedDesc": "LLM is constrained to predefined groups only"
   },
+  "copy": {
+    "success": "Link copied!",
+    "failed": "Failed to copy",
+    "shareArticle": "Share article"
+  },
+  "guest": {
+    "continueAsGuest": "Continue as Guest",
+    "restrictedTitle": "Account required",
+    "restrictedMessage": "Sign in or create an account to access settings.",
+    "graphLimitedPreview": "Viewing a limited preview — sign in for the full graph."
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred"
