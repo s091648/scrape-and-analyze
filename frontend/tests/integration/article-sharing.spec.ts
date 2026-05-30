@@ -102,6 +102,6 @@ test.describe('Article Sharing — standalone page', () => {
       route => route.fulfill({ status: 404, json: { detail: 'not found' } })
     )
     await page.goto('/articles/invalid-id')
-    await expect(page.getByText('Article not found')).toBeVisible()
+    await expect(page.getByTestId('article-not-found')).toBeVisible()
   })
 })

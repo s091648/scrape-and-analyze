@@ -25,6 +25,8 @@ export default function ArticleSharePage() {
 
   useEffect(() => {
     if (!articleId) return
+    setNotFound(false)
+    setArticle(null)
     setLoading(true)
     fetchArticleById(articleId, locale)
       .then(data => { setArticle(data); setLoading(false) })
@@ -61,13 +63,13 @@ export default function ArticleSharePage() {
       {loading && <ArticleCardSkeleton />}
 
       {!loading && notFound && (
-        <div className="rounded-2xl border border-border bg-card p-8 text-center space-y-2">
-          <p className="text-sm font-medium">Article not found</p>
+        <div data-testid="article-not-found" className="rounded-2xl border border-border bg-card p-8 text-center space-y-2">
+          <p className="text-sm font-medium">{t('share.articleNotFound')}</p>
           <p className="text-sm text-muted-foreground">
-            This article may have been removed or the link is invalid.
+            {t('share.articleNotFoundDesc')}
           </p>
           <Link href="/" className="text-sm text-primary underline underline-offset-4">
-            Back to articles
+            {t('share.backToArticles')}
           </Link>
         </div>
       )}

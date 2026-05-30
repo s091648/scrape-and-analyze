@@ -52,48 +52,19 @@ export default function SettingsPageContent() {
   const { isGuestMode } = useGuestMode()
   const token = (session as any)?.accessToken
 
-  if (isGuestMode) {
-    return (
-      <div className="space-y-4 max-w-md">
-        <h2 className="text-xl font-bold">{t('guest.restrictedTitle')}</h2>
-        <p className="text-sm text-muted-foreground">{t('guest.restrictedMessage')}</p>
-        <div className="flex gap-3">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
-          >
-            {t('login.signIn')}
-          </Link>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
-          >
-            {t('login.register')}
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Name field
   const [name, setName] = useState('')
   const [nameSaving, setNameSaving] = useState(false)
   const [nameMsg, setNameMsg] = useState<string | null>(null)
-
-  // Password fields
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordMsg, setPasswordMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [passwordSaving, setPasswordSaving] = useState(false)
-
   const searchParams = useSearchParams()
   const router = useRouter()
   const [linkMsg, setLinkMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -120,6 +91,29 @@ export default function SettingsPageContent() {
       })
       .finally(() => setIsLoading(false))
   }, [token])
+
+  if (isGuestMode) {
+    return (
+      <div className="space-y-4 max-w-md">
+        <h2 className="text-xl font-bold">{t('guest.restrictedTitle')}</h2>
+        <p className="text-sm text-muted-foreground">{t('guest.restrictedMessage')}</p>
+        <div className="flex gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+          >
+            {t('login.signIn')}
+          </Link>
+          <Link
+            href="/register"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+          >
+            {t('login.register')}
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

@@ -176,7 +176,10 @@
   },
   "share": {
     "openInApp": "Open in App →",
-    "signInForMore": "Sign in to read more →"
+    "signInForMore": "Sign in to read more →",
+    "articleNotFound": "Article not found",
+    "articleNotFoundDesc": "This article may have been removed or the link is invalid.",
+    "backToArticles": "Back to articles"
   },
   "guest": {
     "continueAsGuest": "Continue as Guest",

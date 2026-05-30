@@ -14,12 +14,19 @@ export default function GraphPage() {
   const { selectedTopicId } = useTopic()
   const isPaywall = status === 'unauthenticated' && !isGuestMode
 
-  const [firstPageArticleIds, setFirstPageArticleIds] = useState<Set<string> | undefined>()
+  const [firstPageArticleIds, setFirstPageArticleIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!isGuestMode || !selectedTopicId) { setFirstPageArticleIds(undefined); return }
+    let cancelled = false
+    if (!isGuestMode || !selectedTopicId) {
+      setFirstPageArticleIds(new Set())
+      return
+    }
     fetchArticles({ page: 1, topic_id: selectedTopicId })
-      .then(data => setFirstPageArticleIds(new Set(data.items.map(a => a.id))))
+      .then(data => {
+        if (!cancelled) setFirstPageArticleIds(new Set(data.items.map(a => a.id)))
+      })
+    return () => { cancelled = true }
   }, [isGuestMode, selectedTopicId])
 
   return (

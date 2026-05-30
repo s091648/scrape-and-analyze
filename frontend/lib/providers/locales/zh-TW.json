@@ -176,7 +176,10 @@
   },
   "share": {
     "openInApp": "在 App 中開啟 →",
-    "signInForMore": "登入查看更多文章 →"
+    "signInForMore": "登入查看更多文章 →",
+    "articleNotFound": "找不到文章",
+    "articleNotFoundDesc": "此文章可能已被移除或連結無效。",
+    "backToArticles": "返回文章列表"
   },
   "guest": {
     "continueAsGuest": "以訪客身份繼續",

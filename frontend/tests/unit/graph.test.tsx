@@ -116,4 +116,33 @@ describe('Knowledge Graph', () => {
     // Verify both mocks are set up — actual click interaction is E2E territory
     expect(mockApiFetch).toBeDefined()
   })
+
+})
+
+describe('applyArticleFilter', () => {
+  it('empty Set filter removes all nodes', async () => {
+    const { applyArticleFilter } = await import('@/components/features/graph/knowledge-graph')
+    const data = {
+      nodes: [
+        { id: 'art-1', type: 'article' as const, label: 'Test', articleId: 'art-1' },
+        { id: 'g1', type: 'group' as const, label: 'Group', groupName: 'g1' },
+      ],
+      edges: [{ source: 'g1', target: 'art-1' }],
+    }
+    const result = applyArticleFilter(data, new Set())
+    expect(result.nodes).toHaveLength(0)
+    expect(result.edges).toHaveLength(0)
+  })
+
+  it('keeps article nodes that match by id when articleId field is absent', async () => {
+    const { applyArticleFilter } = await import('@/components/features/graph/knowledge-graph')
+    const data = {
+      nodes: [
+        { id: 'art-1', type: 'article' as const, label: 'Test' },
+      ],
+      edges: [],
+    }
+    const result = applyArticleFilter(data, new Set(['art-1']))
+    expect(result.nodes).toHaveLength(1)
+  })
 })

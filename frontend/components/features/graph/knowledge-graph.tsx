@@ -51,10 +51,10 @@ const GUEST_GRAPH: GraphData = {
   ],
 }
 
-function applyArticleFilter(data: GraphData, filter: Set<string>): GraphData {
+export function applyArticleFilter(data: GraphData, filter: Set<string>): GraphData {
   const keptArticleIds = new Set(
     data.nodes
-      .filter(n => n.type === 'article' && filter.has(n.articleId ?? ''))
+      .filter(n => n.type === 'article' && filter.has(n.articleId ?? n.id))
       .map(n => n.id)
   )
   const keptTagIds = new Set(
@@ -178,7 +178,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
   }, [])
 
   const displayGraphData = useMemo(() => {
-    if (articleIdFilter && articleIdFilter.size > 0) return applyArticleFilter(graphData, articleIdFilter)
+    if (articleIdFilter) return applyArticleFilter(graphData, articleIdFilter)
     return graphData
   }, [graphData, articleIdFilter])
 

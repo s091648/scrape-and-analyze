@@ -50,7 +50,7 @@ export const ShareFeedback: Story = {
   name: 'Share — copy feedback',
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const card = canvas.getByRole('article') ?? canvasElement.querySelector('[class*=rounded-2xl]')
+    const card = canvas.queryByRole('article') ?? canvasElement.querySelector('[class*=rounded-2xl]')
     await userEvent.hover(card ?? canvasElement)
     const shareBtn = canvas.getByLabelText('Share article')
     await userEvent.click(shareBtn)

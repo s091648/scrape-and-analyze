@@ -6,11 +6,11 @@ import { GuestModeProvider } from './guest-mode-provider'
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <SessionProviderWrapper>
-      <I18nProvider>
-        <TopicProvider>
+      <TopicProvider>
+        <I18nProvider>
           <GuestModeProvider>{children}</GuestModeProvider>
-        </TopicProvider>
-      </I18nProvider>
+        </I18nProvider>
+      </TopicProvider>
     </SessionProviderWrapper>
   )
 }

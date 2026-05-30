@@ -84,7 +84,7 @@ describe('ArticleSharePage', () => {
     const { default: ArticleSharePage } = await import('@/app/articles/[articleId]/page')
     render(<ArticleSharePage />)
     await waitFor(() => {
-      expect(screen.getByText('Article not found')).toBeInTheDocument()
+      expect(screen.getByText('share.articleNotFound')).toBeInTheDocument()
     })
   })
 
@@ -93,7 +93,25 @@ describe('ArticleSharePage', () => {
     const { default: ArticleSharePage } = await import('@/app/articles/[articleId]/page')
     render(<ArticleSharePage />)
     await waitFor(() => {
-      expect(screen.getByText('Back to articles')).toBeInTheDocument()
+      expect(screen.getByText('share.backToArticles')).toBeInTheDocument()
+    })
+  })
+
+  it('clears not-found state when navigating to a valid article', async () => {
+    mockFetchArticleById.mockRejectedValueOnce(new Error('Not found'))
+    const { default: ArticleSharePage } = await import('@/app/articles/[articleId]/page')
+    const { rerender } = render(<ArticleSharePage />)
+    await waitFor(() => {
+      expect(screen.getByText('share.articleNotFound')).toBeInTheDocument()
+    })
+
+    mockUseParams.mockReturnValue({ articleId: 'art-002' })
+    mockFetchArticleById.mockResolvedValueOnce(articleFixture)
+    rerender(<ArticleSharePage />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('share.articleNotFound')).not.toBeInTheDocument()
+      expect(screen.getByTestId('article-card')).toBeInTheDocument()
     })
   })
 
