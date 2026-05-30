@@ -9,6 +9,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Speckit Guide', link: '/guide/speckit' },
+      { text: 'Codespaces', link: '/guide/codespaces' },
       { text: 'Constitution', link: '/constitution' },
       { text: 'Specs', link: '/specs/001-article-collection/spec' },
     ],
@@ -17,6 +18,7 @@ export default defineConfig({
         text: 'Project',
         items: [
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
+          { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
         ],
       },

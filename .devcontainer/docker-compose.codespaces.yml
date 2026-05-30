@@ -19,6 +19,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=admin
+      - FRONTEND_ORIGIN=https://${CODESPACE_NAME}-3000.preview.app.github.dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,7 +38,8 @@ services:
       - .env
     environment:
       - BACKEND_URL=http://backend:8000
-      - NEXT_PUBLIC_BACKEND_URL=https://CODESPACE_NAME-8000.preview.app.github.dev
+      - NEXT_PUBLIC_BACKEND_URL=https://${CODESPACE_NAME}-8000.preview.app.github.dev
+      - NEXTAUTH_URL=https://${CODESPACE_NAME}-3000.preview.app.github.dev
     command: npx next dev
 
   postgres:
