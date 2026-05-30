@@ -45,13 +45,18 @@ Ports 預設為 **private**（需登入 GitHub 才能存取）。若要公開分
 
 ---
 
-## 第三步：預設帳號
+## 第三步：登入
+
+前端頁面開啟後，點右上角 **Login** 並使用以下帳號登入：
 
 | 欄位 | 值 |
 |---|---|
 | Username | `admin` |
 | Password | `admin` |
-| Email | `admin@example.com` |
+
+> Google OAuth 登入在 Codespaces 上需額外設定 redirect URI，建議直接使用 username/password 登入。
+
+登入後即可在頁面上選擇 Topic（左上角或側欄），選擇 **Digital Twins** 即可看到 seed 的假資料文章。
 
 ---
 
@@ -95,3 +100,39 @@ Frontend 的 log 可在 VS Code 的 **TERMINAL** 分頁切換到 `frontend` cont
 - **重建 Codespace** 會重跑 `init-db.sh`，但 PostgreSQL volume 會保留資料（`postgres_data` volume）。若要完全重置，需先刪除 volume。
 - **停用觀測性功能**：`SENTRY_DSN`、`GRAFANA_LOKI_URL`、`GRAFANA_OTLP_ENDPOINT` 預設留空，功能會自動降級為 no-op。
 - **Google OAuth** 在 Codespaces 上需要在 Google Console 新增 Codespace URL 為授權的 redirect URI，否則 Google 登入會失敗。
+
+---
+
+## 常見問題
+
+### 頁面開啟後沒有 Topic 可選、沒有文章
+
+前端無法呼叫 backend API，通常是 Codespace 用舊版設定啟動。解決方法：
+
+**Rebuild Codespace**（Command Palette → `Codespaces: Rebuild Container`）
+
+Rebuild 後 `docker-compose.codespaces.yml` 會以正確的 `$CODESPACE_NAME` 展開環境變數，前端才能正確連到 backend。
+
+### Rebuild 後仍沒有資料
+
+手動重跑 seed（terminal 裡直接執行，不需要 docker 指令）：
+
+```bash
+uv run python scripts/seed_db.py
+```
+
+確認資料筆數：
+
+```bash
+uv run python -c "
+from sqlalchemy import create_engine, text
+import os
+e = create_engine(os.environ['DATABASE_URL'])
+with e.connect() as c:
+    print('topics:', c.execute(text('SELECT COUNT(*) FROM topics')).scalar())
+    print('articles:', c.execute(text('SELECT COUNT(*) FROM articles')).scalar())
+    print('translations:', c.execute(text('SELECT COUNT(*) FROM analyses_translation')).scalar())
+"
+```
+
+預期結果：topics: 1、articles: 5、translations: 5。
