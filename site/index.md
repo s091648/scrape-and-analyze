@@ -38,4 +38,10 @@ features:
   - title: 007 · Scheduler
     details: Cron-based scheduling, pipeline orchestration, and graceful shutdown
     link: /specs/007-scheduler/spec
+  - title: 008 · Article Sharing
+    details: Shareable article URLs with public access and social preview metadata
+    link: /specs/008-article-sharing/spec
+  - title: 009 · Guest Mode
+    details: Unauthenticated read-only access with per-session preferences
+    link: /specs/009-guest-mode/spec
 ---

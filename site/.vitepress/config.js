@@ -97,6 +97,29 @@ export default defineConfig({
           { text: 'Contract: Entry Point', link: '/specs/007-scheduler/contracts/entry-point-contract' },
         ],
       },
+      {
+        text: '008 · Article Sharing',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/008-article-sharing/spec' },
+          { text: 'Plan', link: '/specs/008-article-sharing/plan' },
+          { text: 'Tasks', link: '/specs/008-article-sharing/tasks' },
+          { text: 'Research', link: '/specs/008-article-sharing/research' },
+          { text: 'Contract: URL Schema', link: '/specs/008-article-sharing/contracts/url-schema' },
+          { text: 'Requirements', link: '/specs/008-article-sharing/checklists/requirements' },
+        ],
+      },
+      {
+        text: '009 · Guest Mode',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/009-guest-mode/spec' },
+          { text: 'Plan', link: '/specs/009-guest-mode/plan' },
+          { text: 'Tasks', link: '/specs/009-guest-mode/tasks' },
+          { text: 'Research', link: '/specs/009-guest-mode/research' },
+          { text: 'Requirements', link: '/specs/009-guest-mode/checklists/requirements' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },
