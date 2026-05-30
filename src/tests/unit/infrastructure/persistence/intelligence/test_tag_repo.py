@@ -176,6 +176,20 @@ class TestApproveSuggestion:
         repo.approve_suggestion(uuid.uuid4(), uuid.uuid4())
         session.execute.assert_not_called()
 
+    # ── T038: Verify suggestion row is expunged from session ──────────────────
+
+    def test_approve_suggestion_expunges_suggestion_from_session(self, repo, session):
+        """approve_suggestion calls session.expunge on the suggestion before
+        deleting the tag, detaching the ORM object so it won't be flushed."""
+        suggestion = MagicMock()
+        suggestion.new_tag_id = uuid.uuid4()
+        suggestion.existing_tag_id = uuid.uuid4()
+        session.query.return_value.filter_by.return_value.first.return_value = suggestion
+
+        repo.approve_suggestion(uuid.uuid4(), uuid.uuid4())
+
+        session.expunge.assert_called_once_with(suggestion)
+
 
 class TestRejectSuggestion:
     def test_sets_status_to_rejected(self, repo, session):

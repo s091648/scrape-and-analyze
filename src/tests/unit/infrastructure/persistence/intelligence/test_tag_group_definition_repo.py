@@ -96,3 +96,17 @@ class TestUpsert:
         assert len(call_args) >= 2
         params = call_args[1]
         assert params['vec'] == '[0.1,0.2]'
+
+
+# ── T022: Embedding auto-generation on creation ────────────────────────────
+
+class TestEmbeddingOnCreation:
+    def test_new_group_gets_embedding_via_upsert(self, repo, session):
+        """When upsert creates a new group with an embedding, it persists it."""
+        session.query.return_value.filter_by.return_value.first.return_value = None
+        topic_id = uuid.uuid4()
+        embedding = [0.3] * 768
+        repo.upsert('ai_ml', 'AI & ML', topic_id, embedding=embedding)
+        # Should call session.add (create) and session.execute (set embedding)
+        session.add.assert_called_once()
+        session.execute.assert_called_once()

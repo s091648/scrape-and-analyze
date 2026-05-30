@@ -56,3 +56,17 @@ def test_handle_failed_article_records_failed_and_returns_false():
     assert result is False
     assert stats.get_results()[0].failed == 1
     event_bus.publish.assert_not_called()
+
+
+def test_handle_duplicate_needs_analysis_publishes_event_and_returns_true():
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    use_case = MagicMock()
+    use_case.execute.return_value = (ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS, _make_article())
+    stats = PipelineStats()
+    event_bus = MagicMock()
+
+    handler = ArticleScrapedHandler(use_case=use_case, pipeline_stats=stats, event_bus=event_bus)
+    result = handler.handle(_make_dto("arxiv"))
+
+    assert result is True
+    event_bus.publish.assert_called_once()

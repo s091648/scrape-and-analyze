@@ -77,3 +77,30 @@ def test_executor_respects_per_host_exclusion():
 
     assert max_concurrent[0] == 1  # same host: only 1 at a time
     assert len(collected) == 4
+
+
+def test_executor_applies_fetch_delay_between_fetches():
+    """FR-010: fetch_delay is applied by workers between successive fetches."""
+    from unittest.mock import patch
+    from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
+    from src.modules.collection.domain.value_objects import ScrapedArticle
+
+    articles = [
+        ScrapedArticle(url=f"http://host-a.com/{i}", title=f"T{i}", content="C", source="test")
+        for i in range(2)
+    ]
+    tasks = [_make_fetch_task(url=a.url, result=a) for a in articles]
+
+    sleep_calls = []
+
+    with patch("src.infrastructure.collection.executor.scrape_executor.time.sleep",
+               side_effect=sleep_calls.append):
+        executor = ScrapeExecutor(num_workers=1, fetch_delay=1.5)
+        collected = []
+        executor.run(tasks, on_result=collected.append)
+
+    assert len(collected) == 2
+    # fetch_delay must have been applied at least once after a successful fetch
+    assert any(call == 1.5 for call in sleep_calls), (
+        f"Expected fetch_delay=1.5 in sleep calls, got: {sleep_calls}"
+    )

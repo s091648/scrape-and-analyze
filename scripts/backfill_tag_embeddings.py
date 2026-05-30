@@ -8,6 +8,7 @@ Usage:
     uv run python scripts/backfill_tag_embeddings.py [--limit N] [--dry-run]
     uv run python scripts/backfill_tag_embeddings.py --only tags
     uv run python scripts/backfill_tag_embeddings.py --only tag-groups
+    uv run python scripts/backfill_tag_embeddings.py --remote
 """
 import argparse
 import os
@@ -23,7 +24,16 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--only", choices=["tags", "tag-groups"], default=None,
                         help="Restrict to one table only")
+    parser.add_argument("--remote", action="store_true",
+                        help="Use REMOTE_RAILWAY_DB_URL instead of DATABASE_URL")
     args = parser.parse_args()
+
+    if args.remote:
+        remote_url = os.environ.get("REMOTE_RAILWAY_DB_URL", "")
+        if not remote_url:
+            print("ERROR: REMOTE_RAILWAY_DB_URL must be set in .env", file=sys.stderr)
+            sys.exit(1)
+        os.environ["DATABASE_URL"] = remote_url
 
     from src.shared.logging import get_logger
     logger = get_logger(__name__)

@@ -74,6 +74,51 @@ def test_fetch_returns_event_with_all_fields():
     assert event.source == "techcrunch"
 
 
+@responses.activate
+def test_discover_matches_on_description_when_title_misses():
+    """FR-003: keyword match checks both title AND description."""
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
+    rss = '''<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <item>
+    <title>Unrelated Title</title>
+    <link>https://example.com/dt-desc</link>
+    <description>An article about digital twins technology.</description>
+  </item>
+  <item>
+    <title>No match here</title>
+    <link>https://example.com/nomatch</link>
+    <description>Completely unrelated content.</description>
+  </item>
+</channel></rss>'''
+    responses.add(responses.GET, "https://example.com/feed", body=rss, status=200)
+    jobs = RssScraper(url="https://example.com/feed", source="test").discover()
+    assert len(jobs) == 1
+    assert "dt-desc" in jobs[0].url
+
+
+@responses.activate
+def test_discover_accepts_all_when_keywords_empty_list():
+    """FR-003: keywords=[] disables filtering — all articles are accepted."""
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
+    rss = '''<?xml version="1.0"?>
+<rss version="2.0"><channel>
+  <item>
+    <title>Completely Unrelated Article</title>
+    <link>https://example.com/a</link>
+    <description>Nothing to do with digital twins.</description>
+  </item>
+  <item>
+    <title>Another Unrelated Article</title>
+    <link>https://example.com/b</link>
+    <description>Still nothing relevant.</description>
+  </item>
+</channel></rss>'''
+    responses.add(responses.GET, "https://example.com/feed", body=rss, status=200)
+    jobs = RssScraper(url="https://example.com/feed", source="test", keywords=[]).discover()
+    assert len(jobs) == 2  # all entries accepted, no keyword filter
+
+
 def test_matches_digital_twins_variants():
     from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
     s = RssScraper(url="https://example.com/feed", source="test")

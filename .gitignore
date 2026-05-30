@@ -122,6 +122,13 @@ docs/
 openspec/
 
 # -----------------------------
+# VitePress docs site (site/)
+# -----------------------------
+site/specs/
+site/constitution.md
+site/.vitepress/cache/
+
+# -----------------------------
 # Local development files
 # -----------------------------
 db_dumps/

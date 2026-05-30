@@ -74,7 +74,9 @@ describe('FilterBar', () => {
   it('"Filters" toggle button is always rendered', async () => {
     const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
-    expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument()
+    })
   })
 
   it('clicking "Filters" reveals Source and Tag popover triggers', async () => {

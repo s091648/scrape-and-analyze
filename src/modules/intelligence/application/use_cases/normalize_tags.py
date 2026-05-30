@@ -99,18 +99,19 @@ class NormalizeTagsUseCase:
                             similarity=best_score)
                 return
 
-            new_tag = self._tag_repository.save(tag_name, group_name, embedding, topic_id)
-            self._tag_repository.link_to_article(new_tag.id, article_id)
-            suggestion = TagNormalizationSuggestion(
-                new_tag_id=new_tag.id,
-                existing_tag_id=best_tag.id,
-                similarity_score=best_score,
-                article_id=article_id,
-            )
-            self._tag_repository.save_suggestion(suggestion)
-            logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
-                        similarity=best_score)
-            return
+            if best_score >= self._suggest_threshold:
+                new_tag = self._tag_repository.save(tag_name, group_name, embedding, topic_id)
+                self._tag_repository.link_to_article(new_tag.id, article_id)
+                suggestion = TagNormalizationSuggestion(
+                    new_tag_id=new_tag.id,
+                    existing_tag_id=best_tag.id,
+                    similarity_score=best_score,
+                    article_id=article_id,
+                )
+                self._tag_repository.save_suggestion(suggestion)
+                logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
+                            similarity=best_score)
+                return
 
         new_tag = self._tag_repository.save(tag_name, group_name, embedding, topic_id)
         self._tag_repository.link_to_article(new_tag.id, article_id)

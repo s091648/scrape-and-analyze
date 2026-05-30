@@ -16,6 +16,7 @@ Sources:
 
 Usage:
     python scripts/backfill_tag_group_definitions.py [--dry-run] [--topic NAME]
+    python scripts/backfill_tag_group_definitions.py --remote
 """
 import argparse
 import os
@@ -55,7 +56,16 @@ def main():
                         help="Print planned inserts without writing")
     parser.add_argument("--topic", default=None,
                         help="Restrict to a specific topic name")
+    parser.add_argument("--remote", action="store_true",
+                        help="Use REMOTE_RAILWAY_DB_URL instead of DATABASE_URL")
     args = parser.parse_args()
+
+    if args.remote:
+        remote_url = os.environ.get("REMOTE_RAILWAY_DB_URL", "")
+        if not remote_url:
+            print("ERROR: REMOTE_RAILWAY_DB_URL must be set in .env", file=sys.stderr)
+            sys.exit(1)
+        os.environ["DATABASE_URL"] = remote_url
 
     from src.infrastructure.persistence.database import get_session, init_db
     from src.shared.logging import get_logger

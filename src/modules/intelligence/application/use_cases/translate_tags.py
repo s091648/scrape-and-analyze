@@ -91,7 +91,7 @@ class TranslateTagsUseCase:
                     parts = translated_lines[i].split("|", 1)
                     display_name = parts[0].strip()
                     description = parts[1].strip() if len(parts) > 1 else None
-                    self._tag_repo.save_group_translation(group_id, language, display_name, description)
+                    self._tag_repo.save_group_translation(group_id, language, display_name=display_name, description=description)
                     success += 1
                 except Exception as e:
                     logger.warning("group_translation_save_failed", group_id=str(group_id), error=str(e))

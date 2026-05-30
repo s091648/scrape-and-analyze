@@ -63,6 +63,8 @@ export function TagDialog({
       await renameTag(tag.id, editValue.trim(), token)
       onRenamed(tag.id, editValue.trim())
       setEditing(false)
+    } catch {
+      // API errors are surfaced to the parent via the absence of the onRenamed callback
     } finally {
       setSaving(false)
     }
@@ -80,6 +82,8 @@ export function TagDialog({
       await deleteTag(tag.id, token)
       onDeleted(tag.id)
       onOpenChange(false)
+    } catch {
+      // API errors are surfaced to the parent via the absence of the onDeleted callback
     } finally {
       setDeleting(false)
     }

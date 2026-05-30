@@ -113,11 +113,12 @@ export async function deleteTag(tagId: string, token: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete tag')
 }
 
-export async function moveTag(tagId: string, tagGroupId: string, token: string): Promise<TagOut> {
+export async function moveTag(tagId: string, tagGroupId: string | null, token: string): Promise<TagOut> {
+  const body = tagGroupId === null ? { ungroup: true } : { tag_group_id: tagGroupId }
   const res = await apiFetch(`/tags/${tagId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ tag_group_id: tagGroupId }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error('Failed to move tag')
   return res.json()

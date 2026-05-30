@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func, distinct, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -481,7 +482,11 @@ def rename_tag(
         tag.tag_group_id = None
     elif body.tag_group_id is not None:
         tag.tag_group_id = body.tag_group_id
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Tag name already exists in target group")
     db.refresh(tag)
     count = (
         db.query(func.count(distinct(article_tags_table.c.article_id)))

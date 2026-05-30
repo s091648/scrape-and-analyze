@@ -55,3 +55,30 @@ def test_notify_with_empty_stats_sends_message():
         notifier.notify(event)
 
     assert mock_post.called
+
+
+def test_notify_posts_to_correct_url():
+    """POST URL must match https://api.telegram.org/bot{token}/sendMessage."""
+    from src.infrastructure.shared.notifications.telegram import TelegramNotifier
+    event = _make_event()
+    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_post.return_value = mock_response
+        notifier = TelegramNotifier(token="mytoken", chat_id="999")
+        notifier.notify(event)
+    called_url = mock_post.call_args.args[0]
+    assert called_url == "https://api.telegram.org/botmytoken/sendMessage"
+
+
+def test_notify_sends_markdownv2():
+    """POST payload must include parse_mode='MarkdownV2'."""
+    from src.infrastructure.shared.notifications.telegram import TelegramNotifier
+    event = _make_event()
+    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_post.return_value = mock_response
+        notifier = TelegramNotifier(token="tok", chat_id="123")
+        notifier.notify(event)
+    assert mock_post.call_args.kwargs["json"]["parse_mode"] == "MarkdownV2"

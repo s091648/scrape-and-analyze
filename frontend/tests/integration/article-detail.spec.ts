@@ -17,6 +17,7 @@ test.describe('Article detail dialog', () => {
 
   test('dialog displays pain_points and insights from analysis', async ({ page }) => {
     await page.goto('/')
+    await page.waitForURL(/topic=/)
     await page.getByText('Digital Twin Innovation').click()
     await expect(page.getByText('Integration complexity is high.')).toBeVisible()
     await expect(page.getByText('Digital twins reduce downtime by 30%.')).toBeVisible()

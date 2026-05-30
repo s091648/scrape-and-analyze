@@ -162,3 +162,9 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 - **Dependency management** — `uv` with `uv.lock`, Python 3.11, dependency groups in `pyproject.toml`: core, scraper, backend, observability, dev
 - **Frontend UI** — Shadcn/UI primitives in `components/ui/`, Tailwind CSS v4, Radix UI
 - **Test markers** — `@pytest.mark.integration` for tests requiring postgres; integration test conftest creates `test_integration` schema with per-test rollback
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at `specs/007-scheduler/plan.md`.
+<!-- SPECKIT END -->
