@@ -73,10 +73,10 @@
 - **FR-001**: 使用者開啟文章對話框時，系統 MUST 將 `article_id`（及當前 `topic_id`）更新至 URL query params，使用 replace 模式（不新增瀏覽器歷史記錄）
 - **FR-002**: 使用者關閉文章對話框時，系統 MUST 移除 URL 中的 `article` query param
 - **FR-003**: 頁面載入時若 URL 含有 `article` query param，系統 MUST 自動開啟對應文章的對話框
-- **FR-004**: ArticleCard MUST 提供 share icon，點擊後將含有 `topic_id` 和 `article_id` 的完整 URL 複製到剪貼簿
-- **FR-005**: 複製到剪貼簿後，系統 MUST 顯示成功回饋（持續約 2 秒）
-- **FR-006**: Clipboard API 不可用時，系統 MUST 顯示錯誤訊息，不靜默失敗
-- **FR-007**: 系統 MUST 提供路由 `/articles/[articleId]` 作為獨立分享頁，使用與主頁 root layout 完全分離的 layout（無 NavBar 等共用元件）
+- **FR-004**: ArticleCard MUST 提供 share icon，點擊後將 `/articles/<articleId>?topic=<topicId>` 格式的 URL 複製到剪貼簿（不再使用 `/?topic=...&article=...` 格式）
+- **FR-005**: 複製到剪貼簿後，系統 MUST 顯示成功回饋：share icon 切換為 Check icon（持續約 2 秒），並顯示 toast 通知（待 sonner 安裝後補上）
+- **FR-006**: Clipboard API 不可用時，系統 MUST 顯示 toast 錯誤訊息（待 sonner 安裝後補上，目前靜默處理）
+- **FR-007**: 系統 MUST 提供路由 `/articles/[articleId]` 作為獨立分享頁，使用與主頁 root layout 完全分離的 layout（無 NavBar 等共用元件）；右上角根據登入狀態顯示情境提示：已登入或 guest 顯示「在 App 中開啟」連結，未登入顯示「登入查看更多文章」連結
 - **FR-008**: 獨立分享頁 MUST 顯示完整的 ArticleCard 內容（標題、來源、日期、內容摘要、外部連結）
 - **FR-009**: 獨立分享頁的 article_id 不存在時，MUST 顯示 404 或明確錯誤狀態
 
