@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
 import { ArticleCard, ArticleCardSkeleton } from '@/components/features/articles/article-card'
 import { useI18n } from '@/lib/providers'
@@ -9,10 +10,18 @@ import { Rss } from 'lucide-react'
 
 export default function ArticleSharePage() {
   const { articleId } = useParams<{ articleId: string }>()
-  const { locale } = useI18n()
+  const searchParams = useSearchParams()
+  const topicId = searchParams.get('topic')
+  const { locale, t } = useI18n()
+  const { status } = useSession()
   const [article, setArticle] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [isGuest, setIsGuest] = useState(false)
+
+  useEffect(() => {
+    setIsGuest(sessionStorage.getItem('guest_mode') === 'true')
+  }, [])
 
   useEffect(() => {
     if (!articleId) return
@@ -22,13 +31,31 @@ export default function ArticleSharePage() {
       .catch(() => { setNotFound(true); setLoading(false) })
   }, [articleId, locale])
 
+  const appHref = (() => {
+    const params = new URLSearchParams()
+    if (topicId) params.set('topic', topicId)
+    params.set('article', articleId)
+    return `/?${params.toString()}`
+  })()
+
+  const showPrompt = status !== 'loading'
+  const isLoggedInOrGuest = status === 'authenticated' || isGuest
+
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <Rss className="h-4 w-4" />
           Scrape Analyzer
         </Link>
+        {showPrompt && (
+          <Link
+            href={isLoggedInOrGuest ? appHref : '/login'}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {isLoggedInOrGuest ? t('share.openInApp') : t('share.signInForMore')}
+          </Link>
+        )}
       </div>
 
       {loading && <ArticleCardSkeleton />}

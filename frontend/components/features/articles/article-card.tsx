@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ExternalLink, Clock, Globe, Share2, Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
 import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
@@ -32,14 +33,14 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
     e.stopPropagation()
     const params = new URLSearchParams()
     if (selectedTopicId) params.set('topic', selectedTopicId)
-    params.set('article', id)
-    const shareUrl = `${window.location.origin}/?${params.toString()}`
+    const shareUrl = `${window.location.origin}/articles/${id}?${params.toString()}`
     try {
       await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
+      toast.success(t('copy.success'))
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // clipboard unavailable — silently ignore (T009 aria-label still present)
+      toast.error(t('copy.failed'))
     }
   }
 
@@ -61,12 +62,12 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
               <span className="flex-1">{title}</span>
-              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+              <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
                   type="button"
                   onClick={handleShare}
                   aria-label={t('copy.shareArticle')}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  className="p-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
                   {copied
                     ? <Check className="h-3.5 w-3.5 text-green-500" />

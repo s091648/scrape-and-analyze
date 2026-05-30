@@ -3,6 +3,7 @@ import { Rethink_Sans } from 'next/font/google'
 import './globals.css'
 import { AppProviders } from '@/lib/providers'
 import { LayoutShell } from './layout-shell'
+import { Toaster } from 'sonner'
 
 const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink' })
 
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${rethinkSans.variable} font-sans`}>
         <AppProviders>
           <LayoutShell>{children}</LayoutShell>
+          <Toaster richColors position="bottom-right" />
         </AppProviders>
       </body>
     </html>

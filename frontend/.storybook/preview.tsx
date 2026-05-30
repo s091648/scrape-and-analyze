@@ -1,5 +1,6 @@
 import type { Preview } from "@storybook/nextjs-vite";
 import React from "react";
+import { Toaster } from "sonner";
 import { I18nProvider } from "../lib/providers/i18n-provider";
 import "../app/globals.css";
 
@@ -8,6 +9,7 @@ const preview: Preview = {
     (Story) => (
       <I18nProvider>
         <Story />
+        <Toaster richColors position="bottom-right" />
       </I18nProvider>
     ),
   ],
