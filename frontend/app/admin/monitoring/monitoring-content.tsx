@@ -1,20 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useI18n } from '@/lib/providers'
 import { StatCard } from '@/components/features/monitoring/stat-card'
 import { MetricsChart } from '@/components/features/monitoring/metrics-chart'
 import { LogsTable } from '@/components/features/monitoring/logs-table'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
-import { queryMetricsBatch, queryMetrics, type PrometheusResponse, type MetricsBatchItem } from '@/lib/grafana-api'
+import {
+  queryMetrics, queryMetricsBatch, queryLogs, queryLogsBatch,
+  queryTraces, queryTracesBatch,
+  type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
+} from '@/lib/grafana-api'
 
 interface MonitoringContentProps {
   grafanaUrl: string
 }
 
-// All Prometheus stat queries — fetched in a single batch call on mount.
-// Index is stable: Operations = 0–7, Traces = 8–10.
 const PROM_STATS: { title: string; query: string; unit?: string }[] = [
   // Operations (0–7)
   { title: 'Total Runs (24h)',           query: 'increase(scraper_runs_total[24h])' },
@@ -26,9 +28,9 @@ const PROM_STATS: { title: string; query: string; unit?: string }[] = [
   { title: 'Failed Articles (24h)',       query: 'increase(scraper_errors_total[24h])' },
   { title: 'Articles Found (24h)',        query: 'increase(scraper_articles_found_total[24h])' },
   // Traces (8–10)
-  { title: 'Traces (24h)',          query: 'increase(scraper_runs_total[24h])' },
-  { title: 'Avg Run Duration P95',  query: 'histogram_quantile(0.95, scraper_run_duration_seconds_bucket)', unit: 's' },
-  { title: 'Error Spans (24h)',     query: 'increase(scraper_errors_total[24h])' },
+  { title: 'Traces (24h)',         query: 'increase(scraper_runs_total[24h])' },
+  { title: 'Avg Run Duration P95', query: 'histogram_quantile(0.95, scraper_run_duration_seconds_bucket)', unit: 's' },
+  { title: 'Error Spans (24h)',    query: 'increase(scraper_errors_total[24h])' },
 ]
 
 function extractLastValue(res: PrometheusResponse): string | undefined {
@@ -40,47 +42,292 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
   return '0'
 }
 
-function usePromStatsBatch() {
-  const [values, setValues] = useState<(string | undefined)[]>(Array(PROM_STATS.length).fill(undefined))
-  const [loading, setLoading] = useState(true)
+// ── Operations batch hook ──────────────────────────────────────────────────
 
-  useEffect(() => {
+const OPS_CHART_ITEMS: MetricsBatchItem[] = [
+  { query: 'increase(scraper_articles_new_total[1h])',                              step: '3600' },
+  { query: 'scraper_run_duration_seconds_sum / scraper_run_duration_seconds_count', step: '3600' },
+  { query: 'increase(scraper_articles_new_total[24h])',                             step: '86400' },
+  { query: 'increase(scraper_errors_total[24h])',                                   step: '86400' },
+]
+
+function useOperationsBatch() {
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(8).fill(undefined))
+  const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(4).fill(undefined))
+  const [loading, setLoading] = useState<boolean[]>(Array(12).fill(true))
+  const [notConfigured, setNotConfigured] = useState(false)
+
+  const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
-    const items: MetricsBatchItem[] = PROM_STATS.map(s => ({
-      query: s.query,
-      start: now - 86400,
-      end: now,
-      step: '86400',
-    }))
-    queryMetricsBatch(items)
-      .then(results => setValues(results.map(extractLastValue)))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    const items: MetricsBatchItem[] = [
+      ...PROM_STATS.slice(0, 8).map(s => ({ query: s.query, start: now - 86400, end: now, step: '86400' })),
+      ...OPS_CHART_ITEMS.map(c => ({ ...c, start: now - 86400, end: now })),
+    ]
+    try {
+      const results = await queryMetricsBatch(items)
+      if ('error' in results[0] && (results[0] as { error: string }).error === 'not_configured') {
+        setNotConfigured(true)
+        setLoading(Array(12).fill(false))
+        return
+      }
+      setStatValues(results.slice(0, 8).map(extractLastValue))
+      setChartData(results.slice(8) as PrometheusResponse[])
+    } catch { /* keep previous data */ } finally {
+      setLoading(Array(12).fill(false))
+    }
   }, [])
 
-  return { values, loading }
-}
-
-// Loki metric stat — individual call, only mounted when Logs tab is visited.
-function LokiStat({ title, query }: { title: string; query: string }) {
-  const [value, setValue] = useState<string | undefined>(undefined)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
+  const refreshOne = useCallback(async (index: number): Promise<void> => {
+    setLoading(prev => prev.map((v, i) => i === index ? true : v))
     const now = Math.floor(Date.now() / 1000)
-    queryMetrics({ query, start: now - 3600, end: now, step: '3600' })
-      .then(res => setValue(extractLastValue(res)))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [query])
+    try {
+      if (index < 8) {
+        const s = PROM_STATS[index]
+        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: '86400' })
+        setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
+      } else {
+        const c = OPS_CHART_ITEMS[index - 8]
+        const res = await queryMetrics({ query: c.query, start: now - 86400, end: now, step: c.step })
+        setChartData(prev => prev.map((v, i) => i === (index - 8) ? res : v))
+      }
+    } catch { /* leave existing data */ } finally {
+      setLoading(prev => prev.map((v, i) => i === index ? false : v))
+    }
+  }, [])
 
-  return <StatCard title={title} value={value} loading={loading} />
+  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    if (notConfigured) return
+    const id = setInterval(fetchAll, 60_000)
+    return () => clearInterval(id)
+  }, [fetchAll, notConfigured])
+
+  return { statValues, chartData, loading, refreshOne }
 }
+
+// ── Logs batch hook ────────────────────────────────────────────────────────
+
+const LOGS_METRIC_ITEMS: MetricsBatchItem[] = [
+  { query: `sum by (level) (count_over_time({app="scraper"} [1m]))`, step: '60' },
+  { query: `count_over_time({app="scraper",level="error"} [1h])`,   step: '3600' },
+  { query: `count_over_time({app="scraper",level="warning"} [1h])`, step: '3600' },
+]
+
+const LOGS_TABLE_QUERIES = [
+  { query: `{app="scraper"} |= "execution"`,        from: 'now-6h' },
+  { query: `{app="scraper"} | json | level="error"`, from: 'now-6h' },
+  { query: `{app="scraper"} |= "article_analyzed"`,  from: 'now-6h' },
+  { query: `{app="scraper"} |= "analysis_failed"`,   from: 'now-6h' },
+]
+
+function useLogsBatch() {
+  const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(3).fill(undefined))
+  const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(4).fill(undefined))
+  const [loading, setLoading] = useState<boolean[]>(Array(7).fill(true))
+  const [notConfigured, setNotConfigured] = useState(false)
+
+  const fetchAll = useCallback(async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const nowNs = Date.now().toString() + '000000'
+    const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
+    const oneHAgoNs = (Date.now() - 3600 * 1000).toString() + '000000'
+    try {
+      const [metricResults, logsResults] = await Promise.all([
+        queryMetricsBatch(LOGS_METRIC_ITEMS.map(c => ({ ...c, start: now - 3600, end: now }))),
+        queryLogsBatch(LOGS_TABLE_QUERIES.map(q => ({ query: q.query, start: sixHAgoNs, end: nowNs, limit: 100 }))),
+      ])
+      if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
+        setNotConfigured(true)
+        setLoading(Array(7).fill(false))
+        return
+      }
+      setMetricData(metricResults as PrometheusResponse[])
+      setLogsData(logsResults as LokiResponse[])
+    } catch { /* keep previous data */ } finally {
+      setLoading(Array(7).fill(false))
+    }
+  }, [])
+
+  const refreshOne = useCallback(async (index: number): Promise<void> => {
+    setLoading(prev => prev.map((v, i) => i === index ? true : v))
+    const now = Math.floor(Date.now() / 1000)
+    const nowNs = Date.now().toString() + '000000'
+    const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
+    try {
+      if (index < 3) {
+        const c = LOGS_METRIC_ITEMS[index]
+        const res = await queryMetrics({ query: c.query, start: now - 3600, end: now, step: c.step })
+        setMetricData(prev => prev.map((v, i) => i === index ? res : v))
+      } else {
+        const q = LOGS_TABLE_QUERIES[index - 3]
+        const res = await queryLogs({ query: q.query, start: sixHAgoNs, end: nowNs, limit: 100 })
+        setLogsData(prev => prev.map((v, i) => i === (index - 3) ? res : v))
+      }
+    } catch { /* leave existing data */ } finally {
+      setLoading(prev => prev.map((v, i) => i === index ? false : v))
+    }
+  }, [])
+
+  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    if (notConfigured) return
+    const id = setInterval(fetchAll, 60_000)
+    return () => clearInterval(id)
+  }, [fetchAll, notConfigured])
+
+  return { metricData, logsData, loading, refreshOne }
+}
+
+// ── Traces batch hook ──────────────────────────────────────────────────────
+
+const TRACES_METRIC_ITEMS: MetricsBatchItem[] = [
+  ...PROM_STATS.slice(8, 11).map(s => ({ query: s.query, step: '86400' })),
+  { query: 'increase(scraper_runs_total[5m])', step: '300' },
+]
+
+function useTracesBatch() {
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(3).fill(undefined))
+  const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
+  const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
+  const [loading, setLoading] = useState<boolean[]>(Array(5).fill(true))
+  const [notConfigured, setNotConfigured] = useState(false)
+
+  const fetchAll = useCallback(async () => {
+    const now = Math.floor(Date.now() / 1000)
+    try {
+      const [metricResults, tracesResults] = await Promise.all([
+        queryMetricsBatch(TRACES_METRIC_ITEMS.map(c => ({ ...c, start: now - 86400, end: now }))),
+        queryTracesBatch([{ q: '{ resource.service.name = "scrape-analyzer" }', start: now - 86400, end: now, limit: 20 }]),
+      ])
+      if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
+        setNotConfigured(true)
+        setLoading(Array(5).fill(false))
+        return
+      }
+      setStatValues(metricResults.slice(0, 3).map(extractLastValue))
+      setChartData(metricResults[3] as PrometheusResponse)
+      setTracesData(tracesResults[0] as TempoResponse)
+    } catch { /* keep previous data */ } finally {
+      setLoading(Array(5).fill(false))
+    }
+  }, [])
+
+  const refreshOne = useCallback(async (index: number): Promise<void> => {
+    setLoading(prev => prev.map((v, i) => i === index ? true : v))
+    const now = Math.floor(Date.now() / 1000)
+    try {
+      if (index < 3) {
+        const s = PROM_STATS[8 + index]
+        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: '86400' })
+        setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
+      } else if (index === 3) {
+        const res = await queryMetrics({ query: 'increase(scraper_runs_total[5m])', start: now - 86400, end: now, step: '300' })
+        setChartData(res)
+      } else {
+        const res = await queryTraces({ q: '{ resource.service.name = "scrape-analyzer" }', start: now - 86400, end: now, limit: 20 })
+        setTracesData(res)
+      }
+    } catch { /* leave existing data */ } finally {
+      setLoading(prev => prev.map((v, i) => i === index ? false : v))
+    }
+  }, [])
+
+  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    if (notConfigured) return
+    const id = setInterval(fetchAll, 60_000)
+    return () => clearInterval(id)
+  }, [fetchAll, notConfigured])
+
+  return { statValues, chartData, tracesData, loading, refreshOne }
+}
+
+// ── Tab sub-components (mount lazily via visited Set) ──────────────────────
+
+function OperationsTab() {
+  const { statValues: sv, chartData: cd, loading, refreshOne } = useOperationsBatch()
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-3 mt-4">
+        {[0, 1, 2, 3].map(i => (
+          <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} unit={PROM_STATS[i].unit}
+            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+        ))}
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        {[4, 5, 6, 7].map(i => (
+          <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]}
+            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <MetricsChart title="Article Volume Over Time" query="unused" height={240}
+          externalData={cd[0]} onRefresh={() => refreshOne(8)} />
+        <MetricsChart title="Run Duration Over Time" query="unused" height={240}
+          externalData={cd[1]} onRefresh={() => refreshOne(9)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <MetricsChart title="New Articles by Source" query="unused" chartType="bar" height={240}
+          externalData={cd[2]} onRefresh={() => refreshOne(10)} />
+        <MetricsChart title="Errors by Type" query="unused" chartType="bar" height={240}
+          externalData={cd[3]} onRefresh={() => refreshOne(11)} />
+      </div>
+    </div>
+  )
+}
+
+function LogsTab() {
+  const { metricData: md, logsData: ld, loading, refreshOne } = useLogsBatch()
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-6 gap-3 mt-4">
+        <MetricsChart title="Log Volume by Level" query="unused" step="60" height={180}
+          className="col-span-4" externalData={md[0]} onRefresh={() => refreshOne(0)} />
+        <div className="col-span-1">
+          <StatCard title="Error Count (1h)" value={md[1] ? extractLastValue(md[1]) : undefined}
+            loading={loading[1]} onRefresh={() => refreshOne(1)} />
+        </div>
+        <div className="col-span-1">
+          <StatCard title="Warning Count (1h)" value={md[2] ? extractLastValue(md[2]) : undefined}
+            loading={loading[2]} onRefresh={() => refreshOne(2)} />
+        </div>
+      </div>
+      <LogsTable title="Execution Timeline" query="unused" height={300}
+        externalData={ld[0]} onRefresh={() => refreshOne(3)} />
+      <LogsTable title="Error & Failure Logs" query="unused" height={300}
+        externalData={ld[1]} onRefresh={() => refreshOne(4)} />
+      <div className="grid grid-cols-2 gap-3">
+        <LogsTable title="Article Success Logs" query="unused" height={240}
+          externalData={ld[2]} onRefresh={() => refreshOne(5)} />
+        <LogsTable title="Article Failure Logs" query="unused" height={240}
+          externalData={ld[3]} onRefresh={() => refreshOne(6)} />
+      </div>
+    </div>
+  )
+}
+
+function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
+  const { statValues: sv, chartData: cd, tracesData: td, loading, refreshOne } = useTracesBatch()
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        {[0, 1, 2].map(i => (
+          <StatCard key={i} title={PROM_STATS[8 + i].title} value={sv[i]} unit={PROM_STATS[8 + i].unit}
+            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+        ))}
+      </div>
+      <MetricsChart title="Span Rate by Operation" query="unused" step="300" height={240}
+        externalData={cd} onRefresh={() => refreshOne(3)} />
+      <TracesTable title="Recent Traces" query="unused" height={400}
+        grafanaUrl={grafanaUrl} externalData={td} onRefresh={() => refreshOne(4)} />
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
 
 export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
   const { t } = useI18n()
-  const { values: sv, loading: sl } = usePromStatsBatch()
-  // Track which tabs have been visited so content is only mounted on first visit.
   const [visited, setVisited] = useState<Set<string>>(new Set(['operations']))
 
   return (
@@ -89,95 +336,21 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
         <h1 className="text-2xl font-bold">{t('admin.monitoring')}</h1>
       </div>
 
-      <Tabs
-        defaultValue="operations"
-        onValueChange={tab => setVisited(prev => new Set([...prev, tab]))}
-      >
+      <Tabs defaultValue="operations" onValueChange={tab => setVisited(prev => new Set([...prev, tab]))}>
         <TabsList>
           <TabsTrigger value="operations">{t('admin.operations')}</TabsTrigger>
           <TabsTrigger value="logs">{t('admin.logs')}</TabsTrigger>
           <TabsTrigger value="traces">{t('admin.traces')}</TabsTrigger>
         </TabsList>
 
-        {/* ── Operations ─────────────────────────────────────────────────── */}
         <TabsContent value="operations">
-          {visited.has('operations') && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-3 mt-4">
-                {[0, 1, 2, 3].map(i => (
-                  <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} unit={PROM_STATS[i].unit} loading={sl} />
-                ))}
-              </div>
-              <div className="grid grid-cols-4 gap-3">
-                {[4, 5, 6, 7].map(i => (
-                  <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} loading={sl} />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MetricsChart title="Article Volume Over Time" query="increase(scraper_articles_new_total[1h])" step="3600" height={240} />
-                <MetricsChart title="Run Duration Over Time" query="scraper_run_duration_seconds_sum / scraper_run_duration_seconds_count" step="3600" height={240} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MetricsChart title="New Articles by Source" query="increase(scraper_articles_new_total[24h])" chartType="bar" step="86400" height={240} />
-                <MetricsChart title="Errors by Type" query="increase(scraper_errors_total[24h])" chartType="bar" step="86400" height={240} />
-              </div>
-            </div>
-          )}
+          {visited.has('operations') && <OperationsTab />}
         </TabsContent>
-
-        {/* ── Logs ───────────────────────────────────────────────────────── */}
         <TabsContent value="logs">
-          {visited.has('logs') && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-6 gap-3 mt-4">
-                <MetricsChart
-                  title="Log Volume by Level"
-                  query={`sum by (level) (count_over_time({app="scraper"} [1m]))`}
-                  step="60"
-                  height={180}
-                  className="col-span-4"
-                />
-                <div className="col-span-1">
-                  <LokiStat title="Error Count (1h)" query={`count_over_time({app="scraper",level="error"} [1h])`} />
-                </div>
-                <div className="col-span-1">
-                  <LokiStat title="Warning Count (1h)" query={`count_over_time({app="scraper",level="warning"} [1h])`} />
-                </div>
-              </div>
-              <LogsTable title="Execution Timeline" query={`{app="scraper"} |= "execution"`} from="now-6h" height={300} />
-              <LogsTable title="Error & Failure Logs" query={`{app="scraper"} | json | level="error"`} from="now-6h" height={300} />
-              <div className="grid grid-cols-2 gap-3">
-                <LogsTable title="Article Success Logs" query={`{app="scraper"} |= "article_analyzed"`} from="now-6h" height={240} />
-                <LogsTable title="Article Failure Logs" query={`{app="scraper"} |= "analysis_failed"`} from="now-6h" height={240} />
-              </div>
-            </div>
-          )}
+          {visited.has('logs') && <LogsTab />}
         </TabsContent>
-
-        {/* ── Traces ─────────────────────────────────────────────────────── */}
         <TabsContent value="traces">
-          {visited.has('traces') && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3 mt-4">
-                {[8, 9, 10].map(i => (
-                  <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} unit={PROM_STATS[i].unit} loading={sl} />
-                ))}
-              </div>
-              <MetricsChart
-                title="Span Rate by Operation"
-                query="increase(scraper_runs_total[5m])"
-                step="300"
-                height={240}
-              />
-              <TracesTable
-                title="Recent Traces"
-                query='{ resource.service.name = "scrape-analyzer" }'
-                from="now-24h"
-                height={400}
-                grafanaUrl={grafanaUrl}
-              />
-            </div>
-          )}
+          {visited.has('traces') && <TracesTab grafanaUrl={grafanaUrl} />}
         </TabsContent>
       </Tabs>
     </div>
