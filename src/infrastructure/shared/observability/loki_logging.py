@@ -26,7 +26,7 @@ def configure_loki() -> None:
     try:
         from logging_loki import LokiHandler
         loki_handler = LokiHandler(
-            url=url,
+            url=f"{url.rstrip('/')}/push",
             auth=(user, key),
             tags={"app": "scraper", "env": "production"},
             version="1",

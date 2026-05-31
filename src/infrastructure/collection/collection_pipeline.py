@@ -2,8 +2,10 @@ import time
 from typing import List, Optional
 from urllib.parse import urlparse
 
+from opentelemetry import trace as _otel
 from src.infrastructure.collection.executor import DiscoverTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
+from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
@@ -41,6 +43,7 @@ class CollectionPipeline:
         self._article_repo = article_repo
 
     def run(self) -> int:
+        tracer = get_tracer()
         start = time.time()
         due_settings = self._setting_repo.get_active_due()
 
@@ -89,44 +92,54 @@ class CollectionPipeline:
 
         pre_fetch_filter = _pre_fetch_filter if self._article_repo is not None else None
 
-        self._executor.run_streaming(
-            discover_tasks=discover_tasks,
-            on_result=on_result,
-            pre_fetch_filter=pre_fetch_filter,
-        )
+        with tracer.start_as_current_span("pipeline.discover_and_fetch") as discover_span:
+            discover_span.set_attribute("sources.count", len(discover_tasks))
+            self._executor.run_streaming(
+                discover_tasks=discover_tasks,
+                on_result=on_result,
+                pre_fetch_filter=pre_fetch_filter,
+            )
+            discover_span.set_attribute("articles.discovered", len(results))
 
         # ── Pre-dedup: filter URLs already fully processed ──────────────
-        if results:
-            url_hashes: dict[str, ScrapedArticle] = {}
-            for a in results:
-                h = UrlHash.from_url(a.url).value
-                if h in url_hashes:
-                    self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
-                else:
-                    url_hashes[h] = a
-            results = list(url_hashes.values())
-
-            if self._article_repo is not None:
-                analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
-                if analyzed:
-                    kept, skipped = [], []
-                    for h, a in url_hashes.items():
-                        (skipped if h in analyzed else kept).append(a)
-                    for a in skipped:
+        articles_before_dedup = len(results)
+        with tracer.start_as_current_span("pipeline.dedup") as dedup_span:
+            dedup_span.set_attribute("articles.before_dedup", articles_before_dedup)
+            if results:
+                url_hashes: dict[str, ScrapedArticle] = {}
+                for a in results:
+                    h = UrlHash.from_url(a.url).value
+                    if h in url_hashes:
                         self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
-                    results = kept
-                    logger.info(
-                        "post_dedup_filtered",
-                        skipped=len(skipped),
-                        remaining=len(results),
-                    )
+                    else:
+                        url_hashes[h] = a
+                results = list(url_hashes.values())
+
+                if self._article_repo is not None:
+                    analyzed = self._article_repo.find_analyzed_url_hashes(set(url_hashes.keys()))
+                    if analyzed:
+                        kept, skipped = [], []
+                        for h, a in url_hashes.items():
+                            (skipped if h in analyzed else kept).append(a)
+                        for a in skipped:
+                            self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                        results = kept
+                        logger.info(
+                            "post_dedup_filtered",
+                            skipped=len(skipped),
+                            remaining=len(results),
+                        )
+            dedup_span.set_attribute("articles.after_dedup", len(results))
+            dedup_span.set_attribute("articles.skipped", articles_before_dedup - len(results))
 
         # ── Publish events to event bus (triggers ArticleScrapedHandler) ─
         published = 0
-        for article in results:
-            event = ArticleScrapedEvent.from_scraped_article(article)
-            self._event_bus.publish(event)
-            published += 1
+        with tracer.start_as_current_span("pipeline.publish_articles") as publish_span:
+            for article in results:
+                event = ArticleScrapedEvent.from_scraped_article(article)
+                self._event_bus.publish(event)
+                published += 1
+            publish_span.set_attribute("articles.published", published)
 
         # ── Mark settings scraped ───────────────────────────────────────
         for setting_id in scraped_setting_ids:
