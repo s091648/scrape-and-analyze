@@ -24,3 +24,32 @@ export const WithGrafanaLink: Story = {
     grafanaUrl: 'https://mystack.grafana.net',
   },
 }
+
+export const WithData: Story = {
+  args: {
+    title: 'Recent Traces',
+    query: 'unused',
+    height: 300,
+    refreshInterval: 0,
+    grafanaUrl: 'https://mystack.grafana.net',
+    externalData: {
+      traces: [
+        {
+          traceID: 'abc123def456789012345678',
+          rootServiceName: 'scrape-analyzer',
+          rootTraceName: 'scraper.run',
+          startTimeUnixNano: '1748000000000000000',
+          durationMs: 4823,
+        },
+        {
+          traceID: 'fed987cba654321098765432',
+          rootServiceName: 'scrape-analyzer',
+          rootTraceName: 'scraper.run',
+          startTimeUnixNano: '1747999000000000000',
+          durationMs: 12041,
+        },
+      ],
+    },
+    onRefresh: async () => { await new Promise(r => setTimeout(r, 800)) },
+  },
+}

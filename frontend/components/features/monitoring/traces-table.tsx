@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { queryTraces, type TempoTrace } from '@/lib/grafana-api'
+import { RotateCw } from 'lucide-react'
+import { queryTraces, type TempoTrace, type TempoResponse } from '@/lib/grafana-api'
 
 interface TracesTableProps {
   title: string
@@ -15,6 +16,8 @@ interface TracesTableProps {
   refreshInterval?: number
   grafanaUrl?: string  // for external trace links
   className?: string
+  externalData?: TempoResponse
+  onRefresh?: () => Promise<void>
 }
 
 function parseRelativeSeconds(t: string): number {
@@ -43,13 +46,22 @@ export function TracesTable({
   refreshInterval = 60,
   grafanaUrl,
   className,
+  externalData,
+  onRefresh,
 }: TracesTableProps) {
   const [traces, setTraces] = useState<TempoTrace[]>([])
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try { await onRefresh?.() } finally { setRefreshing(false) }
+  }
 
   const fetch = useCallback(async () => {
+    if (externalData !== undefined) return
     const start = parseRelativeSeconds(from === 'now' ? String(Math.floor(Date.now() / 1000)) : from)
     const end = parseRelativeSeconds(to === 'now' ? String(Math.floor(Date.now() / 1000)) : to)
     try {
@@ -66,14 +78,28 @@ export function TracesTable({
     } finally {
       setLoading(false)
     }
-  }, [query, from, to, limit])
+  }, [query, from, to, limit, externalData])
 
   useEffect(() => {
-    fetch()
-    if (!refreshInterval) return
+    if (externalData === undefined) return
+    if ('error' in externalData && (externalData as { error: string }).error === 'not_configured') {
+      setNotConfigured(true)
+      setLoading(false)
+      return
+    }
+    setTraces(externalData.traces ?? [])
+    setError(false)
+    setNotConfigured(false)
+    setLoading(false)
+  }, [externalData])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  useEffect(() => {
+    if (externalData !== undefined || !refreshInterval || notConfigured) return
     const id = setInterval(fetch, refreshInterval * 1000)
     return () => clearInterval(id)
-  }, [fetch, refreshInterval])
+  }, [fetch, refreshInterval, notConfigured, externalData])
 
   const traceUrl = (traceId: string) =>
     grafanaUrl
@@ -82,7 +108,16 @@ export function TracesTable({
 
   return (
     <div className={cn('w-full', className)}>
-      <p className="text-xs font-medium text-muted-foreground mb-2">{title}</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        {onRefresh && (
+          <button onClick={handleRefresh} disabled={refreshing}
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            aria-label="Refresh">
+            <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+          </button>
+        )}
+      </div>
       <div className="rounded-lg border border-border overflow-auto" style={{ height }}>
         {loading ? (
           <div className="p-3 space-y-2">
