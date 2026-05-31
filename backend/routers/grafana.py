@@ -131,6 +131,51 @@ async def query_logs(
     )
 
 
+class LogsBatchItem(BaseModel):
+    query: str
+    start: Optional[str] = None
+    end: Optional[str] = None
+    limit: int = 100
+    direction: str = "backward"
+
+
+@router.post("/logs/batch")
+async def query_logs_batch(
+    items: list[LogsBatchItem],
+    _: dict = Depends(require_admin),
+) -> JSONResponse:
+    url = os.environ.get("GRAFANA_LOKI_URL", "").rstrip("/")
+    user = os.environ.get("GRAFANA_LOKI_USER", "")
+    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    if not url or not user or not api_key:
+        return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
+
+    now_ms = int(time.time() * 1000)
+    headers = _auth_headers(user, api_key)
+
+    async def fetch_one(client: httpx.AsyncClient, item: LogsBatchItem) -> dict:
+        try:
+            resp = await client.get(
+                f"{url}/query_range",
+                params={
+                    "query": item.query,
+                    "start": item.start or f"{now_ms - 6 * 3600 * 1000}000000",
+                    "end": item.end or f"{now_ms}000000",
+                    "limit": item.limit,
+                    "direction": item.direction,
+                },
+                headers=headers,
+            )
+            return resp.json()
+        except Exception:
+            return {"error": "invalid_response"}
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        results = await asyncio.gather(*[fetch_one(client, item) for item in items])
+
+    return JSONResponse(list(results))
+
+
 @router.get("/traces")
 async def query_traces(
     q: Optional[str] = Query(default=None),
@@ -152,3 +197,49 @@ async def query_traces(
     if min_duration:
         params["minDuration"] = min_duration
     return await _grafana_get(f"{url}/api/search", params, user, api_key)
+
+
+class TracesBatchItem(BaseModel):
+    q: Optional[str] = None
+    start: Optional[int] = None
+    end: Optional[int] = None
+    limit: int = 20
+    min_duration: Optional[str] = Field(default=None, alias="minDuration")
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post("/traces/batch")
+async def query_traces_batch(
+    items: list[TracesBatchItem],
+    _: dict = Depends(require_admin),
+) -> JSONResponse:
+    url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
+    user = os.environ.get("GRAFANA_TEMPO_USER", "")
+    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    if not url or not user or not api_key:
+        return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
+
+    now = int(time.time())
+    headers = _auth_headers(user, api_key)
+
+    async def fetch_one(client: httpx.AsyncClient, item: TracesBatchItem) -> dict:
+        try:
+            params: dict = {
+                "start": item.start or now - 86400,
+                "end": item.end or now,
+                "limit": item.limit,
+            }
+            if item.q:
+                params["q"] = item.q
+            if item.min_duration:
+                params["minDuration"] = item.min_duration
+            resp = await client.get(f"{url}/api/search", params=params, headers=headers)
+            return resp.json()
+        except Exception:
+            return {"error": "invalid_response"}
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        results = await asyncio.gather(*[fetch_one(client, item) for item in items])
+
+    return JSONResponse(list(results))

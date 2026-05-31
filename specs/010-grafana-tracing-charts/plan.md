@@ -75,28 +75,29 @@ src/
 
 backend/
 └── routers/
-    └── grafana.py                      NEW — GET /grafana/metrics, /grafana/logs, /grafana/traces
-                                             Basic Auth with per-datasource user + GRAFANA_API_KEY
+    └── grafana.py                      EXISTS — GET/POST /grafana/metrics(/batch), /grafana/logs, /grafana/traces
+                                             MODIFY (Phase G): add POST /grafana/logs/batch, /grafana/traces/batch
 
 frontend/
 ├── app/api/
 │   └── grafana-proxy/
 │       └── [...path]/
-│           └── route.ts                REPLACED — returns 410 Gone (moved to backend)
+│           └── route.ts                EXISTS — 410 Gone (already moved to backend)
 ├── components/features/monitoring/
-│   ├── grafana-panel.tsx               MODIFY or REPLACE — keep as "not configured" fallback only
-│   ├── metrics-chart.tsx               NEW — Recharts line/bar chart for PromQL results
-│   ├── stat-card.tsx                   NEW — single-value stat display
-│   ├── logs-table.tsx                  NEW — Loki log entries table
-│   ├── traces-table.tsx                NEW — Tempo trace search results
-│   ├── metrics-chart.stories.tsx       NEW — Storybook
-│   ├── stat-card.stories.tsx           NEW — Storybook
-│   ├── logs-table.stories.tsx          NEW — Storybook
-│   └── traces-table.stories.tsx        NEW — Storybook
+│   ├── grafana-panel.tsx               EXISTS — kept as-is (unused by monitoring-content)
+│   ├── metrics-chart.tsx               EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
+│   ├── stat-card.tsx                   EXISTS — MODIFY (Phase G): add onRefresh + refresh icon
+│   ├── logs-table.tsx                  EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
+│   ├── traces-table.tsx                EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
+│   ├── metrics-chart.stories.tsx       EXISTS — MODIFY (Phase G): add WithData variant
+│   ├── stat-card.stories.tsx           EXISTS — MODIFY (Phase G): add WithData variant
+│   ├── logs-table.stories.tsx          EXISTS — MODIFY (Phase G): add WithData variant
+│   └── traces-table.stories.tsx        EXISTS — MODIFY (Phase G): add WithData variant
 ├── lib/
-│   └── grafana-api.ts                  MODIFY — calls /api/proxy/grafana/* with session Bearer token
+│   └── grafana-api.ts                  EXISTS — MODIFY (Phase G): add queryLogsBatch, queryTracesBatch
 └── app/admin/monitoring/
-    └── monitoring-content.tsx          MODIFY — replace GrafanaPanel with new chart components
+    └── monitoring-content.tsx          EXISTS — MODIFY (Phase G): replace usePromStatsBatch + LokiStat
+                                             with useOperationsBatch / useLogsBatch / useTracesBatch
 ```
 
 ## Implementation Tasks (High-Level)
@@ -204,6 +205,30 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 
 **F3**: Frontend E2E（`frontend/tests/integration/`）
 - `monitoring.spec.ts`：verify monitoring page loads without crash when Grafana not configured
+
+### Phase G: Batch Updates & Per-Panel Refresh（US4）
+
+**G1**: 在 `backend/routers/grafana.py` 新增 `POST /grafana/logs/batch` 和 `POST /grafana/traces/batch`
+- 各自平行打 Loki / Tempo，pattern 同現有 metrics/batch
+- 回傳 `list[LokiResponse]` / `list[TempoResponse]`
+
+**G2**: 在 `frontend/lib/grafana-api.ts` 新增 `queryLogsBatch()` 和 `queryTracesBatch()`
+
+**G3**: 在 `monitoring-content.tsx` 實作三個 tab-level hooks：
+- `useOperationsBatch()` — 1 次 metrics/batch（12 items: 8 stats + 4 charts）
+- `useLogsBatch()` — `Promise.all([metrics/batch(3), logs/batch(4)])`
+- `useTracesBatch()` — `Promise.all([metrics/batch(4), traces/batch(1)])`
+- 各 hook 每 60s 重打；`refreshOne(index)` 觸發單一 panel 個別查詢
+
+**G4**: 四個 panel components 各加 `externalData?` + `onRefresh?` props：
+- `externalData` 有值時跳過內部 fetch 和 setInterval
+- `onRefresh` 有值時右上角顯示 `RotateCw` icon button，loading 時 spin
+
+**G5**: `monitoring-content.tsx` 重新佈線：移除 `usePromStatsBatch` 和 `LokiStat`，改用三個 tab hooks，pass props 到各 panel
+
+**G6**: Storybook stories 各加 `WithData` variant（傳 mock externalData）
+
+**G7**: 更新 unit tests 覆蓋新 batch functions 和 externalData/onRefresh props
 
 ## Complexity Tracking
 
