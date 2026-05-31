@@ -74,3 +74,40 @@ describe('queryTraces', () => {
     expect(url).not.toContain('q=')
   })
 })
+
+describe('queryLogsBatch', () => {
+  it('calls POST /api/proxy/grafana/logs/batch with items as JSON body', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => [{ status: 'success', data: { resultType: 'streams', result: [] } }],
+    })
+
+    const { queryLogsBatch } = await import('@/lib/grafana-api')
+    await queryLogsBatch([{ query: '{app="scraper"}', limit: 10 }])
+
+    expect(global.fetch).toHaveBeenCalledOnce()
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/grafana/logs/batch')
+    expect(options?.method).toBe('POST')
+    expect(options?.headers).toMatchObject({ 'Content-Type': 'application/json' })
+    const body = JSON.parse(options?.body as string)
+    expect(body).toEqual([{ query: '{app="scraper"}', limit: 10 }])
+  })
+})
+
+describe('queryTracesBatch', () => {
+  it('calls POST /api/proxy/grafana/traces/batch with items as JSON body', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => [{ traces: [] }],
+    })
+
+    const { queryTracesBatch } = await import('@/lib/grafana-api')
+    await queryTracesBatch([{ q: '{ .service.name = "scrape-analyzer" }', limit: 20 }])
+
+    expect(global.fetch).toHaveBeenCalledOnce()
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/grafana/traces/batch')
+    expect(options?.method).toBe('POST')
+    const body = JSON.parse(options?.body as string)
+    expect(body).toEqual([{ q: '{ .service.name = "scrape-analyzer" }', limit: 20 }])
+  })
+})

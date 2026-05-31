@@ -138,6 +138,24 @@ export async function queryMetricsBatch(items: MetricsBatchItem[]): Promise<Prom
   return res.json()
 }
 
+export async function queryLogsBatch(items: LogsQueryParams[]): Promise<LokiResponse[]> {
+  const res = await fetch('/api/proxy/grafana/logs/batch', {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
+  return res.json()
+}
+
+export async function queryTracesBatch(items: TracesQueryParams[]): Promise<TempoResponse[]> {
+  const res = await fetch('/api/proxy/grafana/traces/batch', {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
+  return res.json()
+}
+
 export async function queryLogs(params: LogsQueryParams): Promise<LokiResponse> {
   const p = buildParams({
     query: params.query,
