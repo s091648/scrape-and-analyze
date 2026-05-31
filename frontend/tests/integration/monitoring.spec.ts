@@ -6,7 +6,7 @@ test.describe('Admin monitoring page', () => {
     await mockApiRoutes(page)
 
     // Mock Grafana proxy endpoints to return "not_configured" (no env vars in test env)
-    await page.route('**/api/grafana-proxy/**', route => {
+    await page.route('**/api/proxy/grafana/**', route => {
       route.fulfill({
         status: 403,
         contentType: 'application/json',

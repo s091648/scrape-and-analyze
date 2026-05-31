@@ -97,10 +97,10 @@ async function authHeaders(): Promise<Record<string, string>> {
       const token = (session as { accessToken?: string } | null)?.accessToken ?? ''
       _tokenCache = { token, expiry: Date.now() + 60_000 }
       _tokenPromise = null
-      return token ? { Authorization: `Bearer ${token}` } : {}
+      return (token ? { Authorization: `Bearer ${token}` } : {}) as Record<string, string>
     }).catch(() => {
       _tokenPromise = null
-      return {}
+      return {} as Record<string, string>
     })
   }
   return _tokenPromise
@@ -135,7 +135,8 @@ export async function queryMetricsBatch(items: MetricsBatchItem[]): Promise<Prom
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(items),
   })
-  return res.json()
+  const json = await res.json()
+  return Array.isArray(json) ? json : [json]
 }
 
 export async function queryLogsBatch(items: LogsQueryParams[]): Promise<LokiResponse[]> {
@@ -144,7 +145,8 @@ export async function queryLogsBatch(items: LogsQueryParams[]): Promise<LokiResp
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(items),
   })
-  return res.json()
+  const json = await res.json()
+  return Array.isArray(json) ? json : [json]
 }
 
 export async function queryTracesBatch(items: TracesQueryParams[]): Promise<TempoResponse[]> {
@@ -153,7 +155,8 @@ export async function queryTracesBatch(items: TracesQueryParams[]): Promise<Temp
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body: JSON.stringify(items),
   })
-  return res.json()
+  const json = await res.json()
+  return Array.isArray(json) ? json : [json]
 }
 
 export async function queryLogs(params: LogsQueryParams): Promise<LokiResponse> {

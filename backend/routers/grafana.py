@@ -42,9 +42,6 @@ async def query_metrics(
     url = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
     user = os.environ.get("GRAFANA_PROMETHEUS_USER", "")
     api_key = os.environ.get("GRAFANA_API_KEY", "")
-    print(f"{url=}")
-    print(f"{user=}")
-    print(f"{api_key=}")
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
     now = int(time.time())
@@ -71,9 +68,6 @@ async def query_metrics_batch(
     url = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
     user = os.environ.get("GRAFANA_PROMETHEUS_USER", "")
     api_key = os.environ.get("GRAFANA_API_KEY", "")
-    print(f"{url=}")
-    print(f"{user=}")
-    print(f"{api_key=}")
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 
