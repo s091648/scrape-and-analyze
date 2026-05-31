@@ -21,3 +21,25 @@ export const NotConfigured: Story = {
 export const BarVariant: Story = {
   args: { title: 'New Articles by Source', chartType: 'bar' },
 }
+
+export const WithData: Story = {
+  args: {
+    title: 'Article Volume Over Time',
+    query: 'unused_in_controlled_mode',
+    refreshInterval: 0,
+    externalData: {
+      status: 'success',
+      data: {
+        resultType: 'matrix',
+        result: [{
+          metric: {},
+          values: [
+            [1748000000, '3'], [1748003600, '7'], [1748007200, '2'],
+            [1748010800, '9'], [1748014400, '5'], [1748018000, '11'],
+          ] as [number, string][],
+        }],
+      },
+    },
+    onRefresh: async () => { await new Promise(r => setTimeout(r, 800)) },
+  },
+}

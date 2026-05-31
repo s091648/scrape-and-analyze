@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('next-auth/react', () => ({
   getSession: vi.fn().mockResolvedValue({ accessToken: 'test-token' }),
@@ -43,5 +43,44 @@ describe('MetricsChart', () => {
     const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
     render(<MetricsChart title="Stats" query="test" refreshInterval={0} />)
     await waitFor(() => screen.getByText('Failed to load data'))
+  })
+})
+
+describe('MetricsChart controlled mode', () => {
+  it('renders chart data from externalData without calling fetch', async () => {
+    const externalData = {
+      status: 'success' as const,
+      data: {
+        resultType: 'matrix' as const,
+        result: [{
+          metric: {},
+          values: [[1748000000, '5'], [1748003600, '8']] as [number, string][],
+        }],
+      },
+    }
+
+    const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
+    render(<MetricsChart title="External" query="unused" externalData={externalData} refreshInterval={0} />)
+
+    await waitFor(() => expect(global.fetch).not.toHaveBeenCalled())
+  })
+
+  it('shows refresh icon when onRefresh is provided', async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+    const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
+    render(<MetricsChart title="Chart" query="q" onRefresh={onRefresh} refreshInterval={0} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).toBeDefined())
+  })
+
+  it('calls onRefresh when refresh button clicked', async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => ({ error: 'not_configured' }),
+    })
+    const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
+    render(<MetricsChart title="Chart" query="q" onRefresh={onRefresh} refreshInterval={0} />)
+    await waitFor(() => screen.getByRole('button', { name: 'Refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce())
   })
 })

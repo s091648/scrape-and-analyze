@@ -1,20 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { RotateCw } from 'lucide-react'
 import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { queryMetrics, type PrometheusMatrixResult } from '@/lib/grafana-api'
+import { queryMetrics, type PrometheusResponse, type PrometheusMatrixResult } from '@/lib/grafana-api'
 
 interface DataPoint {
   time: string
@@ -24,13 +18,15 @@ interface DataPoint {
 interface MetricsChartProps {
   title: string
   query: string
-  from?: string // relative like "now-24h" or unix seconds string
+  from?: string
   to?: string
   step?: string
   height?: number
   chartType?: 'line' | 'bar'
-  refreshInterval?: number // seconds, 0 = disabled
+  refreshInterval?: number
   className?: string
+  externalData?: PrometheusResponse
+  onRefresh?: () => Promise<void>
 }
 
 function parseRelativeTime(t: string): number {
@@ -52,70 +48,96 @@ function transformMatrix(results: PrometheusMatrixResult[]): DataPoint[] {
       .map(([k, v]) => `${k}="${v}"`)
       .join(', ') || 'value'
     for (const [ts, val] of series.values) {
-      if (!byTime[ts]) {
-        byTime[ts] = { time: new Date(ts * 1000).toLocaleTimeString() }
-      }
+      if (!byTime[ts]) byTime[ts] = { time: new Date(ts * 1000).toLocaleTimeString() }
       byTime[ts][label] = parseFloat(val)
     }
   }
   return Object.values(byTime).sort((a, b) => a.time < b.time ? -1 : 1)
 }
 
+function processResponse(res: PrometheusResponse): { data: DataPoint[]; keys: string[]; notConfigured: boolean; error: boolean } {
+  if ('error' in res && (res as { error: string }).error === 'not_configured') {
+    return { data: [], keys: [], notConfigured: true, error: false }
+  }
+  if (res.status !== 'success' || !res.data) {
+    return { data: [], keys: [], notConfigured: false, error: true }
+  }
+  const points = transformMatrix(res.data.result)
+  const keys = points.length ? Object.keys(points[0]).filter(k => k !== 'time') : []
+  return { data: points, keys, notConfigured: false, error: false }
+}
+
 const COLORS = ['hsl(var(--primary))', 'hsl(217,91%,60%)', 'hsl(142,71%,45%)', 'hsl(38,92%,50%)']
 
 export function MetricsChart({
-  title,
-  query,
-  from = 'now-24h',
-  to = 'now',
-  step = '300',
-  height = 200,
-  chartType = 'line',
-  refreshInterval = 60,
-  className,
+  title, query, from = 'now-24h', to = 'now', step = '300',
+  height = 200, chartType = 'line', refreshInterval = 60,
+  className, externalData, onRefresh,
 }: MetricsChartProps) {
   const [data, setData] = useState<DataPoint[]>([])
   const [seriesKeys, setSeriesKeys] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const fetch = useCallback(async () => {
+  // Controlled mode: process externalData when it arrives/changes
+  useEffect(() => {
+    if (externalData === undefined) return
+    const result = processResponse(externalData)
+    setData(result.data)
+    setSeriesKeys(result.keys)
+    setNotConfigured(result.notConfigured)
+    setError(result.error)
+    setLoading(false)
+  }, [externalData])
+
+  // Self-fetch mode: only when externalData is not provided
+  const doFetch = useCallback(async () => {
+    if (externalData !== undefined) return
     const start = parseRelativeTime(from === 'now' ? String(Math.floor(Date.now() / 1000)) : from)
     const end = parseRelativeTime(to === 'now' ? String(Math.floor(Date.now() / 1000)) : to)
     try {
       const res = await queryMetrics({ query, start, end, step })
-      if ('error' in res && (res as { error: string }).error === 'not_configured') {
-        setNotConfigured(true)
-        return
-      }
-      if (res.status !== 'success' || !res.data) { setError(true); return }
-      const points = transformMatrix(res.data.result)
-      const keys = points.length ? Object.keys(points[0]).filter(k => k !== 'time') : []
-      setData(points)
-      setSeriesKeys(keys)
-      setError(false)
-      setNotConfigured(false)
+      const result = processResponse(res)
+      setData(result.data)
+      setSeriesKeys(result.keys)
+      setNotConfigured(result.notConfigured)
+      setError(result.error)
     } catch {
       setError(true)
     } finally {
       setLoading(false)
     }
-  }, [query, from, to, step])
+  }, [query, from, to, step, externalData])
 
   useEffect(() => {
-    fetch()
-  }, [fetch])
+    doFetch()
+  }, [doFetch])
 
   useEffect(() => {
-    if (!refreshInterval || notConfigured) return
-    const id = setInterval(fetch, refreshInterval * 1000)
+    if (externalData !== undefined || !refreshInterval || notConfigured) return
+    const id = setInterval(doFetch, refreshInterval * 1000)
     return () => clearInterval(id)
-  }, [fetch, refreshInterval, notConfigured])
+  }, [doFetch, refreshInterval, notConfigured, externalData])
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try { await onRefresh?.() } finally { setRefreshing(false) }
+  }
 
   return (
     <div className={cn('w-full', className)}>
-      <p className="text-xs font-medium text-muted-foreground mb-2">{title}</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        {onRefresh && (
+          <button onClick={handleRefresh} disabled={refreshing}
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            aria-label="Refresh">
+            <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+          </button>
+        )}
+      </div>
       <div style={{ height }}>
         {loading ? (
           <Skeleton className="w-full h-full rounded-lg" />
@@ -138,9 +160,7 @@ export function MetricsChart({
               <XAxis dataKey="time" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 12 }} />
-              {seriesKeys.map((k, i) => (
-                <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />
-              ))}
+              {seriesKeys.map((k, i) => <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>
         ) : (
