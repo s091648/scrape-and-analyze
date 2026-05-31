@@ -27,3 +27,11 @@ export const ZeroValue: Story = {
 export const ErrorState: Story = {
   args: { title: 'New Articles', error: true },
 }
+
+export const WithRefresh: Story = {
+  args: {
+    title: 'Total Runs (24h)',
+    value: 42,
+    onRefresh: async () => { await new Promise(r => setTimeout(r, 1000)) },
+  },
+}

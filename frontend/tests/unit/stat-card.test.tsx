@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StatCard } from '@/components/features/monitoring/stat-card'
+import { fireEvent, waitFor } from '@testing-library/react'
 
 describe('StatCard', () => {
   it('renders title and value', () => {
@@ -32,5 +33,25 @@ describe('StatCard', () => {
     // Skeleton adds an element, value text should not be present
     expect(screen.queryByRole('heading')).toBeNull()
     expect(container.querySelector('[class*="skeleton"]') ?? container.querySelector('[data-slot="skeleton"]')).toBeDefined()
+  })
+})
+
+describe('StatCard refresh', () => {
+  it('shows refresh icon button when onRefresh is provided', () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+    render(<StatCard title="Runs" value={5} onRefresh={onRefresh} />)
+    expect(screen.getByRole('button')).toBeDefined()
+  })
+
+  it('does not show refresh icon when onRefresh is not provided', () => {
+    render(<StatCard title="Runs" value={5} />)
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('calls onRefresh when icon button is clicked', async () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+    render(<StatCard title="Runs" value={5} onRefresh={onRefresh} />)
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce())
   })
 })
