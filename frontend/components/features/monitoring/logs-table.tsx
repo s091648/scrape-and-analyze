@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { RotateCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { queryLogs, type LokiStreamResult } from '@/lib/grafana-api'
+import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/grafana-api'
 
 interface LogEntry {
   ts: string      // ISO string
@@ -16,12 +17,14 @@ type LevelFilter = 'all' | 'error' | 'warning' | 'info'
 interface LogsTableProps {
   title: string
   query: string
-  from?: string // nanosecond timestamp string or "now-Xh"
+  from?: string
   to?: string
   limit?: number
   height?: number
   refreshInterval?: number
   className?: string
+  externalData?: LokiResponse
+  onRefresh?: () => Promise<void>
 }
 
 function parseNsTime(t: string): string {
@@ -88,14 +91,23 @@ export function LogsTable({
   height = 300,
   refreshInterval = 60,
   className,
+  externalData,
+  onRefresh,
 }: LogsTableProps) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
   const [filter, setFilter] = useState<LevelFilter>('all')
+  const [refreshing, setRefreshing] = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    try { await onRefresh?.() } finally { setRefreshing(false) }
+  }
 
   const fetch = useCallback(async () => {
+    if (externalData !== undefined) return
     const start = parseNsTime(from)
     const end = parseNsTime(to === 'now' ? `now-0s` : to)
     try {
@@ -113,14 +125,35 @@ export function LogsTable({
     } finally {
       setLoading(false)
     }
-  }, [query, from, to, limit])
+  }, [query, from, to, limit, externalData])
+
+  useEffect(() => {
+    if (externalData === undefined) return
+    if ('error' in externalData && (externalData as { error: string }).error === 'not_configured') {
+      setNotConfigured(true)
+      setLoading(false)
+      return
+    }
+    if (externalData.status !== 'success' || !externalData.data) {
+      setError(true)
+      setLoading(false)
+      return
+    }
+    setEntries(flattenStreams(externalData.data.result as LokiStreamResult[]))
+    setError(false)
+    setNotConfigured(false)
+    setLoading(false)
+  }, [externalData])
 
   useEffect(() => {
     fetch()
-    if (!refreshInterval) return
+  }, [fetch])
+
+  useEffect(() => {
+    if (externalData !== undefined || !refreshInterval || notConfigured) return
     const id = setInterval(fetch, refreshInterval * 1000)
     return () => clearInterval(id)
-  }, [fetch, refreshInterval])
+  }, [fetch, refreshInterval, notConfigured, externalData])
 
   const visible = filter === 'all' ? entries : entries.filter(e => e.level === filter)
 
@@ -128,18 +161,27 @@ export function LogsTable({
     <div className={cn('w-full', className)}>
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-muted-foreground">{title}</p>
-        {!loading && !notConfigured && !error && (
-          <select
-            className="text-xs border border-border rounded px-1 py-0.5 bg-background"
-            value={filter}
-            onChange={e => setFilter(e.target.value as LevelFilter)}
-          >
-            <option value="all">All</option>
-            <option value="error">Error</option>
-            <option value="warning">Warning</option>
-            <option value="info">Info</option>
-          </select>
-        )}
+        <div className="flex items-center gap-2">
+          {!loading && !notConfigured && !error && (
+            <select
+              className="text-xs border border-border rounded px-1 py-0.5 bg-background"
+              value={filter}
+              onChange={e => setFilter(e.target.value as LevelFilter)}
+            >
+              <option value="all">All</option>
+              <option value="error">Error</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          )}
+          {onRefresh && (
+            <button onClick={handleRefresh} disabled={refreshing}
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              aria-label="Refresh">
+              <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
+            </button>
+          )}
+        </div>
       </div>
       <div className="rounded-lg border border-border overflow-auto" style={{ height }}>
         {loading ? (
