@@ -110,7 +110,7 @@ export function LogsTable({
   }
 
   const fetch = useCallback(async () => {
-    if (externalData !== undefined) return
+    if (externalData !== undefined || onRefresh !== undefined) return
     const start = parseNsTime(from)
     const end = parseNsTime(to === 'now' ? `now-0s` : to)
     try {

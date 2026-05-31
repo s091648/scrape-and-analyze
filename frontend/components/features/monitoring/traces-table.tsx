@@ -64,7 +64,7 @@ export function TracesTable({
   }
 
   const fetch = useCallback(async () => {
-    if (externalData !== undefined) return
+    if (externalData !== undefined || onRefresh !== undefined) return
     const start = parseRelativeSeconds(from === 'now' ? String(Math.floor(Date.now() / 1000)) : from)
     const end = parseRelativeSeconds(to === 'now' ? String(Math.floor(Date.now() / 1000)) : to)
     try {

@@ -100,7 +100,7 @@ export function MetricsChart({
 
   // Self-fetch mode: only when externalData is not provided
   const doFetch = useCallback(async () => {
-    if (externalData !== undefined) return
+    if (externalData !== undefined || onRefresh !== undefined) return
     const start = parseRelativeTime(from === 'now' ? String(Math.floor(Date.now() / 1000)) : from)
     const end = parseRelativeTime(to === 'now' ? String(Math.floor(Date.now() / 1000)) : to)
     try {
