@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { RotateCw } from 'lucide-react'
+import { HelpCircle, RotateCw } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip as RadixTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { queryMetrics, type PrometheusResponse, type PrometheusMatrixResult } from '@/lib/grafana-api'
 
 interface DataPoint {
@@ -25,6 +30,7 @@ interface MetricsChartProps {
   chartType?: 'line' | 'bar'
   refreshInterval?: number
   className?: string
+  tooltip?: string
   externalData?: PrometheusResponse
   onRefresh?: () => Promise<void>
 }
@@ -72,7 +78,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(217,91%,60%)', 'hsl(142,71%,45%)', '
 export function MetricsChart({
   title, query, from = 'now-24h', to = 'now', step = '300',
   height = 200, chartType = 'line', refreshInterval = 60,
-  className, externalData, onRefresh,
+  className, tooltip, externalData, onRefresh,
 }: MetricsChartProps) {
   const [data, setData] = useState<DataPoint[]>([])
   const [seriesKeys, setSeriesKeys] = useState<string[]>([])
@@ -129,7 +135,17 @@ export function MetricsChart({
   return (
     <div className={cn('w-full', className)}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          {title}
+          {tooltip && (
+            <RadixTooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 shrink-0 cursor-help" data-testid="help-icon" />
+              </TooltipTrigger>
+              <TooltipContent>{tooltip}</TooltipContent>
+            </RadixTooltip>
+          )}
+        </p>
         {onRefresh && (
           <button onClick={handleRefresh} disabled={refreshing}
             className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"

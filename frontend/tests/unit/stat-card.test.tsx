@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StatCard } from '@/components/features/monitoring/stat-card'
 import { fireEvent, waitFor } from '@testing-library/react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 describe('StatCard', () => {
   it('renders title and value', () => {
@@ -33,6 +34,22 @@ describe('StatCard', () => {
     // Skeleton adds an element, value text should not be present
     expect(screen.queryByRole('heading')).toBeNull()
     expect(container.querySelector('[class*="skeleton"]') ?? container.querySelector('[data-slot="skeleton"]')).toBeDefined()
+  })
+})
+
+describe('StatCard tooltip', () => {
+  it('renders help icon when tooltip prop is provided', () => {
+    render(
+      <TooltipProvider>
+        <StatCard title="Runs" value={5} tooltip="Total runs in 24h" />
+      </TooltipProvider>
+    )
+    expect(screen.getByTestId('help-icon')).toBeDefined()
+  })
+
+  it('does not render help icon without tooltip prop', () => {
+    render(<StatCard title="Runs" value={5} />)
+    expect(screen.queryByTestId('help-icon')).toBeNull()
   })
 })
 

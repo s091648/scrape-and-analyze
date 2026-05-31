@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { RotateCw } from 'lucide-react'
+import { HelpCircle, RotateCw } from 'lucide-react'
 import { queryTraces, type TempoTrace, type TempoResponse } from '@/lib/grafana-api'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface TracesTableProps {
   title: string
@@ -16,6 +17,7 @@ interface TracesTableProps {
   refreshInterval?: number
   grafanaUrl?: string  // for external trace links
   className?: string
+  tooltip?: string
   externalData?: TempoResponse
   onRefresh?: () => Promise<void>
 }
@@ -46,6 +48,7 @@ export function TracesTable({
   refreshInterval = 60,
   grafanaUrl,
   className,
+  tooltip,
   externalData,
   onRefresh,
 }: TracesTableProps) {
@@ -109,7 +112,17 @@ export function TracesTable({
   return (
     <div className={cn('w-full', className)}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          {title}
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 shrink-0 cursor-help" data-testid="help-icon" />
+              </TooltipTrigger>
+              <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </p>
         {onRefresh && (
           <button onClick={handleRefresh} disabled={refreshing}
             className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"

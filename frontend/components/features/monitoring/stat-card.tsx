@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { RotateCw } from 'lucide-react'
+import { HelpCircle, RotateCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface StatCardProps {
   title: string
@@ -12,10 +13,11 @@ interface StatCardProps {
   loading?: boolean
   error?: boolean
   className?: string
+  tooltip?: string
   onRefresh?: () => Promise<void>
 }
 
-export function StatCard({ title, value, unit, loading, error, className, onRefresh }: StatCardProps) {
+export function StatCard({ title, value, unit, loading, error, className, tooltip, onRefresh }: StatCardProps) {
   const [refreshing, setRefreshing] = useState(false)
 
   async function handleRefresh() {
@@ -30,7 +32,17 @@ export function StatCard({ title, value, unit, loading, error, className, onRefr
   return (
     <div className={cn('relative rounded-lg border border-border bg-card p-4 flex flex-col gap-1', className)}>
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground truncate">{title}</p>
+        <p className="text-xs font-medium text-muted-foreground truncate flex items-center gap-1">
+          {title}
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 shrink-0 cursor-help" data-testid="help-icon" />
+              </TooltipTrigger>
+              <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </p>
         {onRefresh && (
           <button
             onClick={handleRefresh}

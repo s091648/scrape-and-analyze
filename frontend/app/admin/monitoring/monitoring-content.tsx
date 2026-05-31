@@ -12,6 +12,7 @@ import {
   queryTraces, queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/grafana-api'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 interface MonitoringContentProps {
   grafanaUrl: string
@@ -244,82 +245,118 @@ function useTracesBatch() {
 
 // ── Tab sub-components (mount lazily via visited Set) ──────────────────────
 
+const OPS_STAT_TOOLTIPS = [
+  'totalRunsTooltip',
+  'recentRunDurationP100Tooltip',
+  'avgDurationP50Tooltip',
+  'errorCountTooltip',
+  'newArticlesTooltip',
+  'duplicateArticlesTooltip',
+  'failedArticlesTooltip',
+  'articlesFoundTooltip',
+] as const
+
 function OperationsTab() {
+  const { t } = useI18n()
   const { statValues: sv, chartData: cd, loading, refreshOne } = useOperationsBatch()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3 mt-4">
         {[0, 1, 2, 3].map(i => (
           <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} unit={PROM_STATS[i].unit}
-            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+            loading={loading[i]} onRefresh={() => refreshOne(i)}
+            tooltip={t(`admin.${OPS_STAT_TOOLTIPS[i]}`)} />
         ))}
       </div>
       <div className="grid grid-cols-4 gap-3">
         {[4, 5, 6, 7].map(i => (
           <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]}
-            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+            loading={loading[i]} onRefresh={() => refreshOne(i)}
+            tooltip={t(`admin.${OPS_STAT_TOOLTIPS[i]}`)} />
         ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <MetricsChart title="Article Volume Over Time" query="unused" height={240}
-          externalData={cd[0]} onRefresh={() => refreshOne(8)} />
+          externalData={cd[0]} onRefresh={() => refreshOne(8)}
+          tooltip={t('admin.articleVolumeChartTooltip')} />
         <MetricsChart title="Run Duration Over Time" query="unused" height={240}
-          externalData={cd[1]} onRefresh={() => refreshOne(9)} />
+          externalData={cd[1]} onRefresh={() => refreshOne(9)}
+          tooltip={t('admin.runDurationChartTooltip')} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <MetricsChart title="New Articles by Source" query="unused" chartType="bar" height={240}
-          externalData={cd[2]} onRefresh={() => refreshOne(10)} />
+          externalData={cd[2]} onRefresh={() => refreshOne(10)}
+          tooltip={t('admin.articlesBySourceChartTooltip')} />
         <MetricsChart title="Errors by Type" query="unused" chartType="bar" height={240}
-          externalData={cd[3]} onRefresh={() => refreshOne(11)} />
+          externalData={cd[3]} onRefresh={() => refreshOne(11)}
+          tooltip={t('admin.errorsByTypeChartTooltip')} />
       </div>
     </div>
   )
 }
 
 function LogsTab() {
+  const { t } = useI18n()
   const { metricData: md, logsData: ld, loading, refreshOne } = useLogsBatch()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3 mt-4">
         <MetricsChart title="Log Volume by Level" query="unused" step="60" height={180}
-          className="col-span-4" externalData={md[0]} onRefresh={() => refreshOne(0)} />
+          className="col-span-4" externalData={md[0]} onRefresh={() => refreshOne(0)}
+          tooltip={t('admin.logVolumeChartTooltip')} />
         <div className="col-span-1">
           <StatCard title="Error Count (1h)" value={md[1] ? extractLastValue(md[1]) : undefined}
-            loading={loading[1]} onRefresh={() => refreshOne(1)} />
+            loading={loading[1]} onRefresh={() => refreshOne(1)}
+            tooltip={t('admin.logErrorCount1hTooltip')} />
         </div>
         <div className="col-span-1">
           <StatCard title="Warning Count (1h)" value={md[2] ? extractLastValue(md[2]) : undefined}
-            loading={loading[2]} onRefresh={() => refreshOne(2)} />
+            loading={loading[2]} onRefresh={() => refreshOne(2)}
+            tooltip={t('admin.logWarningCount1hTooltip')} />
         </div>
       </div>
       <LogsTable title="Execution Timeline" query="unused" height={300}
-        externalData={ld[0]} onRefresh={() => refreshOne(3)} />
+        externalData={ld[0]} onRefresh={() => refreshOne(3)}
+        tooltip={t('admin.executionTimelineTooltip')} />
       <LogsTable title="Error & Failure Logs" query="unused" height={300}
-        externalData={ld[1]} onRefresh={() => refreshOne(4)} />
+        externalData={ld[1]} onRefresh={() => refreshOne(4)}
+        tooltip={t('admin.errorLogsTooltip')} />
       <div className="grid grid-cols-2 gap-3">
         <LogsTable title="Article Success Logs" query="unused" height={240}
-          externalData={ld[2]} onRefresh={() => refreshOne(5)} />
+          externalData={ld[2]} onRefresh={() => refreshOne(5)}
+          tooltip={t('admin.articleSuccessLogsTooltip')} />
         <LogsTable title="Article Failure Logs" query="unused" height={240}
-          externalData={ld[3]} onRefresh={() => refreshOne(6)} />
+          externalData={ld[3]} onRefresh={() => refreshOne(6)}
+          tooltip={t('admin.articleFailureLogsTooltip')} />
       </div>
     </div>
   )
 }
 
+const TRACES_STAT_TOOLTIPS = [
+  'tracesCountTooltip',
+  'avgRunDurationP95Tooltip',
+  'errorSpansTooltip',
+] as const
+
 function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
+  const { t } = useI18n()
   const { statValues: sv, chartData: cd, tracesData: td, loading, refreshOne } = useTracesBatch()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 mt-4">
         {[0, 1, 2].map(i => (
           <StatCard key={i} title={PROM_STATS[8 + i].title} value={sv[i]} unit={PROM_STATS[8 + i].unit}
-            loading={loading[i]} onRefresh={() => refreshOne(i)} />
+            loading={loading[i]} onRefresh={() => refreshOne(i)}
+            tooltip={t(`admin.${TRACES_STAT_TOOLTIPS[i]}`)} />
         ))}
       </div>
       <MetricsChart title="Span Rate by Operation" query="unused" step="300" height={240}
-        externalData={cd} onRefresh={() => refreshOne(3)} />
+        externalData={cd} onRefresh={() => refreshOne(3)}
+        tooltip={t('admin.spanRateChartTooltip')} />
       <TracesTable title="Recent Traces" query="unused" height={400}
-        grafanaUrl={grafanaUrl} externalData={td} onRefresh={() => refreshOne(4)} />
+        grafanaUrl={grafanaUrl} externalData={td} onRefresh={() => refreshOne(4)}
+        tooltip={t('admin.recentTracesTooltip')} />
     </div>
   )
 }
@@ -331,6 +368,7 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
   const [visited, setVisited] = useState<Set<string>>(new Set(['operations']))
 
   return (
+    <TooltipProvider>
     <div className="max-w-7xl space-y-6">
       <div className="border-b border-border pb-6">
         <h1 className="text-2xl font-bold">{t('admin.monitoring')}</h1>
@@ -354,5 +392,6 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
         </TabsContent>
       </Tabs>
     </div>
+    </TooltipProvider>
   )
 }

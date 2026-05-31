@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { RotateCw } from 'lucide-react'
+import { HelpCircle, RotateCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/grafana-api'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface LogEntry {
   ts: string      // ISO string
@@ -23,6 +24,7 @@ interface LogsTableProps {
   height?: number
   refreshInterval?: number
   className?: string
+  tooltip?: string
   externalData?: LokiResponse
   onRefresh?: () => Promise<void>
 }
@@ -91,6 +93,7 @@ export function LogsTable({
   height = 300,
   refreshInterval = 60,
   className,
+  tooltip,
   externalData,
   onRefresh,
 }: LogsTableProps) {
@@ -160,7 +163,17 @@ export function LogsTable({
   return (
     <div className={cn('w-full', className)}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          {title}
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <HelpCircle className="h-3 w-3 shrink-0 cursor-help" data-testid="help-icon" />
+              </TooltipTrigger>
+              <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </p>
         <div className="flex items-center gap-2">
           {!loading && !notConfigured && !error && (
             <select
