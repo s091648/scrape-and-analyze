@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.auth.guards import require_admin
 
