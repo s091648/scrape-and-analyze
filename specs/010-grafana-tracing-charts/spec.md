@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-31
 
-**Status**: Draft
+**Status**: In Progress — Phase 1–5 complete, Phase 7 (Batch Refresh) pending
 
 **Input**: Fix OTel tracing pipeline to actually export spans to Grafana Cloud Tempo; replace broken Grafana image/iframe embedding in the monitoring dashboard with a native chart visualization approach that queries Grafana Cloud datasource APIs directly and renders charts client-side.
 
@@ -100,6 +100,25 @@ As an operator, I need traces to include spans for individual pipeline stages (s
 - **SC-004**: The monitoring dashboard is fully functional on Grafana Cloud free tier — no feature requires iframe embedding or the image renderer plugin.
 - **SC-005**: A panel failure rate of zero cascades: one panel failing never causes other panels to fail or the page to crash.
 - **SC-006**: Dashboard data is never stale by more than 2× the configured refresh interval under normal network conditions.
+
+---
+
+### User Story 4 - Monitoring Dashboard Uses Batch Queries with Per-Panel Refresh (Priority: P1)
+
+As an operator, I need the monitoring dashboard to fetch all panel data in as few HTTP requests as possible, and to be able to manually refresh any individual panel, so that the page is efficient and interactive.
+
+**Why this priority**: The current implementation fires one HTTP request per panel on load and on every 60-second interval, resulting in 5+ simultaneous requests per tab. Batching reduces server load and improves load time.
+
+**Independent Test**: Open `/admin/monitoring` → DevTools Network tab → verify Operations tab fires at most 1 POST batch request on load (not 4+ individual GETs); click a panel's refresh icon → verify exactly 1 GET request fires for that panel only.
+
+**Acceptance Scenarios**:
+
+1. **Given** the monitoring dashboard loads an Operations/Logs/Traces tab, **When** the tab is first visited, **Then** all panels for that tab are populated from a single batch request per datasource type.
+2. **Given** the monitoring dashboard is open, **When** the 60-second interval fires, **Then** all panels on the current tab refresh together via a single batch request.
+3. **Given** a panel has a refresh icon, **When** the operator clicks it, **Then** only that panel re-fetches its data individually, and the spinner shows while loading.
+4. **Given** Grafana Cloud is not configured, **When** the batch returns 503, **Then** all panels show "not configured" and the 60-second interval does not continue retrying.
+
+---
 
 ## Assumptions
 
