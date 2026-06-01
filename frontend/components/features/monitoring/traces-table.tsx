@@ -112,7 +112,7 @@ export function TracesTable({
   limit = 20,
   height = 300,
   refreshInterval = 60,
-  grafanaUrl,
+  grafanaUrl: _grafanaUrl,
   className,
   tooltip,
   externalData,
@@ -318,7 +318,6 @@ export function TracesTable({
                                 key={pipeline.spanId}
                                 pipelineSpan={pipeline}
                                 stageSpans={stages}
-                                colSpan={columns.length}
                                 onView={openWorkflow}
                               />
                             ))}
