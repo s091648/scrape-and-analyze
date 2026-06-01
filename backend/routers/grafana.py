@@ -193,6 +193,20 @@ async def query_traces(
     return await _grafana_get(f"{url}/api/search", params, user, api_key)
 
 
+@router.get("/traces/{trace_id}")
+async def get_trace_by_id(
+    trace_id: str,
+    _: dict = Depends(require_admin),
+) -> JSONResponse:
+    """Return the full OTLP JSON trace from Tempo for a single trace ID."""
+    url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
+    user = os.environ.get("GRAFANA_TEMPO_USER", "")
+    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    if not url or not user or not api_key:
+        return JSONResponse({"error": "not_configured"}, status_code=503)
+    return await _grafana_get(f"{url}/api/traces/{trace_id}", {}, user, api_key)
+
+
 class TracesBatchItem(BaseModel):
     q: Optional[str] = None
     start: Optional[int] = None
