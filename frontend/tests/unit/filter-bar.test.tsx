@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { fetchArticleFilterSources } from '@/lib/api/articles'
 import { fetchTagGroups } from '@/lib/api/tags'
 import type { TagGroupOut } from '@/lib/api/tags'
+import type { ComponentType } from 'react'
 
 vi.mock('@/lib/api/articles', () => ({
   fetchArticleFilterSources: vi.fn(),
@@ -27,8 +28,10 @@ vi.mock('@/lib/providers', () => ({
         'filterBar.after': 'After',
         'filterBar.before': 'Before',
         'filterBar.range': 'Range',
+        'filterBar.recent': 'Recent',
         'filterBar.from': 'From',
         'filterBar.to': 'To',
+        'filterBar.days': 'days',
         'filterBar.clear': 'Clear',
         'filterBar.apply': 'Apply',
         'filterBar.noTagsFound': 'No tags found',
@@ -65,6 +68,13 @@ function setupApiMock(sourceOptions = ['rss', 'blog'], tagGroups = mockTagGroups
   vi.mocked(fetchTagGroups).mockResolvedValue(tagGroups)
 }
 
+let FilterBar: ComponentType<typeof defaultProps & { activeFilterCount?: number; onApply?: ReturnType<typeof vi.fn> }>
+
+beforeAll(async () => {
+  const module = await import('@/components/features/articles/filter-bar')
+  FilterBar = module.FilterBar as any
+})
+
 describe('FilterBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -72,7 +82,6 @@ describe('FilterBar', () => {
   })
 
   it('"Filters" toggle button is always rendered', async () => {
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument()
@@ -80,7 +89,6 @@ describe('FilterBar', () => {
   })
 
   it('clicking "Filters" reveals Source and Tag popover triggers', async () => {
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument()
@@ -88,14 +96,12 @@ describe('FilterBar', () => {
   })
 
   it('"Clear" button is hidden when activeFilterCount is 0', async () => {
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument()
   })
 
   it('"Clear" button is visible when activeFilterCount > 0', async () => {
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} activeFilterCount={2} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
@@ -103,7 +109,6 @@ describe('FilterBar', () => {
 
   it('clicking Apply calls onApply with current draft state', async () => {
     const onApply = vi.fn()
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} sources={['rss']} onApply={onApply} activeFilterCount={1} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /apply/i }))
@@ -112,7 +117,6 @@ describe('FilterBar', () => {
 
   it('"Clear" resets filters and calls onApply with empty values', async () => {
     const onApply = vi.fn()
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} sources={['rss']} onApply={onApply} activeFilterCount={1} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
@@ -122,7 +126,6 @@ describe('FilterBar', () => {
   })
 
   it('fetches source options and tag groups on mount', async () => {
-    const { FilterBar } = await import('@/components/features/articles/filter-bar')
     render(<FilterBar {...defaultProps} />)
     await waitFor(() => {
       expect(fetchArticleFilterSources).toHaveBeenCalled()

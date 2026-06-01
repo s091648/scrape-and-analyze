@@ -73,6 +73,8 @@ function useOperationsBatch() {
       if ('error' in results[0] && (results[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
         setLoading(Array(12).fill(false))
+        const err = { error: 'not_configured' } as unknown as PrometheusResponse
+        setChartData(Array(4).fill(err))
         return
       }
       setStatValues(results.slice(0, 8).map(extractLastValue))
@@ -144,6 +146,10 @@ function useLogsBatch() {
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
         setLoading(Array(7).fill(false))
+        const err = { error: 'not_configured' } as unknown as PrometheusResponse
+        const logsErr = { error: 'not_configured' } as unknown as LokiResponse
+        setMetricData(Array(3).fill(err))
+        setLogsData(Array(4).fill(logsErr))
         return
       }
       setMetricData(metricResults as PrometheusResponse[])
@@ -207,6 +213,10 @@ function useTracesBatch() {
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
         setLoading(Array(5).fill(false))
+        const err = { error: 'not_configured' } as unknown as PrometheusResponse
+        const tracesErr = { error: 'not_configured' } as unknown as TempoResponse
+        setChartData(err)
+        setTracesData(tracesErr)
         return
       }
       setStatValues(metricResults.slice(0, 3).map(extractLastValue))
