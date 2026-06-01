@@ -1,100 +1,175 @@
 """
-Unit tests for the _with_span closure helper used in bootstrap.py.
-
-Tests verify that:
-- Child spans are created with the correct name
-- Spans are closed after handler execution
-- Exceptions are re-raised and span status is set to ERROR
+Unit tests for src/infrastructure/shared/observability/span_wrappers.py
 """
-from unittest.mock import MagicMock, patch, call
 import pytest
+from unittest.mock import MagicMock, call
+from opentelemetry.trace import StatusCode
+from src.infrastructure.shared.observability.span_wrappers import (
+    with_span_deferred,
+    with_article_pipeline_span,
+)
 
 
-def make_with_span():
-    """Re-create the _with_span helper as defined in bootstrap.py."""
-    from opentelemetry import trace as _otel
-    from src.infrastructure.shared.observability import get_tracer
-
-    def _with_span(span_name: str, fn):
-        tracer = get_tracer()
-        def _wrapper(event):
-            with tracer.start_as_current_span(span_name) as span:
-                try:
-                    return fn(event)
-                except Exception as e:
-                    span.record_exception(e)
-                    span.set_status(_otel.StatusCode.ERROR, str(e))
-                    raise
-        return _wrapper
-
-    return _with_span
+def _make_mock_tracer():
+    span = MagicMock()
+    span.__enter__ = MagicMock(return_value=span)
+    span.__exit__ = MagicMock(return_value=False)
+    tracer = MagicMock()
+    tracer.start_as_current_span.return_value = span
+    return tracer, span
 
 
-class TestWithSpan:
-    def test_creates_child_span_with_correct_name(self):
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer = MagicMock()
-        mock_tracer.start_as_current_span.return_value = mock_span
+class FakeBus:
+    def __init__(self):
+        self.published = []
 
-        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
-            _with_span = make_with_span()
-            handler = MagicMock(return_value="result")
-            wrapped = _with_span("article.scraped.handle", handler)
+    def publish(self, event):
+        self.published.append(event)
 
-            event = MagicMock()
-            wrapped(event)
 
-        mock_tracer.start_as_current_span.assert_called_once_with("article.scraped.handle")
-        handler.assert_called_once_with(event)
+class TestWithSpanDeferred:
+    def test_creates_span_with_correct_name(self):
+        tracer, span = _make_mock_tracer()
+        bus = FakeBus()
+        handler = MagicMock(return_value="ok")
 
-    def test_span_closes_after_handler(self):
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer = MagicMock()
-        mock_tracer.start_as_current_span.return_value = mock_span
+        wrapper = with_span_deferred("my.span", handler, bus, tracer)
+        wrapper("evt")
 
-        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
-            _with_span = make_with_span()
-            wrapped = _with_span("test.span", MagicMock())
-            wrapped(MagicMock())
+        tracer.start_as_current_span.assert_called_once_with("my.span")
 
-        mock_span.__exit__.assert_called_once()
+    def test_calls_handler_with_event(self):
+        tracer, _ = _make_mock_tracer()
+        bus = FakeBus()
+        handler = MagicMock(return_value=None)
 
-    def test_exception_reraises_and_records_on_span(self):
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer = MagicMock()
-        mock_tracer.start_as_current_span.return_value = mock_span
+        wrapper = with_span_deferred("s", handler, bus, tracer)
+        wrapper("my_event")
 
-        error = ValueError("boom")
-        failing_handler = MagicMock(side_effect=error)
-
-        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
-            _with_span = make_with_span()
-            wrapped = _with_span("test.span", failing_handler)
-
-            with pytest.raises(ValueError, match="boom"):
-                wrapped(MagicMock())
-
-        mock_span.record_exception.assert_called_once_with(error)
-        mock_span.set_status.assert_called_once()
+        handler.assert_called_once_with("my_event")
 
     def test_returns_handler_result(self):
-        mock_span = MagicMock()
-        mock_span.__enter__ = MagicMock(return_value=mock_span)
-        mock_span.__exit__ = MagicMock(return_value=False)
-        mock_tracer = MagicMock()
-        mock_tracer.start_as_current_span.return_value = mock_span
-
+        tracer, _ = _make_mock_tracer()
+        bus = FakeBus()
         handler = MagicMock(return_value=42)
 
-        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
-            _with_span = make_with_span()
-            wrapped = _with_span("test.span", handler)
-            result = wrapped(MagicMock())
+        result = with_span_deferred("s", handler, bus, tracer)("evt")
 
         assert result == 42
+
+    def test_deferred_events_published_after_span_closes(self):
+        tracer, span = _make_mock_tracer()
+        bus = FakeBus()
+
+        publish_calls_at_exit = []
+
+        def capture_exit(*args, **kwargs):
+            publish_calls_at_exit.append(list(bus.published))
+            return False
+
+        span.__exit__ = capture_exit
+
+        def handler(event):
+            bus.publish("downstream_event")
+
+        wrapper = with_span_deferred("s", handler, bus, tracer)
+        wrapper("evt")
+
+        # At the moment __exit__ was called, no events should have been published yet
+        assert publish_calls_at_exit[0] == []
+        # After the wrapper completes, the deferred event is published
+        assert bus.published == ["downstream_event"]
+
+    def test_restores_original_publish_after_span(self):
+        tracer, _ = _make_mock_tracer()
+        bus = FakeBus()
+        original_publish = bus.publish
+
+        with_span_deferred("s", MagicMock(), bus, tracer)("evt")
+
+        assert bus.publish == original_publish
+
+    def test_restores_publish_even_on_exception(self):
+        tracer, _ = _make_mock_tracer()
+        bus = FakeBus()
+        original_publish = bus.publish
+
+        def failing(evt):
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            with_span_deferred("s", failing, bus, tracer)("evt")
+
+        assert bus.publish == original_publish
+
+    def test_records_exception_and_sets_error_status(self):
+        tracer, span = _make_mock_tracer()
+        bus = FakeBus()
+        error = ValueError("test error")
+
+        with pytest.raises(ValueError):
+            with_span_deferred("s", MagicMock(side_effect=error), bus, tracer)("evt")
+
+        span.record_exception.assert_called_once_with(error)
+        span.set_status.assert_called_once()
+        args = span.set_status.call_args[0]
+        assert args[0] == StatusCode.ERROR
+
+    def test_deferred_events_not_published_on_exception(self):
+        tracer, _ = _make_mock_tracer()
+        bus = FakeBus()
+
+        def handler(event):
+            bus.publish("should_not_appear")
+            raise RuntimeError("fail")
+
+        with pytest.raises(RuntimeError):
+            with_span_deferred("s", handler, bus, tracer)("evt")
+
+        assert bus.published == []
+
+
+class TestWithArticlePipelineSpan:
+    def _make_event(self):
+        event = MagicMock()
+        event.url = "https://arxiv.org/abs/123"
+        event.source = "arxiv"
+        return event
+
+    def test_creates_pipeline_span_with_article_attrs(self):
+        tracer, pipeline_span = _make_mock_tracer()
+        bus = FakeBus()
+        handler = MagicMock()
+
+        # Inner span for scraped.handle needs its own mock
+        scraped_span = MagicMock()
+        scraped_span.__enter__ = MagicMock(return_value=scraped_span)
+        scraped_span.__exit__ = MagicMock(return_value=False)
+        tracer.start_as_current_span.side_effect = [pipeline_span, scraped_span]
+
+        wrapper = with_article_pipeline_span(
+            handler, bus, tracer, "article.pipeline", "article.scraped.handle"
+        )
+        wrapper(self._make_event())
+
+        pipeline_span.set_attribute.assert_any_call("article.url", "https://arxiv.org/abs/123")
+        pipeline_span.set_attribute.assert_any_call("article.source", "arxiv")
+
+    def test_creates_scraped_handle_span_as_child(self):
+        tracer, pipeline_span = _make_mock_tracer()
+        bus = FakeBus()
+        handler = MagicMock()
+
+        scraped_span = MagicMock()
+        scraped_span.__enter__ = MagicMock(return_value=scraped_span)
+        scraped_span.__exit__ = MagicMock(return_value=False)
+        tracer.start_as_current_span.side_effect = [pipeline_span, scraped_span]
+
+        wrapper = with_article_pipeline_span(
+            handler, bus, tracer, "article.pipeline", "article.scraped.handle"
+        )
+        wrapper(self._make_event())
+
+        calls = [c[0][0] for c in tracer.start_as_current_span.call_args_list]
+        assert calls[0] == "article.pipeline"
+        assert calls[1] == "article.scraped.handle"
