@@ -12,6 +12,7 @@ with_article_pipeline_span — creates an article.pipeline parent span with arti
 """
 from opentelemetry import trace as _otel
 from opentelemetry.trace import StatusCode
+from src.infrastructure.shared.logging import bind_topic_id
 
 
 def with_span_deferred(span_name: str, fn, bus, tracer):
@@ -41,12 +42,18 @@ def with_span_deferred(span_name: str, fn, bus, tracer):
 
 def with_article_pipeline_span(fn, bus, tracer, pipeline_span_name: str, scraped_span_name: str):
     """
-    Creates an article.pipeline parent span with article.url and article.source,
-    then wraps fn with with_span_deferred under that parent.
+    Creates an article.pipeline parent span with article.url, article.source, and
+    article.topic_id, then wraps fn with with_span_deferred under that parent.
+    Only used for ArticleScrapedEvent (which has .url, .source, .topic_id directly).
     """
     def _wrapper(event):
+        topic_id = getattr(event, 'topic_id', None)
+        if topic_id:
+            bind_topic_id(str(topic_id))
         with tracer.start_as_current_span(pipeline_span_name) as ps:
             ps.set_attribute("article.url", event.url)
             ps.set_attribute("article.source", event.source)
+            if topic_id:
+                ps.set_attribute("article.topic_id", str(topic_id))
             return with_span_deferred(scraped_span_name, fn, bus, tracer)(event)
     return _wrapper

@@ -53,6 +53,7 @@ export const LogField = {
   LEVEL: 'level',
   EVENT: 'event',
   CORRELATION_ID: 'correlation_id',
+  TOPIC_ID: 'topic_id',
 } as const
 
 export const LogLevel = {
@@ -77,6 +78,7 @@ export const SpanName = {
 export const SpanAttribute = {
   RUN_ID: 'run.id',
   CORRELATION_ID: 'run.correlation_id',
+  ARTICLE_TOPIC_ID: 'article.topic_id',
 } as const
 
 // ── Tempo TraceQL resource label ─────────────────────────────────────────────

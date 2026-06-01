@@ -18,6 +18,7 @@ from contextvars import ContextVar
 from typing import Any
 
 _correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
+_topic_id_var: ContextVar[str] = ContextVar("topic_id", default="")
 
 
 def bind_correlation_id(correlation_id: str) -> None:
@@ -28,10 +29,21 @@ def get_correlation_id() -> str:
     return _correlation_id_var.get()
 
 
+def bind_topic_id(topic_id: str) -> None:
+    _topic_id_var.set(topic_id)
+
+
 def _add_correlation_id(logger: Any, method_name: str, event_dict: dict) -> dict:
     corr_id = _correlation_id_var.get()
     if corr_id:
         event_dict["correlation_id"] = corr_id
+    return event_dict
+
+
+def _add_topic_id(logger: Any, method_name: str, event_dict: dict) -> dict:
+    tid = _topic_id_var.get()
+    if tid:
+        event_dict["topic_id"] = tid
     return event_dict
 
 
@@ -48,6 +60,7 @@ def configure_logging() -> None:
         processors=[
             structlog.stdlib.add_log_level,
             _add_correlation_id,
+            _add_topic_id,
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer(),
         ],

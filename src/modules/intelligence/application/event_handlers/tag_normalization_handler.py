@@ -24,6 +24,8 @@ class TagNormalizationHandler:
         span.set_attribute("article.id", str(event.article_id))
         span.set_attribute("tags.group_count", len(event.tag_groups))
         span.set_attribute("tags.total_count", sum(len(tags) for _, tags in event.tag_groups))
+        if event.topic_id:
+            span.set_attribute("article.topic_id", str(event.topic_id))
 
         result = self._use_case.execute(
             analysis_id=event.analysis_id,

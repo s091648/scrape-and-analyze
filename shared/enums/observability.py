@@ -68,6 +68,7 @@ class LogField(StrEnum):
     LEVEL = "level"
     EVENT = "event"
     CORRELATION_ID = "correlation_id"
+    TOPIC_ID = "topic_id"
 
 
 class LogLevel(StrEnum):
@@ -98,3 +99,4 @@ class SpanAttribute(StrEnum):
 
 class TraceQLResource(StrEnum):
     SERVICE_NAME = "resource.service.name"
+    DEPLOYMENT_ENVIRONMENT = "resource.deployment.environment"

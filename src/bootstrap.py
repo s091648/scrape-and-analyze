@@ -208,14 +208,16 @@ def build_collection_pipeline():
         pipeline_stats=pipeline_stats,
         event_bus=event_bus,
     )
+    # ArticleScrapedEvent: create article.pipeline parent span, then article.scraped.handle child
     event_bus.subscribe(ArticleScrapedEvent, with_article_pipeline_span(
         article_scraped_handler.handle, event_bus, _tracer,
-        SpanName.ARTICLE_SCRAPED_HANDLE, SpanName.ARTICLE_SCRAPED_HANDLE))
+        SpanName.ARTICLE_PIPELINE, SpanName.ARTICLE_SCRAPED_HANDLE))
 
+    # Subsequent handlers: use with_span_deferred only — they fire as deferred events
+    # still within the article.pipeline span context, becoming its direct children.
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
-    event_bus.subscribe(ArticleProcessedEvent, with_article_pipeline_span(
-        article_processed_handler.handle, event_bus, _tracer,
-        SpanName.ARTICLE_PROCESSED_HANDLE, SpanName.ARTICLE_PROCESSED_HANDLE))
+    event_bus.subscribe(ArticleProcessedEvent, with_span_deferred(
+        SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
@@ -226,9 +228,8 @@ def build_collection_pipeline():
         use_case=normalize_tags_uc,
         event_bus=event_bus,
     )
-    event_bus.subscribe(AnalysisCompletedEvent, with_article_pipeline_span(
-        tag_normalization_handler.handle, event_bus, _tracer,
-        SpanName.TAG_NORMALIZATION_HANDLE, SpanName.TAG_NORMALIZATION_HANDLE))
+    event_bus.subscribe(AnalysisCompletedEvent, with_span_deferred(
+        SpanName.TAG_NORMALIZATION_HANDLE, tag_normalization_handler.handle, event_bus, _tracer))
 
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
@@ -237,9 +238,8 @@ def build_collection_pipeline():
         event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
     )
-    event_bus.subscribe(TagNormalizationCompletedEvent, with_article_pipeline_span(
-        analysis_completed_handler.handle, event_bus, _tracer,
-        SpanName.ANALYSIS_COMPLETED_HANDLE, SpanName.ANALYSIS_COMPLETED_HANDLE))
+    event_bus.subscribe(TagNormalizationCompletedEvent, with_span_deferred(
+        SpanName.ANALYSIS_COMPLETED_HANDLE, analysis_completed_handler.handle, event_bus, _tracer))
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
