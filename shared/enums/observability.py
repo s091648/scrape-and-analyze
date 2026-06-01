@@ -80,6 +80,7 @@ class LogLevel(StrEnum):
 
 class SpanName(StrEnum):
     SCRAPER_RUN = "scraper.run"
+    ARTICLE_PIPELINE = "article.pipeline"
     ARTICLE_SCRAPED_HANDLE = "article.scraped.handle"
     ARTICLE_PROCESSED_HANDLE = "article.processed.handle"
     TAG_NORMALIZATION_HANDLE = "article.tag_normalization.handle"
