@@ -14,9 +14,42 @@ import {
 } from '@/lib/api/grafana'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
-  MetricName, LogField, LogLevel,
+  MetricName, LogField, LogLevel, LokiLabel,
   lokiStreamSelector, traceQLServiceMatch, promqlIncrease,
 } from '@/lib/observability-constants'
+import { cn } from '@/lib/utils'
+
+// ── Filter types ───────────────────────────────────────────────────────────
+
+type TimeRange = '1h' | '6h' | '24h' | '7d'
+type Environment = 'all' | 'local' | 'production'
+type LogLevelFilter = 'all' | 'error' | 'warning' | 'info'
+
+interface MonitoringFilters {
+  timeRange: TimeRange
+  environment: Environment
+  logLevel: LogLevelFilter
+}
+
+const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
+  '1h': 3600,
+  '6h': 21600,
+  '24h': 86400,
+  '7d': 604800,
+}
+
+const DEFAULT_FILTERS: MonitoringFilters = {
+  timeRange: '24h',
+  environment: 'all',
+  logLevel: 'all',
+}
+
+function applyEnvToLokiQuery(query: string, environment: Environment): string {
+  if (environment === 'all') return query
+  const base = lokiStreamSelector()
+  const withEnv = lokiStreamSelector({ [LokiLabel.ENV]: environment })
+  return query.replaceAll(base, withEnv)
+}
 
 interface MonitoringContentProps {
   grafanaUrl: string
@@ -133,7 +166,7 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 
 // ── Operations batch hook ──────────────────────────────────────────────────
 
-function useOperationsBatch() {
+function useOperationsBatch(timeRangeSeconds: number) {
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(OPS_STATS.length).fill(undefined))
   const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(OPS_CHARTS.length).fill(undefined))
   const [loading, setLoading] = useState<boolean[]>(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
@@ -142,8 +175,8 @@ function useOperationsBatch() {
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     const items: MetricsBatchItem[] = [
-      ...OPS_STATS.map(s => ({ query: s.query, start: now - 86400, end: now, step: s.step })),
-      ...OPS_CHARTS.map(c => ({ query: c.query, start: now - 86400, end: now, step: c.step })),
+      ...OPS_STATS.map(s => ({ query: s.query, start: now - timeRangeSeconds, end: now, step: s.step })),
+      ...OPS_CHARTS.map(c => ({ query: c.query, start: now - timeRangeSeconds, end: now, step: c.step })),
     ]
     try {
       const results = await queryMetricsBatch(items)
@@ -159,7 +192,7 @@ function useOperationsBatch() {
     } catch { /* keep previous data */ } finally {
       setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
     }
-  }, [])
+  }, [timeRangeSeconds])
 
   const refreshOne = useCallback(async (index: number): Promise<void> => {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
@@ -167,17 +200,17 @@ function useOperationsBatch() {
     try {
       if (index < OPS_STATS.length) {
         const s = OPS_STATS[index]
-        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: s.step })
+        const res = await queryMetrics({ query: s.query, start: now - timeRangeSeconds, end: now, step: s.step })
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
       } else {
         const c = OPS_CHARTS[index - OPS_STATS.length]
-        const res = await queryMetrics({ query: c.query, start: now - 86400, end: now, step: c.step })
+        const res = await queryMetrics({ query: c.query, start: now - timeRangeSeconds, end: now, step: c.step })
         setChartData(prev => prev.map((v, i) => i === (index - OPS_STATS.length) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
     }
-  }, [])
+  }, [timeRangeSeconds])
 
   useEffect(() => { fetchAll() }, [fetchAll])
   useEffect(() => {
@@ -193,7 +226,7 @@ function useOperationsBatch() {
 
 const LOGS_NUM_METRIC = 1 + LOGS_STAT_PANELS.length // volume chart + stat cards
 
-function useLogsBatch() {
+function useLogsBatch(timeRangeSeconds: number, environment: Environment) {
   const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(LOGS_NUM_METRIC).fill(undefined))
   const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(LOGS_TABLE_PANELS.length).fill(undefined))
   const [loading, setLoading] = useState<boolean[]>(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
@@ -202,12 +235,18 @@ function useLogsBatch() {
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     const nowNs = Date.now().toString() + '000000'
-    const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
+    const startNs = (Date.now() - timeRangeSeconds * 1000).toString() + '000000'
     const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
     try {
       const [metricResults, logsResults] = await Promise.all([
-        queryMetricsBatch(allMetricPanels.map(p => ({ query: p.query, step: p.step, start: now - 3600, end: now }))),
-        queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({ query: p.query, start: sixHAgoNs, end: nowNs, limit: 100 }))),
+        queryMetricsBatch(allMetricPanels.map(p => ({
+          query: applyEnvToLokiQuery(p.query, environment),
+          step: p.step, start: now - timeRangeSeconds, end: now,
+        }))),
+        queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
+          query: applyEnvToLokiQuery(p.query, environment),
+          start: startNs, end: nowNs, limit: 100,
+        }))),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
@@ -223,30 +262,30 @@ function useLogsBatch() {
     } catch { /* keep previous data */ } finally {
       setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(false))
     }
-  }, [])
+  }, [timeRangeSeconds, environment])
 
   const refreshOne = useCallback(async (index: number): Promise<void> => {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
     const now = Math.floor(Date.now() / 1000)
     const nowNs = Date.now().toString() + '000000'
-    const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
+    const startNs = (Date.now() - timeRangeSeconds * 1000).toString() + '000000'
     try {
       if (index === 0) {
-        const res = await queryMetrics({ query: LOGS_VOLUME_CHART.query, start: now - 3600, end: now, step: LOGS_VOLUME_CHART.step })
+        const res = await queryMetrics({ query: applyEnvToLokiQuery(LOGS_VOLUME_CHART.query, environment), start: now - timeRangeSeconds, end: now, step: LOGS_VOLUME_CHART.step })
         setMetricData(prev => prev.map((v, i) => i === 0 ? res : v))
       } else if (index < LOGS_NUM_METRIC) {
         const p = LOGS_STAT_PANELS[index - 1]
-        const res = await queryMetrics({ query: p.query, start: now - 3600, end: now, step: p.step })
+        const res = await queryMetrics({ query: applyEnvToLokiQuery(p.query, environment), start: now - timeRangeSeconds, end: now, step: p.step })
         setMetricData(prev => prev.map((v, i) => i === index ? res : v))
       } else {
         const p = LOGS_TABLE_PANELS[index - LOGS_NUM_METRIC]
-        const res = await queryLogs({ query: p.query, start: sixHAgoNs, end: nowNs, limit: 100 })
+        const res = await queryLogs({ query: applyEnvToLokiQuery(p.query, environment), start: startNs, end: nowNs, limit: 100 })
         setLogsData(prev => prev.map((v, i) => i === (index - LOGS_NUM_METRIC) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
     }
-  }, [])
+  }, [timeRangeSeconds, environment])
 
   useEffect(() => { fetchAll() }, [fetchAll])
   useEffect(() => {
@@ -260,22 +299,24 @@ function useLogsBatch() {
 
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
-function useTracesBatch() {
+function useTracesBatch(timeRangeSeconds: number, environment: Environment) {
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
   const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
   const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
   const [loading, setLoading] = useState<boolean[]>(Array(TRACES_STATS.length + 2).fill(true))
   const [notConfigured, setNotConfigured] = useState(false)
 
+  const traceQuery = environment === 'all' ? TRACES_TABLE_PANEL.traceQuery : traceQLServiceMatch(environment)
+
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     try {
       const [metricResults, tracesResults] = await Promise.all([
         queryMetricsBatch([
-          ...TRACES_STATS.map(s => ({ query: s.query, step: s.step, start: now - 86400, end: now })),
-          { query: TRACES_SPAN_CHART.query, step: TRACES_SPAN_CHART.step, start: now - 86400, end: now },
+          ...TRACES_STATS.map(s => ({ query: s.query, step: s.step, start: now - timeRangeSeconds, end: now })),
+          { query: TRACES_SPAN_CHART.query, step: TRACES_SPAN_CHART.step, start: now - timeRangeSeconds, end: now },
         ]),
-        queryTracesBatch([{ q: TRACES_TABLE_PANEL.traceQuery, start: now - 86400, end: now, limit: 20 }]),
+        queryTracesBatch([{ q: traceQuery, start: now - timeRangeSeconds, end: now, limit: 20 }]),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
@@ -292,7 +333,7 @@ function useTracesBatch() {
     } catch { /* keep previous data */ } finally {
       setLoading(Array(TRACES_STATS.length + 2).fill(false))
     }
-  }, [])
+  }, [timeRangeSeconds, traceQuery])
 
   const refreshOne = useCallback(async (index: number): Promise<void> => {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
@@ -300,19 +341,19 @@ function useTracesBatch() {
     try {
       if (index < TRACES_STATS.length) {
         const s = TRACES_STATS[index]
-        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: s.step })
+        const res = await queryMetrics({ query: s.query, start: now - timeRangeSeconds, end: now, step: s.step })
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
       } else if (index === TRACES_STATS.length) {
-        const res = await queryMetrics({ query: TRACES_SPAN_CHART.query, start: now - 86400, end: now, step: TRACES_SPAN_CHART.step })
+        const res = await queryMetrics({ query: TRACES_SPAN_CHART.query, start: now - timeRangeSeconds, end: now, step: TRACES_SPAN_CHART.step })
         setChartData(res)
       } else {
-        const res = await queryTraces({ q: TRACES_TABLE_PANEL.traceQuery, start: now - 86400, end: now, limit: 20 })
+        const res = await queryTraces({ q: traceQuery, start: now - timeRangeSeconds, end: now, limit: 20 })
         setTracesData(res)
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
     }
-  }, [])
+  }, [timeRangeSeconds, traceQuery])
 
   useEffect(() => { fetchAll() }, [fetchAll])
   useEffect(() => {
@@ -326,9 +367,9 @@ function useTracesBatch() {
 
 // ── Tab sub-components (mount lazily via visited Set) ──────────────────────
 
-function OperationsTab() {
+function OperationsTab({ timeRangeSeconds }: { timeRangeSeconds: number }) {
   const { t } = useI18n()
-  const { statValues: sv, chartData: cd, loading, refreshOne } = useOperationsBatch()
+  const { statValues: sv, chartData: cd, loading, refreshOne } = useOperationsBatch(timeRangeSeconds)
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3 mt-4">
@@ -364,9 +405,10 @@ function OperationsTab() {
   )
 }
 
-function LogsTab() {
+function LogsTab({ timeRangeSeconds, environment, logLevel }: { timeRangeSeconds: number; environment: Environment; logLevel: LogLevelFilter }) {
   const { t } = useI18n()
-  const { metricData: md, logsData: ld, loading, refreshOne } = useLogsBatch()
+  const { metricData: md, logsData: ld, loading, refreshOne } = useLogsBatch(timeRangeSeconds, environment)
+  const forcedLevel = logLevel !== 'all' ? logLevel : undefined
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3 mt-4">
@@ -385,22 +427,22 @@ function LogsTab() {
       {LOGS_TABLE_PANELS.slice(0, 2).map((p, i) => (
         <LogsTable key={i} title={t(p.titleKey)} query="unused" height={p.height}
           externalData={ld[i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + i)}
-          tooltip={t(p.tooltipKey)} />
+          tooltip={t(p.tooltipKey)} forcedLevel={forcedLevel} />
       ))}
       <div className="grid grid-cols-2 gap-3">
         {LOGS_TABLE_PANELS.slice(2).map((p, i) => (
           <LogsTable key={i} title={t(p.titleKey)} query="unused" height={p.height}
             externalData={ld[2 + i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + 2 + i)}
-            tooltip={t(p.tooltipKey)} />
+            tooltip={t(p.tooltipKey)} forcedLevel={forcedLevel} />
         ))}
       </div>
     </div>
   )
 }
 
-function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
+function TracesTab({ grafanaUrl, timeRangeSeconds, environment }: { grafanaUrl?: string; timeRangeSeconds: number; environment: Environment }) {
   const { t } = useI18n()
-  const { statValues: sv, chartData: cd, tracesData: td, loading, refreshOne } = useTracesBatch()
+  const { statValues: sv, chartData: cd, tracesData: td, loading, refreshOne } = useTracesBatch(timeRangeSeconds, environment)
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 mt-4">
@@ -422,11 +464,56 @@ function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
   )
 }
 
+// ── Filter bar ─────────────────────────────────────────────────────────────
+
+function FilterBar({ filters, onChange }: { filters: MonitoringFilters; onChange: (f: MonitoringFilters) => void }) {
+  const { t } = useI18n()
+  function set<K extends keyof MonitoringFilters>(key: K, value: MonitoringFilters[K]) {
+    onChange({ ...filters, [key]: value })
+  }
+  return (
+    <div className="flex flex-wrap gap-4 items-center text-xs pb-4 border-b border-border">
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{t('admin.filterTimeRange')}:</span>
+        <div className="flex rounded border border-border overflow-hidden">
+          {(['1h', '6h', '24h', '7d'] as const).map(v => (
+            <button key={v} onClick={() => set('timeRange', v)}
+              className={cn('px-2 py-0.5 transition-colors', filters.timeRange === v ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/50')}>
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{t('admin.filterEnvironment')}:</span>
+        <select value={filters.environment} onChange={e => set('environment', e.target.value as Environment)}
+          className="text-xs border border-border rounded px-1.5 py-0.5 bg-background">
+          <option value="all">{t('admin.filterAll')}</option>
+          <option value="local">local</option>
+          <option value="production">production</option>
+        </select>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">{t('admin.filterLogLevel')}:</span>
+        <select value={filters.logLevel} onChange={e => set('logLevel', e.target.value as LogLevelFilter)}
+          className="text-xs border border-border rounded px-1.5 py-0.5 bg-background">
+          <option value="all">{t('admin.logFilterAll')}</option>
+          <option value="error">{t('admin.logFilterError')}</option>
+          <option value="warning">{t('admin.logFilterWarning')}</option>
+          <option value="info">{t('admin.logFilterInfo')}</option>
+        </select>
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
   const { t } = useI18n()
   const [visited, setVisited] = useState<Set<string>>(new Set(['operations']))
+  const [filters, setFilters] = useState<MonitoringFilters>(DEFAULT_FILTERS)
+  const timeRangeSeconds = TIME_RANGE_SECONDS[filters.timeRange]
 
   return (
     <TooltipProvider>
@@ -434,6 +521,8 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
       <div className="border-b border-border pb-6">
         <h1 className="text-2xl font-bold">{t('admin.monitoring')}</h1>
       </div>
+
+      <FilterBar filters={filters} onChange={setFilters} />
 
       <Tabs defaultValue="operations" onValueChange={tab => setVisited(prev => new Set([...prev, tab]))}>
         <TabsList>
@@ -443,13 +532,13 @@ export function MonitoringContent({ grafanaUrl }: MonitoringContentProps) {
         </TabsList>
 
         <TabsContent value="operations">
-          {visited.has('operations') && <OperationsTab />}
+          {visited.has('operations') && <OperationsTab timeRangeSeconds={timeRangeSeconds} />}
         </TabsContent>
         <TabsContent value="logs">
-          {visited.has('logs') && <LogsTab />}
+          {visited.has('logs') && <LogsTab timeRangeSeconds={timeRangeSeconds} environment={filters.environment} logLevel={filters.logLevel} />}
         </TabsContent>
         <TabsContent value="traces">
-          {visited.has('traces') && <TracesTab grafanaUrl={grafanaUrl} />}
+          {visited.has('traces') && <TracesTab grafanaUrl={grafanaUrl} timeRangeSeconds={timeRangeSeconds} environment={filters.environment} />}
         </TabsContent>
       </Tabs>
     </div>

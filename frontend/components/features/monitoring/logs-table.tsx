@@ -28,6 +28,7 @@ interface LogsTableProps {
   tooltip?: string
   externalData?: LokiResponse
   onRefresh?: () => Promise<void>
+  forcedLevel?: string
 }
 
 function parseNsTime(t: string): string {
@@ -98,6 +99,7 @@ export function LogsTable({
   tooltip,
   externalData,
   onRefresh,
+  forcedLevel,
 }: LogsTableProps) {
   const { t } = useI18n()
   const [entries, setEntries] = useState<LogEntry[]>([])
@@ -153,7 +155,8 @@ export function LogsTable({
     return () => clearInterval(id)
   }, [fetch, refreshInterval, notConfigured, externalData])
 
-  const visible = filter === 'all' ? entries : entries.filter(e => e.level === filter)
+  const activeLevel = forcedLevel ?? filter
+  const visible = activeLevel === 'all' ? entries : entries.filter(e => e.level === activeLevel)
 
   const placeholder = notConfigured
     ? t('admin.grafanaNotConfigured')
@@ -168,7 +171,7 @@ export function LogsTable({
     { key: 'message', label: t('admin.logColumnMessage') },
   ]
 
-  const toolbar = (
+  const toolbar = forcedLevel ? undefined : (
     <select
       className="text-xs border border-border rounded px-1 py-0.5 bg-background"
       value={filter}

@@ -99,9 +99,10 @@ export function lokiStreamSelector(extra?: Record<string, string>): string {
   return `{${pairs.join(', ')}}`
 }
 
-/** Build a TraceQL resource match: `{ resource.service.name = "scrape-analyzer" }` */
-export function traceQLServiceMatch(): string {
-  return `{ ${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}" } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
+/** Build a TraceQL resource match with optional environment filter */
+export function traceQLServiceMatch(env?: string): string {
+  const envClause = env ? ` && ${TraceQLResource.DEPLOYMENT_ENVIRONMENT} = "${env}"` : ''
+  return `{ ${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
 }
 
 /** Build a PromQL increase expression with optional by clause */
