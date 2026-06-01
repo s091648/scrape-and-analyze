@@ -2,6 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
 import { getAttr, spanDurationMs, formatDuration } from '@/lib/otlp-utils'
 import { StageCard } from './stage-card'
@@ -19,6 +20,7 @@ export function ArticleWorkflowDialog({
   pipelineSpan,
   stageSpans,
 }: ArticleWorkflowDialogProps) {
+  const { t } = useI18n()
   const url    = getAttr(pipelineSpan, 'article.url') as string | undefined
   const source = getAttr(pipelineSpan, 'article.source') as string | undefined
   const totalMs = spanDurationMs(pipelineSpan)
@@ -28,11 +30,11 @@ export function ArticleWorkflowDialog({
       <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-sm font-mono truncate">
-            {url ?? 'Article Pipeline'}
+            {url ?? t('admin.articlePipelineTitle')}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             {formatDuration(totalMs)}
-            {source && <> · source: <span className="font-mono">{source}</span></>}
+            {source && <> · {t('admin.articlePipelineSource')}: <span className="font-mono">{source}</span></>}
           </p>
         </DialogHeader>
 
@@ -52,7 +54,7 @@ export function ArticleWorkflowDialog({
               ))}
               {stageSpans.length === 0 && (
                 <p className="text-sm text-muted-foreground py-4">
-                  No stage spans found for this article.
+                  {t('admin.articlePipelineNoStages')}
                 </p>
               )}
             </div>

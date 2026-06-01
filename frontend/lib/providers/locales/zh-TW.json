@@ -300,6 +300,7 @@
     "type_embedding": "Embedding",
     "logColumnTime": "時間",
     "logColumnLevel": "等級",
+    "logColumnEnvironment": "環境",
     "logColumnMessage": "訊息",
     "traceColumnTraceId": "Trace ID",
     "traceColumnRootSpan": "Root Span",
@@ -366,6 +367,12 @@
     "traceColumnStart": "開始時間",
     "loadingTrace": "載入 trace…",
     "noArticlesInRun": "此次執行無文章被處理",
-    "viewArticlePipeline": "查看流程"
+    "viewArticlePipeline": "查看流程",
+    "waterfallDialogTitle": "執行：{id}…",
+    "waterfallColumnSpan": "Span",
+    "waterfallColumnTimeline": "時間軸",
+    "articlePipelineTitle": "文章處理流程",
+    "articlePipelineSource": "來源",
+    "articlePipelineNoStages": "此文章沒有找到任何階段 span。"
   }
 }

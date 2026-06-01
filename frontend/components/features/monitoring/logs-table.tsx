@@ -5,10 +5,12 @@ import { cn } from '@/lib/utils'
 import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
+import { LokiLabel } from '@/lib/observability-constants'
 
 interface LogEntry {
   ts: string
   level: string
+  env?: string
   message: string
 }
 
@@ -65,10 +67,12 @@ function parseMessage(line: string): string {
 function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
   const entries: LogEntry[] = []
   for (const stream of streams) {
+    const env = stream.stream[LokiLabel.ENV]
     for (const [tsNs, line] of stream.values) {
       entries.push({
         ts: new Date(Math.floor(Number(tsNs) / 1_000_000)).toLocaleTimeString(),
         level: parseLevel(line),
+        env,
         message: parseMessage(line),
       })
     }
@@ -158,8 +162,9 @@ export function LogsTable({
     : undefined
 
   const columns = [
-    { key: 'ts',      label: t('admin.logColumnTime'),    className: 'w-20' },
-    { key: 'level',   label: t('admin.logColumnLevel'),   className: 'w-16' },
+    { key: 'ts',      label: t('admin.logColumnTime'),        className: 'w-20' },
+    { key: 'level',   label: t('admin.logColumnLevel'),       className: 'w-16' },
+    { key: 'env',     label: t('admin.logColumnEnvironment'), className: 'w-24' },
     { key: 'message', label: t('admin.logColumnMessage') },
   ]
 
@@ -202,6 +207,7 @@ export function LogsTable({
             <td className={cn('px-2 py-1 whitespace-nowrap font-medium', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
               {entry.level.toUpperCase()}
             </td>
+            <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">{entry.env ?? '—'}</td>
             <td className="px-2 py-1 font-mono truncate max-w-0">{entry.message}</td>
           </tr>
         ))

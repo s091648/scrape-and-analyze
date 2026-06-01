@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { queryTraces, queryTraceById, type TempoTrace, type TempoResponse, type OtlpTraceResponse, type OtlpSpan } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
@@ -261,10 +261,9 @@ export function TracesTable({
             }
 
             return (
-              <>
+              <Fragment key={trace.traceID}>
                 {/* ── Main run row ── */}
                 <tr
-                  key={trace.traceID}
                   className="border-b border-border last:border-0 hover:bg-muted/30"
                 >
                   <td className="px-1 py-1">
@@ -327,7 +326,7 @@ export function TracesTable({
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             )
           })
         )}

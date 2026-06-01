@@ -1,6 +1,7 @@
 'use client'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useI18n } from '@/lib/providers'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
@@ -70,6 +71,7 @@ interface RunWaterfallDialogProps {
 export function RunWaterfallDialog({
   open, onClose, traceId, trace, onSelectArticle,
 }: RunWaterfallDialogProps) {
+  const { t } = useI18n()
   const spans = flattenSpans(trace)
   const tree  = buildSpanTree(spans)
   const rows  = buildRows(spans, tree)
@@ -90,7 +92,7 @@ export function RunWaterfallDialog({
       <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
-            Run: {traceId.slice(0, 16)}…
+            {t('admin.waterfallDialogTitle', { id: traceId.slice(0, 16) })}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             {startDate}
@@ -103,9 +105,9 @@ export function RunWaterfallDialog({
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 bg-background border-b border-border">
               <tr>
-                <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground w-[40%]">Span</th>
-                <th className="text-right py-1.5 px-4 font-medium text-muted-foreground w-20">Duration</th>
-                <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">Timeline</th>
+                <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground w-[40%]">{t('admin.waterfallColumnSpan')}</th>
+                <th className="text-right py-1.5 px-4 font-medium text-muted-foreground w-20">{t('admin.traceColumnDuration')}</th>
+                <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">{t('admin.waterfallColumnTimeline')}</th>
               </tr>
             </thead>
             <tbody>

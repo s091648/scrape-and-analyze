@@ -300,6 +300,7 @@
     "type_embedding": "Embedding",
     "logColumnTime": "Time",
     "logColumnLevel": "Level",
+    "logColumnEnvironment": "Env",
     "logColumnMessage": "Message",
     "traceColumnTraceId": "Trace ID",
     "traceColumnRootSpan": "Root Span",
@@ -366,6 +367,12 @@
     "traceColumnStart": "Started",
     "loadingTrace": "Loading trace…",
     "noArticlesInRun": "No articles processed in this run",
-    "viewArticlePipeline": "View pipeline"
+    "viewArticlePipeline": "View pipeline",
+    "waterfallDialogTitle": "Run: {id}…",
+    "waterfallColumnSpan": "Span",
+    "waterfallColumnTimeline": "Timeline",
+    "articlePipelineTitle": "Article Pipeline",
+    "articlePipelineSource": "source",
+    "articlePipelineNoStages": "No stage spans found for this article."
   }
 }
