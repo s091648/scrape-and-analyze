@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock
+import uuid
+from unittest.mock import MagicMock, patch
 from src.shared.domain.entities import Article
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats
 from src.modules.collection.application.events import ArticleScrapedEvent
@@ -70,3 +71,61 @@ def test_handle_duplicate_needs_analysis_publishes_event_and_returns_true():
 
     assert result is True
     event_bus.publish.assert_called_once()
+
+
+# ── Span attribute tests ──────────────────────────────────────────────────────
+
+def _make_handler():
+    from src.modules.collection.application.event_handlers import ArticleScrapedHandler
+    use_case = MagicMock()
+    event_bus = MagicMock()
+    return ArticleScrapedHandler(use_case=use_case, pipeline_stats=PipelineStats(), event_bus=event_bus), use_case
+
+
+def test_span_records_article_url_and_source():
+    handler, use_case = _make_handler()
+    article = _make_article()
+    use_case.execute.return_value = (ArticleOutcome.NEW, article)
+    event = ArticleScrapedEvent(url="https://feed.example.com/post/1", title="T", content="C", source="rss")
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("article.url", "https://feed.example.com/post/1")
+    mock_span.set_attribute.assert_any_call("article.source", "rss")
+
+
+def test_span_records_outcome_new():
+    handler, use_case = _make_handler()
+    article = _make_article()
+    use_case.execute.return_value = (ArticleOutcome.NEW, article)
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(_make_dto())
+
+    mock_span.set_attribute.assert_any_call("article.outcome", "new")
+
+
+def test_span_records_article_id_when_new():
+    handler, use_case = _make_handler()
+    article = _make_article()
+    use_case.execute.return_value = (ArticleOutcome.NEW, article)
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(_make_dto())
+
+    mock_span.set_attribute.assert_any_call("article.id", str(article.id))
+
+
+def test_span_records_outcome_duplicate():
+    handler, use_case = _make_handler()
+    use_case.execute.return_value = (ArticleOutcome.DUPLICATE, None)
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(_make_dto())
+
+    mock_span.set_attribute.assert_any_call("article.outcome", "duplicate")

@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { HelpCircle, RotateCw } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
 import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/grafana-api'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { TablePanel } from '@/components/ui/table-panel'
+import { useI18n } from '@/lib/providers'
 
 interface LogEntry {
-  ts: string      // ISO string
+  ts: string
   level: string
   message: string
 }
@@ -30,7 +29,6 @@ interface LogsTableProps {
 }
 
 function parseNsTime(t: string): string {
-  // Nanosecond timestamps: append '000000' to milliseconds (avoids BigInt)
   const nowMs = Date.now()
   const nowNs = nowMs.toString() + '000000'
   if (/^now-/.test(t)) {
@@ -97,17 +95,12 @@ export function LogsTable({
   externalData,
   onRefresh,
 }: LogsTableProps) {
+  const { t } = useI18n()
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
   const [filter, setFilter] = useState<LevelFilter>('all')
-  const [refreshing, setRefreshing] = useState(false)
-
-  async function handleRefresh() {
-    setRefreshing(true)
-    try { await onRefresh?.() } finally { setRefreshing(false) }
-  }
 
   const fetch = useCallback(async () => {
     if (externalData !== undefined || onRefresh !== undefined) return
@@ -148,9 +141,7 @@ export function LogsTable({
     setLoading(false)
   }, [externalData])
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
+  useEffect(() => { fetch() }, [fetch])
 
   useEffect(() => {
     if (externalData !== undefined || !refreshInterval || notConfigured) return
@@ -160,75 +151,61 @@ export function LogsTable({
 
   const visible = filter === 'all' ? entries : entries.filter(e => e.level === filter)
 
+  const placeholder = notConfigured
+    ? t('admin.grafanaNotConfigured')
+    : error
+    ? t('admin.failedToLoadLogs')
+    : undefined
+
+  const columns = [
+    { key: 'ts',      label: t('admin.logColumnTime'),    className: 'w-20' },
+    { key: 'level',   label: t('admin.logColumnLevel'),   className: 'w-16' },
+    { key: 'message', label: t('admin.logColumnMessage') },
+  ]
+
+  const toolbar = (
+    <select
+      className="text-xs border border-border rounded px-1 py-0.5 bg-background"
+      value={filter}
+      onChange={e => setFilter(e.target.value as LevelFilter)}
+    >
+      <option value="all">{t('admin.logFilterAll')}</option>
+      <option value="error">{t('admin.logFilterError')}</option>
+      <option value="warning">{t('admin.logFilterWarning')}</option>
+      <option value="info">{t('admin.logFilterInfo')}</option>
+    </select>
+  )
+
   return (
-    <div className={cn('w-full', className)}>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-          {title}
-          {tooltip && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-3 w-3 shrink-0 cursor-help" data-testid="help-icon" />
-              </TooltipTrigger>
-              <TooltipContent>{tooltip}</TooltipContent>
-            </Tooltip>
-          )}
-        </p>
-        <div className="flex items-center gap-2">
-          {!loading && !notConfigured && !error && (
-            <select
-              className="text-xs border border-border rounded px-1 py-0.5 bg-background"
-              value={filter}
-              onChange={e => setFilter(e.target.value as LevelFilter)}
-            >
-              <option value="all">All</option>
-              <option value="error">Error</option>
-              <option value="warning">Warning</option>
-              <option value="info">Info</option>
-            </select>
-          )}
-          {onRefresh && (
-            <button onClick={handleRefresh} disabled={refreshing}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              aria-label="Refresh">
-              <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="rounded-lg border border-border overflow-auto" style={{ height }}>
-        {loading ? (
-          <div className="p-3 space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
-          </div>
-        ) : notConfigured ? (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-            Grafana not configured
-          </div>
-        ) : error ? (
-          <div className="w-full h-full flex items-center justify-center text-destructive text-sm">
-            Failed to load logs
-          </div>
-        ) : visible.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-            No logs
-          </div>
-        ) : (
-          <table className="w-full text-xs">
-            <tbody>
-              {visible.map((entry, i) => (
-                <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-2 py-1 whitespace-nowrap text-muted-foreground w-20">{entry.ts}</td>
-                  <td className={cn('px-2 py-1 whitespace-nowrap font-medium w-16', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
-                    {entry.level.toUpperCase()}
-                  </td>
-                  <td className="px-2 py-1 font-mono truncate max-w-0">{entry.message}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+    <TablePanel
+      title={title}
+      tooltip={tooltip}
+      onRefresh={onRefresh}
+      columns={columns}
+      height={height}
+      className={className}
+      loading={loading}
+      placeholder={placeholder}
+      placeholderError={error}
+      toolbar={toolbar}
+    >
+      {visible.length === 0 ? (
+        <tr>
+          <td colSpan={3} className="text-center py-8 text-muted-foreground text-xs">
+            {t('admin.noLogs')}
+          </td>
+        </tr>
+      ) : (
+        visible.map((entry, i) => (
+          <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30">
+            <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{entry.ts}</td>
+            <td className={cn('px-2 py-1 whitespace-nowrap font-medium', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
+              {entry.level.toUpperCase()}
+            </td>
+            <td className="px-2 py-1 font-mono truncate max-w-0">{entry.message}</td>
+          </tr>
+        ))
+      )}
+    </TablePanel>
   )
 }

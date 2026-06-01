@@ -1,3 +1,5 @@
+from opentelemetry import trace as _otel_trace
+
 from src.shared.logging import get_logger
 from src.modules.intelligence.application.events import (
     TagNormalizationCompletedEvent,
@@ -28,6 +30,11 @@ class AnalysisCompletedHandler:
         self._target_languages = target_languages or ["zh-TW"]
 
     def handle(self, event: TagNormalizationCompletedEvent) -> None:
+        span = _otel_trace.get_current_span()
+        span.set_attribute("analysis.id", str(event.analysis_id))
+        span.set_attribute("article.id", str(event.article_id))
+        span.set_attribute("translation.target_languages", ", ".join(self._target_languages))
+
         en_content = self._analyses_translation_repo.find_by_analysis_id_and_language(
             event.analysis_id, 'en'
         )

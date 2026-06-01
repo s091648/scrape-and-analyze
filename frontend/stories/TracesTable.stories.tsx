@@ -32,6 +32,7 @@ export const WithData: Story = {
     height: 300,
     refreshInterval: 0,
     grafanaUrl: 'https://mystack.grafana.net',
+    tooltip: 'Click a Trace ID to open it in Grafana.',
     externalData: {
       traces: [
         {
@@ -48,8 +49,24 @@ export const WithData: Story = {
           startTimeUnixNano: '1747999000000000000',
           durationMs: 12041,
         },
+        {
+          traceID: '111aaa222bbb333ccc444ddd',
+          rootServiceName: 'scrape-analyzer',
+          rootTraceName: 'article.analyze',
+          startTimeUnixNano: '1747998000000000000',
+          durationMs: 320,
+        },
       ],
     },
     onRefresh: async () => { await new Promise(r => setTimeout(r, 800)) },
+  },
+}
+
+export const Empty: Story = {
+  args: {
+    title: 'Recent Traces',
+    query: 'unused',
+    refreshInterval: 0,
+    externalData: { traces: [] },
   },
 }

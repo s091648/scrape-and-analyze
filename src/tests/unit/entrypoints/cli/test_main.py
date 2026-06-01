@@ -218,3 +218,31 @@ def test_main_initializes_default_http_client(all_mocks):
     main()
     all_mocks["http_client_build"].assert_called_once()
     all_mocks["init_default_client"].assert_called_once()
+
+
+# ── T046: shutdown_tracing() is called AFTER the root span ends ──────────────
+
+def test_shutdown_tracing_called_after_root_span_ends(all_mocks):
+    """shutdown_tracing must be called outside the root span's with-block.
+
+    If called inside, BatchSpanProcessor.shutdown() fires before scraper.run
+    span ends, so on_end() sees _shutdown=True and drops the span silently.
+    Tempo then receives orphaned child spans with no root → durationMs missing
+    → NaN displayed in the frontend.
+    """
+    from src.entrypoints.cli.main import main
+
+    call_order = []
+    _, mock_tracer, _ = all_mocks["get_tracer"]
+    ctx = mock_tracer.start_as_current_span.return_value
+    ctx.__exit__.side_effect = lambda *args: call_order.append("span_end")
+    all_mocks["shutdown_tracing"].side_effect = lambda: call_order.append("shutdown_tracing")
+
+    main()
+
+    assert "span_end" in call_order, "Root span __exit__ was never called"
+    assert "shutdown_tracing" in call_order, "shutdown_tracing was never called"
+    assert call_order.index("span_end") < call_order.index("shutdown_tracing"), (
+        f"shutdown_tracing() was called before span ended. Call order: {call_order}. "
+        "Move shutdown_tracing() to outside the root span's with-block."
+    )

@@ -25,11 +25,12 @@ def configure_loki() -> None:
 
     try:
         from logging_loki import LokiHandler
-        from shared.enums.observability import LokiLabel, LokiAppValue, LokiEnvValue
+        from shared.enums.observability import LokiLabel, LokiAppValue
+        app_env = os.environ.get("APP_ENV", "local").strip()
         loki_handler = LokiHandler(
             url=f"{url.rstrip('/')}/push",
             auth=(user, key),
-            tags={LokiLabel.APP: LokiAppValue.SCRAPER, LokiLabel.ENV: LokiEnvValue.PRODUCTION},
+            tags={LokiLabel.APP: LokiAppValue.SCRAPER, LokiLabel.ENV: app_env},
             version="1",
         )
         loki_handler.setLevel(logging.INFO)

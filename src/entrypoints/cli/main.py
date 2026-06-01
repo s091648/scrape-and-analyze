@@ -78,32 +78,35 @@ def main() -> None:
 
     tracer = get_tracer()
     from shared.enums.observability import SpanName, SpanAttribute
-    with tracer.start_as_current_span(SpanName.SCRAPER_RUN) as span:
-        span.set_attribute(SpanAttribute.RUN_ID, run_id)
-        span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
+    try:
+        with tracer.start_as_current_span(SpanName.SCRAPER_RUN) as span:
+            span.set_attribute(SpanAttribute.RUN_ID, run_id)
+            span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
-        try:
-            pipeline = build_collection_pipeline()
-            pipeline.run()
-
-        except Exception as e:
-            span.record_exception(e)
-            span.set_status(otel_trace.StatusCode.ERROR, str(e))
-            logger.error("execution_failed", error=str(e))
-            raise
-        finally:
-            duration = time.time() - start_time
-            logger.info(
-                "execution_completed",
-                run_id=get_run_id(),
-                duration_seconds=duration,
-            )
-            SCRAPER_DURATION.record(duration)
             try:
-                push_metrics()
+                pipeline = build_collection_pipeline()
+                pipeline.run()
+
             except Exception as e:
-                logger.warning("push_metrics_failed", error=str(e))
-            shutdown_tracing()
+                span.record_exception(e)
+                span.set_status(otel_trace.StatusCode.ERROR, str(e))
+                logger.error("execution_failed", error=str(e))
+                raise
+            finally:
+                duration = time.time() - start_time
+                logger.info(
+                    "execution_completed",
+                    run_id=get_run_id(),
+                    duration_seconds=duration,
+                )
+                SCRAPER_DURATION.record(duration)
+                try:
+                    push_metrics()
+                except Exception as e:
+                    logger.warning("push_metrics_failed", error=str(e))
+        # with block exits here → span.end() is called → queued for export
+    finally:
+        shutdown_tracing()  # flush BatchSpanProcessor only after root span is queued
 
 
 if __name__ == "__main__":

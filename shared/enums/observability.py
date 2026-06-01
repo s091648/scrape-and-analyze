@@ -20,6 +20,7 @@ SERVICE_NAME = "scrape-analyzer"
 
 class ResourceLabel(StrEnum):
     SERVICE_NAME = "service.name"
+    DEPLOYMENT_ENVIRONMENT = "deployment.environment"
 
 
 # ── Metric names ─────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ class LokiAppValue(StrEnum):
 
 
 class LokiEnvValue(StrEnum):
+    LOCAL = "local"
     PRODUCTION = "production"
 
 

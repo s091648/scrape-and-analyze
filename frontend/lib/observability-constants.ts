@@ -82,6 +82,7 @@ export const SpanAttribute = {
 
 export const TraceQLResource = {
   SERVICE_NAME: 'resource.service.name',
+  DEPLOYMENT_ENVIRONMENT: 'resource.deployment.environment',
 } as const
 
 // ── Pre-built query helpers ──────────────────────────────────────────────────

@@ -22,21 +22,105 @@ interface MonitoringContentProps {
   grafanaUrl: string
 }
 
-const PROM_STATS: { title: string; query: string; unit?: string }[] = [
-  // Operations (0–7)
-  { title: 'Total Runs (24h)',           query: promqlIncrease(MetricName.RUNS_TOTAL, '24h') },
-  { title: 'Recent Run Duration (p100)', query: `max_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`, unit: 's' },
-  { title: 'Avg Duration (p50)',          query: `avg_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`, unit: 's' },
-  { title: 'Error Count (24h)',           query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
-  { title: 'New Articles (24h)',          query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h') },
-  { title: 'Duplicate Articles (24h)',    query: promqlIncrease(MetricName.ARTICLES_DUPLICATE_TOTAL, '24h') },
-  { title: 'Failed Articles (24h)',       query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
-  { title: 'Articles Found (24h)',        query: promqlIncrease(MetricName.ARTICLES_FOUND_TOTAL, '24h') },
-  // Traces (8–10)
-  { title: 'Traces (24h)',         query: promqlIncrease(MetricName.RUNS_TOTAL, '24h') },
-  { title: 'Avg Run Duration P95', query: `histogram_quantile(0.95, ${MetricName.RUN_DURATION_SECONDS}_bucket)`, unit: 's' },
-  { title: 'Error Spans (24h)',    query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
+// ── Panel descriptor types ─────────────────────────────────────────────────
+
+interface StatPanelDef {
+  titleKey: string
+  query: string
+  step: string
+  unit?: string
+  tooltipKey: string
+}
+
+interface ChartPanelDef {
+  titleKey: string
+  query: string
+  step: string
+  chartType?: 'line' | 'bar'
+  height: number
+  tooltipKey: string
+}
+
+interface LogTablePanelDef {
+  titleKey: string
+  query: string
+  height: number
+  tooltipKey: string
+}
+
+interface TracesTablePanelDef {
+  titleKey: string
+  traceQuery: string
+  height: number
+  tooltipKey: string
+}
+
+// ── Operations panel descriptors ───────────────────────────────────────────
+
+const OPS_STATS: StatPanelDef[] = [
+  { titleKey: 'admin.totalRuns24h',          query: promqlIncrease(MetricName.RUNS_TOTAL, '24h'),                                                   step: '86400', tooltipKey: 'admin.totalRunsTooltip' },
+  { titleKey: 'admin.recentRunDurationP100', query: `max_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`,                                    step: '86400', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
+  { titleKey: 'admin.avgDurationP50',        query: `avg_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`,                                    step: '86400', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
+  { titleKey: 'admin.errorCount24h',         query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                                                  step: '86400', tooltipKey: 'admin.errorCountTooltip' },
+  { titleKey: 'admin.newArticles24h',        query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h'),                                            step: '86400', tooltipKey: 'admin.newArticlesTooltip' },
+  { titleKey: 'admin.duplicateArticles24h',  query: promqlIncrease(MetricName.ARTICLES_DUPLICATE_TOTAL, '24h'),                                      step: '86400', tooltipKey: 'admin.duplicateArticlesTooltip' },
+  { titleKey: 'admin.failedArticles24h',     query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                                                  step: '86400', tooltipKey: 'admin.failedArticlesTooltip' },
+  { titleKey: 'admin.articlesFound24h',      query: promqlIncrease(MetricName.ARTICLES_FOUND_TOTAL, '24h'),                                          step: '86400', tooltipKey: 'admin.articlesFoundTooltip' },
 ]
+
+const OPS_CHARTS: ChartPanelDef[] = [
+  { titleKey: 'admin.articleVolumeChart',    query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '1h'),                                             step: '3600',  height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
+  { titleKey: 'admin.runDurationChart',      query: `${MetricName.RUN_DURATION_SECONDS}_sum / ${MetricName.RUN_DURATION_SECONDS}_count`,             step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
+  { titleKey: 'admin.articlesBySourceChart', query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h'),                                            step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
+  { titleKey: 'admin.errorsByTypeChart',     query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                                                  step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
+]
+
+// ── Logs panel descriptors ─────────────────────────────────────────────────
+
+const LOGS_VOLUME_CHART: ChartPanelDef = {
+  titleKey: 'admin.logVolumeChart',
+  query: `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} [1m]))`,
+  step: '60',
+  height: 180,
+  tooltipKey: 'admin.logVolumeChartTooltip',
+}
+
+const LOGS_STAT_PANELS: StatPanelDef[] = [
+  { titleKey: 'admin.logErrorCount1h',   query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}" [1h])`,   step: '3600', tooltipKey: 'admin.logErrorCount1hTooltip' },
+  { titleKey: 'admin.logWarningCount1h', query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.WARNING}" [1h])`, step: '3600', tooltipKey: 'admin.logWarningCount1hTooltip' },
+]
+
+const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
+  { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} |= "execution"`,                                        height: 300, tooltipKey: 'admin.executionTimelineTooltip' },
+  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}"`,         height: 300, tooltipKey: 'admin.errorLogsTooltip' },
+  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} |= "article_analyzed"`,                                 height: 240, tooltipKey: 'admin.articleSuccessLogsTooltip' },
+  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} |= "analysis_failed"`,                                  height: 240, tooltipKey: 'admin.articleFailureLogsTooltip' },
+]
+
+// ── Traces panel descriptors ───────────────────────────────────────────────
+
+const TRACES_STATS: StatPanelDef[] = [
+  { titleKey: 'admin.tracesCount24h',    query: promqlIncrease(MetricName.RUNS_TOTAL, '24h'),                                       step: '86400', tooltipKey: 'admin.tracesCountTooltip' },
+  { titleKey: 'admin.avgRunDurationP95', query: `histogram_quantile(0.95, ${MetricName.RUN_DURATION_SECONDS}_bucket)`,              step: '86400', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
+  { titleKey: 'admin.errorSpans24h',     query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                                     step: '86400', tooltipKey: 'admin.errorSpansTooltip' },
+]
+
+const TRACES_SPAN_CHART: ChartPanelDef = {
+  titleKey: 'admin.spanRateChart',
+  query: promqlIncrease(MetricName.RUNS_TOTAL, '5m'),
+  step: '300',
+  height: 240,
+  tooltipKey: 'admin.spanRateChartTooltip',
+}
+
+const TRACES_TABLE_PANEL: TracesTablePanelDef = {
+  titleKey: 'admin.recentTraces',
+  traceQuery: traceQLServiceMatch(),
+  height: 400,
+  tooltipKey: 'admin.recentTracesTooltip',
+}
+
+// ── Shared helper ──────────────────────────────────────────────────────────
 
 function extractLastValue(res: PrometheusResponse): string | undefined {
   if ('error' in res) return undefined
@@ -49,38 +133,31 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 
 // ── Operations batch hook ──────────────────────────────────────────────────
 
-const OPS_CHART_ITEMS: MetricsBatchItem[] = [
-  { query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '1h'),                           step: '3600' },
-  { query: `${MetricName.RUN_DURATION_SECONDS}_sum / ${MetricName.RUN_DURATION_SECONDS}_count`, step: '3600' },
-  { query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h'),                         step: '86400' },
-  { query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                               step: '86400' },
-]
-
 function useOperationsBatch() {
-  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(8).fill(undefined))
-  const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(4).fill(undefined))
-  const [loading, setLoading] = useState<boolean[]>(Array(12).fill(true))
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(OPS_STATS.length).fill(undefined))
+  const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(OPS_CHARTS.length).fill(undefined))
+  const [loading, setLoading] = useState<boolean[]>(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
   const [notConfigured, setNotConfigured] = useState(false)
 
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     const items: MetricsBatchItem[] = [
-      ...PROM_STATS.slice(0, 8).map(s => ({ query: s.query, start: now - 86400, end: now, step: '86400' })),
-      ...OPS_CHART_ITEMS.map(c => ({ ...c, start: now - 86400, end: now })),
+      ...OPS_STATS.map(s => ({ query: s.query, start: now - 86400, end: now, step: s.step })),
+      ...OPS_CHARTS.map(c => ({ query: c.query, start: now - 86400, end: now, step: c.step })),
     ]
     try {
       const results = await queryMetricsBatch(items)
       if ('error' in results[0] && (results[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
-        setLoading(Array(12).fill(false))
+        setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
-        setChartData(Array(4).fill(err))
+        setChartData(Array(OPS_CHARTS.length).fill(err))
         return
       }
-      setStatValues(results.slice(0, 8).map(extractLastValue))
-      setChartData(results.slice(8) as PrometheusResponse[])
+      setStatValues(results.slice(0, OPS_STATS.length).map(extractLastValue))
+      setChartData(results.slice(OPS_STATS.length) as PrometheusResponse[])
     } catch { /* keep previous data */ } finally {
-      setLoading(Array(12).fill(false))
+      setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
     }
   }, [])
 
@@ -88,14 +165,14 @@ function useOperationsBatch() {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
     const now = Math.floor(Date.now() / 1000)
     try {
-      if (index < 8) {
-        const s = PROM_STATS[index]
-        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: '86400' })
+      if (index < OPS_STATS.length) {
+        const s = OPS_STATS[index]
+        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: s.step })
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
       } else {
-        const c = OPS_CHART_ITEMS[index - 8]
+        const c = OPS_CHARTS[index - OPS_STATS.length]
         const res = await queryMetrics({ query: c.query, start: now - 86400, end: now, step: c.step })
-        setChartData(prev => prev.map((v, i) => i === (index - 8) ? res : v))
+        setChartData(prev => prev.map((v, i) => i === (index - OPS_STATS.length) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
@@ -114,48 +191,37 @@ function useOperationsBatch() {
 
 // ── Logs batch hook ────────────────────────────────────────────────────────
 
-const LOGS_METRIC_ITEMS: MetricsBatchItem[] = [
-  { query: `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} [1m]))`, step: '60' },
-  { query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}" [1h])`,   step: '3600' },
-  { query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.WARNING}" [1h])`, step: '3600' },
-]
-
-const LOGS_TABLE_QUERIES = [
-  { query: `${lokiStreamSelector()} |= "execution"`,        from: 'now-6h' },
-  { query: `${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}"`, from: 'now-6h' },
-  { query: `${lokiStreamSelector()} |= "article_analyzed"`,  from: 'now-6h' },
-  { query: `${lokiStreamSelector()} |= "analysis_failed"`,   from: 'now-6h' },
-]
+const LOGS_NUM_METRIC = 1 + LOGS_STAT_PANELS.length // volume chart + stat cards
 
 function useLogsBatch() {
-  const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(3).fill(undefined))
-  const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(4).fill(undefined))
-  const [loading, setLoading] = useState<boolean[]>(Array(7).fill(true))
+  const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(LOGS_NUM_METRIC).fill(undefined))
+  const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(LOGS_TABLE_PANELS.length).fill(undefined))
+  const [loading, setLoading] = useState<boolean[]>(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
   const [notConfigured, setNotConfigured] = useState(false)
 
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     const nowNs = Date.now().toString() + '000000'
     const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
-    const oneHAgoNs = (Date.now() - 3600 * 1000).toString() + '000000'
+    const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
     try {
       const [metricResults, logsResults] = await Promise.all([
-        queryMetricsBatch(LOGS_METRIC_ITEMS.map(c => ({ ...c, start: now - 3600, end: now }))),
-        queryLogsBatch(LOGS_TABLE_QUERIES.map(q => ({ query: q.query, start: sixHAgoNs, end: nowNs, limit: 100 }))),
+        queryMetricsBatch(allMetricPanels.map(p => ({ query: p.query, step: p.step, start: now - 3600, end: now }))),
+        queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({ query: p.query, start: sixHAgoNs, end: nowNs, limit: 100 }))),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
-        setLoading(Array(7).fill(false))
+        setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(false))
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         const logsErr = { error: 'not_configured' } as unknown as LokiResponse
-        setMetricData(Array(3).fill(err))
-        setLogsData(Array(4).fill(logsErr))
+        setMetricData(Array(LOGS_NUM_METRIC).fill(err))
+        setLogsData(Array(LOGS_TABLE_PANELS.length).fill(logsErr))
         return
       }
       setMetricData(metricResults as PrometheusResponse[])
       setLogsData(logsResults as LokiResponse[])
     } catch { /* keep previous data */ } finally {
-      setLoading(Array(7).fill(false))
+      setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(false))
     }
   }, [])
 
@@ -165,14 +231,17 @@ function useLogsBatch() {
     const nowNs = Date.now().toString() + '000000'
     const sixHAgoNs = (Date.now() - 6 * 3600 * 1000).toString() + '000000'
     try {
-      if (index < 3) {
-        const c = LOGS_METRIC_ITEMS[index]
-        const res = await queryMetrics({ query: c.query, start: now - 3600, end: now, step: c.step })
+      if (index === 0) {
+        const res = await queryMetrics({ query: LOGS_VOLUME_CHART.query, start: now - 3600, end: now, step: LOGS_VOLUME_CHART.step })
+        setMetricData(prev => prev.map((v, i) => i === 0 ? res : v))
+      } else if (index < LOGS_NUM_METRIC) {
+        const p = LOGS_STAT_PANELS[index - 1]
+        const res = await queryMetrics({ query: p.query, start: now - 3600, end: now, step: p.step })
         setMetricData(prev => prev.map((v, i) => i === index ? res : v))
       } else {
-        const q = LOGS_TABLE_QUERIES[index - 3]
-        const res = await queryLogs({ query: q.query, start: sixHAgoNs, end: nowNs, limit: 100 })
-        setLogsData(prev => prev.map((v, i) => i === (index - 3) ? res : v))
+        const p = LOGS_TABLE_PANELS[index - LOGS_NUM_METRIC]
+        const res = await queryLogs({ query: p.query, start: sixHAgoNs, end: nowNs, limit: 100 })
+        setLogsData(prev => prev.map((v, i) => i === (index - LOGS_NUM_METRIC) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
@@ -191,39 +260,37 @@ function useLogsBatch() {
 
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
-const TRACES_METRIC_ITEMS: MetricsBatchItem[] = [
-  ...PROM_STATS.slice(8, 11).map(s => ({ query: s.query, step: '86400' })),
-  { query: promqlIncrease(MetricName.RUNS_TOTAL, '5m'), step: '300' },
-]
-
 function useTracesBatch() {
-  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(3).fill(undefined))
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
   const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
   const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
-  const [loading, setLoading] = useState<boolean[]>(Array(5).fill(true))
+  const [loading, setLoading] = useState<boolean[]>(Array(TRACES_STATS.length + 2).fill(true))
   const [notConfigured, setNotConfigured] = useState(false)
 
   const fetchAll = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000)
     try {
       const [metricResults, tracesResults] = await Promise.all([
-        queryMetricsBatch(TRACES_METRIC_ITEMS.map(c => ({ ...c, start: now - 86400, end: now }))),
-        queryTracesBatch([{ q: traceQLServiceMatch(), start: now - 86400, end: now, limit: 20 }]),
+        queryMetricsBatch([
+          ...TRACES_STATS.map(s => ({ query: s.query, step: s.step, start: now - 86400, end: now })),
+          { query: TRACES_SPAN_CHART.query, step: TRACES_SPAN_CHART.step, start: now - 86400, end: now },
+        ]),
+        queryTracesBatch([{ q: TRACES_TABLE_PANEL.traceQuery, start: now - 86400, end: now, limit: 20 }]),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
-        setLoading(Array(5).fill(false))
+        setLoading(Array(TRACES_STATS.length + 2).fill(false))
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         const tracesErr = { error: 'not_configured' } as unknown as TempoResponse
         setChartData(err)
         setTracesData(tracesErr)
         return
       }
-      setStatValues(metricResults.slice(0, 3).map(extractLastValue))
-      setChartData(metricResults[3] as PrometheusResponse)
+      setStatValues(metricResults.slice(0, TRACES_STATS.length).map(extractLastValue))
+      setChartData(metricResults[TRACES_STATS.length] as PrometheusResponse)
       setTracesData(tracesResults[0] as TempoResponse)
     } catch { /* keep previous data */ } finally {
-      setLoading(Array(5).fill(false))
+      setLoading(Array(TRACES_STATS.length + 2).fill(false))
     }
   }, [])
 
@@ -231,15 +298,15 @@ function useTracesBatch() {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
     const now = Math.floor(Date.now() / 1000)
     try {
-      if (index < 3) {
-        const s = PROM_STATS[8 + index]
-        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: '86400' })
+      if (index < TRACES_STATS.length) {
+        const s = TRACES_STATS[index]
+        const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: s.step })
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
-      } else if (index === 3) {
-        const res = await queryMetrics({ query: promqlIncrease(MetricName.RUNS_TOTAL, '5m'), start: now - 86400, end: now, step: '300' })
+      } else if (index === TRACES_STATS.length) {
+        const res = await queryMetrics({ query: TRACES_SPAN_CHART.query, start: now - 86400, end: now, step: TRACES_SPAN_CHART.step })
         setChartData(res)
       } else {
-        const res = await queryTraces({ q: traceQLServiceMatch(), start: now - 86400, end: now, limit: 20 })
+        const res = await queryTraces({ q: TRACES_TABLE_PANEL.traceQuery, start: now - 86400, end: now, limit: 20 })
         setTracesData(res)
       }
     } catch { /* leave existing data */ } finally {
@@ -259,51 +326,39 @@ function useTracesBatch() {
 
 // ── Tab sub-components (mount lazily via visited Set) ──────────────────────
 
-const OPS_STAT_TOOLTIPS = [
-  'totalRunsTooltip',
-  'recentRunDurationP100Tooltip',
-  'avgDurationP50Tooltip',
-  'errorCountTooltip',
-  'newArticlesTooltip',
-  'duplicateArticlesTooltip',
-  'failedArticlesTooltip',
-  'articlesFoundTooltip',
-] as const
-
 function OperationsTab() {
   const { t } = useI18n()
   const { statValues: sv, chartData: cd, loading, refreshOne } = useOperationsBatch()
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3 mt-4">
-        {[0, 1, 2, 3].map(i => (
-          <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]} unit={PROM_STATS[i].unit}
+        {OPS_STATS.slice(0, 4).map((p, i) => (
+          <StatCard key={i} title={t(p.titleKey)} value={sv[i]} unit={p.unit}
             loading={loading[i]} onRefresh={() => refreshOne(i)}
-            tooltip={t(`admin.${OPS_STAT_TOOLTIPS[i]}`)} />
+            tooltip={t(p.tooltipKey)} />
         ))}
       </div>
       <div className="grid grid-cols-4 gap-3">
-        {[4, 5, 6, 7].map(i => (
-          <StatCard key={i} title={PROM_STATS[i].title} value={sv[i]}
-            loading={loading[i]} onRefresh={() => refreshOne(i)}
-            tooltip={t(`admin.${OPS_STAT_TOOLTIPS[i]}`)} />
+        {OPS_STATS.slice(4).map((p, i) => (
+          <StatCard key={i} title={t(p.titleKey)} value={sv[4 + i]}
+            loading={loading[4 + i]} onRefresh={() => refreshOne(4 + i)}
+            tooltip={t(p.tooltipKey)} />
         ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <MetricsChart title="Article Volume Over Time" query="unused" height={240}
-          externalData={cd[0]} onRefresh={() => refreshOne(8)}
-          tooltip={t('admin.articleVolumeChartTooltip')} />
-        <MetricsChart title="Run Duration Over Time" query="unused" height={240}
-          externalData={cd[1]} onRefresh={() => refreshOne(9)}
-          tooltip={t('admin.runDurationChartTooltip')} />
+        {OPS_CHARTS.slice(0, 2).map((p, i) => (
+          <MetricsChart key={i} title={t(p.titleKey)} query="unused" step={p.step} height={p.height}
+            externalData={cd[i]} onRefresh={() => refreshOne(OPS_STATS.length + i)}
+            tooltip={t(p.tooltipKey)} />
+        ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <MetricsChart title="New Articles by Source" query="unused" chartType="bar" height={240}
-          externalData={cd[2]} onRefresh={() => refreshOne(10)}
-          tooltip={t('admin.articlesBySourceChartTooltip')} />
-        <MetricsChart title="Errors by Type" query="unused" chartType="bar" height={240}
-          externalData={cd[3]} onRefresh={() => refreshOne(11)}
-          tooltip={t('admin.errorsByTypeChartTooltip')} />
+        {OPS_CHARTS.slice(2).map((p, i) => (
+          <MetricsChart key={i} title={t(p.titleKey)} query="unused" step={p.step} height={p.height}
+            chartType={p.chartType} externalData={cd[2 + i]}
+            onRefresh={() => refreshOne(OPS_STATS.length + 2 + i)}
+            tooltip={t(p.tooltipKey)} />
+        ))}
       </div>
     </div>
   )
@@ -315,43 +370,33 @@ function LogsTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3 mt-4">
-        <MetricsChart title="Log Volume by Level" query="unused" step="60" height={180}
-          className="col-span-4" externalData={md[0]} onRefresh={() => refreshOne(0)}
-          tooltip={t('admin.logVolumeChartTooltip')} />
-        <div className="col-span-1">
-          <StatCard title="Error Count (1h)" value={md[1] ? extractLastValue(md[1]) : undefined}
-            loading={loading[1]} onRefresh={() => refreshOne(1)}
-            tooltip={t('admin.logErrorCount1hTooltip')} />
-        </div>
-        <div className="col-span-1">
-          <StatCard title="Warning Count (1h)" value={md[2] ? extractLastValue(md[2]) : undefined}
-            loading={loading[2]} onRefresh={() => refreshOne(2)}
-            tooltip={t('admin.logWarningCount1hTooltip')} />
-        </div>
+        <MetricsChart title={t(LOGS_VOLUME_CHART.titleKey)} query="unused" step={LOGS_VOLUME_CHART.step}
+          height={LOGS_VOLUME_CHART.height} className="col-span-4"
+          externalData={md[0]} onRefresh={() => refreshOne(0)}
+          tooltip={t(LOGS_VOLUME_CHART.tooltipKey)} />
+        {LOGS_STAT_PANELS.map((p, i) => (
+          <div key={i} className="col-span-1">
+            <StatCard title={t(p.titleKey)} value={md[i + 1] ? extractLastValue(md[i + 1]!) : undefined}
+              loading={loading[i + 1]} onRefresh={() => refreshOne(i + 1)}
+              tooltip={t(p.tooltipKey)} />
+          </div>
+        ))}
       </div>
-      <LogsTable title="Execution Timeline" query="unused" height={300}
-        externalData={ld[0]} onRefresh={() => refreshOne(3)}
-        tooltip={t('admin.executionTimelineTooltip')} />
-      <LogsTable title="Error & Failure Logs" query="unused" height={300}
-        externalData={ld[1]} onRefresh={() => refreshOne(4)}
-        tooltip={t('admin.errorLogsTooltip')} />
+      {LOGS_TABLE_PANELS.slice(0, 2).map((p, i) => (
+        <LogsTable key={i} title={t(p.titleKey)} query="unused" height={p.height}
+          externalData={ld[i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + i)}
+          tooltip={t(p.tooltipKey)} />
+      ))}
       <div className="grid grid-cols-2 gap-3">
-        <LogsTable title="Article Success Logs" query="unused" height={240}
-          externalData={ld[2]} onRefresh={() => refreshOne(5)}
-          tooltip={t('admin.articleSuccessLogsTooltip')} />
-        <LogsTable title="Article Failure Logs" query="unused" height={240}
-          externalData={ld[3]} onRefresh={() => refreshOne(6)}
-          tooltip={t('admin.articleFailureLogsTooltip')} />
+        {LOGS_TABLE_PANELS.slice(2).map((p, i) => (
+          <LogsTable key={i} title={t(p.titleKey)} query="unused" height={p.height}
+            externalData={ld[2 + i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + 2 + i)}
+            tooltip={t(p.tooltipKey)} />
+        ))}
       </div>
     </div>
   )
 }
-
-const TRACES_STAT_TOOLTIPS = [
-  'tracesCountTooltip',
-  'avgRunDurationP95Tooltip',
-  'errorSpansTooltip',
-] as const
 
 function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
   const { t } = useI18n()
@@ -359,18 +404,20 @@ function TracesTab({ grafanaUrl }: { grafanaUrl?: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 mt-4">
-        {[0, 1, 2].map(i => (
-          <StatCard key={i} title={PROM_STATS[8 + i].title} value={sv[i]} unit={PROM_STATS[8 + i].unit}
+        {TRACES_STATS.map((p, i) => (
+          <StatCard key={i} title={t(p.titleKey)} value={sv[i]} unit={p.unit}
             loading={loading[i]} onRefresh={() => refreshOne(i)}
-            tooltip={t(`admin.${TRACES_STAT_TOOLTIPS[i]}`)} />
+            tooltip={t(p.tooltipKey)} />
         ))}
       </div>
-      <MetricsChart title="Span Rate by Operation" query="unused" step="300" height={240}
-        externalData={cd} onRefresh={() => refreshOne(3)}
-        tooltip={t('admin.spanRateChartTooltip')} />
-      <TracesTable title="Recent Traces" query="unused" height={400}
-        grafanaUrl={grafanaUrl} externalData={td} onRefresh={() => refreshOne(4)}
-        tooltip={t('admin.recentTracesTooltip')} />
+      <MetricsChart title={t(TRACES_SPAN_CHART.titleKey)} query="unused" step={TRACES_SPAN_CHART.step}
+        height={TRACES_SPAN_CHART.height} externalData={cd}
+        onRefresh={() => refreshOne(TRACES_STATS.length)}
+        tooltip={t(TRACES_SPAN_CHART.tooltipKey)} />
+      <TracesTable title={t(TRACES_TABLE_PANEL.titleKey)} query="unused" height={TRACES_TABLE_PANEL.height}
+        grafanaUrl={grafanaUrl} externalData={td}
+        onRefresh={() => refreshOne(TRACES_STATS.length + 1)}
+        tooltip={t(TRACES_TABLE_PANEL.tooltipKey)} />
     </div>
   )
 }

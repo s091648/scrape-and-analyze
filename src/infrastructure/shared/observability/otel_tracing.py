@@ -41,7 +41,11 @@ def _setup_tracing():
         encoded_auth = base64.b64encode(auth_str.encode()).decode()
 
         from shared.enums.observability import SERVICE_NAME, ResourceLabel
-        resource = Resource.create({ResourceLabel.SERVICE_NAME: SERVICE_NAME})
+        app_env = os.environ.get("APP_ENV", "local").strip()
+        resource = Resource.create({
+            ResourceLabel.SERVICE_NAME: SERVICE_NAME,
+            ResourceLabel.DEPLOYMENT_ENVIRONMENT: app_env,
+        })
         exporter = OTLPSpanExporter(
             endpoint=f"{endpoint.rstrip('/')}/v1/traces",
             headers={"Authorization": f"Basic {encoded_auth}"},
