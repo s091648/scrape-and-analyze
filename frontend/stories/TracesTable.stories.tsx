@@ -18,21 +18,13 @@ export const NotConfigured: Story = {
   args: { title: 'Recent Traces' },
 }
 
-export const WithGrafanaLink: Story = {
-  args: {
-    title: 'Recent Traces',
-    grafanaUrl: 'https://mystack.grafana.net',
-  },
-}
-
 export const WithData: Story = {
   args: {
     title: 'Recent Traces',
     query: 'unused',
-    height: 300,
+    height: 400,
     refreshInterval: 0,
-    grafanaUrl: 'https://mystack.grafana.net',
-    tooltip: 'Click a Trace ID to open it in Grafana.',
+    tooltip: 'Click a Trace ID to open waterfall. Expand rows to see articles.',
     externalData: {
       traces: [
         {
@@ -40,7 +32,12 @@ export const WithData: Story = {
           rootServiceName: 'scrape-analyzer',
           rootTraceName: 'scraper.run',
           startTimeUnixNano: '1748000000000000000',
-          durationMs: 4823,
+          durationMs: 45200,
+          spanSets: [{
+            spans: [],
+            matched: 1,
+            attributes: [{ key: 'deployment.environment', value: { stringValue: 'production' } }],
+          }],
         },
         {
           traceID: 'fed987cba654321098765432',
@@ -48,13 +45,11 @@ export const WithData: Story = {
           rootTraceName: 'scraper.run',
           startTimeUnixNano: '1747999000000000000',
           durationMs: 12041,
-        },
-        {
-          traceID: '111aaa222bbb333ccc444ddd',
-          rootServiceName: 'scrape-analyzer',
-          rootTraceName: 'article.analyze',
-          startTimeUnixNano: '1747998000000000000',
-          durationMs: 320,
+          spanSets: [{
+            spans: [],
+            matched: 1,
+            attributes: [{ key: 'deployment.environment', value: { stringValue: 'local' } }],
+          }],
         },
       ],
     },
