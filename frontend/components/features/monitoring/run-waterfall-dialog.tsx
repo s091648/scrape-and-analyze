@@ -1,0 +1,154 @@
+'use client'
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
+import {
+  flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
+  getAttr, getResourceAttr, findStageSpans, formatDuration,
+} from '@/lib/otlp-utils'
+import { SpanName } from '@/lib/observability-constants'
+import { cn } from '@/lib/utils'
+
+// ── Waterfall row builder ─────────────────────────────────────────────────────
+
+interface WaterfallRow { span: OtlpSpan; depth: number }
+
+function buildRows(spans: OtlpSpan[], tree: Map<string, OtlpSpan[]>): WaterfallRow[] {
+  const rows: WaterfallRow[] = []
+  const root = spans.find(s => !s.parentSpanId || s.parentSpanId === '')
+  if (!root) return rows
+
+  function visit(spanId: string, depth: number) {
+    const children = (tree.get(spanId) ?? []).slice().sort(
+      (a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano))
+    )
+    for (const child of children) {
+      rows.push({ span: child, depth })
+      visit(child.spanId, depth + 1)
+    }
+  }
+
+  rows.push({ span: root, depth: 0 })
+  visit(root.spanId, 1)
+  return rows
+}
+
+// ── Span timeline bar ─────────────────────────────────────────────────────────
+
+function SpanBar({
+  span, rootStart, rootDurationNs,
+}: { span: OtlpSpan; rootStart: bigint; rootDurationNs: bigint }) {
+  if (rootDurationNs === 0n) return <div className="h-3 bg-muted rounded w-full" />
+  const start = BigInt(span.startTimeUnixNano)
+  const end   = BigInt(span.endTimeUnixNano)
+  const offsetPct = Math.max(0, Number((start - rootStart) * 10000n / rootDurationNs) / 100)
+  const widthPct  = Math.max(0.3, Number((end - start) * 10000n / rootDurationNs) / 100)
+  const error = isErrorSpan(span)
+
+  return (
+    <div className="relative h-3 bg-muted/40 rounded w-full min-w-[80px]">
+      <div
+        className={cn('absolute h-full rounded', error ? 'bg-destructive/70' : 'bg-primary/60')}
+        style={{ left: `${offsetPct}%`, width: `${widthPct}%` }}
+      />
+    </div>
+  )
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
+interface RunWaterfallDialogProps {
+  open: boolean
+  onClose: () => void
+  traceId: string
+  trace: OtlpTraceResponse
+  onSelectArticle?: (pipelineSpan: OtlpSpan, stageSpans: OtlpSpan[]) => void
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function RunWaterfallDialog({
+  open, onClose, traceId, trace, onSelectArticle,
+}: RunWaterfallDialogProps) {
+  const spans = flattenSpans(trace)
+  const tree  = buildSpanTree(spans)
+  const rows  = buildRows(spans, tree)
+
+  const root = spans.find(s => !s.parentSpanId || s.parentSpanId === '')
+  const rootStart      = root ? BigInt(root.startTimeUnixNano) : 0n
+  const rootDurationNs = root ? BigInt(root.endTimeUnixNano) - BigInt(root.startTimeUnixNano) : 0n
+
+  const environment = getResourceAttr(trace, 'deployment.environment')
+    ?? getResourceAttr(trace, 'resource.deployment.environment')
+
+  const startDate = root
+    ? new Date(Number(rootStart / 1_000_000n)).toLocaleString()
+    : '—'
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-mono text-sm">
+            Run: {traceId.slice(0, 16)}…
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            {startDate}
+            {root && <> · {formatDuration(spanDurationMs(root))}</>}
+            {environment && <> · {environment}</>}
+          </p>
+        </DialogHeader>
+
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-0 bg-background border-b border-border">
+              <tr>
+                <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground w-[40%]">Span</th>
+                <th className="text-right py-1.5 px-4 font-medium text-muted-foreground w-20">Duration</th>
+                <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">Timeline</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ span, depth }) => {
+                const isPipeline = span.name === SpanName.ARTICLE_PIPELINE
+                const durationMs = spanDurationMs(span)
+                const error = isErrorSpan(span)
+                const label = isPipeline
+                  ? `↳ ${(getAttr(span, 'article.url') as string | undefined)?.split('/').slice(-2).join('/') ?? 'article'}`
+                  : span.name.split('.').slice(-2).join('.')
+
+                return (
+                  <tr
+                    key={span.spanId}
+                    className={cn(
+                      'border-b border-border/30 hover:bg-muted/20 transition-colors',
+                      isPipeline && onSelectArticle && 'cursor-pointer',
+                    )}
+                    onClick={() => {
+                      if (isPipeline && onSelectArticle) {
+                        onSelectArticle(span, findStageSpans(tree, span.spanId))
+                      }
+                    }}
+                  >
+                    <td
+                      className={cn('py-1 pr-4 truncate max-w-0', error && 'text-destructive')}
+                      style={{ paddingLeft: `${depth * 14 + 6}px` }}
+                    >
+                      {label}
+                    </td>
+                    <td className="py-1 px-4 text-right tabular-nums text-muted-foreground whitespace-nowrap">
+                      {formatDuration(durationMs)}
+                    </td>
+                    <td className="py-1 pl-2 w-[45%]">
+                      <SpanBar span={span} rootStart={rootStart} rootDurationNs={rootDurationNs} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
