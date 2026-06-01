@@ -361,6 +361,11 @@
     "avgRunDurationP95Tooltip": "95th percentile run duration derived from distributed traces.",
     "errorSpansTooltip": "Spans marked as errored in the last 24 hours.",
     "spanRateChartTooltip": "Rate of trace spans per operation type over the last 24 hours.",
-    "recentTracesTooltip": "Recent distributed traces with duration and status. Click a row to open the trace in Grafana."
+    "recentTracesTooltip": "Recent distributed traces with duration and status. Click a row to open the trace in Grafana.",
+    "traceColumnEnvironment": "Environment",
+    "traceColumnStart": "Started",
+    "loadingTrace": "Loading trace…",
+    "noArticlesInRun": "No articles processed in this run",
+    "viewArticlePipeline": "View pipeline"
   }
 }

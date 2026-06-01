@@ -361,6 +361,11 @@
     "avgRunDurationP95Tooltip": "從分散式追蹤推算的執行時間 P95 百分位數。",
     "errorSpansTooltip": "過去 24 小時內標記為錯誤的 span 數量。",
     "spanRateChartTooltip": "過去 24 小時內各操作類型的追蹤 span 速率。",
-    "recentTracesTooltip": "最近的分散式追蹤列表，含時間與狀態。點擊列可在 Grafana 中開啟詳細追蹤。"
+    "recentTracesTooltip": "最近的分散式追蹤列表，含時間與狀態。點擊列可在 Grafana 中開啟詳細追蹤。",
+    "traceColumnEnvironment": "環境",
+    "traceColumnStart": "開始時間",
+    "loadingTrace": "載入 trace…",
+    "noArticlesInRun": "此次執行無文章被處理",
+    "viewArticlePipeline": "查看流程"
   }
 }
