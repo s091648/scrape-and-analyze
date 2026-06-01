@@ -77,9 +77,10 @@ def main() -> None:
     start_time = time.time()
 
     tracer = get_tracer()
-    with tracer.start_as_current_span("scraper.run") as span:
-        span.set_attribute("run.id", run_id)
-        span.set_attribute("run.correlation_id", correlation_id)
+    from shared.enums.observability import SpanName, SpanAttribute
+    with tracer.start_as_current_span(SpanName.SCRAPER_RUN) as span:
+        span.set_attribute(SpanAttribute.RUN_ID, run_id)
+        span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
         try:
             pipeline = build_collection_pipeline()

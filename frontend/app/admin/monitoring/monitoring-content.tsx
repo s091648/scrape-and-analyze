@@ -13,6 +13,10 @@ import {
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/grafana-api'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import {
+  MetricName, LogField, LogLevel,
+  lokiStreamSelector, traceQLServiceMatch, promqlIncrease,
+} from '@/lib/observability-constants'
 
 interface MonitoringContentProps {
   grafanaUrl: string
@@ -20,18 +24,18 @@ interface MonitoringContentProps {
 
 const PROM_STATS: { title: string; query: string; unit?: string }[] = [
   // Operations (0–7)
-  { title: 'Total Runs (24h)',           query: 'increase(scraper_runs_total[24h])' },
-  { title: 'Recent Run Duration (p100)', query: 'max_over_time(scraper_run_duration_seconds_sum[24h])', unit: 's' },
-  { title: 'Avg Duration (p50)',          query: 'avg_over_time(scraper_run_duration_seconds_sum[24h])', unit: 's' },
-  { title: 'Error Count (24h)',           query: 'increase(scraper_errors_total[24h])' },
-  { title: 'New Articles (24h)',          query: 'increase(scraper_articles_new_total[24h])' },
-  { title: 'Duplicate Articles (24h)',    query: 'increase(scraper_articles_duplicate_total[24h])' },
-  { title: 'Failed Articles (24h)',       query: 'increase(scraper_errors_total[24h])' },
-  { title: 'Articles Found (24h)',        query: 'increase(scraper_articles_found_total[24h])' },
+  { title: 'Total Runs (24h)',           query: promqlIncrease(MetricName.RUNS_TOTAL, '24h') },
+  { title: 'Recent Run Duration (p100)', query: `max_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`, unit: 's' },
+  { title: 'Avg Duration (p50)',          query: `avg_over_time(${MetricName.RUN_DURATION_SECONDS}_sum[24h])`, unit: 's' },
+  { title: 'Error Count (24h)',           query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
+  { title: 'New Articles (24h)',          query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h') },
+  { title: 'Duplicate Articles (24h)',    query: promqlIncrease(MetricName.ARTICLES_DUPLICATE_TOTAL, '24h') },
+  { title: 'Failed Articles (24h)',       query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
+  { title: 'Articles Found (24h)',        query: promqlIncrease(MetricName.ARTICLES_FOUND_TOTAL, '24h') },
   // Traces (8–10)
-  { title: 'Traces (24h)',         query: 'increase(scraper_runs_total[24h])' },
-  { title: 'Avg Run Duration P95', query: 'histogram_quantile(0.95, scraper_run_duration_seconds_bucket)', unit: 's' },
-  { title: 'Error Spans (24h)',    query: 'increase(scraper_errors_total[24h])' },
+  { title: 'Traces (24h)',         query: promqlIncrease(MetricName.RUNS_TOTAL, '24h') },
+  { title: 'Avg Run Duration P95', query: `histogram_quantile(0.95, ${MetricName.RUN_DURATION_SECONDS}_bucket)`, unit: 's' },
+  { title: 'Error Spans (24h)',    query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h') },
 ]
 
 function extractLastValue(res: PrometheusResponse): string | undefined {
@@ -46,10 +50,10 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 // ── Operations batch hook ──────────────────────────────────────────────────
 
 const OPS_CHART_ITEMS: MetricsBatchItem[] = [
-  { query: 'increase(scraper_articles_new_total[1h])',                              step: '3600' },
-  { query: 'scraper_run_duration_seconds_sum / scraper_run_duration_seconds_count', step: '3600' },
-  { query: 'increase(scraper_articles_new_total[24h])',                             step: '86400' },
-  { query: 'increase(scraper_errors_total[24h])',                                   step: '86400' },
+  { query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '1h'),                           step: '3600' },
+  { query: `${MetricName.RUN_DURATION_SECONDS}_sum / ${MetricName.RUN_DURATION_SECONDS}_count`, step: '3600' },
+  { query: promqlIncrease(MetricName.ARTICLES_NEW_TOTAL, '24h'),                         step: '86400' },
+  { query: promqlIncrease(MetricName.ERRORS_TOTAL, '24h'),                               step: '86400' },
 ]
 
 function useOperationsBatch() {
@@ -109,16 +113,16 @@ function useOperationsBatch() {
 // ── Logs batch hook ────────────────────────────────────────────────────────
 
 const LOGS_METRIC_ITEMS: MetricsBatchItem[] = [
-  { query: `sum by (level) (count_over_time({app="scraper"} [1m]))`, step: '60' },
-  { query: `count_over_time({app="scraper",level="error"} [1h])`,   step: '3600' },
-  { query: `count_over_time({app="scraper",level="warning"} [1h])`, step: '3600' },
+  { query: `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} [1m]))`, step: '60' },
+  { query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}" [1h])`,   step: '3600' },
+  { query: `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.WARNING}" [1h])`, step: '3600' },
 ]
 
 const LOGS_TABLE_QUERIES = [
-  { query: `{app="scraper"} |= "execution"`,        from: 'now-6h' },
-  { query: `{app="scraper"} | json | level="error"`, from: 'now-6h' },
-  { query: `{app="scraper"} |= "article_analyzed"`,  from: 'now-6h' },
-  { query: `{app="scraper"} |= "analysis_failed"`,   from: 'now-6h' },
+  { query: `${lokiStreamSelector()} |= "execution"`,        from: 'now-6h' },
+  { query: `${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}"`, from: 'now-6h' },
+  { query: `${lokiStreamSelector()} |= "article_analyzed"`,  from: 'now-6h' },
+  { query: `${lokiStreamSelector()} |= "analysis_failed"`,   from: 'now-6h' },
 ]
 
 function useLogsBatch() {
@@ -183,7 +187,7 @@ function useLogsBatch() {
 
 const TRACES_METRIC_ITEMS: MetricsBatchItem[] = [
   ...PROM_STATS.slice(8, 11).map(s => ({ query: s.query, step: '86400' })),
-  { query: 'increase(scraper_runs_total[5m])', step: '300' },
+  { query: promqlIncrease(MetricName.RUNS_TOTAL, '5m'), step: '300' },
 ]
 
 function useTracesBatch() {
@@ -198,7 +202,7 @@ function useTracesBatch() {
     try {
       const [metricResults, tracesResults] = await Promise.all([
         queryMetricsBatch(TRACES_METRIC_ITEMS.map(c => ({ ...c, start: now - 86400, end: now }))),
-        queryTracesBatch([{ q: '{ resource.service.name = "scrape-analyzer" }', start: now - 86400, end: now, limit: 20 }]),
+        queryTracesBatch([{ q: traceQLServiceMatch(), start: now - 86400, end: now, limit: 20 }]),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
@@ -222,10 +226,10 @@ function useTracesBatch() {
         const res = await queryMetrics({ query: s.query, start: now - 86400, end: now, step: '86400' })
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
       } else if (index === 3) {
-        const res = await queryMetrics({ query: 'increase(scraper_runs_total[5m])', start: now - 86400, end: now, step: '300' })
+        const res = await queryMetrics({ query: promqlIncrease(MetricName.RUNS_TOTAL, '5m'), start: now - 86400, end: now, step: '300' })
         setChartData(res)
       } else {
-        const res = await queryTraces({ q: '{ resource.service.name = "scrape-analyzer" }', start: now - 86400, end: now, limit: 20 })
+        const res = await queryTraces({ q: traceQLServiceMatch(), start: now - 86400, end: now, limit: 20 })
         setTracesData(res)
       }
     } catch { /* leave existing data */ } finally {

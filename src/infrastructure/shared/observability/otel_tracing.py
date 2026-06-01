@@ -40,7 +40,8 @@ def _setup_tracing():
         auth_str = f"{user}:{api_key}"
         encoded_auth = base64.b64encode(auth_str.encode()).decode()
 
-        resource = Resource.create({"service.name": "scrape-analyzer"})
+        from shared.enums.observability import SERVICE_NAME, ResourceLabel
+        resource = Resource.create({ResourceLabel.SERVICE_NAME: SERVICE_NAME})
         exporter = OTLPSpanExporter(
             endpoint=f"{endpoint.rstrip('/')}/v1/traces",
             headers={"Authorization": f"Basic {encoded_auth}"},
@@ -59,7 +60,8 @@ def _setup_tracing():
 _provider = _setup_tracing()
 
 from opentelemetry import trace as _otel_trace
-_tracer = _otel_trace.get_tracer("scrape-analyzer")
+from shared.enums.observability import SERVICE_NAME
+_tracer = _otel_trace.get_tracer(SERVICE_NAME)
 
 
 def get_tracer():

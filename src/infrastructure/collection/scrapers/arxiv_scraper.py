@@ -63,7 +63,8 @@ class ArxivScraper(BaseScraper):
                     "published": e.published,
                 },
             ))
-        SCRAPER_ARTICLES_FOUND.add(len(jobs), {"source": "arxiv"})
+        from shared.enums.observability import MetricLabelKey, MetricSourceValue
+        SCRAPER_ARTICLES_FOUND.add(len(jobs), {MetricLabelKey.SOURCE: MetricSourceValue.ARXIV})
         logger.info("arxiv_discover_complete", count=len(jobs))
         return jobs
 

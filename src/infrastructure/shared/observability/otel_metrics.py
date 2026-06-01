@@ -42,7 +42,8 @@ def _setup_otel():
         auth_str = f"{user}:{api_key}"
         encoded_auth = base64.b64encode(auth_str.encode()).decode()
 
-        resource = Resource.create({"service.name": "scrape-analyzer"})
+        from shared.enums.observability import SERVICE_NAME, ResourceLabel
+        resource = Resource.create({ResourceLabel.SERVICE_NAME: SERVICE_NAME})
         exporter = OTLPMetricExporter(
             endpoint=f"{endpoint.rstrip('/')}/v1/metrics",
             headers={"Authorization": f"Basic {encoded_auth}"},
@@ -52,8 +53,9 @@ def _setup_otel():
         provider = MeterProvider(resource=resource, metric_readers=[reader])
         metrics.set_meter_provider(provider)
 
+        from shared.enums.observability import SERVICE_NAME
         print("[metrics] OTLP setup successful")
-        return provider, metrics.get_meter("scraper_metrics")
+        return provider, metrics.get_meter(f"{SERVICE_NAME}_metrics")
 
     except Exception as e:
         print(f"[metrics] OTLP setup failed: {e}")
@@ -69,12 +71,13 @@ class _Dummy:
 _provider, _meter = _setup_otel()
 
 if _meter:
-    SCRAPER_RUNS = _meter.create_counter("scraper_runs_total")
-    SCRAPER_DURATION = _meter.create_histogram("scraper_run_duration_seconds")
-    SCRAPER_ARTICLES_FOUND = _meter.create_counter("scraper_articles_found_total")
-    SCRAPER_ARTICLES_NEW = _meter.create_counter("scraper_articles_new_total")
-    SCRAPER_ARTICLES_DUPLICATE = _meter.create_counter("scraper_articles_duplicate_total")
-    SCRAPER_ERRORS = _meter.create_counter("scraper_errors_total")
+    from shared.enums.observability import MetricName
+    SCRAPER_RUNS = _meter.create_counter(MetricName.RUNS_TOTAL)
+    SCRAPER_DURATION = _meter.create_histogram(MetricName.RUN_DURATION_SECONDS)
+    SCRAPER_ARTICLES_FOUND = _meter.create_counter(MetricName.ARTICLES_FOUND_TOTAL)
+    SCRAPER_ARTICLES_NEW = _meter.create_counter(MetricName.ARTICLES_NEW_TOTAL)
+    SCRAPER_ARTICLES_DUPLICATE = _meter.create_counter(MetricName.ARTICLES_DUPLICATE_TOTAL)
+    SCRAPER_ERRORS = _meter.create_counter(MetricName.ERRORS_TOTAL)
 else:
     SCRAPER_RUNS = _Dummy()
     SCRAPER_DURATION = _Dummy()

@@ -195,6 +195,7 @@ def build_collection_pipeline():
     # ── Tracing wrapper — adds a child span around each event handler call ──
     from opentelemetry import trace as _otel
     from src.infrastructure.shared.observability import get_tracer as _get_tracer
+    from shared.enums.observability import SpanName
 
     def _with_span(span_name: str, fn):
         tracer = _get_tracer()
@@ -214,10 +215,10 @@ def build_collection_pipeline():
         pipeline_stats=pipeline_stats,
         event_bus=event_bus,
     )
-    event_bus.subscribe(ArticleScrapedEvent, _with_span("article.scraped.handle", article_scraped_handler.handle))
+    event_bus.subscribe(ArticleScrapedEvent, _with_span(SpanName.ARTICLE_SCRAPED_HANDLE, article_scraped_handler.handle))
 
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
-    event_bus.subscribe(ArticleProcessedEvent, _with_span("article.processed.handle", article_processed_handler.handle))
+    event_bus.subscribe(ArticleProcessedEvent, _with_span(SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle))
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
@@ -228,7 +229,7 @@ def build_collection_pipeline():
         use_case=normalize_tags_uc,
         event_bus=event_bus,
     )
-    event_bus.subscribe(AnalysisCompletedEvent, _with_span("article.tag_normalization.handle", tag_normalization_handler.handle))
+    event_bus.subscribe(AnalysisCompletedEvent, _with_span(SpanName.TAG_NORMALIZATION_HANDLE, tag_normalization_handler.handle))
 
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
@@ -237,7 +238,7 @@ def build_collection_pipeline():
         event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
     )
-    event_bus.subscribe(TagNormalizationCompletedEvent, _with_span("article.analysis_completed.handle", analysis_completed_handler.handle))
+    event_bus.subscribe(TagNormalizationCompletedEvent, _with_span(SpanName.ANALYSIS_COMPLETED_HANDLE, analysis_completed_handler.handle))
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
