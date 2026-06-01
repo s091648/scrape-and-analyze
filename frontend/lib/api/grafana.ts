@@ -35,18 +35,63 @@ export interface LokiResponse {
 
 // ── Tempo response types ────────────────────────────────────────────────────
 
+export interface TempoSpanSetAttribute {
+  key: string
+  value: { stringValue?: string; intValue?: string; boolValue?: boolean }
+}
+
+export interface TempoSpanSet {
+  spans: unknown[]
+  matched: number
+  attributes?: TempoSpanSetAttribute[]
+}
+
 export interface TempoTrace {
   traceID: string
   rootServiceName: string
   rootTraceName: string
   startTimeUnixNano: string
   durationMs: number
-  spanSets?: unknown[]
+  spanSets?: TempoSpanSet[]
 }
 
 export interface TempoResponse {
   traces: TempoTrace[]
   metrics?: Record<string, unknown>
+}
+
+// ── OTLP trace response types (from GET /grafana/traces/{id}) ───────────────
+
+export interface OtlpAttributeValue {
+  stringValue?: string
+  intValue?: string      // Tempo serialises int64 as a decimal string
+  boolValue?: boolean
+  doubleValue?: number
+}
+
+export interface OtlpAttribute {
+  key: string
+  value: OtlpAttributeValue
+}
+
+export interface OtlpSpan {
+  traceId: string
+  spanId: string
+  parentSpanId?: string
+  name: string
+  startTimeUnixNano: string
+  endTimeUnixNano: string
+  attributes: OtlpAttribute[]
+  status?: { code: number; message?: string }
+}
+
+export interface OtlpResourceSpans {
+  resource: { attributes: OtlpAttribute[] }
+  scopeSpans: Array<{ spans: OtlpSpan[] }>
+}
+
+export interface OtlpTraceResponse {
+  batches: OtlpResourceSpans[]
 }
 
 // ── Query parameter types ───────────────────────────────────────────────────
@@ -182,6 +227,13 @@ export async function queryTraces(params: TracesQueryParams = {}): Promise<Tempo
     minDuration: params.minDuration,
   })
   const res = await fetch(`/api/proxy/grafana/traces?${p.toString()}`, {
+    headers: await authHeaders(),
+  })
+  return res.json()
+}
+
+export async function queryTraceById(traceId: string): Promise<OtlpTraceResponse> {
+  const res = await fetch(`/api/proxy/grafana/traces/${traceId}`, {
     headers: await authHeaders(),
   })
   return res.json()

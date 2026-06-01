@@ -65,6 +65,7 @@ export const LogLevel = {
 
 export const SpanName = {
   SCRAPER_RUN: 'scraper.run',
+  ARTICLE_PIPELINE: 'article.pipeline',
   ARTICLE_SCRAPED_HANDLE: 'article.scraped.handle',
   ARTICLE_PROCESSED_HANDLE: 'article.processed.handle',
   TAG_NORMALIZATION_HANDLE: 'article.tag_normalization.handle',
@@ -98,7 +99,7 @@ export function lokiStreamSelector(extra?: Record<string, string>): string {
 
 /** Build a TraceQL resource match: `{ resource.service.name = "scrape-analyzer" }` */
 export function traceQLServiceMatch(): string {
-  return `{ ${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}" }`
+  return `{ ${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}" } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
 }
 
 /** Build a PromQL increase expression with optional by clause */

@@ -13,7 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { queryMetrics, type PrometheusResponse, type PrometheusMatrixResult } from '@/lib/grafana-api'
+import { queryMetrics, type PrometheusResponse, type PrometheusMatrixResult } from '@/lib/api/grafana'
 
 interface DataPoint {
   time: string

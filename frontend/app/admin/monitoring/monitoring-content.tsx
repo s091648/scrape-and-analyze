@@ -11,7 +11,7 @@ import {
   queryMetrics, queryMetricsBatch, queryLogs, queryLogsBatch,
   queryTraces, queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
-} from '@/lib/grafana-api'
+} from '@/lib/api/grafana'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   MetricName, LogField, LogLevel,

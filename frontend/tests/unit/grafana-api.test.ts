@@ -15,7 +15,7 @@ describe('queryMetrics', () => {
       json: async () => ({ status: 'success', data: { resultType: 'matrix', result: [] } }),
     })
 
-    const { queryMetrics } = await import('@/lib/grafana-api')
+    const { queryMetrics } = await import('@/lib/api/grafana')
     await queryMetrics({ query: 'scraper_runs_total', start: 1000, end: 2000, step: '60' })
 
     expect(global.fetch).toHaveBeenCalledOnce()
@@ -35,7 +35,7 @@ describe('queryLogs', () => {
       json: async () => ({ status: 'success', data: { resultType: 'streams', result: [] } }),
     })
 
-    const { queryLogs } = await import('@/lib/grafana-api')
+    const { queryLogs } = await import('@/lib/api/grafana')
     await queryLogs({ query: '{app="scraper"}', limit: 50 })
 
     expect(global.fetch).toHaveBeenCalledOnce()
@@ -52,7 +52,7 @@ describe('queryTraces', () => {
       json: async () => ({ traces: [] }),
     })
 
-    const { queryTraces } = await import('@/lib/grafana-api')
+    const { queryTraces } = await import('@/lib/api/grafana')
     await queryTraces({ q: '{ .service.name = "scrape-analyzer" }', limit: 10 })
 
     expect(global.fetch).toHaveBeenCalledOnce()
@@ -66,7 +66,7 @@ describe('queryTraces', () => {
       json: async () => ({ traces: [] }),
     })
 
-    const { queryTraces } = await import('@/lib/grafana-api')
+    const { queryTraces } = await import('@/lib/api/grafana')
     await queryTraces()
 
     const [url] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
@@ -81,7 +81,7 @@ describe('queryLogsBatch', () => {
       json: async () => [{ status: 'success', data: { resultType: 'streams', result: [] } }],
     })
 
-    const { queryLogsBatch } = await import('@/lib/grafana-api')
+    const { queryLogsBatch } = await import('@/lib/api/grafana')
     await queryLogsBatch([{ query: '{app="scraper"}', limit: 10 }])
 
     expect(global.fetch).toHaveBeenCalledOnce()
@@ -100,7 +100,7 @@ describe('queryTracesBatch', () => {
       json: async () => [{ traces: [] }],
     })
 
-    const { queryTracesBatch } = await import('@/lib/grafana-api')
+    const { queryTracesBatch } = await import('@/lib/api/grafana')
     await queryTracesBatch([{ q: '{ .service.name = "scrape-analyzer" }', limit: 20 }])
 
     expect(global.fetch).toHaveBeenCalledOnce()

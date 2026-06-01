@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { queryTraces, type TempoTrace, type TempoResponse } from '@/lib/grafana-api'
+import { queryTraces, type TempoTrace, type TempoResponse } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 

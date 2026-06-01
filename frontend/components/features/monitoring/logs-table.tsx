@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/grafana-api'
+import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 
