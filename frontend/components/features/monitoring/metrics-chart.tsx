@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { HelpCircle, RotateCw } from 'lucide-react'
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, CartesianGrid,
+  XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -45,30 +45,39 @@ function parseRelativeTime(t: string): number {
   return now - Number(n) * (multipliers[unit] ?? 1)
 }
 
-function transformMatrix(results: PrometheusMatrixResult[]): DataPoint[] {
+function transformMatrix(results: PrometheusMatrixResult[], step?: string): DataPoint[] {
   if (!results.length) return []
-  const byTime: Record<number, DataPoint> = {}
+  const byTime: Record<number, Record<string, number>> = {}
   for (const series of results) {
     const label = Object.entries(series.metric)
       .filter(([k]) => k !== '__name__')
-      .map(([k, v]) => `${k}="${v}"`)
+      .map(([, v]) => v)
       .join(', ') || 'value'
     for (const [ts, val] of series.values) {
-      if (!byTime[ts]) byTime[ts] = { time: new Date(ts * 1000).toLocaleTimeString() }
+      if (!byTime[ts]) byTime[ts] = {}
       byTime[ts][label] = parseFloat(val)
     }
   }
-  return Object.values(byTime).sort((a, b) => a.time < b.time ? -1 : 1)
+  const stepNum = step ? parseInt(step) : 0
+  return Object.entries(byTime)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([ts, vals]) => {
+      const date = new Date(Number(ts) * 1000)
+      const time = stepNum >= 86400
+        ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        : date.toLocaleTimeString()
+      return { time, ...vals }
+    })
 }
 
-function processResponse(res: PrometheusResponse): { data: DataPoint[]; keys: string[]; notConfigured: boolean; error: boolean } {
+function processResponse(res: PrometheusResponse, step?: string): { data: DataPoint[]; keys: string[]; notConfigured: boolean; error: boolean } {
   if ('error' in res && (res as { error: string }).error === 'not_configured') {
     return { data: [], keys: [], notConfigured: true, error: false }
   }
   if (res.status !== 'success' || !res.data) {
     return { data: [], keys: [], notConfigured: false, error: true }
   }
-  const points = transformMatrix(res.data.result)
+  const points = transformMatrix(res.data.result, step)
   const keys = points.length ? Object.keys(points[0]).filter(k => k !== 'time') : []
   return { data: points, keys, notConfigured: false, error: false }
 }
@@ -90,13 +99,13 @@ export function MetricsChart({
   // Controlled mode: process externalData when it arrives/changes
   useEffect(() => {
     if (externalData === undefined) return
-    const result = processResponse(externalData)
+    const result = processResponse(externalData, step)
     setData(result.data)
     setSeriesKeys(result.keys)
     setNotConfigured(result.notConfigured)
     setError(result.error)
     setLoading(false)
-  }, [externalData])
+  }, [externalData, step])
 
   // Self-fetch mode: only when externalData is not provided
   const doFetch = useCallback(async () => {
@@ -105,7 +114,7 @@ export function MetricsChart({
     const end = parseRelativeTime(to === 'now' ? String(Math.floor(Date.now() / 1000)) : to)
     try {
       const res = await queryMetrics({ query, start, end, step })
-      const result = processResponse(res)
+      const result = processResponse(res, step)
       setData(result.data)
       setSeriesKeys(result.keys)
       setNotConfigured(result.notConfigured)
@@ -176,6 +185,7 @@ export function MetricsChart({
               <XAxis dataKey="time" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={{ fontSize: 12 }} />
+              {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 10 }} />}
               {seriesKeys.map((k, i) => <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />)}
             </BarChart>
           </ResponsiveContainer>

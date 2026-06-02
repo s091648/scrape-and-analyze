@@ -76,12 +76,87 @@ function formatValue(v: OtlpAttributeValue): string {
 }
 
 export interface SpanPercentileThresholds {
-  p50: number
-  p70: number
-  p80: number
-  p90: number
   avg: number
   count: number
+  durations: number[]
+}
+
+// ── KDE helpers ────────────────────────────────────────────────────────────
+
+function erf(x: number): number {
+  const sign = x >= 0 ? 1 : -1
+  x = Math.abs(x)
+  const t = 1 / (1 + 0.3275911 * x)
+  const poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))))
+  return sign * (1 - poly * Math.exp(-x * x))
+}
+
+function normalCDF(x: number): number {
+  return 0.5 * (1 + erf(x / Math.SQRT2))
+}
+
+function silvermanBw(data: number[]): number {
+  const n = data.length
+  const mean = data.reduce((s, v) => s + v, 0) / n
+  const std = Math.sqrt(data.reduce((s, v) => s + (v - mean) ** 2, 0) / n)
+  return std < 1 ? 1 : Math.max(1.06 * std * Math.pow(n, -0.2), 1)
+}
+
+function kdeCDF(x: number, data: number[]): number {
+  const n = data.length
+  if (n === 0) return 0
+  const h = silvermanBw(data)
+  return data.reduce((sum, xi) => sum + normalCDF((x - xi) / h), 0) / n
+}
+
+function kdePDF(x: number, data: number[], h: number): number {
+  const INV_SQRT2PI = 1 / Math.sqrt(2 * Math.PI)
+  return data.reduce((s, xi) => {
+    const u = (x - xi) / h
+    return s + INV_SQRT2PI * Math.exp(-0.5 * u * u)
+  }, 0) / (data.length * h)
+}
+
+// ── KDE distribution sparkline ─────────────────────────────────────────────
+
+function KdeSparkline({ durationMs, durations }: { durationMs: number; durations: number[] }) {
+  const W = 216, H = 48, SAMPLES = 80, PAD = 2
+  const n = durations.length
+  if (n === 0) return null
+
+  const h = silvermanBw(durations)
+  const ext = Math.max(2.5 * h, 1)
+  const xMin = Math.max(0, Math.min(...durations) - ext)
+  const xMax = Math.max(...durations) + ext
+  const xRange = xMax - xMin
+  if (xRange === 0) return null
+
+  const xs = Array.from({ length: SAMPLES }, (_, i) => xMin + (i / (SAMPLES - 1)) * xRange)
+  const dens = xs.map(x => kdePDF(x, durations, h))
+  const maxD = Math.max(...dens)
+  if (maxD === 0) return null
+
+  const toX = (v: number) => PAD + ((v - xMin) / xRange) * (W - 2 * PAD)
+  const toY = (d: number) => (H - PAD) - (d / maxD) * (H - PAD - 4)
+
+  const pts = xs.map((x, i) => `${toX(x).toFixed(1)},${toY(dens[i]).toFixed(1)}`)
+  const linePath = `M${pts.join('L')}`
+  const areaPath = `M${toX(xMin).toFixed(1)},${H - PAD}L${pts.join('L')}L${toX(xMax).toFixed(1)},${H - PAD}Z`
+
+  const mx = Math.max(PAD, Math.min(W - PAD, toX(durationMs)))
+  const my = toY(kdePDF(durationMs, durations, h))
+
+  return (
+    <svg width={W} height={H} className="block overflow-visible mt-1.5">
+      <path d={areaPath} fill="hsl(var(--foreground))" fillOpacity={0.08} />
+      <path d={linePath} fill="none" stroke="hsl(var(--foreground))"
+        strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
+      <line x1={mx.toFixed(1)} y1="0" x2={mx.toFixed(1)} y2={H - PAD}
+        stroke="hsl(var(--primary))" strokeWidth={2} />
+      <circle cx={mx.toFixed(1)} cy={my.toFixed(1)} r={3.5}
+        fill="hsl(var(--primary))" />
+    </svg>
+  )
 }
 
 interface StageCardProps {
@@ -94,10 +169,11 @@ interface StageCardProps {
 }
 
 function durationColor(ms: number, thresholds?: SpanPercentileThresholds): string {
-  if (!thresholds) return 'text-foreground'
-  if (ms >= thresholds.p90) return 'text-red-500'
-  if (ms >= thresholds.p80) return 'text-orange-600'
-  if (ms >= thresholds.p70) return 'text-orange-400'
+  if (!thresholds || thresholds.durations.length === 0) return 'text-foreground'
+  const pct = kdeCDF(ms, thresholds.durations) * 100
+  if (pct >= 90) return 'text-red-500'
+  if (pct >= 80) return 'text-orange-600'
+  if (pct >= 70) return 'text-orange-400'
   return 'text-foreground'
 }
 
@@ -108,17 +184,32 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
   const stageI18nKey = STAGE_I18N_KEYS[span.name]
   const label = labelOverride ?? (stageI18nKey ? t(stageI18nKey) : (span.name.split('.').pop() ?? span.name))
 
-  const durationBadge = thresholds && thresholds.count >= 5 ? (
+  const startMs = Number(BigInt(span.startTimeUnixNano) / 1_000_000n)
+  const startTimeStr = new Date(startMs).toLocaleString(undefined, {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+
+  const hasSufficientData = thresholds && thresholds.count >= 5
+  const pct = hasSufficientData ? Math.round(kdeCDF(durationMs, thresholds!.durations) * 100) : undefined
+
+  const durationBadge = hasSufficientData ? (
     <RadixTooltip>
       <TooltipTrigger asChild>
         <span className={cn('text-sm font-semibold shrink-0 cursor-default', durationColor(durationMs, thresholds))}>
           {formatDuration(durationMs)}
         </span>
       </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs space-y-0.5">
-        <p>Avg: {formatDuration(thresholds.avg)} · P50: {formatDuration(thresholds.p50)}</p>
-        <p>P70: {formatDuration(thresholds.p70)} · P80: {formatDuration(thresholds.p80)} · P90: {formatDuration(thresholds.p90)}</p>
-        <p className="text-muted-foreground">n={thresholds.count} · last 7d</p>
+      <TooltipContent
+        side="top"
+        className="bg-popover text-popover-foreground border border-border shadow-md p-3 w-60 max-w-none"
+      >
+        <p className="text-xs font-medium">
+          percentile: {pct}%
+          <span className="text-muted-foreground font-normal"> (average: {formatDuration(thresholds!.avg)})</span>
+        </p>
+        <KdeSparkline durationMs={durationMs} durations={thresholds!.durations} />
+        <p className="text-[10px] text-muted-foreground mt-1.5">n={thresholds!.count} · past 7d</p>
       </TooltipContent>
     </RadixTooltip>
   ) : (
@@ -154,6 +245,11 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
         </div>
         {durationBadge}
       </div>
+
+      {/* Start time */}
+      <p className="text-[10px] text-muted-foreground font-mono leading-tight -mt-0.5">
+        {startTimeStr}
+      </p>
 
       {/* Error label — OK is communicated by green outline */}
       {error && (

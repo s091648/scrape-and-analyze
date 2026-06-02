@@ -66,19 +66,23 @@ function parseMessage(line: string): string {
 }
 
 function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
-  const entries: LogEntry[] = []
+  type Raw = LogEntry & { _ms: number }
+  const entries: Raw[] = []
   for (const stream of streams) {
     const env = stream.stream[LokiLabel.ENV]
     for (const [tsNs, line] of stream.values) {
+      const ms = Math.floor(Number(tsNs) / 1_000_000)
       entries.push({
-        ts: new Date(Math.floor(Number(tsNs) / 1_000_000)).toLocaleTimeString(),
+        _ms: ms,
+        ts: new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
         level: parseLevel(line),
         env,
         message: parseMessage(line),
       })
     }
   }
-  return entries.sort((a, b) => b.ts.localeCompare(a.ts))
+  entries.sort((a, b) => b._ms - a._ms)
+  return entries.map(({ _ms, ...e }) => e)
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -165,7 +169,7 @@ export function LogsTable({
     : undefined
 
   const columns = [
-    { key: 'ts',      label: t('admin.logColumnTime'),        className: 'w-20' },
+    { key: 'ts',      label: t('admin.logColumnTime'),        className: 'w-32' },
     { key: 'level',   label: t('admin.logColumnLevel'),       className: 'w-16' },
     { key: 'env',     label: t('admin.logColumnEnvironment'), className: 'w-24' },
     { key: 'message', label: t('admin.logColumnMessage') },

@@ -18,17 +18,8 @@ interface ArticleWorkflowDialogProps {
 }
 
 function computeThresholds(durations: number[]): SpanPercentileThresholds {
-  const sorted = [...durations].sort((a, b) => a - b)
-  const at = (p: number) => sorted[Math.floor(sorted.length * p)] ?? Infinity
   const avg = durations.reduce((sum, d) => sum + d, 0) / durations.length
-  return {
-    p50: at(0.50),
-    p70: at(0.70),
-    p80: at(0.80),
-    p90: at(0.90),
-    avg,
-    count: durations.length,
-  }
+  return { avg, count: durations.length, durations }
 }
 
 function getLabelOverride(span: OtlpSpan): string | undefined {
@@ -49,6 +40,11 @@ export function ArticleWorkflowDialog({
   const url    = getAttr(pipelineSpan, 'article.url') as string | undefined
   const source = getAttr(pipelineSpan, 'article.source') as string | undefined
   const totalMs = spanDurationMs(pipelineSpan)
+
+  // article.title lives on the article.processed.handle child span
+  const title = stageSpans
+    .map(n => getAttr(n.span, 'article.title'))
+    .find(v => v !== undefined) as string | undefined
 
   const [percentileMap, setPercentileMap] = useState<Map<string, SpanPercentileThresholds>>(new Map())
   // Empty set = all expanded (default B: expanded)
@@ -103,10 +99,10 @@ export function ArticleWorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-3xl w-full max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-5xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-sm font-mono truncate">
-            {url ?? t('admin.articlePipelineTitle')}
+          <DialogTitle className="text-sm truncate">
+            {title ?? url ?? t('admin.articlePipelineTitle')}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             {formatDuration(totalMs)}
