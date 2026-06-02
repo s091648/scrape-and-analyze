@@ -36,6 +36,11 @@ class AnalyzeArticleUseCase:
 
     def execute(self, article: Article) -> AnalysisResult:
         content = article.get_analysis_content()
+        topic_display_name: Optional[str] = None
+        if article.topic_id is not None:
+            _topic = self._topic_repository.find_by_id(article.topic_id)
+            if _topic is not None:
+                topic_display_name = _topic.display_name
         prompt = self._build_prompt(article.topic_id)
         result = self._llm_service.analyze(content, prompt)
 
@@ -47,6 +52,7 @@ class AnalyzeArticleUseCase:
                 article_url=article.url,
                 exception_type="LLMAnalysisError",
                 exception_message="All LLM providers returned None",
+                topic_display_name=topic_display_name,
             )
 
         analysis_content, analysis_metadata = result
@@ -79,6 +85,7 @@ class AnalyzeArticleUseCase:
                 article_url=article.url,
                 exception_type=type(e).__name__,
                 exception_message=str(e),
+                topic_display_name=topic_display_name,
             )
 
         logger.info(
@@ -94,6 +101,7 @@ class AnalyzeArticleUseCase:
             article_id=article.id,
             article_url=article.url,
             analysis=analysis,
+            topic_display_name=topic_display_name,
         )
 
     # ── Private helpers ──────────────────────────────────────────────────────

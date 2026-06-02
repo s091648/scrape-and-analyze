@@ -20,9 +20,11 @@ const STAGE_I18N_KEYS: Record<string, string> = {
 
 const ATTR_I18N_KEYS: Record<string, string> = {
   'article.id':                    'admin.stageAttr_articleId',
+  'article.title':                 'admin.stageAttr_articleTitle',
   'article.url':                   'admin.stageAttr_url',
   'article.source':                'admin.stageAttr_source',
   'article.topic_id':              'admin.stageAttr_topicId',
+  'article.topic_display_name':    'admin.stageAttr_topicName',
   'article.content_chars':         'admin.stageAttr_contentChars',
   'article.outcome':               'admin.stageAttr_outcome',
   'analysis.id':                   'admin.stageAttr_analysisId',
@@ -32,7 +34,9 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'llm.input_tokens':              'admin.stageAttr_inputTokens',
   'llm.output_tokens':             'admin.stageAttr_outputTokens',
   'tags.group_count':              'admin.stageAttr_tagGroups',
+  'tags.group_names':              'admin.stageAttr_tagGroupNames',
   'tags.total_count':              'admin.stageAttr_totalTags',
+  'tags.tag_names':                'admin.stageAttr_tagNames',
   'normalization.success':         'admin.stageAttr_normSuccess',
   'normalization.error_type':      'admin.stageAttr_normErrorType',
   'translation.target_languages':  'admin.stageAttr_targetLangs',
@@ -55,16 +59,37 @@ function formatValue(v: OtlpAttributeValue): string {
   if (v.boolValue !== undefined) return v.boolValue ? '✓' : '✗'
   if (v.intValue !== undefined)  return parseInt(v.intValue, 10).toLocaleString()
   if (v.doubleValue !== undefined) return v.doubleValue.toFixed(3)
+  if ((v as { arrayValue?: { values?: OtlpAttributeValue[] } }).arrayValue?.values) {
+    return (v as { arrayValue: { values: OtlpAttributeValue[] } }).arrayValue.values
+      .map(item => item.stringValue ?? item.intValue ?? '')
+      .filter(Boolean)
+      .join(', ')
+  }
   const s = v.stringValue ?? '—'
   return s.length > 60 ? `${s.slice(0, 57)}…` : s
+}
+
+export interface SpanPercentileThresholds {
+  p70: number
+  p80: number
+  p90: number
 }
 
 interface StageCardProps {
   span: OtlpSpan
   className?: string
+  thresholds?: SpanPercentileThresholds
 }
 
-export function StageCard({ span, className }: StageCardProps) {
+function durationColor(ms: number, thresholds?: SpanPercentileThresholds): string {
+  if (!thresholds) return 'text-foreground'
+  if (ms >= thresholds.p90) return 'text-red-500'
+  if (ms >= thresholds.p80) return 'text-orange-600'
+  if (ms >= thresholds.p70) return 'text-orange-400'
+  return 'text-foreground'
+}
+
+export function StageCard({ span, className, thresholds }: StageCardProps) {
   const { t } = useI18n()
   const durationMs = spanDurationMs(span)
   const error = isErrorSpan(span)
@@ -73,8 +98,8 @@ export function StageCard({ span, className }: StageCardProps) {
 
   return (
     <div className={cn(
-      'rounded-lg border bg-card p-3 min-w-[160px] flex-shrink-0 flex flex-col gap-1.5 border-l-3 rounded-l-lg',
-      error ? 'border-l-destructive border-destructive' : 'border-l-emerald-500 border-border',
+      'rounded-lg border-2 bg-card p-3 min-w-[160px] flex-shrink-0 flex flex-col gap-1.5',
+      error ? 'border-destructive' : 'border-emerald-500',
       className,
     )}>
       {/* Header */}
@@ -82,15 +107,15 @@ export function StageCard({ span, className }: StageCardProps) {
         <span className={cn('font-semibold text-sm truncate', error && 'text-destructive')}>
           {label}
         </span>
-        <span className={cn('text-sm font-semibold shrink-0 text-foreground')}>
+        <span className={cn('text-sm font-semibold shrink-0', durationColor(durationMs, thresholds))}>
           {formatDuration(durationMs)}
         </span>
       </div>
 
-      {/* Status badge */}
-      <div className={cn('text-xs font-medium', error ? 'text-destructive' : 'text-emerald-600')}>
-        {error ? '✗ Error' : '✓ OK'}
-      </div>
+      {/* Error label — OK is communicated by green outline */}
+      {error && (
+        <div className="text-xs font-medium text-destructive">✗ Error</div>
+      )}
 
       {/* Attributes table */}
       {span.attributes.length > 0 && (

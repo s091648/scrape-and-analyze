@@ -193,6 +193,7 @@ def build_collection_pipeline():
     )
 
     # ── Tracing wrappers ───────────────────────────────────────────────────
+    from opentelemetry.trace import StatusCode as _StatusCode
     from src.infrastructure.shared.observability import get_tracer as _get_tracer
     from src.infrastructure.shared.observability.span_wrappers import (
         with_span,
@@ -263,17 +264,23 @@ def build_collection_pipeline():
     # feature branch, replace this direct repo.save() with:
     #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
     def _on_discover_failed(task, exc) -> None:
-        failed = FailedTask(
-            task_type="arxiv_discover",
-            exception_type=type(exc).__name__,
-            exception_message=str(exc),
-            failed_at=datetime.now(timezone.utc),
-        )
-        try:
-            failed_task_repo.save(failed)
-            logger.info("arxiv_discover_failure_recorded", source=task.setting.source)
-        except Exception as e:
-            logger.error("failed_task_save_error", source=task.setting.source, error=str(e))
+        with _tracer.start_as_current_span("scraper.discover_failed") as span:
+            span.set_attribute("task.type", "arxiv_discover")
+            span.set_attribute("task.exception_type", type(exc).__name__)
+            source = getattr(getattr(task, "setting", None), "source", "unknown")
+            span.set_attribute("article.source", source)
+            span.set_status(_StatusCode.ERROR, type(exc).__name__)
+            failed = FailedTask(
+                task_type="arxiv_discover",
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+                failed_at=datetime.now(timezone.utc),
+            )
+            try:
+                failed_task_repo.save(failed)
+                logger.info("arxiv_discover_failure_recorded", source=source)
+            except Exception as e:
+                logger.error("failed_task_save_error", source=source, error=str(e))
 
     executor = ScrapeExecutor(on_discover_failed=_on_discover_failed)
 

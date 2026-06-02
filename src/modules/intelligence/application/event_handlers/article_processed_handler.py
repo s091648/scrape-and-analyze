@@ -16,11 +16,15 @@ class ArticleProcessedHandler:
         span.set_attribute("article.id", str(event.article.id))
         span.set_attribute("article.url", event.article.url)
         span.set_attribute("article.source", event.article.source)
+        if event.article.title:
+            span.set_attribute("article.title", event.article.title)
         if event.article.topic_id:
             span.set_attribute("article.topic_id", str(event.article.topic_id))
 
         result = self._use_case.execute(event.article)
 
+        if result.topic_display_name:
+            span.set_attribute("article.topic_display_name", result.topic_display_name)
         span.set_attribute("analysis.success", result.success)
         if result.success and result.analysis:
             meta = result.analysis.analysis_metadata

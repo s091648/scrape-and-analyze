@@ -14,3 +14,4 @@ class AnalysisResult:
     analysis: Optional[Analysis] = None
     exception_type: Optional[str] = None
     exception_message: Optional[str] = None
+    topic_display_name: Optional[str] = None

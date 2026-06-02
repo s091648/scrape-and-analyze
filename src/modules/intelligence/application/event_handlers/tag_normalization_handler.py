@@ -24,6 +24,8 @@ class TagNormalizationHandler:
         span.set_attribute("article.id", str(event.article_id))
         span.set_attribute("tags.group_count", len(event.tag_groups))
         span.set_attribute("tags.total_count", sum(len(tags) for _, tags in event.tag_groups))
+        span.set_attribute("tags.group_names", [g for g, _ in event.tag_groups])
+        span.set_attribute("tags.tag_names", [t for _, tags in event.tag_groups for t in tags])
         if event.topic_id:
             span.set_attribute("article.topic_id", str(event.topic_id))
 
@@ -39,6 +41,7 @@ class TagNormalizationHandler:
             self._event_bus.publish(TagNormalizationCompletedEvent(
                 analysis_id=event.analysis_id,
                 article_id=event.article_id,
+                topic_id=event.topic_id,
             ))
         else:
             if result.exception_type:

@@ -1,4 +1,5 @@
 from opentelemetry import trace as _otel_trace
+from opentelemetry.trace import StatusCode
 
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats, ProcessScrapedArticleUseCase
@@ -29,6 +30,8 @@ class ArticleScrapedHandler:
         self._pipeline_stats.record(event.source, outcome)
 
         span.set_attribute("article.outcome", outcome.value)
+        if outcome == ArticleOutcome.FAILED:
+            span.set_status(StatusCode.ERROR, "article scrape outcome: failed")
         if article is not None:
             span.set_attribute("article.id", str(article.id))
             self._event_bus.publish(ArticleProcessedEvent(article=article))

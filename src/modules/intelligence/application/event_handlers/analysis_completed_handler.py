@@ -35,6 +35,8 @@ class AnalysisCompletedHandler:
         span.set_attribute("analysis.id", str(event.analysis_id))
         span.set_attribute("article.id", str(event.article_id))
         span.set_attribute("translation.target_languages", ", ".join(self._target_languages))
+        if event.topic_id:
+            span.set_attribute("article.topic_id", str(event.topic_id))
 
         en_content = self._analyses_translation_repo.find_by_analysis_id_and_language(
             event.analysis_id, 'en'
@@ -89,9 +91,11 @@ class AnalysisCompletedHandler:
                 try:
                     self._translate_tags_uc.translate_tags(lang, limit=50)
                 except Exception as e:
+                    lang_span.record_exception(e)
                     _logger.error("auto_tag_translation_error", language=lang, error=str(e))
 
                 try:
                     self._translate_tags_uc.translate_groups(lang, limit=50)
                 except Exception as e:
+                    lang_span.record_exception(e)
                     _logger.error("auto_group_translation_error", language=lang, error=str(e))

@@ -138,17 +138,17 @@ class ScrapeExecutor:
                 pending_discovers[0] -= 1
 
         total_fetched = 0
-        ctx = contextvars.copy_context()
 
         with ThreadPoolExecutor(
             max_workers=self._discover_workers + self._num_workers
         ) as pool:
             futures = []
 
-            # Discover workers
+            # Discover workers — each gets its own context copy to avoid
+            # "cannot enter context: already entered" across concurrent threads.
             for i in range(self._discover_workers):
                 futures.append(pool.submit(
-                    _context_wrapper(self._discover_worker_loop, ctx),
+                    _context_wrapper(self._discover_worker_loop, contextvars.copy_context()),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     router=router,
@@ -158,10 +158,10 @@ class ScrapeExecutor:
                     pre_fetch_filter=pre_fetch_filter,
                 ))
 
-            # Fetch workers
+            # Fetch workers — same: each needs its own context copy.
             for i in range(self._num_workers):
                 futures.append(pool.submit(
-                    _context_wrapper(self._fetch_worker_loop, ctx),
+                    _context_wrapper(self._fetch_worker_loop, contextvars.copy_context()),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     on_result=on_result,
@@ -187,7 +187,6 @@ class ScrapeExecutor:
     ) -> int:
         done_flag: list[bool] = [False]
         total_fetched = 0
-        ctx = contextvars.copy_context()
 
         def worker_loop(worker_id: int) -> int:
             logger.info("worker_started", worker_id=worker_id)
@@ -228,7 +227,7 @@ class ScrapeExecutor:
 
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
             futures = [
-                pool.submit(_context_wrapper(worker_loop, ctx), i)
+                pool.submit(_context_wrapper(worker_loop, contextvars.copy_context()), i)
                 for i in range(self._num_workers)
             ]
             done_flag[0] = True
