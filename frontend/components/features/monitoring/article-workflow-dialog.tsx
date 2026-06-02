@@ -3,6 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
+import type { SpanNode } from '@/lib/otlp-utils'
 import { getAttr, spanDurationMs, formatDuration } from '@/lib/otlp-utils'
 import { StageCard } from './stage-card'
 
@@ -10,7 +11,7 @@ interface ArticleWorkflowDialogProps {
   open: boolean
   onClose: () => void
   pipelineSpan: OtlpSpan
-  stageSpans: OtlpSpan[]
+  stageSpans: SpanNode[]
 }
 
 export function ArticleWorkflowDialog({
@@ -40,9 +41,9 @@ export function ArticleWorkflowDialog({
         <div className="overflow-auto flex-1 pb-2">
           {/* Vertical workflow layout */}
           <div className="flex flex-col items-stretch">
-            {stageSpans.map((span, i) => (
-              <div key={span.spanId} className="flex flex-col items-center">
-                <StageCard span={span} className="w-full" />
+            {stageSpans.map((node, i) => (
+              <div key={node.span.spanId} className="flex flex-col items-center" style={{ paddingLeft: node.depth * 24 }}>
+                <StageCard span={node.span} className="w-full" />
                 {i < stageSpans.length - 1 && (
                   <span className="text-muted-foreground text-base shrink-0 my-0.5">
                     ↓

@@ -56,9 +56,24 @@ export function findArticlePipelineSpans(spans: OtlpSpan[]): OtlpSpan[] {
     .sort((a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano)))
 }
 
-export function findStageSpans(tree: Map<string, OtlpSpan[]>, pipelineSpanId: string): OtlpSpan[] {
-  return (tree.get(pipelineSpanId) ?? []).sort(
-    (a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano))
+export interface SpanNode {
+  span: OtlpSpan
+  depth: number
+}
+
+export function findStageSpans(tree: Map<string, OtlpSpan[]>, pipelineSpanId: string): SpanNode[] {
+  const result: SpanNode[] = []
+  const queue: Array<{ parentId: string; depth: number }> = [{ parentId: pipelineSpanId, depth: 0 }]
+  while (queue.length > 0) {
+    const { parentId, depth } = queue.shift()!
+    const children = tree.get(parentId) ?? []
+    for (const child of children) {
+      result.push({ span: child, depth })
+      queue.push({ parentId: child.spanId, depth: depth + 1 })
+    }
+  }
+  return result.sort(
+    (a, b) => Number(BigInt(a.span.startTimeUnixNano) - BigInt(b.span.startTimeUnixNano))
   )
 }
 

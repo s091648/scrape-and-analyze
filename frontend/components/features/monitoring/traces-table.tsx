@@ -8,6 +8,7 @@ import { useI18n } from '@/lib/providers'
 import {
   flattenSpans, buildSpanTree, findArticlePipelineSpans,
   findStageSpans, spanDurationMs, isErrorSpan, formatDuration,
+  type SpanNode,
 } from '@/lib/otlp-utils'
 import { RunWaterfallDialog } from './run-waterfall-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
@@ -56,8 +57,8 @@ function formatStart(nanoStr: string): string {
 
 interface ArticleSubRowProps {
   pipelineSpan: OtlpSpan
-  stageSpans: OtlpSpan[]
-  onView: (ps: OtlpSpan, ss: OtlpSpan[]) => void
+  stageSpans: SpanNode[]
+  onView: (ps: OtlpSpan, ss: SpanNode[]) => void
 }
 
 // Columns: expand | traceId | root | service | env | dur | start  (7 total)
@@ -144,7 +145,7 @@ export function TracesTable({
 
   // dialog state
   const [waterfallTarget, setWaterfallTarget] = useState<{ traceId: string; data: OtlpTraceResponse } | null>(null)
-  const [workflowTarget, setWorkflowTarget] = useState<{ pipeline: OtlpSpan; stages: OtlpSpan[] } | null>(null)
+  const [workflowTarget, setWorkflowTarget] = useState<{ pipeline: OtlpSpan; stages: SpanNode[] } | null>(null)
 
   // ── Data fetch ───────────────────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export function TracesTable({
     setWaterfallTarget({ traceId: trace.traceID, data })
   }
 
-  function openWorkflow(pipeline: OtlpSpan, stages: OtlpSpan[]) {
+  function openWorkflow(pipeline: OtlpSpan, stages: SpanNode[]) {
     setWorkflowTarget({ pipeline, stages })
   }
 
@@ -263,7 +264,7 @@ export function TracesTable({
             const environment = extractEnvironment(trace)
 
             // Build article rows from cached detail
-            let articleRows: { pipeline: OtlpSpan; stages: OtlpSpan[] }[] = []
+            let articleRows: { pipeline: OtlpSpan; stages: SpanNode[] }[] = []
             if (detail) {
               const spans = flattenSpans(detail)
               const tree  = buildSpanTree(spans)
