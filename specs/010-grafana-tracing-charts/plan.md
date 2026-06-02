@@ -64,40 +64,61 @@ specs/010-grafana-tracing-charts/
 src/
 ├── infrastructure/
 │   ├── collection/
-│   │   └── collection_pipeline.py      MODIFY — add stage spans
+│   │   └── collection_pipeline.py      MODIFIED — stage spans added
 │   └── shared/
 │       └── observability/
-│           └── __init__.py             MODIFY — export tracing_span_wrapper if extracted
+│           ├── __init__.py             MODIFIED — exports get_tracer, shutdown_tracing
+│           └── span_wrappers.py        NEW — with_span / with_span_deferred / with_article_pipeline_span
 │
-├── bootstrap.py                        MODIFY — wrap event_bus.subscribe() with span wrappers
-└── entrypoints/cli/
-    └── main.py                         NO CHANGE — root span + shutdown already correct
+├── bootstrap.py                        MODIFIED — uses tracing wrappers on all event_bus.subscribe()
+├── entrypoints/cli/
+│   └── main.py                         NO CHANGE — root span + shutdown already correct
+│
+└── shared/enums/
+    └── observability.py                MODIFIED — SpanName enum added (ARTICLE_PIPELINE, handler names, etc.)
 
 backend/
 └── routers/
-    └── grafana.py                      EXISTS — GET/POST /grafana/metrics(/batch), /grafana/logs, /grafana/traces
-                                             MODIFY (Phase G): add POST /grafana/logs/batch, /grafana/traces/batch
+    └── grafana.py                      MODIFIED — all endpoints implemented:
+                                             GET  /grafana/metrics
+                                             POST /grafana/metrics/batch
+                                             GET  /grafana/logs
+                                             POST /grafana/logs/batch
+                                             GET  /grafana/traces
+                                             POST /grafana/traces/batch
+                                             GET  /grafana/traces/{trace_id}  ← NEW (OTLP detail)
 
 frontend/
 ├── app/api/
 │   └── grafana-proxy/
 │       └── [...path]/
-│           └── route.ts                EXISTS — 410 Gone (already moved to backend)
+│           └── route.ts                EXISTS — 410 Gone (traffic goes through backend)
 ├── components/features/monitoring/
-│   ├── grafana-panel.tsx               EXISTS — kept as-is (unused by monitoring-content)
-│   ├── metrics-chart.tsx               EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
-│   ├── stat-card.tsx                   EXISTS — MODIFY (Phase G): add onRefresh + refresh icon
-│   ├── logs-table.tsx                  EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
-│   ├── traces-table.tsx                EXISTS — MODIFY (Phase G): add externalData + onRefresh + refresh icon
-│   ├── metrics-chart.stories.tsx       EXISTS — MODIFY (Phase G): add WithData variant
-│   ├── stat-card.stories.tsx           EXISTS — MODIFY (Phase G): add WithData variant
-│   ├── logs-table.stories.tsx          EXISTS — MODIFY (Phase G): add WithData variant
-│   └── traces-table.stories.tsx        EXISTS — MODIFY (Phase G): add WithData variant
+│   ├── grafana-panel.tsx               EXISTS — kept (legacy, unused by monitoring-content)
+│   ├── stat-card.tsx                   EXISTS — onRefresh + refresh icon added
+│   ├── metrics-chart.tsx               EXISTS — externalData + onRefresh added
+│   ├── logs-table.tsx                  EXISTS — externalData + onRefresh added
+│   ├── traces-table.tsx                EXISTS — collapsible rows + env column + dialogs added
+│   ├── run-waterfall-dialog.tsx        NEW — Gantt span waterfall dialog
+│   ├── article-workflow-dialog.tsx     NEW — Langfuse-style per-article stage card dialog
+│   ├── stage-card.tsx                  NEW — individual stage card component
+│   ├── failed-task-list.tsx            NEW — failed task panel (reuse in monitoring)
+│   └── [*.stories.tsx]                 MODIFIED — WithData / WithRefresh variants
 ├── lib/
-│   └── grafana-api.ts                  EXISTS — MODIFY (Phase G): add queryLogsBatch, queryTracesBatch
+│   ├── api/
+│   │   └── grafana.ts                  NEW (was grafana-api.ts) — all query functions + types
+│   │                                        queryMetrics / queryMetricsBatch
+│   │                                        queryLogs / queryLogsBatch
+│   │                                        queryTraces / queryTracesBatch
+│   │                                        queryTraceById  ← NEW
+│   ├── otlp-utils.ts                   NEW — OTLP span parsing (flattenSpans, buildSpanTree,
+│   │                                        findArticlePipelineSpans, findStageSpans, etc.)
+│   └── observability-constants.ts      NEW — TypeScript mirror of shared/enums/observability.py
+│                                            (SpanName, MetricName, LokiLabel, TraceQLResource, helpers)
 └── app/admin/monitoring/
-    └── monitoring-content.tsx          EXISTS — MODIFY (Phase G): replace usePromStatsBatch + LokiStat
-                                             with useOperationsBatch / useLogsBatch / useTracesBatch
+    └── monitoring-content.tsx          MODIFIED — global filter panel (time range / env / log level);
+                                             useOperationsBatch / useLogsBatch / useTracesBatch hooks;
+                                             all panels use externalData + onRefresh props
 ```
 
 ## Implementation Tasks (High-Level)
@@ -110,25 +131,25 @@ frontend/
 - `pipeline.discover_and_fetch`（wraps `executor.run_streaming()`）
 - `pipeline.dedup`（wraps dedup filter logic）
 - `pipeline.publish_articles`（wraps event publication loop）
-- 各 span 加入相關 attributes（article count, source count）
+- 各 span 加入相關 attributes（sources.count, articles.discovered, articles.before_dedup, articles.after_dedup, articles.published）
 
-**A2**: 在 `bootstrap.py` 的 event handler 訂閱加入 span wrapper closure
-```python
-def _with_span(span_name: str, fn):
-    tracer = get_tracer()
-    def _wrapper(event):
-        with tracer.start_as_current_span(span_name):
-            return fn(event)
-    return _wrapper
-```
-套用至：
-- `ArticleScrapedHandler.handle` → `"article.scraped.handle"`
-- `ArticleProcessedHandler.handle` → `"article.processed.handle"`
-- `TagNormalizationHandler.handle` → `"article.tag_normalization.handle"`
-- `AnalysisCompletedHandler.handle` → `"article.analysis_completed.handle"`
+**A2**: 提取 `src/infrastructure/shared/observability/span_wrappers.py`，定義三種 wrapper：
+- `with_span(name, fn, tracer)` — 簡單包裹，用於 failed-event 和 pipeline-completed handlers
+- `with_span_deferred(name, fn, bus, tracer)` — 延遲 publish，讓下游 handler span 成為 sibling 而非深度巢狀子節點
+- `with_article_pipeline_span(fn, bus, tracer, pipeline_name, scraped_name)` — 建立 per-article parent span（`article.pipeline`）帶 `article.url`、`article.source`、`article.topic_id`，再 delegate 給 `with_span_deferred`
+
+在 `bootstrap.py` 套用至所有 `event_bus.subscribe()` 呼叫：
+- `ArticleScrapedEvent` → `with_article_pipeline_span` → `"article.pipeline"` + `"article.scraped.handle"`
+- `ArticleProcessedEvent` → `with_span_deferred` → `"article.processed.handle"`
+- `AnalysisFailedEvent` / `TagNormalizationFailedEvent` / `TranslationFailedEvent` → `with_span` → failed spans
+- `AnalysisCompletedEvent` → `with_span_deferred` → `"article.tag_normalization.handle"`
+- `TagNormalizationCompletedEvent` → `with_span_deferred` → `"article.analysis_completed.handle"`
+- `PipelineCompletedEvent` × 2 → `with_span` → `"scraper.pipeline_completed.handle"` / `"scraper.pipeline_completed.notify"`
 
 **A3**: 撰寫 unit tests
-- `src/tests/unit/test_tracing_spans.py`：mock tracer，verify span names 和 attributes
+- `src/tests/unit/test_tracing_wrapper.py`：mock tracer，verify span names 和 exception recording
+- `src/tests/unit/test_collection_pipeline_spans.py`：verify pipeline span names
+- `src/tests/unit/test_pipeline_span_attributes.py`：verify span attributes
 
 ### Phase B: Grafana Datasource Proxy（Frontend）
 
@@ -212,7 +233,7 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 - 各自平行打 Loki / Tempo，pattern 同現有 metrics/batch
 - 回傳 `list[LokiResponse]` / `list[TempoResponse]`
 
-**G2**: 在 `frontend/lib/grafana-api.ts` 新增 `queryLogsBatch()` 和 `queryTracesBatch()`
+**G2**: 在 `frontend/lib/api/grafana.ts` 新增 `queryLogsBatch()` 和 `queryTracesBatch()`（注意：實際路徑為 `lib/api/grafana.ts`，非原計畫的 `lib/grafana-api.ts`）
 
 **G3**: 在 `monitoring-content.tsx` 實作三個 tab-level hooks：
 - `useOperationsBatch()` — 1 次 metrics/batch（12 items: 8 stats + 4 charts）
@@ -226,12 +247,30 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 
 **G5**: `monitoring-content.tsx` 重新佈線：移除 `usePromStatsBatch` 和 `LokiStat`，改用三個 tab hooks，pass props 到各 panel
 
-**G6**: Storybook stories 各加 `WithData` variant（傳 mock externalData）
+**G6**: 加入全域篩選面板（Global Filter Panel，原計畫外新增）：
+- Time Range 選擇器（1h / 6h / 24h / 7d）
+- Environment 選擇器（all / local / production），對應 Tempo `deployment.environment` 和 Loki `env` label
+- Log Level 選擇器（all / error / warning / info）
+- 篩選條件改變觸發各 hook 重新 fetch
 
-**G7**: 更新 unit tests 覆蓋新 batch functions 和 externalData/onRefresh props
+**G7**: TracesTable 鑽取 UI（原計畫外新增）：
+- `GET /grafana/traces/{trace_id}` backend 端點（正規化 `resourceSpans` → `batches`）
+- `queryTraceById()` frontend function（`frontend/lib/api/grafana.ts`）
+- OTLP 解析工具 `frontend/lib/otlp-utils.ts`（flattenSpans、buildSpanTree、findArticlePipelineSpans、findStageSpans 等）
+- `frontend/lib/observability-constants.ts`（TypeScript mirror of `shared/enums/observability.py`）
+- TracesTable 展開行：per-article sub-rows，`ArticleSubRow` component
+- `run-waterfall-dialog.tsx`：Gantt 瀑布圖，SpanBar timeline
+- `article-workflow-dialog.tsx`：Langfuse 式 stage cards
+- `stage-card.tsx`：單一 stage 顯示
+
+**G8**: Storybook stories 各加 `WithData` / `WithRefresh` variant
+
+**G9**: 更新 unit tests 覆蓋新 batch functions 和 externalData/onRefresh props
 
 ## Complexity Tracking
 
 無 constitution 違規，此表為空。
 
 所有 OTel span 加入均在 infrastructure / composition root layer，符合 DDD 原則。新前端元件均在 `components/features/monitoring/` 並附 Storybook。
+
+> **實際交付範圍**比原計畫多出：全域篩選面板（G6）、TracesTable drill-down UI（G7）、OTLP 工具庫（otlp-utils.ts）、observability-constants.ts（TS/Python 共用常數鏡像）。這些均在 `fix/grafana_trace_and_ui` 分支一起交付。
