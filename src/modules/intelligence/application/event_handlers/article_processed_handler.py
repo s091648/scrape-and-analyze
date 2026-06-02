@@ -1,9 +1,12 @@
 from opentelemetry import trace as _otel_trace
 
+from src.shared.logging import get_logger
 from src.shared.application.events import ArticleProcessedEvent
 from src.shared.application.ports import EventBus
 from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, AnalysisResult
 from src.modules.intelligence.application.events import AnalysisCompletedEvent, AnalysisFailedEvent
+
+logger = get_logger(__name__)
 
 
 class ArticleProcessedHandler:
@@ -21,6 +24,12 @@ class ArticleProcessedHandler:
         if event.article.topic_id:
             span.set_attribute("article.topic_id", str(event.article.topic_id))
 
+        logger.info(
+            "article_analysis_started",
+            article_id=str(event.article.id),
+            url=event.article.url,
+            source=event.article.source,
+        )
         result = self._use_case.execute(event.article)
 
         if result.topic_display_name:

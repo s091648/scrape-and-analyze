@@ -193,6 +193,16 @@ export async function queryMetricsBatch(items: MetricsBatchItem[]): Promise<Prom
   return Array.isArray(json) ? json : [json]
 }
 
+export async function queryLokiMetricsBatch(items: MetricsBatchItem[]): Promise<PrometheusResponse[]> {
+  const res = await fetch('/api/proxy/grafana/loki-metrics/batch', {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
+  const json = await res.json()
+  return Array.isArray(json) ? json : [json]
+}
+
 export async function queryLogsBatch(items: LogsQueryParams[]): Promise<LokiResponse[]> {
   const res = await fetch('/api/proxy/grafana/logs/batch', {
     method: 'POST',

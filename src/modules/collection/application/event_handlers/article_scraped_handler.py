@@ -1,10 +1,13 @@
 from opentelemetry import trace as _otel_trace
 from opentelemetry.trace import StatusCode
 
+from src.shared.logging import get_logger
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats, ProcessScrapedArticleUseCase
 from src.shared.application.events import ArticleProcessedEvent
 from src.shared.application.ports import EventBus
+
+logger = get_logger(__name__)
 
 
 class ArticleScrapedHandler:
@@ -32,6 +35,12 @@ class ArticleScrapedHandler:
         span.set_attribute("article.outcome", outcome.value)
         if outcome == ArticleOutcome.FAILED:
             span.set_status(StatusCode.ERROR, "article scrape outcome: failed")
+            logger.error("article_scrape_failed", url=event.url, source=event.source)
+        elif outcome == ArticleOutcome.DUPLICATE:
+            logger.info("article_duplicate_skipped", url=event.url, source=event.source)
+        else:
+            logger.info("article_scrape_accepted", url=event.url, source=event.source)
+
         if article is not None:
             span.set_attribute("article.id", str(article.id))
             self._event_bus.publish(ArticleProcessedEvent(article=article))

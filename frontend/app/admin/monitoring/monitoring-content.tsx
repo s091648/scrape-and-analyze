@@ -8,7 +8,7 @@ import { MetricsChart } from '@/components/features/monitoring/metrics-chart'
 import { LogsTable } from '@/components/features/monitoring/logs-table'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
 import {
-  queryMetrics, queryMetricsBatch, queryLogs, queryLogsBatch,
+  queryMetrics, queryMetricsBatch, queryLokiMetricsBatch, queryLogs, queryLogsBatch,
   queryTraces, queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/api/grafana'
@@ -112,7 +112,7 @@ const OPS_CHARTS: ChartPanelDef[] = [
 
 const LOGS_VOLUME_CHART: ChartPanelDef = {
   titleKey: 'admin.logVolumeChart',
-  query: `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} [1m]))`,
+  query: `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} | json [1m]))`,
   step: '60',
   height: 180,
   tooltipKey: 'admin.logVolumeChartTooltip',
@@ -126,8 +126,8 @@ const LOGS_STAT_PANELS: StatPanelDef[] = [
 const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
   { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} |= "execution"`,                                        height: 300, tooltipKey: 'admin.executionTimelineTooltip' },
   { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}"`,         height: 300, tooltipKey: 'admin.errorLogsTooltip' },
-  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} |= "article_analyzed"`,                                 height: 240, tooltipKey: 'admin.articleSuccessLogsTooltip' },
-  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} |= "analysis_failed"`,                                  height: 240, tooltipKey: 'admin.articleFailureLogsTooltip' },
+  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} |= "analysis_completed"`,                               height: 240, tooltipKey: 'admin.articleSuccessLogsTooltip' },
+  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ ".*_failed"`,             height: 240, tooltipKey: 'admin.articleFailureLogsTooltip' },
 ]
 
 // ── Traces panel descriptors ───────────────────────────────────────────────
@@ -239,7 +239,8 @@ function useLogsBatch(timeRangeSeconds: number, environment: Environment) {
     const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
     try {
       const [metricResults, logsResults] = await Promise.all([
-        queryMetricsBatch(allMetricPanels.map(p => ({
+        // LogQL metric queries must go to Loki, not Prometheus
+        queryLokiMetricsBatch(allMetricPanels.map(p => ({
           query: applyEnvToLokiQuery(p.query, environment),
           step: p.step, start: now - timeRangeSeconds, end: now,
         }))),
@@ -271,11 +272,11 @@ function useLogsBatch(timeRangeSeconds: number, environment: Environment) {
     const startNs = (Date.now() - timeRangeSeconds * 1000).toString() + '000000'
     try {
       if (index === 0) {
-        const res = await queryMetrics({ query: applyEnvToLokiQuery(LOGS_VOLUME_CHART.query, environment), start: now - timeRangeSeconds, end: now, step: LOGS_VOLUME_CHART.step })
+        const [res] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(LOGS_VOLUME_CHART.query, environment), start: now - timeRangeSeconds, end: now, step: LOGS_VOLUME_CHART.step }])
         setMetricData(prev => prev.map((v, i) => i === 0 ? res : v))
       } else if (index < LOGS_NUM_METRIC) {
         const p = LOGS_STAT_PANELS[index - 1]
-        const res = await queryMetrics({ query: applyEnvToLokiQuery(p.query, environment), start: now - timeRangeSeconds, end: now, step: p.step })
+        const [res] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(p.query, environment), start: now - timeRangeSeconds, end: now, step: p.step }])
         setMetricData(prev => prev.map((v, i) => i === index ? res : v))
       } else {
         const p = LOGS_TABLE_PANELS[index - LOGS_NUM_METRIC]
