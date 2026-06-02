@@ -10,6 +10,8 @@ import {
   findStageSpans, spanDurationMs, isErrorSpan, formatDuration,
   type SpanNode,
 } from '@/lib/otlp-utils'
+import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
+import { ArticleDetailDialog } from '@/components/features/articles/article-detail-dialog'
 import { RunWaterfallDialog } from './run-waterfall-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
 import { cn } from '@/lib/utils'
@@ -53,26 +55,76 @@ function formatStart(nanoStr: string): string {
   return new Date(ms).toLocaleString()
 }
 
+// ── Article preview wrapper (lazy-loads article by ID) ─────────────────────────
+
+function ArticlePreviewWrapper({ articleId, onClose }: { articleId: string | null; onClose: () => void }) {
+  const { locale } = useI18n()
+  // Store result keyed by id so we can derive loading without synchronous setState in the effect.
+  const [result, setResult] = useState<{ id: string; detail: ArticleDetail | null } | null>(null)
+
+  useEffect(() => {
+    if (!articleId) return
+    fetchArticleById(articleId, locale)
+      .then(data => setResult({ id: articleId, detail: data }))
+      .catch(() => setResult({ id: articleId, detail: null }))
+  }, [articleId, locale])
+
+  const isCurrent = result?.id === articleId
+  const detail = isCurrent ? result!.detail : null
+  const loading = !!articleId && !isCurrent
+
+  return (
+    <ArticleDetailDialog
+      open={!!articleId}
+      onOpenChange={v => { if (!v) onClose() }}
+      title={detail?.title ?? ''}
+      source={detail?.source ?? ''}
+      published_at={detail?.published_at ?? null}
+      content={detail?.content ?? ''}
+      detail={detail}
+      loading={loading}
+    />
+  )
+}
+
 // ── Article sub-row ────────────────────────────────────────────────────────────
 
 interface ArticleSubRowProps {
   pipelineSpan: OtlpSpan
   stageSpans: SpanNode[]
   onView: (ps: OtlpSpan, ss: SpanNode[]) => void
+  onPreviewArticle: (id: string) => void
 }
 
 // Columns: expand | traceId | root | service | env | dur | start  (7 total)
-function ArticleSubRow({ pipelineSpan, stageSpans, onView }: ArticleSubRowProps) {
+function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: ArticleSubRowProps) {
+  const allAttrs = stageSpans.flatMap(n => n.span.attributes)
+  const title     = allAttrs.find(a => a.key === 'article.title')?.value?.stringValue ?? null
+  const articleId = allAttrs.find(a => a.key === 'article.id')?.value?.stringValue ?? null
+
   const url = pipelineSpan.attributes.find(a => a.key === 'article.url')?.value?.stringValue ?? '—'
   const durationMs = spanDurationMs(pipelineSpan)
   const error = isErrorSpan(pipelineSpan)
-  const truncUrl = url.length > 60 ? `…${url.slice(-57)}` : url
+  const truncUrl = url.length > 40 ? `…${url.slice(-37)}` : url
 
   return (
     <tr className="bg-muted/10 border-b border-border/30 hover:bg-muted/20">
       <td /> {/* expand col — empty indent */}
-      {/* cols 2-4 (traceId, root, service) — show URL */}
-      <td colSpan={3} className={cn('px-2 py-1 font-mono text-xs truncate max-w-0', error && 'text-destructive')}>
+      {/* cols 2-3 — article title (clickable if articleId available) */}
+      <td colSpan={2} className={cn('px-2 py-1 text-xs truncate max-w-0', error && 'text-destructive')}>
+        {title && articleId ? (
+          <button
+            onClick={() => onPreviewArticle(articleId)}
+            className="hover:underline text-left truncate max-w-full text-primary"
+          >
+            {title}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">{title ?? '—'}</span>
+        )}
+      </td>
+      {/* col 4 — URL */}
+      <td className="px-2 py-1 font-mono text-xs text-muted-foreground truncate max-w-0">
         {truncUrl}
       </td>
       {/* col 5 (env) — status badge */}
@@ -146,6 +198,7 @@ export function TracesTable({
   // dialog state
   const [waterfallTarget, setWaterfallTarget] = useState<{ traceId: string; data: OtlpTraceResponse } | null>(null)
   const [workflowTarget, setWorkflowTarget] = useState<{ pipeline: OtlpSpan; stages: SpanNode[] } | null>(null)
+  const [previewArticleId, setPreviewArticleId] = useState<string | null>(null)
 
   // ── Data fetch ───────────────────────────────────────────────────────────────
 
@@ -328,7 +381,8 @@ export function TracesTable({
                           <thead>
                             <tr className="border-b border-border/50 text-muted-foreground">
                               <th className="w-6" /> {/* expand indent */}
-                              <th colSpan={3} className="px-2 py-1 text-left font-medium">{t('admin.articleColumnUrl')}</th>
+                              <th colSpan={2} className="px-2 py-1 text-left font-medium">{t('admin.articleColumnTitle')}</th>
+                              <th className="px-2 py-1 text-left font-medium">{t('admin.articleColumnUrl')}</th>
                               <th className="px-2 py-1 text-center font-medium">{t('admin.articleColumnStatus')}</th>
                               <th className="px-2 py-1 text-right font-medium">{t('admin.articleColumnDuration')}</th>
                               <th className="px-2 py-1 text-left font-medium">{t('admin.articleColumnAction')}</th>
@@ -341,6 +395,7 @@ export function TracesTable({
                                 pipelineSpan={pipeline}
                                 stageSpans={stages}
                                 onView={openWorkflow}
+                                onPreviewArticle={setPreviewArticleId}
                               />
                             ))}
                           </tbody>
@@ -356,6 +411,10 @@ export function TracesTable({
       </TablePanel>
 
       {/* ── Dialogs ── */}
+      <ArticlePreviewWrapper
+        articleId={previewArticleId}
+        onClose={() => setPreviewArticleId(null)}
+      />
       {waterfallTarget && (
         <RunWaterfallDialog
           open

@@ -378,6 +378,7 @@
     "articlePipelineTitle": "文章處理流程",
     "articlePipelineSource": "來源",
     "articlePipelineNoStages": "此文章沒有找到任何階段 span。",
+    "articleColumnTitle": "標題",
     "articleColumnUrl": "URL",
     "articleColumnStatus": "狀態",
     "articleColumnDuration": "耗時",

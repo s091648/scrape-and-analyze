@@ -1,9 +1,15 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import type { OtlpSpan, OtlpAttributeValue } from '@/lib/api/grafana'
 import { spanDurationMs, isErrorSpan, formatDuration } from '@/lib/otlp-utils'
 import { useI18n } from '@/lib/providers'
+import {
+  Tooltip as RadixTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const STAGE_I18N_KEYS: Record<string, string> = {
   'article.scraped.handle':                'admin.stageLabel_scraped',
@@ -70,15 +76,21 @@ function formatValue(v: OtlpAttributeValue): string {
 }
 
 export interface SpanPercentileThresholds {
+  p50: number
   p70: number
   p80: number
   p90: number
+  avg: number
+  count: number
 }
 
 interface StageCardProps {
   span: OtlpSpan
   className?: string
   thresholds?: SpanPercentileThresholds
+  labelOverride?: string
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 function durationColor(ms: number, thresholds?: SpanPercentileThresholds): string {
@@ -89,12 +101,31 @@ function durationColor(ms: number, thresholds?: SpanPercentileThresholds): strin
   return 'text-foreground'
 }
 
-export function StageCard({ span, className, thresholds }: StageCardProps) {
+export function StageCard({ span, className, thresholds, labelOverride, collapsed, onToggleCollapse }: StageCardProps) {
   const { t } = useI18n()
   const durationMs = spanDurationMs(span)
   const error = isErrorSpan(span)
   const stageI18nKey = STAGE_I18N_KEYS[span.name]
-  const label = stageI18nKey ? t(stageI18nKey) : (span.name.split('.').pop() ?? span.name)
+  const label = labelOverride ?? (stageI18nKey ? t(stageI18nKey) : (span.name.split('.').pop() ?? span.name))
+
+  const durationBadge = thresholds && thresholds.count >= 5 ? (
+    <RadixTooltip>
+      <TooltipTrigger asChild>
+        <span className={cn('text-sm font-semibold shrink-0 cursor-default', durationColor(durationMs, thresholds))}>
+          {formatDuration(durationMs)}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs space-y-0.5">
+        <p>Avg: {formatDuration(thresholds.avg)} · P50: {formatDuration(thresholds.p50)}</p>
+        <p>P70: {formatDuration(thresholds.p70)} · P80: {formatDuration(thresholds.p80)} · P90: {formatDuration(thresholds.p90)}</p>
+        <p className="text-muted-foreground">n={thresholds.count} · last 7d</p>
+      </TooltipContent>
+    </RadixTooltip>
+  ) : (
+    <span className={cn('text-sm font-semibold shrink-0', durationColor(durationMs, thresholds))}>
+      {formatDuration(durationMs)}
+    </span>
+  )
 
   return (
     <div className={cn(
@@ -104,12 +135,24 @@ export function StageCard({ span, className, thresholds }: StageCardProps) {
     )}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <span className={cn('font-semibold text-sm truncate', error && 'text-destructive')}>
-          {label}
-        </span>
-        <span className={cn('text-sm font-semibold shrink-0', durationColor(durationMs, thresholds))}>
-          {formatDuration(durationMs)}
-        </span>
+        <div className="flex items-center gap-1 min-w-0">
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={collapsed ? 'Expand' : 'Collapse'}
+            >
+              {collapsed
+                ? <ChevronRight className="h-3.5 w-3.5" />
+                : <ChevronDown className="h-3.5 w-3.5" />
+              }
+            </button>
+          )}
+          <span className={cn('font-semibold text-sm truncate', error && 'text-destructive')}>
+            {label}
+          </span>
+        </div>
+        {durationBadge}
       </div>
 
       {/* Error label — OK is communicated by green outline */}

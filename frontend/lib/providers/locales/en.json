@@ -378,6 +378,7 @@
     "articlePipelineTitle": "Article Pipeline",
     "articlePipelineSource": "source",
     "articlePipelineNoStages": "No stage spans found for this article.",
+    "articleColumnTitle": "Title",
     "articleColumnUrl": "URL",
     "articleColumnStatus": "Status",
     "articleColumnDuration": "Duration",
