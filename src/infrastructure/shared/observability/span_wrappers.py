@@ -1,6 +1,9 @@
 """
 Span wrapper factories for event-handler tracing in bootstrap.py.
 
+with_span           — runs fn inside a named span with error recording.
+                       Use for handlers that don't publish events (e.g. failed-task persistence).
+
 with_span_deferred   — runs fn inside a span, but defers any event_bus.publish()
                        calls until AFTER the span closes. This makes downstream
                        handler spans siblings of the current span rather than
@@ -13,6 +16,23 @@ with_article_pipeline_span — creates an article.pipeline parent span with arti
 from opentelemetry import trace as _otel
 from opentelemetry.trace import StatusCode
 from src.infrastructure.shared.logging import bind_topic_id
+
+
+def with_span(span_name: str, fn, tracer):
+    """
+    Returns a wrapper that runs fn inside a named span.
+    Records exceptions and sets ERROR status on failure.
+    Use for handlers that don't need event-bus deferral.
+    """
+    def _wrapper(event):
+        with tracer.start_as_current_span(span_name) as span:
+            try:
+                return fn(event)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(StatusCode.ERROR, str(e))
+                raise
+    return _wrapper
 
 
 def with_span_deferred(span_name: str, fn, bus, tracer):

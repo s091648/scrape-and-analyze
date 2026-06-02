@@ -1,7 +1,6 @@
 'use client'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
 import { getAttr, spanDurationMs, formatDuration } from '@/lib/otlp-utils'
@@ -27,7 +26,7 @@ export function ArticleWorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-sm font-mono truncate">
             {url ?? t('admin.articlePipelineTitle')}
@@ -38,28 +37,26 @@ export function ArticleWorkflowDialog({
           </p>
         </DialogHeader>
 
-        <TooltipProvider>
-          <div className="overflow-auto pb-2">
-            {/* Horizontal workflow on medium+ screens, wraps on small */}
-            <div className="flex items-start gap-2 flex-wrap md:flex-nowrap min-w-max">
-              {stageSpans.map((span, i) => (
-                <div key={span.spanId} className="flex items-center gap-2">
-                  <StageCard span={span} />
-                  {i < stageSpans.length - 1 && (
-                    <span className="text-muted-foreground text-base self-start mt-4 shrink-0">
-                      →
-                    </span>
-                  )}
-                </div>
-              ))}
-              {stageSpans.length === 0 && (
-                <p className="text-sm text-muted-foreground py-4">
-                  {t('admin.articlePipelineNoStages')}
-                </p>
-              )}
-            </div>
+        <div className="overflow-auto flex-1 pb-2">
+          {/* Vertical workflow layout */}
+          <div className="flex flex-col items-stretch">
+            {stageSpans.map((span, i) => (
+              <div key={span.spanId} className="flex flex-col items-center">
+                <StageCard span={span} className="w-full" />
+                {i < stageSpans.length - 1 && (
+                  <span className="text-muted-foreground text-base shrink-0 my-0.5">
+                    ↓
+                  </span>
+                )}
+              </div>
+            ))}
+            {stageSpans.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4">
+                {t('admin.articlePipelineNoStages')}
+              </p>
+            )}
           </div>
-        </TooltipProvider>
+        </div>
       </DialogContent>
     </Dialog>
   )

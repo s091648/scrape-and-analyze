@@ -71,6 +71,12 @@ export const SpanName = {
   ARTICLE_PROCESSED_HANDLE: 'article.processed.handle',
   TAG_NORMALIZATION_HANDLE: 'article.tag_normalization.handle',
   ANALYSIS_COMPLETED_HANDLE: 'article.analysis_completed.handle',
+  ARTICLE_TRANSLATE_HANDLE: 'article.translate.handle',
+  ANALYSIS_FAILED_HANDLE: 'article.analysis_failed.handle',
+  TAG_NORMALIZATION_FAILED_HANDLE: 'article.tag_normalization_failed.handle',
+  TRANSLATION_FAILED_HANDLE: 'article.translation_failed.handle',
+  PIPELINE_COMPLETED_HANDLE: 'scraper.pipeline_completed.handle',
+  PIPELINE_COMPLETED_NOTIFY: 'scraper.pipeline_completed.notify',
 } as const
 
 // ── Span attributes ──────────────────────────────────────────────────────────

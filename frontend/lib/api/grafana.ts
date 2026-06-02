@@ -40,8 +40,15 @@ export interface TempoSpanSetAttribute {
   value: { stringValue?: string; intValue?: string; boolValue?: boolean }
 }
 
+export interface TempoSearchSpan {
+  spanID: string
+  startTimeUnixNano: string
+  durationNanos: string
+  attributes?: TempoSpanSetAttribute[]
+}
+
 export interface TempoSpanSet {
-  spans: unknown[]
+  spans: TempoSearchSpan[]
   matched: number
   attributes?: TempoSpanSetAttribute[]
 }
@@ -51,8 +58,10 @@ export interface TempoTrace {
   rootServiceName: string
   rootTraceName: string
   startTimeUnixNano: string
-  durationMs: number
+  durationMs?: number
+  spanSet?: TempoSpanSet
   spanSets?: TempoSpanSet[]
+  serviceStats?: Record<string, { spanCount: number }>
 }
 
 export interface TempoResponse {

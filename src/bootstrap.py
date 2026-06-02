@@ -195,6 +195,7 @@ def build_collection_pipeline():
     # ── Tracing wrappers ───────────────────────────────────────────────────
     from src.infrastructure.shared.observability import get_tracer as _get_tracer
     from src.infrastructure.shared.observability.span_wrappers import (
+        with_span,
         with_span_deferred,
         with_article_pipeline_span,
     )
@@ -220,9 +221,12 @@ def build_collection_pipeline():
         SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
-    event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
-    event_bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
-    event_bus.subscribe(TranslationFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(AnalysisFailedEvent, with_span(
+        "article.analysis_failed.handle", failed_task_handler.handle, _tracer))
+    event_bus.subscribe(TagNormalizationFailedEvent, with_span(
+        "article.tag_normalization_failed.handle", failed_task_handler.handle, _tracer))
+    event_bus.subscribe(TranslationFailedEvent, with_span(
+        "article.translation_failed.handle", failed_task_handler.handle, _tracer))
 
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,
@@ -243,10 +247,12 @@ def build_collection_pipeline():
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
-    event_bus.subscribe(PipelineCompletedEvent, otel_handler.handle)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        "scraper.pipeline_completed.handle", otel_handler.handle, _tracer))
 
     notification_handler = build_notification_handler()
-    event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        "scraper.pipeline_completed.notify", notification_handler.handle, _tracer))
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     from datetime import datetime, timezone

@@ -198,13 +198,33 @@ async def get_trace_by_id(
     trace_id: str,
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    """Return the full OTLP JSON trace from Tempo for a single trace ID."""
+    """Return the full OTLP JSON trace from Tempo for a single trace ID.
+
+    Tempo's /api/traces/{id} may return ``resourceSpans`` (OTLP proto JSON
+    name) instead of ``batches`` (PushRequest field name).  The frontend
+    expects ``batches``, so we normalise here.
+    """
     url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
     user = os.environ.get("GRAFANA_TEMPO_USER", "")
     api_key = os.environ.get("GRAFANA_API_KEY", "")
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
-    return await _grafana_get(f"{url}/api/traces/{trace_id}", {}, user, api_key)
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{url}/api/traces/{trace_id}",
+            headers=_auth_headers(user, api_key),
+        )
+    try:
+        body = resp.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_response"}, status_code=resp.status_code)
+
+    # Normalise: OTLP JSON uses "resourceSpans", Tempo/PushRequest uses "batches"
+    if isinstance(body, dict) and "resourceSpans" in body and "batches" not in body:
+        body["batches"] = body.pop("resourceSpans")
+
+    return JSONResponse(body, status_code=resp.status_code)
 
 
 class TracesBatchItem(BaseModel):

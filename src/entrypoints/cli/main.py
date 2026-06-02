@@ -24,7 +24,7 @@ from src.infrastructure.shared.observability import init_run_context, get_run_id
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.1)
+    sentry_sdk.init(dsn=SENTRY_DSN)
 
 logger = get_logger(__name__)
 

@@ -1,8 +1,12 @@
 import type { OtlpTraceResponse, OtlpSpan, OtlpAttribute, OtlpAttributeValue, OtlpResourceSpans } from './api/grafana'
 import { SpanName } from './observability-constants'
 
+function getBatches(trace: OtlpTraceResponse): OtlpResourceSpans[] {
+  return ((trace as Record<string, unknown>).batches ?? (trace as Record<string, unknown>).resourceSpans ?? []) as OtlpResourceSpans[]
+}
+
 export function flattenSpans(trace: OtlpTraceResponse): OtlpSpan[] {
-  return trace.batches.flatMap(b => b.scopeSpans.flatMap(s => s.spans))
+  return getBatches(trace).flatMap(b => b.scopeSpans.flatMap(s => s.spans))
 }
 
 export function getAttr(span: OtlpSpan, key: string): string | boolean | number | undefined {
@@ -12,7 +16,7 @@ export function getAttr(span: OtlpSpan, key: string): string | boolean | number 
 }
 
 export function getResourceAttr(trace: OtlpTraceResponse, key: string): string | undefined {
-  for (const batch of trace.batches) {
+  for (const batch of getBatches(trace)) {
     const attr = batch.resource.attributes.find(a => a.key === key)
     if (attr?.value?.stringValue !== undefined) return attr.value.stringValue
   }

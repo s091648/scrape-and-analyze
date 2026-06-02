@@ -1,3 +1,4 @@
+import contextvars
 import queue
 import time
 import threading
@@ -16,6 +17,15 @@ from .queue_selector import (
 from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.shared.logging import get_logger
 from src.modules.collection.domain.value_objects import ScrapedArticle
+
+
+def _context_wrapper(fn, ctx: contextvars.Context):
+    """Run *fn* inside a copied context so OTel span state propagates
+    into the worker thread.  Python < 3.12 does NOT copy contextvars
+    into ThreadPoolExecutor workers automatically."""
+    def _run(*args, **kwargs):
+        return ctx.run(fn, *args, **kwargs)
+    return _run
 
 logger = get_logger(__name__)
 
@@ -128,6 +138,7 @@ class ScrapeExecutor:
                 pending_discovers[0] -= 1
 
         total_fetched = 0
+        ctx = contextvars.copy_context()
 
         with ThreadPoolExecutor(
             max_workers=self._discover_workers + self._num_workers
@@ -137,7 +148,7 @@ class ScrapeExecutor:
             # Discover workers
             for i in range(self._discover_workers):
                 futures.append(pool.submit(
-                    self._discover_worker_loop,
+                    _context_wrapper(self._discover_worker_loop, ctx),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     router=router,
@@ -150,7 +161,7 @@ class ScrapeExecutor:
             # Fetch workers
             for i in range(self._num_workers):
                 futures.append(pool.submit(
-                    self._fetch_worker_loop,
+                    _context_wrapper(self._fetch_worker_loop, ctx),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     on_result=on_result,
@@ -176,6 +187,7 @@ class ScrapeExecutor:
     ) -> int:
         done_flag: list[bool] = [False]
         total_fetched = 0
+        ctx = contextvars.copy_context()
 
         def worker_loop(worker_id: int) -> int:
             logger.info("worker_started", worker_id=worker_id)
@@ -216,7 +228,8 @@ class ScrapeExecutor:
 
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
             futures = [
-                pool.submit(worker_loop, i) for i in range(self._num_workers)
+                pool.submit(_context_wrapper(worker_loop, ctx), i)
+                for i in range(self._num_workers)
             ]
             done_flag[0] = True
 

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from opentelemetry import trace as _otel_trace
+
 from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import FailedTask
 from src.shared.domain.repositories import FailedTaskRepository
@@ -15,6 +17,16 @@ class FailedTaskPersistenceHandler:
         self._repo = failed_task_repository
 
     def handle(self, event: FailedEvent) -> None:
+        span = _otel_trace.get_current_span()
+        span.set_attribute("task.type", getattr(event, "task_type", "unknown"))
+        span.set_attribute("task.exception_type", getattr(event, "exception_type", "unknown"))
+        article_id = getattr(event, "article_id", None)
+        if article_id:
+            span.set_attribute("article.id", str(article_id))
+        analysis_id = getattr(event, "analysis_id", None)
+        if analysis_id:
+            span.set_attribute("analysis.id", str(analysis_id))
+
         task = FailedTask(
             task_type=getattr(event, "task_type", "unknown"),
             article_id=getattr(event, "article_id", None),

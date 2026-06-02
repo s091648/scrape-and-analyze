@@ -16,10 +16,23 @@ import { cn } from '@/lib/utils'
 // ── Environment extraction ─────────────────────────────────────────────────────
 
 function extractEnvironment(trace: TempoTrace): string | undefined {
-  const attr = trace.spanSets?.[0]?.attributes?.find(
+  // Tempo search returns attributes inside the spanSet.spans[].attributes
+  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
+  const attr = spanSet?.spans?.[0]?.attributes?.find(
     a => a.key === 'deployment.environment' || a.key === 'resource.deployment.environment'
   )
   return attr?.value?.stringValue
+}
+
+// ── Duration computation ──────────────────────────────────────────────────────────
+
+function resolveDurationMs(trace: TempoTrace): number {
+  if (trace.durationMs != null && !isNaN(trace.durationMs)) return trace.durationMs
+  // Fallback: compute from spanSet's durationNanos
+  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
+  const nanos = spanSet?.spans?.[0]?.durationNanos
+  if (nanos) return Number(BigInt(nanos) / 1_000_000n)
+  return 0
 }
 
 // ── Time formatting ────────────────────────────────────────────────────────────
@@ -290,7 +303,7 @@ export function TracesTable({
                   <td className="px-2 py-1 text-muted-foreground truncate">{trace.rootServiceName}</td>
                   <td className="px-2 py-1 text-muted-foreground">{environment ?? '—'}</td>
                   <td className="px-2 py-1 text-right tabular-nums">
-                    {formatDuration(trace.durationMs)}
+                    {formatDuration(resolveDurationMs(trace))}
                   </td>
                   <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">
                     {formatStart(trace.startTimeUnixNano)}
@@ -311,6 +324,15 @@ export function TracesTable({
                         </div>
                       ) : (
                         <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-border/50 text-muted-foreground">
+                              <th className="w-6" /> {/* expand indent */}
+                              <th colSpan={3} className="px-2 py-1 text-left font-medium">{t('admin.articleColumnUrl')}</th>
+                              <th className="px-2 py-1 text-center font-medium">{t('admin.articleColumnStatus')}</th>
+                              <th className="px-2 py-1 text-right font-medium">{t('admin.articleColumnDuration')}</th>
+                              <th className="px-2 py-1 text-left font-medium">{t('admin.articleColumnAction')}</th>
+                            </tr>
+                          </thead>
                           <tbody>
                             {articleRows.map(({ pipeline, stages }) => (
                               <ArticleSubRow
