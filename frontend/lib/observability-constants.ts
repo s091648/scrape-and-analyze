@@ -43,6 +43,7 @@ export const MetricSourceValue = {
 export const LokiLabel = {
   APP: 'app',
   ENV: 'env',
+  DETECTED_LEVEL: 'detected_level',
 } as const
 
 export const LokiAppValue = {

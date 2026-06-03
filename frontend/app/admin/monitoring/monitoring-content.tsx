@@ -120,20 +120,20 @@ const OPS_CHARTS: ChartPanelDef[] = [
 
 const LOGS_VOLUME_CHART: ChartPanelDef = {
   titleKey: 'admin.logVolumeChart',
-  buildQuery: _r => `sum by (${LogField.LEVEL}) (count_over_time(${lokiStreamSelector()} | json [1m]))`,
+  buildQuery: _r => `sum by (${LokiLabel.DETECTED_LEVEL}) (count_over_time(${lokiStreamSelector()}[1m]))`,
   step: '60',
   height: 180,
   tooltipKey: 'admin.logVolumeChartTooltip',
 }
 
 const LOGS_STAT_PANELS: StatPanelDef[] = [
-  { titleKey: 'admin.logErrorCount',   buildQuery: r => `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}" [${TIME_RANGE_PROMQL[r]}])`,   step: '3600', tooltipKey: 'admin.logErrorCountTooltip' },
-  { titleKey: 'admin.logWarningCount', buildQuery: r => `count_over_time(${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.WARNING}" [${TIME_RANGE_PROMQL[r]}])`, step: '3600', tooltipKey: 'admin.logWarningCountTooltip' },
+  { titleKey: 'admin.logErrorCount',   buildQuery: r => `sum(count_over_time(${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}[${TIME_RANGE_PROMQL[r]}]))`,   step: '3600', tooltipKey: 'admin.logErrorCountTooltip' },
+  { titleKey: 'admin.logWarningCount', buildQuery: r => `sum(count_over_time(${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.WARNING })}[${TIME_RANGE_PROMQL[r]}]))`, step: '3600', tooltipKey: 'admin.logWarningCountTooltip' },
 ]
 
 const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
   { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} |= "execution"`,                                        height: 300, tooltipKey: 'admin.executionTimelineTooltip' },
-  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector()} | json | ${LogField.LEVEL}="${LogLevel.ERROR}"`,         height: 300, tooltipKey: 'admin.errorLogsTooltip' },
+  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}`,         height: 300, tooltipKey: 'admin.errorLogsTooltip' },
   { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} |= "analysis_completed"`,                               height: 240, tooltipKey: 'admin.articleSuccessLogsTooltip' },
   { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ ".*_failed"`,             height: 240, tooltipKey: 'admin.articleFailureLogsTooltip' },
 ]
