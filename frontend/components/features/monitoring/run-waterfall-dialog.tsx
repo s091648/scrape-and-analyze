@@ -1,21 +1,22 @@
 'use client'
 
+import { useState, useMemo } from 'react'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
   getAttr, getResourceAttr, findStageSpans, formatDuration,
-  type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
 
 // ── Waterfall row builder ─────────────────────────────────────────────────────
 
-interface WaterfallRow { span: OtlpSpan; depth: number }
+interface WaterfallRow { span: OtlpSpan; depth: number; hasChildren: boolean }
 
-function buildRows(spans: OtlpSpan[], tree: Map<string, OtlpSpan[]>): WaterfallRow[] {
+function buildAllRows(spans: OtlpSpan[], tree: Map<string, OtlpSpan[]>): WaterfallRow[] {
   const rows: WaterfallRow[] = []
   const root = spans.find(s => !s.parentSpanId || s.parentSpanId === '')
   if (!root) return rows
@@ -25,12 +26,14 @@ function buildRows(spans: OtlpSpan[], tree: Map<string, OtlpSpan[]>): WaterfallR
       (a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano))
     )
     for (const child of children) {
-      rows.push({ span: child, depth })
+      const childHasChildren = (tree.get(child.spanId)?.length ?? 0) > 0
+      rows.push({ span: child, depth, hasChildren: childHasChildren })
       visit(child.spanId, depth + 1)
     }
   }
 
-  rows.push({ span: root, depth: 0 })
+  const rootHasChildren = (tree.get(root.spanId)?.length ?? 0) > 0
+  rows.push({ span: root, depth: 0, hasChildren: rootHasChildren })
   visit(root.spanId, 1)
   return rows
 }
@@ -73,9 +76,36 @@ export function RunWaterfallDialog({
   open, onClose, traceId, trace, onSelectArticle,
 }: RunWaterfallDialogProps) {
   const { t } = useI18n()
+
   const spans = flattenSpans(trace)
   const tree  = buildSpanTree(spans)
-  const rows  = buildRows(spans, tree)
+  const allRows = useMemo(() => buildAllRows(spans, tree), [spans, tree])
+
+  // Default: collapse spans at depth >= 1 (second level and deeper)
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    for (const row of allRows) {
+      if (row.depth >= 1 && row.hasChildren) initial.add(row.span.spanId)
+    }
+    return initial
+  })
+
+  // Filter out descendants of collapsed spans
+  const rows = useMemo(() => {
+    const hidden = new Set<string>()
+    for (const row of allRows) {
+      if (collapsed.has(row.span.spanId)) {
+        // Collect all descendant spanIds
+        const stack = tree.get(row.span.spanId) ?? []
+        while (stack.length) {
+          const child = stack.pop()!
+          hidden.add(child.spanId)
+          stack.push(...(tree.get(child.spanId) ?? []))
+        }
+      }
+    }
+    return allRows.filter(r => !hidden.has(r.span.spanId))
+  }, [allRows, collapsed, tree])
 
   const root = spans.find(s => !s.parentSpanId || s.parentSpanId === '')
   const rootStart      = root ? BigInt(root.startTimeUnixNano) : 0n
@@ -87,6 +117,18 @@ export function RunWaterfallDialog({
   const startDate = root
     ? new Date(Number(rootStart / 1_000_000n)).toLocaleString()
     : '—'
+
+  function toggle(spanId: string) {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(spanId)) {
+        next.delete(spanId)
+      } else {
+        next.add(spanId)
+      }
+      return next
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
@@ -112,10 +154,11 @@ export function RunWaterfallDialog({
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ span, depth }) => {
+              {rows.map(({ span, depth, hasChildren }) => {
                 const isPipeline = span.name === SpanName.ARTICLE_PIPELINE
                 const durationMs = spanDurationMs(span)
                 const error = isErrorSpan(span)
+                const isCollapsed = collapsed.has(span.spanId)
                 const label = isPipeline
                   ? `↳ ${(getAttr(span, 'article.url') as string | undefined)?.split('/').slice(-2).join('/') ?? 'article'}`
                   : span.name.split('.').slice(-2).join('.')
@@ -129,7 +172,7 @@ export function RunWaterfallDialog({
                     )}
                     onClick={() => {
                       if (isPipeline && onSelectArticle) {
-                        onSelectArticle(span, findStageSpans(tree, span.spanId))
+                        onSelectArticle(span, findStageSpans(tree, span.spanId).map(n => n.span))
                       }
                     }}
                   >
@@ -137,7 +180,22 @@ export function RunWaterfallDialog({
                       className={cn('py-1 pr-4 truncate max-w-0', error && 'text-destructive')}
                       style={{ paddingLeft: `${depth * 14 + 6}px` }}
                     >
-                      {label}
+                      <span className="inline-flex items-center gap-0.5">
+                        {hasChildren && (
+                          <button
+                            onClick={e => { e.stopPropagation(); toggle(span.spanId) }}
+                            className="text-muted-foreground hover:text-foreground transition-colors mr-0.5"
+                            aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                          >
+                            {isCollapsed
+                              ? <ChevronRight className="h-3 w-3" />
+                              : <ChevronDown className="h-3 w-3" />
+                            }
+                          </button>
+                        )}
+                        {!hasChildren && <span className="inline-block w-3.5" />}
+                        {label}
+                      </span>
                     </td>
                     <td className="py-1 px-4 text-right tabular-nums text-muted-foreground whitespace-nowrap">
                       {formatDuration(durationMs)}
