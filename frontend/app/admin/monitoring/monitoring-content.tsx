@@ -129,10 +129,10 @@ const OPS_STATS: StatPanelDef[] = [
 ]
 
 const OPS_CHARTS: ChartPanelDef[] = [
-  // Daily bar: count_over_time([1d]) + step=86400 so each bar = that day's article count
-  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                                       step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articleVolumeChartTooltip' },
+  // Daily step: count_over_time([1d]) + step=86400 so each point = that day's article count
+  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                                       step: '86400', height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
   // avg() collapses per-run series from unwrap into a single time series
-  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, chartType: 'bar', tooltipKey: 'admin.runDurationChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: _rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: _rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [1d]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
 ]

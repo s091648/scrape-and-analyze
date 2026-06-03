@@ -294,11 +294,14 @@ export function MetricsChart({
                 isAnimationActive={false}
                 cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 2' }}
               />
-              {seriesKeys.map((k, i) => (
-                <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]}
-                  dot={data.length <= 20 ? { r: 3, strokeWidth: 0, fill: COLORS[i % COLORS.length] } : false}
-                  strokeWidth={2} connectNulls={true} />
-              ))}
+              {seriesKeys.map((k, i) => {
+                const nonNullCount = data.filter(d => d[k] !== null && d[k] !== undefined).length
+                return (
+                  <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]}
+                    dot={nonNullCount <= 30 ? { r: 3, strokeWidth: 0, fill: COLORS[i % COLORS.length] } : false}
+                    strokeWidth={2} connectNulls={true} />
+                )
+              })}
             </LineChart>
           </ResponsiveContainer>
         )}
