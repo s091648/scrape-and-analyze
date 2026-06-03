@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArrowDown } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
@@ -93,15 +93,27 @@ export function ArticleWorkflowDialog({
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set())
   const [logEntry, setLogEntry] = useState<LogEntry | null>(null)
   const highlightedRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Scroll to highlighted span after dialog fully renders
+  // Scroll to highlighted span after dialog fully renders.
+  // Uses manual container scroll instead of scrollIntoView because the dialog
+  // overflow container is fixed-position and scrollIntoView may scroll the viewport.
+  const scrollToHighlighted = useCallback(() => {
+    const el = highlightedRef.current
+    const container = scrollContainerRef.current
+    if (!el || !container) return
+    const elRect = el.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+    const offset = elRect.top - containerRect.top - (containerRect.height - elRect.height) / 2
+    container.scrollBy({ top: offset, behavior: 'smooth' })
+  }, [])
+
   useEffect(() => {
     if (!open || !highlightedSpanId) return
-    const timer = setTimeout(() => {
-      highlightedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 200)
+    // Wait for dialog open animation + layout before scrolling
+    const timer = setTimeout(scrollToHighlighted, 400)
     return () => clearTimeout(timer)
-  }, [open, highlightedSpanId])
+  }, [open, highlightedSpanId, scrollToHighlighted])
 
   async function handleViewLogs(span: OtlpSpan) {
     const entry = await fetchSpanLog(span)
@@ -172,7 +184,7 @@ export function ArticleWorkflowDialog({
           </p>
         </DialogHeader>
 
-        <div className="overflow-auto flex-1 pb-2">
+        <div ref={scrollContainerRef} className="overflow-auto flex-1 pb-2">
           <div className="flex flex-col items-stretch">
             {stageSpans.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">

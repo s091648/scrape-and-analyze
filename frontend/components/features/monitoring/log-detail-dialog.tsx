@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArrowUpRight } from 'lucide-react'
+import { useI18n } from '@/lib/providers'
 
 export interface LogEntry {
   ts: string
@@ -52,6 +53,7 @@ interface LogDetailDialogProps {
 }
 
 export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialogProps) {
+  const { t } = useI18n()
   if (!entry) return null
 
   const { fields, event, traceId, spanId } = parseLogFields(entry.raw)
@@ -70,19 +72,19 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
         <div className="space-y-3 text-xs">
           {/* Metadata */}
           <div className={cn('rounded border p-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1', LEVEL_BG[entry.level] ?? 'bg-muted/30 border-border')}>
-            <span className="text-muted-foreground">Time</span>
+            <span className="text-muted-foreground">{t('admin.logFieldTime')}</span>
             <span className="font-mono">{entry.tsExact}</span>
-            <span className="text-muted-foreground">Level</span>
+            <span className="text-muted-foreground">{t('admin.logFieldLevel')}</span>
             <span className={cn('font-medium', LEVEL_COLORS[entry.level])}>{entry.level.toUpperCase()}</span>
             {entry.env && (
               <>
-                <span className="text-muted-foreground">Env</span>
+                <span className="text-muted-foreground">{t('admin.logFieldEnv')}</span>
                 <span className="font-mono">{entry.env}</span>
               </>
             )}
             {event && (
               <>
-                <span className="text-muted-foreground">Event</span>
+                <span className="text-muted-foreground">{t('admin.logFieldEvent')}</span>
                 <span className="font-mono">{event}</span>
               </>
             )}
@@ -95,7 +97,7 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
               className="flex items-center gap-1.5 text-primary hover:underline"
             >
               <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-              View in trace
+              {t('admin.viewInTrace')}
               <span className="font-mono text-muted-foreground ml-1">{traceId.slice(0, 8)}…</span>
             </button>
           )}
