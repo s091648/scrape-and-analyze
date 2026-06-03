@@ -32,6 +32,7 @@ interface MetricsChartProps {
   className?: string
   tooltip?: string
   externalData?: PrometheusResponse
+  externalLoading?: boolean
   onRefresh?: () => Promise<void>
 }
 
@@ -87,7 +88,7 @@ const COLORS = ['hsl(var(--primary))', 'hsl(217,91%,60%)', 'hsl(142,71%,45%)', '
 export function MetricsChart({
   title, query, from = 'now-24h', to = 'now', step = '300',
   height = 200, chartType = 'line', refreshInterval = 60,
-  className, tooltip, externalData, onRefresh,
+  className, tooltip, externalData, externalLoading, onRefresh,
 }: MetricsChartProps) {
   const [data, setData] = useState<DataPoint[]>([])
   const [seriesKeys, setSeriesKeys] = useState<string[]>([])
@@ -164,7 +165,7 @@ export function MetricsChart({
         )}
       </div>
       <div style={{ height }}>
-        {loading ? (
+        {(loading || externalLoading) ? (
           <Skeleton className="w-full h-full rounded-lg" />
         ) : notConfigured ? (
           <div className="w-full h-full flex items-center justify-center border border-dashed border-muted-foreground/40 rounded-lg text-muted-foreground text-sm">

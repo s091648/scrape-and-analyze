@@ -26,9 +26,9 @@ def _make_pipeline(has_due_settings: bool = True):
     event_bus = MagicMock()
     pipeline_stats = MagicMock()
     pipeline_stats.get_results.return_value = []
-    # executor.run_streaming does nothing (no articles discovered)
     executor = MagicMock()
-    executor.run_streaming = MagicMock()
+    executor.run_discover = MagicMock(return_value=[])
+    executor.run_fetch_only = MagicMock()
 
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
@@ -41,7 +41,7 @@ def _make_pipeline(has_due_settings: bool = True):
 
 
 class TestCollectionPipelineSpans:
-    def test_discover_and_fetch_span_created(self):
+    def test_discover_span_created(self):
         pipeline, _ = _make_pipeline()
         mock_span = MagicMock()
         mock_span.__enter__ = MagicMock(return_value=mock_span)
@@ -53,7 +53,21 @@ class TestCollectionPipelineSpans:
             pipeline.run()
 
         span_names = [c.args[0] for c in mock_tracer.start_as_current_span.call_args_list]
-        assert "pipeline.discover_and_fetch" in span_names
+        assert "pipeline.discover" in span_names
+
+    def test_fetch_span_created(self):
+        pipeline, _ = _make_pipeline()
+        mock_span = MagicMock()
+        mock_span.__enter__ = MagicMock(return_value=mock_span)
+        mock_span.__exit__ = MagicMock(return_value=False)
+        mock_tracer = MagicMock()
+        mock_tracer.start_as_current_span.return_value = mock_span
+
+        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
+            pipeline.run()
+
+        span_names = [c.args[0] for c in mock_tracer.start_as_current_span.call_args_list]
+        assert "pipeline.fetch" in span_names
 
     def test_publish_articles_span_created(self):
         pipeline, _ = _make_pipeline()

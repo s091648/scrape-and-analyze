@@ -24,6 +24,12 @@ export const MetricName = {
 
 export const MetricLabelKey = {
   SOURCE: 'source',
+  DEPLOYMENT_ENVIRONMENT: 'deployment_environment',
+} as const
+
+export const MetricEnvValue = {
+  LOCAL: 'local',
+  PRODUCTION: 'production',
 } as const
 
 export const MetricSourceValue = {
@@ -66,6 +72,8 @@ export const LogLevel = {
 
 export const SpanName = {
   SCRAPER_RUN: 'scraper.run',
+  PIPELINE_DISCOVER: 'pipeline.discover',
+  PIPELINE_FETCH: 'pipeline.fetch',
   ARTICLE_PIPELINE: 'article.pipeline',
   ARTICLE_SCRAPED_HANDLE: 'article.scraped.handle',
   ARTICLE_PROCESSED_HANDLE: 'article.processed.handle',
@@ -115,4 +123,10 @@ export function traceQLServiceMatch(env?: string): string {
 export function promqlIncrease(metric: string, range: string, byLabel?: string): string {
   const byClause = byLabel ? ` by (${byLabel})` : ''
   return `increase(${metric}[${range}])${byClause}`
+}
+
+/** PromQL label matcher for deployment_environment, e.g. `{deployment_environment="local"}` */
+export function promqlEnvMatcher(env?: string): string {
+  if (!env) return ''
+  return `{${MetricLabelKey.DEPLOYMENT_ENVIRONMENT}="${env}"}`
 }

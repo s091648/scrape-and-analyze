@@ -64,7 +64,7 @@ def main() -> None:
         time.sleep(_jitter)
 
     init_default_client(HttpClient.build_default())
-    SCRAPER_RUNS.add(1)
+    SCRAPER_RUNS.add(1, {"source": "all"})
 
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)

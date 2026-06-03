@@ -73,12 +73,7 @@ class CollectionPipeline:
             ))
             scraped_setting_ids.append(setting.id)
 
-        # ── Streaming discover + fetch ──────────────────────────────────
-        results: List[ScrapedArticle] = []
-
-        def on_result(article: ScrapedArticle) -> None:
-            results.append(article)
-
+        # ── Discover phase ─────────────────────────────────────────────
         def _pre_fetch_filter(tasks):
             hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
             analyzed = self._article_repo.find_analyzed_url_hashes(set(hashes.keys()))
@@ -92,14 +87,27 @@ class CollectionPipeline:
 
         pre_fetch_filter = _pre_fetch_filter if self._article_repo is not None else None
 
-        with tracer.start_as_current_span("pipeline.discover_and_fetch") as discover_span:
+        with tracer.start_as_current_span("pipeline.discover") as discover_span:
             discover_span.set_attribute("sources.count", len(discover_tasks))
-            self._executor.run_streaming(
+            fetch_tasks = self._executor.run_discover(
                 discover_tasks=discover_tasks,
-                on_result=on_result,
                 pre_fetch_filter=pre_fetch_filter,
             )
-            discover_span.set_attribute("articles.discovered", len(results))
+            discover_span.set_attribute("articles.discovered", len(fetch_tasks))
+
+        # ── Fetch phase ─────────────────────────────────────────────────
+        results: List[ScrapedArticle] = []
+
+        def on_result(article: ScrapedArticle) -> None:
+            results.append(article)
+
+        with tracer.start_as_current_span("pipeline.fetch") as fetch_span:
+            fetch_span.set_attribute("articles.to_fetch", len(fetch_tasks))
+            self._executor.run_fetch_only(
+                fetch_tasks=fetch_tasks,
+                on_result=on_result,
+            )
+            fetch_span.set_attribute("articles.fetched", len(results))
 
         # ── Pre-dedup: filter URLs already fully processed ──────────────
         articles_before_dedup = len(results)

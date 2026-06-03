@@ -6,6 +6,7 @@ import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
   getAttr, getResourceAttr, findStageSpans, formatDuration,
+  type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'

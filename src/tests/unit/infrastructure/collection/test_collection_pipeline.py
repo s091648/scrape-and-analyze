@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from src.infrastructure.collection.collection_pipeline import CollectionPipeline
 from src.modules.collection.application.use_cases import PipelineStats
+from src.infrastructure.collection.executor.fetch_task import FetchTask
 
 
 def _make_pipeline(setting_repo=None, event_bus=None, article_repo=None, executor=None):
@@ -23,7 +24,7 @@ def test_mark_scraped_called_for_each_due_setting():
     mock_setting_repo.get_active_due.return_value = [setting1, setting2]
 
     mock_executor = MagicMock()
-    mock_executor.run_streaming.return_value = 0
+    mock_executor.run_discover.return_value = []
 
     pipeline = _make_pipeline(setting_repo=mock_setting_repo, executor=mock_executor)
     pipeline.run()
@@ -47,10 +48,11 @@ def test_pre_fetch_dedup_filters_analyzed_urls():
     mock_executor = MagicMock()
     # Capture the pre_fetch_filter callback
     captured_filter = None
-    def capture_streaming(discover_tasks, on_result, pre_fetch_filter=None):
+    def capture_discover(discover_tasks, pre_fetch_filter=None):
         nonlocal captured_filter
         captured_filter = pre_fetch_filter
-    mock_executor.run_streaming.side_effect = capture_streaming
+        return []
+    mock_executor.run_discover.side_effect = capture_discover
 
     pipeline = _make_pipeline(
         setting_repo=mock_setting_repo,
@@ -85,11 +87,12 @@ def test_post_fetch_dedup_removes_duplicate_urls():
     article3 = ScrapedArticle(title="A3", url="https://example.com/unique", source="test", content="c3", published_at=None)
 
     mock_executor = MagicMock()
-    def streaming_with_dupes(discover_tasks, on_result, pre_fetch_filter=None):
+    mock_executor.run_discover.return_value = [MagicMock(), MagicMock(), MagicMock()]
+    def fetch_with_dupes(fetch_tasks, on_result):
         on_result(article1)
         on_result(article2)
         on_result(article3)
-    mock_executor.run_streaming.side_effect = streaming_with_dupes
+    mock_executor.run_fetch_only.side_effect = fetch_with_dupes
 
     mock_event_bus = MagicMock()
     pipeline = _make_pipeline(

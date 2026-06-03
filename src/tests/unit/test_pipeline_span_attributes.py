@@ -10,6 +10,7 @@ import pytest
 
 def _make_pipeline_with_articles(article_count: int = 3):
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
+    from src.infrastructure.collection.executor.fetch_task import FetchTask
 
     mock_setting = MagicMock()
     mock_setting.source_type = "rss"
@@ -19,7 +20,20 @@ def _make_pipeline_with_articles(article_count: int = 3):
     setting_repo = MagicMock()
     setting_repo.get_active_due.return_value = [mock_setting]
 
-    def fake_run_streaming(discover_tasks, on_result, pre_fetch_filter=None):
+    fake_fetch_tasks = [
+        FetchTask(
+            url=f"https://example.com/article-{i}",
+            source="example",
+            job=MagicMock(url=f"https://example.com/article-{i}", source="example"),
+            scraper=MagicMock(),
+        )
+        for i in range(article_count)
+    ]
+
+    def fake_run_discover(discover_tasks, pre_fetch_filter=None):
+        return fake_fetch_tasks
+
+    def fake_run_fetch_only(fetch_tasks, on_result):
         from src.modules.collection.domain.value_objects import ScrapedArticle
         for i in range(article_count):
             article = ScrapedArticle(
@@ -31,7 +45,8 @@ def _make_pipeline_with_articles(article_count: int = 3):
             on_result(article)
 
     executor = MagicMock()
-    executor.run_streaming = fake_run_streaming
+    executor.run_discover = fake_run_discover
+    executor.run_fetch_only = fake_run_fetch_only
 
     event_bus = MagicMock()
     pipeline_stats = MagicMock()
@@ -77,10 +92,18 @@ class TestPipelineSpanAttributes:
     def test_discover_span_has_sources_count(self):
         pipeline = _make_pipeline_with_articles(3)
         spans = self._capture_spans(pipeline)
-        assert "pipeline.discover_and_fetch" in spans
-        span = spans["pipeline.discover_and_fetch"]
+        assert "pipeline.discover" in spans
+        span = spans["pipeline.discover"]
         assert span._attrs.get("sources.count") == 1
         assert "articles.discovered" in span._attrs
+
+    def test_fetch_span_has_article_counts(self):
+        pipeline = _make_pipeline_with_articles(3)
+        spans = self._capture_spans(pipeline)
+        assert "pipeline.fetch" in spans
+        span = spans["pipeline.fetch"]
+        assert "articles.to_fetch" in span._attrs
+        assert "articles.fetched" in span._attrs
 
     def test_dedup_span_has_article_counts(self):
         pipeline = _make_pipeline_with_articles(3)
