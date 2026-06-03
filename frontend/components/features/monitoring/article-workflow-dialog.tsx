@@ -1,20 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArrowDown } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
-import { queryTracesBatch } from '@/lib/api/grafana'
+import { queryTracesBatch, queryLogs, type LokiStreamResult } from '@/lib/api/grafana'
 import type { SpanNode } from '@/lib/otlp-utils'
-import { getAttr, spanDurationMs, formatDuration } from '@/lib/otlp-utils'
+import { getAttr, spanDurationMs, formatDuration, otlpIdToHex } from '@/lib/otlp-utils'
+import { lokiStreamSelector } from '@/lib/observability-constants'
 import { StageCard, type SpanPercentileThresholds } from './stage-card'
+import { LogDetailDialog, type LogEntry } from './log-detail-dialog'
 
 interface ArticleWorkflowDialogProps {
   open: boolean
   onClose: () => void
   pipelineSpan: OtlpSpan
   stageSpans: SpanNode[]
+  /** When set, the matching span card will be highlighted with a ring. */
+  highlightedSpanId?: string
 }
 
 function computeThresholds(durations: number[]): SpanPercentileThresholds {
@@ -30,11 +34,49 @@ function getLabelOverride(span: OtlpSpan): string | undefined {
   return undefined
 }
 
+/** Query Loki for logs matching a specific trace + span, return most recent entry. */
+async function fetchSpanLog(span: OtlpSpan): Promise<LogEntry | null> {
+  const traceIdHex = otlpIdToHex(span.traceId)
+  const spanIdHex  = otlpIdToHex(span.spanId)
+  const bufNs = 60_000_000_000n  // 1 minute buffer in nanoseconds
+  const startNs = String(BigInt(span.startTimeUnixNano) - bufNs)
+  const endNs   = String(BigInt(span.endTimeUnixNano)   + bufNs)
+  const query   = `${lokiStreamSelector()} | json | trace_id = "${traceIdHex}" | span_id = "${spanIdHex}"`
+  try {
+    const res = await queryLogs({ query, start: startNs, end: endNs, limit: 10 })
+    if (res.status !== 'success' || !res.data?.result.length) return null
+    const streams = res.data.result as LokiStreamResult[]
+    // Flatten and pick most recent
+    const all: Array<{ ms: number; line: string; env?: string }> = []
+    for (const stream of streams) {
+      for (const [tsNs, line] of stream.values) {
+        all.push({ ms: Math.floor(Number(tsNs) / 1_000_000), line, env: stream.stream['env'] })
+      }
+    }
+    if (all.length === 0) return null
+    all.sort((a, b) => b.ms - a.ms)
+    const { ms, line, env } = all[0]
+    let level = 'info'
+    let message = line
+    try {
+      const obj = JSON.parse(line)
+      level   = String(obj.level ?? obj.severity ?? 'info').toLowerCase()
+      message = String(obj.event ?? obj.message ?? obj.msg ?? line)
+    } catch { /* not JSON */ }
+    return {
+      ts: new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      tsExact: new Date(ms).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      level, env, message, raw: line,
+    }
+  } catch { return null }
+}
+
 export function ArticleWorkflowDialog({
   open,
   onClose,
   pipelineSpan,
   stageSpans,
+  highlightedSpanId,
 }: ArticleWorkflowDialogProps) {
   const { t } = useI18n()
   const url    = getAttr(pipelineSpan, 'article.url') as string | undefined
@@ -49,6 +91,24 @@ export function ArticleWorkflowDialog({
   const [percentileMap, setPercentileMap] = useState<Map<string, SpanPercentileThresholds>>(new Map())
   // Empty set = all expanded (default B: expanded)
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set())
+  const [logEntry, setLogEntry] = useState<LogEntry | null>(null)
+  const highlightedRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to highlighted span after dialog fully renders
+  useEffect(() => {
+    if (!open || !highlightedSpanId) return
+    const timer = setTimeout(() => {
+      highlightedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [open, highlightedSpanId])
+
+  async function handleViewLogs(span: OtlpSpan) {
+    const entry = await fetchSpanLog(span)
+    setLogEntry(entry ?? {
+      ts: '', tsExact: '', level: 'info', message: 'No logs found for this span.', raw: '',
+    })
+  }
 
   function toggleCollapse(spanId: string) {
     setCollapsedSpans(prev => {
@@ -98,6 +158,8 @@ export function ArticleWorkflowDialog({
   }
 
   return (
+    <>
+    <LogDetailDialog entry={logEntry} onClose={() => setLogEntry(null)} />
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
       <DialogContent className="max-w-5xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader>
@@ -122,9 +184,14 @@ export function ArticleWorkflowDialog({
                 const hasChildren = children.length > 0
                 const isCollapsed = collapsedSpans.has(node.span.spanId)
                 const isLast = i === topLevel.length - 1
+                const isNodeHighlighted = !!highlightedSpanId && otlpIdToHex(node.span.spanId) === highlightedSpanId
 
                 return (
-                  <div key={node.span.spanId} className="flex flex-col items-center">
+                  <div
+                    key={node.span.spanId}
+                    className="flex flex-col items-center"
+                    ref={isNodeHighlighted ? highlightedRef : undefined}
+                  >
                     {/* Top-level stage card */}
                     <StageCard
                       span={node.span}
@@ -132,24 +199,35 @@ export function ArticleWorkflowDialog({
                       thresholds={percentileMap.get(node.span.name)}
                       collapsed={hasChildren ? isCollapsed : undefined}
                       onToggleCollapse={hasChildren ? () => toggleCollapse(node.span.spanId) : undefined}
+                      isHighlighted={isNodeHighlighted}
+                      onViewLogs={() => handleViewLogs(node.span)}
                     />
 
                     {/* Child spans (e.g. Translate jobs under Analysis Done) */}
                     {hasChildren && !isCollapsed && (
                       <div className="w-full ml-6 mt-1 pl-3 border-l-2 border-muted-foreground/25 space-y-1">
-                        {children.map((child, ci) => (
-                          <div key={child.span.spanId} className="flex flex-col items-start">
-                            <StageCard
-                              span={child.span}
-                              className="w-full"
-                              thresholds={percentileMap.get(child.span.name)}
-                              labelOverride={getLabelOverride(child.span)}
-                            />
-                            {ci < children.length - 1 && (
-                              <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/40 my-0.5 ml-4 shrink-0" strokeWidth={2} />
-                            )}
-                          </div>
-                        ))}
+                        {children.map((child, ci) => {
+                          const isChildHighlighted = !!highlightedSpanId && otlpIdToHex(child.span.spanId) === highlightedSpanId
+                          return (
+                            <div
+                              key={child.span.spanId}
+                              className="flex flex-col items-start"
+                              ref={isChildHighlighted ? highlightedRef : undefined}
+                            >
+                              <StageCard
+                                span={child.span}
+                                className="w-full"
+                                thresholds={percentileMap.get(child.span.name)}
+                                labelOverride={getLabelOverride(child.span)}
+                                isHighlighted={isChildHighlighted}
+                                onViewLogs={() => handleViewLogs(child.span)}
+                              />
+                              {ci < children.length - 1 && (
+                                <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/40 my-0.5 ml-4 shrink-0" strokeWidth={2} />
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
 
@@ -165,5 +243,6 @@ export function ArticleWorkflowDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

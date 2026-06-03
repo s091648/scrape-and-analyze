@@ -14,7 +14,7 @@ import {
 } from '@/lib/api/grafana'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
-  MetricName, LogField, LogLevel, LokiLabel,
+  MetricName, LogLevel, LokiLabel,
   lokiStreamSelector, traceQLServiceMatch, promqlIncrease, promqlEnvMatcher,
 } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
@@ -54,9 +54,12 @@ const DEFAULT_FILTERS: MonitoringFilters = {
 
 function applyEnvToLokiQuery(query: string, environment: Environment): string {
   if (environment === 'all') return query
-  const base = lokiStreamSelector()
-  const withEnv = lokiStreamSelector({ [LokiLabel.ENV]: environment })
-  return query.replaceAll(base, withEnv)
+  const envLabel = `${LokiLabel.ENV}="${environment}"`
+  // Case 1: {app="scraper"} — no extra labels
+  // Case 2: {app="scraper", X} — already has extra labels (e.g. detected_level)
+  return query
+    .replace(/\{app="scraper"\}/g, `{app="scraper", ${envLabel}}`)
+    .replace(/\{app="scraper", (?!env=)/g, `{app="scraper", ${envLabel}, `)
 }
 
 interface MonitoringContentProps {
@@ -71,6 +74,7 @@ interface StatPanelDef {
   step: string
   unit?: string
   tooltipKey: string
+  queryType?: 'loki'
 }
 
 interface ChartPanelDef {
@@ -80,6 +84,7 @@ interface ChartPanelDef {
   chartType?: 'line' | 'bar'
   height: number
   tooltipKey: string
+  queryType?: 'loki'
 }
 
 interface LogTablePanelDef {
@@ -98,22 +103,25 @@ interface TracesTablePanelDef {
 
 // ── Operations panel descriptors ───────────────────────────────────────────
 
+// Count-based stats use Loki log counting — more reliable than OTel increase()
+// for short-lived processes where each run resets the counter from 0.
 const OPS_STATS: StatPanelDef[] = [
-  { titleKey: 'admin.totalRuns',             buildQuery: (r, env) => promqlIncrease(`${MetricName.RUNS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),      step: '3600', tooltipKey: 'admin.totalRunsTooltip' },
+  { queryType: 'loki', titleKey: 'admin.totalRuns',         buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${TIME_RANGE_PROMQL[r]}]))`,                                             step: '3600', tooltipKey: 'admin.totalRunsTooltip' },
+  { queryType: 'loki', titleKey: 'admin.newArticles',        buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${TIME_RANGE_PROMQL[r]}]))`,                                           step: '3600', tooltipKey: 'admin.newArticlesTooltip' },
+  { queryType: 'loki', titleKey: 'admin.duplicateArticles',  buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "article_duplicate_skipped" [${TIME_RANGE_PROMQL[r]}]))`,                                    step: '3600', tooltipKey: 'admin.duplicateArticlesTooltip' },
+  { queryType: 'loki', titleKey: 'admin.errorCount',         buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${TIME_RANGE_PROMQL[r]}]))`,                                        step: '3600', tooltipKey: 'admin.errorCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.failedArticles',     buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "llm_analysis_failed" [${TIME_RANGE_PROMQL[r]}]))`,                                          step: '3600', tooltipKey: 'admin.failedArticlesTooltip' },
+  { queryType: 'loki', titleKey: 'admin.articlesFound',      buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event =~ "analysis_completed|article_duplicate_skipped" [${TIME_RANGE_PROMQL[r]}]))`,               step: '3600', tooltipKey: 'admin.articlesFoundTooltip' },
   { titleKey: 'admin.recentRunDurationP100', buildQuery: (r, env) => `max_over_time(${MetricName.RUN_DURATION_SECONDS}_sum${promqlEnvMatcher(env)}[${TIME_RANGE_PROMQL[r]}])`, step: '3600', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
   { titleKey: 'admin.avgDurationP50',        buildQuery: (r, env) => `avg_over_time(${MetricName.RUN_DURATION_SECONDS}_sum${promqlEnvMatcher(env)}[${TIME_RANGE_PROMQL[r]}])`, step: '3600', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
-  { titleKey: 'admin.errorCount',            buildQuery: (r, env) => promqlIncrease(`${MetricName.ERRORS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),       step: '3600', tooltipKey: 'admin.errorCountTooltip' },
-  { titleKey: 'admin.newArticles',           buildQuery: (r, env) => promqlIncrease(`${MetricName.ARTICLES_NEW_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]), step: '3600', tooltipKey: 'admin.newArticlesTooltip' },
-  { titleKey: 'admin.duplicateArticles',     buildQuery: (r, env) => promqlIncrease(`${MetricName.ARTICLES_DUPLICATE_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]), step: '3600', tooltipKey: 'admin.duplicateArticlesTooltip' },
-  { titleKey: 'admin.failedArticles',        buildQuery: (r, env) => promqlIncrease(`${MetricName.ERRORS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),       step: '3600', tooltipKey: 'admin.failedArticlesTooltip' },
-  { titleKey: 'admin.articlesFound',         buildQuery: (r, env) => promqlIncrease(`${MetricName.ARTICLES_FOUND_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]), step: '3600', tooltipKey: 'admin.articlesFoundTooltip' },
 ]
 
+// All charts use Loki log counting for integer values and sparse-metric reliability.
 const OPS_CHARTS: ChartPanelDef[] = [
-  { titleKey: 'admin.articleVolumeChart',    buildQuery: (_r, env) => promqlIncrease(`${MetricName.ARTICLES_NEW_TOTAL}${promqlEnvMatcher(env)}`, '1h'),       step: '3600',  height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
-  { titleKey: 'admin.runDurationChart',      buildQuery: (_r, env) => `${MetricName.RUN_DURATION_SECONDS}_sum${promqlEnvMatcher(env)} / ${MetricName.RUN_DURATION_SECONDS}_count${promqlEnvMatcher(env)}`, step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
-  { titleKey: 'admin.articlesBySourceChart', buildQuery: (r, env) => promqlIncrease(`${MetricName.ARTICLES_NEW_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]), step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
-  { titleKey: 'admin.errorsByTypeChart',     buildQuery: (r, env) => promqlIncrease(`${MetricName.ERRORS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),     step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1h]))`,                                                                          step: '3600',  height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _r => `avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h])`,                                                      step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: r  => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${TIME_RANGE_PROMQL[r]}]))`,                                        step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: r  => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [${TIME_RANGE_PROMQL[r]}]))`,                 step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
 ]
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────
@@ -126,38 +134,31 @@ const LOGS_VOLUME_CHART: ChartPanelDef = {
   tooltipKey: 'admin.logVolumeChartTooltip',
 }
 
+// Note: detected_level is Loki structured metadata, NOT an indexed stream label.
+// Must use label filter (| detected_level = "...") NOT stream selector ({detected_level="..."}).
+// Loki also uses "warn" (not "warning") for its auto-detected warning level.
 const LOGS_STAT_PANELS: StatPanelDef[] = [
-  { titleKey: 'admin.logErrorCount',   buildQuery: r => `sum(count_over_time(${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}[${TIME_RANGE_PROMQL[r]}]))`,   step: '3600', tooltipKey: 'admin.logErrorCountTooltip' },
-  { titleKey: 'admin.logWarningCount', buildQuery: r => `sum(count_over_time(${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.WARNING })}[${TIME_RANGE_PROMQL[r]}]))`, step: '3600', tooltipKey: 'admin.logWarningCountTooltip' },
+  { titleKey: 'admin.logErrorCount',   buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "${LogLevel.ERROR}" [${TIME_RANGE_PROMQL[r]}]))`,   step: '3600', tooltipKey: 'admin.logErrorCountTooltip' },
+  { titleKey: 'admin.logWarningCount', buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "warn" [${TIME_RANGE_PROMQL[r]}]))`, step: '3600', tooltipKey: 'admin.logWarningCountTooltip' },
 ]
 
-const PIPELINE_LIFECYCLE_EVENTS = [
-  'execution_started', 'execution_completed', 'execution_failed', 'execution_timeout_reached',
-  'sources_due', 'no_sources_due',
-  'collection_pipeline_completed',
-  'discover_produced_fetch_tasks',
-  'executor_fetch_complete', 'executor_phase2_complete',
-  'pre_fetch_dedup_filtered', 'post_dedup_filtered',
-].join('|')
-
 const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
-  { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ "${PIPELINE_LIFECYCLE_EVENTS}"`, height: 400, tooltipKey: 'admin.executionTimelineTooltip' },
-  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}`,                height: 300, tooltipKey: 'admin.errorLogsTooltip' },
-  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ "analysis_completed|tag_normalization_completed|auto_translation_completed"`, height: 280, tooltipKey: 'admin.articleSuccessLogsTooltip' },
-  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ ".*_failed"`,                    height: 280, tooltipKey: 'admin.articleFailureLogsTooltip' },
+  { titleKey: 'admin.successLogs', query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "${LogLevel.INFO}"`,            height: 400, tooltipKey: 'admin.successLogsTooltip' },
+  { titleKey: 'admin.failureLogs', query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} =~ "${LogLevel.ERROR}|warn"`,     height: 400, tooltipKey: 'admin.failureLogsTooltip' },
 ]
 
 // ── Traces panel descriptors ───────────────────────────────────────────────
 
 const TRACES_STATS: StatPanelDef[] = [
-  { titleKey: 'admin.tracesCount',      buildQuery: (r, env) => promqlIncrease(`${MetricName.RUNS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),     step: '3600', tooltipKey: 'admin.tracesCountTooltip' },
-  { titleKey: 'admin.avgRunDurationP95', buildQuery: (_r, env) => `histogram_quantile(0.95, ${MetricName.RUN_DURATION_SECONDS}_bucket${promqlEnvMatcher(env)})`, step: '3600', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
-  { titleKey: 'admin.errorSpans',       buildQuery: (r, env) => promqlIncrease(`${MetricName.ERRORS_TOTAL}${promqlEnvMatcher(env)}`, TIME_RANGE_PROMQL[r]),     step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
+  { queryType: 'loki', titleKey: 'admin.tracesCount',      buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${TIME_RANGE_PROMQL[r]}]))`,                                                step: '3600', tooltipKey: 'admin.tracesCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.avgRunDurationP95', buildQuery: r => `quantile_over_time(0.95, ${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${TIME_RANGE_PROMQL[r]}])`,               step: '3600', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.errorSpans',       buildQuery: r => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${TIME_RANGE_PROMQL[r]}]))`,                                             step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
 ]
 
 const TRACES_SPAN_CHART: ChartPanelDef = {
+  queryType: 'loki',
   titleKey: 'admin.spanRateChart',
-  buildQuery: (_r, env) => promqlIncrease(`${MetricName.RUNS_TOTAL}${promqlEnvMatcher(env)}`, '5m'),
+  buildQuery: _r => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [5m]))`,
   step: '300',
   height: 240,
   tooltipKey: 'admin.spanRateChartTooltip',
@@ -194,25 +195,46 @@ function useOperationsBatch(timeRange: TimeRange, timeRangeSeconds: number, envi
     setNotConfigured(false)
     setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
     const now = Math.floor(Date.now() / 1000)
-    const items: MetricsBatchItem[] = [
-      ...OPS_STATS.map(s => ({ query: s.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: s.step })),
-      ...OPS_CHARTS.map(c => ({ query: c.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: c.step })),
+    const promItems: MetricsBatchItem[] = [
+      ...OPS_STATS.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: s.step })),
+      ...OPS_CHARTS.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: c.step })),
+    ]
+    // Loki batch: Loki stats first, then Loki charts (order matters for index mapping below)
+    const lokiItems: MetricsBatchItem[] = [
+      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyEnvToLokiQuery(s.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: s.step })),
+      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyEnvToLokiQuery(c.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: c.step })),
     ]
     try {
-      const results = await queryMetricsBatch(items)
-      if ('error' in results[0] && (results[0] as { error: string }).error === 'not_configured') {
+      const [promResults, lokiResults] = await Promise.all([
+        promItems.length > 0 ? queryMetricsBatch(promItems) : Promise.resolve([]),
+        lokiItems.length > 0 ? queryLokiMetricsBatch(lokiItems) : Promise.resolve([]),
+      ])
+      if (promItems.length > 0 && 'error' in promResults[0] && (promResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
         setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         setChartData(Array(OPS_CHARTS.length).fill(err))
         return
       }
-      setStatValues(results.slice(0, OPS_STATS.length).map(extractLastValue))
-      setChartData(results.slice(OPS_STATS.length) as PrometheusResponse[])
+      const newStatValues: (string | undefined)[] = new Array(OPS_STATS.length).fill(undefined)
+      let pi = 0, li = 0
+      for (let i = 0; i < OPS_STATS.length; i++) {
+        newStatValues[i] = OPS_STATS[i].queryType === 'loki'
+          ? extractLastValue(lokiResults[li++] as PrometheusResponse)
+          : extractLastValue(promResults[pi++])
+      }
+      const newChartData: (PrometheusResponse | undefined)[] = []
+      for (let i = 0; i < OPS_CHARTS.length; i++) {
+        newChartData.push(OPS_CHARTS[i].queryType === 'loki'
+          ? lokiResults[li++] as PrometheusResponse
+          : promResults[pi++] as PrometheusResponse)
+      }
+      setStatValues(newStatValues)
+      setChartData(newChartData)
     } catch { /* keep previous data */ } finally {
       setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
     }
-  }, [timeRange, timeRangeSeconds, env])
+  }, [timeRange, timeRangeSeconds, env, environment])
 
   const refreshOne = useCallback(async (index: number): Promise<void> => {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
@@ -220,17 +242,29 @@ function useOperationsBatch(timeRange: TimeRange, timeRangeSeconds: number, envi
     try {
       if (index < OPS_STATS.length) {
         const s = OPS_STATS[index]
-        const res = await queryMetrics({ query: s.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: s.step })
+        let res: PrometheusResponse
+        if (s.queryType === 'loki') {
+          const [r] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(s.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: s.step }])
+          res = r as PrometheusResponse
+        } else {
+          res = await queryMetrics({ query: s.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: s.step })
+        }
         setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
       } else {
         const c = OPS_CHARTS[index - OPS_STATS.length]
-        const res = await queryMetrics({ query: c.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: c.step })
+        let res: PrometheusResponse
+        if (c.queryType === 'loki') {
+          const [r] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(c.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: c.step }])
+          res = r as PrometheusResponse
+        } else {
+          res = await queryMetrics({ query: c.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: c.step })
+        }
         setChartData(prev => prev.map((v, i) => i === (index - OPS_STATS.length) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
     }
-  }, [timeRange, timeRangeSeconds, env])
+  }, [timeRange, timeRangeSeconds, env, environment])
 
   useEffect(() => { fetchAll() }, [fetchAll])
   useEffect(() => {
@@ -324,7 +358,6 @@ function useLogsBatch(timeRange: TimeRange, timeRangeSeconds: number, environmen
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
 function useTracesBatch(timeRange: TimeRange, timeRangeSeconds: number, environment: Environment) {
-  const env = environment === 'all' ? undefined : environment
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
   const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
   const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
@@ -338,14 +371,15 @@ function useTracesBatch(timeRange: TimeRange, timeRangeSeconds: number, environm
     setLoading(Array(TRACES_STATS.length + 2).fill(true))
     const now = Math.floor(Date.now() / 1000)
     try {
-      const [metricResults, tracesResults] = await Promise.all([
-        queryMetricsBatch([
-          ...TRACES_STATS.map(s => ({ query: s.buildQuery(timeRange, env), step: s.step, start: now - timeRangeSeconds, end: now })),
-          { query: TRACES_SPAN_CHART.buildQuery(timeRange, env), step: TRACES_SPAN_CHART.step, start: now - timeRangeSeconds, end: now },
-        ]),
+      const lokiItems = [
+        ...TRACES_STATS.map(s => ({ query: applyEnvToLokiQuery(s.buildQuery(timeRange), environment), step: s.step, start: now - timeRangeSeconds, end: now })),
+        { query: applyEnvToLokiQuery(TRACES_SPAN_CHART.buildQuery(timeRange), environment), step: TRACES_SPAN_CHART.step, start: now - timeRangeSeconds, end: now },
+      ]
+      const [lokiResults, tracesResults] = await Promise.all([
+        queryLokiMetricsBatch(lokiItems),
         queryTracesBatch([{ q: traceQuery, start: now - timeRangeSeconds, end: now, limit: 20 }]),
       ])
-      if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
+      if ('error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured') {
         setNotConfigured(true)
         setLoading(Array(TRACES_STATS.length + 2).fill(false))
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
@@ -354,13 +388,13 @@ function useTracesBatch(timeRange: TimeRange, timeRangeSeconds: number, environm
         setTracesData(tracesErr)
         return
       }
-      setStatValues(metricResults.slice(0, TRACES_STATS.length).map(extractLastValue))
-      setChartData(metricResults[TRACES_STATS.length] as PrometheusResponse)
+      setStatValues(lokiResults.slice(0, TRACES_STATS.length).map(r => extractLastValue(r as PrometheusResponse)))
+      setChartData(lokiResults[TRACES_STATS.length] as PrometheusResponse)
       setTracesData(tracesResults[0] as TempoResponse)
     } catch { /* keep previous data */ } finally {
       setLoading(Array(TRACES_STATS.length + 2).fill(false))
     }
-  }, [timeRange, timeRangeSeconds, env, traceQuery])
+  }, [timeRange, timeRangeSeconds, environment, traceQuery])
 
   const refreshOne = useCallback(async (index: number): Promise<void> => {
     setLoading(prev => prev.map((v, i) => i === index ? true : v))
@@ -368,11 +402,11 @@ function useTracesBatch(timeRange: TimeRange, timeRangeSeconds: number, environm
     try {
       if (index < TRACES_STATS.length) {
         const s = TRACES_STATS[index]
-        const res = await queryMetrics({ query: s.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: s.step })
-        setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res) : v))
+        const [res] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(s.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: s.step }])
+        setStatValues(prev => prev.map((v, i) => i === index ? extractLastValue(res as PrometheusResponse) : v))
       } else if (index === TRACES_STATS.length) {
-        const res = await queryMetrics({ query: TRACES_SPAN_CHART.buildQuery(timeRange, env), start: now - timeRangeSeconds, end: now, step: TRACES_SPAN_CHART.step })
-        setChartData(res)
+        const [res] = await queryLokiMetricsBatch([{ query: applyEnvToLokiQuery(TRACES_SPAN_CHART.buildQuery(timeRange), environment), start: now - timeRangeSeconds, end: now, step: TRACES_SPAN_CHART.step }])
+        setChartData(res as PrometheusResponse)
       } else {
         const res = await queryTraces({ q: traceQuery, start: now - timeRangeSeconds, end: now, limit: 20 })
         setTracesData(res)
@@ -380,7 +414,7 @@ function useTracesBatch(timeRange: TimeRange, timeRangeSeconds: number, environm
     } catch { /* leave existing data */ } finally {
       setLoading(prev => prev.map((v, i) => i === index ? false : v))
     }
-  }, [timeRange, timeRangeSeconds, env, traceQuery])
+  }, [timeRange, timeRangeSeconds, environment, traceQuery])
 
   useEffect(() => { fetchAll() }, [fetchAll])
   useEffect(() => {
@@ -457,15 +491,10 @@ function LogsTab({ timeRange, timeRangeSeconds, environment, logLevel }: { timeR
           </div>
         ))}
       </div>
-      {LOGS_TABLE_PANELS.slice(0, 2).map((p, i) => (
-        <LogsTable key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" height={p.height}
-          externalData={ld[i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + i)}
-          tooltip={t(p.tooltipKey, { range: rangeLabel })} forcedLevel={forcedLevel} />
-      ))}
       <div className="grid grid-cols-2 gap-3">
-        {LOGS_TABLE_PANELS.slice(2).map((p, i) => (
+        {LOGS_TABLE_PANELS.map((p, i) => (
           <LogsTable key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" height={p.height}
-            externalData={ld[2 + i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + 2 + i)}
+            externalData={ld[i]} onRefresh={() => refreshOne(LOGS_NUM_METRIC + i)}
             tooltip={t(p.tooltipKey, { range: rangeLabel })} forcedLevel={forcedLevel} />
         ))}
       </div>

@@ -127,6 +127,10 @@ function processResponse(
 
 const COLORS = ['hsl(var(--primary))', 'hsl(217,91%,60%)', 'hsl(142,71%,45%)', 'hsl(38,92%,50%)']
 
+function renderChartTooltip(props: Parameters<typeof ChartTooltip>[0]) {
+  return <ChartTooltip {...props} />
+}
+
 const fmtNum = (v: number) =>
   Number.isInteger(v) ? v.toString() : parseFloat(v.toFixed(3)).toString()
 
@@ -271,7 +275,7 @@ export function MetricsChart({
               <XAxis dataKey="time" tick={{ fontSize: 10 }} interval={xAxisInterval} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                content={<ChartTooltip />}
+                content={renderChartTooltip}
                 isAnimationActive={false}
                 cursor={{ fill: 'hsl(var(--border))', opacity: 0.15 }}
               />
@@ -286,7 +290,7 @@ export function MetricsChart({
               <XAxis dataKey="time" tick={{ fontSize: 10 }} interval={xAxisInterval} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip
-                content={<ChartTooltip />}
+                content={renderChartTooltip}
                 isAnimationActive={false}
                 cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 2' }}
               />

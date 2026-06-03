@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronRight, ChevronDown, ScrollText } from 'lucide-react'
 import type { OtlpSpan, OtlpAttributeValue } from '@/lib/api/grafana'
 import { spanDurationMs, isErrorSpan, formatDuration } from '@/lib/otlp-utils'
 import { useI18n } from '@/lib/providers'
@@ -166,6 +166,8 @@ interface StageCardProps {
   labelOverride?: string
   collapsed?: boolean
   onToggleCollapse?: () => void
+  isHighlighted?: boolean
+  onViewLogs?: () => void
 }
 
 function durationColor(ms: number, thresholds?: SpanPercentileThresholds): string {
@@ -177,7 +179,7 @@ function durationColor(ms: number, thresholds?: SpanPercentileThresholds): strin
   return 'text-foreground'
 }
 
-export function StageCard({ span, className, thresholds, labelOverride, collapsed, onToggleCollapse }: StageCardProps) {
+export function StageCard({ span, className, thresholds, labelOverride, collapsed, onToggleCollapse, isHighlighted, onViewLogs }: StageCardProps) {
   const { t } = useI18n()
   const durationMs = spanDurationMs(span)
   const error = isErrorSpan(span)
@@ -220,10 +222,29 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
 
   return (
     <div className={cn(
-      'rounded-lg border-2 bg-card p-3 min-w-[160px] flex-shrink-0 flex flex-col gap-1.5',
-      error ? 'border-destructive' : 'border-emerald-500',
+      'relative rounded-lg border-2 bg-card p-3 min-w-[160px] flex-shrink-0 flex flex-col gap-1.5',
+      error ? 'border-destructive' : isHighlighted ? 'border-primary' : 'border-emerald-500',
       className,
     )}>
+      {/* Pulsing glow overlay — uses a custom keyframe so the glow pulses independently
+          of any Tailwind bundle-inclusion issue with the 'pulse' keyframe */}
+      {isHighlighted && (
+        <>
+          <style>{`
+            @keyframes span-glow {
+              0%, 100% { opacity: 0.15; }
+              50%       { opacity: 1;    }
+            }
+          `}</style>
+          <div
+            className="absolute -inset-[3px] rounded-[11px] pointer-events-none"
+            style={{
+              boxShadow: '0 0 0 2px hsl(var(--primary) / 0.6), 0 0 28px 8px hsl(var(--primary) / 0.45)',
+              animation: 'span-glow 1.2s ease-in-out 3',
+            }}
+          />
+        </>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
@@ -243,7 +264,18 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
             {label}
           </span>
         </div>
-        {durationBadge}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onViewLogs && (
+            <button
+              onClick={e => { e.stopPropagation(); onViewLogs() }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="View logs for this span"
+            >
+              <ScrollText className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {durationBadge}
+        </div>
       </div>
 
       {/* Start time */}

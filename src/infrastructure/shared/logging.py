@@ -47,6 +47,18 @@ def _add_topic_id(logger: Any, method_name: str, event_dict: dict) -> dict:
     return event_dict
 
 
+def _add_otel_context(logger: Any, method_name: str, event_dict: dict) -> dict:
+    try:
+        from opentelemetry import trace as _otel_trace
+        ctx = _otel_trace.get_current_span().get_span_context()
+        if ctx.is_valid:
+            event_dict["trace_id"] = format(ctx.trace_id, "032x")
+            event_dict["span_id"] = format(ctx.span_id, "016x")
+    except Exception:
+        pass
+    return event_dict
+
+
 def configure_logging() -> None:
     """Configure structlog for JSON output and attach optional Loki sink.
 
@@ -61,6 +73,7 @@ def configure_logging() -> None:
             structlog.stdlib.add_log_level,
             _add_correlation_id,
             _add_topic_id,
+            _add_otel_context,
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer(),
         ],

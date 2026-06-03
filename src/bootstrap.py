@@ -59,6 +59,7 @@ def build_llm_service(session):
             priority=cfg['priority'],
             name=name,
         ))
+        logger.info("llm_provider_loaded", name=name, model=cfg['model'], priority=cfg['priority'])
 
     if not handlers:
         raise ValueError("llm_providers table has no active LLM providers")
@@ -82,7 +83,8 @@ def build_llm_service(session):
     if not emb_handlers:
         raise ValueError("llm_providers table has no active embedding providers")
 
-    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
+    provider_names = [h.name for h in handlers]
+    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers), provider_names
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +153,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service, embedding_service = build_llm_service(session)
+    llm_service, embedding_service, llm_provider_names = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
@@ -294,8 +296,13 @@ def build_collection_pipeline():
         executor=executor,
     )
 
-    logger.info("bootstrap_complete")
-    return pipeline
+    logger.info(
+        "bootstrap_complete",
+        llm_providers=llm_provider_names,
+        llm_provider_count=len(llm_provider_names),
+        translation_languages=list(TRANSLATION_LANGUAGES) if TRANSLATION_LANGUAGES else [],
+    )
+    return pipeline, pipeline_stats
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +328,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service, _ = build_llm_service(session)
+    llm_service, _, _provider_names = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()

@@ -75,7 +75,8 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    logger.info("execution_started", run_id=run_id, correlation_id=correlation_id)
+    env = os.environ.get("APP_ENV", "local")
+    logger.info("execution_started", run_id=run_id, correlation_id=correlation_id, env=env)
 
     start_time = time.time()
 
@@ -87,20 +88,30 @@ def main() -> None:
             span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
             try:
-                pipeline = build_collection_pipeline()
+                pipeline, pipeline_stats = build_collection_pipeline()
                 pipeline.run()
 
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))
-                logger.error("execution_failed", error=str(e))
+                logger.error("execution_failed", error=str(e), error_type=type(e).__name__)
                 raise
             finally:
                 duration = time.time() - start_time
+                stats = pipeline_stats.get_results()
+                total_new = sum(s.new for s in stats)
+                total_dup = sum(s.duplicate for s in stats)
+                total_fail = sum(s.failed for s in stats)
+                per_source = {s.source: {"new": s.new, "duplicate": s.duplicate, "failed": s.failed} for s in stats}
                 logger.info(
                     "execution_completed",
                     run_id=get_run_id(),
-                    duration_seconds=duration,
+                    duration_seconds=round(duration, 2),
+                    articles_new=total_new,
+                    articles_duplicate=total_dup,
+                    articles_failed=total_fail,
+                    articles_found=total_new + total_dup,
+                    sources=per_source,
                 )
                 SCRAPER_DURATION.record(duration)
                 try:

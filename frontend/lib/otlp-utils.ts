@@ -90,3 +90,23 @@ export function formatDuration(ms: number): string {
   if (ms < 60000) return `${(ms / 1000).toFixed(1)} s`
   return `${(ms / 60000).toFixed(1)} m`
 }
+
+/**
+ * Normalise an OTLP trace/span ID to lowercase hex.
+ * Tempo's OTLP HTTP response encodes binary IDs as base64 (proto JSON encoding).
+ * Python structlog emits them as hex (via `format(id, "032x")`).
+ * This function detects whichever format is used and always returns hex,
+ * so Loki label-filter queries and span highlight comparisons work correctly.
+ */
+export function otlpIdToHex(id: string): string {
+  if (!id) return id
+  // Already lowercase or uppercase hex — return normalised
+  if (/^[0-9a-fA-F]+$/.test(id)) return id.toLowerCase()
+  // Base64 — convert binary to hex
+  try {
+    const binary = atob(id)
+    return Array.from(binary, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+  } catch {
+    return id
+  }
+}

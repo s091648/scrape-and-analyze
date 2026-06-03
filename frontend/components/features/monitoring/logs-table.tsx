@@ -2,18 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { queryLogs, type LokiStreamResult, type LokiResponse } from '@/lib/api/grafana'
+import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, type OtlpSpan } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import { LokiLabel } from '@/lib/observability-constants'
+import { flattenSpans, buildSpanTree, findArticlePipelineSpans, findStageSpans, otlpIdToHex, type SpanNode } from '@/lib/otlp-utils'
+import { LogDetailDialog, LEVEL_COLORS, type LogEntry } from './log-detail-dialog'
+import { ArticleWorkflowDialog } from './article-workflow-dialog'
 
-interface LogEntry {
-  ts: string
-  level: string
-  env?: string
-  message: string
-  details?: string
-}
+export type { LogEntry }
 
 type LevelFilter = 'all' | 'error' | 'warning' | 'info'
 
@@ -56,7 +53,6 @@ function buildDetails(line: string): string | undefined {
     const val = obj[key]
     if (val === undefined || val === null || val === '') continue
     const str = String(val)
-    // Truncate URLs and long strings
     const display = key === 'url' ? (str.length > 60 ? '…' + str.slice(-57) : str)
       : str.length > 40 ? str.slice(0, 37) + '…' : str
     parts.push(`${key}: ${display}`)
@@ -94,10 +90,12 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
       entries.push({
         _ms: ms,
         ts: new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        tsExact: new Date(ms).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         level: parseLevel(line),
         env,
         message: parseMessage(line),
         details: buildDetails(line),
+        raw: line,
       })
     }
   }
@@ -105,10 +103,25 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
   return entries.map(({ _ms, ...e }) => e)
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-  error: 'text-destructive',
-  warning: 'text-yellow-500',
-  info: 'text-muted-foreground',
+/**
+ * Walk up the parent chain (using hex-normalised IDs) to find the article.pipeline
+ * ancestor of spanIdHex. Handles both base64 and hex OTLP span IDs.
+ */
+function findPipelineForSpan(spans: OtlpSpan[], spanIdHex: string): OtlpSpan | undefined {
+  const spanMap = new Map(spans.map(s => [otlpIdToHex(s.spanId), s]))
+  let current = spanMap.get(spanIdHex)
+  while (current) {
+    if (current.name === 'article.pipeline') return current
+    if (!current.parentSpanId) break
+    current = spanMap.get(otlpIdToHex(current.parentSpanId))
+  }
+  return undefined
+}
+
+interface TraceTarget {
+  pipeline: OtlpSpan
+  stages: SpanNode[]
+  highlightSpanId?: string
 }
 
 export function LogsTable({
@@ -131,6 +144,8 @@ export function LogsTable({
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
   const [filter, setFilter] = useState<LevelFilter>('all')
+  const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null)
+  const [traceTarget, setTraceTarget] = useState<TraceTarget | null>(null)
 
   const fetch = useCallback(async () => {
     if (externalData !== undefined || onRefresh !== undefined) return
@@ -179,6 +194,19 @@ export function LogsTable({
     return () => clearInterval(id)
   }, [fetch, refreshInterval, notConfigured, externalData])
 
+  async function handleOpenTrace(traceId: string, spanId?: string) {
+    try {
+      const data = await queryTraceById(traceId)
+      const spans = flattenSpans(data)
+      const tree = buildSpanTree(spans)
+      const pipelines = findArticlePipelineSpans(spans)
+      if (pipelines.length === 0) return
+      const pipeline = (spanId ? findPipelineForSpan(spans, spanId) : undefined) ?? pipelines[0]
+      const stages = findStageSpans(tree, pipeline.spanId)
+      setTraceTarget({ pipeline, stages, highlightSpanId: spanId })
+    } catch { /* silently ignore */ }
+  }
+
   const activeLevel = forcedLevel ?? filter
   const visible = activeLevel === 'all' ? entries : entries.filter(e => e.level === activeLevel)
 
@@ -209,41 +237,63 @@ export function LogsTable({
   )
 
   return (
-    <TablePanel
-      title={title}
-      tooltip={tooltip}
-      onRefresh={onRefresh}
-      columns={columns}
-      height={height}
-      className={className}
-      loading={loading}
-      placeholder={placeholder}
-      placeholderError={error}
-      toolbar={toolbar}
-    >
-      {visible.length === 0 ? (
-        <tr>
-          <td colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
-            {t('admin.noLogs')}
-          </td>
-        </tr>
-      ) : (
-        visible.map((entry, i) => (
-          <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/30">
-            <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{entry.ts}</td>
-            <td className={cn('px-2 py-1 whitespace-nowrap font-medium', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
-              {entry.level.toUpperCase()}
-            </td>
-            <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">{entry.env ?? '—'}</td>
-            <td className="px-2 py-1 font-mono max-w-0 overflow-hidden">
-              <div className="truncate">{entry.message}</div>
-              {entry.details && (
-                <div className="truncate text-muted-foreground text-[10px] mt-0.5 opacity-70">{entry.details}</div>
-              )}
+    <>
+      <TablePanel
+        title={title}
+        tooltip={tooltip}
+        onRefresh={onRefresh}
+        columns={columns}
+        height={height}
+        className={className}
+        loading={loading}
+        placeholder={placeholder}
+        placeholderError={error}
+        toolbar={toolbar}
+      >
+        {visible.length === 0 ? (
+          <tr>
+            <td colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
+              {t('admin.noLogs')}
             </td>
           </tr>
-        ))
+        ) : (
+          visible.map((entry, i) => (
+            <tr
+              key={i}
+              className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+              onClick={() => setSelectedEntry(entry)}
+            >
+              <td className="px-2 py-1 whitespace-nowrap text-muted-foreground">{entry.ts}</td>
+              <td className={cn('px-2 py-1 whitespace-nowrap font-medium', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
+                {entry.level.toUpperCase()}
+              </td>
+              <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">{entry.env ?? '—'}</td>
+              <td className="px-2 py-1 font-mono max-w-0 overflow-hidden">
+                <div className="truncate">{entry.message}</div>
+                {entry.details && (
+                  <div className="truncate text-muted-foreground text-[10px] mt-0.5 opacity-70">{entry.details}</div>
+                )}
+              </td>
+            </tr>
+          ))
+        )}
+      </TablePanel>
+
+      <LogDetailDialog
+        entry={selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        onOpenTrace={handleOpenTrace}
+      />
+
+      {traceTarget && (
+        <ArticleWorkflowDialog
+          open
+          onClose={() => setTraceTarget(null)}
+          pipelineSpan={traceTarget.pipeline}
+          stageSpans={traceTarget.stages}
+          highlightedSpanId={traceTarget.highlightSpanId}
+        />
       )}
-    </TablePanel>
+    </>
   )
 }
