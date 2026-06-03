@@ -131,11 +131,20 @@ const LOGS_STAT_PANELS: StatPanelDef[] = [
   { titleKey: 'admin.logWarningCount', buildQuery: r => `sum(count_over_time(${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.WARNING })}[${TIME_RANGE_PROMQL[r]}]))`, step: '3600', tooltipKey: 'admin.logWarningCountTooltip' },
 ]
 
+const PIPELINE_LIFECYCLE_EVENTS = [
+  'execution_started', 'execution_completed', 'execution_failed', 'execution_timeout_reached',
+  'sources_due', 'no_sources_due',
+  'collection_pipeline_completed',
+  'discover_produced_fetch_tasks',
+  'executor_fetch_complete', 'executor_phase2_complete',
+  'pre_fetch_dedup_filtered', 'post_dedup_filtered',
+].join('|')
+
 const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
-  { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} |= "execution"`,                                        height: 300, tooltipKey: 'admin.executionTimelineTooltip' },
-  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}`,         height: 300, tooltipKey: 'admin.errorLogsTooltip' },
-  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} |= "analysis_completed"`,                               height: 240, tooltipKey: 'admin.articleSuccessLogsTooltip' },
-  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ ".*_failed"`,             height: 240, tooltipKey: 'admin.articleFailureLogsTooltip' },
+  { titleKey: 'admin.executionTimeline',  query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ "${PIPELINE_LIFECYCLE_EVENTS}"`, height: 400, tooltipKey: 'admin.executionTimelineTooltip' },
+  { titleKey: 'admin.errorLogs',          query: `${lokiStreamSelector({ [LokiLabel.DETECTED_LEVEL]: LogLevel.ERROR })}`,                height: 300, tooltipKey: 'admin.errorLogsTooltip' },
+  { titleKey: 'admin.articleSuccessLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ "analysis_completed|tag_normalization_completed|auto_translation_completed"`, height: 280, tooltipKey: 'admin.articleSuccessLogsTooltip' },
+  { titleKey: 'admin.articleFailureLogs', query: `${lokiStreamSelector()} | json | ${LogField.EVENT} =~ ".*_failed"`,                    height: 280, tooltipKey: 'admin.articleFailureLogsTooltip' },
 ]
 
 // ── Traces panel descriptors ───────────────────────────────────────────────
@@ -260,7 +269,7 @@ function useLogsBatch(timeRange: TimeRange, timeRangeSeconds: number, environmen
         }))),
         queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
           query: applyEnvToLokiQuery(p.query, environment),
-          start: startNs, end: nowNs, limit: 100,
+          start: startNs, end: nowNs, limit: 500,
         }))),
       ])
       if ('error' in metricResults[0] && (metricResults[0] as { error: string }).error === 'not_configured') {
@@ -294,7 +303,7 @@ function useLogsBatch(timeRange: TimeRange, timeRangeSeconds: number, environmen
         setMetricData(prev => prev.map((v, i) => i === index ? res : v))
       } else {
         const p = LOGS_TABLE_PANELS[index - LOGS_NUM_METRIC]
-        const res = await queryLogs({ query: applyEnvToLokiQuery(p.query, environment), start: startNs, end: nowNs, limit: 100 })
+        const res = await queryLogs({ query: applyEnvToLokiQuery(p.query, environment), start: startNs, end: nowNs, limit: 500 })
         setLogsData(prev => prev.map((v, i) => i === (index - LOGS_NUM_METRIC) ? res : v))
       }
     } catch { /* leave existing data */ } finally {
@@ -408,6 +417,7 @@ function OperationsTab({ timeRange, timeRangeSeconds, environment }: { timeRange
       <div className="grid grid-cols-2 gap-3">
         {OPS_CHARTS.slice(0, 2).map((p, i) => (
           <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
+            timeRangeSeconds={timeRangeSeconds}
             externalData={cd[i]} externalLoading={loading[OPS_STATS.length + i]}
             onRefresh={() => refreshOne(OPS_STATS.length + i)}
             tooltip={t(p.tooltipKey, { range: rangeLabel })} />
@@ -416,7 +426,8 @@ function OperationsTab({ timeRange, timeRangeSeconds, environment }: { timeRange
       <div className="grid grid-cols-2 gap-3">
         {OPS_CHARTS.slice(2).map((p, i) => (
           <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
-            chartType={p.chartType} externalData={cd[2 + i]} externalLoading={loading[OPS_STATS.length + 2 + i]}
+            chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
+            externalData={cd[2 + i]} externalLoading={loading[OPS_STATS.length + 2 + i]}
             onRefresh={() => refreshOne(OPS_STATS.length + 2 + i)}
             tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}
@@ -434,7 +445,7 @@ function LogsTab({ timeRange, timeRangeSeconds, environment, logLevel }: { timeR
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3 mt-4">
         <MetricsChart title={t(LOGS_VOLUME_CHART.titleKey, { range: rangeLabel })} query="unused" step={LOGS_VOLUME_CHART.step}
-          height={LOGS_VOLUME_CHART.height} className="col-span-4"
+          height={LOGS_VOLUME_CHART.height} className="col-span-4" timeRangeSeconds={timeRangeSeconds}
           externalData={md[0]} externalLoading={loading[0]}
           onRefresh={() => refreshOne(0)}
           tooltip={t(LOGS_VOLUME_CHART.tooltipKey, { range: rangeLabel })} />
@@ -476,7 +487,8 @@ function TracesTab({ grafanaUrl, timeRange, timeRangeSeconds, environment }: { g
         ))}
       </div>
       <MetricsChart title={t(TRACES_SPAN_CHART.titleKey, { range: rangeLabel })} query="unused" step={TRACES_SPAN_CHART.step}
-        height={TRACES_SPAN_CHART.height} externalData={cd} externalLoading={loading[TRACES_STATS.length]}
+        height={TRACES_SPAN_CHART.height} timeRangeSeconds={timeRangeSeconds}
+        externalData={cd} externalLoading={loading[TRACES_STATS.length]}
         onRefresh={() => refreshOne(TRACES_STATS.length)}
         tooltip={t(TRACES_SPAN_CHART.tooltipKey, { range: rangeLabel })} />
       <TracesTable title={t(TRACES_TABLE_PANEL.titleKey, { range: rangeLabel })} query="unused" height={TRACES_TABLE_PANEL.height}

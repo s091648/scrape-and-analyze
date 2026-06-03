@@ -38,6 +38,11 @@ class TagNormalizationHandler:
 
         span.set_attribute("normalization.success", result.success)
         if result.success:
+            logger.info(
+                "tag_normalization_completed",
+                analysis_id=str(event.analysis_id),
+                article_id=str(event.article_id),
+            )
             self._event_bus.publish(TagNormalizationCompletedEvent(
                 analysis_id=event.analysis_id,
                 article_id=event.article_id,

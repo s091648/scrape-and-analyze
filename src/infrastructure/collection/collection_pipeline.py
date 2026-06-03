@@ -158,10 +158,19 @@ class CollectionPipeline:
 
         # ── Publish completion event (triggers Telegram + OTel) ────────
         duration = time.time() - start
+        stats = self._pipeline_stats.get_results()
         self._event_bus.publish(PipelineCompletedEvent(
-            stats=self._pipeline_stats.get_results(),
+            stats=stats,
             duration_seconds=duration,
         ))
 
-        logger.info("collection_pipeline_completed", published=published)
+        logger.info(
+            "collection_pipeline_completed",
+            published=published,
+            duration_seconds=round(duration, 1),
+            sources=len(stats),
+            new=sum(s.new for s in stats),
+            duplicate=sum(s.duplicate for s in stats),
+            failed=sum(s.failed for s in stats),
+        )
         return published

@@ -12,6 +12,7 @@ interface LogEntry {
   level: string
   env?: string
   message: string
+  details?: string
 }
 
 type LevelFilter = 'all' | 'error' | 'warning' | 'info'
@@ -43,6 +44,24 @@ function parseNsTime(t: string): string {
     return (nowMs - offsetMs).toString() + '000000'
   }
   return t
+}
+
+function buildDetails(line: string): string | undefined {
+  let obj: Record<string, unknown>
+  try { obj = JSON.parse(line) } catch { return undefined }
+  // Priority order: url first (most useful), then source, error, counts, ids
+  const priority = ['url', 'source', 'error', 'count', 'duration_seconds', 'published', 'new', 'duplicate', 'failed', 'remaining', 'skipped', 'run_id', 'article_id', 'analysis_id', 'model', 'input_tokens', 'output_tokens']
+  const parts: string[] = []
+  for (const key of priority) {
+    const val = obj[key]
+    if (val === undefined || val === null || val === '') continue
+    const str = String(val)
+    // Truncate URLs and long strings
+    const display = key === 'url' ? (str.length > 60 ? '…' + str.slice(-57) : str)
+      : str.length > 40 ? str.slice(0, 37) + '…' : str
+    parts.push(`${key}: ${display}`)
+  }
+  return parts.length ? parts.join(' · ') : undefined
 }
 
 function parseLevel(line: string): string {
@@ -78,6 +97,7 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
         level: parseLevel(line),
         env,
         message: parseMessage(line),
+        details: buildDetails(line),
       })
     }
   }
@@ -203,7 +223,7 @@ export function LogsTable({
     >
       {visible.length === 0 ? (
         <tr>
-          <td colSpan={3} className="text-center py-8 text-muted-foreground text-xs">
+          <td colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
             {t('admin.noLogs')}
           </td>
         </tr>
@@ -215,7 +235,12 @@ export function LogsTable({
               {entry.level.toUpperCase()}
             </td>
             <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">{entry.env ?? '—'}</td>
-            <td className="px-2 py-1 font-mono truncate max-w-0">{entry.message}</td>
+            <td className="px-2 py-1 font-mono max-w-0 overflow-hidden">
+              <div className="truncate">{entry.message}</div>
+              {entry.details && (
+                <div className="truncate text-muted-foreground text-[10px] mt-0.5 opacity-70">{entry.details}</div>
+              )}
+            </td>
           </tr>
         ))
       )}
