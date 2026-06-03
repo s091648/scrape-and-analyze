@@ -129,8 +129,10 @@ const OPS_STATS: StatPanelDef[] = [
 ]
 
 const OPS_CHARTS: ChartPanelDef[] = [
-  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1h]))`,                                                                            step: '3600',  height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h])`,                                                        step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
+  // Daily bar: count_over_time([1d]) + step=86400 so each bar = that day's article count
+  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                                       step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articleVolumeChartTooltip' },
+  // avg() collapses per-run series from unwrap into a single time series
+  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, chartType: 'bar', tooltipKey: 'admin.runDurationChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: _rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: _rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [1d]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
 ]
@@ -161,15 +163,16 @@ const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
 
 const TRACES_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.tracesCount',       buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${rv}]))`,                                   step: '3600', tooltipKey: 'admin.tracesCountTooltip' },
-  { queryType: 'loki', titleKey: 'admin.avgRunDurationP95', buildQuery: rv => `quantile_over_time(0.95, ${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}])`,  step: '3600', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.avgRunDurationP95', buildQuery: rv => `max(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`,         step: '3600', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
   { queryType: 'loki', titleKey: 'admin.errorSpans',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,                                step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
 ]
 
 const TRACES_SPAN_CHART: ChartPanelDef = {
   queryType: 'loki',
   titleKey: 'admin.spanRateChart',
-  buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [5m]))`,
-  step: '300',
+  // [1h] + step=3600 (instead of [5m]/300) prevents 576-point range and sparse gaps
+  buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [1h]))`,
+  step: '3600',
   height: 240,
   tooltipKey: 'admin.spanRateChartTooltip',
 }
@@ -369,7 +372,7 @@ function OperationsTab({
       <div className="grid grid-cols-2 gap-3">
         {OPS_CHARTS.slice(0, 2).map((p, i) => (
           <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
-            timeRangeSeconds={timeRangeSeconds}
+            chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
             externalData={cd[i]} externalLoading={loading[OPS_STATS.length + i]}
             tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}

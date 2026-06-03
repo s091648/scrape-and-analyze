@@ -6,6 +6,7 @@ import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, ty
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import { LokiLabel } from '@/lib/observability-constants'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { flattenSpans, buildSpanTree, findArticlePipelineSpans, findStageSpans, otlpIdToHex, type SpanNode } from '@/lib/otlp-utils'
 import { LogDetailDialog, LEVEL_COLORS, type LogEntry } from './log-detail-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
@@ -146,6 +147,7 @@ export function LogsTable({
   const [filter, setFilter] = useState<LevelFilter>('all')
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null)
   const [traceTarget, setTraceTarget] = useState<TraceTarget | null>(null)
+  const [noSpanDialog, setNoSpanDialog] = useState(false)
 
   const fetch = useCallback(async () => {
     if (externalData !== undefined || onRefresh !== undefined) return
@@ -200,11 +202,11 @@ export function LogsTable({
       const spans = flattenSpans(data)
       const tree = buildSpanTree(spans)
       const pipelines = findArticlePipelineSpans(spans)
-      if (pipelines.length === 0) return
+      if (pipelines.length === 0) { setNoSpanDialog(true); return }
       const pipeline = (spanId ? findPipelineForSpan(spans, spanId) : undefined) ?? pipelines[0]
       const stages = findStageSpans(tree, pipeline.spanId)
       setTraceTarget({ pipeline, stages, highlightSpanId: spanId })
-    } catch { /* silently ignore */ }
+    } catch { setNoSpanDialog(true) }
   }
 
   const activeLevel = forcedLevel ?? filter
@@ -294,6 +296,15 @@ export function LogsTable({
           highlightedSpanId={traceTarget.highlightSpanId}
         />
       )}
+
+      <Dialog open={noSpanDialog} onOpenChange={v => { if (!v) setNoSpanDialog(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm">{t('admin.traceNoPipelineTitle')}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">{t('admin.traceNoPipelineMessage')}</p>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

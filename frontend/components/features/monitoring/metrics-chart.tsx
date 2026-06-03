@@ -60,7 +60,7 @@ function transformMatrix(
     Object.entries(metric)
       .filter(([k]) => k !== '__name__')
       .map(([, v]) => v)
-      .join(', ') || 'value'
+      .join(', ') || '(other)'
 
   const allLabels = new Set<string>()
   for (const series of results) allLabels.add(labelOf(series.metric))
@@ -296,7 +296,8 @@ export function MetricsChart({
               />
               {seriesKeys.map((k, i) => (
                 <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]}
-                  dot={false} strokeWidth={2} connectNulls={false} />
+                  dot={data.length <= 20 ? { r: 3, strokeWidth: 0, fill: COLORS[i % COLORS.length] } : false}
+                  strokeWidth={2} connectNulls={true} />
               ))}
             </LineChart>
           </ResponsiveContainer>

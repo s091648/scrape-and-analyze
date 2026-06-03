@@ -102,8 +102,9 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
             </button>
           )}
 
-          {/* Extra fields from JSON */}
           {extraEntries.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{t('admin.logExtraFields')}</p>
             <div className="rounded border border-border p-2.5 space-y-1.5">
               {extraEntries.map(([k, v]) => (
                 <div key={k} className="grid grid-cols-[auto_1fr] gap-x-4">
@@ -111,6 +112,7 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
                   <span className="font-mono break-all text-foreground/80">{String(v)}</span>
                 </div>
               ))}
+            </div>
             </div>
           )}
 
