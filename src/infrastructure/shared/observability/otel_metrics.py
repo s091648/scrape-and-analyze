@@ -91,6 +91,16 @@ else:
     SCRAPER_ERRORS = _Dummy()
 
 
+def force_flush_metrics() -> None:
+    """Export all current metric values immediately.
+
+    Call before incrementing counters so Prometheus records a 0 baseline sample,
+    enabling ``increase()`` to detect the 0→N transition.
+    """
+    if _provider:
+        _provider.force_flush(10_000)
+
+
 def push_metrics() -> None:
     """Flush and shut down the metric provider (call once at process exit)."""
     if _provider:

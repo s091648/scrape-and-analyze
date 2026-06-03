@@ -6,6 +6,7 @@ from src.infrastructure.shared.observability.otel_metrics import (
     SCRAPER_ARTICLES_NEW,
     SCRAPER_ARTICLES_DUPLICATE,
     SCRAPER_ERRORS,
+    force_flush_metrics,
 )
 
 
@@ -14,6 +15,9 @@ class OtelMetricsHandler:
         span = _otel_trace.get_current_span()
         span.set_attribute("pipeline.duration_seconds", event.duration_seconds)
         span.set_attribute("pipeline.sources_count", len(event.stats))
+
+        # Flush 0 baseline so Prometheus records the transition for increase()
+        force_flush_metrics()
 
         for s in event.stats:
             attrs = {MetricLabelKey.SOURCE: s.source}
