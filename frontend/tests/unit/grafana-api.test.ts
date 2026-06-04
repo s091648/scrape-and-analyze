@@ -111,3 +111,91 @@ describe('queryTracesBatch', () => {
     expect(body).toEqual([{ q: '{ .service.name = "scrape-analyzer" }', limit: 20 }])
   })
 })
+
+describe('queryMetricsBatch', () => {
+  it('calls POST /api/proxy/grafana/metrics/batch with items as JSON body', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => [{ status: 'success', data: { resultType: 'matrix', result: [] } }],
+    })
+
+    const { queryMetricsBatch } = await import('@/lib/api/grafana')
+    await queryMetricsBatch([{ query: 'scraper_runs_total', step: '3600' }])
+
+    expect(global.fetch).toHaveBeenCalledOnce()
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/grafana/metrics/batch')
+    expect(options?.method).toBe('POST')
+    expect(options?.headers).toMatchObject({ 'Content-Type': 'application/json' })
+    const body = JSON.parse(options?.body as string)
+    expect(body).toEqual([{ query: 'scraper_runs_total', step: '3600' }])
+  })
+
+  it('wraps a non-array response in an array', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => ({ status: 'success', data: { resultType: 'matrix', result: [] } }),
+    })
+
+    const { queryMetricsBatch } = await import('@/lib/api/grafana')
+    const result = await queryMetricsBatch([{ query: 'q' }])
+    expect(Array.isArray(result)).toBe(true)
+  })
+})
+
+describe('queryLokiMetricsBatch', () => {
+  it('calls POST /api/proxy/grafana/loki-metrics/batch', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => [{ status: 'success', data: { resultType: 'matrix', result: [] } }],
+    })
+
+    const { queryLokiMetricsBatch } = await import('@/lib/api/grafana')
+    await queryLokiMetricsBatch([
+      { query: 'sum(count_over_time({app="scraper"}[1h]))', step: '3600' },
+    ])
+
+    expect(global.fetch).toHaveBeenCalledOnce()
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/grafana/loki-metrics/batch')
+    expect(options?.method).toBe('POST')
+    expect(options?.headers).toMatchObject({ 'Content-Type': 'application/json' })
+    const body = JSON.parse(options?.body as string)
+    expect(body[0].query).toContain('count_over_time')
+  })
+
+  it('returns a Prometheus-compatible array response', async () => {
+    const matrix = { status: 'success', data: { resultType: 'matrix', result: [{ metric: {}, values: [[1748000000, '5']] }] } }
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => [matrix],
+    })
+
+    const { queryLokiMetricsBatch } = await import('@/lib/api/grafana')
+    const result = await queryLokiMetricsBatch([{ query: 'q' }])
+    expect(result[0].data?.resultType).toBe('matrix')
+  })
+})
+
+describe('queryTraceById', () => {
+  it('calls GET /api/proxy/grafana/traces/{id}', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => ({ batches: [] }),
+    })
+
+    const { queryTraceById } = await import('@/lib/api/grafana')
+    await queryTraceById('abc123def456')
+
+    expect(global.fetch).toHaveBeenCalledOnce()
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/grafana/traces/abc123def456')
+    expect(options?.method).toBeUndefined()
+    expect((options?.headers as Record<string, string>)?.Authorization).toBe('Bearer test-token')
+  })
+
+  it('returns an OtlpTraceResponse with batches', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      json: async () => ({ batches: [{ resource: { attributes: [] }, scopeSpans: [] }] }),
+    })
+
+    const { queryTraceById } = await import('@/lib/api/grafana')
+    const result = await queryTraceById('trace1')
+    expect(Array.isArray(result.batches)).toBe(true)
+  })
+})

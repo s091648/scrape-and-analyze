@@ -6,6 +6,10 @@ vi.mock('next-auth/react', () => ({
   getSession: vi.fn().mockResolvedValue({ accessToken: 'test-token' }),
 }))
 
+vi.mock('@/lib/providers', () => ({
+  useI18n: () => ({ t: (k: string) => k }),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()

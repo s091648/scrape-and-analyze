@@ -107,8 +107,8 @@ describe('buildSpanTree + findStageSpans', () => {
     const child2 = makeSpan({ spanId: 'c2', parentSpanId: 'p1', startTimeUnixNano: '1000', endTimeUnixNano: '2000' })
     const tree = buildSpanTree([parent, child1, child2])
     const result = findStageSpans(tree, 'p1')
-    expect(result[0].spanId).toBe('c2')  // earlier start time first
-    expect(result[1].spanId).toBe('c1')
+    expect(result[0].span.spanId).toBe('c2')  // earlier start time first
+    expect(result[1].span.spanId).toBe('c1')
   })
 
   it('returns empty array for span with no children', () => {
