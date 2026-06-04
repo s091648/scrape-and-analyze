@@ -49,6 +49,8 @@ async function handler(
 
     const responseHeaders = new Headers(response.headers)
     responseHeaders.delete('transfer-encoding')
+    responseHeaders.delete('content-encoding')
+    responseHeaders.delete('content-length')
 
     // Resolve user session (server-side, no extra round-trip)
     const session = await getServerSession(authConfig)
