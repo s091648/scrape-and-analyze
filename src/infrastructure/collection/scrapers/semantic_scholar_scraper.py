@@ -5,6 +5,7 @@ from src.infrastructure.collection.clients import SemanticScholarClient, Semanti
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
+from src.infrastructure.collection.parsers import PdfParser
 
 logger = get_logger(__name__)
 
@@ -15,6 +16,7 @@ class SemanticScholarScraper(BaseScraper):
         self,
         max_results: int = 20,
         days_back: int = 7,
+        fetch_pdf: bool = True,
         keywords: Optional[List[str]] = None,
         topic_id: Optional[UUID] = None,
         prompt_override: Optional[str] = None,
@@ -22,10 +24,12 @@ class SemanticScholarScraper(BaseScraper):
     ) -> None:
         self._max_results = max_results
         self._days_back = days_back
+        self._fetch_pdf = fetch_pdf
         self._keywords = keywords
         self._topic_id = topic_id
         self._prompt_override = prompt_override
         self._client = client or SemanticScholarClient()
+        self._pdf_parser = PdfParser() if fetch_pdf else None
 
     def discover(self) -> List[ScrapeJob]:
         query = self._build_query()
@@ -66,7 +70,20 @@ class SemanticScholarScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
-        # PDF download is added in Phase 4 (US2). For now return abstract.
+        sections: dict = {}
+        pdf_available = False
+        pdf_url = job.metadata.get("open_access_pdf_url")
+
+        if self._fetch_pdf and pdf_url and self._pdf_parser:
+            full_text = self._pdf_parser.parse(pdf_url)
+            if full_text:
+                pdf_available = True
+                raw_sections = self._pdf_parser.extract_sections(full_text)
+                sections = {
+                    name: body.replace("\x00", "")
+                    for name, body in raw_sections.items()
+                }
+
         return ScrapedArticle(
             url=job.url,
             title=job.metadata.get("title") or job.metadata.get("paper_id", job.url),
@@ -82,8 +99,8 @@ class SemanticScholarScraper(BaseScraper):
                 "arxiv_id": job.metadata.get("arxiv_id"),
                 "citation_count": job.metadata.get("citation_count", 0),
                 "is_open_access": job.metadata.get("is_open_access", False),
-                "pdf_available": False,
-                "sections": {},
+                "pdf_available": pdf_available,
+                "sections": sections,
             },
         )
 

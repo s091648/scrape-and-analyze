@@ -462,6 +462,13 @@
     "stageAttr_articlesAfterDedup": "去重後",
     "stageAttr_articlesSkipped": "已略過",
     "stageAttr_articlesPublished": "已發布",
-    "stageTranslateLabel": "翻譯 ({lang})"
+    "stageTranslateLabel": "翻譯 ({lang})",
+    "activateSemanticScholar": "啟用 Semantic Scholar",
+    "editSemanticScholarSource": "編輯 Semantic Scholar 來源",
+    "deleteSemanticScholarSource": "刪除 Semantic Scholar 來源",
+    "semanticScholarKeywords": "搜尋關鍵字",
+    "noSemanticScholarKeywords": "尚無關鍵字 — 請新增關鍵字以搜尋論文。",
+    "addSemanticScholarKeyword": "新增關鍵字",
+    "semanticScholarKeywordPlaceholder": "例如：digital twin"
   }
 }

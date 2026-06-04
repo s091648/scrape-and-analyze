@@ -462,6 +462,13 @@
     "stageAttr_articlesAfterDedup": "After Dedup",
     "stageAttr_articlesSkipped": "Skipped",
     "stageAttr_articlesPublished": "Published",
-    "stageTranslateLabel": "Translate ({lang})"
+    "stageTranslateLabel": "Translate ({lang})",
+    "activateSemanticScholar": "Activate Semantic Scholar",
+    "editSemanticScholarSource": "Edit Semantic Scholar Source",
+    "deleteSemanticScholarSource": "Delete Semantic Scholar Source",
+    "semanticScholarKeywords": "Search Keywords",
+    "noSemanticScholarKeywords": "No keywords yet — add keywords to search for papers.",
+    "addSemanticScholarKeyword": "Add keyword",
+    "semanticScholarKeywordPlaceholder": "e.g. digital twin"
   }
 }

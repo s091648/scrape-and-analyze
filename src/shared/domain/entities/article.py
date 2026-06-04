@@ -21,7 +21,7 @@ class Article:
 
     def get_analysis_content(self) -> str:
         """Return LLM-ready text based on article source."""
-        if self.source == "arxiv":
+        if self.source in ("arxiv", "semantic_scholar"):
             sections: dict = self.metadata.get("sections") or {}
             if len(sections) >= 2:
                 combined = "\n\n".join(
