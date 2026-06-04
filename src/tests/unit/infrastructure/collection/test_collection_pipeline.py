@@ -62,11 +62,14 @@ def test_pre_fetch_dedup_filters_analyzed_urls():
     pipeline.run()
 
     assert captured_filter is not None
-    # Verify the filter calls find_analyzed_url_hashes
+    from src.modules.collection.domain.value_objects import UrlHash
     mock_task = MagicMock()
     mock_task.url = "https://example.com/article1"
-    captured_filter([mock_task])
+    analyzed_hash = UrlHash.from_url(mock_task.url).value
+    mock_article_repo.find_analyzed_url_hashes.return_value = {analyzed_hash}
+    filtered = captured_filter([mock_task])
     mock_article_repo.find_analyzed_url_hashes.assert_called()
+    assert filtered == []
 
 
 def test_post_fetch_dedup_removes_duplicate_urls():

@@ -80,9 +80,11 @@ class CollectionPipeline:
             if not analyzed:
                 return tasks
             kept = [t for h, t in hashes.items() if h not in analyzed]
-            skipped = len(tasks) - len(kept)
-            if skipped:
-                logger.info("pre_fetch_dedup_filtered", skipped=skipped, remaining=len(kept))
+            skipped_tasks = [t for h, t in hashes.items() if h in analyzed]
+            for t in skipped_tasks:
+                self._pipeline_stats.record(t.source, ArticleOutcome.DUPLICATE)
+            if skipped_tasks:
+                logger.info("pre_fetch_dedup_filtered", skipped=len(skipped_tasks), remaining=len(kept))
             return kept
 
         pre_fetch_filter = _pre_fetch_filter if self._article_repo is not None else None

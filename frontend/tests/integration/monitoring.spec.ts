@@ -8,7 +8,7 @@ test.describe('Admin monitoring page', () => {
     // Mock Grafana proxy endpoints to return "not_configured" (no env vars in test env)
     await page.route('**/api/proxy/grafana/**', route => {
       route.fulfill({
-        status: 403,
+        status: 503,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'not_configured' }),
       })
@@ -25,26 +25,18 @@ test.describe('Admin monitoring page', () => {
 
   test('shows "Grafana not configured" placeholder for each chart panel', async ({ page }) => {
     await page.goto('/admin/monitoring')
-    // Wait for loading states to resolve
-    await page.waitForTimeout(1000)
-    const placeholders = page.getByText('Grafana not configured')
-    // Multiple panels should show the placeholder
-    await expect(placeholders.first()).toBeVisible()
+    await expect(page.getByText('Grafana not configured').first()).toBeVisible()
   })
 
   test('logs tab renders log table placeholders', async ({ page }) => {
     await page.goto('/admin/monitoring')
     await page.getByRole('tab', { name: /logs/i }).click()
-    await page.waitForTimeout(500)
-    const placeholders = page.getByText('Grafana not configured')
-    await expect(placeholders.first()).toBeVisible()
+    await expect(page.getByText('Grafana not configured').first()).toBeVisible()
   })
 
   test('traces tab renders trace table placeholder', async ({ page }) => {
     await page.goto('/admin/monitoring')
     await page.getByRole('tab', { name: /traces/i }).click()
-    await page.waitForTimeout(500)
-    const placeholder = page.getByText('Grafana not configured').first()
-    await expect(placeholder).toBeVisible()
+    await expect(page.getByText('Grafana not configured').first()).toBeVisible()
   })
 })

@@ -133,6 +133,7 @@ export function ArticleWorkflowDialog({
 
   useEffect(() => {
     if (!open || stageSpans.length === 0) return
+    let cancelled = false
     const spanNames = [...new Set(stageSpans.map(n => n.span.name))]
     const now = Math.floor(Date.now() / 1000)
     const queries = spanNames.map(name => ({
@@ -142,6 +143,7 @@ export function ArticleWorkflowDialog({
       limit: 200,
     }))
     queryTracesBatch(queries).then(responses => {
+      if (cancelled) return
       const map = new Map<string, SpanPercentileThresholds>()
       responses.forEach((res, i) => {
         const durations: number[] = []
@@ -157,6 +159,7 @@ export function ArticleWorkflowDialog({
       })
       setPercentileMap(map)
     }).catch(() => {})
+    return () => { cancelled = true }
   }, [open, stageSpans])
 
   // Build parent → children map for depth > 0 spans

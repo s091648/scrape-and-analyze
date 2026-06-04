@@ -57,7 +57,7 @@ def test_publishes_failed_event_on_failure():
 # ── Span attribute tests ──────────────────────────────────────────────────────
 
 def test_span_records_analysis_and_article_ids():
-    handler, uc, bus = _make_handler()
+    handler, uc, _bus = _make_handler()
     event = _make_event()
     uc.execute.return_value = NormalizeTagsResult(
         success=True, analysis_id=event.analysis_id, article_id=event.article_id
@@ -72,7 +72,7 @@ def test_span_records_analysis_and_article_ids():
 
 
 def test_span_records_tag_counts():
-    handler, uc, bus = _make_handler()
+    handler, uc, _bus = _make_handler()
     event = _make_event(tag_groups=(
         ("technology", ["AI", "ML"]),
         ("industry", ["finance"]),
@@ -90,7 +90,7 @@ def test_span_records_tag_counts():
 
 
 def test_span_records_normalization_success():
-    handler, uc, bus = _make_handler()
+    handler, uc, _bus = _make_handler()
     event = _make_event()
     uc.execute.return_value = NormalizeTagsResult(
         success=True, analysis_id=event.analysis_id, article_id=event.article_id
@@ -104,7 +104,7 @@ def test_span_records_normalization_success():
 
 
 def test_span_records_error_type_on_failure():
-    handler, uc, bus = _make_handler()
+    handler, uc, _bus = _make_handler()
     event = _make_event()
     uc.execute.return_value = NormalizeTagsResult(
         success=False, analysis_id=event.analysis_id, article_id=event.article_id,

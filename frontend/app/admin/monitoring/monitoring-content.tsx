@@ -359,7 +359,7 @@ function OperationsTab({
       </div>
       <div className="grid grid-cols-4 gap-3">
         {OPS_STATS.slice(4).map((p, i) => (
-          <StatCard key={i} title={t(p.titleKey, { range: rangeLabel })} value={sv[4 + i]}
+          <StatCard key={i} title={t(p.titleKey, { range: rangeLabel })} value={sv[4 + i]} unit={p.unit}
             loading={loading[4 + i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}
       </div>

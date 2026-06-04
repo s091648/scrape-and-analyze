@@ -15,11 +15,21 @@ export default meta
 type Story = StoryObj<typeof LogsTable>
 
 export const NotConfigured: Story = {
-  args: { title: 'Application Logs' },
+  args: {
+    title: 'Application Logs',
+    externalData: { error: 'not_configured' } as unknown as Parameters<typeof LogsTable>[0]['externalData'],
+  },
 }
 
 export const ExecutionTimeline: Story = {
-  args: { title: 'Execution Timeline', query: '{app="scraper"}' },
+  args: {
+    title: 'Execution Timeline',
+    query: '{app="scraper"}',
+    externalData: {
+      status: 'success',
+      data: { resultType: 'streams', result: [] },
+    },
+  },
 }
 
 export const WithData: Story = {

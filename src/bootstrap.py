@@ -225,11 +225,11 @@ def build_collection_pipeline():
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, with_span(
-        "article.analysis_failed.handle", failed_task_handler.handle, _tracer))
+        SpanName.ANALYSIS_FAILED_HANDLE, failed_task_handler.handle, _tracer))
     event_bus.subscribe(TagNormalizationFailedEvent, with_span(
-        "article.tag_normalization_failed.handle", failed_task_handler.handle, _tracer))
+        SpanName.TAG_NORMALIZATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
     event_bus.subscribe(TranslationFailedEvent, with_span(
-        "article.translation_failed.handle", failed_task_handler.handle, _tracer))
+        SpanName.TRANSLATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
 
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,
@@ -251,11 +251,11 @@ def build_collection_pipeline():
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
     event_bus.subscribe(PipelineCompletedEvent, with_span(
-        "scraper.pipeline_completed.handle", otel_handler.handle, _tracer))
+        SpanName.PIPELINE_COMPLETED_HANDLE, otel_handler.handle, _tracer))
 
     notification_handler = build_notification_handler()
     event_bus.subscribe(PipelineCompletedEvent, with_span(
-        "scraper.pipeline_completed.notify", notification_handler.handle, _tracer))
+        SpanName.PIPELINE_COMPLETED_NOTIFY, notification_handler.handle, _tracer))
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     from datetime import datetime, timezone

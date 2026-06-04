@@ -47,7 +47,7 @@ async def query_metrics(
     now = int(time.time())
     return await _grafana_get(
         f"{url}/api/v1/query_range",
-        {"query": query, "start": start or now - 86400, "end": end or now, "step": step},
+        {"query": query, "start": (now - 86400) if start is None else start, "end": now if end is None else end, "step": step},
         user,
         api_key,
     )
@@ -80,8 +80,8 @@ async def query_metrics_batch(
                 f"{url}/api/v1/query_range",
                 params={
                     "query": item.query,
-                    "start": item.start or now - 86400,
-                    "end": item.end or now,
+                    "start": (now - 86400) if item.start is None else item.start,
+                    "end": now if item.end is None else item.end,
                     "step": item.step,
                 },
                 headers=headers,
@@ -162,8 +162,8 @@ async def query_loki_metrics_batch(
                 f"{url}/query_range",
                 params={
                     "query": item.query,
-                    "start": item.start or now - 86400,
-                    "end": item.end or now,
+                    "start": (now - 86400) if item.start is None else item.start,
+                    "end": now if item.end is None else item.end,
                     "step": item.step,
                 },
                 headers=headers,
@@ -230,7 +230,7 @@ async def query_traces(
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
     now = int(time.time())
-    params: dict = {"start": start or now - 86400, "end": end or now, "limit": limit}
+    params: dict = {"start": (now - 86400) if start is None else start, "end": now if end is None else end, "limit": limit}
     if q:
         params["q"] = q
     if min_duration:
@@ -299,8 +299,8 @@ async def query_traces_batch(
     async def fetch_one(client: httpx.AsyncClient, item: TracesBatchItem) -> dict:
         try:
             params: dict = {
-                "start": item.start or now - 86400,
-                "end": item.end or now,
+                "start": (now - 86400) if item.start is None else item.start,
+                "end": now if item.end is None else item.end,
                 "limit": item.limit,
             }
             if item.q:

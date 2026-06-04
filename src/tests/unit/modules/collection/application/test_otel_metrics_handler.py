@@ -5,10 +5,10 @@ from src.modules.collection.application.use_cases import SourceStats
 
 def _make_event(stats=None, duration=8.0):
     return PipelineCompletedEvent(
-        stats=stats or [
+        stats=[
             SourceStats(source="arxiv", new=3, duplicate=1, failed=0),
             SourceStats(source="rss", new=0, duplicate=0, failed=2),
-        ],
+        ] if stats is None else stats,
         duration_seconds=duration,
     )
 

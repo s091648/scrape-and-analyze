@@ -85,7 +85,7 @@ class TestCollectionPipelineSpans:
 
     def test_no_span_error_when_tracer_is_noop(self):
         """Pipeline runs without errors when tracer is no-op (env vars not set)."""
-        pipeline, event_bus = _make_pipeline(has_due_settings=False)
+        pipeline, _event_bus = _make_pipeline(has_due_settings=False)
         # No patch — uses actual (potentially no-op) tracer
         result = pipeline.run()
         assert result == 0  # no articles published (empty due list)

@@ -19,9 +19,10 @@ import { cn } from '@/lib/utils'
 // ── Environment extraction ─────────────────────────────────────────────────────
 
 function extractEnvironment(trace: TempoTrace): string | undefined {
-  // Tempo search returns attributes inside the spanSet.spans[].attributes
+  // Tempo search may provide attributes on spanSet or first span
   const spanSet = trace.spanSet ?? trace.spanSets?.[0]
-  const attr = spanSet?.spans?.[0]?.attributes?.find(
+  const attrs = spanSet?.attributes ?? spanSet?.spans?.[0]?.attributes ?? []
+  const attr = attrs.find(
     a => a.key === 'deployment.environment' || a.key === 'resource.deployment.environment'
   )
   return attr?.value?.stringValue

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
@@ -90,6 +90,18 @@ export function RunWaterfallDialog({
     }
     return initial
   })
+
+  // Reset collapsed state when a different trace is shown
+  // allRows is intentionally excluded: it's derived from trace and changes reference
+  // every render, adding it would cause an infinite loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const initial = new Set<string>()
+    for (const row of allRows) {
+      if (row.depth >= 1 && row.hasChildren) initial.add(row.span.spanId)
+    }
+    setCollapsed(initial)
+  }, [traceId])
 
   // Filter out descendants of collapsed spans
   const rows = useMemo(() => {

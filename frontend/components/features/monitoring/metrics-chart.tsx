@@ -220,7 +220,7 @@ export function MetricsChart({
     } finally {
       setLoading(false)
     }
-  }, [query, from, to, step, externalData])
+  }, [query, from, to, step, externalData, onRefresh])
 
   useEffect(() => {
     doFetch()
@@ -329,7 +329,7 @@ export function MetricsChart({
                   <Line key={k} type="monotone" dataKey={k} stroke={color}
                     dot={nonNullCount <= 30 ? { r: 3, strokeWidth: 1, stroke: 'white', fill: color } : false}
                     activeDot={{ r: 4, strokeWidth: 1, stroke: 'white', fill: color }}
-                    strokeWidth={2} connectNulls={true} hide={hiddenSeries.has(k)} />
+                    strokeWidth={2} connectNulls={false} hide={hiddenSeries.has(k)} />
                 )
               })}
             </LineChart>

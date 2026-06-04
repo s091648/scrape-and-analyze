@@ -35,7 +35,7 @@ def _make_fetch_task(url: str, source: str) -> FetchTask:
     scraper = MagicMock()
     scraper.fetch.return_value = article
     job = ScrapeJob(url=url, source=source, source_type="rss")
-    return FetchTask(job=job, scraper=scraper)
+    return FetchTask(url=url, source=source, job=job, scraper=scraper)
 
 
 # ── run_discover ───────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ def test_run_fetch_only_handles_task_exception_gracefully():
     scraper = MagicMock()
     scraper.fetch.side_effect = RuntimeError("fetch failed")
     job = ScrapeJob(url="https://fail.com/1", source="src", source_type="rss")
-    bad_task = FetchTask(job=job, scraper=scraper)
+    bad_task = FetchTask(url="https://fail.com/1", source="src", job=job, scraper=scraper)
 
     collected = []
     executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
@@ -161,7 +161,7 @@ def test_run_fetch_only_skips_none_results():
     scraper = MagicMock()
     scraper.fetch.return_value = None
     job = ScrapeJob(url="https://none.com/1", source="src", source_type="rss")
-    null_task = FetchTask(job=job, scraper=scraper)
+    null_task = FetchTask(url="https://none.com/1", source="src", job=job, scraper=scraper)
 
     collected = []
     executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
