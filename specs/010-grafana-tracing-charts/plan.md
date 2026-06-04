@@ -84,6 +84,7 @@ backend/
                                              POST /grafana/metrics/batch
                                              GET  /grafana/logs
                                              POST /grafana/logs/batch
+                                             POST /grafana/loki-metrics/batch  ← LogQL metric queries (Prom-compat)
                                              GET  /grafana/traces
                                              POST /grafana/traces/batch
                                              GET  /grafana/traces/{trace_id}  ← NEW (OTLP detail)
@@ -102,12 +103,14 @@ frontend/
 │   ├── run-waterfall-dialog.tsx        NEW — Gantt span waterfall dialog
 │   ├── article-workflow-dialog.tsx     NEW — Langfuse-style per-article stage card dialog
 │   ├── stage-card.tsx                  NEW — individual stage card component
+│   ├── log-detail-dialog.tsx           NEW — log row drill-down dialog (raw fields + correlation ID)
 │   ├── failed-task-list.tsx            NEW — failed task panel (reuse in monitoring)
 │   └── [*.stories.tsx]                 MODIFIED — WithData / WithRefresh variants
 ├── lib/
 │   ├── api/
 │   │   └── grafana.ts                  NEW (was grafana-api.ts) — all query functions + types
 │   │                                        queryMetrics / queryMetricsBatch
+│   │                                        queryLokiMetricsBatch  ← NEW (LogQL → Prom-compat)
 │   │                                        queryLogs / queryLogsBatch
 │   │                                        queryTraces / queryTracesBatch
 │   │                                        queryTraceById  ← NEW
@@ -116,9 +119,11 @@ frontend/
 │   └── observability-constants.ts      NEW — TypeScript mirror of shared/enums/observability.py
 │                                            (SpanName, MetricName, LokiLabel, TraceQLResource, helpers)
 └── app/admin/monitoring/
-    └── monitoring-content.tsx          MODIFIED — global filter panel (time range / env / log level);
+    └── monitoring-content.tsx          MODIFIED — global filter panel (time range: 6h/24h/3d/7d,
+                                             environment: all/local/production; log level per-panel);
                                              useOperationsBatch / useLogsBatch / useTracesBatch hooks;
-                                             all panels use externalData + onRefresh props
+                                             all panels use externalData + onRefresh props;
+                                             all stat/chart panels use queryLokiMetricsBatch (LogQL)
 ```
 
 ## Implementation Tasks (High-Level)
@@ -127,11 +132,11 @@ frontend/
 
 ### Phase A: OTel Tracing Spans（Python）
 
-**A1**: 在 `collection_pipeline.py` 加入 stage spans
-- `pipeline.discover_and_fetch`（wraps `executor.run_streaming()`）
-- `pipeline.dedup`（wraps dedup filter logic）
-- `pipeline.publish_articles`（wraps event publication loop）
-- 各 span 加入相關 attributes（sources.count, articles.discovered, articles.before_dedup, articles.after_dedup, articles.published）
+**A1**: 在 `collection_pipeline.py` 加入 stage spans（4 個，已實作）
+- `pipeline.discover`（wraps `executor.run_discover()`）→ attributes: `sources.count`, `articles.discovered`
+- `pipeline.fetch`（wraps `executor.run_fetch_only()`）→ attributes: `articles.to_fetch`, `articles.fetched`
+- `pipeline.dedup`（wraps dedup filter logic）→ attributes: `articles.before_dedup`, `articles.after_dedup`, `articles.skipped`
+- `pipeline.publish_articles`（wraps event publication loop）→ attribute: `articles.published`
 
 **A2**: 提取 `src/infrastructure/shared/observability/span_wrappers.py`，定義三種 wrapper：
 - `with_span(name, fn, tracer)` — 簡單包裹，用於 failed-event 和 pipeline-completed handlers
@@ -141,7 +146,9 @@ frontend/
 在 `bootstrap.py` 套用至所有 `event_bus.subscribe()` 呼叫：
 - `ArticleScrapedEvent` → `with_article_pipeline_span` → `"article.pipeline"` + `"article.scraped.handle"`
 - `ArticleProcessedEvent` → `with_span_deferred` → `"article.processed.handle"`
-- `AnalysisFailedEvent` / `TagNormalizationFailedEvent` / `TranslationFailedEvent` → `with_span` → failed spans
+- `AnalysisFailedEvent` → `with_span` → `"article.analysis_failed.handle"`
+- `TagNormalizationFailedEvent` → `with_span` → `"article.tag_normalization_failed.handle"`
+- `TranslationFailedEvent` → `with_span` → `"article.translation_failed.handle"`
 - `AnalysisCompletedEvent` → `with_span_deferred` → `"article.tag_normalization.handle"`
 - `TagNormalizationCompletedEvent` → `with_span_deferred` → `"article.analysis_completed.handle"`
 - `PipelineCompletedEvent` × 2 → `with_span` → `"scraper.pipeline_completed.handle"` / `"scraper.pipeline_completed.notify"`
@@ -153,15 +160,20 @@ frontend/
 
 ### Phase B: Grafana Datasource Proxy（Frontend）
 
-**B1**: 建立 `frontend/app/api/grafana-proxy/[...path]/route.ts`
-- 根據 path segment 路由至 metrics / logs / traces
-- 每個 sub-route 只允許轉發至對應的 datasource URL（SSRF 保護）
-- 需要 authenticated session（`getServerSession`）
+~~**B1**: 建立 `frontend/app/api/grafana-proxy/[...path]/route.ts`~~ → **實際改為後端 router 方案**（見 T004）
+- `frontend/app/api/grafana-proxy/[...path]/route.ts` 回傳 410 Gone
+- 所有 Grafana 代理流量改由 `backend/routers/grafana.py` 處理（透過 Next.js 反向 proxy）
+- auth 由 backend JWT guard（`require_admin`）負責，不需 `getServerSession`
 
-**B2**: 建立 `frontend/lib/grafana-api.ts`
-- `queryMetrics(params)` → `GET /api/grafana-proxy/metrics`
-- `queryLogs(params)` → `GET /api/grafana-proxy/logs`
-- `queryTraces(params)` → `GET /api/grafana-proxy/traces`
+**B2**: 建立 `frontend/lib/api/grafana.ts`（注意：實際路徑為 `lib/api/grafana.ts`，非原計畫的 `lib/grafana-api.ts`）
+- `queryMetrics(params)` → `GET /api/proxy/grafana/metrics`
+- `queryMetricsBatch(items)` → `POST /api/proxy/grafana/metrics/batch`
+- `queryLokiMetricsBatch(items)` → `POST /api/proxy/grafana/loki-metrics/batch`（LogQL metric queries）
+- `queryLogs(params)` → `GET /api/proxy/grafana/logs`
+- `queryLogsBatch(items)` → `POST /api/proxy/grafana/logs/batch`
+- `queryTraces(params)` → `GET /api/proxy/grafana/traces`
+- `queryTracesBatch(items)` → `POST /api/proxy/grafana/traces/batch`
+- `queryTraceById(traceId)` → `GET /api/proxy/grafana/traces/{id}`
 - 包含 TypeScript 型別定義（Prometheus / Loki / Tempo 回應格式）
 
 ### Phase C: Monitoring UI Components（Frontend）
@@ -229,9 +241,10 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 
 ### Phase G: Batch Updates & Per-Panel Refresh（US4）
 
-**G1**: 在 `backend/routers/grafana.py` 新增 `POST /grafana/logs/batch` 和 `POST /grafana/traces/batch`
-- 各自平行打 Loki / Tempo，pattern 同現有 metrics/batch
-- 回傳 `list[LokiResponse]` / `list[TempoResponse]`
+**G1**: 在 `backend/routers/grafana.py` 新增三個 batch 端點：
+- `POST /grafana/logs/batch`：接受 `list[LogsBatchItem]`，平行打 Loki `/query_range`，回傳 `list[LokiResponse]`
+- `POST /grafana/traces/batch`：接受 `list[TracesBatchItem]`，平行打 Tempo `/api/search`，回傳 `list[TempoResponse]`
+- `POST /grafana/loki-metrics/batch`：接受 `list[LokiMetricsBatchItem]`（query/start/end/step），平行打 Loki `/query_range` with metric queries（`count_over_time`、`rate`、`unwrap` 等），回傳 Prometheus-compatible matrix response（`data.resultType = "matrix"`）。此端點是所有 Operations / Logs / Traces tab 的 stat 和 chart 資料來源
 
 **G2**: 在 `frontend/lib/api/grafana.ts` 新增 `queryLogsBatch()` 和 `queryTracesBatch()`（注意：實際路徑為 `lib/api/grafana.ts`，非原計畫的 `lib/grafana-api.ts`）
 
@@ -248,9 +261,9 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 **G5**: `monitoring-content.tsx` 重新佈線：移除 `usePromStatsBatch` 和 `LokiStat`，改用三個 tab hooks，pass props 到各 panel
 
 **G6**: 加入全域篩選面板（Global Filter Panel，原計畫外新增）：
-- Time Range 選擇器（1h / 6h / 24h / 7d）
+- Time Range 選擇器（6h / 24h / 3d / 7d）
 - Environment 選擇器（all / local / production），對應 Tempo `deployment.environment` 和 Loki `env` label
-- Log Level 選擇器（all / error / warning / info）
+- Log Level 未加入全域篩選；各 Logs tab panel 使用固定 LogQL level filter（error / warning / info 各自一個 panel）
 - 篩選條件改變觸發各 hook 重新 fetch
 
 **G7**: TracesTable 鑽取 UI（原計畫外新增）：
@@ -262,6 +275,7 @@ GRAFANA_TEMPO_URL: ${GRAFANA_TEMPO_URL:-}
 - `run-waterfall-dialog.tsx`：Gantt 瀑布圖，SpanBar timeline
 - `article-workflow-dialog.tsx`：Langfuse 式 stage cards
 - `stage-card.tsx`：單一 stage 顯示
+- `log-detail-dialog.tsx`：log row 展開 dialog，顯示完整結構化 log 欄位（event、correlation_id、timestamp 等）
 
 **G8**: Storybook stories 各加 `WithData` / `WithRefresh` variant
 

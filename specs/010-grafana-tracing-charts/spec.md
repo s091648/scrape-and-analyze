@@ -74,9 +74,9 @@ As an operator, I need traces to include spans for individual pipeline stages (s
 
 - **FR-001**: The tracing pipeline MUST successfully export spans to Grafana Cloud Tempo when `GRAFANA_OTLP_USER`, `GRAFANA_API_KEY`, and `GRAFANA_OTLP_ENDPOINT` are all set.
 - **FR-002**: Each scraper run MUST produce a root trace span (`scraper.run`) with at minimum: run ID, correlation ID, and total duration.
-- **FR-003**: The pipeline MUST produce child spans for each major stage: source discovery, article fetch, article processing (dedup + save), LLM analysis, tag normalization, and translation. Each article MUST have a dedicated `article.pipeline` parent span grouping all its per-article handler spans.
+- **FR-003**: The pipeline MUST produce child spans for each major stage. Pipeline-level spans: `pipeline.discover` (discovery phase, attributes: `sources.count`, `articles.discovered`), `pipeline.fetch` (concurrent fetch phase, attributes: `articles.to_fetch`, `articles.fetched`), `pipeline.dedup` (dedup filter, attributes: `articles.before_dedup`, `articles.after_dedup`, `articles.skipped`), `pipeline.publish_articles` (event publication, attribute: `articles.published`). Each article MUST have a dedicated `article.pipeline` parent span grouping all its per-article handler spans.
 - **FR-004**: The monitoring dashboard MUST fetch chart data by querying Grafana Cloud datasource APIs via a backend proxy; credentials MUST NOT be exposed to the client.
-- **FR-005**: The backend MUST provide proxy endpoints for: Grafana Cloud Prometheus/Mimir queries (metrics), Loki queries (logs), Tempo search (traces list), and Tempo single-trace detail (`GET /grafana/traces/{id}`).
+- **FR-005**: The backend MUST provide proxy endpoints for: Grafana Cloud Prometheus/Mimir range queries (`GET /grafana/metrics`, `POST /grafana/metrics/batch`), Loki log queries (`GET /grafana/logs`, `POST /grafana/logs/batch`), Loki metric queries — LogQL with `count_over_time`/`rate`/`unwrap` returning Prometheus-compatible matrix responses (`POST /grafana/loki-metrics/batch`), Tempo search (`GET /grafana/traces`, `POST /grafana/traces/batch`), and Tempo single-trace detail (`GET /grafana/traces/{id}`).
 - **FR-006**: Each monitoring panel MUST auto-refresh at a configurable interval (default: 60 seconds).
 - **FR-007**: When Grafana Cloud credentials are not configured, each monitoring panel MUST display a "not configured" placeholder rather than an error or broken image.
 - **FR-008**: Each monitoring panel MUST display an error state independently when its data fetch fails, without affecting other panels.
@@ -90,7 +90,8 @@ As an operator, I need traces to include spans for individual pipeline stages (s
 
 - **Trace**: A collection of spans representing a single scraper run, identified by a trace ID and visible in Grafana Cloud Tempo. The root span is `scraper.run`.
 - **Article Pipeline Span** (`article.pipeline`): A per-article parent span created when `ArticleScrapedEvent` fires. It carries `article.url`, `article.source`, and `article.topic_id` attributes. All per-article handler spans (`article.scraped.handle`, `article.processed.handle`, etc.) are children of this span.
-- **Stage Span**: A named unit of work within the pipeline (e.g., `pipeline.discover_and_fetch`, `pipeline.dedup`, `pipeline.publish_articles`, `article.pipeline`, `article.scraped.handle`) with start time, duration, and status. Naming convention: `{domain}.{operation}`.
+- **Stage Span**: A named unit of work within the pipeline (e.g., `pipeline.discover`, `pipeline.fetch`, `pipeline.dedup`, `pipeline.publish_articles`, `article.pipeline`, `article.scraped.handle`, `article.processed.handle`, `article.tag_normalization.handle`, `article.analysis_completed.handle`) with start time, duration, and status. Naming convention: `{domain}.{operation}`.
+- **Log Detail Dialog**: A modal showing the raw log entry details for a single log row in the Logs tab, used for inspecting full structured-log context (event fields, correlation ID, timestamps) without leaving the monitoring page.
 - **Monitoring Panel**: A self-contained UI component that fetches data from a specific Grafana Cloud datasource and renders it as an interactive chart or table.
 - **Datasource Proxy**: A backend API endpoint that accepts chart query parameters, authenticates to Grafana Cloud via per-datasource Basic Auth (`{user}:{api_key}`), and returns the data to the frontend.
 - **Run Waterfall Dialog**: A modal showing all spans of a single trace as a Gantt chart (timeline bars), used for identifying slow stages at a glance.
@@ -101,7 +102,7 @@ As an operator, I need traces to include spans for individual pipeline stages (s
 ### Measurable Outcomes
 
 - **SC-001**: Every scraper run with Grafana Cloud credentials configured produces at least one visible trace in Grafana Cloud Tempo within 2 minutes of run completion.
-- **SC-002**: Every trace contains a minimum of 3 pipeline-level child spans (`pipeline.discover_and_fetch`, `pipeline.dedup`, `pipeline.publish_articles`) and at least one `article.pipeline` span per processed article, enabling identification of which stage and which article consumed the most time.
+- **SC-002**: Every trace contains a minimum of 4 pipeline-level child spans (`pipeline.discover`, `pipeline.fetch`, `pipeline.dedup`, `pipeline.publish_articles`) and at least one `article.pipeline` span per processed article, enabling identification of which stage and which article consumed the most time.
 - **SC-003**: All monitoring dashboard panels load within 10 seconds when Grafana Cloud credentials are configured.
 - **SC-004**: The monitoring dashboard is fully functional on Grafana Cloud free tier — no feature requires iframe embedding or the image renderer plugin.
 - **SC-005**: A panel failure rate of zero cascades: one panel failing never causes other panels to fail or the page to crash.
@@ -136,3 +137,5 @@ As an operator, I need the monitoring dashboard to fetch all panel data in as fe
 - The Grafana Cloud credentials (`GRAFANA_API_KEY`, datasource URLs, per-datasource user IDs) will be stored only in backend environment variables — never sent to the client.
 - The Tempo, Loki, and Mimir datasource base URLs are separate environment variables from the existing `GRAFANA_OTLP_ENDPOINT` (ingest-only); each datasource also has a dedicated `_USER` variable for Basic Auth.
 - Span wrappers (`with_span`, `with_span_deferred`, `with_article_pipeline_span`) are infrastructure-layer utilities and must not be called from the application layer.
+- All monitoring dashboard stat cards and time-series charts (Operations, Logs, Traces tabs) derive their aggregated metrics from Loki LogQL queries (`count_over_time`, `unwrap`, `rate`), not from Prometheus/Mimir. The Prometheus endpoint (`GET /grafana/metrics`, `POST /grafana/metrics/batch`) remains available for future use but is not queried by the current dashboard.
+- The monitoring dashboard global filter panel exposes Time Range (6h / 24h / 3d / 7d) and Environment (all / local / production) selectors. Log Level filtering is handled per-panel (each logs panel uses a fixed level query) rather than as a global selector.
