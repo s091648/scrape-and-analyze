@@ -12,6 +12,7 @@ from .scraper_keyword import (
     ArxivKeyword,
     RssKeyword,
     ScraperKeywordVO,
+    SemanticScholarKeyword,
     build_scraper_keyword,
 )
 
@@ -28,5 +29,6 @@ __all__ = [
     'ArxivKeyword',
     'RssKeyword',
     'ScraperKeywordVO',
+    'SemanticScholarKeyword',
     'build_scraper_keyword',
 ]
