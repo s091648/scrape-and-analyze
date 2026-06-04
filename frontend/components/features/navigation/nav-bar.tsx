@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Rss, Settings, ChevronDown, Globe } from 'lucide-react'
+import { GitHubLogoIcon } from '@radix-ui/react-icons'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
@@ -50,7 +51,7 @@ export function NavBar() {
 
   return (
     <header className="fixed left-0 top-0 right-0 z-50 w-full border-b border-border bg-background">
-      <nav className="container mx-auto px-6 h-16 flex items-center gap-12">
+      <nav className="container mx-auto px-6 h-16 flex items-center gap-12 relative">
         <Link href="/" className="flex items-center gap-2 font-bold text-base shrink-0">
           <Rss className="h-4 w-4 text-primary" />
           Scrape Analyzer
@@ -137,6 +138,13 @@ export function NavBar() {
           </Link>
         </div>
 
+        {/* Env indicator — only shown in non-production environments */}
+        {process.env.APP_ENV !== 'production' && (
+          <span className="absolute left-1/2 -translate-x-1/2 text-xs font-semibold font-mono text-red-500 select-none pointer-events-none">
+            {process.env.APP_ENV}
+          </span>
+        )}
+
         {/* Right nav */}
         <div className="ml-auto flex items-center gap-4 shrink-0">
           {/* Language dropdown */}
@@ -170,6 +178,23 @@ export function NavBar() {
               </div>
             )}
           </div>
+
+          <a
+            href="https://github.com/s091648/scrape-and-analyze"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            <GitHubLogoIcon className="h-5 w-5" />
+          </a>
+          <a
+            href="https://s091648.github.io/scrape-and-analyze"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            Pages
+          </a>
 
           {session && (
             <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">

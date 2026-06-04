@@ -25,7 +25,7 @@ def test_sentry_initialized_with_dsn():
         with patch("src.entrypoints.cli.main.validate_config"), \
              patch("src.entrypoints.cli.main.configure_logging"):
             importlib.reload(importlib.import_module("src.entrypoints.cli.main"))
-        mock_init.assert_called_with(dsn="https://test@sentry.io/123", traces_sample_rate=0.1)
+        mock_init.assert_called_with(dsn="https://test@sentry.io/123")
 
 
 def test_sentry_init_in_scraper_entrypoint():

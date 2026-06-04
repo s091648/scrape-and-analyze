@@ -59,6 +59,7 @@ def build_llm_service(session):
             priority=cfg['priority'],
             name=name,
         ))
+        logger.info("llm_provider_loaded", name=name, model=cfg['model'], priority=cfg['priority'])
 
     if not handlers:
         raise ValueError("llm_providers table has no active LLM providers")
@@ -82,7 +83,8 @@ def build_llm_service(session):
     if not emb_handlers:
         raise ValueError("llm_providers table has no active embedding providers")
 
-    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers)
+    provider_names = [h.name for h in handlers]
+    return ResilientLLMService(handlers=handlers), ResilientEmbeddingService(handlers=emb_handlers), provider_names
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +153,7 @@ def build_collection_pipeline():
     event_bus = InMemoryEventBus()
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service, embedding_service = build_llm_service(session)
+    llm_service, embedding_service, llm_provider_names = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()
@@ -192,27 +194,49 @@ def build_collection_pipeline():
         tag_repository=tag_repo,
     )
 
+    # ── Tracing wrappers ───────────────────────────────────────────────────
+    from opentelemetry.trace import StatusCode as _StatusCode
+    from src.infrastructure.shared.observability import get_tracer as _get_tracer
+    from src.infrastructure.shared.observability.span_wrappers import (
+        with_span,
+        with_span_deferred,
+        with_article_pipeline_span,
+    )
+    from shared.enums.observability import SpanName
+
+    _tracer = _get_tracer()
+
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
         pipeline_stats=pipeline_stats,
         event_bus=event_bus,
     )
-    event_bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
+    # ArticleScrapedEvent: create article.pipeline parent span, then article.scraped.handle child
+    event_bus.subscribe(ArticleScrapedEvent, with_article_pipeline_span(
+        article_scraped_handler.handle, event_bus, _tracer,
+        SpanName.ARTICLE_PIPELINE, SpanName.ARTICLE_SCRAPED_HANDLE))
 
+    # Subsequent handlers: use with_span_deferred only — they fire as deferred events
+    # still within the article.pipeline span context, becoming its direct children.
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
-    event_bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
+    event_bus.subscribe(ArticleProcessedEvent, with_span_deferred(
+        SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
-    event_bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
-    event_bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
-    event_bus.subscribe(TranslationFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(AnalysisFailedEvent, with_span(
+        SpanName.ANALYSIS_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(TagNormalizationFailedEvent, with_span(
+        SpanName.TAG_NORMALIZATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(TranslationFailedEvent, with_span(
+        SpanName.TRANSLATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
 
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,
         event_bus=event_bus,
     )
-    event_bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
+    event_bus.subscribe(AnalysisCompletedEvent, with_span_deferred(
+        SpanName.TAG_NORMALIZATION_HANDLE, tag_normalization_handler.handle, event_bus, _tracer))
 
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
@@ -221,14 +245,17 @@ def build_collection_pipeline():
         event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
     )
-    event_bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
+    event_bus.subscribe(TagNormalizationCompletedEvent, with_span_deferred(
+        SpanName.ANALYSIS_COMPLETED_HANDLE, analysis_completed_handler.handle, event_bus, _tracer))
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
     otel_handler = OtelMetricsHandler()
-    event_bus.subscribe(PipelineCompletedEvent, otel_handler.handle)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        SpanName.PIPELINE_COMPLETED_HANDLE, otel_handler.handle, _tracer))
 
     notification_handler = build_notification_handler()
-    event_bus.subscribe(PipelineCompletedEvent, notification_handler.handle)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        SpanName.PIPELINE_COMPLETED_NOTIFY, notification_handler.handle, _tracer))
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     from datetime import datetime, timezone
@@ -239,17 +266,23 @@ def build_collection_pipeline():
     # feature branch, replace this direct repo.save() with:
     #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
     def _on_discover_failed(task, exc) -> None:
-        failed = FailedTask(
-            task_type="arxiv_discover",
-            exception_type=type(exc).__name__,
-            exception_message=str(exc),
-            failed_at=datetime.now(timezone.utc),
-        )
-        try:
-            failed_task_repo.save(failed)
-            logger.info("arxiv_discover_failure_recorded", source=task.setting.source)
-        except Exception as e:
-            logger.error("failed_task_save_error", source=task.setting.source, error=str(e))
+        with _tracer.start_as_current_span("scraper.discover_failed") as span:
+            span.set_attribute("task.type", "arxiv_discover")
+            span.set_attribute("task.exception_type", type(exc).__name__)
+            source = getattr(getattr(task, "setting", None), "source", "unknown")
+            span.set_attribute("article.source", source)
+            span.set_status(_StatusCode.ERROR, type(exc).__name__)
+            failed = FailedTask(
+                task_type="arxiv_discover",
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+                failed_at=datetime.now(timezone.utc),
+            )
+            try:
+                failed_task_repo.save(failed)
+                logger.info("arxiv_discover_failure_recorded", source=source)
+            except Exception as e:
+                logger.error("failed_task_save_error", source=source, error=str(e))
 
     executor = ScrapeExecutor(on_discover_failed=_on_discover_failed)
 
@@ -263,8 +296,13 @@ def build_collection_pipeline():
         executor=executor,
     )
 
-    logger.info("bootstrap_complete")
-    return pipeline
+    logger.info(
+        "bootstrap_complete",
+        llm_providers=llm_provider_names,
+        llm_provider_count=len(llm_provider_names),
+        translation_languages=list(TRANSLATION_LANGUAGES) if TRANSLATION_LANGUAGES else [],
+    )
+    return pipeline, pipeline_stats
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +328,7 @@ def build_translation_pipeline():
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
-    llm_service, _ = build_llm_service(session)
+    llm_service, _, _provider_names = build_llm_service(session)
 
     # ── Prompt Factory ────────────────────────────────────────────────────
     prompt_factory = ConcretePromptFactory()

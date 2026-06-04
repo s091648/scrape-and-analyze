@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
@@ -52,3 +52,68 @@ def test_publishes_failed_event_on_failure():
     published = bus.publish.call_args[0][0]
     assert isinstance(published, TagNormalizationFailedEvent)
     assert published.exception_type == "EmbeddingError"
+
+
+# ── Span attribute tests ──────────────────────────────────────────────────────
+
+def test_span_records_analysis_and_article_ids():
+    handler, uc, _bus = _make_handler()
+    event = _make_event()
+    uc.execute.return_value = NormalizeTagsResult(
+        success=True, analysis_id=event.analysis_id, article_id=event.article_id
+    )
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("analysis.id", str(event.analysis_id))
+    mock_span.set_attribute.assert_any_call("article.id", str(event.article_id))
+
+
+def test_span_records_tag_counts():
+    handler, uc, _bus = _make_handler()
+    event = _make_event(tag_groups=(
+        ("technology", ["AI", "ML"]),
+        ("industry", ["finance"]),
+    ))
+    uc.execute.return_value = NormalizeTagsResult(
+        success=True, analysis_id=event.analysis_id, article_id=event.article_id
+    )
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("tags.group_count", 2)
+    mock_span.set_attribute.assert_any_call("tags.total_count", 3)
+
+
+def test_span_records_normalization_success():
+    handler, uc, _bus = _make_handler()
+    event = _make_event()
+    uc.execute.return_value = NormalizeTagsResult(
+        success=True, analysis_id=event.analysis_id, article_id=event.article_id
+    )
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("normalization.success", True)
+
+
+def test_span_records_error_type_on_failure():
+    handler, uc, _bus = _make_handler()
+    event = _make_event()
+    uc.execute.return_value = NormalizeTagsResult(
+        success=False, analysis_id=event.analysis_id, article_id=event.article_id,
+        exception_type="EmbeddingError", exception_message="quota",
+    )
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("normalization.success", False)
+    mock_span.set_attribute.assert_any_call("normalization.error_type", "EmbeddingError")

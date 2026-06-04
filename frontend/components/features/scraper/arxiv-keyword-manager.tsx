@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { NativeSelect } from '@/components/ui/native-select'
 import { useI18n } from '@/lib/providers'
 
 // ── arXiv field definitions (categories handled separately) ───────────────────
@@ -146,15 +147,15 @@ export function ArxivKeywordManager({
         </div>
 
         <div className="flex gap-2">
-          <select
+          <NativeSelect
             value={kwField}
             onChange={e => setKwField(e.target.value)}
-            className="h-9 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring shrink-0"
+            className="shrink-0"
           >
             {ARXIV_FIELDS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
             ))}
-          </select>
+          </NativeSelect>
           <input
             className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
             placeholder={
@@ -204,10 +205,10 @@ export function ArxivKeywordManager({
         </div>
 
         <div className="flex gap-2">
-          <select
+          <NativeSelect
             value={catValue}
             onChange={e => setCatValue(e.target.value)}
-            className="h-9 px-2 rounded-lg border border-border bg-background text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1"
           >
             <option value="">{t('admin.selectCategory')}</option>
             {Object.entries(categoryGroups).map(([group, cats]) => (
@@ -219,7 +220,7 @@ export function ArxivKeywordManager({
                 ))}
               </optgroup>
             ))}
-          </select>
+          </NativeSelect>
           <Button size="sm" variant="outline" onClick={handleAddCategory} disabled={catAdding || !catValue}>
             <Plus className="h-4 w-4" />
           </Button>

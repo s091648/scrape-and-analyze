@@ -19,6 +19,16 @@ def test_pipeline_publishes_pipeline_completed_event():
     pipeline_stats = PipelineStats()
     event_bus = MagicMock()
 
+    article = MagicMock(spec=ScrapedArticle)
+    article.url = "http://x.com/1"
+    article.source = "arxiv"
+    article.title = "T"
+    article.content = "C"
+    article.published_at = None
+    article.topic_id = None
+    article.authors = []
+    article.extra = {}
+
     def _fake_publish(event):
         if isinstance(event, PipelineCompletedEvent):
             return True
@@ -31,24 +41,13 @@ def test_pipeline_publishes_pipeline_completed_event():
     setting_repo.get_active_due.return_value = [_make_setting("arxiv")]
 
     scraper_factory = MagicMock()
-    scraper = MagicMock()
-    scraper.discover.return_value = [MagicMock(url="http://x.com/1")]
-    article = MagicMock(spec=ScrapedArticle)
-    article.url = "http://x.com/1"
-    article.source = "arxiv"
-    article.title = "T"
-    article.content = "C"
-    article.published_at = None
-    article.topic_id = None
-    article.authors = []
-    article.extra = {}
-    scraper.fetch.return_value = article
-    scraper_factory.create_for.return_value = scraper
 
     executor = MagicMock()
-    def _run_streaming(discover_tasks, on_result, **_kwargs):
+    mock_fetch_task = MagicMock()
+    executor.run_discover.return_value = [mock_fetch_task]
+    def _run_fetch_only(fetch_tasks, on_result):
         on_result(article)
-    executor.run_streaming.side_effect = _run_streaming
+    executor.run_fetch_only.side_effect = _run_fetch_only
 
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,

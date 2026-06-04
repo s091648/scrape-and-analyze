@@ -32,31 +32,15 @@ def mock_build_pipeline():
     with patch("src.bootstrap.build_collection_pipeline") as m:
         pipeline = MagicMock()
         pipeline.run.return_value = 0
-        m.return_value = pipeline
+        pipeline_stats = MagicMock()
+        pipeline_stats.get_results.return_value = []
+        m.return_value = (pipeline, pipeline_stats)
         yield m, pipeline
-
-
-@pytest.fixture()
-def mock_push_metrics():
-    with patch("src.entrypoints.cli.main.push_metrics") as m:
-        yield m
 
 
 @pytest.fixture()
 def mock_shutdown_tracing():
     with patch("src.infrastructure.shared.observability.shutdown_tracing") as m:
-        yield m
-
-
-@pytest.fixture()
-def mock_scraper_runs():
-    with patch("src.entrypoints.cli.main.SCRAPER_RUNS") as m:
-        yield m
-
-
-@pytest.fixture()
-def mock_scraper_duration():
-    with patch("src.entrypoints.cli.main.SCRAPER_DURATION") as m:
         yield m
 
 
@@ -125,10 +109,7 @@ def all_mocks(
     mock_validate_config,
     mock_configure_logging,
     mock_build_pipeline,
-    mock_push_metrics,
     mock_shutdown_tracing,
-    mock_scraper_runs,
-    mock_scraper_duration,
     mock_init_run_context,
     mock_bind_correlation_id,
     mock_get_run_id,
@@ -143,10 +124,7 @@ def all_mocks(
         "validate_config": mock_validate_config,
         "configure_logging": mock_configure_logging,
         "build_pipeline": mock_build_pipeline,
-        "push_metrics": mock_push_metrics,
         "shutdown_tracing": mock_shutdown_tracing,
-        "scraper_runs": mock_scraper_runs,
-        "scraper_duration": mock_scraper_duration,
         "init_run_context": mock_init_run_context,
         "bind_correlation_id": mock_bind_correlation_id,
         "get_run_id": mock_get_run_id,

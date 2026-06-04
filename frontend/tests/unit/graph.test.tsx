@@ -1,5 +1,6 @@
 // frontend/tests/graph.test.tsx
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import type { ComponentType } from 'react'
 
 const mockApiFetch = vi.fn().mockResolvedValue({
   ok: true,
@@ -27,6 +28,15 @@ vi.mock('@/lib/providers', () => ({
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
 }))
 
+let KnowledgeGraph: ComponentType<{ articleIdFilter?: Set<string> }>
+let applyArticleFilter: (data: any, filter: Set<string>) => any
+
+beforeAll(async () => {
+  const module = await import('@/components/features/graph/knowledge-graph')
+  KnowledgeGraph = module.KnowledgeGraph
+  applyArticleFilter = module.applyArticleFilter
+})
+
 describe('Knowledge Graph', () => {
   beforeEach(() => {
     mockApiFetch.mockReset()
@@ -37,7 +47,6 @@ describe('Knowledge Graph', () => {
   })
 
   it('fetches graph data with published_after on initial load', async () => {
-    const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
@@ -46,7 +55,6 @@ describe('Knowledge Graph', () => {
   })
 
   it('renders graph canvas element', async () => {
-    const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render, screen } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     await vi.waitFor(() => {
@@ -61,7 +69,6 @@ describe('Knowledge Graph', () => {
   })
 
   it('days filter change triggers re-fetch with updated published_after', async () => {
-    const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render, screen } = await import('@testing-library/react')
     const { fireEvent } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
@@ -87,7 +94,6 @@ describe('Knowledge Graph', () => {
     let resolvePromise: (v: any) => void
     const promise = new Promise(r => { resolvePromise = r })
     mockApiFetch.mockReturnValueOnce(promise)
-    const { KnowledgeGraph } = await import('@/components/features/graph/knowledge-graph')
     const { render } = await import('@testing-library/react')
     render(<KnowledgeGraph />)
     // Resolve the promise to unblock
@@ -120,8 +126,7 @@ describe('Knowledge Graph', () => {
 })
 
 describe('applyArticleFilter', () => {
-  it('empty Set filter removes all nodes', async () => {
-    const { applyArticleFilter } = await import('@/components/features/graph/knowledge-graph')
+  it('empty Set filter removes all nodes', () => {
     const data = {
       nodes: [
         { id: 'art-1', type: 'article' as const, label: 'Test', articleId: 'art-1' },
@@ -134,8 +139,7 @@ describe('applyArticleFilter', () => {
     expect(result.edges).toHaveLength(0)
   })
 
-  it('keeps article nodes that match by id when articleId field is absent', async () => {
-    const { applyArticleFilter } = await import('@/components/features/graph/knowledge-graph')
+  it('keeps article nodes that match by id when articleId field is absent', () => {
     const data = {
       nodes: [
         { id: 'art-1', type: 'article' as const, label: 'Test' },

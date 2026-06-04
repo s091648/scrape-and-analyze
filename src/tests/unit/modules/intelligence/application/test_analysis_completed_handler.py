@@ -4,7 +4,7 @@ tag normalization, English content prerequisite, failure event publishing,
 and tag/group translation error swallowing.
 """
 import uuid
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -179,3 +179,30 @@ def test_swallows_group_translation_exceptions():
     handler.handle(event)
 
     tags_uc.translate_tags.assert_called_once()
+
+
+# ── Span attribute tests ──────────────────────────────────────────────────────
+
+def test_span_records_analysis_and_article_ids():
+    handler, article_uc, tags_uc, repo, bus = _handler()
+    event = _event()
+    repo.find_by_analysis_id_and_language.return_value = None  # skip translation
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("analysis.id", str(event.analysis_id))
+    mock_span.set_attribute.assert_any_call("article.id", str(event.article_id))
+
+
+def test_span_records_target_languages():
+    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
+    event = _event()
+    repo.find_by_analysis_id_and_language.return_value = None
+    mock_span = MagicMock()
+
+    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
+        handler.handle(event)
+
+    mock_span.set_attribute.assert_any_call("translation.target_languages", "zh-TW, ja")
