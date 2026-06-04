@@ -7,7 +7,6 @@ import { StatCard } from '@/components/features/monitoring/stat-card'
 import { MetricsChart } from '@/components/features/monitoring/metrics-chart'
 import { LogsTable } from '@/components/features/monitoring/logs-table'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
-import { DateFilter } from '@/components/common/date-filter'
 import {
   queryMetricsBatch, queryLokiMetricsBatch, queryLogsBatch,
   queryTracesBatch,
@@ -15,44 +14,32 @@ import {
 } from '@/lib/api/grafana'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
-  MetricName, LogLevel, LokiLabel,
-  lokiStreamSelector, traceQLServiceMatch, promqlEnvMatcher,
+  LogLevel, LokiLabel,
+  lokiStreamSelector, traceQLServiceMatch,
 } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { NativeSelect } from '@/components/ui/native-select'
 import { RotateCw } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type Environment = 'all' | 'local' | 'production'
+type Environment = 'all' | 'local' | 'production' | string
+type TimeRange = '6h' | '24h' | '3d' | '7d'
 
 interface MonitoringFilters {
-  after: string   // YYYY-MM-DD
-  before: string  // YYYY-MM-DD
+  timeRange: TimeRange
   environment: Environment
 }
 
-// ── Date helpers ───────────────────────────────────────────────────────────
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
+  '6h':  6 * 3600,
+  '24h': 24 * 3600,
+  '3d':  3 * 86400,
+  '7d':  7 * 86400,
 }
 
-function yesterdayStr(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
-}
-
-function toStartSec(dateStr: string): number {
-  return Math.floor(new Date(dateStr).getTime() / 1000)
-}
-
-function toEndSec(dateStr: string): number {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + 1)
-  return Math.floor(d.getTime() / 1000)
-}
+const TIME_RANGES: TimeRange[] = ['6h', '24h', '3d', '7d']
 
 /** PromQL/LogQL range vector label covering the full selected duration */
 function fullRangeVec(seconds: number): string {
@@ -62,8 +49,7 @@ function fullRangeVec(seconds: number): string {
 }
 
 const DEFAULT_FILTERS: MonitoringFilters = {
-  after: yesterdayStr(),
-  before: todayStr(),
+  timeRange: '24h',
   environment: 'all',
 }
 
@@ -77,7 +63,7 @@ function applyEnvToLokiQuery(query: string, environment: Environment): string {
 
 interface MonitoringContentProps {
   grafanaUrl: string
-  appEnv: 'local' | 'production'
+  appEnv: string
 }
 
 // ── Panel descriptor types ─────────────────────────────────────────────────
@@ -99,6 +85,7 @@ interface ChartPanelDef {
   height: number
   tooltipKey: string
   queryType?: 'loki'
+  seriesColors?: Record<string, string>
 }
 
 interface LogTablePanelDef {
@@ -124,8 +111,8 @@ const OPS_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.errorCount',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,                                        step: '3600', tooltipKey: 'admin.errorCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.failedArticles',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "llm_analysis_failed" [${rv}]))`,                                          step: '3600', tooltipKey: 'admin.failedArticlesTooltip' },
   { queryType: 'loki', titleKey: 'admin.articlesFound',     buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event =~ "analysis_completed|article_duplicate_skipped" [${rv}]))`,               step: '3600', tooltipKey: 'admin.articlesFoundTooltip' },
-  { titleKey: 'admin.recentRunDurationP100', buildQuery: (rv, env) => `max_over_time(${MetricName.RUN_DURATION_SECONDS}_sum${promqlEnvMatcher(env)}[${rv}])`, step: '3600', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
-  { titleKey: 'admin.avgDurationP50',        buildQuery: (rv, env) => `avg_over_time(${MetricName.RUN_DURATION_SECONDS}_sum${promqlEnvMatcher(env)}[${rv}])`, step: '3600', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.recentRunDurationP100', buildQuery: rv => `max(max_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.avgDurationP50',        buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
 ]
 
 const OPS_CHARTS: ChartPanelDef[] = [
@@ -139,12 +126,19 @@ const OPS_CHARTS: ChartPanelDef[] = [
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────
 
+const LOG_LEVEL_CHART_COLORS: Record<string, string> = {
+  error: 'hsl(347,74%,55%)',   // --destructive (dark)
+  warn:  'hsl(48,96%,53%)',    // yellow-500
+  info:  'hsl(0,0%,55%)',      // --muted-foreground solid equivalent
+}
+
 const LOGS_VOLUME_CHART: ChartPanelDef = {
   titleKey: 'admin.logVolumeChart',
   buildQuery: _rv => `sum by (${LokiLabel.DETECTED_LEVEL}) (count_over_time(${lokiStreamSelector()}[1m]))`,
   step: '60',
   height: 180,
   tooltipKey: 'admin.logVolumeChartTooltip',
+  seriesColors: LOG_LEVEL_CHART_COLORS,
 }
 
 const LOGS_STAT_PANELS: StatPanelDef[] = [
@@ -405,6 +399,7 @@ function LogsTab({
         <MetricsChart title={t(LOGS_VOLUME_CHART.titleKey, { range: rangeLabel })} query="unused" step={LOGS_VOLUME_CHART.step}
           height={LOGS_VOLUME_CHART.height} className="col-span-4" timeRangeSeconds={timeRangeSeconds}
           externalData={md[0]} externalLoading={loading[0]}
+          seriesColors={LOGS_VOLUME_CHART.seriesColors}
           tooltip={t(LOGS_VOLUME_CHART.tooltipKey, { range: rangeLabel })} />
         {LOGS_STAT_PANELS.map((p, i) => (
           <div key={i} className="col-span-1">
@@ -461,44 +456,39 @@ function FilterBar({
 }: {
   filters: MonitoringFilters
   onChange: (f: MonitoringFilters) => void
-  appEnv: 'local' | 'production'
+  appEnv: string
 }) {
   const { t } = useI18n()
-
-  function set<K extends keyof MonitoringFilters>(key: K, value: MonitoringFilters[K]) {
-    onChange({ ...filters, [key]: value })
-  }
-
-  const dateLabels = {
-    any: t('filterBar.any'),
-    after: t('filterBar.after'),
-    before: t('filterBar.before'),
-    range: t('filterBar.range'),
-    recent: t('filterBar.recent'),
-    from: t('filterBar.from'),
-    to: t('filterBar.to'),
-    days: t('filterBar.days'),
-  }
-
   return (
     <div className="flex flex-wrap gap-4 items-center pb-4 border-b border-border">
-      <DateFilter
-        label={t('admin.filterTimeRange')}
-        after={filters.after}
-        before={filters.before}
-        onAfterChange={v => set('after', v)}
-        onBeforeChange={v => set('before', v)}
-        labels={dateLabels}
-      />
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">{t('admin.filterTimeRange')}:</span>
+        <div className="flex gap-1">
+          {TIME_RANGES.map(tr => (
+            <button
+              key={tr}
+              onClick={() => onChange({ ...filters, timeRange: tr })}
+              className={cn(
+                'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                filters.timeRange === tr
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
+              )}
+            >
+              {tr}
+            </button>
+          ))}
+        </div>
+      </div>
       {appEnv === 'local' && (
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">{t('admin.filterEnvironment')}:</span>
-          <select value={filters.environment} onChange={e => set('environment', e.target.value as Environment)}
-            className="text-xs border border-border rounded px-1.5 py-0.5 bg-background">
+          <NativeSelect size="sm" value={filters.environment}
+            onChange={e => onChange({ ...filters, environment: e.target.value as Environment })}>
             <option value="all">{t('admin.filterAll')}</option>
             <option value="local">local</option>
             <option value="production">production</option>
-          </select>
+          </NativeSelect>
         </div>
       )}
     </div>
@@ -510,28 +500,27 @@ function FilterBar({
 export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps) {
   const { t } = useI18n()
   const [filters, setFilters] = useState<MonitoringFilters>(DEFAULT_FILTERS)
+  // refreshKey increments on manual Refresh so startSec/endSec update to current time
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const [startSec, endSec] = useMemo(() => {
-    const afterStr = filters.after || yesterdayStr()
-    const beforeStr = filters.before || todayStr()
-    return [toStartSec(afterStr), toEndSec(beforeStr)]
-  }, [filters.after, filters.before])
-
-  const timeRangeSeconds = endSec - startSec
-  const rangeLabel = fullRangeVec(timeRangeSeconds)
+  const timeRangeSeconds = TIME_RANGE_SECONDS[filters.timeRange]
+  const rangeLabel = filters.timeRange
   const effectiveEnv: Environment = appEnv === 'local' ? filters.environment : appEnv
 
-  const { statValues: opsSV, chartData: opsCd, loading: opsLoading, refresh: refreshOps } = useOperationsBatch(startSec, endSec, effectiveEnv)
-  const { metricData: logsMd, logsData: logsLd, loading: logsLoading, refresh: refreshLogs } = useLogsBatch(startSec, endSec, effectiveEnv)
-  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading, refresh: refreshTraces } = useTracesBatch(startSec, endSec, effectiveEnv)
+  const [startSec, endSec] = useMemo(() => {
+    const now = Math.floor(Date.now() / 1000)
+    return [now - timeRangeSeconds, now]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRangeSeconds, refreshKey])
+
+  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv)
+  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv)
+  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv)
 
   const isLoading = opsLoading.some(Boolean) || logsLoading.some(Boolean) || tracesLoading.some(Boolean)
 
-  function handleRefresh() {
-    refreshOps()
-    refreshLogs()
-    refreshTraces()
-  }
+  // Incrementing refreshKey updates startSec/endSec → hooks re-fetch with current time
+  function handleRefresh() { setRefreshKey(k => k + 1) }
 
   return (
     <TooltipProvider>

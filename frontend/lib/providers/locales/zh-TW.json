@@ -386,6 +386,25 @@
     "logFieldEvent": "事件",
     "viewInTrace": "查看 Trace",
     "logExtraFields": "詳細資訊",
+    "logFieldName": {
+      "url": "URL",
+      "source": "來源",
+      "error": "錯誤",
+      "count": "數量",
+      "duration_seconds": "執行時間(秒)",
+      "published": "已發佈",
+      "new": "新增",
+      "duplicate": "重複",
+      "failed": "失敗",
+      "remaining": "剩餘",
+      "skipped": "跳過",
+      "run_id": "執行 ID",
+      "article_id": "文章 ID",
+      "analysis_id": "分析 ID",
+      "model": "模型",
+      "input_tokens": "輸入 Tokens",
+      "output_tokens": "輸出 Tokens"
+    },
     "traceNoPipelineTitle": "找不到文章 Pipeline",
     "traceNoPipelineMessage": "這個 Trace 中沒有文章處理 Pipeline。可能是這次 Scraper 執行沒有分析任何文章（全部重複或抓取失敗）。",
     "waterfallDialogTitle": "執行：{id}…",
@@ -442,6 +461,7 @@
     "stageAttr_articlesBeforeDedup": "去重前",
     "stageAttr_articlesAfterDedup": "去重後",
     "stageAttr_articlesSkipped": "已略過",
-    "stageAttr_articlesPublished": "已發布"
+    "stageAttr_articlesPublished": "已發布",
+    "stageTranslateLabel": "翻譯 ({lang})"
   }
 }

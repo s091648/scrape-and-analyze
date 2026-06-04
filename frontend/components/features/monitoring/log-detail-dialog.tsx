@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ArrowUpRight } from 'lucide-react'
@@ -50,6 +51,11 @@ interface LogDetailDialogProps {
   onClose: () => void
   /** If provided, a "View in trace" link is shown when the log contains a trace_id. */
   onOpenTrace?: (traceId: string, spanId?: string) => void
+}
+
+function fieldLabel(k: string, t: (key: string) => string): string {
+  const result = t(`admin.logFieldName.${k}`)
+  return result.startsWith('admin.logFieldName.') ? k : result
 }
 
 export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialogProps) {
@@ -105,14 +111,14 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
           {extraEntries.length > 0 && (
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{t('admin.logExtraFields')}</p>
-            <div className="rounded border border-border p-2.5 space-y-1.5">
-              {extraEntries.map(([k, v]) => (
-                <div key={k} className="grid grid-cols-[auto_1fr] gap-x-4">
-                  <span className="text-muted-foreground shrink-0">{k}</span>
-                  <span className="font-mono break-all text-foreground/80">{String(v)}</span>
-                </div>
-              ))}
-            </div>
+              <div className="rounded border border-border p-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+                {extraEntries.map(([k, v]) => (
+                  <Fragment key={k}>
+                    <span className="text-muted-foreground shrink-0 whitespace-nowrap">{fieldLabel(k, t)}</span>
+                    <span className="font-mono break-all text-foreground/80">{String(v)}</span>
+                  </Fragment>
+                ))}
+              </div>
             </div>
           )}
 

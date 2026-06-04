@@ -26,10 +26,10 @@ function computeThresholds(durations: number[]): SpanPercentileThresholds {
   return { avg, count: durations.length, durations }
 }
 
-function getLabelOverride(span: OtlpSpan): string | undefined {
+function getLabelOverride(span: OtlpSpan, t: (k: string, p?: Record<string, string | number>) => string): string | undefined {
   if (span.name === 'article.translate.handle') {
     const lang = getAttr(span, 'translation.language')
-    if (lang) return `Translate (${String(lang)})`
+    if (lang) return t('admin.stageTranslateLabel', { lang: String(lang) })
   }
   return undefined
 }
@@ -230,7 +230,7 @@ export function ArticleWorkflowDialog({
                                 span={child.span}
                                 className="w-full"
                                 thresholds={percentileMap.get(child.span.name)}
-                                labelOverride={getLabelOverride(child.span)}
+                                labelOverride={getLabelOverride(child.span, t)}
                                 isHighlighted={isChildHighlighted}
                                 onViewLogs={() => handleViewLogs(child.span)}
                               />

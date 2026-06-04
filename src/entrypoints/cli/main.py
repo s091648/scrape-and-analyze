@@ -18,7 +18,6 @@ from src.config.settings import SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
-from src.infrastructure.shared.observability import SCRAPER_RUNS, SCRAPER_DURATION, push_metrics, force_flush_metrics
 from src.infrastructure.shared.observability import init_run_context, get_run_id
 
 
@@ -65,10 +64,6 @@ def main() -> None:
 
     init_default_client(HttpClient.build_default())
 
-    # Flush a 0 baseline so Prometheus records the 0→N transition for increase()
-    force_flush_metrics()
-    SCRAPER_RUNS.add(1, {"source": "all"})
-
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
@@ -113,11 +108,6 @@ def main() -> None:
                     articles_found=total_new + total_dup,
                     sources=per_source,
                 )
-                SCRAPER_DURATION.record(duration)
-                try:
-                    push_metrics()
-                except Exception as e:
-                    logger.warning("push_metrics_failed", error=str(e))
         # with block exits here → span.end() is called → queued for export
     finally:
         shutdown_tracing()  # flush BatchSpanProcessor only after root span is queued

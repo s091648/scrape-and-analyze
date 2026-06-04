@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -38,16 +38,16 @@ function recentAfterDate(days: number): string {
 export function DateFilter({
   label, after, before, onAfterChange, onBeforeChange, labels,
 }: DateFilterProps) {
-  const [mode, setMode] = useState<DateMode>('any')
+  // Derive initial mode from props once at mount. Mode is then driven purely
+  // by user clicks — no useEffect re-derivation, which caused the bug where
+  // clicking "Before" (which clears `after`) would make both empty and reset to 'any'.
+  const [mode, setMode] = useState<DateMode>(() => {
+    if (after && before) return 'range'
+    if (after && !before) return 'after'
+    if (!after && before) return 'before'
+    return 'any'
+  })
   const [recentDays, setRecentDays] = useState(30)
-
-  useEffect(() => {
-    if (after && before) setMode('range')
-    else if (!after && !before) setMode('any')
-    // Don't override range/recent when user is still filling in one date
-    else if (after && !before) setMode(prev => (prev === 'range' || prev === 'recent') ? prev : 'after')
-    else if (!after && before) setMode(prev => prev === 'range' ? 'range' : 'before')
-  }, [after, before])
 
   function handleModeChange(m: DateMode) {
     setMode(m)

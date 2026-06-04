@@ -32,7 +32,7 @@ def test_main_raises_valueerror_when_database_url_missing(monkeypatch):
 
 # ── T006: main() calls time.sleep() in [0, 180] when RUN_IMMEDIATELY not set ─
 
-def test_main_sleeps_when_run_immediately_not_set(monkeypatch, mock_validate_config, mock_configure_logging, mock_build_pipeline, mock_push_metrics, mock_shutdown_tracing, mock_scraper_runs, mock_scraper_duration, mock_init_run_context, mock_bind_correlation_id, mock_get_run_id, mock_signal, mock_init_default_client, mock_http_client_build, mock_get_tracer):
+def test_main_sleeps_when_run_immediately_not_set(monkeypatch, mock_validate_config, mock_configure_logging, mock_build_pipeline, mock_shutdown_tracing, mock_init_run_context, mock_bind_correlation_id, mock_get_run_id, mock_signal, mock_init_default_client, mock_http_client_build, mock_get_tracer):
     monkeypatch.delenv("RUN_IMMEDIATELY", raising=False)
     with patch("src.entrypoints.cli.main.time.sleep") as mock_sleep:
         from src.entrypoints.cli.main import main
@@ -80,7 +80,7 @@ def test_main_calls_pipeline_in_sequence(all_mocks):
     mock_pipeline.run.assert_called_once()
 
 
-# ── T011: main() calls push_metrics/shutdown_tracing in finally on error ─
+# ── T011: main() calls shutdown_tracing in finally on error ──────────────
 
 def test_main_calls_teardown_even_on_pipeline_error(all_mocks):
     from src.entrypoints.cli.main import main
@@ -88,27 +88,7 @@ def test_main_calls_teardown_even_on_pipeline_error(all_mocks):
     mock_pipeline.run.side_effect = RuntimeError("boom")
     with pytest.raises(RuntimeError, match="boom"):
         main()
-    all_mocks["push_metrics"].assert_called_once()
     all_mocks["shutdown_tracing"].assert_called_once()
-
-
-# ── T012: main() increments SCRAPER_RUNS counter ──────────────────────────
-
-def test_main_increments_scraper_runs_counter(all_mocks):
-    from src.entrypoints.cli.main import main
-    main()
-    all_mocks["scraper_runs"].add.assert_called_with(1)
-
-
-# ── T013: main() records SCRAPER_DURATION histogram ───────────────────────
-
-def test_main_records_scraper_duration(all_mocks):
-    from src.entrypoints.cli.main import main
-    main()
-    all_mocks["scraper_duration"].record.assert_called_once()
-    duration_arg = all_mocks["scraper_duration"].record.call_args[0][0]
-    assert isinstance(duration_arg, float)
-    assert duration_arg >= 0
 
 
 # ── T014: main() starts OTel span "scraper.run" ───────────────────────────
@@ -137,7 +117,7 @@ def test_sentry_initialized_when_dsn_set():
     with patch("sentry_sdk.init") as mock_init, \
          patch.object(settings_mod, "SENTRY_DSN", "https://test@sentry.io/123"):
         importlib.reload(main_mod)
-        mock_init.assert_called_once_with(dsn="https://test@sentry.io/123", traces_sample_rate=0.1)
+        mock_init.assert_called_once_with(dsn="https://test@sentry.io/123")
     importlib.reload(main_mod)
 
 
@@ -152,15 +132,6 @@ def test_sentry_not_initialized_when_dsn_missing():
         importlib.reload(main_mod)
         mock_init.assert_not_called()
     importlib.reload(main_mod)
-
-
-# ── T033: push_metrics() failure does not prevent shutdown_tracing() ───────
-
-def test_push_metrics_failure_does_not_block_shutdown(all_mocks):
-    from src.entrypoints.cli.main import main
-    all_mocks["push_metrics"].side_effect = RuntimeError("metrics push failed")
-    main()
-    all_mocks["shutdown_tracing"].assert_called_once()
 
 
 # ── T034: shutdown_tracing() failure does not prevent process exit ────────

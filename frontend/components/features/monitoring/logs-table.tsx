@@ -13,8 +13,6 @@ import { ArticleWorkflowDialog } from './article-workflow-dialog'
 
 export type { LogEntry }
 
-type LevelFilter = 'all' | 'error' | 'warning' | 'info'
-
 interface LogsTableProps {
   title: string
   query: string
@@ -144,7 +142,6 @@ export function LogsTable({
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
-  const [filter, setFilter] = useState<LevelFilter>('all')
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null)
   const [traceTarget, setTraceTarget] = useState<TraceTarget | null>(null)
   const [noSpanDialog, setNoSpanDialog] = useState(false)
@@ -209,8 +206,7 @@ export function LogsTable({
     } catch { setNoSpanDialog(true) }
   }
 
-  const activeLevel = forcedLevel ?? filter
-  const visible = activeLevel === 'all' ? entries : entries.filter(e => e.level === activeLevel)
+  const visible = forcedLevel ? entries.filter(e => e.level === forcedLevel) : entries
 
   const placeholder = notConfigured
     ? t('admin.grafanaNotConfigured')
@@ -225,19 +221,6 @@ export function LogsTable({
     { key: 'message', label: t('admin.logColumnMessage') },
   ]
 
-  const toolbar = forcedLevel ? undefined : (
-    <select
-      className="text-xs border border-border rounded px-1 py-0.5 bg-background"
-      value={filter}
-      onChange={e => setFilter(e.target.value as LevelFilter)}
-    >
-      <option value="all">{t('admin.logFilterAll')}</option>
-      <option value="error">{t('admin.logFilterError')}</option>
-      <option value="warning">{t('admin.logFilterWarning')}</option>
-      <option value="info">{t('admin.logFilterInfo')}</option>
-    </select>
-  )
-
   return (
     <>
       <TablePanel
@@ -250,7 +233,6 @@ export function LogsTable({
         loading={loading}
         placeholder={placeholder}
         placeholderError={error}
-        toolbar={toolbar}
       >
         {visible.length === 0 ? (
           <tr>

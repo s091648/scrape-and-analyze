@@ -35,6 +35,7 @@ interface MetricsChartProps {
   externalData?: PrometheusResponse
   externalLoading?: boolean
   onRefresh?: () => Promise<void>
+  seriesColors?: Record<string, string>
 }
 
 function parseRelativeTime(t: string): number {
@@ -125,7 +126,7 @@ function processResponse(
   return { data: points, keys, notConfigured: false, error: false }
 }
 
-const COLORS = ['hsl(var(--primary))', 'hsl(217,91%,60%)', 'hsl(142,71%,45%)', 'hsl(38,92%,50%)']
+const COLORS = ['hsl(217,91%,60%)', 'hsl(142,71%,45%)', 'hsl(38,92%,50%)', 'hsl(0,72%,51%)']
 
 function renderChartTooltip(props: Parameters<typeof ChartTooltip>[0]) {
   return <ChartTooltip {...props} />
@@ -167,6 +168,7 @@ export function MetricsChart({
   title, query, from = 'now-24h', to = 'now', step = '300',
   height = 200, chartType = 'line', refreshInterval = 60,
   className, tooltip, timeRangeSeconds, externalData, externalLoading, onRefresh,
+  seriesColors,
 }: MetricsChartProps) {
   const [data, setData] = useState<DataPoint[]>([])
   const [seriesKeys, setSeriesKeys] = useState<string[]>([])
@@ -174,6 +176,18 @@ export function MetricsChart({
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set())
+
+  function handleLegendClick(data: { dataKey?: string | number; value?: string }) {
+    const key = String(data?.dataKey ?? data?.value ?? '')
+    if (!key) return
+    setHiddenSeries(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   // Controlled mode: process externalData when it arrives/changes
   useEffect(() => {
@@ -182,7 +196,7 @@ export function MetricsChart({
     const startTs = timeRangeSeconds ? now - timeRangeSeconds : undefined
     const result = processResponse(externalData, step, startTs, startTs !== undefined ? now : undefined)
     setData(result.data)
-    setSeriesKeys(result.keys)
+    setSeriesKeys(prev => { if (prev.join(',') !== result.keys.join(',')) setHiddenSeries(new Set()); return result.keys })
     setNotConfigured(result.notConfigured)
     setError(result.error)
     setLoading(false)
@@ -197,7 +211,7 @@ export function MetricsChart({
       const res = await queryMetrics({ query, start: startTs, end: endTs, step })
       const result = processResponse(res, step, startTs, endTs)
       setData(result.data)
-      setSeriesKeys(result.keys)
+      setSeriesKeys(prev => { if (prev.join(',') !== result.keys.join(',')) setHiddenSeries(new Set()); return result.keys })
       setNotConfigured(result.notConfigured)
       setError(result.error)
     } catch {
@@ -279,8 +293,14 @@ export function MetricsChart({
                 isAnimationActive={false}
                 cursor={{ fill: 'hsl(var(--border))', opacity: 0.15 }}
               />
-              {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 10 }} />}
-              {seriesKeys.map((k, i) => <Bar key={k} dataKey={k} fill={COLORS[i % COLORS.length]} />)}
+              {seriesKeys.length > 1 && (
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                  onClick={(d: any) => handleLegendClick(d)}
+                  formatter={(value: string) => (
+                    <span style={{ opacity: hiddenSeries.has(value) ? 0.35 : 1 }}>{value}</span>
+                  )} />
+              )}
+              {seriesKeys.map((k, i) => <Bar key={k} dataKey={k} fill={seriesColors?.[k] ?? COLORS[i % COLORS.length]} hide={hiddenSeries.has(k)} />)}
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -294,12 +314,21 @@ export function MetricsChart({
                 isAnimationActive={false}
                 cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 2' }}
               />
+              {seriesKeys.length > 1 && (
+                <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
+                  onClick={(d: any) => handleLegendClick(d)}
+                  formatter={(value: string) => (
+                    <span style={{ opacity: hiddenSeries.has(value) ? 0.35 : 1 }}>{value}</span>
+                  )} />
+              )}
               {seriesKeys.map((k, i) => {
+                const color = seriesColors?.[k] ?? COLORS[i % COLORS.length]
                 const nonNullCount = data.filter(d => d[k] !== null && d[k] !== undefined).length
                 return (
-                  <Line key={k} type="monotone" dataKey={k} stroke={COLORS[i % COLORS.length]}
-                    dot={nonNullCount <= 30 ? { r: 3, strokeWidth: 0, fill: COLORS[i % COLORS.length] } : false}
-                    strokeWidth={2} connectNulls={true} />
+                  <Line key={k} type="monotone" dataKey={k} stroke={color}
+                    dot={nonNullCount <= 30 ? { r: 3, strokeWidth: 1, stroke: 'white', fill: color } : false}
+                    activeDot={{ r: 4, strokeWidth: 1, stroke: 'white', fill: color }}
+                    strokeWidth={2} connectNulls={true} hide={hiddenSeries.has(k)} />
                 )
               })}
             </LineChart>

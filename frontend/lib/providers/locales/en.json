@@ -386,6 +386,25 @@
     "logFieldEvent": "Event",
     "viewInTrace": "View in trace",
     "logExtraFields": "Details",
+    "logFieldName": {
+      "url": "URL",
+      "source": "Source",
+      "error": "Error",
+      "count": "Count",
+      "duration_seconds": "Duration (s)",
+      "published": "Published",
+      "new": "New",
+      "duplicate": "Duplicate",
+      "failed": "Failed",
+      "remaining": "Remaining",
+      "skipped": "Skipped",
+      "run_id": "Run ID",
+      "article_id": "Article ID",
+      "analysis_id": "Analysis ID",
+      "model": "Model",
+      "input_tokens": "Input Tokens",
+      "output_tokens": "Output Tokens"
+    },
     "traceNoPipelineTitle": "No Article Pipeline",
     "traceNoPipelineMessage": "This trace doesn't contain an article processing pipeline. It may be a scraper run without any articles analyzed (all duplicates or fetch failures).",
     "waterfallDialogTitle": "Run: {id}…",
@@ -442,6 +461,7 @@
     "stageAttr_articlesBeforeDedup": "Before Dedup",
     "stageAttr_articlesAfterDedup": "After Dedup",
     "stageAttr_articlesSkipped": "Skipped",
-    "stageAttr_articlesPublished": "Published"
+    "stageAttr_articlesPublished": "Published",
+    "stageTranslateLabel": "Translate ({lang})"
   }
 }
