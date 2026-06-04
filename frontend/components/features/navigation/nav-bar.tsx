@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Rss, Settings, ChevronDown, Globe } from 'lucide-react'
+import { GitHubLogoIcon } from '@radix-ui/react-icons'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
@@ -177,6 +178,23 @@ export function NavBar() {
               </div>
             )}
           </div>
+
+          <a
+            href="https://github.com/s091648/scrape-and-analyze"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            <GitHubLogoIcon className="h-5 w-5" />
+          </a>
+          <a
+            href="https://s091648.github.io/scrape-and-analyze"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            Pages
+          </a>
 
           {session && (
             <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">

@@ -1,7 +1,7 @@
 import { forwardRef } from 'react'
 import { cn } from '@/lib/utils'
 
-interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+interface NativeSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   /** 'md' = h-9 text-sm (default), 'sm' = compact text-xs */
   size?: 'sm' | 'md'
 }

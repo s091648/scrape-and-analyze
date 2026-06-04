@@ -59,7 +59,7 @@ def _make_collection_pipeline_mocks():
 
     mock_init_db = MagicMock()
     mock_get_session = MagicMock(return_value=mock_session)
-    mock_build_llm = MagicMock(return_value=(mock_llm, mock_embedding))
+    mock_build_llm = MagicMock(return_value=(mock_llm, mock_embedding, ["gemini"]))
 
     return mock_init_db, mock_get_session, mock_session, mock_llm, mock_embedding, mock_build_llm
 
@@ -72,7 +72,7 @@ def _build_pipeline_with_mocks():
          patch("src.bootstrap.get_session", mock_get_session), \
          patch("src.bootstrap.build_llm_service", mock_build_llm):
         from src.bootstrap import build_collection_pipeline
-        pipeline = build_collection_pipeline()
+        pipeline, _ = build_collection_pipeline()
 
     return pipeline, mock_init_db, mock_get_session, mock_session, mock_llm, mock_embedding, mock_build_llm
 
@@ -187,7 +187,7 @@ def test_t040_build_translation_pipeline_returns_correct_keys():
 
     with patch("src.bootstrap.init_db", MagicMock()), \
          patch("src.bootstrap.get_session", MagicMock(return_value=mock_session)), \
-         patch("src.bootstrap.build_llm_service", MagicMock(return_value=(mock_llm, mock_embedding))):
+         patch("src.bootstrap.build_llm_service", MagicMock(return_value=(mock_llm, mock_embedding, ["gemini"]))):
         from src.bootstrap import build_translation_pipeline
         result = build_translation_pipeline()
 
@@ -216,7 +216,7 @@ def test_t041_build_translation_pipeline_does_not_create_event_bus():
 
     with patch("src.bootstrap.init_db", MagicMock()), \
          patch("src.bootstrap.get_session", MagicMock(return_value=mock_session)), \
-         patch("src.bootstrap.build_llm_service", MagicMock(return_value=(mock_llm, mock_embedding))):
+         patch("src.bootstrap.build_llm_service", MagicMock(return_value=(mock_llm, mock_embedding, ["gemini"]))):
         from src.bootstrap import build_translation_pipeline
         result = build_translation_pipeline()
 

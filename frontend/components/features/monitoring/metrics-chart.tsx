@@ -128,7 +128,8 @@ function processResponse(
 
 const COLORS = ['hsl(217,91%,60%)', 'hsl(142,71%,45%)', 'hsl(38,92%,50%)', 'hsl(0,72%,51%)']
 
-function renderChartTooltip(props: Parameters<typeof ChartTooltip>[0]) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderChartTooltip(props: any) {
   return <ChartTooltip {...props} />
 }
 

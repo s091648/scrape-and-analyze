@@ -8,6 +8,7 @@ import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
   getAttr, getResourceAttr, findStageSpans, formatDuration,
+  type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
@@ -67,7 +68,7 @@ interface RunWaterfallDialogProps {
   onClose: () => void
   traceId: string
   trace: OtlpTraceResponse
-  onSelectArticle?: (pipelineSpan: OtlpSpan, stageSpans: OtlpSpan[]) => void
+  onSelectArticle?: (pipelineSpan: OtlpSpan, stageSpans: SpanNode[]) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ export function RunWaterfallDialog({
                     )}
                     onClick={() => {
                       if (isPipeline && onSelectArticle) {
-                        onSelectArticle(span, findStageSpans(tree, span.spanId).map(n => n.span))
+                        onSelectArticle(span, findStageSpans(tree, span.spanId))
                       }
                     }}
                   >

@@ -2,7 +2,9 @@ import type { OtlpTraceResponse, OtlpSpan, OtlpAttribute, OtlpAttributeValue, Ot
 import { SpanName } from './observability-constants'
 
 function getBatches(trace: OtlpTraceResponse): OtlpResourceSpans[] {
-  return ((trace as Record<string, unknown>).batches ?? (trace as Record<string, unknown>).resourceSpans ?? []) as OtlpResourceSpans[]
+  // Backend normalises resourceSpans → batches; access batches directly.
+  // Fallback handles any raw Tempo response that bypasses the backend proxy.
+  return (trace.batches ?? (trace as unknown as { resourceSpans?: OtlpResourceSpans[] }).resourceSpans ?? [])
 }
 
 export function flattenSpans(trace: OtlpTraceResponse): OtlpSpan[] {

@@ -7,7 +7,6 @@ from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.infrastructure.collection.parsers import PdfParser
-from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
 logger = get_logger(__name__)
 
@@ -63,8 +62,6 @@ class ArxivScraper(BaseScraper):
                     "published": e.published,
                 },
             ))
-        from shared.enums.observability import MetricLabelKey, MetricSourceValue
-        SCRAPER_ARTICLES_FOUND.add(len(jobs), {MetricLabelKey.SOURCE: MetricSourceValue.ARXIV})
         logger.info("arxiv_discover_complete", count=len(jobs))
         return jobs
 
