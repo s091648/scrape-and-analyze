@@ -241,3 +241,128 @@ def test_traces_batch_returns_list_of_same_length():
             resp = TestClient(app).post("/grafana/traces/batch", json=items, headers=auth())
     assert resp.status_code == 200
     assert len(resp.json()) == 2
+
+
+# ── Edge cases: invalid JSON responses ────────────────────────────────────────
+
+def _mock_httpx_invalid_json(status: int = 200):
+    """Return a mock client whose .json() raises ValueError (non-JSON body)."""
+    resp = MagicMock()
+    resp.status_code = status
+    resp.json.side_effect = ValueError("not json")
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get = AsyncMock(return_value=resp)
+    return client
+
+
+def test_grafana_get_returns_invalid_response_on_non_json_body():
+    """_grafana_get wraps non-JSON response bodies as {'error': 'invalid_response'}."""
+    from backend.main import app
+    with patch.dict(os.environ, _PROMETHEUS_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_invalid_json(200)):
+            resp = TestClient(app).get("/grafana/metrics", params={"query": "up"}, headers=auth())
+    assert resp.json()["error"] == "invalid_response"
+
+
+def test_get_trace_by_id_returns_invalid_response_on_non_json_body():
+    """get_trace_by_id wraps non-JSON Tempo responses as {'error': 'invalid_response'}."""
+    from backend.main import app
+    with patch.dict(os.environ, _TEMPO_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_invalid_json(200)):
+            resp = TestClient(app).get("/grafana/traces/abc123", headers=auth())
+    assert resp.json()["error"] == "invalid_response"
+
+
+# ── Edge cases: fetch_one exception in batch endpoints ────────────────────────
+
+def _mock_httpx_raises():
+    """Return a mock client whose .get() raises a network error."""
+    client = AsyncMock()
+    client.__aenter__.return_value = client
+    client.get = AsyncMock(side_effect=Exception("connection refused"))
+    return client
+
+
+def test_metrics_batch_returns_invalid_response_on_fetch_exception():
+    from backend.main import app
+    with patch.dict(os.environ, _PROMETHEUS_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
+            resp = TestClient(app).post(
+                "/grafana/metrics/batch",
+                json=[{"query": "up"}],
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    assert resp.json()[0]["error"] == "invalid_response"
+
+
+def test_logs_batch_returns_invalid_response_on_fetch_exception():
+    from backend.main import app
+    with patch.dict(os.environ, _LOKI_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
+            resp = TestClient(app).post(
+                "/grafana/logs/batch",
+                json=[{"query": '{app="x"}'}],
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    assert resp.json()[0]["error"] == "invalid_response"
+
+
+def test_loki_metrics_batch_returns_invalid_response_on_fetch_exception():
+    from backend.main import app
+    with patch.dict(os.environ, _LOKI_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
+            resp = TestClient(app).post(
+                "/grafana/loki-metrics/batch",
+                json=[{"query": 'count_over_time({app="x"}[1h])'}],
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    assert resp.json()[0]["error"] == "invalid_response"
+
+
+def test_traces_batch_returns_invalid_response_on_fetch_exception():
+    from backend.main import app
+    with patch.dict(os.environ, _TEMPO_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
+            resp = TestClient(app).post(
+                "/grafana/traces/batch",
+                json=[{"limit": 5}],
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    assert resp.json()[0]["error"] == "invalid_response"
+
+
+# ── Optional query parameters ─────────────────────────────────────────────────
+
+def test_query_traces_with_min_duration_param():
+    """query_traces passes minDuration param when provided."""
+    from backend.main import app
+    body = {"traces": []}
+    with patch.dict(os.environ, _TEMPO_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)) as mock_cls:
+            resp = TestClient(app).get(
+                "/grafana/traces",
+                params={"minDuration": "100ms"},
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    # Verify minDuration was forwarded in the request params
+    call_kwargs = mock_cls.return_value.__aenter__.return_value.get.call_args
+    params = call_kwargs.kwargs.get("params", call_kwargs.args[1] if len(call_kwargs.args) > 1 else {})
+    assert params.get("minDuration") == "100ms"
+
+
+def test_traces_batch_with_min_duration_param():
+    """traces/batch passes minDuration when item includes it."""
+    from backend.main import app
+    body = {"traces": []}
+    items = [{"minDuration": "200ms", "limit": 10}]
+    with patch.dict(os.environ, _TEMPO_ENV):
+        with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
+            resp = TestClient(app).post("/grafana/traces/batch", json=items, headers=auth())
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
