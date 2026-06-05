@@ -36,6 +36,7 @@ import {
 import { ArxivKeywordManager } from '@/components/features/scraper/arxiv-keyword-manager'
 import { OpenAlexKeywordManager } from '@/components/features/scraper/openalex-keyword-manager'
 import { SemanticScholarKeywordManager } from '@/components/features/scraper/semantic-scholar-keyword-manager'
+import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { useTopic } from '@/lib/providers'
@@ -1051,6 +1052,7 @@ export default function ScraperSettingsPage() {
   const [oaKeywords, setOaKeywords] = useState<OAKeyword[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showAggregatorTypeDialog, setShowAggregatorTypeDialog] = useState(false)
+  const [aggregatorTypeOptions, setAggregatorTypeOptions] = useState<SourceEntry[]>([])
   const [pendingAggregatorType, setPendingAggregatorType] = useState<'semantic_scholar' | 'openalex'>('semantic_scholar')
   const [addingAggregatorType, setAddingAggregatorType] = useState<'semantic_scholar' | 'openalex' | null>(null)
 
@@ -1059,6 +1061,10 @@ export default function ScraperSettingsPage() {
 
   const token = (session as any)?.accessToken
   const { selectedTopicId } = useTopic()
+
+  useEffect(() => {
+    fetchSourceCategories().then(cats => setAggregatorTypeOptions(cats.aggregator))
+  }, [])
 
   useEffect(() => {
     if (!token || !selectedTopicId) return
@@ -1304,8 +1310,9 @@ export default function ScraperSettingsPage() {
                       onChange={e => setPendingAggregatorType(e.target.value as 'semantic_scholar' | 'openalex')}
                       className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      <option value="semantic_scholar">Semantic Scholar</option>
-                      <option value="openalex">OpenAlex</option>
+                      {aggregatorTypeOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                   <DialogFooter>

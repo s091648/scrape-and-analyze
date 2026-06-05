@@ -7,13 +7,9 @@ import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
 import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
+import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { useI18n, useTopic } from '@/lib/providers'
 import { GroupedTagSelect } from './grouped-tag-select'
-
-const AGGREGATOR_OPTIONS = [
-  { value: 'openalex', label: 'OpenAlex' },
-  { value: 'semantic_scholar', label: 'Semantic Scholar' },
-]
 
 interface FilterBarProps {
   aggregators: string[]
@@ -47,6 +43,7 @@ export function FilterBar({
   const { t, locale } = useI18n()
   const { selectedTopicId } = useTopic()
   const [open, setOpen] = useState(false)
+  const [aggregatorOptions, setAggregatorOptions] = useState<SourceEntry[]>([])
   const [originalSourceOptions, setOriginalSourceOptions] = useState<string[]>([])
   const [tagGroupOptions, setTagGroupOptions] = useState<TagGroupOut[]>([])
 
@@ -60,6 +57,7 @@ export function FilterBar({
   const [draftScrapedBefore, setDraftScrapedBefore] = useState(scrapedBefore)
 
   useEffect(() => {
+    fetchSourceCategories().then(cats => setAggregatorOptions(cats.aggregator))
     fetchArticleFilterOriginalSources(selectedTopicId ?? undefined, locale).then(setOriginalSourceOptions)
     fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions)
   }, [locale, selectedTopicId])
@@ -125,7 +123,7 @@ export function FilterBar({
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
           <MultiSelectPopover
             label={t('filterBar.aggregator')}
-            options={AGGREGATOR_OPTIONS}
+            options={aggregatorOptions}
             selected={draftAggregators}
             onChange={setDraftAggregators}
             searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.aggregator').toLowerCase()}…`}

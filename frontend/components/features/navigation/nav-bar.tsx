@@ -140,7 +140,7 @@ export function NavBar() {
 
         {/* Env indicator — only shown in non-production environments */}
         {process.env.APP_ENV !== 'production' && (
-          <span className="absolute left-1/2 -translate-x-1/2 text-xs font-semibold font-mono text-red-500 select-none pointer-events-none">
+          <span className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold font-mono text-red-500 select-none pointer-events-none">
             {process.env.APP_ENV}
           </span>
         )}

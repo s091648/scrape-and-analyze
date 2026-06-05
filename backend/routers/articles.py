@@ -172,6 +172,12 @@ def list_articles(
     )
 
 
+@router.get("/source-categories")
+def get_source_categories():
+    from backend.constants import SOURCE_CATEGORIES
+    return {k: [{"value": e.value, "label": e.label} for e in v] for k, v in SOURCE_CATEGORIES.items()}
+
+
 @router.get("/articles/filters/sources")
 def get_filter_sources(topic_id: Optional[UUID] = Query(default=None),
                        db: Session = Depends(get_db)):

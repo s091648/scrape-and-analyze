@@ -11,7 +11,7 @@ import type { ArticleDetail } from '@/lib/api/articles'
 
 export type { Article }
 
-import { deriveDisplaySource, formatViaSource } from './source-utils'
+import { deriveDisplaySource, formatViaSource, toTitleCase } from './source-utils'
 
 interface ArticleCardProps extends Article {
   open?: boolean
@@ -65,7 +65,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
-              <span className="flex-1">{title}</span>
+              <span className="flex-1">{toTitleCase(title)}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
                   type="button"
