@@ -23,12 +23,17 @@ class SemanticScholarKeyword(BaseModel):
     keyword: str  # free-text search keyword, e.g. "digital twin"
 
 
+class OpenAlexKeyword(BaseModel):
+    type: Literal["openalex_keyword"] = "openalex_keyword"
+    keyword: str  # free-text search keyword, e.g. "digital twin"
+
+
 ScraperKeywordVO = Annotated[
-    Union[RssKeyword, ArxivKeyword, ArxivCategory, SemanticScholarKeyword],
+    Union[RssKeyword, ArxivKeyword, ArxivCategory, SemanticScholarKeyword, OpenAlexKeyword],
     Field(discriminator="type"),
 ]
 
-def build_scraper_keyword(keyword_type: str, keyword: str) -> RssKeyword | ArxivKeyword | ArxivCategory | SemanticScholarKeyword:
+def build_scraper_keyword(keyword_type: str, keyword: str) -> RssKeyword | ArxivKeyword | ArxivCategory | SemanticScholarKeyword | OpenAlexKeyword:
     if keyword_type == "rss":
         return RssKeyword(keyword=keyword)
     if keyword_type == "arxiv_keyword":
@@ -37,4 +42,6 @@ def build_scraper_keyword(keyword_type: str, keyword: str) -> RssKeyword | Arxiv
         return ArxivCategory(keyword=keyword)
     if keyword_type == "semantic_scholar_keyword":
         return SemanticScholarKeyword(keyword=keyword)
+    if keyword_type == "openalex_keyword":
+        return OpenAlexKeyword(keyword=keyword)
     raise ValueError(f"Unknown keyword_type: {keyword_type!r}")

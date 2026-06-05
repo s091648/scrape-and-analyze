@@ -1,7 +1,8 @@
+from pydantic import BaseModel
 from sqlalchemy import TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
-from shared.selector_config import ArxivConfig, BlogConfig, RssConfig, _adapter
+from shared.selector_config import _adapter
 
 
 class SelectorConfigColumn(TypeDecorator):
@@ -19,7 +20,7 @@ class SelectorConfigColumn(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
-        if isinstance(value, (RssConfig, BlogConfig, ArxivConfig)):
+        if isinstance(value, BaseModel):
             return value.model_dump()
         return value
 

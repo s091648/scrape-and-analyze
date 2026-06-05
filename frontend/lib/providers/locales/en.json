@@ -469,6 +469,13 @@
     "semanticScholarKeywords": "Search Keywords",
     "noSemanticScholarKeywords": "No keywords yet — add keywords to search for papers.",
     "addSemanticScholarKeyword": "Add keyword",
-    "semanticScholarKeywordPlaceholder": "e.g. digital twin"
+    "semanticScholarKeywordPlaceholder": "e.g. digital twin",
+    "activateOpenAlex": "Activate OpenAlex",
+    "editOpenAlexSource": "Edit OpenAlex Source",
+    "deleteOpenAlexSource": "Delete OpenAlex Source",
+    "openAlexKeywords": "Search Keywords",
+    "noOpenAlexKeywords": "No keywords yet — add keywords to search for papers.",
+    "addOpenAlexKeyword": "Add keyword",
+    "openAlexKeywordPlaceholder": "e.g. digital twin"
   }
 }

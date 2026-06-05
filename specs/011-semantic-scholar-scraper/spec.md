@@ -1,12 +1,14 @@
-# Feature Specification: Semantic Scholar Scraper
+# Feature Specification: Semantic Scholar + OpenAlex Scraper
 
 **Feature Branch**: `feat/semantic_scholar`
 
 **Created**: 2026-06-04
 
-**Status**: Draft
+**Updated**: 2026-06-05
 
-**Input**: User description: "新增 Semantic Scholar scraper 至 scraping pipeline，以解決 arXiv rate limit 問題，同時擴大論文來源涵蓋範圍。"
+**Status**: In Progress
+
+**Input**: User description: "新增 Semantic Scholar scraper 至 scraping pipeline，以解決 arXiv rate limit 問題，同時擴大論文來源涵蓋範圍。實作後發現 Semantic Scholar 免費 API 無法個人申請 key，且首次執行即 429；改以 OpenAlex 作為主要免費學術論文 API 並同步實作。"
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -58,52 +60,91 @@
 
 ---
 
+### User Story 4 - 以 OpenAlex 抓取學術論文（Priority: P1）
+
+身為管理員，我希望能在 Scraper Settings 頁面為某個 topic 啟用 OpenAlex 來源，設定關鍵字與抓取頻率，讓系統自動定期從 OpenAlex 搜尋並收集相關論文。
+
+**Why this priority**: Semantic Scholar 免費 API 無法個人申請 key（需機構帳號），且首次請求即觸發 429（IP 層級封鎖）。OpenAlex 為完全免費的學術論文索引 API，無需任何 API key，透過 polite pool（User-Agent 帶 mailto）可穩定取得 10 req/sec。資料來源同等豐富（含 ArXiv、DOI、開放取用 PDF URL、引用數、摘要）。
+
+**Independent Test**: 在 admin UI 啟用 OpenAlex + 加入 keyword，手動觸發 `make scrape SOURCE=openalex LIMIT=3`，確認資料庫出現 `source = 'openalex'` 的論文並顯示於前端。
+
+**Acceptance Scenarios**:
+
+1. **Given** 管理員已登入且選取一個 topic，**When** 在 Scraper Settings 點擊「啟用 OpenAlex」並設定 keyword 與頻率後儲存，**Then** 系統應新增一筆 OpenAlex 設定，並在下次排程週期自動執行搜尋。
+2. **Given** OpenAlex 設定已啟用且有有效 keyword，**When** scraper 執行 discover，**Then** 應回傳符合 keyword 的論文清單（含標題、摘要、作者、發表日期）。
+3. **Given** 系統抓到一篇 OpenAlex 論文且其有 ArXiv ID，**When** 比對已存在資料庫的論文，**Then** 系統應使用 ArXiv URL 去重，跳過重複論文。
+4. **Given** OpenAlex abstract 以 inverted index 格式回傳，**When** client 解析論文，**Then** 應正確還原為可讀純文字。
+
+---
+
 ### Edge Cases
 
-- 若 Semantic Scholar API 回傳的論文同時有 ArXiv ID，系統應使用 ArXiv URL（`https://arxiv.org/abs/{id}`）作為去重依據，避免與 ArXiv scraper 重複收錄同一篇論文。
-- 若 Semantic Scholar API 回傳 HTTP 429（rate limit），系統應記錄警告並跳過本次執行，不應中斷整條 pipeline。
-- 若 keyword 搜尋無結果（零篇論文），系統應正常結束本次 discover，記錄 info log，不視為錯誤。
+**Semantic Scholar**:
+- 若 Semantic Scholar API 回傳的論文同時有 ArXiv ID，系統應使用 ArXiv URL（`https://arxiv.org/abs/{id}`）作為去重依據。
+- 若 Semantic Scholar API 回傳 HTTP 429，系統應記錄警告並跳過本次執行，不應中斷整條 pipeline。
+- 若 keyword 搜尋無結果，系統應正常結束本次 discover，記錄 info log，不視為錯誤。
 - 若 PDF 下載失敗或解析失敗，系統應退回使用摘要，不應因此丟棄該論文。
-- 若未設定 Semantic Scholar API key，系統應以免費層（每秒 1 請求）運作，不阻斷功能。
+- 若未設定 Semantic Scholar API key，系統應以免費層運作（受限於 IP 配額），不阻斷功能。
+
+**OpenAlex**:
+- OpenAlex 的 abstract 以 inverted index 格式（word → position list）儲存，client 必須在解析時還原為純文字。
+- 若論文有 ArXiv ID（`ids.arxiv`），系統應使用 ArXiv URL 作為正規化 URL；若有 DOI 則使用 DOI URL；否則使用 OpenAlex URL（`https://openalex.org/W...`）。
+- 若 OpenAlex API 回傳 HTTP 429，系統應記錄警告並跳過本次執行，不應中斷 pipeline。
+- polite pool 需在 User-Agent 帶上 `mailto:` 電子信箱（從環境變數 `OPENALEX_MAILTO` 讀取）；未設定時仍可運作但速率較低。
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
+**Semantic Scholar**:
 - **FR-001**: 系統 MUST 支援 `semantic_scholar` 作為一個獨立的 scraper 來源類型，可在 Scraper Settings 中針對每個 topic 進行設定。
 - **FR-002**: Semantic Scholar 設定 MUST 以 singleton 模式運作（每個 topic 最多一個），介面設計與 ArXiv 設定卡片平行對稱。
 - **FR-003**: 管理員 MUST 能在 Semantic Scholar 設定中管理 topic 層級的關鍵字清單（新增、刪除），這些關鍵字用於 Semantic Scholar API 搜尋。
 - **FR-004**: 系統 MUST 支援為 Semantic Scholar 設定 `max_results`（每次最多回傳幾篇）與 `days_back`（只搜尋最近 N 天的論文）兩個參數。
 - **FR-005**: 系統 MUST 在有開放取用 PDF 時自動下載並解析全文，無 PDF 時退回摘要，兩種情況都不中斷流程。
 - **FR-006**: 系統 MUST 對 Semantic Scholar 回傳的論文進行 URL 去重：若論文有 ArXiv ID 則使用 ArXiv URL 作為正規化 URL，否則使用 Semantic Scholar 論文頁 URL。
-- **FR-007**: 系統 MUST 支援透過環境變數設定 Semantic Scholar API key；未設定時應退回免費層運作。
+- **FR-007**: 系統 MUST 支援透過環境變數 `SEMANTIC_SCHOLAR_API_KEY` 設定 API key；未設定時應退回免費層運作（受 IP 配額限制）。
 - **FR-008**: LLM 分析流程 MUST 對 `semantic_scholar` 來源的論文採用與 ArXiv 相同的內容擷取邏輯（有段落則用全文截斷為上限，無段落則用摘要）。
 - **FR-009**: ArXiv scraper MUST 在系統層面忽略 `arxiv_keyword` 類型的設定，只使用 `arxiv_category` 類型的設定進行查詢。
 - **FR-010**: ArXiv Scraper Settings 介面 MUST 移除 keyword 管理區塊，只保留 category 管理區塊；現有 category 功能不受影響。
+
+**OpenAlex**:
+- **FR-011**: 系統 MUST 支援 `openalex` 作為一個獨立的 scraper 來源類型，可在 Scraper Settings 中針對每個 topic 進行設定。
+- **FR-012**: OpenAlex 設定 MUST 以 singleton 模式運作（每個 topic 最多一個），介面設計與 Semantic Scholar 設定卡片平行對稱。
+- **FR-013**: 管理員 MUST 能在 OpenAlex 設定中管理 topic 層級的關鍵字清單（`openalex_keyword` 類型，新增、刪除）。
+- **FR-014**: 系統 MUST 支援為 OpenAlex 設定 `max_results` 與 `days_back` 兩個參數；`max_results` 上限為 200（OpenAlex API 單次最大值）。
+- **FR-015**: OpenAlexClient MUST 還原 abstract inverted index 格式為純文字後儲存，並從 `ids.arxiv` / `doi` 正規化 URL；有開放取用 PDF 時同樣走 PdfParser 解析全文。
+- **FR-016**: 系統 MUST 透過環境變數 `OPENALEX_MAILTO` 讓 OpenAlex client 在 User-Agent 帶 mailto，以進入 polite pool（10 req/sec）；未設定時仍可運作但速率受預設限制。
+- **FR-017**: LLM 分析流程 MUST 對 `openalex` 來源的論文採用與 ArXiv、Semantic Scholar 相同的內容擷取邏輯。
 
 ### Key Entities
 
 - **SemanticScholarSetting**：Semantic Scholar 的抓取設定，包含啟用狀態、頻率、max_results、days_back，隸屬於某個 topic。每個 topic 最多一筆（singleton）。
 - **SemanticScholarKeyword**：用於 Semantic Scholar API 搜尋的關鍵字，屬於 topic 層級，一個 topic 可有多個 keyword。
 - **SemanticScholarPaper**：從 Semantic Scholar API 取得的論文資料，包含 paper ID、標題、摘要、作者、發表日期、開放取用 PDF URL、DOI、ArXiv ID、引用數。此為中間資料，最終儲存為系統統一的 Article 格式。
+- **OpenAlexSetting**：OpenAlex 的抓取設定，與 SemanticScholarSetting 結構相同，每個 topic 最多一筆（singleton）。
+- **OpenAlexKeyword**：用於 OpenAlex search API 的關鍵字，`keyword_type = "openalex_keyword"`，屬於 topic 層級。
+- **OpenAlexWork**：從 OpenAlex API 取得的論文資料，包含 work ID、標題（需從 abstract inverted index 還原摘要）、作者、發表日期、開放取用 PDF URL、DOI、ArXiv ID、引用數。此為中間資料，最終儲存為系統統一的 Article 格式。
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 管理員可在 3 分鐘內完成啟用 Semantic Scholar 來源、設定關鍵字、儲存設定的完整流程。
+- **SC-001**: 管理員可在 3 分鐘內完成啟用 Semantic Scholar 或 OpenAlex 來源、設定關鍵字、儲存設定的完整流程。
 - **SC-002**: 單次 Semantic Scholar scrape 執行（20 篇論文）應在 60 秒內完成（不含 PDF 下載）。
-- **SC-003**: 在 Semantic Scholar 與 ArXiv 同時啟用的情況下，系統應確保同一篇論文不重複出現在論文列表中（去重率 100%）。
+- **SC-003**: 在多來源（SS / OpenAlex / ArXiv）同時啟用的情況下，系統應確保同一篇論文不重複出現在論文列表中（去重率 100%）。
 - **SC-004**: ArXiv scraper 在移除 keyword 搜尋後，rate limit 錯誤（HTTP 429）應降低至每週 0 次（category-only 查詢量遠低於 rate limit 閾值）。
 - **SC-005**: 有開放取用 PDF 的論文，其 LLM 分析結果的標籤豐富度（tag 數量）應高於純摘要分析的同類論文。
+- **SC-006**: OpenAlex scrape 在無 API key 情況下（僅 mailto polite pool）應能穩定執行，不出現 HTTP 429（rate limiter 設定 5 RPM，遠低於 polite pool 10 req/sec 上限）。
 
 ## Assumptions
 
 - 系統已有 ArXiv scraper 運作，本功能為並行新增，不取代 ArXiv。
-- Semantic Scholar API 免費層（無 API key）的 rate limit（1 req/sec）足以應付正常抓取頻率；如需更高頻率，使用者自行申請 API key。
+- **Semantic Scholar**：免費 API 無法個人申請 key（需機構帳號），且未驗證 IP 的速率限制極為嚴格（首次執行即 HTTP 429）。保留 Semantic Scholar 實作，但以 OpenAlex 作為主要免費學術論文來源。若未來取得 API key，SS 實作可直接啟用。
+- **OpenAlex**：完全免費，無需 API key；透過 mailto polite pool 可穩定取得 10 req/sec，rate limiter 設定 5 RPM 確保安全邊際。abstract 以 inverted index 格式儲存，client 層負責還原。
 - 現有資料庫中已存在的 `arxiv_keyword` 資料不需清除，系統層忽略即可（無需資料遷移）。
-- 前端 Scraper Settings 頁面目前採用 AccordionSection 區塊佈局，新增 Semantic Scholar 區塊沿用此架構。
+- 前端 Scraper Settings 頁面採用 AccordionSection 區塊佈局，新增 Semantic Scholar 與 OpenAlex 區塊沿用此架構。
 - 論文 PDF 解析邏輯（PdfParser）現有實作可直接複用，無需修改。
-- 去重機制（UrlHash）現有實作可直接複用；URL 正規化邏輯在 Semantic Scholar scraper 內處理。
-- 本功能不包含 Semantic Scholar 論文引用關係（citation graph）的收集或展示。
-- 本功能不包含 Semantic Scholar 的 Recommendations API（個人化推薦），只使用 keyword search API。
+- 去重機制（UrlHash）現有實作可直接複用；URL 正規化邏輯在各 scraper client 內處理（ArXiv URL 優先 → DOI URL → 來源 URL）。
+- 本功能不包含論文引用關係（citation graph）的收集或展示。
+- 本功能只使用 keyword search API，不使用個人化推薦 API。

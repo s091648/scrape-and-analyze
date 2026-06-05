@@ -6,6 +6,8 @@ from src.modules.collection.domain.value_objects import (
     ArxivCategory,
     ArxivKeyword,
     BlogConfig,
+    OpenAlexConfig,
+    OpenAlexKeyword,
     RssConfig,
     RssKeyword,
     SemanticScholarKeyword,
@@ -15,6 +17,7 @@ from .base_scraper import BaseScraper
 from .rss_scraper import RssScraper
 from .blog_scraper import BlogScraper
 from .arxiv_scraper import ArxivScraper
+from .openalex_scraper import OpenAlexScraper
 from .semantic_scholar_scraper import SemanticScholarScraper
 from src.infrastructure.collection.clients import ArxivClient, RssClient
 
@@ -80,6 +83,15 @@ class ConcreteScraperFactory(ScraperFactory):
                 max_results=cfg.max_results,
                 days_back=cfg.days_back if days_back is None else (None if days_back == -1 else days_back),
                 keywords=_extract(setting.keyword_items, SemanticScholarKeyword, "keyword"),
+                topic_id=setting.topic_id,
+                prompt_override=setting.prompt_override,
+            )
+
+        if isinstance(cfg, OpenAlexConfig):
+            return OpenAlexScraper(
+                max_results=cfg.max_results,
+                days_back=cfg.days_back if days_back is None else (None if days_back == -1 else days_back),
+                keywords=_extract(setting.keyword_items, OpenAlexKeyword, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
             )

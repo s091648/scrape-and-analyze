@@ -469,6 +469,13 @@
     "semanticScholarKeywords": "搜尋關鍵字",
     "noSemanticScholarKeywords": "尚無關鍵字 — 請新增關鍵字以搜尋論文。",
     "addSemanticScholarKeyword": "新增關鍵字",
-    "semanticScholarKeywordPlaceholder": "例如：digital twin"
+    "semanticScholarKeywordPlaceholder": "例如：digital twin",
+    "activateOpenAlex": "啟用 OpenAlex",
+    "editOpenAlexSource": "編輯 OpenAlex 來源",
+    "deleteOpenAlexSource": "刪除 OpenAlex 來源",
+    "openAlexKeywords": "搜尋關鍵字",
+    "noOpenAlexKeywords": "尚無關鍵字 — 請新增關鍵字以搜尋論文。",
+    "addOpenAlexKeyword": "新增關鍵字",
+    "openAlexKeywordPlaceholder": "例如：digital twin"
   }
 }

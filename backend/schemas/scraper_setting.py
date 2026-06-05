@@ -1,11 +1,11 @@
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ScraperSettingCreate(BaseModel):
-    source_type: Literal["rss", "blog", "arxiv"]
+    source_type: Literal["rss", "blog", "arxiv", "semantic_scholar", "openalex"]
     name: str
     url: str = ""
     frequency: int
@@ -36,6 +36,13 @@ class ScraperSettingOut(BaseModel):
     updated_at: Optional[datetime] = None
     topic_id: UUID
     activity: list[int] = []
+
+    @field_validator("selector_config", mode="before")
+    @classmethod
+    def coerce_selector_config(cls, v: Any) -> Any:
+        if v is not None and isinstance(v, BaseModel):
+            return v.model_dump()
+        return v
 
     class Config:
         from_attributes = True
