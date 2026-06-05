@@ -97,15 +97,16 @@ backend/routers/articles.py                                    ← 新增 via_so
 # Backend — 測試（新增）
 src/tests/unit/infrastructure/collection/clients/
 ├── test_semantic_scholar_client.py（已完成）
-└── test_openalex_client.py（待補）
+└── test_openalex_client.py（已完成）
 
 src/tests/unit/infrastructure/collection/scrapers/
 ├── test_semantic_scholar_scraper.py（已完成）
-└── test_openalex_scraper.py（待補）
+└── test_openalex_scraper.py（已完成）
 
 # Frontend — 新增檔案
 frontend/components/features/scraper/
 ├── semantic-scholar-keyword-manager.tsx（已完成）
+├── semantic-scholar-keyword-manager.stories.tsx（已完成）
 └── openalex-keyword-manager.tsx（已完成）
 
 # Frontend — 修改檔案
@@ -125,9 +126,10 @@ frontend/components/features/graph/knowledge-graph.tsx        ← FilterBar 新�
 frontend/components/features/scraper/scraper-source-card.tsx  ← source_type union 補上 semantic_scholar + openalex（已完成）
 
 # Frontend — 測試（新增）
-frontend/tests/unit/components/features/scraper/
-├── semantic-scholar-keyword-manager.test.tsx（已完成）
-└── openalex-keyword-manager.test.tsx（待補）
+# 注意：實際路徑為 flat 結構（非 nested），tests 直接在 frontend/tests/unit/
+frontend/tests/unit/
+├── openalex-keyword-manager.test.tsx（已完成）
+└── semantic-scholar-keyword-manager.test.tsx（待補 — T014 尚未實作）
 ```
 
 **Structure Decision**: Web application（Option 2）— scraper/backend 共用 `shared/`，前後端各自測試目錄，與既有架構完全一致。

@@ -60,7 +60,7 @@
 
 - [x] T012 [P] [US1] 撰寫 `src/tests/unit/infrastructure/collection/clients/test_semantic_scholar_client.py`（8 個測試）
 - [x] T013 [P] [US1] 撰寫 `src/tests/unit/infrastructure/collection/scrapers/test_semantic_scholar_scraper.py`（discover 部分）
-- [x] T014 [P] [US1] 撰寫 `frontend/tests/unit/components/features/scraper/semantic-scholar-keyword-manager.test.tsx`
+- [ ] T014 [P] [US1] 撰寫 `frontend/tests/unit/semantic-scholar-keyword-manager.test.tsx`
 
 **Checkpoint**: US1 完整可測試 ✅
 
@@ -149,11 +149,11 @@
 - [x] T045 更新 `frontend/app/admin/scraper-settings/page.tsx`：新增 `OpenAlexSettingCard`、`AddOpenAlexCard`、state、handler、AccordionSection
 - [x] T046 [P] 更新 `frontend/lib/api/scraper-settings.ts` source_type union 加入 `openalex`
 
-### 測試（待補）
+### 測試（已完成）
 
-- [ ] T047 [P] 撰寫 `src/tests/unit/infrastructure/collection/clients/test_openalex_client.py`（abstract 還原、URL 優先順序、429 處理、parse failure）
-- [ ] T048 [P] 撰寫 `src/tests/unit/infrastructure/collection/scrapers/test_openalex_scraper.py`（discover、no keywords、rate limited、fetch with/without PDF）
-- [ ] T049 [P] 撰寫 `frontend/tests/unit/components/features/scraper/openalex-keyword-manager.test.tsx`
+- [x] T047 [P] 撰寫 `src/tests/unit/infrastructure/collection/clients/test_openalex_client.py`（abstract 還原、URL 優先順序、429 處理、parse failure）
+- [x] T048 [P] 撰寫 `src/tests/unit/infrastructure/collection/scrapers/test_openalex_scraper.py`（discover、no keywords、rate limited、fetch with/without PDF）
+- [x] T049 [P] 撰寫 `frontend/tests/unit/openalex-keyword-manager.test.tsx`
 
 **Checkpoint**: OpenAlex 完整可測試
 
@@ -212,7 +212,7 @@
 ## Phase 8: Polish & Cross-Cutting Concerns（原 Phase 6）
 
 - [ ] T023 在 Docker 環境執行 `make test` 確認所有既有及新增 scraper unit tests 通過（含 T047/T048）
-- [ ] T024 [P] 在前端執行 `cd frontend && npm run test` 確認所有前端 unit tests 通過（含 T049）
+- [ ] T024 [P] 在前端執行 `cd frontend && npm run test` 確認所有前端 unit tests 通過（含 T014/T049）
 - [ ] T025 [P] 手動驗證流程：啟用 OpenAlex 來源 → 加入 keyword → `make scrape SOURCE=openalex LIMIT=3`
 
 ---

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
+    "generate": "node scripts/generate-config.mjs",
+    "dev": "node scripts/generate-config.mjs && vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview"
   },

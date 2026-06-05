@@ -157,8 +157,6 @@
 - **FR-012**: OpenAlex 設定 MUST 以 singleton 模式運作（每個 topic 最多一個），介面設計與 Semantic Scholar 設定卡片平行對稱。
 - **FR-013**: 管理員 MUST 能在 OpenAlex 設定中管理 topic 層級的關鍵字清單（`openalex_keyword` 類型，新增、刪除）。
 - **FR-014**: 系統 MUST 支援為 OpenAlex 設定 `max_results` 與 `days_back` 兩個參數；`max_results` 上限為 200（OpenAlex API 單次最大值）。
-- **FR-015**: OpenAlexClient MUST 還原 abstract inverted index 格式為純文字後儲存，並從 `ids.arxiv` / `doi` 正規化 URL；有開放取用 PDF 時同樣走 PdfParser 解析全文。
-- **FR-016**: 系統 MUST 透過環境變數 `OPENALEX_MAILTO` 讓 OpenAlex client 在 User-Agent 帶 mailto，以進入 polite pool（10 req/sec）；未設定時仍可運作但速率受預設限制。
 - **FR-015**: OpenAlexClient MUST 還原 abstract inverted index 格式為純文字後儲存，並從 `ids.arxiv` / `doi` 正規化 URL；有開放取用 PDF 時同樣走 PdfParser 解析全文。搜尋時 MUST 套用基礎過濾器（`type:article,has_abstract:true,is_retracted:false`）並以 `relevance_score:desc` 排序。
 - **FR-016**: 系統 MUST 透過環境變數 `OPENALEX_MAILTO` 讓 OpenAlex client 在 User-Agent 帶 mailto，以進入 polite pool（10 req/sec）；未設定時仍可運作但速率受預設限制。HTTP client `Accept-Encoding` MUST NOT 包含 `br`（Brotli）。
 - **FR-017**: LLM 分析流程 MUST 對 `openalex` 來源的論文採用與 ArXiv、Semantic Scholar 相同的內容擷取邏輯。
