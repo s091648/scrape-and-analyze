@@ -46,6 +46,30 @@ export const BlogSource: Story = {
   },
 }
 
+export const ViaOpenAlex: Story = {
+  args: {
+    source: 'openalex',
+    via_source: 'openalex',
+    original_source: 'Nature Neuroscience',
+    title: 'Digital Twin Simulation at Scale',
+    url: 'https://doi.org/10.1038/s12345-026-00001-1',
+    content:
+      'We present a scalable framework for simulating digital twins of complex cyber-physical systems using distributed reinforcement learning agents.',
+  },
+}
+
+export const ViaSemanticScholar: Story = {
+  args: {
+    source: 'semantic_scholar',
+    via_source: 'semantic_scholar',
+    original_source: 'arxiv',
+    title: 'Efficient Sparse Attention for Long-Context Transformers',
+    url: 'https://arxiv.org/abs/2502.99999',
+    content:
+      'Sparse attention mechanisms dramatically reduce memory overhead for long-context inputs while preserving accuracy on standard NLP benchmarks.',
+  },
+}
+
 export const ShareFeedback: Story = {
   name: 'Share — copy feedback',
   play: async ({ canvasElement }) => {

@@ -506,9 +506,13 @@ class ScrapeExecutor:
                         finally:
                             on_discover_complete()
                 # If it's a FetchTask in this queue, leave it for fetch workers
-                # — put it back and release semaphore
+                # — put it back and release semaphore. If all discovers are done,
+                # exit immediately to avoid spinning on fetch-only queues.
                 elif isinstance(task, FetchTask):
                     host_queue_map.queues[claimed_idx].put(task)
+                    with pending_lock:
+                        if pending_discovers[0] <= 0:
+                            break
 
             finally:
                 # Per-host discover cooldown — hold semaphore during sleep so

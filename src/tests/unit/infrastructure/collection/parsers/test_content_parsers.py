@@ -1,4 +1,5 @@
 import pytest
+import responses as _responses
 
 
 def test_base_content_parser_is_abstract():
@@ -67,10 +68,12 @@ def test_html_parser_custom_selectors_take_priority():
     assert 'wrong' not in result
 
 
+@_responses.activate
 def test_html_parser_fetch_and_parse_returns_fallback_on_error():
     from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
 
-    # Bad URL — should return fallback, not raise
+    # @responses.activate raises ConnectionError immediately for unregistered URLs
+    # (no real DNS query) so the test doesn't wait for a network timeout.
     parser = HtmlArticleParser()
     result = parser.fetch_and_parse('https://this-domain-does-not-exist-xyz.invalid/article', fallback='fallback text')
     assert result == 'fallback text'
@@ -151,10 +154,11 @@ def test_pdf_parser_prepare_for_analysis_caps_at_max_chars():
     assert len(result) <= 100
 
 
+@_responses.activate
 def test_pdf_parser_parse_returns_text_on_http_failure():
     from  src.infrastructure.collection.parsers.pdf_parser import PdfParser
 
+    # @responses.activate raises ConnectionError immediately for unregistered URLs.
     parser = PdfParser()
-    # Bad URL — should return empty string, not raise
     result = parser.parse('https://this-domain-does-not-exist-xyz.invalid/paper.pdf')
     assert result == ''

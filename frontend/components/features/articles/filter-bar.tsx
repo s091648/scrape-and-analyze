@@ -57,8 +57,8 @@ export function FilterBar({
   const [draftScrapedBefore, setDraftScrapedBefore] = useState(scrapedBefore)
 
   useEffect(() => {
-    fetchSourceCategories().then(cats => setAggregatorOptions(cats.aggregator))
-    fetchArticleFilterOriginalSources(selectedTopicId ?? undefined, locale).then(setOriginalSourceOptions)
+    fetchSourceCategories().then(cats => setAggregatorOptions(cats.aggregator ?? []))
+    fetchArticleFilterOriginalSources(selectedTopicId ?? undefined, locale).then(data => setOriginalSourceOptions(Array.isArray(data) ? data : []))
     fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions)
   }, [locale, selectedTopicId])
 

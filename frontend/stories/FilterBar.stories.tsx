@@ -11,16 +11,10 @@ const meta: Meta<typeof FilterBar> = {
   parameters: { layout: "padded" },
   args: {
     onApply: () => {},
-  },
-};
-
-export default meta;
-type Story = StoryObj<typeof FilterBar>;
-
-export const NoFilters: Story = {
-  args: {
-    sources: [],
+    aggregators: [],
+    originalSources: [],
     tags: [],
+    tagGroups: [],
     publishedAfter: "",
     publishedBefore: "",
     scrapedAfter: "",
@@ -29,14 +23,35 @@ export const NoFilters: Story = {
   },
 };
 
-export const WithActiveFilters: Story = {
+export default meta;
+type Story = StoryObj<typeof FilterBar>;
+
+export const NoFilters: Story = {};
+
+export const WithSourceFilter: Story = {
   args: {
-    sources: ["arxiv"],
+    originalSources: ["arxiv"],
     tags: ["AI", "Robotics"],
     publishedAfter: "2025-01-01",
-    publishedBefore: "",
-    scrapedAfter: "",
-    scrapedBefore: "",
     activeFilterCount: 3,
+  },
+};
+
+export const WithAggregatorFilter: Story = {
+  args: {
+    aggregators: ["openalex", "semantic_scholar"],
+    activeFilterCount: 2,
+  },
+};
+
+export const WithAllFilters: Story = {
+  args: {
+    aggregators: ["openalex"],
+    originalSources: ["arxiv"],
+    tags: ["Machine Learning"],
+    tagGroups: ["domain"],
+    publishedAfter: "2025-01-01",
+    publishedBefore: "2026-01-01",
+    activeFilterCount: 5,
   },
 };

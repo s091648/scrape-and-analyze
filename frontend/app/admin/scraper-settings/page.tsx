@@ -1063,7 +1063,7 @@ export default function ScraperSettingsPage() {
   const { selectedTopicId } = useTopic()
 
   useEffect(() => {
-    fetchSourceCategories().then(cats => setAggregatorTypeOptions(cats.aggregator))
+    fetchSourceCategories().then(cats => setAggregatorTypeOptions(cats.aggregator ?? []))
   }, [])
 
   useEffect(() => {

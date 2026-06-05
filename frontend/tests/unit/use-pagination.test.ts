@@ -24,7 +24,8 @@ describe('usePagination', () => {
     expect(result.current.page).toBe(1)
     expect(result.current.sort).toBe('scraped_at')
     expect(result.current.order).toBe('desc')
-    expect(result.current.sources).toEqual([])
+    expect(result.current.aggregators).toEqual([])
+    expect(result.current.originalSources).toEqual([])
     expect(result.current.tags).toEqual([])
   })
 
@@ -35,11 +36,11 @@ describe('usePagination', () => {
     expect(result.current.page).toBe(3)
   })
 
-  it('reads multi-value sources from URL', async () => {
-    setup('source=rss&source=blog')
+  it('reads multi-value original_source from URL', async () => {
+    setup('original_source=rss&original_source=blog')
     const { usePagination } = await import('@/hooks/use-pagination')
     const { result } = renderHook(() => usePagination())
-    expect(result.current.sources).toEqual(['rss', 'blog'])
+    expect(result.current.originalSources).toEqual(['rss', 'blog'])
   })
 
   it('setPage pushes URL with updated page', async () => {
@@ -61,12 +62,12 @@ describe('usePagination', () => {
   })
 
   it('setFilters replaces specified params and clears unspecified ones when passed explicitly', async () => {
-    const { mockPush } = setup('source=old&tag=OldTag')
+    const { mockPush } = setup('original_source=old&tag=OldTag')
     const { usePagination } = await import('@/hooks/use-pagination')
     const { result } = renderHook(() => usePagination())
-    result.current.setFilters({ source: ['rss'], tag: [] })
+    result.current.setFilters({ original_source: ['rss'], tag: [] })
     const calledWith: string = mockPush.mock.calls[0][0]
-    expect(calledWith).toContain('source=rss')
+    expect(calledWith).toContain('original_source=rss')
     expect(calledWith).not.toContain('OldTag')
   })
 
@@ -78,14 +79,14 @@ describe('usePagination', () => {
   })
 
   it('activeFilterCount increments per dimension', async () => {
-    setup('source=rss')
+    setup('original_source=rss')
     const { usePagination } = await import('@/hooks/use-pagination')
     const { result } = renderHook(() => usePagination())
     expect(result.current.activeFilterCount).toBe(1)
   })
 
   it('activeFilterCount counts source + tag as 2', async () => {
-    setup('source=rss&tag=AI')
+    setup('original_source=rss&tag=AI')
     const { usePagination } = await import('@/hooks/use-pagination')
     const { result } = renderHook(() => usePagination())
     expect(result.current.activeFilterCount).toBe(2)

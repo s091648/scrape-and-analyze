@@ -13,6 +13,8 @@ def make_mock_article():
         content="Content here",
         published_at=datetime.now(timezone.utc),
         scraped_at=datetime.now(timezone.utc),
+        metadata_=None,
+        original_source=None,
     )
 
 
@@ -112,3 +114,27 @@ def test_article_detail_unknown_id_returns_404():
     with patch("backend.routers.articles.get_article_by_id", return_value=None):
         response = client.get(f"/articles/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+def test_articles_aggregator_filter_passed_to_query():
+    from backend.main import app
+    client = TestClient(app)
+    mock_article = make_mock_article()
+    with patch("backend.routers.articles.get_articles_paginated",
+               return_value=(1, [mock_article])) as mock_query:
+        response = client.get("/articles?aggregator=semantic_scholar&aggregator=openalex")
+    assert response.status_code == 200
+    kwargs = mock_query.call_args.kwargs
+    assert kwargs.get("aggregators") == ["semantic_scholar", "openalex"]
+
+
+def test_articles_original_source_filter_passed_to_query():
+    from backend.main import app
+    client = TestClient(app)
+    mock_article = make_mock_article()
+    with patch("backend.routers.articles.get_articles_paginated",
+               return_value=(1, [mock_article])) as mock_query:
+        response = client.get("/articles?original_source=rss")
+    assert response.status_code == 200
+    kwargs = mock_query.call_args.kwargs
+    assert kwargs.get("original_sources") == ["rss"]

@@ -60,9 +60,42 @@ export const WithFullAnalysis: Story = {
     <DialogTrigger
       title="Deep Learning Advances in 2025: A Comprehensive Survey"
       source="arxiv"
+      url="https://arxiv.org/abs/2501.12345"
       published_at="2025-01-15T10:00:00Z"
       content="Large language models have demonstrated remarkable capabilities..."
       detail={mockDetail}
+      loading={false}
+    />
+  ),
+};
+
+export const ViaOpenAlex: Story = {
+  render: () => (
+    <DialogTrigger
+      title="Scalable Simulation of Digital Twins using OpenAlex"
+      source="openalex"
+      url="https://doi.org/10.1038/s12345"
+      via_source="openalex"
+      original_source="Nature Neuroscience"
+      published_at="2025-03-10T00:00:00Z"
+      content="This paper presents a scalable approach to digital twin simulation..."
+      detail={{ ...mockDetail, source: "openalex" }}
+      loading={false}
+    />
+  ),
+};
+
+export const ViaSemanticScholar: Story = {
+  render: () => (
+    <DialogTrigger
+      title="Transformer Efficiency via Semantic Scholar Discovery"
+      source="semantic_scholar"
+      url="https://arxiv.org/abs/2502.99999"
+      via_source="semantic_scholar"
+      original_source="arxiv"
+      published_at="2025-02-20T00:00:00Z"
+      content="We propose a novel training curriculum for transformer models..."
+      detail={{ ...mockDetail, source: "semantic_scholar" }}
       loading={false}
     />
   ),
@@ -73,6 +106,7 @@ export const Loading: Story = {
     <DialogTrigger
       title="Loading Article"
       source="rss"
+      url="https://example.com/article"
       published_at={null}
       content=""
       detail={null}
@@ -86,6 +120,7 @@ export const NoAnalysis: Story = {
     <DialogTrigger
       title="Article Without Analysis Yet"
       source="blog"
+      url="https://engineering.example.com/post"
       published_at="2025-03-01T00:00:00Z"
       content="This article has been scraped but not yet analyzed by the LLM pipeline."
       detail={{ ...mockDetail, model_used: null, pain_points: null, insights: null, innovations: null, tag_groups: [] }}

@@ -13,6 +13,10 @@ vi.mock('@/lib/api/tags', () => ({
   fetchTagGroups: vi.fn(),
 }))
 
+vi.mock('@/lib/api/source-categories', () => ({
+  fetchSourceCategories: vi.fn().mockResolvedValue({ aggregator: [], scraper: [] }),
+}))
+
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
     locale: 'en',

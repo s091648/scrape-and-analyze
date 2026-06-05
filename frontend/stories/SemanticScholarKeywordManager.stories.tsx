@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/react'
-import { SemanticScholarKeywordManager } from './semantic-scholar-keyword-manager'
+import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+import { SemanticScholarKeywordManager } from '../components/features/scraper/semantic-scholar-keyword-manager'
 
 const meta: Meta<typeof SemanticScholarKeywordManager> = {
   title: 'Features/Scraper/SemanticScholarKeywordManager',

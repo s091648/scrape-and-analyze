@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.value_objects import ArxivKeyword
-from shared.selector_config import ArxivConfig, SemanticScholarConfig
+from shared.selector_config import ArxivConfig, SemanticScholarConfig, OpenAlexConfig
 
 
 def _make_http_client():
@@ -28,6 +28,25 @@ def test_factory_creates_semantic_scholar_scraper():
     scraper = factory.create_for(setting)
 
     assert isinstance(scraper, SemanticScholarScraper)
+
+
+def test_factory_creates_openalex_scraper():
+    from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
+    from src.infrastructure.collection.scrapers.openalex_scraper import OpenAlexScraper
+
+    setting = ScraperSetting(
+        source="oa_test",
+        source_type="openalex",
+        url="",
+        interval_hours=24,
+        selector_config=OpenAlexConfig(max_results=20, days_back=7),
+        keyword_items=None,
+    )
+
+    factory = ConcreteScraperFactory(http_client=_make_http_client())
+    scraper = factory.create_for(setting)
+
+    assert isinstance(scraper, OpenAlexScraper)
 
 
 def test_factory_arxiv_keywords_is_none():
