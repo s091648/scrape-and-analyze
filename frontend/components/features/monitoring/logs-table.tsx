@@ -46,7 +46,7 @@ function buildDetails(line: string): string | undefined {
   let obj: Record<string, unknown>
   try { obj = JSON.parse(line) } catch { return undefined }
   // Priority order: url first (most useful), then source, error, counts, ids
-  const priority = ['url', 'source', 'error', 'count', 'duration_seconds', 'published', 'new', 'duplicate', 'failed', 'remaining', 'skipped', 'run_id', 'article_id', 'analysis_id', 'model', 'input_tokens', 'output_tokens']
+  const priority = ['url', 'source', 'original_source', 'error', 'count', 'duration_seconds', 'published', 'new', 'duplicate', 'failed', 'remaining', 'skipped', 'run_id', 'article_id', 'analysis_id', 'model', 'input_tokens', 'output_tokens']
   const parts: string[] = []
   for (const key of priority) {
     const val = obj[key]

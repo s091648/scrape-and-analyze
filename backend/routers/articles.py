@@ -20,9 +20,26 @@ class ArticleOut(BaseModel):
     content: str
     published_at: Optional[datetime]
     scraped_at: Optional[datetime]
+    via_source: Optional[str] = None
+    original_source: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+def _article_out(article) -> "ArticleOut":
+    meta = article.metadata_ or {}
+    return ArticleOut(
+        id=article.id,
+        url=article.url,
+        source=article.source,
+        title=article.title,
+        content=article.content,
+        published_at=article.published_at,
+        scraped_at=article.scraped_at,
+        via_source=meta.get("via_source"),
+        original_source=article.original_source or meta.get("original_source"),
+    )
 
 
 class PaginatedArticles(BaseModel):
@@ -39,6 +56,8 @@ def get_articles_paginated(
     page: int,
     size: int,
     sources: List[str] | None = None,
+    aggregators: List[str] | None = None,
+    original_sources: List[str] | None = None,
     tags: List[str] | None = None,
     tag_ids: List[UUID] | None = None,
     tag_groups: List[str] | None = None,
@@ -57,6 +76,12 @@ def get_articles_paginated(
 
     if sources:
         query = query.filter(Article.source.in_(sources))
+
+    if aggregators:
+        query = query.filter(Article.source.in_(aggregators))
+
+    if original_sources:
+        query = query.filter(Article.original_source.in_(original_sources))
 
     if tag_ids:
         from models.tag import article_tags as at
@@ -111,6 +136,8 @@ def list_articles(
     sort: Literal["scraped_at", "published_at", "source", "title"] = "scraped_at",
     order: Literal["asc", "desc"] = "desc",
     source: List[str] = Query(default=[]),
+    aggregator: List[str] = Query(default=[]),
+    original_source: List[str] = Query(default=[]),
     tag: List[str] = Query(default=[]),
     tag_id: List[UUID] = Query(default=[]),
     tag_group: List[str] = Query(default=[]),
@@ -125,6 +152,8 @@ def list_articles(
     total, items = get_articles_paginated(
         db, sort, order, page, size,
         sources=source or None,
+        aggregators=aggregator or None,
+        original_sources=original_source or None,
         tags=tag or None,
         tag_ids=tag_id or None,
         tag_groups=tag_group or None,
@@ -135,7 +164,12 @@ def list_articles(
         topic_id=topic_id,
     )
 
-    return PaginatedArticles(items=items, total=total, page=page, size=size)
+    return PaginatedArticles(
+        items=[_article_out(item) for item in items],
+        total=total,
+        page=page,
+        size=size,
+    )
 
 
 @router.get("/articles/filters/sources")
@@ -146,6 +180,16 @@ def get_filter_sources(topic_id: Optional[UUID] = Query(default=None),
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
     return [r[0] for r in query.order_by(Article.source).all()]
+
+
+@router.get("/articles/filters/original-sources")
+def get_filter_original_sources(topic_id: Optional[UUID] = Query(default=None),
+                                db: Session = Depends(get_db)):
+    from models.article import Article
+    query = db.query(Article.original_source).distinct().filter(Article.original_source.isnot(None))
+    if topic_id:
+        query = query.filter(Article.topic_id == topic_id)
+    return [r[0] for r in query.order_by(Article.original_source).all()]
 
 
 @router.get("/articles/filters/tags")
@@ -199,6 +243,8 @@ class ArticleDetailOut(BaseModel):
     content: str
     published_at: Optional[datetime]
     scraped_at: Optional[datetime]
+    via_source: Optional[str] = None
+    original_source: Optional[str] = None
     tags: list[str] = []
     tag_groups: list[TagGroupOut] = []
     pain_points: Optional[str] = None
@@ -323,6 +369,7 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
     for grp in tag_groups_data:
         flat_tags.extend(grp["tags"])
 
+    _meta = article.metadata_ or {}
     return ArticleDetailOut(
         id=article.id,
         url=article.url,
@@ -331,6 +378,8 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         content=article.content,
         published_at=article.published_at,
         scraped_at=article.scraped_at,
+        via_source=_meta.get("via_source"),
+        original_source=article.original_source or _meta.get("original_source"),
         tags=flat_tags,
         tag_groups=tag_groups_data,
         pain_points=pain_points,

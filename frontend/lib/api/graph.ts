@@ -28,11 +28,12 @@ export async function fetchGraph(topicId: string, locale?: string): Promise<Grap
 
 export interface GraphFilters {
   topic_id: string
+  aggregator?: string[]
   published_after?: string
   published_before?: string
   scraped_after?: string
   scraped_before?: string
-  source?: string[]
+  original_source?: string[]
   tag?: string[]
   tag_group?: string[]
 }
@@ -43,11 +44,12 @@ export async function fetchAnalysesGraph(
 ): Promise<GraphData> {
   const params = new URLSearchParams()
   params.set('topic_id', filters.topic_id)
+  filters.aggregator?.forEach(a => params.append('aggregator', a))
   if (filters.published_after) params.set('published_after', filters.published_after)
   if (filters.published_before) params.set('published_before', filters.published_before)
   if (filters.scraped_after) params.set('scraped_after', filters.scraped_after)
   if (filters.scraped_before) params.set('scraped_before', filters.scraped_before)
-  filters.source?.forEach(s => params.append('source', s))
+  filters.original_source?.forEach(o => params.append('original_source', o))
   filters.tag?.forEach(t => params.append('tag', t))
   const res = await apiFetch(`/analyses/graph?${params.toString()}`, {}, locale)
   return res.json()
@@ -60,11 +62,12 @@ export async function fetchAnalysesGraphGroup<T = unknown>(
 ): Promise<T[]> {
   const params = new URLSearchParams()
   if (filters?.topic_id) params.set('topic_id', filters.topic_id)
+  filters?.aggregator?.forEach(a => params.append('aggregator', a))
   if (filters?.published_after) params.set('published_after', filters.published_after)
   if (filters?.published_before) params.set('published_before', filters.published_before)
   if (filters?.scraped_after) params.set('scraped_after', filters.scraped_after)
   if (filters?.scraped_before) params.set('scraped_before', filters.scraped_before)
-  filters?.source?.forEach(s => params.append('source', s))
+  filters?.original_source?.forEach(o => params.append('original_source', o))
   filters?.tag?.forEach(t => params.append('tag', t))
   const qs = params.toString()
   const res = await apiFetch(

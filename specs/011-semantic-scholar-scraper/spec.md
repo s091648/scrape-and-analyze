@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-04
 
-**Updated**: 2026-06-05
+**Updated**: 2026-06-05 (rev 2 — 新增 US5/US6、FR-018~FR-023、bug fix 記錄)
 
 **Status**: In Progress
 
@@ -77,6 +77,42 @@
 
 ---
 
+---
+
+### User Story 5 - 文章來源標示（原始出處 + 聚合器標籤）(Priority: P2)
+
+身為讀者，當我瀏覽文章卡片時，我希望看到文章的真實原始出處（如 "arxiv"、"Nature"、"IEEE Transactions on..."），而非聚合器本身的名稱（"openalex" 或 "semantic_scholar"），並在旁邊附上小標籤說明「via OpenAlex」，讓我清楚知道論文的出處與抓取管道。
+
+**Why this priority**: DOI URL 顯示為 "doi" 毫無意義。讀者需要知道論文來自哪個期刊或 preprint 伺服器，而不只是聚合器。
+
+**Independent Test**: 觀察 OpenAlex 抓到的 arXiv 論文，卡片應顯示 "arxiv" badge 加上 "via OpenAlex" 小標；期刊論文應顯示期刊名稱（如 "Nature Neuroscience"）加上 "via OpenAlex"。
+
+**Acceptance Scenarios**:
+
+1. **Given** 一篇透過 OpenAlex 抓取且有 ArXiv ID 的論文，**When** 顯示文章卡片，**Then** source badge 應顯示 "arxiv"，並加上 "via OpenAlex" 小標籤。
+2. **Given** 一篇透過 OpenAlex 抓取且無 ArXiv ID（只有 DOI）的論文，**When** 顯示文章卡片，**Then** source badge 應顯示期刊名稱（從 `primary_location.source.display_name` 取得），並加上 "via OpenAlex" 小標籤。
+3. **Given** 一篇透過 Semantic Scholar 抓取且有 ArXiv ID 的論文，**When** 顯示文章卡片，**Then** source badge 應顯示 "arxiv"，並加上 "via Semantic Scholar" 小標籤。
+4. **Given** 非聚合器來源的論文（`source = "arxiv"` 直接抓取），**When** 顯示文章卡片，**Then** source badge 正常顯示 "arxiv"，不顯示 "via" 標籤。
+
+---
+
+### User Story 6 - 文章列表聚合器篩選（Priority: P2）
+
+身為讀者，我希望在文章列表頁能透過聚合器（OpenAlex / Semantic Scholar）來篩選文章，讓我專門檢視某一聚合器抓到的論文。這與現有 Source 篩選是獨立的維度。
+
+**Why this priority**: 讀者可能想評估 OpenAlex vs Semantic Scholar 的論文品質，或追蹤特定聚合器的覆蓋範圍。
+
+**Independent Test**: 在 Filter Bar 點選「Aggregator: OpenAlex」，確認列表只顯示 `source = 'openalex'` 的文章。URL 中出現 `aggregator=openalex` query param。
+
+**Acceptance Scenarios**:
+
+1. **Given** 文章列表頁已有 Filter Bar，**When** 展開 filter panel，**Then** 應看到「Aggregator」選項，固定提供 "openalex" 與 "semantic_scholar" 兩個選項。
+2. **Given** 選擇了 Aggregator: OpenAlex，**When** 套用篩選，**Then** URL 加入 `aggregator=openalex`，文章列表只顯示 `source = 'openalex'` 的文章。
+3. **Given** 同時選擇了 Aggregator 和 Source 篩選，**When** 套用，**Then** 兩者 AND 組合，只顯示同時符合的文章。
+4. **Given** Knowledge Graph 頁面，**When** 展開 Filter Bar，**Then** Aggregator 篩選同樣出現並正常運作。
+
+---
+
 ### Edge Cases
 
 **Semantic Scholar**:
@@ -91,6 +127,14 @@
 - 若論文有 ArXiv ID（`ids.arxiv`），系統應使用 ArXiv URL 作為正規化 URL；若有 DOI 則使用 DOI URL；否則使用 OpenAlex URL（`https://openalex.org/W...`）。
 - 若 OpenAlex API 回傳 HTTP 429，系統應記錄警告並跳過本次執行，不應中斷 pipeline。
 - polite pool 需在 User-Agent 帶上 `mailto:` 電子信箱（從環境變數 `OPENALEX_MAILTO` 讀取）；未設定時仍可運作但速率較低。
+- OpenAlex 預設 `Accept-Encoding` 不可包含 `br`（Brotli），因 `requests` 套件未安裝 `brotli` 時無法解碼，會導致 JSON 解析失敗。
+- OpenAlex 搜尋結果 MUST 套用基礎過濾器（`type:article,has_abstract:true,is_retracted:false`）以排除非期刊文章；排序應使用 `relevance_score:desc` 而非純日期排序，避免回傳與查詢無關的近期論文。
+
+**Article Source Display**:
+- 前端文章卡片 MUST 顯示「真實原始出處」（`original_source`），而非聚合器的 `source` 欄位名稱。
+- `original_source` 於 scraping 時由後端解析並存入 `metadata_` JSONB；前端直接讀取，不靠 URL heuristics。
+- 若 `original_source` 不存在（舊資料），前端應 fallback 至 URL hostname 解析（arxiv.org → "arxiv" 等）。
+- `via_source` 欄位儲存聚合器名稱（"openalex" / "semantic_scholar"）；非聚合器來源的文章 `via_source` 為 null，不顯示標籤。
 
 ## Requirements *(mandatory)*
 
@@ -115,7 +159,22 @@
 - **FR-014**: 系統 MUST 支援為 OpenAlex 設定 `max_results` 與 `days_back` 兩個參數；`max_results` 上限為 200（OpenAlex API 單次最大值）。
 - **FR-015**: OpenAlexClient MUST 還原 abstract inverted index 格式為純文字後儲存，並從 `ids.arxiv` / `doi` 正規化 URL；有開放取用 PDF 時同樣走 PdfParser 解析全文。
 - **FR-016**: 系統 MUST 透過環境變數 `OPENALEX_MAILTO` 讓 OpenAlex client 在 User-Agent 帶 mailto，以進入 polite pool（10 req/sec）；未設定時仍可運作但速率受預設限制。
+- **FR-015**: OpenAlexClient MUST 還原 abstract inverted index 格式為純文字後儲存，並從 `ids.arxiv` / `doi` 正規化 URL；有開放取用 PDF 時同樣走 PdfParser 解析全文。搜尋時 MUST 套用基礎過濾器（`type:article,has_abstract:true,is_retracted:false`）並以 `relevance_score:desc` 排序。
+- **FR-016**: 系統 MUST 透過環境變數 `OPENALEX_MAILTO` 讓 OpenAlex client 在 User-Agent 帶 mailto，以進入 polite pool（10 req/sec）；未設定時仍可運作但速率受預設限制。HTTP client `Accept-Encoding` MUST NOT 包含 `br`（Brotli）。
 - **FR-017**: LLM 分析流程 MUST 對 `openalex` 來源的論文採用與 ArXiv、Semantic Scholar 相同的內容擷取邏輯。
+
+**Article Source Attribution** (US5):
+- **FR-018**: 聚合器 scraper（SS / OA）在 discover/fetch 時 MUST 將 `via_source`（聚合器名稱）與 `original_source`（原始出處，如 "arxiv" 或期刊名稱）存入 Article `metadata_` JSONB 欄位；無需 DB schema 變更。
+- **FR-019**: `original_source` 解析規則：若論文有 ArXiv ID → "arxiv"；否則取 OpenAlex `primary_location.source.display_name`（期刊名稱）或 Semantic Scholar 直接為 "semanticscholar"。
+- **FR-020**: 後端 `ArticleOut` / `ArticleDetailOut` MUST 暴露 `via_source: Optional[str]` 與 `original_source: Optional[str]` 欄位（從 `metadata_` 讀取）。
+- **FR-021**: 前端文章卡片與文章詳情 dialog MUST 顯示 `original_source`（而非 scraper `source` 欄位）作為主要來源 badge；若 `via_source` 存在則額外顯示 "via OpenAlex" / "via Semantic Scholar" 小標籤。
+
+**Aggregator Filter** (US6):
+- **FR-022**: 後端 `/articles` API MUST 支援 `aggregator: List[str]` query 參數，過濾 `Article.source IN (aggregator)` 的文章；與現有 `source` 篩選獨立，可同時使用。
+- **FR-023**: 前端文章列表 Filter Bar MUST 新增 Aggregator 篩選（固定選項：openalex、semantic_scholar），透過 `aggregator` URL query param 傳遞；Knowledge Graph 頁面的 Filter Bar 同步支援。
+
+**Admin UI** (US1/US4 更新):
+- **FR-024**: Scraper Settings 頁面 MUST 將 Semantic Scholar 與 OpenAlex 兩個設定卡片整合於同一「Aggregator」accordion section 下，新增聚合器時以 dialog 選擇類型（SS / OA）後再展開對應設定卡片。
 
 ### Key Entities
 
@@ -125,6 +184,7 @@
 - **OpenAlexSetting**：OpenAlex 的抓取設定，與 SemanticScholarSetting 結構相同，每個 topic 最多一筆（singleton）。
 - **OpenAlexKeyword**：用於 OpenAlex search API 的關鍵字，`keyword_type = "openalex_keyword"`，屬於 topic 層級。
 - **OpenAlexWork**：從 OpenAlex API 取得的論文資料，包含 work ID、標題（需從 abstract inverted index 還原摘要）、作者、發表日期、開放取用 PDF URL、DOI、ArXiv ID、引用數。此為中間資料，最終儲存為系統統一的 Article 格式。
+- **ArticleSourceMetadata**：儲存於 `Article.metadata_` JSONB 中的來源相關欄位：`via_source`（聚合器名稱，如 "openalex"）、`original_source`（原始出處，如 "arxiv"、"Nature Neuroscience"）、`primary_topic`（OpenAlex primary topic 名稱）、`primary_field`（OpenAlex field 名稱）。
 
 ## Success Criteria *(mandatory)*
 
@@ -136,6 +196,8 @@
 - **SC-004**: ArXiv scraper 在移除 keyword 搜尋後，rate limit 錯誤（HTTP 429）應降低至每週 0 次（category-only 查詢量遠低於 rate limit 閾值）。
 - **SC-005**: 有開放取用 PDF 的論文，其 LLM 分析結果的標籤豐富度（tag 數量）應高於純摘要分析的同類論文。
 - **SC-006**: OpenAlex scrape 在無 API key 情況下（僅 mailto polite pool）應能穩定執行，不出現 HTTP 429（rate limiter 設定 5 RPM，遠低於 polite pool 10 req/sec 上限）。
+- **SC-007**: 透過聚合器抓取的 arXiv 論文，文章卡片 source badge 應正確顯示 "arxiv"（而非 "doi" 或聚合器名稱），正確率 100%。
+- **SC-008**: OpenAlex 回傳結果應為期刊文章（非書籍章節、資料集等），且有摘要，且未撤稿；`_BASE_FILTERS` 確保過濾品質。
 
 ## Assumptions
 
@@ -143,7 +205,7 @@
 - **Semantic Scholar**：免費 API 無法個人申請 key（需機構帳號），且未驗證 IP 的速率限制極為嚴格（首次執行即 HTTP 429）。保留 Semantic Scholar 實作，但以 OpenAlex 作為主要免費學術論文來源。若未來取得 API key，SS 實作可直接啟用。
 - **OpenAlex**：完全免費，無需 API key；透過 mailto polite pool 可穩定取得 10 req/sec，rate limiter 設定 5 RPM 確保安全邊際。abstract 以 inverted index 格式儲存，client 層負責還原。
 - 現有資料庫中已存在的 `arxiv_keyword` 資料不需清除，系統層忽略即可（無需資料遷移）。
-- 前端 Scraper Settings 頁面採用 AccordionSection 區塊佈局，新增 Semantic Scholar 與 OpenAlex 區塊沿用此架構。
+- 前端 Scraper Settings 頁面採用 AccordionSection 區塊佈局；Semantic Scholar 與 OpenAlex 合併為單一「Aggregator」accordion，新增時透過 dialog 選擇類型。
 - 論文 PDF 解析邏輯（PdfParser）現有實作可直接複用，無需修改。
 - 去重機制（UrlHash）現有實作可直接複用；URL 正規化邏輯在各 scraper client 內處理（ArXiv URL 優先 → DOI URL → 來源 URL）。
 - 本功能不包含論文引用關係（citation graph）的收集或展示。

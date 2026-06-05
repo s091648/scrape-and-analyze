@@ -80,6 +80,9 @@ function ArticlePreviewWrapper({ articleId, onClose }: { articleId: string | nul
       onOpenChange={v => { if (!v) onClose() }}
       title={detail?.title ?? ''}
       source={detail?.source ?? ''}
+      url={detail?.url ?? ''}
+      via_source={detail?.via_source}
+      original_source={detail?.original_source}
       published_at={detail?.published_at ?? null}
       content={detail?.content ?? ''}
       detail={detail}

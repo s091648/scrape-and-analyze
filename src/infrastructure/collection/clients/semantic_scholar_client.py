@@ -43,6 +43,7 @@ class SemanticScholarEntry:
     arxiv_id: Optional[str] = None
     citation_count: int = 0
     is_open_access: bool = False
+    original_source: Optional[str] = None  # e.g. "arxiv", "semanticscholar"
 
 
 class SemanticScholarClient:
@@ -143,8 +144,10 @@ class SemanticScholarClient:
 
             if arxiv_id:
                 url = f"https://arxiv.org/abs/{arxiv_id}"
+                original_source = "arxiv"
             else:
                 url = f"https://www.semanticscholar.org/paper/{paper_id}"
+                original_source = "semanticscholar"
 
             return SemanticScholarEntry(
                 paper_id=paper_id,
@@ -158,6 +161,7 @@ class SemanticScholarClient:
                 arxiv_id=arxiv_id,
                 citation_count=citation_count,
                 is_open_access=is_open_access,
+                original_source=original_source,
             )
         except Exception as e:
             logger.warning("semantic_scholar_parse_entry_failed", error=str(e))

@@ -525,13 +525,21 @@ function AddSemanticScholarCard({
   onActivate,
   existingKeywords,
   onDeleteExistingKeyword,
+  forceExpanded = false,
+  onClose,
 }: {
   onActivate: (setting: Omit<ScraperSetting, 'id'>, keywords: string[]) => Promise<void>
   existingKeywords: SSKeyword[]
   onDeleteExistingKeyword: (id: string) => Promise<void>
+  forceExpanded?: boolean
+  onClose?: () => void
 }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(forceExpanded)
+
+  function handleClose() {
+    if (forceExpanded) { onClose?.() } else { setExpanded(false) }
+  }
   const [form, setForm] = useState({ name: 'Semantic Scholar', frequency: 24, is_active: true, max_results: 20, days_back: 7 })
   const [localKeywords, setLocalKeywords] = useState<SSKeyword[]>([])
   const [saving, setSaving] = useState(false)
@@ -552,9 +560,9 @@ function AddSemanticScholarCard({
       localKeywords.map(k => k.keyword),
     )
     setSaving(false)
-    setExpanded(false)
     setForm({ name: 'Semantic Scholar', frequency: 24, is_active: true, max_results: 20, days_back: 7 })
     setLocalKeywords([])
+    handleClose()
   }
 
   const inputCls = 'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
@@ -572,7 +580,7 @@ function AddSemanticScholarCard({
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold">{t('admin.activateSemanticScholar')}</span>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}><X className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose}><X className="h-4 w-4" /></Button>
       </div>
       <div className="space-y-3">
         <div><label className={labelCls}>{t('admin.name')}</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
@@ -744,13 +752,21 @@ function AddOpenAlexCard({
   onActivate,
   existingKeywords,
   onDeleteExistingKeyword,
+  forceExpanded = false,
+  onClose,
 }: {
   onActivate: (setting: Omit<ScraperSetting, 'id'>, keywords: string[]) => Promise<void>
   existingKeywords: OAKeyword[]
   onDeleteExistingKeyword: (id: string) => Promise<void>
+  forceExpanded?: boolean
+  onClose?: () => void
 }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(forceExpanded)
+
+  function handleClose() {
+    if (forceExpanded) { onClose?.() } else { setExpanded(false) }
+  }
   const [form, setForm] = useState({ name: 'OpenAlex', frequency: 24, is_active: true, max_results: 20, days_back: 7 })
   const [localKeywords, setLocalKeywords] = useState<OAKeyword[]>([])
   const [saving, setSaving] = useState(false)
@@ -771,9 +787,9 @@ function AddOpenAlexCard({
       localKeywords.map(k => k.keyword),
     )
     setSaving(false)
-    setExpanded(false)
     setForm({ name: 'OpenAlex', frequency: 24, is_active: true, max_results: 20, days_back: 7 })
     setLocalKeywords([])
+    handleClose()
   }
 
   const inputCls = 'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
@@ -791,7 +807,7 @@ function AddOpenAlexCard({
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold">{t('admin.activateOpenAlex')}</span>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}><X className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose}><X className="h-4 w-4" /></Button>
       </div>
       <div className="space-y-3">
         <div><label className={labelCls}>{t('admin.name')}</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
@@ -1034,6 +1050,9 @@ export default function ScraperSettingsPage() {
   const [ssKeywords, setSsKeywords] = useState<SSKeyword[]>([])
   const [oaKeywords, setOaKeywords] = useState<OAKeyword[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showAggregatorTypeDialog, setShowAggregatorTypeDialog] = useState(false)
+  const [pendingAggregatorType, setPendingAggregatorType] = useState<'semantic_scholar' | 'openalex'>('semantic_scholar')
+  const [addingAggregatorType, setAddingAggregatorType] = useState<'semantic_scholar' | 'openalex' | null>(null)
 
   if (status === 'unauthenticated') redirect('/login')
   if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
@@ -1233,34 +1252,70 @@ export default function ScraperSettingsPage() {
               )}
             </AccordionSection>
 
-            <AccordionSection title="Semantic Scholar" badge={ssSettings.length}>
-              {ssSettings.length === 0 ? (
+            <AccordionSection title={t('admin.aggregator')} badge={ssSettings.length + oaSettings.length}>
+              {ssSettings.map(s => (
+                <SemanticScholarSettingCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete}
+                  ssKeywords={ssKeywords} onAddSSKeyword={handleAddSSKeyword} onDeleteSSKeyword={handleDeleteSSKeyword} />
+              ))}
+              {oaSettings.map(s => (
+                <OpenAlexSettingCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete}
+                  oaKeywords={oaKeywords} onAddOAKeyword={handleAddOAKeyword} onDeleteOAKeyword={handleDeleteOAKeyword} />
+              ))}
+
+              {addingAggregatorType === 'semantic_scholar' && (
                 <AddSemanticScholarCard
                   onActivate={handleActivateSemanticScholar}
                   existingKeywords={ssKeywords}
                   onDeleteExistingKeyword={handleDeleteSSKeyword}
+                  forceExpanded
+                  onClose={() => setAddingAggregatorType(null)}
                 />
-              ) : (
-                ssSettings.map(s => (
-                  <SemanticScholarSettingCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete}
-                    ssKeywords={ssKeywords} onAddSSKeyword={handleAddSSKeyword} onDeleteSSKeyword={handleDeleteSSKeyword} />
-                ))
               )}
-            </AccordionSection>
-
-            <AccordionSection title="OpenAlex" badge={oaSettings.length}>
-              {oaSettings.length === 0 ? (
+              {addingAggregatorType === 'openalex' && (
                 <AddOpenAlexCard
                   onActivate={handleActivateOpenAlex}
                   existingKeywords={oaKeywords}
                   onDeleteExistingKeyword={handleDeleteOAKeyword}
+                  forceExpanded
+                  onClose={() => setAddingAggregatorType(null)}
                 />
-              ) : (
-                oaSettings.map(s => (
-                  <OpenAlexSettingCard key={s.id} setting={s} onUpdate={handleUpdate} onDelete={handleDelete}
-                    oaKeywords={oaKeywords} onAddOAKeyword={handleAddOAKeyword} onDeleteOAKeyword={handleDeleteOAKeyword} />
-                ))
               )}
+
+              {!addingAggregatorType && (
+                <button
+                  onClick={() => setShowAggregatorTypeDialog(true)}
+                  className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t('admin.addAggregator')}
+                </button>
+              )}
+
+              <Dialog open={showAggregatorTypeDialog} onOpenChange={setShowAggregatorTypeDialog}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>{t('admin.chooseAggregatorType')}</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-sm text-muted-foreground">{t('admin.aggregatorTypeDesc')}</p>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">{t('admin.aggregatorType')}</label>
+                    <select
+                      value={pendingAggregatorType}
+                      onChange={e => setPendingAggregatorType(e.target.value as 'semantic_scholar' | 'openalex')}
+                      className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="semantic_scholar">Semantic Scholar</option>
+                      <option value="openalex">OpenAlex</option>
+                    </select>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowAggregatorTypeDialog(false)}>{t('admin.cancel')}</Button>
+                    <Button onClick={() => { setAddingAggregatorType(pendingAggregatorType); setShowAggregatorTypeDialog(false) }}>
+                      {t('admin.next')}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </AccordionSection>
 
             <AccordionSection title="Blog" badge={blogSettings.length}>

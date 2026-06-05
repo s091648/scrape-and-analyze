@@ -28,6 +28,9 @@ class ArticleScrapedHandler:
         span.set_attribute("article.content_chars", len(event.content))
         if event.topic_id:
             span.set_attribute("article.topic_id", str(event.topic_id))
+        original_source = event.metadata.get("original_source") if event.metadata else None
+        if original_source:
+            span.set_attribute("article.original_source", original_source)
 
         outcome, article = self._use_case.execute(event)
         self._pipeline_stats.record(event.source, outcome)
@@ -35,11 +38,14 @@ class ArticleScrapedHandler:
         span.set_attribute("article.outcome", outcome.value)
         if outcome == ArticleOutcome.FAILED:
             span.set_status(StatusCode.ERROR, "article scrape outcome: failed")
-            logger.error("article_scrape_failed", url=event.url, source=event.source)
+            logger.error("article_scrape_failed", url=event.url, source=event.source,
+                         original_source=original_source)
         elif outcome == ArticleOutcome.DUPLICATE:
-            logger.info("article_duplicate_skipped", url=event.url, source=event.source)
+            logger.info("article_duplicate_skipped", url=event.url, source=event.source,
+                        original_source=original_source)
         else:
-            logger.info("article_scrape_accepted", url=event.url, source=event.source)
+            logger.info("article_scrape_accepted", url=event.url, source=event.source,
+                        original_source=original_source)
 
         if article is not None:
             span.set_attribute("article.id", str(article.id))

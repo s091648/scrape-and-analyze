@@ -4,6 +4,8 @@ export interface Article {
   id: string
   title: string
   source: string
+  via_source?: string | null
+  original_source?: string | null
   content: string
   published_at: string | null
   scraped_at: string | null
@@ -30,7 +32,8 @@ export interface ArticleListParams {
   page?: number
   size?: number
   topic_id?: string
-  source?: string[]
+  aggregator?: string[]
+  original_source?: string[]
   tag?: string[]
   tag_id?: string[]
   tag_group?: string[]
@@ -52,7 +55,8 @@ export async function fetchArticles(
   if (params.topic_id) qs.set('topic_id', params.topic_id)
   if (params.sort) qs.set('sort', params.sort)
   if (params.order) qs.set('order', params.order)
-  params.source?.forEach(s => qs.append('source', s))
+  params.aggregator?.forEach(a => qs.append('aggregator', a))
+  params.original_source?.forEach(o => qs.append('original_source', o))
   params.tag?.forEach(t => qs.append('tag', t))
   params.tag_id?.forEach(id => qs.append('tag_id', id))
   params.tag_group?.forEach(g => qs.append('tag_group', g))
@@ -72,6 +76,12 @@ export async function fetchArticleById(id: string, locale?: string): Promise<Art
 
 export async function fetchArticleFilterSources(locale?: string): Promise<string[]> {
   const res = await apiFetch('/articles/filters/sources', {}, locale)
+  return res.json()
+}
+
+export async function fetchArticleFilterOriginalSources(topicId?: string, locale?: string): Promise<string[]> {
+  const qs = topicId ? `?topic_id=${topicId}` : ''
+  const res = await apiFetch(`/articles/filters/original-sources${qs}`, {}, locale)
   return res.json()
 }
 

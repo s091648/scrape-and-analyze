@@ -4,7 +4,7 @@
 
 **Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅
 
-**Updated**: 2026-06-05 — 新增 Phase 7（OpenAlex 實作）；反映 Semantic Scholar API key 限制
+**Updated**: 2026-06-05 (rev 2) — 新增 Phase 9~11（Bug Fixes、Article Source Attribution、Aggregator Filter）
 
 **Tests**: 依 Constitution §III，本 tasks.md 包含強制測試 phase。
 
@@ -159,6 +159,56 @@
 
 ---
 
+---
+
+## Phase 9: Bug Fixes（2026-06-05 補充）
+
+**Background**: 整合測試與實際執行中發現的問題修正
+
+- [x] T050 [P] 修正 `src/infrastructure/collection/scrapers/scraper_factory.py`：SS + OA client 加入 `with_skip_retry_status(frozenset({429}))`，避免 429 觸發 8 分鐘 tenacity retry（同 ArXiv 模式）
+- [x] T051 [P] 修正 `src/infrastructure/collection/collection_pipeline.py`：為 `semantic_scholar`、`openalex` source_type 硬編碼正確 API host（`api.semanticscholar.org` / `api.openalex.org`），修正原本兩者共用同一 per-host queue 的問題
+- [x] T052 [P] 修正 `src/infrastructure/shared/http/user_agent.py`：從 `Accept-Encoding` 移除 `br`（Brotli），修正 OpenAlex 回傳 Brotli 壓縮內容但 `requests` 無法解碼導致的 JSONDecodeError
+- [x] T053 [P] 更新 `src/infrastructure/collection/clients/openalex_client.py`：新增 `_BASE_FILTERS`（type:article, has_abstract:true, is_retracted:false）並將排序改為 `relevance_score:desc`，提升結果品質
+
+---
+
+## Phase 10: Article Source Attribution（US5 — FR-018~FR-021）
+
+**Goal**: 文章卡片顯示真實原始出處（arxiv/期刊名）而非聚合器名稱；後端暴露 `via_source` / `original_source` 欄位
+
+- [x] T054 [P] 更新 `src/infrastructure/collection/clients/openalex_client.py`：新增 `OpenAlexEntry.original_source`；`_parse_entry()` 從 arxiv_id 或 `primary_location.source.display_name` 解析
+- [x] T055 [P] 更新 `src/infrastructure/collection/clients/semantic_scholar_client.py`：新增 `SemanticScholarEntry.original_source`；arxiv_id 存在 → "arxiv"，否則 → "semanticscholar"
+- [x] T056 [P] 更新 `src/infrastructure/collection/scrapers/openalex_scraper.py` + `semantic_scholar_scraper.py`：`discover()` metadata 與 `fetch()` extra 均加入 `via_source` 與 `original_source`
+- [x] T057 [P] 更新 `backend/routers/articles.py`：`ArticleOut` + `ArticleDetailOut` 新增 `via_source: Optional[str]` + `original_source: Optional[str]`；`_article_out()` 從 `metadata_` 讀取；`get_article` 同步
+- [x] T058 [P] 新增 `frontend/components/features/articles/source-utils.ts`：`deriveDisplaySource(url, source, originalSource?)` + `formatViaSource(viaSource)` 共用工具
+- [x] T059 [P] 更新 `frontend/lib/api/articles.ts`：`Article` 新增 `via_source?` + `original_source?`；更新 `ArticleDetail`
+- [x] T060 [P] 更新 `frontend/components/features/articles/article-card.tsx`：使用 `deriveDisplaySource` 顯示原始出處，`via_source` 存在時顯示 "via OpenAlex" / "via Semantic Scholar" 小標籤
+- [x] T061 [P] 更新 `frontend/components/features/articles/article-detail-dialog.tsx`：同 T060，加入 `url` + `via_source` + `original_source` prop
+- [x] T062 [P] 更新 `frontend/components/features/monitoring/traces-table.tsx`：`ArticleDetailDialog` 補入 `url` + `via_source` + `original_source` prop
+
+**Checkpoint**: US5 完整可測試 ✅
+
+---
+
+## Phase 11: Aggregator Filter（US6 — FR-022~FR-023）
+
+**Goal**: 文章列表與 Knowledge Graph 新增 Aggregator 篩選維度
+
+- [x] T063 更新 `backend/routers/articles.py`：`list_articles` 新增 `aggregator: List[str] = Query(default=[])` 參數；`get_articles_paginated` 支援 `aggregators` 過濾（`source IN aggregators`）
+- [x] T064 [P] 更新 `frontend/lib/api/articles.ts`：`ArticleListParams` 新增 `aggregator?: string[]`；`fetchArticles` append aggregator params
+- [x] T065 [P] 更新 `frontend/lib/api/graph.ts`：`GraphFilters` 新增 `aggregator?: string[]`
+- [x] T066 更新 `frontend/hooks/use-pagination.ts`：新增 `aggregators` URL state；`setFilters` 支援 `aggregator` 更新；`activeFilterCount` 計入
+- [x] T067 更新 `frontend/components/features/articles/filter-bar.tsx`：新增 `aggregators: string[]` prop；加入 Aggregator `MultiSelectPopover`（固定選項：openalex、semantic_scholar）；`onApply` / `handleClear` 同步
+- [x] T068 更新 `frontend/app/home-page-content.tsx`：從 `usePagination` 取 `aggregators`，傳入 `FilterBar` 與 `fetchArticles`
+- [x] T069 [P] 更新 `frontend/components/features/graph/knowledge-graph.tsx`：`FilterBar` 補入 `aggregators` prop + `activeFilterCount` 計算
+- [x] T070 [P] 更新 i18n：`en.json` + `zh-TW.json` 新增 `filterBar.aggregator`（"Aggregator" / "聚合器"）
+- [x] T071 [P] 更新 `frontend/components/features/scraper/scraper-source-card.tsx`：`ScraperSetting.source_type` union 加入 `"semantic_scholar" | "openalex"`（修正 TS 型別錯誤）
+- [x] T072 [P] 修正前端測試型別問題：`filter-bar.test.tsx`（aggregators prop）、`error-boundary.test.tsx`（vi import + React import）、`article-share-page.test.tsx`（mockGetSearchParam 型別）
+
+**Checkpoint**: US6 完整可測試 ✅
+
+---
+
 ## Phase 8: Polish & Cross-Cutting Concerns（原 Phase 6）
 
 - [ ] T023 在 Docker 環境執行 `make test` 確認所有既有及新增 scraper unit tests 通過（含 T047/T048）
@@ -176,7 +226,12 @@
 - **Phase 3（US1）**: 依賴 Phase 2 完成；後端 T005→T006→T007 循序；前端 T008/T009 可並行，T010/T011 循序；測試 T012/T013/T014 可並行
 - **Phase 4（US2）**: 依賴 Phase 3 完成；T015→T016 循序；T017/T018 可並行
 - **Phase 5（US3）**: 依賴 Phase 2 完成；與 US2 可並行
-- **Phase 6（Polish）**: 依賴所有 User Story phase 完成
+- **Phase 6（SS Bug Fixes）**: 依賴 Phase 3 完成
+- **Phase 7（OpenAlex）**: 依賴 Phase 2 完成；與 Phase 4/5 可並行
+- **Phase 9（Bug Fixes）**: 依賴 Phase 7 完成；T050~T053 互相獨立
+- **Phase 10（Article Source Attribution）**: 依賴 Phase 9 完成（需要 via_source 正確寫入）；T054~T062 大部分可並行
+- **Phase 11（Aggregator Filter）**: 依賴 Phase 10 完成（前端 Article type 需有 via_source）；T063→T066→T067/T068 有順序；T064/T065/T069/T070/T071/T072 可並行
+- **Phase 8（Polish）**: 依賴所有 Feature phase（3~11）完成
 
 ---
 

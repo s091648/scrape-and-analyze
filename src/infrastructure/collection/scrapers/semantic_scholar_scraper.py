@@ -64,6 +64,8 @@ class SemanticScholarScraper(BaseScraper):
                     "is_open_access": e.is_open_access,
                     "authors": e.authors or [],
                     "published": e.publication_date,
+                    "via_source": "semantic_scholar",
+                    "original_source": e.original_source,
                 },
             ))
         logger.info("semantic_scholar_discover_complete", count=len(jobs))
@@ -101,6 +103,8 @@ class SemanticScholarScraper(BaseScraper):
                 "is_open_access": job.metadata.get("is_open_access", False),
                 "pdf_available": pdf_available,
                 "sections": sections,
+                "via_source": "semantic_scholar",
+                "original_source": job.metadata.get("original_source"),
             },
         )
 

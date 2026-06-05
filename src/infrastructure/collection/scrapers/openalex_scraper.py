@@ -65,6 +65,10 @@ class OpenAlexScraper(BaseScraper):
                     "is_open_access": e.is_open_access,
                     "authors": e.authors or [],
                     "published": e.publication_date,
+                    "via_source": "openalex",
+                    "original_source": e.original_source,
+                    "primary_topic": e.primary_topic,
+                    "primary_field": e.primary_field,
                 },
             ))
         logger.info("openalex_discover_complete", count=len(jobs))
@@ -102,6 +106,10 @@ class OpenAlexScraper(BaseScraper):
                 "is_open_access": job.metadata.get("is_open_access", False),
                 "pdf_available": pdf_available,
                 "sections": sections,
+                "via_source": "openalex",
+                "original_source": job.metadata.get("original_source"),
+                "primary_topic": job.metadata.get("primary_topic"),
+                "primary_field": job.metadata.get("primary_field"),
             },
         )
 

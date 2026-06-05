@@ -31,6 +31,7 @@ class SqlAlchemyArticleRepository(ArticleRepository):
             metadata_=article.metadata or {},
             topic_id=article.topic_id,
             correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
+            original_source=article.original_source,
         )
         self._session.add(row)
         self._session.flush()
@@ -67,4 +68,5 @@ class SqlAlchemyArticleRepository(ArticleRepository):
             scraped_at=row.scraped_at,
             metadata=row.metadata_ or {},
             topic_id=row.topic_id,
+            original_source=row.original_source,
         )

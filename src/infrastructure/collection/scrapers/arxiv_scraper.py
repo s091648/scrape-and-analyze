@@ -93,6 +93,7 @@ class ArxivScraper(BaseScraper):
                 "abstract": job.metadata.get("abstract"),
                 "pdf_available": pdf_available,
                 "sections": sections,
+                "original_source": "arxiv",
             },
         )
 

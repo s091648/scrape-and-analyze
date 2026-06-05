@@ -1,6 +1,6 @@
 # Implementation Plan: Semantic Scholar + OpenAlex Scraper
 
-**Branch**: `feat/semantic_scholar` | **Date**: 2026-06-04 | **Updated**: 2026-06-05 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat/semantic_scholar` | **Date**: 2026-06-04 | **Updated**: 2026-06-05 (rev 2) | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/011-semantic-scholar-scraper/spec.md`
 
@@ -30,7 +30,7 @@
 
 **Performance Goals**: 單次 Semantic Scholar scrape（20 篇）< 60 秒（不含 PDF 下載）
 
-**Constraints**: Semantic Scholar 免費層 IP 配額極低（首次執行即 429，需機構帳號才能申請 key）；OpenAlex polite pool 10 req/sec，rate limiter 設定 5 RPM；兩者 rate limit 錯誤均需 warn-and-skip（不中斷 pipeline）；PDF 下載失敗需退回 abstract
+**Constraints**: Semantic Scholar 免費層 IP 配額極低（首次執行即 429，需機構帳號才能申請 key）；OpenAlex polite pool 10 req/sec，rate limiter 設定 5 RPM；兩者 rate limit 錯誤均需 warn-and-skip（不中斷 pipeline）；PDF 下載失敗需退回 abstract；HTTP client 不得在 `Accept-Encoding` 中宣告 `br`（Brotli），因 `requests` 套件未安裝 brotli 解碼器
 
 **Scale/Scope**: 與既有 pipeline 規模相同（小規模、排程執行）
 
@@ -88,8 +88,11 @@ src/infrastructure/collection/scrapers/scraper_factory.py       ← 新增 SS + 
 src/infrastructure/collection/scrapers/__init__.py              ← export SemanticScholarScraper + OpenAlexScraper（已完成）
 src/infrastructure/collection/clients/__init__.py               ← export SemanticScholarClient + OpenAlexClient（已完成）
 src/infrastructure/shared/http/rate_limiter.py                  ← 新增 api.semanticscholar.org + api.openalex.org（已完成）
-src/shared/domain/entities/article.py                          ← 更新 get_analysis_content()
-backend/schemas/scraper_setting.py                              ← Literal 新增 semantic_scholar + openalex（已完成）
+src/shared/domain/entities/article.py                          ← 更新 get_analysis_content()（已完成）
+src/infrastructure/collection/collection_pipeline.py           ← 新增 SS/OA host routing（已完成）
+src/infrastructure/shared/http/user_agent.py                   ← 移除 Accept-Encoding: br（已完成）
+backend/schemas/scraper_setting.py                             ← Literal 新增 semantic_scholar + openalex（已完成）
+backend/routers/articles.py                                    ← 新增 via_source/original_source 欄位 + aggregator filter（已完成）
 
 # Backend — 測試（新增）
 src/tests/unit/infrastructure/collection/clients/
@@ -106,10 +109,20 @@ frontend/components/features/scraper/
 └── openalex-keyword-manager.tsx（已完成）
 
 # Frontend — 修改檔案
-frontend/app/admin/scraper-settings/page.tsx      ← 新增 SS + OA 卡片；移除 ArXiv keyword UI（已完成）
-frontend/lib/providers/locales/en.json            ← 新增 SS + OA 相關字串（已完成）
-frontend/lib/providers/locales/zh-TW.json         ← 新增 SS + OA 相關字串（已完成）
-frontend/lib/api/scraper-settings.ts              ← source_type union 補上 semantic_scholar + openalex（已完成）
+frontend/app/admin/scraper-settings/page.tsx        ← 新增 SS + OA 卡片；移除 ArXiv keyword UI；合併 Aggregator accordion + type dialog（已完成）
+frontend/app/home-page-content.tsx                  ← 新增 aggregators 傳遞（已完成）
+frontend/lib/providers/locales/en.json              ← 新增 SS + OA + aggregator + filterBar 相關字串（已完成）
+frontend/lib/providers/locales/zh-TW.json           ← 新增 SS + OA + aggregator + filterBar 相關字串（已完成）
+frontend/lib/api/scraper-settings.ts                ← source_type union 補上 semantic_scholar + openalex（已完成）
+frontend/lib/api/articles.ts                        ← 新增 via_source / original_source / aggregator 欄位（已完成）
+frontend/lib/api/graph.ts                           ← GraphFilters 新增 aggregator（已完成）
+frontend/hooks/use-pagination.ts                    ← 新增 aggregators URL state（已完成）
+frontend/components/features/articles/filter-bar.tsx          ← 新增 Aggregator filter（已完成）
+frontend/components/features/articles/article-card.tsx        ← 顯示 original_source + via_source badge（已完成）
+frontend/components/features/articles/article-detail-dialog.tsx ← 顯示 original_source + via_source badge（已完成）
+frontend/components/features/articles/source-utils.ts         ← 新增共用工具（deriveDisplaySource, formatViaSource）（已完成）
+frontend/components/features/graph/knowledge-graph.tsx        ← FilterBar 新增 aggregators prop（已完成）
+frontend/components/features/scraper/scraper-source-card.tsx  ← source_type union 補上 semantic_scholar + openalex（已完成）
 
 # Frontend — 測試（新增）
 frontend/tests/unit/components/features/scraper/

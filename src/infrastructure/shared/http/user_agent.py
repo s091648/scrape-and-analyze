@@ -97,7 +97,7 @@ def get_browser_headers(ua: str, referer: str | None = None) -> dict:
             "q=0.8,application/signed-exchange;v=b3;q=0.7"
         ),
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate",
         "Cache-Control": "max-age=0",
         "Upgrade-Insecure-Requests": "1",
     }

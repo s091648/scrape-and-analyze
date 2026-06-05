@@ -75,5 +75,8 @@ def with_article_pipeline_span(fn, bus, tracer, pipeline_span_name: str, scraped
             ps.set_attribute("article.source", event.source)
             if topic_id:
                 ps.set_attribute("article.topic_id", str(topic_id))
+            original_source = (getattr(event, 'metadata', None) or {}).get('original_source')
+            if original_source:
+                ps.set_attribute("article.original_source", original_source)
             return with_span_deferred(scraped_span_name, fn, bus, tracer)(event)
     return _wrapper

@@ -65,7 +65,14 @@ class CollectionPipeline:
             scraper = self._scraper_factory.create_for(setting)
             # arXiv settings store no meaningful URL; use the API host directly
             # so the discover cooldown in ScrapeExecutor is applied correctly.
-            host = "export.arxiv.org" if setting.source_type == "arxiv" else _extract_host(setting.url)
+            if setting.source_type == "arxiv":
+                host = "export.arxiv.org"
+            elif setting.source_type == "semantic_scholar":
+                host = "api.semanticscholar.org"
+            elif setting.source_type == "openalex":
+                host = "api.openalex.org"
+            else:
+                host = _extract_host(setting.url)
             discover_tasks.append(DiscoverTask(
                 setting=setting,
                 scraper=scraper,

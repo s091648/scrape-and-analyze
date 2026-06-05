@@ -14,7 +14,7 @@ import { useI18n } from '@/lib/providers'
 
 export interface ScraperSetting {
   id: string
-  source_type: 'rss' | 'blog' | 'arxiv'
+  source_type: 'rss' | 'blog' | 'arxiv' | 'semantic_scholar' | 'openalex'
   name: string
   url: string
   frequency: number

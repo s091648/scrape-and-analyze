@@ -6,9 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown } from 'lucide-react'
 
+export interface SelectOption {
+  value: string
+  label: string
+}
+
 interface MultiSelectPopoverProps {
   label: string
-  options: string[]
+  options: (string | SelectOption)[]
   selected: string[]
   onChange: (val: string[]) => void
   searchPlaceholder?: string
@@ -17,6 +22,8 @@ interface MultiSelectPopoverProps {
 export function MultiSelectPopover({
   label, options, selected, onChange, searchPlaceholder,
 }: MultiSelectPopoverProps) {
+  const normalized = options.map(o => typeof o === 'string' ? { value: o, label: o } : o)
+
   function toggle(v: string) {
     onChange(selected.includes(v) ? selected.filter(s => s !== v) : [...selected, v])
   }
@@ -39,10 +46,10 @@ export function MultiSelectPopover({
             className="h-8 text-xs"
           />
           <CommandList className="max-h-52">
-            {options.map(opt => (
-              <CommandItem key={opt} value={opt} onSelect={() => toggle(opt)} className="gap-2 text-xs">
-                <Checkbox checked={selected.includes(opt)} className="h-3.5 w-3.5" />
-                {opt}
+            {normalized.map(opt => (
+              <CommandItem key={opt.value} value={opt.value} onSelect={() => toggle(opt.value)} className="gap-2 text-xs">
+                <Checkbox checked={selected.includes(opt.value)} className="h-3.5 w-3.5" />
+                {opt.label}
               </CommandItem>
             ))}
           </CommandList>
