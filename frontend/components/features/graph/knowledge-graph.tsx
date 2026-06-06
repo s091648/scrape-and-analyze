@@ -230,7 +230,8 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
       <div className="w-[60%] flex flex-col gap-3">
         {!isPaywall && !isGuestMode && (
           <FilterBar
-            sources={graphFilters.source ?? []}
+            aggregators={graphFilters.aggregator ?? []}
+            originalSources={graphFilters.original_source ?? []}
             tags={graphFilters.tag ?? []}
             tagGroups={graphFilters.tag_group ?? []}
             publishedAfter={graphFilters.published_after ?? ''}
@@ -238,14 +239,16 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
             scrapedAfter={graphFilters.scraped_after ?? ''}
             scrapedBefore={graphFilters.scraped_before ?? ''}
             activeFilterCount={
-              (graphFilters.source?.length ? 1 : 0) +
+              (graphFilters.aggregator?.length ? 1 : 0) +
+              (graphFilters.original_source?.length ? 1 : 0) +
               (graphFilters.tag?.length || graphFilters.tag_group?.length ? 1 : 0) +
               ((graphFilters.published_after || graphFilters.published_before) ? 1 : 0) +
               ((graphFilters.scraped_after || graphFilters.scraped_before) ? 1 : 0)
             }
             onApply={updates => setGraphFilters(prev => ({
               ...prev,
-              source: updates.source,
+              aggregator: updates.aggregator,
+              original_source: updates.original_source,
               tag: updates.tag,
               tag_group: updates.tag_group,
               published_after: updates.published_after,

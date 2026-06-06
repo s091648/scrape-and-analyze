@@ -34,7 +34,8 @@ export default function HomePageContent() {
   const { t, locale } = useI18n()
   const {
     page, sort, order, setPage, setFilters,
-    sources, tags, tagGroups, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
+    aggregators, originalSources, tags, tagGroups,
+    publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
     activeFilterCount,
   } = usePagination()
   const [articles, setArticles] = useState<Article[]>([])
@@ -73,7 +74,8 @@ export default function HomePageContent() {
         topic_id: selectedTopicId,
         sort,
         order,
-        source: sources,
+        aggregator: aggregators,
+        original_source: originalSources,
         tag: tags,
         tag_group: tagGroups,
         published_after: publishedAfter,
@@ -102,7 +104,8 @@ export default function HomePageContent() {
       </div>
 
       <FilterBar
-        sources={sources}
+        aggregators={aggregators}
+        originalSources={originalSources}
         tags={tags}
         tagGroups={tagGroups}
         publishedAfter={publishedAfter}

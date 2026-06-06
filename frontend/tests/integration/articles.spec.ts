@@ -21,7 +21,7 @@ test.describe('Article list page', () => {
     await page.getByRole('option', { name: 'rss', exact: true }).click()
     // Apply filters
     await page.getByRole('button', { name: /apply/i }).click()
-    await expect(page).toHaveURL(/source=rss/)
+    await expect(page).toHaveURL(/original_source=rss/)
   })
 
   test('pagination advances to page 2', async ({ page }) => {
@@ -34,6 +34,19 @@ test.describe('Article list page', () => {
     const page2 = page.getByRole('button', { name: '2' }).or(page.getByRole('button', { name: /next/i }))
     await page2.first().click()
     await expect(page).toHaveURL(/page=2/)
+  })
+
+  test('aggregator filter updates URL', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: /filters/i }).click()
+    // The aggregator popover button label comes from the filter bar
+    const aggregatorBtn = page.getByRole('button', { name: /aggregator/i })
+    if (await aggregatorBtn.count() > 0) {
+      await aggregatorBtn.click()
+      await page.getByRole('option', { name: /semantic scholar/i }).click()
+      await page.getByRole('button', { name: /apply/i }).click()
+      await expect(page).toHaveURL(/aggregator=semantic_scholar/)
+    }
   })
 
   test('sort change resets to page 1', async ({ page }) => {

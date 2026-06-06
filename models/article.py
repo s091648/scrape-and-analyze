@@ -20,10 +20,12 @@ class Article(Base):
     metadata_ = Column('metadata', JSONB)
     correlation_id = Column(UUID(as_uuid=True), nullable=False)
     topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id'), nullable=True)
+    original_source = Column(String(200), nullable=True)
 
     __table_args__ = (
         Index('idx_articles_url_hash', 'url_hash'),
         Index('idx_articles_source', 'source'),
         Index('idx_articles_scraped_at', 'scraped_at'),
         Index('idx_articles_topic_id', 'topic_id'),
+        Index('idx_articles_original_source', 'original_source'),
     )

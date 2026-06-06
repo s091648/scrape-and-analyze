@@ -29,6 +29,7 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'article.title':                 'admin.stageAttr_articleTitle',
   'article.url':                   'admin.stageAttr_url',
   'article.source':                'admin.stageAttr_source',
+  'article.original_source':       'admin.stageAttr_originalSource',
   'article.topic_id':              'admin.stageAttr_topicId',
   'article.topic_display_name':    'admin.stageAttr_topicName',
   'article.content_chars':         'admin.stageAttr_contentChars',

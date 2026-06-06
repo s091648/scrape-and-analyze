@@ -56,7 +56,8 @@ def query_analyses(
     published_before: Optional[datetime] = None,
     scraped_after: Optional[datetime] = None,
     scraped_before: Optional[datetime] = None,
-    sources: Optional[List[str]] = None,
+    aggregators: Optional[List[str]] = None,
+    original_sources: Optional[List[str]] = None,
     tags: Optional[List[str]] = None,
 ) -> list:
     from models.analysis import Analysis
@@ -72,8 +73,10 @@ def query_analyses(
         query = query.filter(Article.scraped_at >= scraped_after)
     if scraped_before:
         query = query.filter(Article.scraped_at <= scraped_before)
-    if sources:
-        query = query.filter(Article.source.in_(sources))
+    if aggregators:
+        query = query.filter(Article.source.in_(aggregators))
+    if original_sources:
+        query = query.filter(Article.original_source.in_(original_sources))
     if tags:
         from models.tag import Tag, article_tags as at
         query = (
@@ -94,7 +97,8 @@ def query_group_articles(
     published_before: Optional[datetime] = None,
     scraped_after: Optional[datetime] = None,
     scraped_before: Optional[datetime] = None,
-    sources: Optional[List[str]] = None,
+    aggregators: Optional[List[str]] = None,
+    original_sources: Optional[List[str]] = None,
     tags: Optional[List[str]] = None,
 ) -> list:
     """Return analyses whose article has at least one tag in the given group, with optional filters."""
@@ -121,8 +125,10 @@ def query_group_articles(
         query = query.filter(Article.scraped_at >= scraped_after)
     if scraped_before:
         query = query.filter(Article.scraped_at <= scraped_before)
-    if sources:
-        query = query.filter(Article.source.in_(sources))
+    if aggregators:
+        query = query.filter(Article.source.in_(aggregators))
+    if original_sources:
+        query = query.filter(Article.original_source.in_(original_sources))
     if tags:
         from models.tag import Tag as T2, article_tags as at2
         query = (
@@ -192,7 +198,8 @@ def get_graph(
     published_before: Optional[datetime] = Query(default=None),
     scraped_after: Optional[datetime] = Query(default=None),
     scraped_before: Optional[datetime] = Query(default=None),
-    source: Optional[List[str]] = Query(default=None),
+    aggregator: Optional[List[str]] = Query(default=None),
+    original_source: Optional[List[str]] = Query(default=None),
     tag: Optional[List[str]] = Query(default=None),
     db: Session = Depends(get_db),
 ):
@@ -200,7 +207,9 @@ def get_graph(
         str(topic_id), lang,
         str(published_after), str(published_before),
         str(scraped_after), str(scraped_before),
-        tuple(sorted(source or [])), tuple(sorted(tag or [])),
+        tuple(sorted(aggregator or [])),
+        tuple(sorted(original_source or [])),
+        tuple(sorted(tag or [])),
     )
     now = time.time()
     if cache_key in _cache:
@@ -216,8 +225,9 @@ def get_graph(
         published_before=published_before,
         scraped_after=scraped_after,
         scraped_before=scraped_before,
-        sources=source or [],
-        tags=tag or [],
+        aggregators=aggregator or None,
+        original_sources=original_source or None,
+        tags=tag or None,
     )
     result = build_graph(analyses, group_defs)
     _cache[cache_key] = (result, now + CACHE_TTL_SECONDS)
@@ -233,7 +243,8 @@ def get_group_articles(
     published_before: Optional[datetime] = Query(default=None),
     scraped_after: Optional[datetime] = Query(default=None),
     scraped_before: Optional[datetime] = Query(default=None),
-    source: Optional[List[str]] = Query(default=None),
+    aggregator: Optional[List[str]] = Query(default=None),
+    original_source: Optional[List[str]] = Query(default=None),
     tag: Optional[List[str]] = Query(default=None),
     db: Session = Depends(get_db),
 ):
@@ -263,8 +274,9 @@ def get_group_articles(
         published_before=published_before,
         scraped_after=scraped_after,
         scraped_before=scraped_before,
-        sources=source or [],
-        tags=tag or [],
+        aggregators=aggregator or None,
+        original_sources=original_source or None,
+        tags=tag or None,
     )
 
     # Batch-load analysis translations (requested language + English fallback)

@@ -68,6 +68,7 @@ class ProcessScrapedArticleUseCase:
             published_at=event.published_at,
             topic_id=event.topic_id,
             metadata=event.metadata,
+            original_source=event.metadata.get("original_source"),
         )
 
     def _save_arxiv_metadata(self, article: Article, metadata: dict) -> None:

@@ -4,8 +4,10 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Rss, Settings, ChevronDown, Globe } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Rss, Settings, ChevronDown, Globe, BookOpen } from 'lucide-react'
 import { GitHubLogoIcon } from '@radix-ui/react-icons'
+import { ReleaseNotesPopover } from '@/components/features/navigation/release-notes-popover'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
@@ -140,7 +142,7 @@ export function NavBar() {
 
         {/* Env indicator — only shown in non-production environments */}
         {process.env.APP_ENV !== 'production' && (
-          <span className="absolute left-1/2 -translate-x-1/2 text-xs font-semibold font-mono text-red-500 select-none pointer-events-none">
+          <span className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold font-mono text-red-500 select-none pointer-events-none">
             {process.env.APP_ENV}
           </span>
         )}
@@ -179,28 +181,50 @@ export function NavBar() {
             )}
           </div>
 
-          <a
-            href="https://github.com/s091648/scrape-and-analyze"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground transition-colors duration-200"
-          >
-            <GitHubLogoIcon className="h-5 w-5" />
-          </a>
-          <a
-            href="https://s091648.github.io/scrape-and-analyze"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors duration-200"
-          >
-            Pages
-          </a>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href="https://github.com/s091648/scrape-and-analyze"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors duration-200"
+                >
+                  <GitHubLogoIcon className="h-5 w-5" />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>GitHub</TooltipContent>
+            </Tooltip>
 
-          {session && (
-            <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">
-              <Settings size={20} />
-            </Link>
-          )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href="https://s091648.github.io/scrape-and-analyze"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-foreground transition-colors duration-200"
+                >
+                  <BookOpen className="h-5 w-5" />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>Spec Docs</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <ReleaseNotesPopover />
+
+          <TooltipProvider>
+            {session && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link href="/settings" className="text-muted-foreground hover:text-foreground transition-colors duration-200">
+                    <Settings size={20} />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent>Settings</TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
 
           {session ? (
             <>

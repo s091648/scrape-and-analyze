@@ -18,8 +18,20 @@ class ArxivConfig(BaseModel):
     days_back: int = 7
 
 
+class SemanticScholarConfig(BaseModel):
+    type: Literal["semantic_scholar"] = "semantic_scholar"
+    max_results: int = 20
+    days_back: int = 7
+
+
+class OpenAlexConfig(BaseModel):
+    type: Literal["openalex"] = "openalex"
+    max_results: int = 20
+    days_back: int = 7
+
+
 SelectorConfig = Annotated[
-    Union[RssConfig, BlogConfig, ArxivConfig],
+    Union[RssConfig, BlogConfig, ArxivConfig, SemanticScholarConfig, OpenAlexConfig],
     Field(discriminator="type"),
 ]
 
@@ -47,6 +59,16 @@ def build_selector_config(
     if source_type == "arxiv":
         return ArxivConfig(
             max_results=raw.get("max_results", 30),
+            days_back=raw.get("days_back", 7),
+        )
+    if source_type == "semantic_scholar":
+        return SemanticScholarConfig(
+            max_results=raw.get("max_results", 20),
+            days_back=raw.get("days_back", 7),
+        )
+    if source_type == "openalex":
+        return OpenAlexConfig(
+            max_results=raw.get("max_results", 20),
             days_back=raw.get("days_back", 7),
         )
     return None

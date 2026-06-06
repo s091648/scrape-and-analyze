@@ -6,13 +6,19 @@ from src.modules.collection.domain.value_objects import (
     ArxivCategory,
     ArxivKeyword,
     BlogConfig,
+    OpenAlexConfig,
+    OpenAlexKeyword,
     RssConfig,
     RssKeyword,
+    SemanticScholarKeyword,
 )
+from shared.selector_config import SemanticScholarConfig
 from .base_scraper import BaseScraper
 from .rss_scraper import RssScraper
 from .blog_scraper import BlogScraper
 from .arxiv_scraper import ArxivScraper
+from .openalex_scraper import OpenAlexScraper
+from .semantic_scholar_scraper import SemanticScholarScraper
 from src.infrastructure.collection.clients import ArxivClient, RssClient
 
 logger = get_logger(__name__)
@@ -65,11 +71,37 @@ class ConcreteScraperFactory(ScraperFactory):
             return ArxivScraper(
                 max_results=cfg.max_results,
                 days_back=effective_days_back,
-                keywords=_extract(setting.keyword_items, ArxivKeyword, "keyword"),
+                keywords=None,
                 categories=_extract(setting.keyword_items, ArxivCategory, "keyword"),
                 topic_id=setting.topic_id,
                 prompt_override=setting.prompt_override,
                 client=ArxivClient(http_client=arxiv_http),
+            )
+
+        if isinstance(cfg, SemanticScholarConfig):
+            # SS 429 = per-IP daily quota; retrying only burns time.
+            ss_http = self._http_client.with_skip_retry_status(frozenset({429}))
+            from src.infrastructure.collection.clients import SemanticScholarClient
+            return SemanticScholarScraper(
+                max_results=cfg.max_results,
+                days_back=cfg.days_back if days_back is None else (None if days_back == -1 else days_back),
+                keywords=_extract(setting.keyword_items, SemanticScholarKeyword, "keyword"),
+                topic_id=setting.topic_id,
+                prompt_override=setting.prompt_override,
+                client=SemanticScholarClient(http_client=ss_http),
+            )
+
+        if isinstance(cfg, OpenAlexConfig):
+            # OA 429 = polite pool limit; fail fast and let the next run succeed.
+            oa_http = self._http_client.with_skip_retry_status(frozenset({429}))
+            from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
+            return OpenAlexScraper(
+                max_results=cfg.max_results,
+                days_back=cfg.days_back if days_back is None else (None if days_back == -1 else days_back),
+                keywords=_extract(setting.keyword_items, OpenAlexKeyword, "keyword"),
+                topic_id=setting.topic_id,
+                prompt_override=setting.prompt_override,
+                client=OpenAlexClient(http_client=oa_http),
             )
 
         logger.warning("unknown_source_type", source_type=setting.source_type)

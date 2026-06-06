@@ -85,10 +85,10 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
         # a raw dict (legacy data), or None. build_selector_config() handles all cases.
         from src.modules.collection.domain.value_objects import (
             build_selector_config,
-            RssConfig, BlogConfig, ArxivConfig,
+            RssConfig, BlogConfig, ArxivConfig, SemanticScholarConfig, OpenAlexConfig,
         )
         raw_cfg = row.selector_config
-        if isinstance(raw_cfg, (RssConfig, BlogConfig, ArxivConfig)):
+        if isinstance(raw_cfg, (RssConfig, BlogConfig, ArxivConfig, SemanticScholarConfig, OpenAlexConfig)):
             selector_config = raw_cfg
         else:
             selector_config = build_selector_config(row.source_type, raw_cfg)

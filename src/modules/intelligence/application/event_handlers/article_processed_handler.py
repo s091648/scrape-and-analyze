@@ -19,6 +19,8 @@ class ArticleProcessedHandler:
         span.set_attribute("article.id", str(event.article.id))
         span.set_attribute("article.url", event.article.url)
         span.set_attribute("article.source", event.article.source)
+        if event.article.original_source:
+            span.set_attribute("article.original_source", event.article.original_source)
         if event.article.title:
             span.set_attribute("article.title", event.article.title)
         if event.article.topic_id:
@@ -29,6 +31,7 @@ class ArticleProcessedHandler:
             article_id=str(event.article.id),
             url=event.article.url,
             source=event.article.source,
+            original_source=event.article.original_source,
         )
         result = self._use_case.execute(event.article)
 
@@ -46,6 +49,7 @@ class ArticleProcessedHandler:
                 article_id=str(result.article_id),
                 url=event.article.url,
                 source=event.article.source,
+                original_source=event.article.original_source,
                 model=meta.model_used,
                 input_tokens=meta.input_tokens,
                 output_tokens=meta.output_tokens,

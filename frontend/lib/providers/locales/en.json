@@ -124,7 +124,9 @@
     "range": "Range",
     "noTagsFound": "No tags found",
     "recent": "Recent",
-    "days": "days"
+    "days": "days",
+    "aggregator": "Aggregator",
+    "originalSource": "Original Source"
   },
   "tags": {
     "title": "Tags",
@@ -401,6 +403,7 @@
       "run_id": "Run ID",
       "article_id": "Article ID",
       "analysis_id": "Analysis ID",
+      "original_source": "Original Source",
       "model": "Model",
       "input_tokens": "Input Tokens",
       "output_tokens": "Output Tokens"
@@ -432,6 +435,7 @@
     "stageAttr_articleTitle": "Article Title",
     "stageAttr_url": "URL",
     "stageAttr_source": "Source",
+    "stageAttr_originalSource": "Original Source",
     "stageAttr_topicId": "Topic ID",
     "stageAttr_topicName": "Topic Name",
     "stageAttr_contentChars": "Content Chars",
@@ -462,6 +466,26 @@
     "stageAttr_articlesAfterDedup": "After Dedup",
     "stageAttr_articlesSkipped": "Skipped",
     "stageAttr_articlesPublished": "Published",
-    "stageTranslateLabel": "Translate ({lang})"
+    "stageTranslateLabel": "Translate ({lang})",
+    "activateSemanticScholar": "Activate Semantic Scholar",
+    "editSemanticScholarSource": "Edit Semantic Scholar Source",
+    "deleteSemanticScholarSource": "Delete Semantic Scholar Source",
+    "semanticScholarKeywords": "Search Keywords",
+    "noSemanticScholarKeywords": "No keywords yet — add keywords to search for papers.",
+    "addSemanticScholarKeyword": "Add keyword",
+    "semanticScholarKeywordPlaceholder": "e.g. digital twin",
+    "activateOpenAlex": "Activate OpenAlex",
+    "editOpenAlexSource": "Edit OpenAlex Source",
+    "deleteOpenAlexSource": "Delete OpenAlex Source",
+    "openAlexKeywords": "Search Keywords",
+    "noOpenAlexKeywords": "No keywords yet — add keywords to search for papers.",
+    "addOpenAlexKeyword": "Add keyword",
+    "openAlexKeywordPlaceholder": "e.g. digital twin",
+    "aggregator": "Aggregator",
+    "addAggregator": "Add Aggregator",
+    "chooseAggregatorType": "Choose Aggregator Type",
+    "aggregatorTypeDesc": "Select which academic paper aggregator to configure.",
+    "aggregatorType": "Aggregator Type",
+    "next": "Next"
   }
 }

@@ -66,6 +66,46 @@ export const BlogSource: Story = {
   ),
 };
 
+export const SemanticScholarSource: Story = {
+  render: () => (
+    <div className="max-w-md">
+      <SourceCard
+        setting={{
+          ...baseSetting,
+          id: "3",
+          source_type: "semantic_scholar",
+          name: "Semantic Scholar",
+          url: "",
+          frequency: 24,
+          selector_config: { type: "semantic_scholar", max_results: 20, days_back: 7 },
+        }}
+        onUpdate={noop}
+        onDelete={noop}
+      />
+    </div>
+  ),
+};
+
+export const OpenAlexSource: Story = {
+  render: () => (
+    <div className="max-w-md">
+      <SourceCard
+        setting={{
+          ...baseSetting,
+          id: "4",
+          source_type: "openalex",
+          name: "OpenAlex",
+          url: "",
+          frequency: 24,
+          selector_config: { type: "openalex", max_results: 20, days_back: 7 },
+        }}
+        onUpdate={noop}
+        onDelete={noop}
+      />
+    </div>
+  ),
+};
+
 export const InactiveSource: Story = {
   render: () => (
     <div className="max-w-md">

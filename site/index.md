@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Scrape Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 10 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 11 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -47,4 +47,7 @@ features:
   - title: '010 · Grafana Tracing Charts'
     details: 'Fix OTel tracing pipeline to actually export spans to Grafana Cloud Tempo; replace broken Grafana image/iframe embedding in the monitoring dashboard with a native chart visualization approach that queries Grafana Cloud datasource APIs directly and renders charts client-side.'
     link: '/specs/010-grafana-tracing-charts/spec'
+  - title: '011 · Semantic Scholar Scraper'
+    details: '新增 Semantic Scholar scraper 至 scraping pipeline，以解決 arXiv rate limit 問題，同時擴大論文來源涵蓋範圍。實作後發現 Semantic Scholar 免費 API 無法個人申請 key，且首次執行即 429；改以 OpenAlex 作為主要免費學術論文 API 並同步實作。'
+    link: '/specs/011-semantic-scholar-scraper/spec'
 ---

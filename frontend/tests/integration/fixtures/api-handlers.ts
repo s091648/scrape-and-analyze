@@ -128,7 +128,13 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxyPrefix('articles'), route => route.fulfill({ json: articleListFixture }))
 
   // Specific routes registered last (higher priority in LIFO — override generic patterns above)
+  await page.route(proxy('source-categories'), route =>
+    route.fulfill({ json: { aggregator: [{ value: 'semantic_scholar', label: 'Semantic Scholar' }, { value: 'openalex', label: 'OpenAlex' }], scraper: [{ value: 'rss', label: 'RSS' }, { value: 'blog', label: 'Blog' }, { value: 'arxiv', label: 'arXiv' }] } })
+  )
   await page.route(proxy('articles/filters/sources'), route =>
+    route.fulfill({ json: ['rss', 'blog'] })
+  )
+  await page.route(proxy('articles/filters/original-sources'), route =>
     route.fulfill({ json: ['rss', 'blog'] })
   )
   await page.route(proxy('articles/filters/tags'), route =>

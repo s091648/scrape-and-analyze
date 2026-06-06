@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe, Share2, Check } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
 import { ArticleCardSkeleton } from './article-card-skeleton'
@@ -11,12 +11,14 @@ import type { ArticleDetail } from '@/lib/api/articles'
 
 export type { Article }
 
+import { deriveDisplaySource, formatViaSource, toTitleCase } from './source-utils'
+
 interface ArticleCardProps extends Article {
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
 
-export function ArticleCard({ id, title, source, content, published_at, scraped_at, url, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const isControlled = controlledOpen !== undefined
@@ -28,6 +30,8 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  const displaySource = deriveDisplaySource(url, source, original_source)
 
   async function handleShare(e: React.MouseEvent) {
     e.stopPropagation()
@@ -61,7 +65,7 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
-              <span className="flex-1">{title}</span>
+              <span className="flex-1">{toTitleCase(title)}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
                   type="button"
@@ -93,20 +97,28 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
         </div>
 
         <CardContent className="pt-0 border-t border-border mt-3">
-          <div className="flex flex-wrap items-center gap-2 pt-3">
-            <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground">
-              <Globe className="h-3 w-3" />
-              {source}
-            </span>
-            {published_at && (
-              <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                {new Date(published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          <div className="flex items-center justify-between gap-2 pt-3">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground">
+                <Globe className="h-3 w-3" />
+                {displaySource}
               </span>
-            )}
-            {scraped_at && (
-              <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
-                Scraped {new Date(scraped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {published_at && (
+                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {new Date(published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+              {scraped_at && (
+                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
+                  <Download className="h-3 w-3" />
+                  {new Date(scraped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+            </div>
+            {via_source && (
+              <span className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-[10px] font-medium text-muted-foreground shrink-0">
+                {formatViaSource(via_source)}
               </span>
             )}
           </div>
@@ -118,6 +130,9 @@ export function ArticleCard({ id, title, source, content, published_at, scraped_
         onOpenChange={setOpen}
         title={title}
         source={source}
+        url={url}
+        via_source={via_source}
+        original_source={original_source}
         published_at={published_at}
         content={content}
         detail={detail}

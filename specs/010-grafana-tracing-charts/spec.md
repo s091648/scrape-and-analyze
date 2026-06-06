@@ -4,7 +4,7 @@
 
 **Created**: 2026-05-31
 
-**Status**: Complete — Phase 1–7 done; includes additional drill-down UI (Waterfall/Workflow dialogs) and global monitoring filter panel beyond original scope
+**Status**: Complete — Phase 1–7 done; includes additional drill-down UI (Waterfall/Workflow dialogs) and global monitoring filter panel beyond original scope. Note: `tasks.md` was not generated (feature was delivered directly from `plan.md`; all planned files confirmed to exist in implementation).
 
 **Input**: Fix OTel tracing pipeline to actually export spans to Grafana Cloud Tempo; replace broken Grafana image/iframe embedding in the monitoring dashboard with a native chart visualization approach that queries Grafana Cloud datasource APIs directly and renders charts client-side.
 
@@ -97,19 +97,6 @@ As an operator, I need traces to include spans for individual pipeline stages (s
 - **Run Waterfall Dialog**: A modal showing all spans of a single trace as a Gantt chart (timeline bars), used for identifying slow stages at a glance.
 - **Article Workflow Dialog**: A modal showing a single article's pipeline stages as sequential Langfuse-style stage cards, used for debugging per-article failures.
 
-## Success Criteria *(mandatory)*
-
-### Measurable Outcomes
-
-- **SC-001**: Every scraper run with Grafana Cloud credentials configured produces at least one visible trace in Grafana Cloud Tempo within 2 minutes of run completion.
-- **SC-002**: Every trace contains a minimum of 4 pipeline-level child spans (`pipeline.discover`, `pipeline.fetch`, `pipeline.dedup`, `pipeline.publish_articles`) and at least one `article.pipeline` span per processed article, enabling identification of which stage and which article consumed the most time.
-- **SC-003**: All monitoring dashboard panels load within 10 seconds when Grafana Cloud credentials are configured.
-- **SC-004**: The monitoring dashboard is fully functional on Grafana Cloud free tier — no feature requires iframe embedding or the image renderer plugin.
-- **SC-005**: A panel failure rate of zero cascades: one panel failing never causes other panels to fail or the page to crash.
-- **SC-006**: Dashboard data is never stale by more than 2× the configured refresh interval under normal network conditions.
-
----
-
 ### User Story 4 - Monitoring Dashboard Uses Batch Queries with Per-Panel Refresh (Priority: P1)
 
 As an operator, I need the monitoring dashboard to fetch all panel data in as few HTTP requests as possible, and to be able to manually refresh any individual panel, so that the page is efficient and interactive.
@@ -124,6 +111,19 @@ As an operator, I need the monitoring dashboard to fetch all panel data in as fe
 2. **Given** the monitoring dashboard is open, **When** the 60-second interval fires, **Then** all panels on the current tab refresh together via a single batch request.
 3. **Given** a panel has a refresh icon, **When** the operator clicks it, **Then** only that panel re-fetches its data individually, and the spinner shows while loading.
 4. **Given** Grafana Cloud is not configured, **When** the batch returns 503, **Then** all panels show "not configured" and the 60-second interval does not continue retrying.
+
+---
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: Every scraper run with Grafana Cloud credentials configured produces at least one visible trace in Grafana Cloud Tempo within 2 minutes of run completion.
+- **SC-002**: Every trace contains a minimum of 4 pipeline-level child spans (`pipeline.discover`, `pipeline.fetch`, `pipeline.dedup`, `pipeline.publish_articles`) and at least one `article.pipeline` span per processed article, enabling identification of which stage and which article consumed the most time.
+- **SC-003**: All monitoring dashboard panels load within 10 seconds when Grafana Cloud credentials are configured.
+- **SC-004**: The monitoring dashboard is fully functional on Grafana Cloud free tier — no feature requires iframe embedding or the image renderer plugin.
+- **SC-005**: A panel failure rate of zero cascades: one panel failing never causes other panels to fail or the page to crash.
+- **SC-006**: Dashboard data is never stale by more than 2× the configured refresh interval under normal network conditions.
 
 ---
 

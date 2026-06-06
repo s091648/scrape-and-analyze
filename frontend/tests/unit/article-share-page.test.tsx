@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 
 const mockUseParams = vi.fn()
-const mockGetSearchParam = vi.fn(() => null)
+const mockGetSearchParam = vi.fn<() => string | null>(() => null)
 const mockUseSession = vi.fn()
 const mockFetchArticleById = vi.fn()
 

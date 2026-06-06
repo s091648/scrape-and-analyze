@@ -202,6 +202,22 @@ def test_discover_raises_on_429():
         scraper.discover()
 
 
+def test_build_query_no_keywords_with_categories():
+    from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper
+    scraper = ArxivScraper(keywords=None, categories=["cs.LG", "cs.AI"])
+    query = scraper._build_query()
+    assert "cat:cs.LG" in query
+    assert "cat:cs.AI" in query
+    # When keywords=None, the hardcoded fallback terms must NOT appear as separate keywords
+    # (they may appear embedded in the query, but no user-supplied keyword strings should)
+    # Confirm categories are present and the query is category-driven
+    assert "cs.LG" in query
+    assert "cs.AI" in query
+    # No custom keyword strings from the None-keywords path injected
+    assert "neural rendering" not in query
+    assert "3d ai" not in query
+
+
 @responses.activate
 def test_discover_handles_entry_with_missing_summary():
     from src.infrastructure.collection.scrapers.arxiv_scraper import ArxivScraper

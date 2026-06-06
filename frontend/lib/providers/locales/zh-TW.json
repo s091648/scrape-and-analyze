@@ -124,7 +124,9 @@
     "range": "區間",
     "noTagsFound": "找不到標籤",
     "recent": "近期",
-    "days": "天"
+    "days": "天",
+    "aggregator": "聚合器",
+    "originalSource": "原始來源"
   },
   "tags": {
     "title": "標籤",
@@ -401,6 +403,7 @@
       "run_id": "執行 ID",
       "article_id": "文章 ID",
       "analysis_id": "分析 ID",
+      "original_source": "原始來源",
       "model": "模型",
       "input_tokens": "輸入 Tokens",
       "output_tokens": "輸出 Tokens"
@@ -432,6 +435,7 @@
     "stageAttr_articleTitle": "文章標題",
     "stageAttr_url": "網址",
     "stageAttr_source": "來源",
+    "stageAttr_originalSource": "原始來源",
     "stageAttr_topicId": "主題 ID",
     "stageAttr_topicName": "主題名稱",
     "stageAttr_contentChars": "內容字數",
@@ -462,6 +466,26 @@
     "stageAttr_articlesAfterDedup": "去重後",
     "stageAttr_articlesSkipped": "已略過",
     "stageAttr_articlesPublished": "已發布",
-    "stageTranslateLabel": "翻譯 ({lang})"
+    "stageTranslateLabel": "翻譯 ({lang})",
+    "activateSemanticScholar": "啟用 Semantic Scholar",
+    "editSemanticScholarSource": "編輯 Semantic Scholar 來源",
+    "deleteSemanticScholarSource": "刪除 Semantic Scholar 來源",
+    "semanticScholarKeywords": "搜尋關鍵字",
+    "noSemanticScholarKeywords": "尚無關鍵字 — 請新增關鍵字以搜尋論文。",
+    "addSemanticScholarKeyword": "新增關鍵字",
+    "semanticScholarKeywordPlaceholder": "例如：digital twin",
+    "activateOpenAlex": "啟用 OpenAlex",
+    "editOpenAlexSource": "編輯 OpenAlex 來源",
+    "deleteOpenAlexSource": "刪除 OpenAlex 來源",
+    "openAlexKeywords": "搜尋關鍵字",
+    "noOpenAlexKeywords": "尚無關鍵字 — 請新增關鍵字以搜尋論文。",
+    "addOpenAlexKeyword": "新增關鍵字",
+    "openAlexKeywordPlaceholder": "例如：digital twin",
+    "aggregator": "聚合器",
+    "addAggregator": "新增聚合器",
+    "chooseAggregatorType": "選擇聚合器類型",
+    "aggregatorTypeDesc": "選擇要設定的學術論文聚合器。",
+    "aggregatorType": "聚合器類型",
+    "next": "下一步"
   }
 }

@@ -7,11 +7,16 @@ import { ArticleDetail } from '@/lib/api/articles'
 import { ArticleDetailSkeleton } from './article-card-skeleton'
 import { useI18n } from '@/lib/providers'
 
+import { deriveDisplaySource, formatViaSource } from './source-utils'
+
 interface ArticleDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
   source: string
+  url: string
+  via_source?: string | null
+  original_source?: string | null
   published_at: string | null
   content: string
   detail: ArticleDetail | null
@@ -19,10 +24,11 @@ interface ArticleDetailDialogProps {
 }
 
 export function ArticleDetailDialog({
-  open, onOpenChange, title, source, published_at, content, detail, loading,
+  open, onOpenChange, title, source, url, via_source, original_source, published_at, content, detail, loading,
 }: ArticleDetailDialogProps) {
   const { t } = useI18n()
   const hasAnalysis = detail && !!detail.model_used
+  const displaySource = deriveDisplaySource(url, source, original_source)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,8 +37,13 @@ export function ArticleDetailDialog({
           <DialogTitle className="text-lg leading-snug pr-6">{title}</DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Globe className="h-3 w-3" />{source}
+              <Globe className="h-3 w-3" />{displaySource}
             </span>
+            {via_source && (
+              <span className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                {formatViaSource(via_source)}
+              </span>
+            )}
             {published_at && (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />

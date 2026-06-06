@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { fetchArticleFilterSources } from '@/lib/api/articles'
+import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups } from '@/lib/api/tags'
 import type { TagGroupOut } from '@/lib/api/tags'
 import type { ComponentType } from 'react'
 
 vi.mock('@/lib/api/articles', () => ({
-  fetchArticleFilterSources: vi.fn(),
+  fetchArticleFilterOriginalSources: vi.fn(),
 }))
 
 vi.mock('@/lib/api/tags', () => ({
   fetchTagGroups: vi.fn(),
+}))
+
+vi.mock('@/lib/api/source-categories', () => ({
+  fetchSourceCategories: vi.fn().mockResolvedValue({ aggregator: [], scraper: [] }),
 }))
 
 vi.mock('@/lib/providers', () => ({
@@ -52,7 +56,8 @@ const mockTagGroups: TagGroupOut[] = [
 ]
 
 const defaultProps = {
-  sources: [],
+  aggregators: [],
+  originalSources: [],
   tags: [],
   tagGroups: [],
   publishedAfter: '',
@@ -63,12 +68,13 @@ const defaultProps = {
   onApply: vi.fn(),
 }
 
-function setupApiMock(sourceOptions = ['rss', 'blog'], tagGroups = mockTagGroups) {
-  vi.mocked(fetchArticleFilterSources).mockResolvedValue(sourceOptions)
+function setupApiMock(sourceOptions = ['arxiv', 'ACM Digital Library'], tagGroups = mockTagGroups) {
+  vi.mocked(fetchArticleFilterOriginalSources).mockResolvedValue(sourceOptions)
   vi.mocked(fetchTagGroups).mockResolvedValue(tagGroups)
 }
 
-let FilterBar: ComponentType<typeof defaultProps & { activeFilterCount?: number; onApply?: ReturnType<typeof vi.fn> }>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let FilterBar: ComponentType<any>
 
 beforeAll(async () => {
   const module = await import('@/components/features/articles/filter-bar')
@@ -109,26 +115,26 @@ describe('FilterBar', () => {
 
   it('clicking Apply calls onApply with current draft state', async () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} sources={['rss']} onApply={onApply} activeFilterCount={1} />)
+    render(<FilterBar {...defaultProps} originalSources={['arxiv']} onApply={onApply} activeFilterCount={1} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /apply/i }))
-    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ source: ['rss'] }))
+    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ original_source: ['arxiv'] }))
   })
 
   it('"Clear" resets filters and calls onApply with empty values', async () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} sources={['rss']} onApply={onApply} activeFilterCount={1} />)
+    render(<FilterBar {...defaultProps} originalSources={['arxiv']} onApply={onApply} activeFilterCount={1} />)
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
     expect(onApply).toHaveBeenCalledWith({
-      source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
+      aggregator: [], original_source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '',
     })
   })
 
-  it('fetches source options and tag groups on mount', async () => {
+  it('fetches original source options and tag groups on mount', async () => {
     render(<FilterBar {...defaultProps} />)
     await waitFor(() => {
-      expect(fetchArticleFilterSources).toHaveBeenCalled()
+      expect(fetchArticleFilterOriginalSources).toHaveBeenCalledWith('topic-1', 'en')
       expect(fetchTagGroups).toHaveBeenCalledWith('topic-1')
     })
   })

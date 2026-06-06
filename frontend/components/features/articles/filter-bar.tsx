@@ -5,13 +5,15 @@ import { Badge } from '@/components/ui/badge'
 import { SlidersHorizontal, X } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
-import { fetchArticleFilterSources } from '@/lib/api/articles'
+import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
+import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { useI18n, useTopic } from '@/lib/providers'
 import { GroupedTagSelect } from './grouped-tag-select'
 
 interface FilterBarProps {
-  sources: string[]
+  aggregators: string[]
+  originalSources: string[]
   tags: string[]
   tagGroups: string[]
   publishedAfter: string
@@ -20,7 +22,8 @@ interface FilterBarProps {
   scrapedBefore: string
   activeFilterCount: number
   onApply: (updates: {
-    source?: string[]
+    aggregator?: string[]
+    original_source?: string[]
     tag?: string[]
     tag_group?: string[]
     published_after?: string
@@ -31,17 +34,21 @@ interface FilterBarProps {
 }
 
 export function FilterBar({
-  sources: activeSources, tags: activeTags, tagGroups: activeTagGroups,
+  aggregators: activeAggregators,
+  originalSources: activeOriginalSources,
+  tags: activeTags, tagGroups: activeTagGroups,
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
   activeFilterCount, onApply,
 }: FilterBarProps) {
   const { t, locale } = useI18n()
   const { selectedTopicId } = useTopic()
   const [open, setOpen] = useState(false)
-  const [sourceOptions, setSourceOptions] = useState<string[]>([])
+  const [aggregatorOptions, setAggregatorOptions] = useState<SourceEntry[]>([])
+  const [originalSourceOptions, setOriginalSourceOptions] = useState<string[]>([])
   const [tagGroupOptions, setTagGroupOptions] = useState<TagGroupOut[]>([])
 
-  const [draftSources, setDraftSources] = useState(activeSources)
+  const [draftAggregators, setDraftAggregators] = useState(activeAggregators)
+  const [draftOriginalSources, setDraftOriginalSources] = useState(activeOriginalSources)
   const [draftTags, setDraftTags] = useState(activeTags)
   const [draftTagGroups, setDraftTagGroups] = useState(activeTagGroups)
   const [draftPubAfter, setDraftPubAfter] = useState(publishedAfter)
@@ -50,12 +57,16 @@ export function FilterBar({
   const [draftScrapedBefore, setDraftScrapedBefore] = useState(scrapedBefore)
 
   useEffect(() => {
-    fetchArticleFilterSources(locale).then(setSourceOptions)
-    fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions)
+    void Promise.allSettled([
+      fetchSourceCategories().then(cats => setAggregatorOptions(cats.aggregator ?? [])),
+      fetchArticleFilterOriginalSources(selectedTopicId ?? undefined, locale).then(data => setOriginalSourceOptions(Array.isArray(data) ? data : [])),
+      fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions),
+    ])
   }, [locale, selectedTopicId])
 
   useEffect(() => {
-    setDraftSources(activeSources)
+    setDraftAggregators(activeAggregators)
+    setDraftOriginalSources(activeOriginalSources)
     setDraftTags(activeTags)
     setDraftTagGroups(activeTagGroups)
     setDraftPubAfter(publishedAfter)
@@ -63,11 +74,13 @@ export function FilterBar({
     setDraftScrapedAfter(scrapedAfter)
     setDraftScrapedBefore(scrapedBefore)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(activeSources), JSON.stringify(activeTags), JSON.stringify(activeTagGroups), publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
+  }, [JSON.stringify(activeAggregators), JSON.stringify(activeOriginalSources), JSON.stringify(activeTags), JSON.stringify(activeTagGroups), publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
 
   function handleApply() {
     onApply({
-      source: draftSources, tag: draftTags, tag_group: draftTagGroups,
+      aggregator: draftAggregators,
+      original_source: draftOriginalSources,
+      tag: draftTags, tag_group: draftTagGroups,
       published_after: draftPubAfter, published_before: draftPubBefore,
       scraped_after: draftScrapedAfter, scraped_before: draftScrapedBefore,
     })
@@ -75,10 +88,10 @@ export function FilterBar({
   }
 
   function handleClear() {
-    setDraftSources([]); setDraftTags([]); setDraftTagGroups([])
+    setDraftAggregators([]); setDraftOriginalSources([]); setDraftTags([]); setDraftTagGroups([])
     setDraftPubAfter(''); setDraftPubBefore('')
     setDraftScrapedAfter(''); setDraftScrapedBefore('')
-    onApply({ source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '' })
+    onApply({ aggregator: [], original_source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '' })
     setOpen(false)
   }
 
@@ -111,10 +124,17 @@ export function FilterBar({
       {open && (
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
           <MultiSelectPopover
+            label={t('filterBar.aggregator')}
+            options={aggregatorOptions}
+            selected={draftAggregators}
+            onChange={setDraftAggregators}
+            searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.aggregator').toLowerCase()}…`}
+          />
+          <MultiSelectPopover
             label={t('filterBar.source')}
-            options={sourceOptions}
-            selected={draftSources}
-            onChange={setDraftSources}
+            options={originalSourceOptions}
+            selected={draftOriginalSources}
+            onChange={setDraftOriginalSources}
             searchPlaceholder={`${t('filterBar.search')} ${t('filterBar.source').toLowerCase()}…`}
           />
           <GroupedTagSelect

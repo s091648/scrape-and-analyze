@@ -488,6 +488,7 @@ function FilterBar({
             <option value="all">{t('admin.filterAll')}</option>
             <option value="local">local</option>
             <option value="production">production</option>
+            <option value="test">test</option>
           </NativeSelect>
         </div>
       )}
