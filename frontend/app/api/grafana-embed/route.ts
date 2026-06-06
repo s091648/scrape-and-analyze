@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const target = req.nextUrl.searchParams.get('url')
+  const target = new URL(req.url).searchParams.get('url')
   if (!target) {
     return new NextResponse('Missing url param', { status: 400 })
   }

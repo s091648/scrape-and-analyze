@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
 
-from src.infrastructure.persistence.types import SelectorConfigColumn
+from models.types import SelectorConfigColumn
 from models.base import Base
 
 ScraperBase = Base

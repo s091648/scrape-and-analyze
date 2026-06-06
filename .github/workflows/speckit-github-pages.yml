@@ -1,0 +1,70 @@
+name: Deploy Speckit docs to GitHub Pages
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: site/node_modules
+          key: ${{ runner.os }}-site-${{ hashFiles('site/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-site-
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: site
+
+      - name: Sync spec content into site/
+        run: |
+          cp -r specs site/specs
+          cp .specify/memory/constitution.md site/constitution.md
+
+      - name: Build VitePress
+        run: npm run build
+        working-directory: site
+        env:
+          VITEPRESS_BASE: "${{ steps.pages.outputs.base_path }}/"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/.vitepress/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

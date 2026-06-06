@@ -88,7 +88,7 @@ class RssScraper(BaseScraper):
             topic_id=job.topic_id,
             published_at=job.metadata.get("published"),
             authors=[job.metadata.get("author")] if job.metadata.get("author") else [],
-            extra={"author": job.metadata.get("author")},
+            extra={"author": job.metadata.get("author"), "original_source": job.source},
         )
 
     def _matches(self, text: str) -> bool:

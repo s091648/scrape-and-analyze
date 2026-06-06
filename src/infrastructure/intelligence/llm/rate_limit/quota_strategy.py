@@ -11,3 +11,8 @@ class QuotaStrategy(ABC):
     def record_usage(self, actual_tokens: int) -> None:
         """Update sliding windows after a successful call."""
         ...
+
+    @abstractmethod
+    def update_batch_size(self, batch_size: int) -> None:
+        """Inform the strategy of the current batch size for better estimation."""
+        ...

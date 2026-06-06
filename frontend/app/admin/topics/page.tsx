@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { Pencil, X, Check, Plus, RotateCcw } from 'lucide-react'
-import { apiFetch } from '@/lib/api-fetch'
-import { useTopic } from '@/contexts/topic-context'
+import { fetchTopics, updateTopic, deleteTopic, createTopic, type Topic } from '@/lib/api/topics'
+import { useTopic } from '@/lib/providers'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,17 +15,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { useI18n } from '@/lib/providers'
+import { TagModeSelector, type TagMode } from '@/components/features/tags/tag-mode-selector'
 
-interface Topic {
-  id: string
-  name: string
-  display_name: string
-  description: string | null
-  color_hex: string | null
-  prompt_override: string | null
-  sort_order: number | null
-  is_active: boolean
-}
 
 const inputClass =
   'w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring'
@@ -44,6 +36,7 @@ function TopicRow({
   onUpdate: (id: string, data: Partial<Topic>) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
+  const { t } = useI18n()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [form, setForm] = useState({
@@ -53,6 +46,7 @@ function TopicRow({
     prompt_override: topic.prompt_override ?? '',
     sort_order: topic.sort_order ?? 0,
     is_active: topic.is_active,
+    tag_mode: (topic.tag_mode ?? 'unsupervised') as TagMode,
   })
   const [saving, setSaving] = useState(false)
 
@@ -65,6 +59,7 @@ function TopicRow({
       prompt_override: form.prompt_override || null,
       sort_order: form.sort_order,
       is_active: form.is_active,
+      tag_mode: form.tag_mode,
     })
     setSaving(false)
     setEditing(false)
@@ -76,7 +71,7 @@ function TopicRow({
         {editing ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Edit Topic</span>
+              <span className="text-sm font-semibold">{t('admin.editTopic')}</span>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(false)}>
                 <X className="h-4 w-4" />
               </Button>
@@ -84,7 +79,7 @@ function TopicRow({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelClass}>Display Name</label>
+                <label className={labelClass}>{t('admin.displayName')}</label>
                 <input
                   className={inputClass}
                   value={form.display_name}
@@ -92,26 +87,29 @@ function TopicRow({
                 />
               </div>
               <div>
-                <label className={labelClass}>Color (hex)</label>
+                <label className={labelClass}>{t('admin.colorHex')}</label>
                 <div className="flex gap-2 items-center">
+                  <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+                    <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                      onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </div>
                   <input
-                    className={inputClass}
+                    className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={form.color_hex}
                     placeholder="#3b82f6"
                     onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
                   />
-                  {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-                    <span
-                      className="h-7 w-7 rounded-full shrink-0 border border-border"
-                      style={{ backgroundColor: form.color_hex }}
-                    />
-                  )}
                 </div>
               </div>
             </div>
 
             <div>
-              <label className={labelClass}>Description</label>
+              <label className={labelClass}>{t('admin.description')}</label>
               <textarea
                 className={textareaClass}
                 rows={2}
@@ -121,11 +119,11 @@ function TopicRow({
             </div>
 
             <div>
-              <label className={labelClass}>Prompt Override</label>
+              <label className={labelClass}>{t('admin.promptOverride')}</label>
               <textarea
                 className={textareaClass}
                 rows={3}
-                placeholder="Leave empty to use the default analysis prompt."
+                placeholder={t('admin.promptOverridePlaceholder')}
                 value={form.prompt_override}
                 onChange={e => setForm(f => ({ ...f, prompt_override: e.target.value }))}
               />
@@ -133,7 +131,7 @@ function TopicRow({
 
             <div className="grid grid-cols-2 gap-3 items-end">
               <div>
-                <label className={labelClass}>Sort Order</label>
+                <label className={labelClass}>{t('admin.sortOrder')}</label>
                 <input
                   type="number"
                   className={inputClass}
@@ -146,15 +144,23 @@ function TopicRow({
                   checked={form.is_active}
                   onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
                 />
-                <span className="text-sm text-muted-foreground">Active</span>
+                <span className="text-sm text-muted-foreground">{t('admin.active')}</span>
               </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>{t('tags.tagMode')}</label>
+              <TagModeSelector
+                value={form.tag_mode}
+                onChange={v => setForm(f => ({ ...f, tag_mode: v }))}
+              />
             </div>
 
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSave} disabled={saving || !form.display_name}>
-                <Check className="h-4 w-4 mr-1" /> Save
+                <Check className="h-4 w-4 mr-1" /> {t('admin.save')}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing(false)}>{t('admin.cancel')}</Button>
             </div>
           </div>
         ) : (
@@ -171,7 +177,7 @@ function TopicRow({
                   <p className="font-semibold text-sm leading-snug">{topic.display_name}</p>
                   {!topic.is_active && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium uppercase tracking-wide">
-                      inactive
+                      {t('admin.inactive')}
                     </span>
                   )}
                 </div>
@@ -180,7 +186,7 @@ function TopicRow({
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{topic.description}</p>
                 )}
                 {topic.sort_order !== null && (
-                  <p className="text-xs text-muted-foreground mt-1">Order: {topic.sort_order}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('admin.order')}: {topic.sort_order}</p>
                 )}
               </div>
             </div>
@@ -216,15 +222,15 @@ function TopicRow({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Deactivate topic?</DialogTitle>
+            <DialogTitle>{t('admin.deactivateTopic')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            <strong>{topic.display_name}</strong> will be hidden from users. Articles tagged with this topic are unaffected. You can restore it later.
+            <strong>{topic.display_name}</strong> {t('admin.deactivateTopicDesc')}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>{t('admin.cancel')}</Button>
             <Button variant="destructive" onClick={() => { setConfirmDelete(false); onDelete(topic.id) }}>
-              Deactivate
+              {t('admin.deactivate')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -236,6 +242,7 @@ function TopicRow({
 // ── Add topic form ────────────────────────────────────────────────────────────
 
 function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>) => Promise<void> }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const emptyForm = {
     name: '',
@@ -244,6 +251,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
     color_hex: '',
     prompt_override: '',
     sort_order: 0,
+    tag_mode: 'unsupervised' as TagMode,
   }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -258,6 +266,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
       color_hex: form.color_hex || null,
       prompt_override: form.prompt_override || null,
       sort_order: form.sort_order || null,
+      tag_mode: form.tag_mode,
     })
     setSaving(false)
     setExpanded(false)
@@ -270,7 +279,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
         onClick={() => setExpanded(true)}
         className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
       >
-        <Plus className="h-4 w-4" /> Add topic
+        <Plus className="h-4 w-4" /> {t('admin.addTopic')}
       </button>
     )
   }
@@ -278,7 +287,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold">New Topic</span>
+        <span className="text-sm font-semibold">{t('admin.newTopic')}</span>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpanded(false)}>
           <X className="h-4 w-4" />
         </Button>
@@ -286,17 +295,17 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Slug (name) <span className="text-destructive">*</span></label>
+          <label className={labelClass}>{t('admin.slug')} <span className="text-destructive">*</span></label>
           <input
             className={inputClass}
             value={form.name}
             placeholder="digital-twin"
             onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
           />
-          <p className="text-[10px] text-muted-foreground mt-1">Immutable after creation</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{t('admin.immutableAfterCreation')}</p>
         </div>
         <div>
-          <label className={labelClass}>Display Name <span className="text-destructive">*</span></label>
+          <label className={labelClass}>{t('admin.displayName')} <span className="text-destructive">*</span></label>
           <input
             className={inputClass}
             value={form.display_name}
@@ -308,24 +317,27 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelClass}>Color (hex)</label>
+          <label className={labelClass}>{t('admin.colorHex')}</label>
           <div className="flex gap-2 items-center">
+            <div className="relative h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-border overflow-hidden">
+              <span className="absolute inset-0" style={{ backgroundColor: form.color_hex || '#e5e7eb' }} />
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(form.color_hex) ? form.color_hex : '#e5e7eb'}
+                onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
             <input
-              className={inputClass}
+              className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               value={form.color_hex}
               placeholder="#3b82f6"
               onChange={e => setForm(f => ({ ...f, color_hex: e.target.value }))}
             />
-            {form.color_hex && /^#[0-9a-fA-F]{6}$/.test(form.color_hex) && (
-              <span
-                className="h-7 w-7 rounded-full shrink-0 border border-border"
-                style={{ backgroundColor: form.color_hex }}
-              />
-            )}
           </div>
         </div>
         <div>
-          <label className={labelClass}>Sort Order</label>
+          <label className={labelClass}>{t('admin.sortOrder')}</label>
           <input
             type="number"
             className={inputClass}
@@ -336,7 +348,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
       </div>
 
       <div>
-        <label className={labelClass}>Description</label>
+        <label className={labelClass}>{t('admin.description')}</label>
         <textarea
           className={textareaClass}
           rows={2}
@@ -346,13 +358,21 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
       </div>
 
       <div>
-        <label className={labelClass}>Prompt Override</label>
+        <label className={labelClass}>{t('admin.promptOverride')}</label>
         <textarea
           className={textareaClass}
           rows={3}
-          placeholder="Leave empty to use the default analysis prompt."
+          placeholder={t('admin.promptOverridePlaceholder')}
           value={form.prompt_override}
           onChange={e => setForm(f => ({ ...f, prompt_override: e.target.value }))}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>{t('tags.tagMode')}</label>
+        <TagModeSelector
+          value={form.tag_mode}
+          onChange={v => setForm(f => ({ ...f, tag_mode: v }))}
         />
       </div>
 
@@ -362,9 +382,9 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
           onClick={handleAdd}
           disabled={saving || !form.name || !form.display_name}
         >
-          <Check className="h-4 w-4 mr-1" /> Create
+          <Check className="h-4 w-4 mr-1" /> {t('admin.create')}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>Cancel</Button>
+        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>{t('admin.cancel')}</Button>
       </div>
     </div>
   )
@@ -374,6 +394,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
 
 export default function TopicsPage() {
   const { data: session, status } = useSession()
+  const { t } = useI18n()
   const [topics, setTopics] = useState<Topic[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showInactive, setShowInactive] = useState(false)
@@ -387,44 +408,27 @@ export default function TopicsPage() {
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch(`/topics?include_inactive=true`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => setTopics(Array.isArray(data) ? data : []))
+    fetchTopics({ include_inactive: true }, token)
+      .then(setTopics)
       .finally(() => setIsLoading(false))
   }, [token])
 
   async function handleUpdate(id: string, data: Partial<Topic>) {
     setTopics(prev => prev.map(t => (t.id === id ? { ...t, ...data } : t)))
-    await apiFetch(`/topics/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
+    await updateTopic(id, data, token)
     await refreshTopicContext()
   }
 
   async function handleDelete(id: string) {
     setTopics(prev => prev.map(t => (t.id === id ? { ...t, is_active: false } : t)))
-    await apiFetch(`/topics/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await deleteTopic(id, token)
     await refreshTopicContext()
   }
 
   async function handleCreate(data: Omit<Topic, 'id' | 'is_active'>) {
-    const res = await apiFetch('/topics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data),
-    })
-    if (res.ok) {
-      const created = await res.json()
-      setTopics(prev => [...prev, created])
-      await refreshTopicContext()
-    }
+    const created = await createTopic(data, token)
+    setTopics(prev => [...prev, created])
+    await refreshTopicContext()
   }
 
   const visible = showInactive ? topics : topics.filter(t => t.is_active)
@@ -432,24 +436,24 @@ export default function TopicsPage() {
   return (
     <div className="max-w-3xl space-y-10">
       <div className="border-b border-border pb-6">
-        <h1 className="text-2xl font-bold">Topics</h1>
+        <h1 className="text-2xl font-bold">{t('admin.topics')}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage research topics. Articles and scrapers are tagged with a topic.
+          {t('admin.manageTopicsDesc')}
         </p>
       </div>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {topics.filter(t => t.is_active).length} active
-            {topics.some(t => !t.is_active) && `, ${topics.filter(t => !t.is_active).length} inactive`}
+            {topics.filter(t => t.is_active).length} {t('admin.active')}
+            {topics.some(t => !t.is_active) && `, ${topics.filter(t => !t.is_active).length} ${t('admin.inactive')}`}
           </p>
           {topics.some(t => !t.is_active) && (
             <button
               onClick={() => setShowInactive(v => !v)}
               className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
             >
-              {showInactive ? 'Hide inactive' : 'Show inactive'}
+              {showInactive ? t('admin.hideInactive') : t('admin.showInactive')}
             </button>
           )}
         </div>
@@ -473,8 +477,8 @@ export default function TopicsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {visible.map(t => (
-              <TopicRow key={t.id} topic={t} onUpdate={handleUpdate} onDelete={handleDelete} />
+            {visible.map(topicItem => (
+              <TopicRow key={topicItem.id} topic={topicItem} onUpdate={handleUpdate} onDelete={handleDelete} />
             ))}
             <AddTopicCard onAdd={handleCreate} />
           </div>

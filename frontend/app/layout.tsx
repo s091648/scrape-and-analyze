@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
 import { Rethink_Sans } from 'next/font/google'
 import './globals.css'
-import { ErrorBoundary } from '@/components/error-boundary'
-import { NavBar } from '@/components/nav-bar'
-import SessionProviderWrapper from '@/components/session-provider'
-import { TopicProvider } from '@/contexts/topic-context'
+import { AppProviders } from '@/lib/providers'
+import { LayoutShell } from './layout-shell'
+import { Toaster } from 'sonner'
 
 const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink' })
 
@@ -14,14 +13,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${rethinkSans.variable} font-sans`}>
-        <SessionProviderWrapper>
-          <TopicProvider>
-            <ErrorBoundary>
-              <NavBar />
-              <main className="container mx-auto px-6 py-8 pt-24">{children}</main>
-            </ErrorBoundary>
-          </TopicProvider>
-        </SessionProviderWrapper>
+        <AppProviders>
+          <LayoutShell>{children}</LayoutShell>
+          <Toaster richColors position="bottom-right" />
+        </AppProviders>
       </body>
     </html>
   )

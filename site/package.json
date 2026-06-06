@@ -1,0 +1,14 @@
+{
+  "name": "scrape-analyzer-speckit-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-config.mjs",
+    "dev": "node scripts/generate-config.mjs && vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

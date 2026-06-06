@@ -1,0 +1,63 @@
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: backend/Dockerfile.dev
+    volumes:
+      - ../src:/app/src
+      - ../backend:/app/backend
+      - ../models:/app/models
+      - ../shared:/app/shared
+      - ../alembic:/app/alembic
+      - ../alembic.ini:/app/alembic.ini
+      - ../scripts:/app/scripts
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin
+      - FRONTEND_ORIGIN=https://${CODESPACE_NAME}-3000.preview.app.github.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - NEXT_PUBLIC_BACKEND_URL=https://${CODESPACE_NAME}-8000.preview.app.github.dev
+      - NEXTAUTH_URL=https://${CODESPACE_NAME}-3000.preview.app.github.dev
+    command: npx next dev
+
+  postgres:
+    image: pgvector/pgvector:pg15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  frontend_node_modules:

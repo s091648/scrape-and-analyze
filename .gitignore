@@ -5,10 +5,10 @@
 # -----------------------------
 # Environment & Secrets
 # -----------------------------
-.env
-.env.local
-.env.*.local
-.env.production
+/.env
+/.env.local
+/.env.*.local
+/.env.production
 *.pem
 *.key
 credentials.json
@@ -29,6 +29,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+!frontend/lib/
 parts/
 sdist/
 var/
@@ -120,6 +121,13 @@ temp/
 .worktrees/
 docs/
 openspec/
+
+# -----------------------------
+# VitePress docs site (site/)
+# -----------------------------
+site/specs/
+site/constitution.md
+site/.vitepress/cache/
 
 # -----------------------------
 # Local development files

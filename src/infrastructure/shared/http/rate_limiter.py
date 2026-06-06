@@ -16,7 +16,6 @@ Default limits (RPM):
 import time
 import threading
 from contextlib import contextmanager
-from urllib.parse import urlparse
 
 _DEFAULT_RPM: float = 10.0
 
@@ -27,6 +26,8 @@ _BUILTIN_OVERRIDES: dict[str, float] = {
     "arxiv.org": 3.0,   # arXiv TOS: same budget as API domain (shared IP)
     "www.iotworldtoday.com": 2.0,   # ⚠ anti-bot (Cloudflare)
     "iotworldtoday.com": 2.0,
+    "api.semanticscholar.org": 1.0,  # unauthenticated: ~100 req/day; scraper max 50-min run → ≤50 req/day
+    "api.openalex.org": 5.0,          # polite pool: 10 req/sec; conservative default
 }
 
 # Domains that must also enforce "single connection at a time" (arXiv TOS).
@@ -107,11 +108,6 @@ class DomainRateLimiter:
             yield
         finally:
             sem.release()
-
-    def acquire_for_url(self, url: str) -> None:
-        """Convenience: extract domain from *url* then call acquire()."""
-        domain = urlparse(url).netloc
-        self.acquire(domain)
 
     # ── internal ──────────────────────────────────────────────────────────
 

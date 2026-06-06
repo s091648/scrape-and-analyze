@@ -2,13 +2,11 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients import ArxivClient
+from src.infrastructure.collection.clients import ArxivClient, ArxivRateLimitedError
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle
-from src.modules.collection.application.dtos import ScraperMetadataDTO
 from src.infrastructure.collection.parsers import PdfParser
-from src.infrastructure.shared.observability.otel_metrics import SCRAPER_ARTICLES_FOUND
 
 logger = get_logger(__name__)
 
@@ -38,30 +36,32 @@ class ArxivScraper(BaseScraper):
 
     def discover(self) -> List[ScrapeJob]:
         query = self._build_query()
-        entries = self._client.fetch_entries(
-            query=query,
-            max_results=self._max_results,
-            days_back=self._days_back,
-        )
+        try:
+            entries = self._client.fetch_entries(
+                query=query,
+                max_results=self._max_results,
+                days_back=self._days_back,
+            )
+        except ArxivRateLimitedError as e:
+            logger.warning("arxiv_rate_limited", message=str(e))
+            raise
         jobs = []
         for e in entries:
-            metadata = ScraperMetadataDTO.for_arxiv(
-                arxiv_id=e.arxiv_id,
-                title=e.title,
-                abstract=e.abstract,
-                pdf_url=e.pdf_url,
-                authors=e.authors,
-                published=e.published,
-            )
             jobs.append(ScrapeJob(
                 url=e.url,
                 source="arxiv",
                 source_type="arxiv",
                 topic_id=self._topic_id,
                 prompt_override=self._prompt_override,
-                metadata=metadata.source_specific,
+                metadata={
+                    "arxiv_id": e.arxiv_id,
+                    "title": e.title,
+                    "abstract": e.abstract,
+                    "pdf_url": e.pdf_url,
+                    "authors": e.authors or [],
+                    "published": e.published,
+                },
             ))
-        SCRAPER_ARTICLES_FOUND.add(len(jobs), {"source": "arxiv"})
         logger.info("arxiv_discover_complete", count=len(jobs))
         return jobs
 
@@ -93,6 +93,7 @@ class ArxivScraper(BaseScraper):
                 "abstract": job.metadata.get("abstract"),
                 "pdf_available": pdf_available,
                 "sections": sections,
+                "original_source": "arxiv",
             },
         )
 
@@ -108,5 +109,8 @@ class ArxivScraper(BaseScraper):
             cat_clause = " OR ".join(f"cat:{c}" for c in self._categories)
             kw_part = f"({kw_clause})" if " OR " in kw_clause else kw_clause
             cat_part = f"({cat_clause})" if " OR " in cat_clause else cat_clause
-            return f"{cat_part} AND {kw_part}"
-        return kw_clause
+            base = f"{cat_part} AND {kw_part}"
+        else:
+            base = kw_clause
+
+        return base

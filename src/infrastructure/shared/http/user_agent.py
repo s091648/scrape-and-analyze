@@ -10,13 +10,16 @@ Usage:
 For APIs that require a descriptive bot UA (e.g. arXiv API TOS), use:
     ua = get_api_bot_ua()
 """
+import os
 import random
 import threading
+
+_CONTACT_EMAIL: str = os.environ.get("CONTACT_EMAIL", "contact@example.com")
 
 # Descriptive bot UA for APIs that require/recommend identified crawlers.
 # arXiv API TOS: https://info.arxiv.org/help/api/tou.html
 # Format: <AppName>/<version> (<contact>)
-ARXIV_BOT_UA: str = "ScrapeAnalyzer/1.0 (research tool; contact@example.com)"
+ARXIV_BOT_UA: str = f"ScrapeAnalyzer/1.0 (research tool; {_CONTACT_EMAIL})"
 
 
 def get_api_bot_ua() -> str:
@@ -94,13 +97,16 @@ def get_browser_headers(ua: str, referer: str | None = None) -> dict:
             "q=0.8,application/signed-exchange;v=b3;q=0.7"
         ),
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate",
         "Cache-Control": "max-age=0",
         "Upgrade-Insecure-Requests": "1",
     }
 
     if referer:
         base["Referer"] = referer
+
+    if _CONTACT_EMAIL != "contact@example.com":
+        base["From"] = _CONTACT_EMAIL
 
     edge_ver = _edge_version(ua)
     chrome_ver = _chrome_version(ua)

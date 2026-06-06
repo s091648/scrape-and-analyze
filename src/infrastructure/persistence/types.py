@@ -1,13 +1,7 @@
 from sqlalchemy import TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
-from src.modules.collection.domain.value_objects.selector_config import (
-    ArxivConfig,
-    BlogConfig,
-    RssConfig,
-    SelectorConfig,
-    _adapter,
-)
+from shared.selector_config import ArxivConfig, BlogConfig, RssConfig, SelectorConfig, _adapter
 
 
 class SelectorConfigColumn(TypeDecorator):

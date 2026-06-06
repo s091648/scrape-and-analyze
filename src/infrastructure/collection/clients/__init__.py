@@ -1,9 +1,14 @@
-from .arxiv_client import ArxivClient, ArxivEntry
-from .rss_client import RssClient, RssEntry
+from .arxiv_client import ArxivClient, ArxivRateLimitedError
+from .openalex_client import OpenAlexClient, OpenAlexRateLimitedError
+from .rss_client import RssClient
+from .semantic_scholar_client import SemanticScholarClient, SemanticScholarRateLimitedError
 
 __all__ = [
     "ArxivClient",
-    "ArxivEntry",
+    "ArxivRateLimitedError",
+    "OpenAlexClient",
+    "OpenAlexRateLimitedError",
     "RssClient",
-    "RssEntry",
+    "SemanticScholarClient",
+    "SemanticScholarRateLimitedError",
 ]

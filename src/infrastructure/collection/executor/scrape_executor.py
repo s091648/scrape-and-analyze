@@ -1,3 +1,4 @@
+import contextvars
 import queue
 import time
 import threading
@@ -13,8 +14,18 @@ from .queue_selector import (
     QueueSelector,
     WeightedRoundRobinQueueSelector,
 )
+from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.shared.logging import get_logger
 from src.modules.collection.domain.value_objects import ScrapedArticle
+
+
+def _context_wrapper(fn, ctx: contextvars.Context):
+    """Run *fn* inside a copied context so OTel span state propagates
+    into the worker thread.  Python < 3.12 does NOT copy contextvars
+    into ThreadPoolExecutor workers automatically."""
+    def _run(*args, **kwargs):
+        return ctx.run(fn, *args, **kwargs)
+    return _run
 
 logger = get_logger(__name__)
 
@@ -50,12 +61,16 @@ class ScrapeExecutor:
         fetch_delay: float = 5.0,
         discover_delays: Optional[Dict[str, float]] = None,
         selector: Optional[QueueSelector] = None,
+        on_discover_failed: Optional[Callable] = None,
     ) -> None:
         self._num_workers = num_workers
         self._discover_workers = discover_workers
         self._fetch_delay = fetch_delay
-        self._discover_delays = discover_delays or _DEFAULT_DISCOVER_DELAYS
+        self._discover_delays = discover_delays if discover_delays is not None else _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
+        self._on_discover_failed = on_discover_failed
+        self._aborted_hosts: set[str] = set()
+        self._abort_lock = threading.Lock()
 
     def run(
         self,
@@ -86,6 +101,7 @@ class ScrapeExecutor:
         self,
         discover_tasks: List[DiscoverTask],
         on_result: Callable[[ScrapedArticle], None],
+        pre_fetch_filter: Optional[Callable[[List[FetchTask]], List[FetchTask]]] = None,
     ) -> int:
         """
         Streaming discover + fetch mode.
@@ -128,22 +144,24 @@ class ScrapeExecutor:
         ) as pool:
             futures = []
 
-            # Discover workers
+            # Discover workers — each gets its own context copy to avoid
+            # "cannot enter context: already entered" across concurrent threads.
             for i in range(self._discover_workers):
                 futures.append(pool.submit(
-                    self._discover_worker_loop,
+                    _context_wrapper(self._discover_worker_loop, contextvars.copy_context()),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     router=router,
                     pending_discovers=pending_discovers,
                     pending_lock=pending_lock,
                     on_discover_complete=_on_discover_complete,
+                    pre_fetch_filter=pre_fetch_filter,
                 ))
 
-            # Fetch workers
+            # Fetch workers — same: each needs its own context copy.
             for i in range(self._num_workers):
                 futures.append(pool.submit(
-                    self._fetch_worker_loop,
+                    _context_wrapper(self._fetch_worker_loop, contextvars.copy_context()),
                     worker_id=i,
                     host_queue_map=host_queue_map,
                     on_result=on_result,
@@ -159,6 +177,185 @@ class ScrapeExecutor:
 
         logger.info("executor_streaming_complete", total_fetched=total_fetched)
         return total_fetched
+
+    # ── Discover-only mode ────────────────────────────────────────────────
+
+    def run_discover(
+        self,
+        discover_tasks: List[DiscoverTask],
+        pre_fetch_filter: Optional[Callable[[List[FetchTask]], List[FetchTask]]] = None,
+    ) -> List[FetchTask]:
+        """
+        Discover-only mode: execute all discover tasks and return resulting FetchTasks.
+
+        Does NOT fetch — caller should pass the returned FetchTasks to run_fetch_only().
+        """
+        if not discover_tasks:
+            return []
+
+        host_queue_map = HostQueueMap()
+        router = QueueRouter(host_queue_map)
+        router.route_discover(discover_tasks)
+
+        logger.info(
+            "executor_discover_start",
+            discover_tasks=len(discover_tasks),
+            host_count=len(host_queue_map.queues),
+        )
+
+        pending_discovers = [len(discover_tasks)]
+        pending_lock = threading.Lock()
+
+        def _on_discover_complete():
+            with pending_lock:
+                pending_discovers[0] -= 1
+
+        all_fetch_tasks: List[FetchTask] = []
+
+        def _route_and_collect(fetch_tasks: List[FetchTask]) -> None:
+            if pre_fetch_filter is not None:
+                fetch_tasks = pre_fetch_filter(fetch_tasks)
+            all_fetch_tasks.extend(fetch_tasks)
+            router.route(fetch_tasks)
+
+        with ThreadPoolExecutor(max_workers=self._discover_workers) as pool:
+            futures = []
+            for i in range(self._discover_workers):
+                futures.append(pool.submit(
+                    _context_wrapper(self._discover_worker_loop_collect, contextvars.copy_context()),
+                    worker_id=i,
+                    host_queue_map=host_queue_map,
+                    router=router,
+                    pending_discovers=pending_discovers,
+                    pending_lock=pending_lock,
+                    on_discover_complete=_on_discover_complete,
+                    on_fetch_tasks=_route_and_collect,
+                ))
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error("discover_worker_raised", error=str(e))
+
+        logger.info("executor_discover_complete", fetch_tasks=len(all_fetch_tasks))
+        return all_fetch_tasks
+
+    def _discover_worker_loop_collect(
+        self,
+        worker_id: int,
+        host_queue_map: HostQueueMap,
+        router: QueueRouter,
+        pending_discovers: list,
+        pending_lock: threading.Lock,
+        on_discover_complete: Callable[[], None],
+        on_fetch_tasks: Callable[[List[FetchTask]], None],
+    ) -> int:
+        """Discover worker that collects FetchTasks via callback instead of routing to queues."""
+        logger.info("discover_worker_started", worker_id=worker_id)
+        discover_count = 0
+
+        while True:
+            claimed_idx = self._try_claim(host_queue_map)
+
+            if claimed_idx is None:
+                with pending_lock:
+                    if pending_discovers[0] <= 0 and all(
+                        q.empty() for q in host_queue_map.queues
+                    ):
+                        break
+                time.sleep(0.05)
+                continue
+
+            executed_discover = False
+            try:
+                try:
+                    task = host_queue_map.queues[claimed_idx].get_nowait()
+                except queue.Empty:
+                    continue
+
+                if isinstance(task, DiscoverTask):
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
+
+                    with self._abort_lock:
+                        is_aborted = host in self._aborted_hosts
+
+                    if is_aborted:
+                        logger.warning(
+                            "discover_skipped_aborted_host",
+                            source=task.setting.source,
+                            host=host,
+                        )
+                        if self._on_discover_failed is not None:
+                            self._on_discover_failed(
+                                task,
+                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                            )
+                        on_discover_complete()
+                    else:
+                        try:
+                            fetch_tasks = task.execute()
+                            discover_count += 1
+                            executed_discover = True
+
+                            if fetch_tasks:
+                                on_fetch_tasks(fetch_tasks)
+                                logger.info(
+                                    "discover_produced_fetch_tasks",
+                                    source=task.setting.source,
+                                    host=task.host,
+                                    count=len(fetch_tasks),
+                                )
+                        except ArxivRateLimitedError as exc:
+                            with self._abort_lock:
+                                self._aborted_hosts.add(host)
+                            logger.warning(
+                                "discover_rate_limited_host_aborted",
+                                host=host,
+                                source=task.setting.source,
+                            )
+                            if self._on_discover_failed is not None:
+                                self._on_discover_failed(task, exc)
+                        finally:
+                            on_discover_complete()
+
+            finally:
+                if executed_discover:
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
+                    delay = self._discover_delays.get(host, 0.0)
+                    if delay > 0:
+                        time.sleep(delay)
+                host_queue_map.semaphores[claimed_idx].release()
+
+        logger.info("discover_worker_stopped", worker_id=worker_id, discovers=discover_count)
+        return 0
+
+    # ── Fetch-only mode ──────────────────────────────────────────────────
+
+    def run_fetch_only(
+        self,
+        fetch_tasks: List[FetchTask],
+        on_result: Callable[[ScrapedArticle], None],
+    ) -> int:
+        """
+        Fetch-only mode: route pre-built FetchTasks into per-host queues
+        and run fetch workers. Returns count of successful ScrapedArticles.
+        """
+        if not fetch_tasks:
+            return 0
+
+        host_queue_map = HostQueueMap()
+        router = QueueRouter(host_queue_map)
+        router.route(fetch_tasks)
+
+        logger.info(
+            "executor_fetch_start",
+            total_tasks=len(fetch_tasks),
+            host_count=len(host_queue_map.queues),
+        )
+
+        result = self._run_fetch_workers(host_queue_map, on_result)
+        logger.info("executor_fetch_complete", total_fetched=result)
+        return result
 
     # ── Fetch-only worker pool (backward compatible) ────────────────────
 
@@ -209,7 +406,8 @@ class ScrapeExecutor:
 
         with ThreadPoolExecutor(max_workers=self._num_workers) as pool:
             futures = [
-                pool.submit(worker_loop, i) for i in range(self._num_workers)
+                pool.submit(_context_wrapper(worker_loop, contextvars.copy_context()), i)
+                for i in range(self._num_workers)
             ]
             done_flag[0] = True
 
@@ -232,6 +430,7 @@ class ScrapeExecutor:
         pending_discovers: list,
         pending_lock: threading.Lock,
         on_discover_complete: Callable[[], None],
+        pre_fetch_filter: Optional[Callable[[List[FetchTask]], List[FetchTask]]] = None,
     ) -> int:
         """Worker that processes DiscoverTask items from queues."""
         logger.info("discover_worker_started", worker_id=worker_id)
@@ -257,25 +456,63 @@ class ScrapeExecutor:
                     continue
 
                 if isinstance(task, DiscoverTask):
-                    fetch_tasks = task.execute()
-                    discover_count += 1
-                    executed_discover = True
+                    host = self._host_for_queue(host_queue_map, claimed_idx)
 
-                    # Route resulting fetch tasks back into queues
-                    if fetch_tasks:
-                        router.route(fetch_tasks)
-                        logger.info(
-                            "discover_produced_fetch_tasks",
+                    with self._abort_lock:
+                        is_aborted = host in self._aborted_hosts
+
+                    if is_aborted:
+                        # A prior discover for this host returned 429 — skip without hitting the API.
+                        logger.warning(
+                            "discover_skipped_aborted_host",
                             source=task.setting.source,
-                            host=task.host,
-                            count=len(fetch_tasks),
+                            host=host,
                         )
+                        if self._on_discover_failed is not None:
+                            self._on_discover_failed(
+                                task,
+                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                            )
+                        on_discover_complete()
+                        # executed_discover stays False → no cooldown, semaphore released by outer finally
+                    else:
+                        try:
+                            fetch_tasks = task.execute()
+                            discover_count += 1
+                            executed_discover = True
 
-                    on_discover_complete()
+                            # Route resulting fetch tasks back into queues
+                            if fetch_tasks:
+                                if pre_fetch_filter is not None:
+                                    fetch_tasks = pre_fetch_filter(fetch_tasks)
+                                router.route(fetch_tasks)
+                                logger.info(
+                                    "discover_produced_fetch_tasks",
+                                    source=task.setting.source,
+                                    host=task.host,
+                                    count=len(fetch_tasks),
+                                )
+                        except ArxivRateLimitedError as exc:
+                            # First 429 for this host — abort all remaining discovers this run.
+                            with self._abort_lock:
+                                self._aborted_hosts.add(host)
+                            logger.warning(
+                                "discover_rate_limited_host_aborted",
+                                host=host,
+                                source=task.setting.source,
+                            )
+                            if self._on_discover_failed is not None:
+                                self._on_discover_failed(task, exc)
+                        finally:
+                            on_discover_complete()
                 # If it's a FetchTask in this queue, leave it for fetch workers
-                # — put it back and release semaphore
+                # — put it back and release semaphore. If all discovers are done,
+                # exit immediately to avoid spinning on fetch-only queues.
                 elif isinstance(task, FetchTask):
                     host_queue_map.queues[claimed_idx].put(task)
+                    with pending_lock:
+                        if pending_discovers[0] <= 0:
+                            break
 
             finally:
                 # Per-host discover cooldown — hold semaphore during sleep so

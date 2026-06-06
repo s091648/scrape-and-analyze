@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
+from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import FailedTask
 from src.shared.domain.repositories import FailedTaskRepository
-from src.shared.logging import get_logger
 from src.modules.intelligence.application.events import AnalysisFailedEvent
+
 
 logger = get_logger(__name__)
 

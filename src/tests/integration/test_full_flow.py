@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 def _make_article(db_session, *, url=None, source="test"):
     """Insert and return a committed Article with no analysis."""
     from models.article import Article
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = url or f"https://example.com/{uuid.uuid4()}"
     article = Article(
@@ -29,18 +29,27 @@ def _make_article(db_session, *, url=None, source="test"):
 def _make_analysis(db_session, article):
     """Insert and return a committed Analysis linked to the given article."""
     from models.analysis import Analysis
+    from models.analyses_translation import AnalysesTranslation
 
     analysis = Analysis(
         article_id=article.id,
         correlation_id=uuid.uuid4(),
-        pain_points="Pain points",
-        insights="Insights",
-        innovations="Innovations",
         model_used="test-model",
         input_tokens=10,
         output_tokens=5,
     )
     db_session.add(analysis)
+    db_session.flush()
+
+    translation = AnalysesTranslation(
+        analysis_id=analysis.id,
+        language="en",
+        pain_points="Pain points",
+        insights="Insights",
+        innovations="Innovations",
+        summary="Summary",
+    )
+    db_session.add(translation)
     db_session.commit()
     return analysis
 
@@ -53,7 +62,7 @@ def _make_analysis(db_session, article):
 def test_article_deduplication(db_session):
     """Duplicate articles should not be created."""
     from models.article import Article
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = f"https://example.com/dedup-{uuid.uuid4()}"
     url_hash = UrlHash.generate_url_hash(url)
@@ -131,22 +140,24 @@ def test_article_with_analysis_creation(db_session):
 @pytest.mark.integration
 def test_has_analysis_returns_true_when_analysis_exists(db_session):
     """has_analysis should return True for an article that has an analysis."""
-    from src.infrastructure.persistence.database import has_analysis
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
 
     article = _make_article(db_session)
     _make_analysis(db_session, article)
 
-    assert has_analysis(db_session, article.id) is True
+    repo = SqlAlchemyArticleRepository(session=db_session)
+    assert repo.has_analysis(article.id) is True
 
 
 @pytest.mark.integration
 def test_has_analysis_returns_false_when_no_analysis(db_session):
     """has_analysis should return False for an article with no analysis."""
-    from src.infrastructure.persistence.database import has_analysis
+    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
 
     article = _make_article(db_session)
 
-    assert has_analysis(db_session, article.id) is False
+    repo = SqlAlchemyArticleRepository(session=db_session)
+    assert repo.has_analysis(article.id) is False
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +167,12 @@ def test_has_analysis_returns_false_when_no_analysis(db_session):
 @pytest.mark.integration
 def test_find_missing_analyses_includes_article_without_analysis(db_session):
     """find_missing_analyses should return articles that have no analysis."""
-    from src.infrastructure.persistence.database import find_missing_analyses
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
 
     article = _make_article(db_session)
 
-    missing = find_missing_analyses(db_session)
+    repo = SqlAlchemyAnalysisRepository(session=db_session)
+    missing = repo.find_missing_analyses()
     missing_ids = {a.id for a in missing}
     assert article.id in missing_ids
 
@@ -168,12 +180,13 @@ def test_find_missing_analyses_includes_article_without_analysis(db_session):
 @pytest.mark.integration
 def test_find_missing_analyses_excludes_analyzed_articles(db_session):
     """find_missing_analyses should not return articles that already have an analysis."""
-    from src.infrastructure.persistence.database import find_missing_analyses
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
 
     article = _make_article(db_session)
     _make_analysis(db_session, article)
 
-    missing = find_missing_analyses(db_session)
+    repo = SqlAlchemyAnalysisRepository(session=db_session)
+    missing = repo.find_missing_analyses()
     missing_ids = {a.id for a in missing}
     assert article.id not in missing_ids
 
@@ -186,8 +199,8 @@ def test_find_missing_analyses_excludes_analyzed_articles(db_session):
 def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
     """scan_missing_analyses should include articles older than min_age_hours."""
     from models.article import Article
-    from src.infrastructure.persistence.database import scan_missing_analyses
-    from src.modules.collection.domain.value_objects.url import UrlHash
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
+    from src.modules.collection.domain.value_objects import UrlHash
 
     url = f"https://example.com/old-{uuid.uuid4()}"
     old_article = Article(
@@ -202,7 +215,8 @@ def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
     db_session.add(old_article)
     db_session.commit()
 
-    zombies = scan_missing_analyses(db_session, min_age_hours=1)
+    repo = SqlAlchemyAnalysisRepository(session=db_session)
+    zombies = repo.scan_missing_analyses(min_age_hours=1)
     zombie_ids = {a.id for a in zombies}
     assert old_article.id in zombie_ids
 
@@ -210,11 +224,12 @@ def test_scan_missing_analyses_finds_old_article_without_analysis(db_session):
 @pytest.mark.integration
 def test_scan_missing_analyses_skips_recent_articles(db_session):
     """scan_missing_analyses should not include recently-scraped articles (race-condition guard)."""
-    from src.infrastructure.persistence.database import scan_missing_analyses
+    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
 
     # Default scraped_at = now() — well within the 1-hour grace period
     recent_article = _make_article(db_session)
 
-    zombies = scan_missing_analyses(db_session, min_age_hours=1)
+    repo = SqlAlchemyAnalysisRepository(session=db_session)
+    zombies = repo.scan_missing_analyses(min_age_hours=1)
     zombie_ids = {a.id for a in zombies}
     assert recent_article.id not in zombie_ids

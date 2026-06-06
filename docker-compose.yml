@@ -8,8 +8,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./models:/app/models
+      - ./shared:/app/shared
       - ./pytest.ini:/app/pytest.ini
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -28,6 +28,7 @@ services:
       - ./src:/app/src       # live-reload model changes
       - ./backend:/app/backend  # live-reload API changes
       - ./models:/app/models      # live-reload DB model changes
+      - ./shared:/app/shared
     ports:
       - "8000:8000"
     env_file:
@@ -35,7 +36,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
+    command: uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
 
   # Next.js frontend
   frontend:
@@ -45,6 +46,7 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules  # preserve installed modules
+      - playwright_cache:/root/.cache/ms-playwright  # persist browser binaries
     ports:
       - "3000:3000"
     env_file:
@@ -52,7 +54,7 @@ services:
     command: npx next dev
 
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     env_file:
       - .env
     ports:
@@ -83,10 +85,10 @@ services:
     volumes:
       - ./src:/app/src
       - ./models:/app/models
+      - ./shared:/app/shared
       - ./scripts:/app/scripts
       - ./backend:/app/backend
       - ./pytest.ini:/app/pytest.ini
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -102,12 +104,12 @@ services:
     volumes:
       - ./src:/app/src
       - ./models:/app/models
+      - ./shared:/app/shared
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
-      - ./providers.toml:/app/providers.toml
     env_file:
       - .env
     depends_on:
@@ -119,3 +121,4 @@ volumes:
   postgres_data:
   pgadmin_data:
   frontend_node_modules:
+  playwright_cache:

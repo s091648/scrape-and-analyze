@@ -52,6 +52,7 @@ class HttpClient:
         max_403_rotations: int = 2,
         retry_max_attempts: int = 4,
         rotation_delay_base: float = 3.0,
+        skip_retry_status: frozenset = frozenset(),
     ) -> None:
         self._rate_limiter = rate_limiter
         self._ua_pool = ua_pool
@@ -59,7 +60,10 @@ class HttpClient:
         self._proxy_enabled = proxy_enabled
         self._max_403_rotations = max_403_rotations
         self._rotation_delay_base = rotation_delay_base
-        self._retry_policy = make_retry_policy(max_attempts=retry_max_attempts)
+        self._retry_policy = make_retry_policy(
+            max_attempts=retry_max_attempts,
+            skip_status=skip_retry_status,
+        )
 
     def get(self, url: str, timeout: int = 30, **kwargs) -> requests.Response:
         domain = _extract_domain(url)
@@ -70,9 +74,13 @@ class HttpClient:
             proxies = self._proxies if self._proxy_enabled else None
             ua = self._ua_pool.get(domain)
             headers = {
-                "User-Agent": ua,
-                **get_browser_headers(ua),
-                **caller_headers,
+                k: v
+                for k, v in {
+                    "User-Agent": ua,
+                    **get_browser_headers(ua),
+                    **caller_headers,
+                }.items()
+                if v is not None
             }
             try:
                 with self._rate_limiter.connection(domain):
@@ -118,6 +126,19 @@ class HttpClient:
 
         logger.error("http_403_exhausted", url=url)
         raise last_403_exc  # type: ignore[misc]
+
+    def with_skip_retry_status(self, skip: frozenset) -> "HttpClient":
+        """Return a new HttpClient sharing the same rate limiter and UA pool,
+        but with the given HTTP status codes excluded from retry."""
+        return HttpClient(
+            rate_limiter=self._rate_limiter,
+            ua_pool=self._ua_pool,
+            proxies=self._proxies,
+            proxy_enabled=self._proxy_enabled,
+            max_403_rotations=self._max_403_rotations,
+            rotation_delay_base=self._rotation_delay_base,
+            skip_retry_status=skip,
+        )
 
     @classmethod
     def build_default(cls) -> "HttpClient":

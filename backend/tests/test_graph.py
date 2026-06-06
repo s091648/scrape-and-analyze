@@ -3,11 +3,29 @@ import uuid
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
+# Stable UUIDs for mock group definitions
+_DT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
+_AI_UUID = uuid.UUID("22222222-2222-2222-2222-222222222222")
+
+_GROUP_NAME_TO_UUID = {
+    'digital_twin': _DT_UUID,
+    'ai_ml': _AI_UUID,
+}
+
+
+def _make_mock_db():
+    """Create a mock DB session for tests that need AnalysesTranslation queries."""
+    mock_db = MagicMock()
+    # db.query(AnalysesTranslation).filter(...).all() → returns empty list
+    mock_db.query.return_value.filter.return_value.all.return_value = []
+    return mock_db
+
 
 def make_mock_tag(name, group_name):
     t = MagicMock()
     t.name = name
     t.tag_group_name = group_name
+    t.tag_group_id = _GROUP_NAME_TO_UUID.get(group_name, uuid.uuid4())
     return t
 
 
@@ -27,21 +45,20 @@ def make_mock_analysis(tag_groups):
     analysis = MagicMock()
     analysis.article = article
     analysis.article_id = article.id
-    analysis.pain_points = "Some pain points"
-    analysis.insights = "Some insights"
-    analysis.innovations = "Some innovations"
+    analysis.id = uuid.uuid4()
     return analysis
 
 
 _MOCK_GROUP_DEFS = {
-    'digital_twin': {'display_name': 'Digital Twin', 'color_hex': '#6366f1'},
-    'ai_ml': {'display_name': 'AI & Machine Learning', 'color_hex': '#f59e0b'},
+    _DT_UUID: {'name': 'digital_twin', 'display_name': 'Digital Twin', 'color_hex': '#6366f1'},
+    _AI_UUID: {'name': 'ai_ml', 'display_name': 'AI & Machine Learning', 'color_hex': '#f59e0b'},
 }
 
 
 def _mock_group_def(name='digital_twin', display='Digital Twin'):
     m = MagicMock()
     m.display_name = display
+    m.id = _GROUP_NAME_TO_UUID.get(name, uuid.uuid4())
     return m
 
 
@@ -92,18 +109,28 @@ def test_graph_different_days_different_cache():
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
-        client.get('/analyses/graph?days=30')
-        client.get('/analyses/graph?days=90')
+        client.get('/analyses/graph?aggregator=techcrunch')
+        client.get('/analyses/graph?aggregator=arxiv')
     assert mock_q.call_count == 2
 
 
 def test_graph_group_endpoint_returns_articles():
     from backend.main import app
+    from backend.database import get_db
     client = TestClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica', 'model fidelity']}])]
-    with patch('backend.routers.graph.query_group_articles', return_value=mock_analyses), \
-         patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
-        response = client.get('/analyses/graph/group/digital_twin')
+    mock_db = _make_mock_db()
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=mock_analyses), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/digital_twin')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
     assert response.status_code == 200
     items = response.json()
     assert isinstance(items, list)
@@ -114,19 +141,39 @@ def test_graph_group_endpoint_returns_articles():
 
 def test_graph_group_excerpt_max_200_chars():
     from backend.main import app
+    from backend.database import get_db
     client = TestClient(app)
     mock_analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
     mock_analysis.article.content = 'x' * 500
-    with patch('backend.routers.graph.query_group_articles', return_value=[mock_analysis]), \
-         patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
-        response = client.get('/analyses/graph/group/digital_twin')
+    mock_db = _make_mock_db()
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=[mock_analysis]), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/digital_twin')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
     assert len(response.json()[0]['excerpt']) <= 200
 
 
 def test_graph_group_no_auth_required():
     from backend.main import app
+    from backend.database import get_db
     client = TestClient(app)
-    with patch('backend.routers.graph.query_group_articles', return_value=[]), \
-         patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
-        response = client.get('/analyses/graph/group/any')
+    mock_db = _make_mock_db()
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=[]), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/any')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
     assert response.status_code == 200

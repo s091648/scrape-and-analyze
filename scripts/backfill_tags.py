@@ -5,7 +5,7 @@ Backfill normalized tags for articles that have analyses but no article_tags ent
 Usage:
     DATABASE_URL=... python scripts/backfill_tags.py [--dry-run] [--limit N]
 
-Provider selection and rate limiting are controlled by providers.toml (same as main.py).
+Provider selection and rate limiting are controlled by the llm_providers DB table.
 """
 import argparse
 import os
@@ -62,17 +62,29 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
                     f" -> article {article_id}"
                 )
                 continue
+            grp_row = session.execute(
+                text("""
+                    SELECT tgd.id FROM tag_group_definitions tgd
+                    JOIN articles a ON a.topic_id = tgd.topic_id
+                    WHERE tgd.name = :group_name AND a.id = :article_id
+                    LIMIT 1
+                """),
+                {"group_name": group_name, "article_id": str(article_id)},
+            ).first()
+            if not grp_row:
+                continue
+            tag_group_id = grp_row[0]
             session.execute(
                 text("""
-                    INSERT INTO tags (id, name, tag_group_name)
-                    VALUES (:id, :name, :group_name)
-                    ON CONFLICT (name, tag_group_name) DO NOTHING
+                    INSERT INTO tags (id, name, tag_group_id)
+                    VALUES (:id, :name, :tag_group_id)
+                    ON CONFLICT (name, tag_group_id) DO NOTHING
                 """),
-                {"id": str(uuid_module.uuid4()), "name": tag_name, "group_name": group_name},
+                {"id": str(uuid_module.uuid4()), "name": tag_name, "tag_group_id": str(tag_group_id)},
             )
             row = session.execute(
-                text("SELECT id FROM tags WHERE name = :name AND tag_group_name = :group_name"),
-                {"name": tag_name, "group_name": group_name},
+                text("SELECT id FROM tags WHERE name = :name AND tag_group_id = :tag_group_id"),
+                {"name": tag_name, "tag_group_id": str(tag_group_id)},
             ).first()
             session.execute(
                 text("""
@@ -85,7 +97,7 @@ def upsert_tags_for_article(session, article_id, tag_groups, dry_run=False):
 
 
 def update_analysis(session, analysis_id, content, metadata, dry_run=False):
-    """Overwrite pain_points/insights/innovations/token counts on the analyses row."""
+    """Overwrite content on analyses_translation and metadata on the analyses row."""
     if dry_run:
         pain_points_preview = content.pain_points[:50] if content.pain_points else ""
         print(
@@ -93,27 +105,40 @@ def update_analysis(session, analysis_id, content, metadata, dry_run=False):
             f" pain_points={pain_points_preview!r}..."
         )
         return
+    # Update metadata on analyses row
     session.execute(
         text("""
             UPDATE analyses
-            SET pain_points   = :pain_points,
-                insights      = :insights,
-                innovations   = :innovations,
-                summary       = :summary,
-                model_used    = :model_used,
+            SET model_used    = :model_used,
                 input_tokens  = :input_tokens,
                 output_tokens = :output_tokens
             WHERE id = :id
         """),
         {
             "id":            str(analysis_id),
-            "pain_points":   content.pain_points,
-            "insights":      content.insights,
-            "innovations":   content.innovations,
-            "summary":       content.summary,
             "model_used":    metadata.model_used,
             "input_tokens":  metadata.input_tokens,
             "output_tokens": metadata.output_tokens,
+        },
+    )
+    # Upsert content on analyses_translation (English row)
+    session.execute(
+        text("""
+            INSERT INTO analyses_translation (id, analysis_id, language, summary, pain_points, insights, innovations, created_at, updated_at)
+            VALUES (gen_random_uuid(), :analysis_id, 'en', :summary, :pain_points, :insights, :innovations, NOW(), NOW())
+            ON CONFLICT (analysis_id, language) DO UPDATE
+            SET summary      = EXCLUDED.summary,
+                pain_points   = EXCLUDED.pain_points,
+                insights      = EXCLUDED.insights,
+                innovations   = EXCLUDED.innovations,
+                updated_at    = NOW()
+        """),
+        {
+            "analysis_id":   str(analysis_id),
+            "summary":       content.summary,
+            "pain_points":   content.pain_points,
+            "insights":      content.insights,
+            "innovations":   content.innovations,
         },
     )
 
@@ -157,7 +182,7 @@ def run_backfill(session, llm_service, prompt, dry_run=False, limit=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Backfill normalized tags via LLM re-analysis (providers.toml)."
+        description="Backfill normalized tags via LLM re-analysis."
     )
     parser.add_argument(
         "--dry-run", action="store_true",

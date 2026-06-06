@@ -76,6 +76,7 @@ class BlogScraper(BaseScraper):
             content=content,
             source=job.source,
             topic_id=job.topic_id,
+            extra={"original_source": job.source},
         )
 
     def _extract_title(self, html: str) -> str:

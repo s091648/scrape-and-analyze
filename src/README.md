@@ -1,3 +1,8 @@
+[![src unit coverage](https://codecov.io/gh/s091648/scrape-and-analyze/graph/badge.svg?token=RADSEJRK64&flag=unit)](https://codecov.io/gh/s091648/scrape-and-analyze?flag=unit)
+[![src integration coverage](https://codecov.io/gh/s091648/scrape-and-analyze/graph/badge.svg?token=RADSEJRK64&flag=integration)](https://codecov.io/gh/s091648/scrape-and-analyze?flag=integration)
+![unit tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/unit-passrate.json)
+![integration tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/s091648/ca46ff0f1130f4b6e02d2ed6ea0ed243/raw/integration-passrate.json)
+
 # Scraper / Analyzer Service
 
 Standalone Python service that discovers articles, fetches content, and analyzes them with LLM providers. Runs on a schedule (cron or Railway job) and writes results directly to the shared PostgreSQL database.

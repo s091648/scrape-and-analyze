@@ -1,0 +1,101 @@
+name: Release to Production
+
+# Triggered by pushing a version tag (e.g. v1.2.3).
+# Assumes the PR that was merged before tagging already ran
+# generate_release_notes.py and filled in the changes array.
+# This workflow only replaces the {{NEWEST_VERSION}} placeholder
+# and deploys to Railway production.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write  # needed to commit the version update back to master
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  release:
+    name: Stamp Version & Deploy
+    runs-on: ubuntu-latest
+    environment: scraper / production
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      # -------------------------------------------------------------------
+      # Replace {{NEWEST_VERSION}} and {{RELEASE_DATE}} in release-notes.json
+      # -------------------------------------------------------------------
+      - name: Stamp version placeholder
+        run: |
+          TAG="${{ github.ref_name }}"
+          DATE=$(date -u +%Y-%m-%d)
+          sed -i "s/{{NEWEST_VERSION}}/${TAG}/g" frontend/public/release-notes.json
+          sed -i "s/{{RELEASE_DATE}}/${DATE}/g"  frontend/public/release-notes.json
+          echo "Stamped ${TAG} (${DATE}) into release-notes.json"
+
+      - name: Commit version stamp
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/release-notes.json
+          # Only commit if there's actually a change (idempotent re-runs)
+          git diff --staged --quiet || \
+            git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes"
+          git push origin master
+
+      # -------------------------------------------------------------------
+      # Migrate production DB before deploy
+      # -------------------------------------------------------------------
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen --all-groups
+        env:
+          UV_SYSTEM_PYTHON: "1"
+
+      - name: Run alembic upgrade on production DB
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # -------------------------------------------------------------------
+      # Deploy to Railway production
+      # -------------------------------------------------------------------
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway (production)
+        run: |
+          railway up --detach --service 54f665be-c49e-407e-bf23-e414587b9984  # dashboard-frontend
+          railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754  # dashboard-backend
+          railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35  # storybook UI
+          railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
+        env:
+          RAILWAY_TOKEN: ${{ secrets.PRODUCTION_RAILWAY_TOKEN }}
+
+      # -------------------------------------------------------------------
+      # Create GitHub Release with the stamped notes as body
+      # -------------------------------------------------------------------
+      - name: Extract release body from JSON
+        id: notes
+        run: python3 scripts/release/extract_release_body.py "${{ github.ref_name }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}

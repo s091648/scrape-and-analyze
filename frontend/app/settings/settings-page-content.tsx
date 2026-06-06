@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { apiFetch } from '@/lib/api-fetch'
+import Link from 'next/link'
+import { fetchMe, updateMe, changePassword, deleteMe, unlinkGoogle } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useI18n, useGuestMode } from '@/lib/providers'
 
 interface Profile {
   id: string
@@ -46,63 +48,78 @@ function initials(name: string | null | undefined): string {
 
 export default function SettingsPageContent() {
   const { data: session } = useSession()
+  const { t } = useI18n()
+  const { isGuestMode } = useGuestMode()
   const token = (session as any)?.accessToken
 
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarSrc, setAvatarSrc] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Name field
   const [name, setName] = useState('')
   const [nameSaving, setNameSaving] = useState(false)
   const [nameMsg, setNameMsg] = useState<string | null>(null)
-
-  // Password fields
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordMsg, setPasswordMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [passwordSaving, setPasswordSaving] = useState(false)
-
   const searchParams = useSearchParams()
   const router = useRouter()
   const [linkMsg, setLinkMsg] = useState<{ ok: boolean; text: string } | null>(null)
-
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const linked = searchParams.get('linked')
     if (linked === 'success') {
-      setLinkMsg({ ok: true, text: 'Google account linked successfully.' })
+      setLinkMsg({ ok: true, text: t('settings.googleAccountLinked') })
       setProfile(prev => prev ? { ...prev, google_id: '__linked__' } : prev)
       router.replace('/settings')
     } else if (linked === 'error') {
-      setLinkMsg({ ok: false, text: 'Failed to link Google account. It may already be in use.' })
+      setLinkMsg({ ok: false, text: t('settings.failedToLinkGoogle') })
       router.replace('/settings')
     }
-  }, [searchParams, router])
+  }, [searchParams, router, t])
 
   useEffect(() => {
     if (!token) return
     setIsLoading(true)
-    apiFetch('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then((p: Profile) => {
-        setProfile(p)
+    fetchMe(token)
+      .then((p) => {
+        if (!p) return
+        setProfile(p as unknown as Profile)
         setName(p.name ?? '')
         setAvatarSrc(p.icon ?? null)
       })
       .finally(() => setIsLoading(false))
   }, [token])
 
+  if (isGuestMode) {
+    return (
+      <div className="space-y-4 max-w-md">
+        <h2 className="text-xl font-bold">{t('guest.restrictedTitle')}</h2>
+        <p className="text-sm text-muted-foreground">{t('guest.restrictedMessage')}</p>
+        <div className="flex gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+          >
+            {t('login.signIn')}
+          </Link>
+          <Link
+            href="/register"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+          >
+            {t('login.register')}
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     const dataUrl = await resizeToBase64(file)
-    const res = await apiFetch('/auth/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ icon: dataUrl }),
-    })
+    const res = await updateMe(token, { icon: dataUrl })
     if (res.ok) {
       setAvatarSrc(dataUrl)
       setProfile(prev => prev ? { ...prev, icon: dataUrl } : prev)
@@ -115,17 +132,13 @@ export default function SettingsPageContent() {
     if (!name.trim()) return
     setNameSaving(true)
     setNameMsg(null)
-    const res = await apiFetch('/auth/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: name.trim() }),
-    })
+    const res = await updateMe(token, { name: name.trim() })
     setNameSaving(false)
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, name: name.trim() } : prev)
-      setNameMsg('Saved.')
+      setNameMsg(t('settings.saved'))
     } else {
-      setNameMsg('Failed to save.')
+      setNameMsg(t('settings.failedToSave'))
     }
     setTimeout(() => setNameMsg(null), 3000)
   }
@@ -134,53 +147,43 @@ export default function SettingsPageContent() {
     if (!currentPassword || !newPassword) return
     setPasswordSaving(true)
     setPasswordMsg(null)
-    const res = await apiFetch('/auth/me/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-    })
+    const res = await changePassword(token, { current_password: currentPassword, new_password: newPassword })
     setPasswordSaving(false)
     if (res.ok) {
-      setPasswordMsg({ ok: true, text: 'Password changed successfully.' })
+      setPasswordMsg({ ok: true, text: t('settings.passwordChangedSuccessfully') })
       setCurrentPassword('')
       setNewPassword('')
     } else {
       const data = await res.json().catch(() => ({}))
-      setPasswordMsg({ ok: false, text: data?.detail ?? 'Failed to change password.' })
+      setPasswordMsg({ ok: false, text: data?.detail ?? t('settings.failedToChangePassword') })
     }
   }
 
   async function handleDeleteAccount() {
-    if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return
-    const res = await apiFetch('/auth/me', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!confirm(t('settings.confirmDeleteAccount'))) return
+    const res = await deleteMe(token)
     if (res.ok) {
       await signOut({ callbackUrl: '/login' })
     }
   }
 
   async function handleUnlinkGoogle() {
-    if (!confirm('Unlink your Google account?')) return
-    const res = await apiFetch('/auth/me/link-google', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!confirm(t('settings.unlinkGoogleAccount'))) return
+    const res = await unlinkGoogle(token)
     if (res.ok) {
       setProfile(prev => prev ? { ...prev, google_id: null } : prev)
-      setLinkMsg({ ok: true, text: 'Google account unlinked.' })
+      setLinkMsg({ ok: true, text: t('settings.googleAccountUnlinked') })
     } else {
       const data = await res.json().catch(() => ({}))
-      setLinkMsg({ ok: false, text: data?.detail ?? 'Failed to unlink.' })
+      setLinkMsg({ ok: false, text: data?.detail ?? t('settings.failedToUnlink') })
     }
   }
 
   return (
     <div className="space-y-6 max-w-xl">
       <div>
-        <h1 className="text-2xl font-bold">Profile</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your account settings</p>
+        <h1 className="text-2xl font-bold">{t('settings.profile')}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t('settings.manageYourAccountSettings')}</p>
       </div>
 
       {isLoading ? (
@@ -223,7 +226,7 @@ export default function SettingsPageContent() {
         <>
           {/* Avatar section */}
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-sm">Avatar</h2>
+            <h2 className="font-semibold text-sm">{t('settings.avatar')}</h2>
             <div className="flex items-center gap-6">
               <div className="relative shrink-0">
                 {avatarSrc ? (
@@ -244,14 +247,14 @@ export default function SettingsPageContent() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  JPG, PNG, or GIF. Max display size 128&times;128px.
+                  {t('settings.avatarHelp')}
                 </p>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  Change photo
+                  {t('settings.changePhoto')}
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -266,16 +269,16 @@ export default function SettingsPageContent() {
 
           {/* Name section */}
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-sm">Name</h2>
+            <h2 className="font-semibold text-sm">{t('settings.name')}</h2>
             <div className="flex gap-3 items-center">
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="Your name"
+                placeholder={t('settings.yourName')}
                 className="flex-1 h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <Button size="sm" onClick={handleSaveName} disabled={nameSaving}>
-                {nameSaving ? 'Saving…' : 'Save'}
+                {nameSaving ? t('settings.saving') : t('settings.save')}
               </Button>
             </div>
             {nameMsg && (
@@ -285,7 +288,7 @@ export default function SettingsPageContent() {
 
           {/* Connected accounts */}
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-sm">Connected accounts</h2>
+            <h2 className="font-semibold text-sm">{t('settings.connectedAccounts')}</h2>
 
             {linkMsg && (
               <p className={`text-sm ${linkMsg.ok ? 'text-green-600' : 'text-destructive'}`}>
@@ -303,9 +306,9 @@ export default function SettingsPageContent() {
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
                 <div>
-                  <p className="text-sm font-medium">Google</p>
+                  <p className="text-sm font-medium">{t('settings.google')}</p>
                   <p className="text-xs text-muted-foreground">
-                    {profile?.google_id ? 'Connected' : 'Not connected'}
+                    {profile?.google_id ? t('settings.connected') : t('settings.notConnected')}
                   </p>
                 </div>
               </div>
@@ -324,7 +327,7 @@ export default function SettingsPageContent() {
                     }
                   }}
                 >
-                  Link Google
+                  {t('settings.linkGoogle')}
                 </Button>
               )}
 
@@ -335,7 +338,7 @@ export default function SettingsPageContent() {
                   className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
                   onClick={handleUnlinkGoogle}
                 >
-                  Unlink
+                  {t('settings.unlink')}
                 </Button>
               )}
             </div>
@@ -344,10 +347,10 @@ export default function SettingsPageContent() {
           {/* Password section — credentials users only */}
           {profile && !profile.google_id && (
             <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-              <h2 className="font-semibold text-sm">Change password</h2>
+              <h2 className="font-semibold text-sm">{t('settings.changePassword')}</h2>
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Current password</label>
+                  <label className="text-sm font-medium">{t('settings.currentPassword')}</label>
                   <input
                     type="password"
                     value={currentPassword}
@@ -356,7 +359,7 @@ export default function SettingsPageContent() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">New password</label>
+                  <label className="text-sm font-medium">{t('settings.newPassword')}</label>
                   <input
                     type="password"
                     value={newPassword}
@@ -370,7 +373,7 @@ export default function SettingsPageContent() {
                 onClick={handleChangePassword}
                 disabled={passwordSaving || !currentPassword || !newPassword}
               >
-                {passwordSaving ? 'Changing…' : 'Change password'}
+                {passwordSaving ? t('settings.changing') : t('settings.changePasswordBtn')}
               </Button>
               {passwordMsg && (
                 <p className={`text-sm ${passwordMsg.ok ? 'text-green-600' : 'text-destructive'}`}>
@@ -382,9 +385,9 @@ export default function SettingsPageContent() {
 
           {/* Delete account section */}
           <div className="rounded-2xl border border-destructive/30 bg-card p-6 space-y-4">
-            <h2 className="font-semibold text-sm text-destructive">Danger zone</h2>
+            <h2 className="font-semibold text-sm text-destructive">{t('settings.dangerZone')}</h2>
             <p className="text-sm text-muted-foreground">
-              Permanently delete your account and all associated data. This cannot be undone.
+              {t('settings.permanentlyDeleteAccount')}
             </p>
             <Button
               variant="outline"
@@ -392,7 +395,7 @@ export default function SettingsPageContent() {
               className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               onClick={handleDeleteAccount}
             >
-              Delete account
+              {t('settings.deleteAccount')}
             </Button>
           </div>
         </>
