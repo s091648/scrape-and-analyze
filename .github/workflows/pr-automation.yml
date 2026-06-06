@@ -9,6 +9,8 @@ name: PR Automation
 on:
   pull_request:
     branches: [master]
+    paths-ignore:
+      - 'frontend/public/release-notes.json'
 
 permissions:
   contents: write
