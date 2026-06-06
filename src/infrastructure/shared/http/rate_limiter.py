@@ -26,7 +26,7 @@ _BUILTIN_OVERRIDES: dict[str, float] = {
     "arxiv.org": 3.0,   # arXiv TOS: same budget as API domain (shared IP)
     "www.iotworldtoday.com": 2.0,   # ⚠ anti-bot (Cloudflare)
     "iotworldtoday.com": 2.0,
-    "api.semanticscholar.org": 0.05,  # unauthenticated: ~100 req/day; 0.05 RPM ≈ 72 req/day
+    "api.semanticscholar.org": 1.0,  # unauthenticated: ~100 req/day; scraper max 50-min run → ≤50 req/day
     "api.openalex.org": 5.0,          # polite pool: 10 req/sec; conservative default
 }
 
