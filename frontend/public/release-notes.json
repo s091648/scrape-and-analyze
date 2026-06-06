@@ -5,11 +5,35 @@
     "changes": [
       {
         "type": "feat",
+        "description": "Introduced article sharing capabilities and a new guest mode for easier collaboration."
+      },
+      {
+        "type": "feat",
         "description": "Integrated OpenAlex and Semantic Scholar as new data sources for research articles."
       },
       {
         "type": "feat",
-        "description": "Introduced article sharing capabilities and a guest mode for easier collaboration."
+        "description": "Enhanced the observability dashboard with Gantt-style trace waterfalls and visual pipeline stage cards."
+      },
+      {
+        "type": "fix",
+        "description": "Resolved an issue where line charts would fail to render correctly when data contained intermittent null values."
+      },
+      {
+        "type": "feat",
+        "description": "Added a global query settings panel and descriptive tooltips to the monitoring interface."
+      },
+      {
+        "type": "feat",
+        "description": "Enabled image zoom-in functionality for better visibility of embedded graphics in the documentation."
+      },
+      {
+        "type": "feat",
+        "description": "Expanded the trace table to include article titles, environment labels, and original source information."
+      },
+      {
+        "type": "feat",
+        "description": "Added a contact email and improved internationalization support across the log and trace dialogs."
       }
     ]
   },
