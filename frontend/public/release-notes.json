@@ -5,11 +5,31 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced article sharing capabilities and a new guest mode for easier collaboration."
+        "description": "Added support for OpenAlex data integration and original source tracking"
       },
       {
         "type": "feat",
-        "description": "Integrated OpenAlex and Semantic Scholar as new data sources for research articles."
+        "description": "Implemented Semantic Scholar integration for enhanced article insights"
+      },
+      {
+        "type": "feat",
+        "description": "Added new article sharing capabilities and guest access mode"
+      },
+      {
+        "type": "feat",
+        "description": "Introduced Gantt-style waterfall views and stage cards for monitoring pipelines"
+      },
+      {
+        "type": "feat",
+        "description": "Added global query settings and log-trace correlation to the monitor panel"
+      },
+      {
+        "type": "fix",
+        "description": "Resolved display issues in line charts where intermittent null values occurred"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed UI issues in the logs table and improved query timeout handling"
       }
     ]
   },
