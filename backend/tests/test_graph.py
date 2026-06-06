@@ -109,8 +109,8 @@ def test_graph_different_days_different_cache():
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
-        client.get('/analyses/graph?source=techcrunch')
-        client.get('/analyses/graph?source=arxiv')
+        client.get('/analyses/graph?aggregator=techcrunch')
+        client.get('/analyses/graph?aggregator=arxiv')
     assert mock_q.call_count == 2
 
 
