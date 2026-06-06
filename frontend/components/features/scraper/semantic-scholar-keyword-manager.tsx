@@ -23,9 +23,12 @@ export function SemanticScholarKeywordManager({
     const trimmed = value.trim()
     if (!trimmed) return
     setAdding(true)
-    await onAdd(trimmed)
-    setValue('')
-    setAdding(false)
+    try {
+      await onAdd(trimmed)
+      setValue('')
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (

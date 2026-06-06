@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, Mock
 import requests.exceptions
 
@@ -95,11 +96,8 @@ def test_fetch_papers_rate_limit_raises():
 
     client = SemanticScholarClient(api_key=None, http_client=mock_http)
 
-    try:
+    with pytest.raises(SemanticScholarRateLimitedError):
         client.fetch_papers(query="test")
-        assert False, "Expected SemanticScholarRateLimitedError"
-    except SemanticScholarRateLimitedError:
-        pass
 
 
 def test_fetch_papers_null_abstract():

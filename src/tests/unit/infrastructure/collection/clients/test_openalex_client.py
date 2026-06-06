@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, Mock
 import requests.exceptions
 
@@ -124,11 +125,8 @@ def test_fetch_papers_rate_limit_raises():
 
     client = OpenAlexClient(mailto=None, http_client=mock_http)
 
-    try:
+    with pytest.raises(OpenAlexRateLimitedError):
         client.fetch_papers(query="test")
-        assert False, "Expected OpenAlexRateLimitedError"
-    except OpenAlexRateLimitedError:
-        pass
 
 
 def test_fetch_papers_null_abstract_index():

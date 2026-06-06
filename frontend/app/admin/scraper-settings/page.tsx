@@ -620,7 +620,7 @@ function AddSemanticScholarCard({
       </div>
       <div className="flex gap-2">
         <Button size="sm" onClick={handleSave} disabled={saving || !form.name}><Check className="h-4 w-4 mr-1" />{t('admin.activate')}</Button>
-        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>{t('admin.cancel')}</Button>
+        <Button size="sm" variant="outline" onClick={handleClose}>{t('admin.cancel')}</Button>
       </div>
     </div>
   )
@@ -847,7 +847,7 @@ function AddOpenAlexCard({
       </div>
       <div className="flex gap-2">
         <Button size="sm" onClick={handleSave} disabled={saving || !form.name}><Check className="h-4 w-4 mr-1" />{t('admin.activate')}</Button>
-        <Button size="sm" variant="outline" onClick={() => setExpanded(false)}>{t('admin.cancel')}</Button>
+        <Button size="sm" variant="outline" onClick={handleClose}>{t('admin.cancel')}</Button>
       </div>
     </div>
   )
@@ -1063,7 +1063,9 @@ export default function ScraperSettingsPage() {
   const { selectedTopicId } = useTopic()
 
   useEffect(() => {
-    fetchSourceCategories().then(cats => setAggregatorTypeOptions(cats.aggregator ?? []))
+    fetchSourceCategories()
+      .then(cats => setAggregatorTypeOptions(cats.aggregator ?? []))
+      .catch(err => console.error('Failed to fetch aggregator types:', err))
   }, [])
 
   useEffect(() => {
@@ -1122,10 +1124,10 @@ export default function ScraperSettingsPage() {
     const created = await createScraperSource(data as any, token)
     setSettings(prev => [...prev, created])
     for (const kw of keywords) {
-      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'arxiv_keyword' }, token) } catch { /* already exists */ }
+      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'arxiv_keyword' }, token) } catch (err: any) { if (!err?.message?.includes('already exists') && err?.status !== 409) console.error('Failed to create arxiv keyword:', err) }
     }
     for (const cat of categories) {
-      try { await createTopicKeyword(selectedTopicId, { keyword: cat, keyword_type: 'arxiv_category' }, token) } catch { /* already exists */ }
+      try { await createTopicKeyword(selectedTopicId, { keyword: cat, keyword_type: 'arxiv_category' }, token) } catch (err: any) { if (!err?.message?.includes('already exists') && err?.status !== 409) console.error('Failed to create arxiv category:', err) }
     }
     await refreshKeywords()
   }
@@ -1168,7 +1170,7 @@ export default function ScraperSettingsPage() {
     const created = await createScraperSource(data as any, token)
     setSettings(prev => [...prev, created])
     for (const kw of keywords) {
-      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'semantic_scholar_keyword' }, token) } catch { /* already exists */ }
+      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'semantic_scholar_keyword' }, token) } catch (err: any) { if (!err?.message?.includes('already exists') && err?.status !== 409) console.error('Failed to create semantic scholar keyword:', err) }
     }
     await refreshKeywords()
   }
@@ -1178,7 +1180,7 @@ export default function ScraperSettingsPage() {
     const created = await createScraperSource(data as any, token)
     setSettings(prev => [...prev, created])
     for (const kw of keywords) {
-      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'openalex_keyword' }, token) } catch { /* already exists */ }
+      try { await createTopicKeyword(selectedTopicId, { keyword: kw, keyword_type: 'openalex_keyword' }, token) } catch (err: any) { if (!err?.message?.includes('already exists') && err?.status !== 409) console.error('Failed to create openalex keyword:', err) }
     }
     await refreshKeywords()
   }

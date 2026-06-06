@@ -86,8 +86,8 @@ class SemanticScholarClient:
         }
 
         if days_back is not None and days_back > 0:
-            year_from = (datetime.now(timezone.utc) - timedelta(days=days_back)).year
-            params["publicationDateOrYear"] = f"{year_from}-"
+            from_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            params["publicationDateOrYear"] = f"{from_date}:"
 
         headers = {"x-api-key": self._api_key} if self._api_key else {}
 
