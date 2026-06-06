@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Rss, Settings, ChevronDown, Globe, BookOpen } from 'lucide-react'
 import { GitHubLogoIcon } from '@radix-ui/react-icons'
+import { ReleaseNotesPopover } from '@/components/features/navigation/release-notes-popover'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTopic } from '@/lib/providers'
@@ -208,7 +209,11 @@ export function NavBar() {
               </TooltipTrigger>
               <TooltipContent>Spec Docs</TooltipContent>
             </Tooltip>
+          </TooltipProvider>
 
+          <ReleaseNotesPopover />
+
+          <TooltipProvider>
             {session && (
               <Tooltip>
                 <TooltipTrigger asChild>

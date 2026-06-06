@@ -1,0 +1,21 @@
+[
+  {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": []
+  },
+  {
+    "version": "v0.1.0",
+    "date": "2026-01-28",
+    "changes": [
+      { "type": "feat", "description": "Initial release: RSS, ArXiv, and blog article scraping pipeline" },
+      { "type": "feat", "description": "Multi-provider LLM analysis with automatic fallback (Gemini, Claude, OpenRouter)" },
+      { "type": "feat", "description": "Admin panel for managing topics, scraper sources, and users" },
+      { "type": "feat", "description": "Automatic translation of analyses, tags, and tag groups into configured languages" },
+      { "type": "feat", "description": "Knowledge graph visualization with group and article nodes" },
+      { "type": "feat", "description": "Telegram notifications on pipeline completion with per-run stats" },
+      { "type": "feat", "description": "OpenTelemetry metrics and structured Loki logging across all pipeline stages" },
+      { "type": "feat", "description": "GeoIP-based automatic language detection for frontend visitors" }
+    ]
+  }
+]

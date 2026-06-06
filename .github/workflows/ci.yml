@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    environment: scraper / production
+    environment: scraper / staging
 
     steps:
       - uses: actions/checkout@v4
@@ -633,7 +633,7 @@ jobs:
       always() &&
       needs.migrate.result == 'success' &&
       (needs.unit-test.result == 'failure' || needs.integration-test.result == 'failure')
-    environment: scraper / production
+    environment: scraper / staging
 
     steps:
       - uses: actions/checkout@v4

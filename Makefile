@@ -1,4 +1,4 @@
-.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync \
+.PHONY: migrate migrate-remote migrate-down migrate-remote-down dump sync sync-to-remote \
 	backfill backfill-dry-run backfill-embeddings backfill-embeddings-dry-run \
 	backfill-tag-group-embeddings backfill-tag-group-embeddings-dry-run \
 	backfill-embeddings-remote backfill-tag-group-embeddings-remote \
@@ -20,8 +20,11 @@ include .env
 export
 endif
 
-# default remote URL uses the variable from .env if present
-REMOTE_URL ?= $(REMOTE_RAILWAY_DB_URL)
+# ENV selects the target remote database (default: staging)
+# Usage: make migrate-remote              → staging
+#        make migrate-remote ENV=production → production
+ENV ?= staging
+REMOTE_URL ?= $(if $(filter production,$(ENV)),$(REMOTE_RAILWAY_DB_URL),$(REMOTE_RAILWAY_STAGING_DB_URL))
 DUMP_FILE ?= /app/db_dumps/railway_dump.sql
 
 # optional: override with LIMIT=50 to process only N articles
@@ -36,8 +39,8 @@ migrate:
 	docker compose run --rm job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 migrate-remote:
-	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
-	@echo "Running alembic upgrade $(or $(UPGRADE_REV),head) against Railway DB..."
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set — check REMOTE_RAILWAY_STAGING_DB_URL (or REMOTE_RAILWAY_DB_URL for ENV=production) in .env"; exit 1)
+	@echo "Running alembic upgrade $(or $(UPGRADE_REV),head) against Railway $(ENV) DB..."
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 # optional: override target revision with DOWNGRADE_REV=<revision> (default: -1, one step back)
@@ -48,8 +51,8 @@ migrate-down:
 	docker compose run --rm job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
 
 migrate-remote-down:
-	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
-	@echo "Running alembic downgrade $(DOWNGRADE_REV) against Railway DB..."
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set — check REMOTE_RAILWAY_STAGING_DB_URL (or REMOTE_RAILWAY_DB_URL for ENV=production) in .env"; exit 1)
+	@echo "Running alembic downgrade $(DOWNGRADE_REV) against Railway $(ENV) DB..."
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service /app/scripts/db_migrate.sh downgrade $(DOWNGRADE_REV)
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
@@ -65,6 +68,15 @@ sync:
 	docker compose run --rm \
 		-e PGPASSWORD=$${POSTGRES_PASSWORD:-postgres} \
 		job_service /app/scripts/sync_db.sh "$(DUMP_FILE)"
+
+# restore last dump file into a remote (Railway) database
+# Usage:
+#   make sync-to-remote              → restore into staging (default)
+#   make sync-to-remote ENV=production → restore into production (dangerous!)
+sync-to-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set — check REMOTE_RAILWAY_STAGING_DB_URL in .env"; exit 1)
+	@echo "Restoring $(DUMP_FILE) into Railway $(ENV) DB..."
+	docker compose run --rm job_service /app/scripts/sync_remote.sh "$(REMOTE_URL)" "$(DUMP_FILE)"
 
 create-admin:
 	docker compose run --rm job_service python scripts/create_admin.py
