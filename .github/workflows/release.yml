@@ -78,11 +78,13 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway (production)
-        run: railway up --detach
+        run: |
+          railway up --detach --service 54f665be-c49e-407e-bf23-e414587b9984  # dashboard-frontend
+          railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754  # dashboard-backend
+          railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35  # storybook UI
+          railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
         env:
           RAILWAY_TOKEN: ${{ secrets.PRODUCTION_RAILWAY_TOKEN }}
-          # If you have multiple services in the project, uncomment and set:
-          # RAILWAY_SERVICE: your-service-name
 
       # -------------------------------------------------------------------
       # Create GitHub Release with the stamped notes as body
