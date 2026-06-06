@@ -28,7 +28,7 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT }}
 
       # -------------------------------------------------------------------
       # Replace {{NEWEST_VERSION}} and {{RELEASE_DATE}} in release-notes.json
