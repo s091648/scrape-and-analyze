@@ -57,9 +57,20 @@ class CollectionPipeline:
 
         logger.info("sources_due", count=len(due_settings))
 
+        # ── Mark settings scraped eagerly (before network I/O) ─────────
+        # last_scraped_at records when the pipeline *committed* to scraping
+        # a source, not when it finished. This prevents the tolerance window
+        # from shrinking when pipeline execution is long (e.g. 35 min run +
+        # 30 min tolerance = next-day check fails by 5 min).
+        scraped_setting_ids = [s.id for s in due_settings]
+        for setting_id in scraped_setting_ids:
+            try:
+                self._setting_repo.mark_scraped(setting_id)
+            except Exception as e:
+                logger.error("mark_scraped_failed", setting_id=str(setting_id), error=str(e))
+
         # ── Build discover tasks ────────────────────────────────────────
         discover_tasks: List[DiscoverTask] = []
-        scraped_setting_ids = []
 
         for setting in due_settings:
             scraper = self._scraper_factory.create_for(setting)
@@ -78,7 +89,6 @@ class CollectionPipeline:
                 scraper=scraper,
                 host=host,
             ))
-            scraped_setting_ids.append(setting.id)
 
         # ── Discover phase ─────────────────────────────────────────────
         def _pre_fetch_filter(tasks):
@@ -157,13 +167,6 @@ class CollectionPipeline:
                 self._event_bus.publish(event)
                 published += 1
             publish_span.set_attribute("articles.published", published)
-
-        # ── Mark settings scraped ───────────────────────────────────────
-        for setting_id in scraped_setting_ids:
-            try:
-                self._setting_repo.mark_scraped(setting_id)
-            except Exception as e:
-                logger.error("mark_scraped_failed", setting_id=str(setting_id), error=str(e))
 
         # ── Publish completion event (triggers Telegram + OTel) ────────
         duration = time.time() - start
