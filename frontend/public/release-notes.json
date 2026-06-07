@@ -1,5 +1,23 @@
 [
   {
+    "version": "v1.0.1",
+    "date": "2026-06-07",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Improved the accuracy of source update timestamps to better reflect when content is checked for updates."
+      },
+      {
+        "type": "chore",
+        "description": "Optimized the release workflow to enable faster delivery of critical hotfixes and system updates."
+      },
+      {
+        "type": "fix",
+        "description": "Enhanced the internal verification process for stamped items to ensure improved data consistency."
+      }
+    ]
+  },
+  {
     "version": "v1.0.0",
     "date": "2026-06-06",
     "changes": [

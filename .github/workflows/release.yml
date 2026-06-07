@@ -1,17 +1,22 @@
 name: Release to Production
 
 # Triggered by pushing a version tag (e.g. v1.2.3).
-# Assumes the PR that was merged before tagging already ran
-# generate_release_notes.py and filled in the changes array.
-# This workflow only replaces the {{NEWEST_VERSION}} placeholder
-# and deploys to Railway production.
+#
+# Two paths are supported:
+#   PR flow   — pr-automation.yml already wrote {{NEWEST_VERSION}} into
+#               release-notes.json; this workflow just stamps the real version.
+#   Hotfix    — direct push to master skipped PR automation; this workflow
+#               calls generate_release_notes.py as a fallback before stamping.
+#
+# Re-runs are idempotent: if the tag version is already in release-notes.json
+# the stamp phase is skipped entirely.
 
 on:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write  # needed to commit the version update back to master
+  contents: write
 
 env:
   PYTHON_VERSION: '3.11'
@@ -30,30 +35,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT }}
 
-      # -------------------------------------------------------------------
-      # Replace {{NEWEST_VERSION}} and {{RELEASE_DATE}} in release-notes.json
-      # -------------------------------------------------------------------
-      - name: Stamp version placeholder
-        run: |
-          TAG="${{ github.ref_name }}"
-          DATE=$(date -u +%Y-%m-%d)
-          sed -i "s/{{NEWEST_VERSION}}/${TAG}/g" frontend/public/release-notes.json
-          sed -i "s/{{RELEASE_DATE}}/${DATE}/g"  frontend/public/release-notes.json
-          echo "Stamped ${TAG} (${DATE}) into release-notes.json"
-
-      - name: Commit version stamp
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/public/release-notes.json
-          # Only commit if there's actually a change (idempotent re-runs)
-          git diff --staged --quiet || \
-            git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes"
-          git push origin master
-
-      # -------------------------------------------------------------------
-      # Migrate production DB before deploy
-      # -------------------------------------------------------------------
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -66,6 +47,70 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      # -------------------------------------------------------------------
+      # Guard: skip stamp phase if this tag is already in release-notes.json
+      # Makes re-runs of a failed release job safe (idempotent).
+      # -------------------------------------------------------------------
+      - name: Check if version already stamped
+        id: check_stamped
+        run: |
+          if python3 scripts/release/check_stamped.py "${{ github.ref_name }}"; then
+            echo "already_stamped=true" >> $GITHUB_OUTPUT
+          else
+            echo "already_stamped=false" >> $GITHUB_OUTPUT
+          fi
+
+      # -------------------------------------------------------------------
+      # Hotfix fallback: generate release notes when no placeholder exists.
+      # PR flow: pr-automation.yml already wrote {{NEWEST_VERSION}}, skip.
+      # Hotfix:  direct push bypassed PR automation, generate here instead.
+      # -------------------------------------------------------------------
+      - name: Generate release notes (hotfix fallback)
+        if: steps.check_stamped.outputs.already_stamped != 'true'
+        run: |
+          if grep -q '{{NEWEST_VERSION}}' frontend/public/release-notes.json; then
+            echo "Placeholder found — PR flow, skipping generation."
+          else
+            echo "No placeholder — hotfix flow, generating via LLM."
+            PREV=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -1)
+            if [ -n "$PREV" ]; then
+              uv run python scripts/release/generate_release_notes.py --from-tag "$PREV"
+            else
+              uv run python scripts/release/generate_release_notes.py
+            fi
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PYTHONPATH: .
+
+      # -------------------------------------------------------------------
+      # Stamp {{NEWEST_VERSION}} / {{RELEASE_DATE}} placeholders
+      # -------------------------------------------------------------------
+      - name: Stamp version placeholder
+        if: steps.check_stamped.outputs.already_stamped != 'true'
+        run: |
+          TAG="${{ github.ref_name }}"
+          DATE=$(date -u +%Y-%m-%d)
+          sed -i "s/{{NEWEST_VERSION}}/${TAG}/g" frontend/public/release-notes.json
+          sed -i "s/{{RELEASE_DATE}}/${DATE}/g"  frontend/public/release-notes.json
+          echo "Stamped ${TAG} (${DATE}) into release-notes.json"
+
+      - name: Commit release notes
+        if: steps.check_stamped.outputs.already_stamped != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/release-notes.json
+          git diff --staged --quiet || \
+            git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]"
+          git push origin master
+
+      # -------------------------------------------------------------------
+      # Migrate production DB before deploy
+      # -------------------------------------------------------------------
       - name: Run alembic upgrade on production DB
         run: uv run alembic upgrade head
         env:

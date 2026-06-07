@@ -45,8 +45,8 @@ def _get_prev_tag() -> str | None:
         return None
 
 
-def get_commits_since_last_tag() -> str:
-    prev = _get_prev_tag()
+def get_commits_since_last_tag(from_tag: str | None = None) -> str:
+    prev = from_tag or _get_prev_tag()
     if prev:
         cmd = ['git', 'log', f'{prev}..HEAD', '--oneline', '--no-merges']
     else:
@@ -189,6 +189,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true',
                         help='Print generated changes without updating the file')
+    parser.add_argument('--from-tag', metavar='TAG',
+                        help='Collect commits since this tag. Use when running after tagging '
+                             '(e.g. --from-tag v1.0.0) to avoid an empty range.')
     args = parser.parse_args()
 
     database_url = os.environ.get('DATABASE_URL') or os.environ.get('STAGING_DB_URL')
@@ -196,7 +199,7 @@ def main() -> None:
         print('[error] Set DATABASE_URL or STAGING_DB_URL to the staging DB', file=sys.stderr)
         sys.exit(1)
 
-    commits = get_commits_since_last_tag()
+    commits = get_commits_since_last_tag(from_tag=args.from_tag)
     if not commits:
         print('[warn] No commits found since last tag — nothing to generate')
         return
