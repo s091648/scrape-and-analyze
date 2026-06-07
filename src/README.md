@@ -11,6 +11,8 @@ Standalone Python service that discovers articles, fetches content, analyzes the
 
 Follows **Hexagonal Architecture / Domain-Driven Design**. Dependencies point inward: Infrastructure → Application → Domain.
 
+![Clean Architecture](../drawio/clean_architecture.png)
+
 ```
 src/
 ├── bootstrap.py                    # Dependency assembly (replaces composition_root.py)

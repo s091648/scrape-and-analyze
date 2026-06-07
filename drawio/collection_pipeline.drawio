@@ -1,349 +1,441 @@
-<mxfile host="app.diagrams.net">
-  <diagram name="Collection Pipeline" id="coll_pipeline_uml">
-    <mxGraphModel dx="1422" dy="862" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="2000" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <mxCell id="title" value="&lt;font style='font-size:22px;'&gt;&lt;b&gt;Collection Pipeline — UML Class Diagram&lt;/b&gt;&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;" vertex="1" parent="1">
-          <mxGeometry x="400" y="10" width="800" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_infra" value="&lt;b&gt;Infrastructure Layer&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="40" y="55" width="200" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_main" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;main.py&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ main(): None&lt;br/&gt;+ validate_config(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="90" width="180" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_bootstrap" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;bootstrap.py&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ build_collection_pipeline():&lt;br/&gt;&amp;nbsp;&amp;nbsp;CollectionPipeline&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="260" y="90" width="230" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_pipeline" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;CollectionPipeline&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- setting_repo: ScraperSettingRepository&lt;br/&gt;- scraper_factory: ScraperFactory&lt;br/&gt;- executor: ScrapeExecutor&lt;br/&gt;- event_bus: EventBus&lt;br/&gt;- pipeline_stats: PipelineStats&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ run(): int&lt;br/&gt;- _build_discover_tasks(): List[DiscoverTask]&lt;br/&gt;- _pre_dedup(): List[ScrapedArticle]&lt;br/&gt;- _publish_articles(): None&lt;br/&gt;- _mark_scraped(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="200" width="380" height="220" as="geometry" />
-        </mxCell>
-        <mxCell id="e_main_bootstrap" edge="1" source="c_main" target="c_bootstrap" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_bootstrap_pipeline" edge="1" source="c_bootstrap" target="c_pipeline" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_pipeline_executor" edge="1" source="c_pipeline" target="c_executor" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="c_executor" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScrapeExecutor&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- num_workers: int = 5&lt;br/&gt;- discover_workers: int = 1&lt;br/&gt;- fetch_delay: float = 5.0&lt;br/&gt;- discover_delays: Dict[str, float]&lt;br/&gt;- selector: QueueSelector&lt;br/&gt;- host_queues: HostQueueMap&lt;br/&gt;- router: QueueRouter&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ run_streaming(discover_tasks,&lt;br/&gt;&amp;nbsp;&amp;nbsp;on_result): List[ScrapedArticle]&lt;br/&gt;+ run(fetch_tasks,&lt;br/&gt;&amp;nbsp;&amp;nbsp;on_result): List[ScrapedArticle]&lt;br/&gt;- _discover_worker(): None&lt;br/&gt;- _fetch_worker(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="460" y="200" width="300" height="260" as="geometry" />
-        </mxCell>
-        <mxCell id="c_discover_task" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;DiscoverTask&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ setting: ScraperSetting&lt;br/&gt;+ scraper: BaseScraper&lt;br/&gt;+ host: str&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ execute(): List[FetchTask]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="810" y="200" width="220" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="c_fetch_task" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;FetchTask&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ source: str&lt;br/&gt;+ job: ScrapeJob&lt;br/&gt;+ scraper: BaseScraper&lt;br/&gt;+ metadata: dict&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ execute(): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="810" y="340" width="240" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="e_executor_dtask" edge="1" source="c_executor" target="c_discover_task" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;">
-          <mxGeometry x="0.3" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="e_executor_ftask" edge="1" source="c_executor" target="c_fetch_task" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;">
-          <mxGeometry x="0.7" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="e_dtask_ftask" edge="1" source="c_discover_task" target="c_fetch_task" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=1;strokeWidth=1;fontSize=10;">
-          <mxGeometry x="-0.8" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="c_hostqueue" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;HostQueueMap&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- queues: List[Queue]&lt;br/&gt;- semaphores: List[BoundedSemaphore]&lt;br/&gt;- host_to_idx: Dict[str, int]&lt;br/&gt;- lock: Lock&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ get_or_create(host): int&lt;br/&gt;+ queue_for(idx): Queue&lt;br/&gt;+ semaphore_for(idx):&lt;br/&gt;&amp;nbsp;&amp;nbsp;BoundedSemaphore&lt;br/&gt;+ host_count(): int&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="460" y="500" width="220" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="c_router" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;QueueRouter&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- host_queues: HostQueueMap&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ route(task): None&lt;br/&gt;+ route_many(tasks): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="710" y="520" width="200" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="c_qsel" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;QueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="460" y="690" width="260" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rr_qsel" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RoundRobinQueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="340" y="790" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_wrr_qsel" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;WeightedRoundRobinQueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="620" y="790" width="280" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="e_executor_hq" edge="1" source="c_executor" target="c_hostqueue" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry x="-0.3" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="e_executor_router" edge="1" source="c_executor" target="c_router" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry x="0.3" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
-        </mxCell>
-        <mxCell id="e_router_hq" edge="1" source="c_router" target="c_hostqueue" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_qsel_inh" edge="1" source="c_rr_qsel" target="c_qsel" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_wrr_inh" edge="1" source="c_wrr_qsel" target="c_qsel" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_executor_qsel" edge="1" source="c_executor" target="c_qsel" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_domain" value="&lt;b&gt;Domain Layer — Scraper Interfaces&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="40" y="500" width="280" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;Scraper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="40" y="540" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_base_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;BaseScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="650" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- client: ArxivClient&lt;br/&gt;- pdf_parser: PdfParser&lt;br/&gt;- config: ArxivConfig&lt;br/&gt;- keywords: List[ScraperKeywordVO]&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="940" y="530" width="220" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rss_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RssScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- client: RssClient&lt;br/&gt;- html_parser: HtmlArticleParser&lt;br/&gt;- keywords: List[ScraperKeywordVO]&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="940" y="700" width="220" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_blog_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;BlogScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- http_client: HttpClient&lt;br/&gt;- html_parser: HtmlArticleParser&lt;br/&gt;- selectors: dict&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="940" y="860" width="220" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_factory" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperFactory&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ create_for(setting): Scraper&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="40" y="770" width="240" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_concrete_factory" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ConcreteScraperFactory&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- http_client: HttpClient&lt;br/&gt;- pdf_parser: PdfParser&lt;br/&gt;- html_parser: HtmlArticleParser&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ create_for(setting): Scraper&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="870" width="240" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="e_base_inh" edge="1" source="c_base_scraper" target="c_scraper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxiv_inh" edge="1" source="c_arxiv_scraper" target="c_base_scraper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rss_inh" edge="1" source="c_rss_scraper" target="c_base_scraper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_blog_inh" edge="1" source="c_blog_scraper" target="c_base_scraper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_cfactory_inh" edge="1" source="c_concrete_factory" target="c_factory" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_pipeline_factory" edge="1" source="c_pipeline" target="c_factory" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_clients" value="&lt;b&gt;Infrastructure — Clients &amp;amp; Parsers&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1010" width="300" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_client" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivClient&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- http_client: HttpClient&lt;br/&gt;- base_url: str&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ fetch_entries(query,&lt;br/&gt;&amp;nbsp;&amp;nbsp;max_results, days_back):&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[ArxivEntry]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1050" width="240" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_entry" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivEntry&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ arxiv_id: str&lt;br/&gt;+ url: str&lt;br/&gt;+ pdf_url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ abstract: str&lt;br/&gt;+ published: str&lt;br/&gt;+ authors: List[str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="320" y="1050" width="180" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rss_client" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RssClient&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- http_client: HttpClient&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ fetch_feed(url):&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[RssEntry]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1200" width="200" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rss_entry" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RssEntry&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ description: str&lt;br/&gt;+ published: str&lt;br/&gt;+ author: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="280" y="1200" width="180" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="c_base_parser" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;BaseContentParser&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ parse(content): str&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="530" y="1050" width="220" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="c_html_parser" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;HtmlArticleParser&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- sanitize: SanitizeService&lt;br/&gt;- selectors: dict&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ parse(html): str&lt;br/&gt;+ fetch_and_parse(url,&lt;br/&gt;&amp;nbsp;&amp;nbsp;fallback): str&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="530" y="1180" width="220" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_pdf_parser" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;PdfParser&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- http_client: HttpClient&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ parse(pdf_url): str&lt;br/&gt;+ extract_sections(text):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Dict[str, str]&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="1050" width="220" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_sanitize" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;SanitizeService&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- MAX_LENGTH: int = 50000&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ strip_tags(html): str&lt;br/&gt;+ extract_text(html): str&lt;br/&gt;+ truncate(text): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="1200" width="220" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxiv_client_entry" edge="1" source="c_arxiv_client" target="c_arxiv_entry" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rss_client_entry" edge="1" source="c_rss_client" target="c_rss_entry" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_html_inh" edge="1" source="c_html_parser" target="c_base_parser" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_pdf_inh" edge="1" source="c_pdf_parser" target="c_base_parser" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_html_sanitize" edge="1" source="c_html_parser" target="c_sanitize" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxivscraper_arxivclient" edge="1" source="c_arxiv_scraper" target="c_arxiv_client" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxivscraper_pdfparser" edge="1" source="c_arxiv_scraper" target="c_pdf_parser" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rssscraper_rssclient" edge="1" source="c_rss_scraper" target="c_rss_client" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rssscraper_htmlparser" edge="1" source="c_rss_scraper" target="c_html_parser" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_blogscraper_htmlparser" edge="1" source="c_blog_scraper" target="c_html_parser" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_entities" value="&lt;b&gt;Domain Entities &amp;amp; Value Objects&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1330" width="300" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_setting" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScraperSetting&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ source: str&lt;br/&gt;+ source_type: str&lt;br/&gt;+ url: str&lt;br/&gt;+ interval_hours: int&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ selector_config: SelectorConfig&lt;br/&gt;+ keyword_items: List[ScraperKeywordVO]&lt;br/&gt;+ last_scraped_at: datetime&lt;br/&gt;+ is_active: bool&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ is_due(): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1370" width="260" height="210" as="geometry" />
-        </mxCell>
-        <mxCell id="c_scrape_job" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScrapeJob&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ source: str&lt;br/&gt;+ source_type: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ metadata: ScrapeJobMetadata | dict&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="340" y="1370" width="240" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_scrape_job_meta" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScrapeJobMetadata&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ arxiv_id: str&lt;br/&gt;+ abstract: str&lt;br/&gt;+ pdf_url: str&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ published: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="620" y="1370" width="200" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="c_scraped_article" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScrapedArticle&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ source: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ extra: dict&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="860" y="1370" width="200" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="c_url_hash" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;UrlHash&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ hash: str&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ from_url(url): UrlHash&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="1370" width="180" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_meta" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivMetadata&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ article_id: UUID&lt;br/&gt;+ arxiv_id: str&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ pdf_available: bool&lt;br/&gt;+ sections: Dict[str, str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1100" y="1480" width="200" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="e_job_meta" edge="1" source="c_scrape_job" target="c_scrape_job_meta" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_vo" value="&lt;b&gt;Value Objects&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1600" width="200" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_sel_config" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;discriminated union&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;SelectorConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ type: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1640" width="180" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rss_config" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RssConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;rss&quot;&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1750" width="140" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="c_blog_config" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;BlogConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;blog&quot;&lt;br/&gt;+ selectors: Dict[str, str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="200" y="1750" width="180" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_config" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;arxiv&quot;&lt;br/&gt;+ max_results: int = 30&lt;br/&gt;+ days_back: int = 7&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="1750" width="180" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_keyword_vo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;discriminated union&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperKeywordVO&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ type: str&lt;br/&gt;+ keyword: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="620" y="1640" width="200" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="c_rss_kw" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RssKeyword&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;rss&quot;&lt;br/&gt;+ keyword: str (regex)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="620" y="1750" width="160" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_kw" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivKeyword&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;arxiv_keyword&quot;&lt;br/&gt;+ keyword: str (query)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="800" y="1750" width="180" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_cat" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivCategory&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;type = &quot;arxiv_category&quot;&lt;br/&gt;+ keyword: str (cat code)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1000" y="1750" width="180" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="c_outcome" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;&amp;laquo;enum&amp;raquo;&lt;br/&gt;ArticleOutcome&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;NEW&lt;br/&gt;DUPLICATE&lt;br/&gt;DUPLICATE_NEEDS_ANALYSIS&lt;br/&gt;FAILED&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1220" y="1640" width="200" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rsscfg_inh" edge="1" source="c_rss_config" target="c_sel_config" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_blogcfg_inh" edge="1" source="c_blog_config" target="c_sel_config" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxivcfg_inh" edge="1" source="c_arxiv_config" target="c_sel_config" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_rsskw_inh" edge="1" source="c_rss_kw" target="c_keyword_vo" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxivkw_inh" edge="1" source="c_arxiv_kw" target="c_keyword_vo" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_arxivcat_inh" edge="1" source="c_arxiv_cat" target="c_keyword_vo" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_app" value="&lt;b&gt;Application Layer — DTOs, Use Cases, Events&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#9673a6;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1830" width="360" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_dto" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScrapedArticleDTO&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ source: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ metadata: ScraperMetadataDTO&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ from_scraped_article():&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScrapedArticleDTO&lt;br/&gt;+ to_scraped_article():&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScrapedArticle&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1870" width="220" height="210" as="geometry" />
-        </mxCell>
-        <mxCell id="c_meta_dto" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScraperMetadataDTO&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ source_type: str&lt;br/&gt;+ data: dict&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ for_arxiv(...): ScraperMetadataDTO&lt;br/&gt;+ for_rss(...): ScraperMetadataDTO&lt;br/&gt;+ for_blog(...): ScraperMetadataDTO&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="290" y="1870" width="240" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_process_uc" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ProcessScrapedArticle&lt;br/&gt;UseCase&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- article_repo: ArticleRepository&lt;br/&gt;- arxiv_meta_repo:&lt;br/&gt;&amp;nbsp;&amp;nbsp;ArxivMetadataRepository&lt;br/&gt;- dedup_service: DedupService&lt;br/&gt;- event_bus: EventBus&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ execute(dto):&lt;br/&gt;&amp;nbsp;&amp;nbsp;ArticleOutcome&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="560" y="1870" width="240" height="180" as="geometry" />
-        </mxCell>
-        <mxCell id="c_discover_uc" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;DiscoverScrapeJobs&lt;br/&gt;UseCase&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- setting_repo:&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScraperSettingRepository&lt;br/&gt;- factory: ScraperFactory&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ execute(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=0;" vertex="1" parent="1">
-          <mxGeometry x="830" y="1870" width="220" height="130" as="geometry" />
-        </mxCell>
-        <mxCell id="c_dedup" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;DedupService&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- article_repo: ArticleRepository&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ find_existing(url):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[Article]&lt;br/&gt;+ needs_analysis(article): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="1870" width="200" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="c_stats" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;PipelineStats&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- _counts: Dict[str, SourceStats]&lt;br/&gt;- _lock: Lock&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ record(source, outcome): None&lt;br/&gt;+ snapshot(): List[SourceStats]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="2020" width="200" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="c_eventbus" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;Protocol&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;EventBus&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ subscribe(event_type,&lt;br/&gt;&amp;nbsp;&amp;nbsp;handler): None&lt;br/&gt;+ publish(event): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2110" width="200" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="c_inmem_bus" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;InMemoryEventBus&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- _handlers: Dict&lt;br/&gt;- _lock: Lock&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ subscribe(event_type,&lt;br/&gt;&amp;nbsp;&amp;nbsp;handler): None&lt;br/&gt;+ publish(event): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="270" y="2110" width="200" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="c_artproc_ev" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArticleProcessedEvent&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ article: Article&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="500" y="2110" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="c_piplinecomp_ev" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;PipelineCompletedEvent&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ stats: List[SourceStats]&lt;br/&gt;+ duration_seconds: float&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="730" y="2110" width="200" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_handler_scraped" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArticleScrapedHandler&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- use_case: ProcessScrapedArticleUC&lt;br/&gt;- stats: PipelineStats&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ handle(dto): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2260" width="260" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="c_handler_otel" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;OtelMetricsHandler&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ handle(event): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="340" y="2260" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="e_dto_meta" edge="1" source="c_dto" target="c_meta_dto" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_processuc_dedup" edge="1" source="c_process_uc" target="c_dedup" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e_inh_bus" edge="1" source="c_inmem_bus" target="c_eventbus" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;dashed=1;">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_repos" value="&lt;b&gt;Repository Interfaces &amp;amp; Shared Entities&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2400" width="320" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="c_article" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;Article&lt;/b&gt; &amp;laquo;shared&amp;raquo;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ url: str&lt;br/&gt;+ url_hash: str&lt;br/&gt;+ source: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ scraped_at: datetime&lt;br/&gt;+ metadata: dict&lt;br/&gt;+ topic_id: UUID&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ get_analysis_content(): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2440" width="220" height="210" as="geometry" />
-        </mxCell>
-        <mxCell id="c_art_repo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ArticleRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ find_by_url_hash(hash):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[Article]&lt;br/&gt;+ save(article): Article&lt;br/&gt;+ has_analysis(url_hash): bool&lt;br/&gt;+ find_analyzed_url_hashes():&lt;br/&gt;&amp;nbsp;&amp;nbsp;Set[str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="290" y="2440" width="220" height="120" as="geometry" />
-        </mxCell>
-        <mxCell id="c_setting_repo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperSettingRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ get_active_due():&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[ScraperSetting]&lt;br/&gt;+ mark_scraped(source): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="540" y="2440" width="240" height="100" as="geometry" />
-        </mxCell>
-        <mxCell id="c_arxiv_repo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ArxivMetadataRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ save(meta): None&lt;br/&gt;+ find_by_article_id(id):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[ArxivMetadata]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="810" y="2440" width="240" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="c_failed_repo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;FailedTaskRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ save(task): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="2440" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="c_topic_repo" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;TopicRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ list_active(): List[Topic]&lt;br/&gt;+ find_by_id(id): Optional[Topic]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="2530" width="200" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="c_failed_task" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;FailedTask&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ task_type: str&lt;br/&gt;+ article_url: str&lt;br/&gt;+ article_id: UUID&lt;br/&gt;+ exception_type: str&lt;br/&gt;+ exception_message: str&lt;br/&gt;+ failed_at: datetime&lt;br/&gt;+ resolved: bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="540" y="2570" width="200" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="c_topic" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;Topic&lt;/b&gt; &amp;laquo;shared&amp;raquo;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;+ name: str&lt;br/&gt;+ display_name: str&lt;br/&gt;+ id: UUID&lt;br/&gt;+ description: str&lt;br/&gt;+ color_hex: str&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ is_active: bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="810" y="2570" width="200" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="lbl_legend" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2740" width="100" height="25" as="geometry" />
-        </mxCell>
-        <mxCell id="leg_infra" value="Infrastructure" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="40" y="2780" width="120" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="leg_domain" value="Domain" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="180" y="2780" width="120" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="leg_app" value="Application" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="320" y="2780" width="120" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="leg_shared" value="Shared" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="460" y="2780" width="120" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="leg_abstract" value="Abstract/Protocol" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="600" y="2780" width="120" height="30" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
+<mxfile host="65bd71144e">
+    <diagram name="Collection Pipeline" id="coll_pipeline_uml">
+        <mxGraphModel dx="856" dy="908" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="2000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;font style=&#39;font-size:22px;&#39;&gt;&lt;b&gt;Collection Pipeline — UML Class Diagram&lt;/b&gt;&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="10" width="800" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_infra" value="&lt;b&gt;Infrastructure Layer&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="55" width="200" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_main" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;main.py&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ main(): None&lt;br/&gt;+ validate_config(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="90" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_bootstrap" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;bootstrap.py&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ build_collection_pipeline():&lt;br/&gt;&amp;nbsp;&amp;nbsp;CollectionPipeline&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="260" y="90" width="230" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_pipeline" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;CollectionPipeline&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- setting_repo: ScraperSettingRepository&lt;br/&gt;- scraper_factory: ScraperFactory&lt;br/&gt;- executor: ScrapeExecutor&lt;br/&gt;- event_bus: EventBus&lt;br/&gt;- pipeline_stats: PipelineStats&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ run(): int&lt;br/&gt;- _build_discover_tasks(): List[DiscoverTask]&lt;br/&gt;- _pre_dedup(): List[ScrapedArticle]&lt;br/&gt;- _publish_articles(): None&lt;br/&gt;- _mark_scraped(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="200" width="380" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_main_bootstrap" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;" parent="1" source="c_main" target="c_bootstrap" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_bootstrap_pipeline" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;" parent="1" source="c_bootstrap" target="c_pipeline" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_pipeline_executor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_pipeline" target="c_executor" edge="1">
+                    <mxGeometry x="0.2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="c_executor" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScrapeExecutor&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- num_workers: int = 5&lt;br/&gt;- discover_workers: int = 1&lt;br/&gt;- fetch_delay: float = 5.0&lt;br/&gt;- discover_delays: Dict[str, float]&lt;br/&gt;- selector: QueueSelector&lt;br/&gt;- host_queues: HostQueueMap&lt;br/&gt;- router: QueueRouter&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ run_streaming(discover_tasks,&lt;br/&gt;&amp;nbsp;&amp;nbsp;on_result): List[ScrapedArticle]&lt;br/&gt;+ run(fetch_tasks,&lt;br/&gt;&amp;nbsp;&amp;nbsp;on_result): List[ScrapedArticle]&lt;br/&gt;- _discover_worker(): None&lt;br/&gt;- _fetch_worker(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="200" width="300" height="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_discover_task" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;DiscoverTask&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ setting: ScraperSetting&lt;br/&gt;+ scraper: BaseScraper&lt;br/&gt;+ host: str&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ execute(): List[FetchTask]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="60" width="220" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_fetch_task" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;FetchTask&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ source: str&lt;br/&gt;+ job: ScrapeJob&lt;br/&gt;+ scraper: BaseScraper&lt;br/&gt;+ metadata: dict&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ execute(): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1240" y="350" width="240" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_executor_dtask" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;" parent="1" source="c_executor" target="c_discover_task" edge="1">
+                    <mxGeometry x="0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_executor_ftask" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;" parent="1" source="c_executor" target="c_fetch_task" edge="1">
+                    <mxGeometry x="0.7" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_dtask_ftask" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=1;strokeWidth=1;fontSize=10;" parent="1" source="c_discover_task" target="c_fetch_task" edge="1">
+                    <mxGeometry x="-0.8" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="c_hostqueue" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;HostQueueMap&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- queues: List[Queue]&lt;br/&gt;- semaphores: List[BoundedSemaphore]&lt;br/&gt;- host_to_idx: Dict[str, int]&lt;br/&gt;- lock: Lock&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ get_or_create(host): int&lt;br/&gt;+ queue_for(idx): Queue&lt;br/&gt;+ semaphore_for(idx):&lt;br/&gt;&amp;nbsp;&amp;nbsp;BoundedSemaphore&lt;br/&gt;+ host_count(): int&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="500" width="220" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_router" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;QueueRouter&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- host_queues: HostQueueMap&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ route(task): None&lt;br/&gt;+ route_many(tasks): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="520" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_qsel" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;QueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="690" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rr_qsel" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RoundRobinQueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="790" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_wrr_qsel" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;WeightedRoundRobinQueueSelector&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ select(host_queues): Optional[int]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="790" width="280" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_executor_hq" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_executor" target="c_hostqueue" edge="1">
+                    <mxGeometry x="-0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_executor_router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_executor" target="c_router" edge="1">
+                    <mxGeometry x="0.3" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_router_hq" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_router" target="c_hostqueue" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_qsel_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_rr_qsel" target="c_qsel" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_wrr_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_wrr_qsel" target="c_qsel" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_executor_qsel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_executor" target="c_qsel" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_domain" value="&lt;b&gt;Domain Layer — Scraper Interfaces&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="500" width="280" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_scraper" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;Scraper&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="540" width="240" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_base_scraper" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;BaseScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="650" width="240" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_scraper" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- client: ArxivClient&lt;br/&gt;- pdf_parser: PdfParser&lt;br/&gt;- config: ArxivConfig&lt;br/&gt;- keywords: List[ScraperKeywordVO]&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="530" width="220" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rss_scraper" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RssScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- client: RssClient&lt;br/&gt;- html_parser: HtmlArticleParser&lt;br/&gt;- keywords: List[ScraperKeywordVO]&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="700" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_blog_scraper" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;BlogScraper&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- http_client: HttpClient&lt;br/&gt;- html_parser: HtmlArticleParser&lt;br/&gt;- selectors: dict&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ discover(): List[ScrapeJob]&lt;br/&gt;+ fetch(job): Optional[ScrapedArticle]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="860" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_factory" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperFactory&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ create_for(setting): Scraper&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="770" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_concrete_factory" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ConcreteScraperFactory&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- http_client: HttpClient&lt;br/&gt;- pdf_parser: PdfParser&lt;br/&gt;- html_parser: HtmlArticleParser&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ create_for(setting): Scraper&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="870" width="240" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_base_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_base_scraper" target="c_scraper" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxiv_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="c_arxiv_scraper" target="c_base_scraper" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rss_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="c_rss_scraper" target="c_base_scraper" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_blog_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;" parent="1" source="c_blog_scraper" target="c_base_scraper" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_cfactory_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_concrete_factory" target="c_factory" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_pipeline_factory" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_pipeline" target="c_factory" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_clients" value="&lt;b&gt;Infrastructure — Clients &amp;amp; Parsers&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1010" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_client" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivClient&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- http_client: HttpClient&lt;br/&gt;- base_url: str&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ fetch_entries(query,&lt;br/&gt;&amp;nbsp;&amp;nbsp;max_results, days_back):&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[ArxivEntry]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1050" width="240" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_entry" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivEntry&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ arxiv_id: str&lt;br/&gt;+ url: str&lt;br/&gt;+ pdf_url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ abstract: str&lt;br/&gt;+ published: str&lt;br/&gt;+ authors: List[str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="1050" width="180" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rss_client" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RssClient&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- http_client: HttpClient&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ fetch_feed(url):&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[RssEntry]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1200" width="200" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rss_entry" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RssEntry&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ description: str&lt;br/&gt;+ published: str&lt;br/&gt;+ author: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="1200" width="180" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_base_parser" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;BaseContentParser&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ parse(content): str&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="1050" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_html_parser" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;HtmlArticleParser&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- sanitize: SanitizeService&lt;br/&gt;- selectors: dict&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ parse(html): str&lt;br/&gt;+ fetch_and_parse(url,&lt;br/&gt;&amp;nbsp;&amp;nbsp;fallback): str&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="1180" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_pdf_parser" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;PdfParser&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- http_client: HttpClient&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ parse(pdf_url): str&lt;br/&gt;+ extract_sections(text):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Dict[str, str]&lt;br/&gt;+ prepare_for_analysis(&lt;br/&gt;&amp;nbsp;&amp;nbsp;content, fallback): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="1050" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_sanitize" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;SanitizeService&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- MAX_LENGTH: int = 50000&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ strip_tags(html): str&lt;br/&gt;+ extract_text(html): str&lt;br/&gt;+ truncate(text): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="1200" width="220" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxiv_client_entry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_arxiv_client" target="c_arxiv_entry" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rss_client_entry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_rss_client" target="c_rss_entry" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_html_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_html_parser" target="c_base_parser" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_pdf_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="c_pdf_parser" target="c_base_parser" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_html_sanitize" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_html_parser" target="c_sanitize" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxivscraper_arxivclient" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_arxiv_scraper" target="c_arxiv_client" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxivscraper_pdfparser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_arxiv_scraper" target="c_pdf_parser" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rssscraper_rssclient" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_rss_scraper" target="c_rss_client" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rssscraper_htmlparser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" parent="1" source="c_rss_scraper" target="c_html_parser" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_blogscraper_htmlparser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="c_blog_scraper" target="c_html_parser" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_entities" value="&lt;b&gt;Domain Entities &amp;amp; Value Objects&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1330" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_setting" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScraperSetting&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ source: str&lt;br/&gt;+ source_type: str&lt;br/&gt;+ url: str&lt;br/&gt;+ interval_hours: int&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ selector_config: SelectorConfig&lt;br/&gt;+ keyword_items: List[ScraperKeywordVO]&lt;br/&gt;+ last_scraped_at: datetime&lt;br/&gt;+ is_active: bool&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ is_due(): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1370" width="260" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_scrape_job" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScrapeJob&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ source: str&lt;br/&gt;+ source_type: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ metadata: ScrapeJobMetadata | dict&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="1370" width="240" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_scrape_job_meta" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScrapeJobMetadata&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ arxiv_id: str&lt;br/&gt;+ abstract: str&lt;br/&gt;+ pdf_url: str&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ published: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="1370" width="200" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_scraped_article" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScrapedArticle&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ source: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ extra: dict&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="860" y="1370" width="200" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_url_hash" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;UrlHash&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ hash: str&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ from_url(url): UrlHash&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1100" y="1370" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_meta" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivMetadata&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ article_id: UUID&lt;br/&gt;+ arxiv_id: str&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ pdf_available: bool&lt;br/&gt;+ sections: Dict[str, str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1100" y="1480" width="200" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_job_meta" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_scrape_job" target="c_scrape_job_meta" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_vo" value="&lt;b&gt;Value Objects&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1600" width="200" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_sel_config" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;discriminated union&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;SelectorConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ type: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1640" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rss_config" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RssConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;rss&quot;&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1750" width="140" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_blog_config" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;BlogConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;blog&quot;&lt;br/&gt;+ selectors: Dict[str, str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="1750" width="180" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_config" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivConfig&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;arxiv&quot;&lt;br/&gt;+ max_results: int = 30&lt;br/&gt;+ days_back: int = 7&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="1750" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_keyword_vo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;discriminated union&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperKeywordVO&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ type: str&lt;br/&gt;+ keyword: str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="1640" width="200" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_rss_kw" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;RssKeyword&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;rss&quot;&lt;br/&gt;+ keyword: str (regex)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="620" y="1750" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_kw" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivKeyword&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;arxiv_keyword&quot;&lt;br/&gt;+ keyword: str (query)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="800" y="1750" width="180" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_cat" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArxivCategory&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;type = &quot;arxiv_category&quot;&lt;br/&gt;+ keyword: str (cat code)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="1750" width="180" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_outcome" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;&amp;laquo;enum&amp;raquo;&lt;br/&gt;ArticleOutcome&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;NEW&lt;br/&gt;DUPLICATE&lt;br/&gt;DUPLICATE_NEEDS_ANALYSIS&lt;br/&gt;FAILED&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1220" y="1640" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rsscfg_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_rss_config" target="c_sel_config" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_blogcfg_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_blog_config" target="c_sel_config" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxivcfg_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_arxiv_config" target="c_sel_config" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_rsskw_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_rss_kw" target="c_keyword_vo" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxivkw_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_arxiv_kw" target="c_keyword_vo" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_arxivcat_inh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;" parent="1" source="c_arxiv_cat" target="c_keyword_vo" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_app" value="&lt;b&gt;Application Layer — DTOs, Use Cases, Events&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1830" width="360" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_dto" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScrapedArticleDTO&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ source: str&lt;br/&gt;+ topic_id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ authors: List[str]&lt;br/&gt;+ metadata: ScraperMetadataDTO&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ from_scraped_article():&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScrapedArticleDTO&lt;br/&gt;+ to_scraped_article():&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScrapedArticle&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1870" width="220" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_meta_dto" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ScraperMetadataDTO&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ source_type: str&lt;br/&gt;+ data: dict&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ for_arxiv(...): ScraperMetadataDTO&lt;br/&gt;+ for_rss(...): ScraperMetadataDTO&lt;br/&gt;+ for_blog(...): ScraperMetadataDTO&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="1870" width="240" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_process_uc" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ProcessScrapedArticle&lt;br/&gt;UseCase&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- article_repo: ArticleRepository&lt;br/&gt;- arxiv_meta_repo:&lt;br/&gt;&amp;nbsp;&amp;nbsp;ArxivMetadataRepository&lt;br/&gt;- dedup_service: DedupService&lt;br/&gt;- event_bus: EventBus&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ execute(dto):&lt;br/&gt;&amp;nbsp;&amp;nbsp;ArticleOutcome&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="1870" width="240" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_discover_uc" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;DiscoverScrapeJobs&lt;br/&gt;UseCase&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- setting_repo:&lt;br/&gt;&amp;nbsp;&amp;nbsp;ScraperSettingRepository&lt;br/&gt;- factory: ScraperFactory&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ execute(): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=0;" parent="1" vertex="1">
+                    <mxGeometry x="830" y="1870" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_dedup" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;DedupService&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- article_repo: ArticleRepository&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ find_existing(url):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[Article]&lt;br/&gt;+ needs_analysis(article): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="1870" width="200" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_stats" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;PipelineStats&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- _counts: Dict[str, SourceStats]&lt;br/&gt;- _lock: Lock&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ record(source, outcome): None&lt;br/&gt;+ snapshot(): List[SourceStats]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="2020" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_eventbus" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;Protocol&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;EventBus&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ subscribe(event_type,&lt;br/&gt;&amp;nbsp;&amp;nbsp;handler): None&lt;br/&gt;+ publish(event): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2110" width="200" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_inmem_bus" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;InMemoryEventBus&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- _handlers: Dict&lt;br/&gt;- _lock: Lock&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ subscribe(event_type,&lt;br/&gt;&amp;nbsp;&amp;nbsp;handler): None&lt;br/&gt;+ publish(event): bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="270" y="2110" width="200" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_artproc_ev" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArticleProcessedEvent&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ article: Article&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="2110" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_piplinecomp_ev" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;PipelineCompletedEvent&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ stats: List[SourceStats]&lt;br/&gt;+ duration_seconds: float&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="2110" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_handler_scraped" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;ArticleScrapedHandler&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;- use_case: ProcessScrapedArticleUC&lt;br/&gt;- stats: PipelineStats&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ handle(dto): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2260" width="260" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_handler_otel" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;OtelMetricsHandler&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ handle(event): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="340" y="2260" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_dto_meta" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_dto" target="c_meta_dto" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_processuc_dedup" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;" parent="1" source="c_process_uc" target="c_dedup" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_inh_bus" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=0;strokeWidth=1;dashed=1;" parent="1" source="c_inmem_bus" target="c_eventbus" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_repos" value="&lt;b&gt;Repository Interfaces &amp;amp; Shared Entities&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2400" width="320" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_article" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;Article&lt;/b&gt; &amp;laquo;shared&amp;raquo;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ url: str&lt;br/&gt;+ url_hash: str&lt;br/&gt;+ source: str&lt;br/&gt;+ title: str&lt;br/&gt;+ content: str&lt;br/&gt;+ id: UUID&lt;br/&gt;+ published_at: datetime&lt;br/&gt;+ scraped_at: datetime&lt;br/&gt;+ metadata: dict&lt;br/&gt;+ topic_id: UUID&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ get_analysis_content(): str&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2440" width="220" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_art_repo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ArticleRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ find_by_url_hash(hash):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[Article]&lt;br/&gt;+ save(article): Article&lt;br/&gt;+ has_analysis(url_hash): bool&lt;br/&gt;+ find_analyzed_url_hashes():&lt;br/&gt;&amp;nbsp;&amp;nbsp;Set[str]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="290" y="2440" width="220" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_setting_repo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ScraperSettingRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ get_active_due():&lt;br/&gt;&amp;nbsp;&amp;nbsp;List[ScraperSetting]&lt;br/&gt;+ mark_scraped(source): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="2440" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_arxiv_repo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;ArxivMetadataRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ save(meta): None&lt;br/&gt;+ find_by_article_id(id):&lt;br/&gt;&amp;nbsp;&amp;nbsp;Optional[ArxivMetadata]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="2440" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_failed_repo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;FailedTaskRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ save(task): None&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="2440" width="200" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_topic_repo" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;i&gt;&amp;laquo;abstract&amp;raquo;&lt;/i&gt;&lt;br/&gt;&lt;b&gt;TopicRepository&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ list_active(): List[Topic]&lt;br/&gt;+ find_by_id(id): Optional[Topic]&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="2530" width="200" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_failed_task" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;FailedTask&lt;/b&gt;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ task_type: str&lt;br/&gt;+ article_url: str&lt;br/&gt;+ article_id: UUID&lt;br/&gt;+ exception_type: str&lt;br/&gt;+ exception_message: str&lt;br/&gt;+ failed_at: datetime&lt;br/&gt;+ resolved: bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="2570" width="200" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="c_topic" value="&lt;p style=&#39;margin:0;padding:4px;text-align:center;&#39;&gt;&lt;b&gt;Topic&lt;/b&gt; &amp;laquo;shared&amp;raquo;&lt;/p&gt;&lt;hr size=&#39;1&#39;/&gt;&lt;p style=&#39;margin:0;padding:2px 4px;font-size:10px;&#39;&gt;+ name: str&lt;br/&gt;+ display_name: str&lt;br/&gt;+ id: UUID&lt;br/&gt;+ description: str&lt;br/&gt;+ color_hex: str&lt;br/&gt;+ prompt_override: str&lt;br/&gt;+ is_active: bool&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="810" y="2570" width="200" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="lbl_legend" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2740" width="100" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_infra" value="Infrastructure" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="2780" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_domain" value="Domain" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="2780" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_app" value="Application" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="2780" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_shared" value="Shared" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="2780" width="120" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="leg_abstract" value="Abstract/Protocol" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="2780" width="120" height="30" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram name="Pipeline Flow" id="coll_pipeline_flow">
+        <mxGraphModel dx="856" dy="908" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1600" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="f_title" value="Collection Pipeline — Stage Flow + Objects" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="20" width="1000" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s1" value="Stage 1 — Discover" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="80" width="1000" height="175" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s1_c" value="&lt;b&gt;CollectionPipeline&lt;/b&gt;._build_discover_tasks()&lt;br/&gt;→ &lt;b&gt;ScraperSettingRepository&lt;/b&gt;.get_active_due() → &lt;b&gt;ScraperSetting&lt;/b&gt; (is_due() == True)&lt;br/&gt;→ &lt;b&gt;ScraperFactory&lt;/b&gt;.create_for(setting) → &lt;b&gt;BaseScraper&lt;/b&gt; (ArxivScraper | RssScraper | BlogScraper)&lt;br/&gt;→ &lt;b&gt;DiscoverTask&lt;/b&gt;.execute() → &lt;b&gt;BaseScraper&lt;/b&gt;.discover() → List[&lt;b&gt;ScrapeJob&lt;/b&gt;]&lt;br/&gt;→ &lt;b&gt;ScrapeExecutor&lt;/b&gt;._discover_worker(): 每個 source 建立 &lt;b&gt;FetchTask&lt;/b&gt; list" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s1" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="117" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s1" target="f_s2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s2" value="Stage 2 — Pre-dedup" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="285" width="1000" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s2_c" value="&lt;b&gt;CollectionPipeline&lt;/b&gt;._pre_dedup(fetch_tasks)&lt;br/&gt;→ &lt;b&gt;ArticleRepository&lt;/b&gt;.find_analyzed_url_hashes() → Set[str] (已分析 URL 的 hash)&lt;br/&gt;→ &lt;b&gt;UrlHash&lt;/b&gt;.from_url(job.url) 比對 hash set&lt;br/&gt;→ 過濾已存在的 URL → 回傳未分析的 List[&lt;b&gt;FetchTask&lt;/b&gt;]" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s2" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="92" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s2" target="f_s3" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s3" value="Stage 3 — Fetch (concurrent, 5 workers)" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="465" width="1000" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s3_c" value="&lt;b&gt;ScrapeExecutor&lt;/b&gt;.run_streaming(discover_tasks, on_result)&lt;br/&gt;→ &lt;b&gt;QueueRouter&lt;/b&gt;.route(fetch_task) → &lt;b&gt;HostQueueMap&lt;/b&gt;.get_or_create(host) (per-host semaphore)&lt;br/&gt;→ _fetch_worker() 從 host queue 取出並執行 &lt;b&gt;FetchTask&lt;/b&gt;.execute()&lt;br/&gt;  • &lt;b&gt;ArxivScraper&lt;/b&gt;: ArxivClient.fetch_entries() + PdfParser.parse(pdf_url) → &lt;b&gt;ScrapedArticle&lt;/b&gt;&lt;br/&gt;  • &lt;b&gt;RssScraper&lt;/b&gt;: RssClient.fetch_feed() + HtmlArticleParser.fetch_and_parse() → &lt;b&gt;ScrapedArticle&lt;/b&gt;&lt;br/&gt;  • &lt;b&gt;BlogScraper&lt;/b&gt;: HttpClient.get() + HtmlArticleParser.parse() → &lt;b&gt;ScrapedArticle&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s3" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="142" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s3" target="f_s4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s4" value="Stage 4 — Publish" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="695" width="1000" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s4_c" value="&lt;b&gt;CollectionPipeline&lt;/b&gt;._publish_articles(scraped_articles)&lt;br/&gt;→ &lt;b&gt;ScrapedArticleDTO&lt;/b&gt;.from_scraped_article(article)&lt;br/&gt;→ &lt;b&gt;EventBus&lt;/b&gt;.publish(&lt;b&gt;ArticleScrapedEvent&lt;/b&gt;(dto)) → 觸發 ArticleScrapedHandler" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s4" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="62" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s4" target="f_s5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s5" value="Stage 5 — Process (event-driven)" style="swimlane;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="845" width="1000" height="225" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s5_c" value="&lt;b&gt;ArticleScrapedHandler&lt;/b&gt;.handle(dto: ScrapedArticleDTO)&lt;br/&gt;→ &lt;b&gt;ProcessScrapedArticleUseCase&lt;/b&gt;.execute(dto) → &lt;b&gt;DedupService&lt;/b&gt;.find_existing(url) → &lt;b&gt;ArticleOutcome&lt;/b&gt;&lt;br/&gt;  • NEW: &lt;b&gt;ArticleRepository&lt;/b&gt;.save(article) → &lt;b&gt;Article&lt;/b&gt;&lt;br/&gt;         [arxiv] &lt;b&gt;ArxivMetadataRepository&lt;/b&gt;.save(meta) → &lt;b&gt;ArxivMetadata&lt;/b&gt;&lt;br/&gt;         &lt;b&gt;EventBus&lt;/b&gt;.publish(&lt;b&gt;ArticleProcessedEvent&lt;/b&gt;(article))&lt;br/&gt;  • DUPLICATE_NEEDS_ANALYSIS: &lt;b&gt;EventBus&lt;/b&gt;.publish(&lt;b&gt;ArticleProcessedEvent&lt;/b&gt;(article))&lt;br/&gt;  • DUPLICATE: 略過&lt;br/&gt;→ &lt;b&gt;PipelineStats&lt;/b&gt;.record(source, outcome: ArticleOutcome)" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s5" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="167" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a56" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s5" target="f_s6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s6" value="Stage 6 — Mark Scraped" style="swimlane;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="1100" width="1000" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s6_c" value="&lt;b&gt;CollectionPipeline&lt;/b&gt;._mark_scraped(settings)&lt;br/&gt;→ &lt;b&gt;ScraperSettingRepository&lt;/b&gt;.mark_scraped(source)&lt;br/&gt;→ 更新 &lt;b&gt;ScraperSetting&lt;/b&gt;.last_scraped_at = now()" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s6" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_a67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="f_s6" target="f_s7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s7" value="Stage 7 — Notify" style="swimlane;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=14;startSize=38;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="1240" width="1000" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_s7_c" value="&lt;b&gt;EventBus&lt;/b&gt;.publish(&lt;b&gt;PipelineCompletedEvent&lt;/b&gt;(stats, duration_seconds))&lt;br/&gt;→ &lt;b&gt;OtelMetricsHandler&lt;/b&gt;.handle(event) → OpenTelemetry metrics (Grafana Cloud)&lt;br/&gt;→ &lt;b&gt;PipelineStats&lt;/b&gt;.snapshot() → List[&lt;b&gt;SourceStats&lt;/b&gt;] (per-source 統計)&lt;br/&gt;→ (可選) Telegram 通知" style="text;html=1;align=left;verticalAlign=top;fontSize=11;whiteSpace=wrap;strokeColor=none;fillColor=none;" parent="f_s7" vertex="1">
+                    <mxGeometry x="10" y="48" width="980" height="82" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_leg_title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontStyle=1;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="1410" width="100" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_leg_infra" value="Infrastructure Layer" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="1445" width="160" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="f_leg_app" value="Application Layer" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="370" y="1445" width="150" height="30" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>
