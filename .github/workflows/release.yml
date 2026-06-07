@@ -54,14 +54,8 @@ jobs:
       - name: Check if version already stamped
         id: check_stamped
         run: |
-          TAG="${{ github.ref_name }}"
-          if python3 -c "
-import json, sys
-entries = json.load(open('frontend/public/release-notes.json'))
-sys.exit(0 if any(e.get('version') == '$TAG' for e in entries) else 1)
-          "; then
+          if python3 scripts/release/check_stamped.py "${{ github.ref_name }}"; then
             echo "already_stamped=true" >> $GITHUB_OUTPUT
-            echo "Version $TAG already stamped — skipping stamp phase."
           else
             echo "already_stamped=false" >> $GITHUB_OUTPUT
           fi
