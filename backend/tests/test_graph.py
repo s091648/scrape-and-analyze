@@ -177,3 +177,113 @@ def test_graph_group_no_auth_required():
     finally:
         app.dependency_overrides.pop(get_db, None)
     assert response.status_code == 200
+
+
+def test_graph_cache_hit_avoids_second_query():
+    import backend.routers.graph as graph_module
+    graph_module._cache.clear()
+    from backend.main import app
+    client = TestClient(app)
+    mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
+    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
+         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+        client.get('/analyses/graph')
+        client.get('/analyses/graph')  # same params → cache hit
+    assert mock_q.call_count == 1
+
+
+def test_graph_group_skips_analysis_without_article():
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    analysis_no_article = MagicMock()
+    analysis_no_article.id = uuid.uuid4()
+    analysis_no_article.article = None
+    analysis_no_article.article_id = uuid.uuid4()
+
+    mock_db = _make_mock_db()
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=[analysis_no_article]), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/digital_twin')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_graph_group_uses_en_translation_fallback():
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
+
+    en_trans = MagicMock()
+    en_trans.analysis_id = analysis.id
+    en_trans.language = "en"
+    en_trans.pain_points = ["cost"]
+    en_trans.insights = ["efficiency"]
+    en_trans.innovations = ["new approach"]
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.all.return_value = [en_trans]
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=[analysis]), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/digital_twin?lang=zh-TW')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    item = response.json()[0]
+    # No zh-TW translation → falls back to en
+    assert item['pain_points'] == ["cost"]
+    assert item['insights'] == ["efficiency"]
+
+
+def test_graph_group_uses_lang_translation_when_present():
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+
+    analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
+
+    zh_trans = MagicMock()
+    zh_trans.analysis_id = analysis.id
+    zh_trans.language = "zh-TW"
+    zh_trans.pain_points = ["成本"]
+    zh_trans.insights = ["效率"]
+    zh_trans.innovations = ["新方法"]
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.all.return_value = [zh_trans]
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch('backend.routers.graph.query_group_articles', return_value=[analysis]), \
+             patch('backend.routers.graph.load_group_def', return_value=_mock_group_def()):
+            response = client.get('/analyses/graph/group/digital_twin?lang=zh-TW')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    item = response.json()[0]
+    assert item['pain_points'] == ["成本"]

@@ -53,3 +53,9 @@ dev = [
     "httpx",
     "starlette",
 ]
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/conftest.py",
+]

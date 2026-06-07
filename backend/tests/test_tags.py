@@ -263,14 +263,14 @@ def test_list_tag_groups_include_similarity_returns_similar_groups():
 def test_create_tag_group_slug_normalizes_name_and_title_cases_display():
     from backend.main import app
     from backend.database import get_db
-    from backend.routers.tags import _to_slug, _to_title
+    from backend.schemas.tag import _to_slug, _to_title
 
     # Verify the helper functions directly
     assert _to_slug("AI & ML") == "ai_ml"
     assert _to_title("ai and ml") == "Ai And Ml"
 
     # Verify via Pydantic schema
-    from backend.routers.tags import TagGroupCreate
+    from backend.schemas.tag import TagGroupCreate
     body = TagGroupCreate(name="AI & ML", display_name="ai and ml", topic_id=uuid.uuid4())
     assert body.name == "ai_ml"
     assert body.display_name == "Ai And Ml"
@@ -297,7 +297,7 @@ def test_create_tag_group_returns_409_on_duplicate_name():
         # The current implementation doesn't check for duplicates before insert,
         # so this tests the DB constraint behavior (IntegrityError would be raised)
         # The schema already normalizes, so this verifies schema normalization
-        from backend.routers.tags import TagGroupCreate
+        from backend.schemas.tag import TagGroupCreate
         body = TagGroupCreate(name="Research Methods!", display_name="research methods", topic_id=uuid.uuid4())
         assert body.name == "research_methods"
     finally:
@@ -454,7 +454,7 @@ def test_reorder_tag_groups_returns_204():
 # ── T023: _to_slug helper ───────────────────────────────────────────────────
 
 def test_to_slug_normalization():
-    from backend.routers.tags import _to_slug
+    from backend.schemas.tag import _to_slug
     assert _to_slug("AI & ML") == "ai_ml"
     assert _to_slug("  Hello World  ") == "hello_world"
     assert _to_slug("foo---bar") == "foo_bar"
@@ -467,7 +467,7 @@ def test_to_slug_normalization():
 # ── T024: _to_title helper ──────────────────────────────────────────────────
 
 def test_to_title_normalization():
-    from backend.routers.tags import _to_title
+    from backend.schemas.tag import _to_title
     assert _to_title("ai and ml") == "Ai And Ml"
     assert _to_title("  hello world  ") == "Hello World"
     assert _to_title("UPPER CASE") == "Upper Case"

@@ -10,7 +10,7 @@
 	create-admin scrape translate run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
-	test-frontend test-frontend-e2e test-all \
+	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
 	site-preview
 
@@ -214,6 +214,9 @@ test-backend-integration-cov:
 
 test-frontend:
 	docker compose run --rm frontend npm run test
+
+test-frontend-cov:
+	docker compose run --rm frontend npm run test:coverage
 
 test-frontend-e2e:
 	docker compose run --rm frontend npm run test:e2e

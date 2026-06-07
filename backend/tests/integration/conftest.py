@@ -35,6 +35,8 @@ def db_engine():
     from models.tag_group import TagGroupDefinition      # noqa: F401
     from models.scraper_setting import ScraperSetting    # noqa: F401
     from models.llm_provider import LlmProvider          # noqa: F401
+    from models.scraper_keyword import ScraperKeyword    # noqa: F401
+    from models.failed_task import FailedTask            # noqa: F401
 
     # Exclude auth-schema tables (User) — those exist only in public.
     # Use checkfirst=False so SQLAlchemy creates tables in the test schema
