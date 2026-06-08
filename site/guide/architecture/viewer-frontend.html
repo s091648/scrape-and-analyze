@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScrapeAnalyzer Frontend Dependency Graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: sans-serif; background: #1a1a2e; color: #eee; }
+  #toolbar { padding: 12px 16px; background: #16213e; display: flex; gap: 12px; align-items: center; position: sticky; top: 0; z-index: 10; flex-wrap: wrap; }
+  #toolbar h1 { font-size: 16px; color: #e94560; }
+  #toolbar input { padding: 6px 10px; border-radius: 4px; border: 1px solid #555; background: #0f3460; color: #eee; width: 240px; }
+  #toolbar .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; }
+  #graph { width: 100vw; height: calc(100vh - 48px); overflow: hidden; cursor: grab; }
+  #graph:active { cursor: grabbing; }
+  #graph svg { transform-origin: 0 0; }
+  #loading { display: flex; justify-content: center; align-items: center; height: calc(100vh - 48px); font-size: 18px; color: #aaa; }
+  #node-detail { display: none; position: fixed; right: 16px; top: 60px; width: 400px; max-height: 70vh; overflow-y: auto; background: #16213e; border: 1px solid #e94560; border-radius: 8px; padding: 16px; z-index: 20; }
+  #node-detail h2 { color: #e94560; font-size: 16px; margin-bottom: 8px; word-break: break-all; }
+  #node-detail .meta { font-size: 12px; color: #aaa; margin-bottom: 12px; }
+  #node-detail h3 { color: #99ddff; font-size: 13px; margin: 8px 0 4px; }
+  #node-detail ul { list-style: none; padding-left: 0; }
+  #node-detail li { font-size: 12px; padding: 2px 0; color: #ccc; font-family: monospace; word-break: break-all; }
+  #node-detail .close { position: absolute; top: 8px; right: 12px; cursor: pointer; color: #e94560; font-size: 18px; }
+  .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .legend span { font-size: 11px; padding: 2px 8px; border-radius: 8px; border: 1px solid #555; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>Frontend Dependencies</h1>
+  <input id="searchInput" type="text" placeholder="search module path..." />
+  <span id="stats" class="badge" style="background:#0f3460;"></span>
+  <div class="legend">
+    <span style="color:#44BB99;">app/</span>
+    <span style="color:#77AADD;">components/</span>
+    <span style="color:#EEDD88;">lib/</span>
+    <span style="color:#EE8866;">other</span>
+  </div>
+</div>
+
+<div id="loading">Loading dependency graph...</div>
+<div id="graph"></div>
+
+<div id="node-detail">
+  <span class="close" onclick="document.getElementById('node-detail').style.display='none'">&times;</span>
+  <h2 id="detail-name"></h2>
+  <div class="meta" id="detail-meta"></div>
+  <h3>Imports (dependencies)</h3>
+  <ul id="detail-deps"></ul>
+  <h3>Imported by (dependents)</h3>
+  <ul id="detail-depended"></ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+<script>
+const graphEl = document.getElementById('graph');
+const loadingEl = document.getElementById('loading');
+const statsEl = document.getElementById('stats');
+const searchInput = document.getElementById('searchInput');
+
+let currentSvg = null;
+let scale = 1;
+let panX = 0, panY = 0;
+let isDragging = false, lastX = 0, lastY = 0;
+let adjMap = {}; // { node: { deps: [], depended: [] } }
+
+function classifyModule(id) {
+  if (id.startsWith("app/")) return "app";
+  if (id.startsWith("components/")) return "components";
+  if (id.startsWith("lib/")) return "lib";
+  return "other";
+}
+
+async function init() {
+  try {
+    const dotRes = await fetch('./frontend.dot');
+    const dotSource = await dotRes.text();
+
+    // Build adjacency map from dot
+    const edgePattern = /"([^"]+)"\s*->\s*"([^"]+)"/g;
+    let m;
+    while ((m = edgePattern.exec(dotSource)) !== null) {
+      const [, src, tgt] = m;
+      if (!adjMap[src]) adjMap[src] = { deps: [], depended: [] };
+      if (!adjMap[tgt]) adjMap[tgt] = { deps: [], depended: [] };
+      adjMap[src].deps.push(tgt);
+      adjMap[tgt].depended.push(src);
+    }
+
+    const nodeCount = Object.keys(adjMap).length;
+    const edgeCount = Object.values(adjMap).reduce((s, v) => s + v.deps.length, 0);
+    statsEl.textContent = `${nodeCount} modules, ${edgeCount} imports`;
+
+    // Colorize nodes in dot before rendering
+    let colored = dotSource;
+    const nodeColorMap = { app: "#44BB99", components: "#77AADD", lib: "#EEDD88", other: "#EE8866" };
+    for (const nodeId of Object.keys(adjMap)) {
+      const cat = classifyModule(nodeId);
+      const color = nodeColorMap[cat];
+      // Add color to existing node defs, or inject if missing
+      const nodeRe = new RegExp(`"${nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"\\s*\\[`, 'g');
+      if (nodeRe.test(colored)) {
+        colored = colored.replace(nodeRe, `"${nodeId}" [color="${color}", fontcolor="${color}", `);
+      }
+    }
+
+    // Add layout directives
+    colored = colored.replace(
+      /digraph\s+"?[^"]*"?[\s]*{/,
+      '$&\n  rankdir=LR\n  splines=ortho\n  nodesep=0.3\n  ranksep=1.0\n  fontsize=11\n  node [shape=box, style=rounded]\n'
+    );
+
+    const viz = await Viz.instance();
+    const svgDoc = viz.renderSVGElement(colored);
+    graphEl.appendChild(svgDoc);
+    currentSvg = svgDoc;
+    loadingEl.style.display = 'none';
+
+    // Fit to screen
+    const bbox = svgDoc.getBBox ? svgDoc.getBBox() : { width: 2000, height: 1500 };
+    const fitScale = Math.min(window.innerWidth / (bbox.width + 100), (window.innerHeight - 48) / (bbox.height + 100));
+    scale = Math.min(fitScale, 1);
+    applyTransform();
+
+    wirePanZoom();
+    wireNodeClicks();
+  } catch (err) {
+    loadingEl.textContent = 'Error: ' + err.message;
+    console.error(err);
+  }
+}
+
+function applyTransform() {
+  if (currentSvg) {
+    currentSvg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+}
+
+function wirePanZoom() {
+  graphEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    scale *= delta;
+    scale = Math.max(0.05, Math.min(3, scale));
+    applyTransform();
+  });
+  graphEl.addEventListener('mousedown', e => {
+    isDragging = true; lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    panX += e.clientX - lastX; panY += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+}
+
+function wireNodeClicks() {
+  if (!currentSvg) return;
+  const groups = currentSvg.querySelectorAll('g');
+  groups.forEach(g => {
+    const title = g.querySelector('title');
+    if (!title) return;
+    const nodeId = title.textContent.trim();
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', e => {
+      e.stopPropagation();
+      showNodeDetail(nodeId);
+    });
+  });
+}
+
+function showNodeDetail(nodeId) {
+  const info = adjMap[nodeId];
+  if (!info) return;
+
+  document.getElementById('detail-name').textContent = nodeId;
+  document.getElementById('detail-meta').textContent = classifyModule(nodeId);
+
+  const depsUl = document.getElementById('detail-deps');
+  depsUl.innerHTML = '';
+  info.deps.forEach(d => {
+    const li = document.createElement('li');
+    li.textContent = d;
+    li.style.cursor = 'pointer';
+    li.onclick = () => showNodeDetail(d);
+    depsUl.appendChild(li);
+  });
+  if (info.deps.length === 0) {
+    const li = document.createElement('li'); li.textContent = '(none)'; li.style.color = '#666'; depsUl.appendChild(li);
+  }
+
+  const dependedUl = document.getElementById('detail-depended');
+  dependedUl.innerHTML = '';
+  info.depended.forEach(d => {
+    const li = document.createElement('li');
+    li.textContent = d;
+    li.style.cursor = 'pointer';
+    li.onclick = () => showNodeDetail(d);
+    dependedUl.appendChild(li);
+  });
+  if (info.depended.length === 0) {
+    const li = document.createElement('li'); li.textContent = '(none)'; li.style.color = '#666'; dependedUl.appendChild(li);
+  }
+
+  document.getElementById('node-detail').style.display = 'block';
+}
+
+// Search + highlight
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase();
+  if (!currentSvg) return;
+
+  if (!q) {
+    // Reset all
+    currentSvg.querySelectorAll('g').forEach(g => g.style.opacity = '1');
+    currentSvg.querySelectorAll('path, polygon').forEach(p => p.style.opacity = '1');
+    return;
+  }
+
+  const matchIds = new Set(
+    Object.keys(adjMap).filter(id => id.toLowerCase().includes(q))
+  );
+
+  const groups = currentSvg.querySelectorAll('g');
+  groups.forEach(g => {
+    const title = g.querySelector('title');
+    if (!title) return;
+    g.style.opacity = matchIds.has(title.textContent.trim()) ? '1' : '0.08';
+  });
+
+  // Show edges between matching nodes
+  currentSvg.querySelectorAll('path, polygon').forEach(p => {
+    p.style.opacity = '0.05';
+  });
+});
+
+init();
+</script>
+
+</body>
+</html>

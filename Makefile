@@ -243,6 +243,11 @@ test-all:
 
 # ─── UML generation ──────────────────────────────────────────────────────────
 
-uml:
+uml: uml-backend uml-frontend
+
+uml-backend:
 	docker compose run --rm job_service sh -c "uv pip install pylint && python /app/scripts/generate_uml.py"
+
+uml-frontend:
+	docker compose run --rm frontend sh -c "npm install && npx madge --dot app/ lib/ components/ > /app/site/guide/architecture/frontend.dot"
 
