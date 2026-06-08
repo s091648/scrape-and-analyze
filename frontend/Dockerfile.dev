@@ -6,6 +6,7 @@ FROM node:20-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    graphviz \
     ca-certificates \
     fonts-liberation \
     libasound2 \

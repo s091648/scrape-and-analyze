@@ -139,6 +139,7 @@ export default defineConfig({
       { text: 'Codespaces', link: '/guide/codespaces' },
       { text: 'Constitution', link: '/constitution' },
       { text: 'Specs', link: '${firstLink}' },
+      { text: 'Architecture', link: '/guide/architecture/uml' },
     ],
     sidebar: [
       {
@@ -147,6 +148,13 @@ export default defineConfig({
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
+        ],
+      },
+      {
+        text: 'Architecture',
+        items: [
+          { text: 'Pipeline', link: '/guide/architecture/uml' },
+          { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
         ],
       },
 ${sidebar}

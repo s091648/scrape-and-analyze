@@ -12,6 +12,7 @@ export default defineConfig({
       { text: 'Codespaces', link: '/guide/codespaces' },
       { text: 'Constitution', link: '/constitution' },
       { text: 'Specs', link: '/specs/001-article-collection/spec' },
+      { text: 'Architecture', link: '/guide/architecture/uml' },
     ],
     sidebar: [
       {
@@ -20,6 +21,13 @@ export default defineConfig({
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
+        ],
+      },
+      {
+        text: 'Architecture',
+        items: [
+          { text: 'Pipeline', link: '/guide/architecture/uml' },
+          { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
         ],
       },
       {
@@ -132,6 +140,8 @@ export default defineConfig({
           { text: 'Plan', link: '/specs/011-semantic-scholar-scraper/plan' },
           { text: 'Data Model', link: '/specs/011-semantic-scholar-scraper/data-model' },
           { text: 'Tasks', link: '/specs/011-semantic-scholar-scraper/tasks' },
+          { text: 'Research', link: '/specs/011-semantic-scholar-scraper/research' },
+          { text: 'Quick Start', link: '/specs/011-semantic-scholar-scraper/quickstart' },
           { text: 'Requirements', link: '/specs/011-semantic-scholar-scraper/checklists/requirements' },
           { text: 'Contract: Keyword Type Enum', link: '/specs/011-semantic-scholar-scraper/contracts/keyword-type-enum' },
           { text: 'Contract: Semantic Scholar API', link: '/specs/011-semantic-scholar-scraper/contracts/semantic-scholar-api' },

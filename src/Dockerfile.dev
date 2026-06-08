@@ -16,7 +16,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen \
     --group scraper \
     --group observability \
-    --group backend
+    --group backend \
+    --group dev
 
 RUN ls -la /app/.venv/bin
 

@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -41,6 +46,24 @@ jobs:
       - name: Install dependencies
         run: npm install
         working-directory: site
+
+      - name: Install Graphviz
+        run: sudo apt-get install -y graphviz
+
+      - name: Install pylint for pyreverse
+        run: pip install pylint
+
+      - name: Generate backend UML (pyreverse)
+        run: python scripts/generate_uml.py
+
+      - name: Install frontend dependencies for madge
+        run: npm ci
+        working-directory: frontend
+
+      - name: Generate frontend dependency graph (madge)
+        run: |
+          mkdir -p site/guide/architecture
+          cd frontend && npx madge --dot --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > ../site/guide/architecture/frontend.dot
 
       - name: Sync spec content into site/
         run: |

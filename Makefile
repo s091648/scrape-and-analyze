@@ -246,8 +246,8 @@ test-all:
 uml: uml-backend uml-frontend
 
 uml-backend:
-	docker compose run --rm job_service sh -c "uv pip install pylint && python /app/scripts/generate_uml.py"
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_uml.py"
 
 uml-frontend:
-	docker compose run --rm frontend sh -c "npm install && npx madge --dot app/ lib/ components/ > /app/site/guide/architecture/frontend.dot"
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "npx madge --dot --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > /app/site/guide/architecture/frontend.dot"
 
