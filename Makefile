@@ -12,7 +12,7 @@
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
-	site-preview
+	site-preview uml
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -240,4 +240,9 @@ site-preview:
 # Run unit + integration tests for all three services; always runs to completion and prints a summary
 test-all:
 	bash scripts/run_tests.sh
+
+# ─── UML generation ──────────────────────────────────────────────────────────
+
+uml:
+	docker compose run --rm job_service sh -c "uv pip install pylint && python /app/scripts/generate_uml.py"
 

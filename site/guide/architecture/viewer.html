@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScrapeAnalyzer UML Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: sans-serif; background: #1a1a2e; color: #eee; }
+  #toolbar { padding: 12px 16px; background: #16213e; display: flex; gap: 12px; align-items: center; position: sticky; top: 0; z-index: 10; }
+  #toolbar h1 { font-size: 16px; color: #e94560; }
+  #toolbar select, #toolbar input { padding: 6px 10px; border-radius: 4px; border: 1px solid #555; background: #0f3460; color: #eee; }
+  #graph { width: 100vw; height: calc(100vh - 48px); overflow: hidden; cursor: grab; }
+  #graph:active { cursor: grabbing; }
+  #graph svg { transform-origin: 0 0; }
+  #loading { display: flex; justify-content: center; align-items: center; height: calc(100vh - 48px); font-size: 18px; color: #aaa; }
+  #node-detail { display: none; position: fixed; right: 16px; top: 60px; width: 360px; max-height: 70vh; overflow-y: auto; background: #16213e; border: 1px solid #e94560; border-radius: 8px; padding: 16px; z-index: 20; }
+  #node-detail h2 { color: #e94560; font-size: 16px; margin-bottom: 8px; }
+  #node-detail .meta { font-size: 12px; color: #aaa; margin-bottom: 12px; }
+  #node-detail h3 { color: #99ddff; font-size: 13px; margin: 8px 0 4px; }
+  #node-detail ul { list-style: none; padding-left: 0; }
+  #node-detail li { font-size: 12px; padding: 2px 0; color: #ccc; font-family: monospace; }
+  #node-detail .close { position: absolute; top: 8px; right: 12px; cursor: pointer; color: #e94560; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>ScrapeAnalyzer UML</h1>
+  <label>Layer:
+    <select id="layerFilter">
+      <option value="all">All</option>
+    </select>
+  </label>
+  <label>Search:
+    <input id="searchInput" type="text" placeholder="class name..." />
+  </label>
+  <span id="stats"></span>
+</div>
+
+<div id="loading">Loading graph...</div>
+<div id="graph"></div>
+
+<div id="node-detail">
+  <span class="close" onclick="document.getElementById('node-detail').style.display='none'">&times;</span>
+  <h2 id="detail-name"></h2>
+  <div class="meta" id="detail-meta"></div>
+  <h3>Attributes</h3>
+  <ul id="detail-attrs"></ul>
+  <h3>Methods</h3>
+  <ul id="detail-methods"></ul>
+  <h3>Relationships</h3>
+  <ul id="detail-rels"></ul>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@viz-js/viz@3.4.0/lib/viz-standalone.js"></script>
+<script>
+const graphEl = document.getElementById('graph');
+const loadingEl = document.getElementById('loading');
+const statsEl = document.getElementById('stats');
+const layerFilter = document.getElementById('layerFilter');
+const searchInput = document.getElementById('searchInput');
+
+let umlData = null;
+let currentSvg = null;
+let scale = 1;
+let panX = 0, panY = 0;
+let isDragging = false, lastX = 0, lastY = 0;
+
+async function init() {
+  try {
+    const res = await fetch('./uml-data.json');
+    umlData = await res.json();
+
+    umlData.layers.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l; opt.textContent = l;
+      layerFilter.appendChild(opt);
+    });
+
+    statsEl.textContent = `${umlData.nodes.length} classes, ${umlData.edges.length} edges`;
+
+    const dotRes = await fetch('./classes.dot');
+    const dotSource = await dotRes.text();
+
+    const viz = await Viz.instance();
+    const svgDoc = viz.renderSVGElement(dotSource);
+    graphEl.appendChild(svgDoc);
+    currentSvg = svgDoc;
+    loadingEl.style.display = 'none';
+
+    // Fit to screen
+    const bbox = svgDoc.getBBox ? svgDoc.getBBox() : { width: 2000, height: 1500 };
+    const fitScale = Math.min(window.innerWidth / (bbox.width + 100), (window.innerHeight - 48) / (bbox.height + 100));
+    scale = Math.min(fitScale, 1);
+    applyTransform();
+
+    wirePanZoom();
+    wireNodeClicks();
+  } catch (err) {
+    loadingEl.textContent = 'Error: ' + err.message;
+    console.error(err);
+  }
+}
+
+function applyTransform() {
+  if (currentSvg) {
+    currentSvg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+}
+
+function wirePanZoom() {
+  graphEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    scale *= delta;
+    scale = Math.max(0.05, Math.min(3, scale));
+    applyTransform();
+  });
+
+  graphEl.addEventListener('mousedown', e => {
+    isDragging = true; lastX = e.clientX; lastY = e.clientY;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    panX += e.clientX - lastX; panY += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    applyTransform();
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+}
+
+function wireNodeClicks() {
+  if (!currentSvg) return;
+  const groups = currentSvg.querySelectorAll('g');
+  groups.forEach(g => {
+    const title = g.querySelector('title');
+    if (!title) return;
+    const nodeId = title.textContent.trim();
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', e => {
+      e.stopPropagation();
+      showNodeDetail(nodeId);
+    });
+  });
+}
+
+function showNodeDetail(nodeId) {
+  const node = umlData.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  document.getElementById('detail-name').textContent = node.class_name;
+  document.getElementById('detail-meta').textContent = `${node.layer} | ${node.module}`;
+
+  const attrsUl = document.getElementById('detail-attrs');
+  attrsUl.innerHTML = '';
+  (node.attributes || []).forEach(a => {
+    const li = document.createElement('li'); li.textContent = a; attrsUl.appendChild(li);
+  });
+
+  const methodsUl = document.getElementById('detail-methods');
+  methodsUl.innerHTML = '';
+  (node.methods || []).forEach(m => {
+    const li = document.createElement('li'); li.textContent = m; methodsUl.appendChild(li);
+  });
+
+  const relsUl = document.getElementById('detail-rels');
+  relsUl.innerHTML = '';
+  umlData.edges.filter(e => e.source === nodeId || e.target === nodeId).forEach(e => {
+    const li = document.createElement('li');
+    const other = e.source === nodeId ? e.target : e.source;
+    const dir = e.source === nodeId ? '→' : '←';
+    li.textContent = `${dir} ${other.split('.').pop()} (${e.type})`;
+    relsUl.appendChild(li);
+  });
+
+  document.getElementById('node-detail').style.display = 'block';
+}
+
+layerFilter.addEventListener('change', () => {
+  const layer = layerFilter.value;
+  if (!currentSvg || !umlData) return;
+
+  const visibleIds = layer === 'all'
+    ? new Set(umlData.nodes.map(n => n.id))
+    : new Set(umlData.nodes.filter(n => n.layer === layer).map(n => n.id));
+
+  const groups = currentSvg.querySelectorAll('g');
+  groups.forEach(g => {
+    const title = g.querySelector('title');
+    if (!title) return;
+    const nid = title.textContent.trim();
+    g.style.opacity = visibleIds.has(nid) ? '1' : '0.08';
+  });
+
+  const paths = currentSvg.querySelectorAll('path');
+  paths.forEach(p => {
+    const parentTitle = p.closest('g')?.querySelector('title')?.textContent?.trim();
+    if (parentTitle && !visibleIds.has(parentTitle)) {
+      p.style.opacity = '0.05';
+    } else {
+      p.style.opacity = '1';
+    }
+  });
+
+  const count = layer === 'all' ? umlData.nodes.length : visibleIds.size;
+  statsEl.textContent = `${count} classes (filtered)`;
+});
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase();
+  if (!q) {
+    layerFilter.dispatchEvent(new Event('change'));
+    return;
+  }
+  if (!currentSvg || !umlData) return;
+
+  const matchIds = new Set(
+    umlData.nodes.filter(n => n.class_name.toLowerCase().includes(q)).map(n => n.id)
+  );
+
+  const groups = currentSvg.querySelectorAll('g');
+  groups.forEach(g => {
+    const title = g.querySelector('title');
+    if (!title) return;
+    g.style.opacity = matchIds.has(title.textContent.trim()) ? '1' : '0.08';
+  });
+});
+
+init();
+</script>
+
+</body>
+</html>
