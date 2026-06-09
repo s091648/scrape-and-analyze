@@ -801,7 +801,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.dep-viewer { display: flex; flex-direction: column; height: calc(100vh - 140px); border: 1px solid var(--vp-c-border); border-radius: 8px; overflow: hidden; }
+.dep-viewer { display: flex; flex-direction: column; height: calc(100vh - 140px); border: 1px solid var(--vp-c-border); border-radius: 8px; overflow: hidden; background: var(--vp-c-bg); }
 .dep-viewer.fullscreen { position: fixed; inset: 0; z-index: 9999; height: 100vh; border-radius: 0; border: none; }
 
 /* ── Top bar ──────────────────────────────────────────────────────────────── */

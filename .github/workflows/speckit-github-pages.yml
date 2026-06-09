@@ -77,6 +77,10 @@ jobs:
           cp -r specs site/specs
           cp .specify/memory/constitution.md site/constitution.md
 
+      - name: Generate VitePress config
+        run: npm run generate
+        working-directory: site
+
       - name: Build VitePress
         run: npm run build
         working-directory: site
