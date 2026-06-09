@@ -63,14 +63,14 @@ jobs:
       - name: Generate frontend dependency graph (madge)
         working-directory: frontend
         run: |
-          mkdir -p ../site/guide/architecture
-          npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > ../site/guide/architecture/frontend-deps.json
+          mkdir -p ../site/public/guide/architecture
+          npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > ../site/public/guide/architecture/frontend-deps.json
 
       - name: Generate frontend context graph
         working-directory: frontend
         run: node scripts/generate-frontend-context.mjs
         env:
-          OUTPUT_PATH: ${{ github.workspace }}/site/guide/architecture/frontend-context.json
+          OUTPUT_PATH: ${{ github.workspace }}/site/public/guide/architecture/frontend-context.json
 
       - name: Sync spec content into site/
         run: |

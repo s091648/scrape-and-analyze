@@ -11,13 +11,13 @@
  */
 
 import { readdir, readFile, writeFile, mkdir } from 'fs/promises'
-import { join, relative, sep } from 'path'
+import { join, dirname, relative, sep } from 'path'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const CWD = process.cwd()
 const SCAN_DIRS = ['app', 'components', 'lib']
-const OUTPUT_PATH = process.env.OUTPUT_PATH || join(CWD, 'site/guide/architecture/frontend-context.json')
+const OUTPUT_PATH = process.env.OUTPUT_PATH || join(CWD, 'site/public/guide/architecture/frontend-context.json')
 
 // Known provider files and their metadata (for reliable detection)
 const PROVIDER_DEFS = [
@@ -249,7 +249,7 @@ async function main() {
   }
 
   // 6. Write output
-  await mkdir(join(CWD, 'site/guide/architecture'), { recursive: true })
+  await mkdir(dirname(OUTPUT_PATH), { recursive: true })
   await writeFile(OUTPUT_PATH, JSON.stringify(output, null, 2) + '\n')
   console.log(`Wrote ${OUTPUT_PATH}`)
   console.log(`  ${providers.length} providers, ${totalSites} consumer sites, ${crossContextDeps.length} cross-context deps`)

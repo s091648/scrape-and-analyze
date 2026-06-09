@@ -251,7 +251,7 @@ uml-backend:
 uml-frontend: uml-frontend-deps uml-frontend-context
 
 uml-frontend-deps:
-	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > /app/site/guide/architecture/frontend-deps.json"
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "mkdir -p /app/site/public/guide/architecture && npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > /app/site/public/guide/architecture/frontend-deps.json"
 
 uml-frontend-context:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
