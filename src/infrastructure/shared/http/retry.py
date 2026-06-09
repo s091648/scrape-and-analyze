@@ -96,6 +96,7 @@ def make_retry_policy(
     resets its internal state on each ``for attempt in policy:`` iteration.
     """
     def _is_retryable_with_skip(exc: BaseException) -> bool:
+        """Check if exception is retryable, excluding status codes in skip_status."""
         if isinstance(exc, requests.exceptions.HTTPError):
             if exc.response is None:
                 return True

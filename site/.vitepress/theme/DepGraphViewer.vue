@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const CATEGORY_COLORS = {
   app: '#44BB99',
@@ -9,7 +9,6 @@ const CATEGORY_COLORS = {
 }
 
 const LAYER_RANK = { app: 0, components: 1, lib: 2, other: 3 }
-const HUB_THRESHOLD = 5
 
 const CONTEXT_COLORS = {
   session: '#77AADD',
@@ -24,17 +23,16 @@ const GITHUB_BASE = 'https://github.com/s091648/scrape-and-analyze/tree/master/f
 
 const adjMap = ref({})
 const errorMsg = ref('')
-const selectedCategory = ref(null)
-const focusNodeId = ref(null)
-const selectedNode = ref(null)
 const searchQuery = ref('')
 const isFullscreen = ref(false)
 
 const topMode = ref('graph')
 const cycleNodes = ref(new Set())
 const cycleEdges = ref(new Set())
-const viewMode = ref('file')
+
 const hoveredNode = ref(null)
+const expandedDir = ref(null)
+const violationPopupOpen = ref(false)
 
 const contextData = ref(null)
 const contextError = ref('')
@@ -58,10 +56,6 @@ function classify(id) {
   if (id.startsWith('components/')) return 'components'
   if (id.startsWith('lib/')) return 'lib'
   return 'other'
-}
-
-function isHub(nodeId) {
-  return (adjMap.value[nodeId]?.depended.length ?? 0) >= HUB_THRESHOLD
 }
 
 function parentDir(id) {
@@ -129,7 +123,6 @@ function detectCycles() {
 // ─── Directory aggregation ────────────────────────────────────────────────────
 
 const dirAdjMap = computed(() => {
-  if (viewMode.value !== 'directory') return null
   const dirMap = {}
   const dirFiles = {}
 
@@ -165,48 +158,48 @@ const dirAdjMap = computed(() => {
   return result
 })
 
-const activeAdjMap = computed(() => viewMode.value === 'directory' ? dirAdjMap.value : adjMap.value)
+const dirFileIds = computed(() => {
+  const map = {}
+  for (const id of Object.keys(adjMap.value)) {
+    const dir = parentDir(id)
+    if (!map[dir]) map[dir] = []
+    map[dir].push(id)
+  }
+  for (const dir of Object.keys(map)) {
+    map[dir].sort()
+  }
+  return map
+})
+
+const dirCycleNodes = computed(() => {
+  const dirs = new Set()
+  for (const fileId of cycleNodes.value) {
+    dirs.add(parentDir(fileId))
+  }
+  return dirs
+})
 
 // ─── Graph layout ─────────────────────────────────────────────────────────────
 
 const CATEGORY_ORDER = ['app', 'components', 'lib', 'other']
-const COL_W = 220
-const NODE_H = 28
+const COL_W = 240
+const DIR_NODE_H = 32
+const FILE_NODE_H = 24
 const NODE_GAP = 3
 const COL_GAP = 60
 const HEADER_H = 28
+const EXPAND_INDENT = 16
 
 const graphLayout = computed(() => {
-  const am = activeAdjMap.value
+  const am = dirAdjMap.value
   if (!am) return { nodes: [], edges: [], columns: [], width: 0, height: 0 }
 
-  // Determine visible nodes
-  let visibleIds
-  if (viewMode.value === 'directory') {
-    visibleIds = new Set(Object.keys(am))
-    if (searchQuery.value) {
-      const q = searchQuery.value.toLowerCase()
-      visibleIds = new Set([...visibleIds].filter(id => id.toLowerCase().includes(q)))
-    }
-  } else {
-    let ids = Object.keys(adjMap.value)
-    if (focusNodeId.value) {
-      const nid = focusNodeId.value
-      const neighbors = new Set([nid])
-      adjMap.value[nid]?.deps.forEach(d => neighbors.add(d))
-      adjMap.value[nid]?.depended.forEach(d => neighbors.add(d))
-      ids = ids.filter(id => neighbors.has(id))
-    } else if (selectedCategory.value) {
-      ids = ids.filter(id => adjMap.value[id]?.category === selectedCategory.value)
-    }
-    if (searchQuery.value) {
-      const q = searchQuery.value.toLowerCase()
-      ids = ids.filter(id => id.toLowerCase().includes(q))
-    }
-    visibleIds = new Set(ids)
+  let visibleIds = new Set(Object.keys(am))
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    visibleIds = new Set([...visibleIds].filter(id => id.toLowerCase().includes(q)))
   }
 
-  // Group by category
   const columns = {}
   for (const cat of CATEGORY_ORDER) columns[cat] = []
   for (const id of visibleIds) {
@@ -216,7 +209,6 @@ const graphLayout = computed(() => {
     columns[cat].push(id)
   }
 
-  // Sort within columns: fan-in descending, then alphabetical
   for (const cat of CATEGORY_ORDER) {
     columns[cat].sort((a, b) => {
       const fa = am[a]?.depended?.length ?? 0
@@ -226,7 +218,6 @@ const graphLayout = computed(() => {
     })
   }
 
-  // Assign positions
   const nodePos = {}
   const colMeta = []
   let maxH = 0
@@ -238,26 +229,53 @@ const graphLayout = computed(() => {
     if (!nodes.length) continue
 
     const x = colCount * (COL_W + COL_GAP)
+    let y = HEADER_H
+
     for (let ni = 0; ni < nodes.length; ni++) {
-      nodePos[nodes[ni]] = {
-        id: nodes[ni],
+      const dirId = nodes[ni]
+      const isExpanded = expandedDir.value === dirId
+
+      nodePos[dirId] = {
+        id: dirId,
         x,
-        y: HEADER_H + ni * (NODE_H + NODE_GAP),
+        y,
         width: COL_W,
-        height: NODE_H,
+        height: DIR_NODE_H,
         column: ci,
         category: cat,
+        type: 'directory',
+      }
+      y += DIR_NODE_H + NODE_GAP
+
+      if (isExpanded && dirFileIds.value[dirId]) {
+        const files = dirFileIds.value[dirId]
+        for (const fileId of files) {
+          nodePos[fileId] = {
+            id: fileId,
+            x: x + EXPAND_INDENT,
+            y,
+            width: COL_W - EXPAND_INDENT,
+            height: FILE_NODE_H,
+            column: ci,
+            category: adjMap.value[fileId]?.category || cat,
+            type: 'file',
+            parentDir: dirId,
+          }
+          y += FILE_NODE_H + NODE_GAP
+        }
+        y += 6
       }
     }
+
     colMeta.push({ category: cat, x, count: nodes.length })
-    const colH = HEADER_H + nodes.length * (NODE_H + NODE_GAP)
-    if (colH > maxH) maxH = colH
+    if (y > maxH) maxH = y
     colCount++
   }
 
-  // Compute edges
+  // Directory-level edges
   const edges = []
   const drawnEdges = new Set()
+
   for (const [src, info] of Object.entries(am)) {
     if (!nodePos[src]) continue
     for (const tgt of info.deps) {
@@ -286,29 +304,67 @@ const graphLayout = computed(() => {
         path = `M ${sx} ${sy} C ${sx + 25} ${sy} ${tx + 25} ${ty} ${tx} ${ty}`
       }
 
-      const isCycleEdge = viewMode.value === 'file' && cycleEdges.value.has(key)
-      const isViolation = viewMode.value === 'file' && LAYER_RANK[info.category] > LAYER_RANK[am[tgt]?.category]
-
-      let color = '#ccc'
-      let width = 1
-      let dashed = false
-
-      if (isCycleEdge) { color = '#e94560'; width = 2 }
-      else if (isViolation) { color = '#EE8866'; dashed = true }
-
-      if (viewMode.value === 'directory') {
-        let weight = 0
-        for (const [fsrc, finfo] of Object.entries(adjMap.value)) {
-          if (parentDir(fsrc) !== src) continue
-          for (const ftgt of finfo.deps) {
-            if (parentDir(ftgt) === tgt) weight++
-          }
+      let weight = 0
+      for (const [fsrc, finfo] of Object.entries(adjMap.value)) {
+        if (parentDir(fsrc) !== src) continue
+        for (const ftgt of finfo.deps) {
+          if (parentDir(ftgt) === tgt) weight++
         }
-        width = Math.min(4, 1 + weight * 0.3)
-        if (weight > 2) color = '#999'
       }
 
-      edges.push({ key, source: src, target: tgt, path, color, width, dashed })
+      edges.push({
+        key, source: src, target: tgt, path,
+        color: weight > 2 ? '#999' : '#ccc',
+        width: Math.min(4, 1 + weight * 0.3),
+        dashed: false,
+        type: 'directory',
+      })
+    }
+  }
+
+  // Intra-directory file edges for expanded directory
+  if (expandedDir.value && dirFileIds.value[expandedDir.value]) {
+    const dirId = expandedDir.value
+    const files = dirFileIds.value[dirId]
+    const fileSet = new Set(files)
+
+    for (const fileId of files) {
+      const fileInfo = adjMap.value[fileId]
+      if (!fileInfo) continue
+      for (const dep of fileInfo.deps) {
+        if (!fileSet.has(dep)) continue
+        if (!nodePos[fileId] || !nodePos[dep]) continue
+
+        const key = `file:${fileId}->${dep}`
+        if (drawnEdges.has(key)) continue
+        drawnEdges.add(key)
+
+        const srcP = nodePos[fileId]
+        const tgtP = nodePos[dep]
+
+        const sx = srcP.x + srcP.width, sy = srcP.y + srcP.height / 2
+        const tx = tgtP.x + tgtP.width, ty = tgtP.y + tgtP.height / 2
+        const path = `M ${sx} ${sy} C ${sx + 20} ${sy} ${tx + 20} ${ty} ${tx} ${ty}`
+
+        const isViolation = LAYER_RANK[fileInfo.category] > LAYER_RANK[adjMap.value[dep]?.category]
+        const isCycleEdge = cycleEdges.value.has(`${fileId}->${dep}`)
+
+        let edgeColor = CATEGORY_COLORS[fileInfo.category] || '#999'
+        let edgeDashed = false
+        if (isCycleEdge) { edgeColor = '#e94560' }
+        else if (isViolation) { edgeColor = '#EE8866'; edgeDashed = true }
+
+        edges.push({
+          key,
+          source: fileId,
+          target: dep,
+          path,
+          color: edgeColor,
+          width: 1,
+          dashed: edgeDashed,
+          type: 'file',
+        })
+      }
     }
   }
 
@@ -323,17 +379,9 @@ const graphLayout = computed(() => {
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
-const categoryStats = computed(() =>
-  Object.entries(CATEGORY_COLORS).map(([cat, color]) => ({
-    key: cat,
-    color,
-    count: Object.values(adjMap.value).filter(v => v.category === cat).length,
-  }))
-)
-
 const totalNodes = computed(() => Object.keys(adjMap.value).length)
 const totalEdges = computed(() => Object.values(adjMap.value).reduce((s, v) => s + v.deps.length, 0))
-const visibleNodeCount = computed(() => graphLayout.value.nodes.length)
+const dirCount = computed(() => Object.keys(dirAdjMap.value).length)
 
 const violationCount = computed(() => {
   let count = 0
@@ -344,6 +392,42 @@ const violationCount = computed(() => {
   }
   return count
 })
+
+const violationDetails = computed(() => {
+  const details = []
+  for (const [src, info] of Object.entries(adjMap.value)) {
+    for (const tgt of info.deps) {
+      if (LAYER_RANK[info.category] > LAYER_RANK[adjMap.value[tgt]?.category]) {
+        details.push({
+          source: src,
+          target: tgt,
+          sourceLayer: info.category,
+          targetLayer: adjMap.value[tgt]?.category || 'other',
+        })
+      }
+    }
+  }
+  return details
+})
+
+// ─── Node dimming ────────────────────────────────────────────────────────────
+
+function shouldDimNode(node) {
+  if (expandedDir.value) {
+    if (node.type === 'directory') return node.id !== expandedDir.value
+    if (node.type === 'file') return node.parentDir !== expandedDir.value
+    return true
+  }
+  if (hoveredNode.value) {
+    if (node.id === hoveredNode.value) return false
+    const info = adjMap.value[node.id]
+    if (info?.deps?.includes(hoveredNode.value) || info?.depended?.includes(hoveredNode.value)) return false
+    const dirInfo = dirAdjMap.value[node.id]
+    if (dirInfo?.deps?.includes(hoveredNode.value) || dirInfo?.depended?.includes(hoveredNode.value)) return false
+    return true
+  }
+  return false
+}
 
 // ─── Pan / zoom ───────────────────────────────────────────────────────────────
 
@@ -371,21 +455,10 @@ function onDragMove(e) {
 
 function onDragEnd() { dragging = false }
 
-// ─── Category / focus actions ─────────────────────────────────────────────────
+// ─── Directory actions ────────────────────────────────────────────────────────
 
-function selectCategory(cat) {
-  focusNodeId.value = null; selectedNode.value = null
-  selectedCategory.value = selectedCategory.value === cat ? null : cat
-}
-
-function focusNode(nodeId) {
-  focusNodeId.value = nodeId; selectedNode.value = nodeId; selectedCategory.value = null
-  viewMode.value = 'file'
-}
-
-function clearFocus() {
-  const cat = adjMap.value[focusNodeId.value]?.category
-  focusNodeId.value = null; selectedCategory.value = cat || null
+function toggleExpandDir(dirId) {
+  expandedDir.value = expandedDir.value === dirId ? null : dirId
 }
 
 // ─── Context tab helpers ──────────────────────────────────────────────────────
@@ -406,10 +479,10 @@ function providerConsumerList(id) {
 
 // ─── Watchers ─────────────────────────────────────────────────────────────────
 
-watch([selectedCategory, focusNodeId, searchQuery, viewMode], () => {})
+watch(searchQuery, () => {})
 
 watch(topMode, () => {
-  if (topMode.value === 'graph') { selectedCategory.value = 'app'; focusNodeId.value = null; selectedNode.value = null }
+  if (topMode.value === 'graph') { expandedDir.value = null; hoveredNode.value = null }
 })
 
 // ─── Keyboard ─────────────────────────────────────────────────────────────────
@@ -417,7 +490,14 @@ watch(topMode, () => {
 function onKeydown(e) {
   if (e.key === 'Escape') {
     if (isFullscreen.value) isFullscreen.value = false
-    else if (selectedNode.value) selectedNode.value = null
+    else if (violationPopupOpen.value) violationPopupOpen.value = false
+    else if (expandedDir.value) expandedDir.value = null
+  }
+}
+
+function onClickOutside(e) {
+  if (violationPopupOpen.value && !e.target.closest('.violation-badge-wrap')) {
+    violationPopupOpen.value = false
   }
 }
 
@@ -425,6 +505,7 @@ function onKeydown(e) {
 
 onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
+  document.addEventListener('click', onClickOutside)
 
   try {
     const res = await fetch('./frontend-deps.json')
@@ -432,7 +513,6 @@ onMounted(async () => {
     const json = await res.json()
     adjMap.value = parseDepsJson(json)
     detectCycles()
-    selectedCategory.value = 'app'
   } catch (e) {
     errorMsg.value = `無法載入 frontend-deps.json：${e.message}。請先執行 make uml-frontend-deps。`
   }
@@ -448,6 +528,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onClickOutside)
 })
 </script>
 
@@ -482,155 +563,101 @@ onUnmounted(() => {
     <template v-if="topMode === 'graph'">
 
       <div class="toolbar">
-        <div class="group-toggle">
-          <button :class="['gm-btn', { active: viewMode === 'file' }]" @click="viewMode = 'file'">File</button>
-          <button :class="['gm-btn', { active: viewMode === 'directory' }]" @click="viewMode = 'directory'">Directory</button>
-        </div>
-        <span class="stat">{{ visibleNodeCount }} / {{ totalNodes }} modules · {{ totalEdges }} imports</span>
+        <span class="stat">{{ dirCount }} directories · {{ totalNodes }} files · {{ totalEdges }} imports</span>
         <span v-if="cycleNodes.size" class="badge cycle-badge">{{ cycleNodes.size }} cycle nodes</span>
-        <span v-if="violationCount" class="badge violation-badge">{{ violationCount }} violations</span>
-        <span v-if="focusNodeId" class="focus-badge">
-          Focus: {{ focusNodeId.split('/').pop() }}
-          <button @click="clearFocus" class="clear-btn">✕</button>
+        <span class="violation-badge-wrap">
+          <span v-if="violationCount" class="badge violation-badge clickable" @click.stop="violationPopupOpen = !violationPopupOpen">
+            {{ violationCount }} violations
+          </span>
+          <div v-if="violationPopupOpen" class="violation-popup" @click.stop>
+            <div class="violation-popup-header">
+              <h3>Layer Violations</h3>
+              <button class="close-btn" @click="violationPopupOpen = false">✕</button>
+            </div>
+            <div class="violation-popup-desc">Higher-layer modules importing from lower layers (app → components → lib → other)</div>
+            <div class="violation-list">
+              <div v-for="(v, i) in violationDetails" :key="i" class="violation-item">
+                <span class="violation-src" :style="{ color: CATEGORY_COLORS[v.sourceLayer] }">{{ v.source }}</span>
+                <span class="violation-arrow">→</span>
+                <span class="violation-tgt" :style="{ color: CATEGORY_COLORS[v.targetLayer] }">{{ v.target }}</span>
+                <span class="violation-layers">{{ v.sourceLayer }} → {{ v.targetLayer }}</span>
+              </div>
+            </div>
+          </div>
+        </span>
+        <span v-if="expandedDir" class="focus-badge">
+          ▼ {{ expandedDir.split('/').pop() }}
+          <button @click="expandedDir = null" class="clear-btn">✕</button>
         </span>
       </div>
 
-      <div class="layout">
-        <div class="sidebar">
-          <div class="sidebar-title">Category</div>
-          <div
-            v-for="cat in categoryStats" :key="cat.key"
-            :class="['layer-item', { active: selectedCategory === cat.key }]"
-            @click="selectCategory(cat.key)"
+      <div class="graph-viewport"
+        @wheel.prevent="onWheel"
+        @mousedown="onDragStart"
+        @mousemove="onDragMove"
+        @mouseup="onDragEnd"
+        @mouseleave="onDragEnd"
+      >
+        <div class="graph-canvas" :style="{ transform: canvasTransform }">
+          <!-- Column headers -->
+          <div v-for="col in graphLayout.columns" :key="col.category"
+            class="column-header" :style="{ left: col.x + 'px' }"
           >
-            <span class="dot" :style="{ background: cat.color }" />
-            <span class="name">{{ cat.key }}/</span>
-            <span class="count">{{ cat.count }}</span>
+            <span class="column-dot" :style="{ background: CATEGORY_COLORS[col.category] }" />
+            <span class="column-name">{{ col.category }}/</span>
+            <span class="column-count">{{ col.count }}</span>
           </div>
-          <div
-            :class="['layer-item', { active: !selectedCategory && !focusNodeId }]"
-            @click="selectedCategory = null; focusNodeId = null; selectedNode = null"
+
+          <!-- SVG edges -->
+          <svg class="edge-layer"
+            :width="graphLayout.width + 80"
+            :height="graphLayout.height + 40"
           >
-            <span class="dot" style="background:#888" />
-            <span class="name">All</span>
-            <span class="count">{{ totalNodes }}</span>
+            <path
+              v-for="edge in graphLayout.edges" :key="edge.key"
+              :d="edge.path"
+              fill="none"
+              :stroke="edge.color"
+              :stroke-width="edge.width"
+              :stroke-dasharray="edge.dashed ? '6,3' : ''"
+              :class="[
+                edge.type === 'file' ? 'edge-file' : '',
+                hoveredNode && edge.source === hoveredNode ? 'edge-highlight' : '',
+                hoveredNode && edge.source !== hoveredNode && edge.target !== hoveredNode ? 'edge-dim' : '',
+                expandedDir && edge.type === 'directory' && edge.source !== expandedDir && edge.target !== expandedDir ? 'edge-dim' : '',
+              ]"
+            />
+          </svg>
+
+          <!-- Nodes -->
+          <div
+            v-for="node in graphLayout.nodes" :key="node.id"
+            :class="['graph-node', {
+              'node-dir': node.type === 'directory',
+              'node-file': node.type === 'file',
+              'node-expanded-dir': node.type === 'directory' && node.id === expandedDir,
+              'node-cycle': node.type === 'directory' && dirCycleNodes.has(node.id),
+              'node-file-cycle': node.type === 'file' && cycleNodes.has(node.id),
+              'node-dim': shouldDimNode(node),
+            }]"
+            :style="{
+              left: node.x + 'px',
+              top: node.y + 'px',
+              width: node.width + 'px',
+              height: node.height + 'px',
+              borderColor: node.type === 'directory' && node.id === expandedDir
+                ? '#e94560'
+                : CATEGORY_COLORS[node.category] || '#888',
+            }"
+            @mouseenter="hoveredNode = node.id"
+            @mouseleave="hoveredNode = null"
+            @click.stop="node.type === 'directory' ? toggleExpandDir(node.id) : undefined"
+          >
+            <span v-if="node.type === 'directory'" class="node-expand-icon">{{ node.id === expandedDir ? '▼' : '▶' }}</span>
+            <span class="node-label" :style="{ color: CATEGORY_COLORS[node.category] || '#888' }">{{ shortLabel(node.id) }}</span>
+            <span v-if="node.type === 'directory' && dirAdjMap?.[node.id]" class="node-filecount">{{ dirAdjMap[node.id].fileCount }} files</span>
+            <a v-if="node.type === 'file'" class="node-file-link" :href="githubUrl(node.id)" target="_blank" rel="noopener" @click.stop>↗</a>
           </div>
-        </div>
-
-        <!-- Graph viewport with pan/zoom -->
-        <div class="graph-viewport"
-          @wheel.prevent="onWheel"
-          @mousedown="onDragStart"
-          @mousemove="onDragMove"
-          @mouseup="onDragEnd"
-          @mouseleave="onDragEnd"
-        >
-          <div class="graph-canvas" :style="{ transform: canvasTransform }">
-            <!-- Column headers -->
-            <div v-for="col in graphLayout.columns" :key="col.category"
-              class="column-header" :style="{ left: col.x + 'px' }"
-            >
-              <span class="column-dot" :style="{ background: CATEGORY_COLORS[col.category] }" />
-              <span class="column-name">{{ col.category }}/</span>
-              <span class="column-count">{{ col.count }}</span>
-            </div>
-
-            <!-- SVG edges -->
-            <svg class="edge-layer"
-              :width="graphLayout.width + 80"
-              :height="graphLayout.height + 40"
-            >
-              <path
-                v-for="edge in graphLayout.edges" :key="edge.key"
-                :d="edge.path"
-                fill="none"
-                :stroke="edge.color"
-                :stroke-width="edge.width"
-                :stroke-dasharray="edge.dashed ? '6,3' : ''"
-                :class="[
-                  hoveredNode && edge.source === hoveredNode ? 'edge-highlight' : '',
-                  hoveredNode && edge.source !== hoveredNode && edge.target !== hoveredNode ? 'edge-dim' : '',
-                ]"
-              />
-            </svg>
-
-            <!-- Nodes -->
-            <div
-              v-for="node in graphLayout.nodes" :key="node.id"
-              :class="['graph-node', {
-                'node-selected': node.id === selectedNode,
-                'node-focused': node.id === focusNodeId,
-                'node-hub': isHub(node.id),
-                'node-cycle': cycleNodes.has(node.id),
-                'node-dim': hoveredNode && node.id !== hoveredNode && !adjMap[node.id]?.deps?.includes(hoveredNode) && !adjMap[node.id]?.depended?.includes(hoveredNode),
-              }]"
-              :style="{
-                left: node.x + 'px',
-                top: node.y + 'px',
-                width: node.width + 'px',
-                borderColor: node.id === focusNodeId ? '#e94560' : node.id === selectedNode ? 'var(--vp-c-brand)' : CATEGORY_COLORS[node.category] || '#888',
-              }"
-              @mouseenter="hoveredNode = node.id"
-              @mouseleave="hoveredNode = null"
-              @click.stop="selectedNode = node.id"
-            >
-              <span class="node-label" :style="{ color: CATEGORY_COLORS[node.category] || '#888' }">{{ shortLabel(node.id) }}</span>
-              <span v-if="viewMode === 'directory' && dirAdjMap?.[node.id]" class="node-filecount">{{ dirAdjMap[node.id].fileCount }} files</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Detail panel -->
-        <div v-if="selectedNode && (adjMap[selectedNode] || dirAdjMap?.[selectedNode])" class="detail-panel">
-          <div class="detail-header">
-            <h3>{{ selectedNode.split('/').pop() }}</h3>
-            <button class="close-btn" @click="selectedNode = null">✕</button>
-          </div>
-          <a v-if="viewMode === 'file'" class="detail-source" :href="githubUrl(selectedNode)" target="_blank" rel="noopener">{{ selectedNode }}</a>
-          <div v-else class="detail-module">{{ selectedNode }}</div>
-          <div class="detail-meta">
-            <span class="badge" :style="{ background: CATEGORY_COLORS[(adjMap[selectedNode] || dirAdjMap?.[selectedNode])?.category] || '#888' }">
-              {{ (adjMap[selectedNode] || dirAdjMap?.[selectedNode])?.category }}
-            </span>
-            <span v-if="isHub(selectedNode)" class="badge hub-badge">Hub</span>
-            <span v-if="cycleNodes.has(selectedNode)" class="badge cycle-badge-sm">In cycle</span>
-          </div>
-
-          <div class="detail-metrics">
-            <div class="metric">
-              <span class="metric-label">Fan-out</span>
-              <span class="metric-value">{{ (adjMap[selectedNode] || dirAdjMap?.[selectedNode])?.deps?.length ?? 0 }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Fan-in</span>
-              <span class="metric-value">{{ (adjMap[selectedNode] || dirAdjMap?.[selectedNode])?.depended?.length ?? 0 }}</span>
-            </div>
-          </div>
-
-          <!-- Directory mode: list files -->
-          <template v-if="viewMode === 'directory' && dirAdjMap?.[selectedNode]">
-            <div class="section-title">Files ({{ dirAdjMap[selectedNode].fileCount }})</div>
-            <div v-for="id in Object.keys(adjMap).filter(n => parentDir(n) === selectedNode).slice(0, 20)" :key="id" class="rel-line" @click="focusNode(id)">
-              {{ id.split('/').pop() }}
-            </div>
-            <div v-if="dirAdjMap[selectedNode].fileCount > 20" class="rel-line more-line">+{{ dirAdjMap[selectedNode].fileCount - 20 }} more</div>
-          </template>
-
-          <template v-if="adjMap[selectedNode]?.deps?.length">
-            <div class="section-title">Imports ({{ adjMap[selectedNode].deps.length }})</div>
-            <div v-for="d in adjMap[selectedNode].deps" :key="d" class="rel-line" @click="focusNode(d)">
-              → {{ d }}
-            </div>
-          </template>
-
-          <template v-if="adjMap[selectedNode]?.depended?.length">
-            <div class="section-title">Imported by ({{ adjMap[selectedNode].depended.length }})</div>
-            <div v-for="d in adjMap[selectedNode].depended" :key="d" class="rel-line" @click="focusNode(d)">
-              ← {{ d }}
-            </div>
-          </template>
-
-          <button class="focus-btn" @click="focusNode(selectedNode)">Focus: Node + Neighbors</button>
         </div>
       </div>
 
@@ -762,30 +789,56 @@ onUnmounted(() => {
 .fullscreen-btn:hover { background: var(--vp-c-bg-mute); }
 
 /* ── Toolbar ──────────────────────────────────────────────────────────────── */
-.toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--vp-c-bg-soft); border-bottom: 1px solid var(--vp-c-border); flex-shrink: 0; flex-wrap: wrap; }
-.group-toggle { display: flex; border: 1px solid var(--vp-c-border); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
-.gm-btn { background: none; border: none; padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--vp-c-text-2); transition: background .12s; }
-.gm-btn:hover { background: var(--vp-c-bg-mute); }
-.gm-btn.active { background: var(--vp-c-brand); color: #fff; font-weight: 600; }
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--vp-c-bg-soft); border-bottom: 1px solid var(--vp-c-border); flex-shrink: 0; flex-wrap: wrap; position: relative; }
 .stat { font-size: 12px; color: var(--vp-c-text-2); }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
 .cycle-badge { background: rgba(233,69,96,.15); color: #e94560; }
-.cycle-badge-sm { background: #e94560; color: #fff; font-size: 10px; }
 .violation-badge { background: rgba(238,136,102,.15); color: #EE8866; }
-.hub-badge { background: var(--vp-c-brand); color: #fff; font-size: 10px; }
+.violation-badge.clickable { cursor: pointer; transition: background .15s; }
+.violation-badge.clickable:hover { background: rgba(238,136,102,.3); }
 .focus-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #e94560; background: rgba(233,69,96,.1); padding: 2px 8px; border-radius: 12px; }
 .clear-btn { background: none; border: none; color: #e94560; cursor: pointer; font-size: 12px; padding: 0; }
 
-/* ── Layout ────────────────────────────────────────────────────────────────── */
-.layout { display: flex; flex: 1; overflow: hidden; }
-.sidebar { width: 170px; flex-shrink: 0; overflow-y: auto; padding: 8px 0; background: var(--vp-c-bg-soft); border-right: 1px solid var(--vp-c-border); }
-.sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vp-c-text-2); padding: 4px 12px 8px; letter-spacing: .05em; }
-.layer-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; transition: background .15s; }
-.layer-item:hover { background: var(--vp-c-bg-mute); }
-.layer-item.active { background: var(--vp-c-bg-mute); font-weight: 600; }
-.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.name { flex: 1; color: var(--vp-c-text-1); }
-.count { font-size: 11px; color: var(--vp-c-text-2); background: var(--vp-c-bg-mute); padding: 1px 6px; border-radius: 8px; }
+/* ── Violation popup ──────────────────────────────────────────────────────── */
+.violation-badge-wrap { position: relative; }
+.violation-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+  width: 520px;
+  max-height: 400px;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.violation-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vp-c-border);
+}
+.violation-popup-header h3 { font-size: 13px; font-weight: 600; margin: 0; }
+.violation-popup-desc { font-size: 11px; color: var(--vp-c-text-2); padding: 8px 14px; border-bottom: 1px solid var(--vp-c-border); }
+.violation-list { overflow-y: auto; padding: 6px 0; flex: 1; }
+.violation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-family: monospace;
+}
+.violation-item:hover { background: var(--vp-c-bg-mute); }
+.violation-src { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.violation-arrow { color: var(--vp-c-text-3); flex-shrink: 0; }
+.violation-tgt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.violation-layers { font-size: 10px; color: var(--vp-c-text-3); flex-shrink: 0; font-family: sans-serif; padding: 1px 6px; background: var(--vp-c-bg-mute); border-radius: 4px; }
 
 /* ── Graph viewport ───────────────────────────────────────────────────────── */
 .graph-viewport {
@@ -814,12 +867,12 @@ onUnmounted(() => {
 /* ── SVG edges ──────────────────────────────────────────────────────────── */
 .edge-layer { position: absolute; top: 0; left: 0; pointer-events: none; }
 .edge-highlight { stroke-opacity: 1 !important; stroke-width: 2 !important; }
-.edge-dim { stroke-opacity: 0.2; }
+.edge-dim { stroke-opacity: 0.15; }
+.edge-file { stroke-opacity: 0.6; }
 
 /* ── Graph nodes ─────────────────────────────────────────────────────────── */
 .graph-node {
   position: absolute;
-  height: 28px;
   border: 1px solid transparent;
   border-left: 3px solid transparent;
   border-radius: 4px;
@@ -827,38 +880,51 @@ onUnmounted(() => {
   display: flex; align-items: center; gap: 6px;
   padding: 0 8px;
   cursor: pointer;
-  transition: background .12s, border-color .12s, box-shadow .12s;
+  transition: background .12s, border-color .12s, box-shadow .12s, opacity .2s;
   font-size: 12px;
 }
-.graph-node:hover { background: var(--vp-c-bg-mute); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-.graph-node.node-selected { background: var(--vp-c-bg-mute); box-shadow: 0 0 0 1px var(--vp-c-brand); }
-.graph-node.node-focused { background: rgba(233,69,96,.08); box-shadow: 0 0 0 1px #e94560; }
-.graph-node.node-hub { font-weight: 600; border-left-width: 4px; }
-.graph-node.node-cycle { border-color: #e94560; background: rgba(233,69,96,.06); }
-.graph-node.node-dim { opacity: 0.35; }
-.node-label { font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Directory node */
+.node-dir {
+  height: 32px;
+  border-left-width: 4px;
+}
+.node-dir:hover { background: var(--vp-c-bg-mute); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.node-expanded-dir {
+  background: rgba(233,69,96,.06);
+  box-shadow: 0 0 0 1px #e94560;
+}
+.node-expand-icon { font-size: 9px; color: var(--vp-c-text-3); flex-shrink: 0; width: 12px; text-align: center; }
 .node-filecount { font-size: 10px; color: var(--vp-c-text-3); flex-shrink: 0; }
 
-/* ── Detail panel ────────────────────────────────────────────────────────── */
-.detail-panel { width: 280px; flex-shrink: 0; overflow-y: auto; padding: 12px; background: var(--vp-c-bg-soft); border-left: 1px solid var(--vp-c-border); font-size: 13px; }
-.detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; }
-.detail-header h3 { font-size: 14px; font-weight: 600; margin: 0; word-break: break-all; }
-.close-btn { background: none; border: none; color: var(--vp-c-text-2); cursor: pointer; font-size: 14px; padding: 0; flex-shrink: 0; }
-.detail-source { display: block; font-size: 11px; color: var(--vp-c-brand); font-family: monospace; margin-bottom: 6px; word-break: break-all; text-decoration: none; }
-.detail-source:hover { text-decoration: underline; }
-.detail-module { font-size: 11px; color: var(--vp-c-text-2); font-family: monospace; margin-bottom: 6px; word-break: break-all; }
-.detail-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-.detail-metrics { display: flex; gap: 16px; margin-bottom: 8px; padding: 6px 0; border-top: 1px solid var(--vp-c-border); border-bottom: 1px solid var(--vp-c-border); }
-.metric { display: flex; flex-direction: column; align-items: center; }
-.metric-label { font-size: 10px; color: var(--vp-c-text-3); text-transform: uppercase; letter-spacing: .05em; }
-.metric-value { font-size: 18px; font-weight: 700; color: var(--vp-c-text-1); }
-.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--vp-c-text-2); margin: 10px 0 4px; letter-spacing: .05em; }
-.rel-line { font-size: 11px; color: var(--vp-c-brand); padding: 2px 0; cursor: pointer; font-family: monospace; word-break: break-all; }
-.rel-line:hover { text-decoration: underline; }
-.more-line { color: var(--vp-c-text-3); cursor: default; }
-.more-line:hover { text-decoration: none; }
-.focus-btn { width: 100%; margin-top: 12px; padding: 6px 12px; background: #e94560; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.focus-btn:hover { opacity: .9; }
+/* File node */
+.node-file {
+  height: 24px;
+  border-left-width: 2px;
+  background: var(--vp-c-bg);
+  font-size: 11px;
+}
+.node-file:hover { background: var(--vp-c-bg-mute); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+
+/* Cycle */
+.node-cycle { border-color: #e94560; background: rgba(233,69,96,.06); }
+.node-file-cycle { border-color: #e94560; background: rgba(233,69,96,.04); }
+
+/* Dimming */
+.node-dim { opacity: 0.3; }
+
+/* Labels */
+.node-label { font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node-file-link {
+  font-size: 11px;
+  color: var(--vp-c-brand);
+  text-decoration: none;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity .12s;
+}
+.node-file-link:hover { opacity: 1; text-decoration: underline; }
+
 .error-msg { padding: 2rem; color: #e94560; background: rgba(233,69,96,.08); border-radius: 8px; font-size: 14px; }
 .empty-msg { padding: 2rem; text-align: center; color: var(--vp-c-text-2); }
 
