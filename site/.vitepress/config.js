@@ -6,6 +6,7 @@ export default defineConfig({
   base: process.env.VITEPRESS_BASE || '/',
   ignoreDeadLinks: [/localhost/, /^\.?\/?research\/?$/],
   themeConfig: {
+    storybookUrl: process.env.STORYBOOK_URL || '',
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Speckit Guide', link: '/guide/speckit' },
