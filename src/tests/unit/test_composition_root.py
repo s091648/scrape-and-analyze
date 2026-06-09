@@ -194,9 +194,11 @@ def test_t040_build_translation_pipeline_returns_correct_keys():
     expected_keys = {
         "use_case",
         "tag_use_case",
+        "body_use_case",
         "session",
         "analyses_translation_repository",
         "tag_translation_repository",
+        "article_translation_repository",
     }
     assert set(result.keys()) == expected_keys, (
         f"expected keys {expected_keys}, got {set(result.keys())}"

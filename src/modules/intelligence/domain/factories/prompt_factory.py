@@ -5,6 +5,7 @@ from src.modules.intelligence.domain.value_objects import (
     ArticleTranslationPrompt,
     TagTranslationPrompt,
     GroupTranslationPrompt,
+    ArticleBodyTranslationPrompt,
 )
 
 
@@ -29,4 +30,9 @@ class PromptFactory(ABC):
     @abstractmethod
     def group_translation_prompt(self) -> GroupTranslationPrompt:
         """Create a tag group translation prompt value object."""
+        ...
+
+    @abstractmethod
+    def article_body_translation_prompt(self) -> ArticleBodyTranslationPrompt:
+        """Create an article body (title + content) translation prompt value object."""
         ...

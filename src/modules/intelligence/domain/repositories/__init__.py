@@ -3,6 +3,7 @@ from .analyses_translation_repository import AnalysesTranslationRepository
 from .tag_translation_repository import TagTranslationRepository
 from .tag_repository import TagRepository, TagData
 from .tag_group_definition_repository import TagGroupDefinitionRepository, TagGroupDefinitionData
+from .article_translation_repository import ArticleTranslationRepository
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "TagData",
     "TagGroupDefinitionRepository",
     "TagGroupDefinitionData",
+    "ArticleTranslationRepository",
 ]

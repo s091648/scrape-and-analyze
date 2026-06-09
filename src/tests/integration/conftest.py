@@ -41,6 +41,7 @@ def db_engine():
     from models.tag_group import TagGroupDefinition  # noqa: F401
     from models.scraper_setting import ScraperSetting  # noqa: F401
     from models.scraper_keyword import ScraperKeyword  # noqa: F401
+    from models.article_translation import ArticleTranslation  # noqa: F401
 
     # Create all tables inside the test schema
     Base.metadata.create_all(engine)

@@ -4,6 +4,7 @@ from src.modules.intelligence.domain.value_objects import (
     ArticleTranslationPrompt,
     TagTranslationPrompt,
     GroupTranslationPrompt,
+    ArticleBodyTranslationPrompt,
 )
 
 
@@ -25,3 +26,7 @@ class ConcretePromptFactory(PromptFactory):
     def group_translation_prompt(self) -> GroupTranslationPrompt:
         """Return the default tag group translation prompt value object."""
         return GroupTranslationPrompt()
+
+    def article_body_translation_prompt(self) -> ArticleBodyTranslationPrompt:
+        """Return the default article body translation prompt value object."""
+        return ArticleBodyTranslationPrompt()

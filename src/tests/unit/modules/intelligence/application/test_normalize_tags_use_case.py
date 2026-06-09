@@ -305,7 +305,7 @@ def test_handler_calls_commit_on_success():
     uc.execute.return_value = NormalizeTagsResult(
         success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
     )
-    handler = TagNormalizationHandler(use_case=uc, event_bus=bus)
+    handler = TagNormalizationHandler(use_case=uc, event_bus=bus, session=MagicMock())
 
     event = MagicMock()
     event.analysis_id = uuid.uuid4()
@@ -330,7 +330,7 @@ def test_handler_passes_tag_groups_to_use_case():
     uc.execute.return_value = NormalizeTagsResult(
         success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
     )
-    handler = TagNormalizationHandler(use_case=uc, event_bus=bus)
+    handler = TagNormalizationHandler(use_case=uc, event_bus=bus, session=MagicMock())
 
     event = MagicMock()
     event.analysis_id = uuid.uuid4()

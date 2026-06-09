@@ -122,6 +122,18 @@ def get_article(
     tag_groups_data = get_tag_groups_for_article(db, article_id, lang=lang)
     flat_tags = [t for grp in tag_groups_data for t in grp["tags"]]
 
+    translated_title = None
+    translated_content = None
+    if lang != "en":
+        from models.article_translation import ArticleTranslation
+        body_translation = db.query(ArticleTranslation).filter(
+            ArticleTranslation.article_id == article_id,
+            ArticleTranslation.language == lang,
+        ).first()
+        if body_translation:
+            translated_title = body_translation.title
+            translated_content = body_translation.content
+
     meta = article.metadata_ or {}
     return ArticleDetailOut(
         id=article.id,
@@ -139,4 +151,6 @@ def get_article(
         insights=insights,
         innovations=innovations,
         model_used=analysis.model_used if analysis else None,
+        translated_title=translated_title,
+        translated_content=translated_content,
     )

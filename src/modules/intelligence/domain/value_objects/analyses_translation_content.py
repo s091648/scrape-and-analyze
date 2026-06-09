@@ -19,3 +19,19 @@ class AnalysesTranslationResult:
     language: str
     content: AnalysesTranslationContent
     success: bool
+
+
+@dataclass
+class ArticleBodyTranslationContent:
+    """Translated title and content of an article."""
+    title: Optional[str]
+    content: Optional[str]
+
+
+@dataclass
+class ArticleBodyTranslationResult:
+    """Result of an article body translation operation."""
+    article_id: UUID
+    language: str
+    content: ArticleBodyTranslationContent
+    success: bool

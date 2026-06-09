@@ -49,6 +49,8 @@ class ArticleDetailOut(BaseModel):
     insights: Optional[str] = None
     innovations: Optional[str] = None
     model_used: Optional[str] = None
+    translated_title: Optional[str] = None
+    translated_content: Optional[str] = None
 
     class Config:
         from_attributes = True

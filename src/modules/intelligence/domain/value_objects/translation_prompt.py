@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from .base_prompt import BasePrompt
 
@@ -107,6 +107,54 @@ class TagTranslationPrompt(BasePrompt):
         filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
         filled = filled.replace("__TAGS__", "\n".join(tags))
         return TagTranslationPrompt(_content=filled)
+
+
+_ARTICLE_BODY_TEMPLATE = """You are a professional translator. Translate the following article title and content from English to __TARGET_LANGUAGE__.
+
+Only translate the content, do not add any explanations or additional text.
+Keep the same format and structure — use the exact section headers below.
+If any field is not applicable or empty, keep it empty.
+
+Title:
+__TITLE__
+
+Content:
+__CONTENT__
+
+Translation (use the same section headers: Title, Content):"""
+
+
+@dataclass(frozen=True)
+class ArticleBodyTranslationPrompt(BasePrompt):
+    """Prompt value object for article title and content translation."""
+
+    _content: str = _ARTICLE_BODY_TEMPLATE
+
+    @property
+    def content(self) -> str:
+        return self._content
+
+    def render(self, target_language: str, title: str, content: str) -> 'ArticleBodyTranslationPrompt':
+        """Fill placeholders and return a new prompt with the article body."""
+        lang_name = _LANGUAGE_NAMES.get(target_language, target_language)
+        filled = self._content
+        filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
+        filled = filled.replace("__TITLE__", title)
+        filled = filled.replace("__CONTENT__", content)
+        return ArticleBodyTranslationPrompt(_content=filled)
+
+    @staticmethod
+    def parse_response(text: str) -> tuple[Optional[str], Optional[str]]:
+        """Parse LLM response into (title, content) by section headers. Returns (None, None) on failure."""
+        import re
+        parts = re.split(r'\n(?=(?:Title|Content)\s*[:：]\s*)', text, flags=re.IGNORECASE)
+        fields: dict[str, Optional[str]] = {"title": None, "content": None}
+        for part in parts:
+            for header in ("title", "content"):
+                if re.match(rf'^{header}\s*[:：]', part, re.IGNORECASE):
+                    fields[header] = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip() or None
+                    break
+        return fields["title"], fields["content"]
 
 
 @dataclass(frozen=True)
