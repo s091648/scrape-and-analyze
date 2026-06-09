@@ -36,6 +36,7 @@ class OpenAlexScraper(BaseScraper):
     def discover(self) -> List[ScrapeJob]:
         """Query the OpenAlex API and return ScrapeJobs for matching works."""
         query = self._build_query()
+        if not query:
             return []
         try:
             entries = self._client.fetch_papers(

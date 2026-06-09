@@ -1,4 +1,4 @@
-import SessionProviderWrapper from '@/components/providers/session-provider'
+import SessionProviderWrapper from './session-provider'
 import { I18nProvider } from './i18n-provider'
 import { TopicProvider } from './topic-provider'
 import { GuestModeProvider } from './guest-mode-provider'

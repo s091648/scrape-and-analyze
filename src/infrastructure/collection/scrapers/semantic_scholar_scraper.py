@@ -35,6 +35,7 @@ class SemanticScholarScraper(BaseScraper):
     def discover(self) -> List[ScrapeJob]:
         """Query the Semantic Scholar API and return ScrapeJobs for matching papers."""
         query = self._build_query()
+        if not query:
             return []
         try:
             entries = self._client.fetch_papers(

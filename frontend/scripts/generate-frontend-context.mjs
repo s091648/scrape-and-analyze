@@ -17,14 +17,14 @@ import { join, relative, sep } from 'path'
 
 const CWD = process.cwd()
 const SCAN_DIRS = ['app', 'components', 'lib']
-const OUTPUT_PATH = join(CWD, 'site/guide/architecture/frontend-context.json')
+const OUTPUT_PATH = process.env.OUTPUT_PATH || join(CWD, 'site/guide/architecture/frontend-context.json')
 
 // Known provider files and their metadata (for reliable detection)
 const PROVIDER_DEFS = [
   {
     id: 'session',
     name: 'SessionProviderWrapper',
-    file: 'components/providers/session-provider.tsx',
+    file: 'lib/providers/session-provider.tsx',
     hookName: 'useSession',
     importPath: 'next-auth/react',
     description: 'Wraps next-auth SessionProvider, refetchOnWindowFocus=false',

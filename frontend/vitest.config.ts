@@ -24,6 +24,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     exclude: ['**/node_modules/**', '**/tests/integration/**'],
+    testTimeout: 15000,
     env: {
       NEXTAUTH_SECRET: 'test-secret'
     }

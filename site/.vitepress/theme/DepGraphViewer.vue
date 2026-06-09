@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useData } from 'vitepress'
 
 const CATEGORY_COLORS = {
   app: '#44BB99',
@@ -18,6 +19,8 @@ const CONTEXT_COLORS = {
 }
 
 const GITHUB_BASE = 'https://github.com/s091648/scrape-and-analyze/tree/master/frontend/'
+
+const { theme } = useData()
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -40,9 +43,12 @@ const selectedProvider = ref(null)
 const expandedProviders = ref(new Set(['session']))
 
 // Pan / zoom
-const panX = ref(20)
-const panY = ref(20)
-const scale = ref(0.9)
+const INIT_PAN_X = 20
+const INIT_PAN_Y = 20
+const INIT_SCALE = 0.9
+const panX = ref(INIT_PAN_X)
+const panY = ref(INIT_PAN_Y)
+const scale = ref(INIT_SCALE)
 let dragging = false
 let dragLX = 0
 let dragLY = 0
@@ -64,7 +70,8 @@ function parentDir(id) {
 }
 
 function shortLabel(id) {
-  return id.split('/').pop() || id
+  const parts = id.split('/')
+  return parts.length > 1 ? parts.slice(1).join('/') : id
 }
 
 function githubUrl(path) {
@@ -379,6 +386,8 @@ const graphLayout = computed(() => {
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
+const storybookUrl = computed(() => theme.value.storybookUrl || '')
+
 const totalNodes = computed(() => Object.keys(adjMap.value).length)
 const totalEdges = computed(() => Object.values(adjMap.value).reduce((s, v) => s + v.deps.length, 0))
 const dirCount = computed(() => Object.keys(dirAdjMap.value).length)
@@ -454,6 +463,12 @@ function onDragMove(e) {
 }
 
 function onDragEnd() { dragging = false }
+
+function resetView() {
+  panX.value = INIT_PAN_X
+  panY.value = INIT_PAN_Y
+  scale.value = INIT_SCALE
+}
 
 // ─── Directory actions ────────────────────────────────────────────────────────
 
@@ -543,6 +558,9 @@ onUnmounted(() => {
         </button>
         <button :class="['tab', { active: topMode === 'context' }]" @click="topMode = 'context'">
           ⟳ Provider Chain
+        </button>
+        <button :class="['tab', { active: topMode === 'storybook' }]" @click="topMode = 'storybook'">
+          ⧉ Storybook
         </button>
       </div>
       <div class="top-bar-right">
@@ -659,6 +677,7 @@ onUnmounted(() => {
             <a v-if="node.type === 'file'" class="node-file-link" :href="githubUrl(node.id)" target="_blank" rel="noopener" @click.stop>↗</a>
           </div>
         </div>
+        <button class="reset-view-btn" @click.stop="resetView" title="重置視角">⊹ Reset</button>
       </div>
 
     </template>
@@ -761,6 +780,19 @@ onUnmounted(() => {
           <p>點擊左側 Provider 查看消費者分佈</p>
         </div>
 
+      </div>
+    </template>
+
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <!-- STORYBOOK TAB                                                       -->
+    <!-- ══════════════════════════════════════════════════════════════════ -->
+    <template v-if="topMode === 'storybook'">
+      <div v-if="storybookUrl" class="storybook-frame">
+        <iframe :src="storybookUrl" allowfullscreen />
+      </div>
+      <div v-else class="storybook-empty">
+        <p>Storybook URL 未設定。</p>
+        <p>請在 GitHub repo variables 加入 <code>STORYBOOK_URL</code>，並確認 <code>config.js</code> 已加入 <code>storybookUrl</code>。</p>
       </div>
     </template>
 
@@ -927,6 +959,21 @@ onUnmounted(() => {
 
 .error-msg { padding: 2rem; color: #e94560; background: rgba(233,69,96,.08); border-radius: 8px; font-size: 14px; }
 .empty-msg { padding: 2rem; text-align: center; color: var(--vp-c-text-2); }
+
+/* ── Reset view button ───────────────────────────────────────────────────────── */
+.reset-view-btn {
+  position: absolute; bottom: 12px; right: 12px; z-index: 10;
+  background: var(--vp-c-bg-soft); border: 1px solid var(--vp-c-border);
+  border-radius: 6px; padding: 5px 10px; font-size: 12px;
+  color: var(--vp-c-text-2); cursor: pointer; transition: background .12s;
+}
+.reset-view-btn:hover { background: var(--vp-c-bg-mute); color: var(--vp-c-text-1); }
+
+/* ── Storybook tab ───────────────────────────────────────────────────────────── */
+.storybook-frame { flex: 1; overflow: hidden; }
+.storybook-frame iframe { width: 100%; height: 100%; border: none; display: block; }
+.storybook-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--vp-c-text-2); font-size: 14px; text-align: center; padding: 2rem; }
+.storybook-empty code { font-size: 12px; background: var(--vp-c-bg-mute); padding: 2px 6px; border-radius: 4px; }
 
 /* ── Provider Chain tab ──────────────────────────────────────────────────── */
 .context-layout { display: flex; flex: 1; overflow: hidden; }
