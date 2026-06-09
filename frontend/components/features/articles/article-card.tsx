@@ -18,7 +18,7 @@ interface ArticleCardProps extends Article {
   onOpenChange?: (open: boolean) => void
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const isControlled = controlledOpen !== undefined
@@ -31,6 +31,8 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  const displayTitle = translated_title ?? title
+  const displayContent = translated_content ?? content
   const displaySource = deriveDisplaySource(url, source, original_source)
 
   async function handleShare(e: React.MouseEvent) {
@@ -65,7 +67,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
-              <span className="flex-1">{toTitleCase(title)}</span>
+              <span className="flex-1">{toTitleCase(displayTitle)}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
                   type="button"
@@ -92,7 +94,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         </CardHeader>
 
         <div className="relative px-6 h-[4.5rem] overflow-hidden">
-          <p className="text-xs text-muted-foreground leading-relaxed">{content}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{displayContent}</p>
           <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent pointer-events-none" />
         </div>
 
@@ -128,13 +130,13 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
       <ArticleDetailDialog
         open={open}
         onOpenChange={setOpen}
-        title={title}
+        title={displayTitle}
         source={source}
         url={url}
         via_source={via_source}
         original_source={original_source}
         published_at={published_at}
-        content={content}
+        content={displayContent}
         detail={detail}
         loading={loading}
       />

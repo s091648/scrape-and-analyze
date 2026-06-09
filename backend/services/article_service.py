@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.schemas.article import ArticleOut
 
 
-def build_article_out(article) -> ArticleOut:
+def build_article_out(article, translation=None) -> ArticleOut:
     meta = article.metadata_ or {}
     return ArticleOut(
         id=article.id,
@@ -19,6 +19,8 @@ def build_article_out(article) -> ArticleOut:
         scraped_at=article.scraped_at,
         via_source=meta.get("via_source"),
         original_source=article.original_source or meta.get("original_source"),
+        translated_title=translation.title if translation else None,
+        translated_content=translation.content if translation else None,
     )
 
 

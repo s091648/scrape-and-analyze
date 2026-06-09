@@ -21,6 +21,8 @@ class ArticleOut(BaseModel):
     scraped_at: Optional[datetime]
     via_source: Optional[str] = None
     original_source: Optional[str] = None
+    translated_title: Optional[str] = None
+    translated_content: Optional[str] = None
 
     class Config:
         from_attributes = True

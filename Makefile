@@ -7,7 +7,7 @@
 	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
 	data-migrate data-migrate-list data-migrate-down \
-	create-admin scrape translate run retry-failed retry-failed-remote \
+	create-admin scrape translate translate-remote run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
@@ -146,6 +146,11 @@ scrape:
 LANG ?= zh-TW
 translate:
 	docker compose run --rm job_service python -m src.entrypoints.cli.translate --language $(LANG) $(if $(LIMIT),--limit $(LIMIT),)
+
+translate-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set — check REMOTE_RAILWAY_STAGING_DB_URL (or REMOTE_RAILWAY_DB_URL for ENV=production) in .env"; exit 1)
+	@echo "Running translation ($(LANG)) against Railway $(ENV) DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python -m src.entrypoints.cli.translate --language $(LANG) $(if $(LIMIT),--limit $(LIMIT),)
 
 run:
 	docker compose run --rm app python -m src.entrypoints.cli.main

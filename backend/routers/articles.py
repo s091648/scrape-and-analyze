@@ -53,8 +53,17 @@ def list_articles(
         scraped_before=scraped_before,
         topic_id=topic_id,
     )
+    trans_map: dict = {}
+    if lang != "en" and items:
+        from models.article_translation import ArticleTranslation
+        article_ids = [item.id for item in items]
+        translations = db.query(ArticleTranslation).filter(
+            ArticleTranslation.article_id.in_(article_ids),
+            ArticleTranslation.language == lang,
+        ).all()
+        trans_map = {t.article_id: t for t in translations}
     return PaginatedArticles(
-        items=[build_article_out(item) for item in items],
+        items=[build_article_out(item, trans_map.get(item.id)) for item in items],
         total=total,
         page=page,
         size=size,

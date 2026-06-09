@@ -26,15 +26,17 @@ interface ArticleDetailDialogProps {
 export function ArticleDetailDialog({
   open, onOpenChange, title, source, url, via_source, original_source, published_at, content, detail, loading,
 }: ArticleDetailDialogProps) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const hasAnalysis = detail && !!detail.model_used
   const displaySource = deriveDisplaySource(url, source, original_source)
+  const displayTitle = detail?.translated_title ?? title
+  const displayContent = detail?.translated_content ?? detail?.content ?? content
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-          <DialogTitle className="text-lg leading-snug pr-6">{title}</DialogTitle>
+          <DialogTitle className="text-lg leading-snug pr-6">{displayTitle}</DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Globe className="h-3 w-3" />{displaySource}
@@ -59,8 +61,13 @@ export function ArticleDetailDialog({
           ) : (
             <div className="space-y-6">
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                {detail?.content ?? content}
+                {displayContent}
               </p>
+              {locale !== 'en' && (!!detail?.translated_content || !!detail?.translated_title) && (
+                <p className="text-xs text-muted-foreground italic mt-2">
+                  {t('analysis.translationDisclaimer')}
+                </p>
+              )}
 
               {detail && !hasAnalysis && (
                 <div className="border border-dashed border-border rounded-xl p-4 text-center">
