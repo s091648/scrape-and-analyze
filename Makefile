@@ -12,7 +12,7 @@
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
-	site-preview uml
+	site-preview uml uml-frontend-deps uml-frontend-context
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -248,6 +248,11 @@ uml: uml-backend uml-frontend
 uml-backend:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_uml.py"
 
-uml-frontend:
-	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "npx madge --dot --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > /app/site/guide/architecture/frontend.dot"
+uml-frontend: uml-frontend-deps uml-frontend-context
+
+uml-frontend-deps:
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > /app/site/guide/architecture/frontend-deps.json"
+
+uml-frontend-context:
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
 
