@@ -7,6 +7,7 @@ from src.modules.intelligence.domain.value_objects import AnalysisContent, Analy
 
 @dataclass
 class Analysis:
+    """Domain entity representing an LLM analysis of a scraped article."""
     article_id: UUID
     analysis_content: AnalysisContent
     analysis_metadata: AnalysisMetadata

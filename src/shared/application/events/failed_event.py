@@ -4,6 +4,7 @@ from uuid import UUID
 
 @runtime_checkable
 class FailedEvent(Protocol):
+    """Protocol for events representing a failed pipeline task with error context."""
     task_type: str
     article_id: Optional[UUID]
     analysis_id: Optional[UUID]

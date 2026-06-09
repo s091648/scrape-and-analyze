@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 @dataclass
 class FailedTask:
+    """Records a pipeline failure (scrape, analyze, or translate) for later inspection and retry."""
     task_type: str
     id: UUID = field(default_factory=uuid4)
     article_url: Optional[str] = None

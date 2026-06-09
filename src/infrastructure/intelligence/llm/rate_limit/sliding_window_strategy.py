@@ -7,7 +7,7 @@ from .quota_strategy import QuotaStrategy
 
 
 class RateLimitExhausted(Exception):
-    """Raised when a provider's daily request cap is reached."""
+    """Raised when a provider's daily request cap is reached and no more calls should be made."""
 
 
 class SlidingWindowStrategy(QuotaStrategy):
@@ -36,6 +36,7 @@ class SlidingWindowStrategy(QuotaStrategy):
         self._lock = threading.Lock()
 
     def acquire(self, estimated_tokens: int) -> None:
+        """Block until a request slot and token budget are available within RPM/TPM/RPD limits."""
         while True:
             wait = self._compute_wait(estimated_tokens)
             if wait == 0:
@@ -43,6 +44,7 @@ class SlidingWindowStrategy(QuotaStrategy):
             time.sleep(wait)
 
     def record_usage(self, actual_tokens: int) -> None:
+        """Record actual token usage in the sliding window after a successful API call."""
         with self._lock:
             now = time.monotonic()
             if self._tpm_window:
@@ -50,10 +52,12 @@ class SlidingWindowStrategy(QuotaStrategy):
             self._tpm_window.append((now, actual_tokens))
 
     def update_batch_size(self, batch_size: int) -> None:
+        """Update the batch size used for RPM pre-accounting when acquire is called."""
         with self._lock:
             self.batch_size = batch_size
 
     def _compute_wait(self, estimated_tokens: int) -> float:
+        """Calculate wait time for capacity, or record the request if capacity exists."""
         with self._lock:
             if self._daily_count >= self.rpd:
                 raise RateLimitExhausted(f"Daily request limit of {self.rpd} reached")
@@ -67,6 +71,7 @@ class SlidingWindowStrategy(QuotaStrategy):
             return wait
 
     def _evict_stale(self, now: float) -> None:
+        """Remove entries older than the sliding window from both rpm and tpm deques."""
         cutoff = now - self._WINDOW
         while self._rpm_window and self._rpm_window[0] < cutoff:
             self._rpm_window.popleft()
@@ -74,6 +79,7 @@ class SlidingWindowStrategy(QuotaStrategy):
             self._tpm_window.popleft()
 
     def _rpm_wait(self, now: float) -> float:
+        """Return seconds until an RPM slot frees up, or 0 if capacity is available."""
         if len(self._rpm_window) + self.batch_size <= self.rpm:
             return 0.0
         if not self._rpm_window:
@@ -81,6 +87,7 @@ class SlidingWindowStrategy(QuotaStrategy):
         return self._WINDOW - (now - self._rpm_window[0])
 
     def _tpm_wait(self, now: float, estimated_tokens: int) -> float:
+        """Return seconds until TPM capacity frees up, or 0 if tokens fit in the window."""
         used = sum(t for _, t in self._tpm_window)
         if used + estimated_tokens <= self.tpm:
             return 0.0

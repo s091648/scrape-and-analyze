@@ -112,6 +112,7 @@ class DomainRateLimiter:
     # ── internal ──────────────────────────────────────────────────────────
 
     def _get_or_create(self, domain: str) -> _TokenBucket:
+        """Return the token bucket for domain, creating one with the configured RPM if new."""
         with self._lock:
             if domain not in self._buckets:
                 rpm = self._rpm_map.get(domain, _DEFAULT_RPM)
@@ -119,6 +120,7 @@ class DomainRateLimiter:
             return self._buckets[domain]
 
     def _get_semaphore(self, domain: str) -> threading.Semaphore:
+        """Return the concurrency semaphore for domain, single-slot for arXiv TOS domains."""
         with self._lock:
             if domain not in self._semaphores:
                 limit = 1 if domain in _SINGLE_CONNECTION_DOMAINS else 10

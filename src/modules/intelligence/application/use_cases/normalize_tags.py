@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class NormalizeTagsResult:
+    """Outcome of tag normalization carrying success flag and optional error info."""
     success: bool
     analysis_id: UUID
     article_id: UUID
@@ -22,6 +23,7 @@ class NormalizeTagsResult:
 
 
 class NormalizeTagsUseCase:
+    """Normalizes raw LLM tags via embedding similarity: auto-merges or suggests merges."""
 
     def __init__(
         self,
@@ -42,6 +44,7 @@ class NormalizeTagsUseCase:
         tag_groups: List[Tuple[str, List[str]]],
         topic_id: Optional[UUID] = None,
     ) -> NormalizeTagsResult:
+        """Embed and normalize all tags, auto-merge or create suggestions, then commit."""
         try:
             self._process(analysis_id, article_id, tag_groups, topic_id)
             self._tag_repository.commit()
@@ -64,6 +67,7 @@ class NormalizeTagsUseCase:
         tag_groups: List[Tuple[str, List[str]]],
         topic_id: Optional[UUID],
     ) -> None:
+        """Flatten tag groups, embed all tag names, and process each tag."""
         tagged: List[Tuple[str, str]] = []
         for group_name, tag_names in tag_groups:
             for tag_name in tag_names:
@@ -86,6 +90,7 @@ class NormalizeTagsUseCase:
         embedding: List[float],
         topic_id: Optional[UUID],
     ) -> None:
+        """Check embedding similarity and auto-merge, suggest, or create the tag."""
         similar = self._tag_repository.find_similar(
             embedding, group_name, topic_id, self._suggest_threshold
         )

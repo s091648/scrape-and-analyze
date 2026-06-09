@@ -9,10 +9,12 @@ logger = get_logger(__name__)
 
 
 class NotificationHandler:
+    """Dispatches pipeline completion events to all registered notifiers."""
     def __init__(self, notifiers: list[BaseNotifier]) -> None:
         self._notifiers = notifiers
 
     def handle(self, event: PipelineCompletedEvent) -> None:
+        """Fan out the event to every notifier, swallowing individual failures."""
         for notifier in self._notifiers:
             try:
                 notifier.notify(event)
@@ -25,6 +27,7 @@ class NotificationHandler:
 
 
 def build_notification_handler() -> NotificationHandler:
+    """Build a NotificationHandler with Telegram notifier if env vars are configured."""
     notifiers: list[BaseNotifier] = []
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()

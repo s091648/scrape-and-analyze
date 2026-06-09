@@ -32,6 +32,7 @@ class SemanticScholarRateLimitedError(Exception):
 
 @dataclass
 class SemanticScholarEntry:
+    """Parsed representation of a single paper from the Semantic Scholar Graph API."""
     paper_id: str
     url: str
     title: str
@@ -126,6 +127,7 @@ class SemanticScholarClient:
     # ── private ───────────────────────────────────────────────────────────
 
     def _parse_entry(self, paper: dict) -> Optional[SemanticScholarEntry]:
+        """Parse a single Semantic Scholar paper dict into an entry, or None on failure."""
         try:
             paper_id = paper.get("paperId", "")
             title = paper.get("title") or ""

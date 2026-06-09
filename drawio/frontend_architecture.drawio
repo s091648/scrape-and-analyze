@@ -1,0 +1,301 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Frontend Architecture" id="fe_arch_uml">
+    <mxGraphModel dx="1422" dy="862" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="2800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;font style='font-size:22px;'&gt;&lt;b&gt;Frontend Architecture — UML Component &amp;amp; Class Diagram&lt;/b&gt;&lt;/font&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="10" width="800" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_app" value="&lt;b&gt;App Router — Pages &amp;amp; Layouts&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="55" width="300" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_root_layout" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;RootLayout&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/layout.tsx&lt;br/&gt;+ SessionProviderWrapper&lt;br/&gt;+ TopicProvider&lt;br/&gt;+ ErrorBoundary&lt;br/&gt;+ NavBar&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_home" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/ (Home)&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/page.tsx&lt;br/&gt;+ HomePageContent&lt;br/&gt;- apiFetch('/articles')&lt;br/&gt;- FilterBar&lt;br/&gt;- ArticleCard grid&lt;br/&gt;- usePagination, useTopic&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="90" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c_login" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/login&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/login/page.tsx&lt;br/&gt;+ LoginPageContent&lt;br/&gt;- Credentials form&lt;br/&gt;- Google sign-in&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="90" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_register" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/register&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/register/page.tsx&lt;br/&gt;+ RegisterPageContent&lt;br/&gt;- Register form&lt;br/&gt;- Google register&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="770" y="90" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_graph" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/graph&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/graph/page.tsx&lt;br/&gt;+ KnowledgeGraph&lt;br/&gt;- Guest paywall&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="90" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c_settings_layout" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;SettingsLayout&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/settings/layout.tsx&lt;br/&gt;- Sidebar nav (Profile, Admin)&lt;br/&gt;- Redirect unauthenticated&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="c_settings" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/settings&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;app/settings/page.tsx&lt;br/&gt;+ SettingsPageContent&lt;br/&gt;- Profile CRUD&lt;br/&gt;- Google link/unlink&lt;br/&gt;- Password change&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="230" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_admin_monitoring" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/admin/monitoring&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;Server component&lt;br/&gt;+ MonitoringContent&lt;br/&gt;- GrafanaPanel tabs&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="230" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="c_admin_scraper" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/admin/scraper-settings&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- CRUD scraper sources&lt;br/&gt;- ArxivKeywordManager&lt;br/&gt;- SourceCard&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="750" y="230" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c_admin_topics" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/admin/topics&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- Topic CRUD&lt;br/&gt;- TopicContext refresh&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="980" y="230" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_admin_users" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/admin/user-management&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;- User CRUD&lt;br/&gt;- Role toggle, active switch&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="230" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e_root_home" edge="1" source="c_root_layout" target="c_home" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_root_login" edge="1" source="c_root_layout" target="c_login" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_root_register" edge="1" source="c_root_layout" target="c_register" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_root_graph" edge="1" source="c_root_layout" target="c_graph" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_settings_layout" edge="1" source="c_root_layout" target="c_settings_layout" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_slayout_settings" edge="1" source="c_settings_layout" target="c_settings" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_slayout_monitor" edge="1" source="c_settings_layout" target="c_admin_monitoring" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_slayout_scraper" edge="1" source="c_settings_layout" target="c_admin_scraper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_slayout_topics" edge="1" source="c_settings_layout" target="c_admin_topics" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_slayout_users" edge="1" source="c_settings_layout" target="c_admin_users" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_api" value="&lt;b&gt;API Routes (Next.js Route Handlers)&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="320" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_nextauth" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/api/auth/[...nextauth]&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;route.ts&lt;br/&gt;+ GET: NextAuth handler&lt;br/&gt;+ POST: NextAuth handler&lt;br/&gt;— Credentials + Google auth&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_proxy" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/api/proxy/[...path]&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;route.ts&lt;br/&gt;+ GET/POST/PUT/PATCH/DELETE&lt;br/&gt;— Proxies to BACKEND_URL&lt;br/&gt;— pushToLoki() logging&lt;br/&gt;— redact() sensitive keys&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="310" y="380" width="240" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_grafana" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/api/grafana-embed&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;route.ts&lt;br/&gt;+ GET(req): Response&lt;br/&gt;— SSRF guard (GRAFANA_URL)&lt;br/&gt;— Bearer SA token auth&lt;br/&gt;— Proxies images/PNG&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="380" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_link_start" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/api/link-google/start&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;route.ts&lt;br/&gt;+ GET: creates state JWT&lt;br/&gt;— Returns Google OAuth URL&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="380" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_link_cb" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;/api/link-google/callback&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;route.ts&lt;br/&gt;+ GET: verifies state JWT&lt;br/&gt;— Exchanges OAuth code&lt;br/&gt;— Calls BACKEND link-google&lt;br/&gt;— Redirects /settings&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="380" width="230" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_middleware" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;middleware.ts&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;Matcher: /admin/:path*&lt;br/&gt;— NextResponse.next() (no-op)&lt;br/&gt;— RBAC enforced client-side&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="510" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_comp" value="&lt;b&gt;Components — Business Components&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="320" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_navbar" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;NavBar&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/nav-bar.tsx&lt;br/&gt;- apiFetch('/auth/me') avatar&lt;br/&gt;- Topic dropdown (useTopic)&lt;br/&gt;- Articles / Graph / Settings&lt;br/&gt;- Login/Logout&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="660" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c_article_card" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArticleCard&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/article-card.tsx&lt;br/&gt;Props: id, title, source, content,&lt;br/&gt;&amp;nbsp;&amp;nbsp;published_at, scraped_at, url&lt;br/&gt;- Click → Dialog with article detail&lt;br/&gt;- Shows analysis (pain_points,&lt;br/&gt;&amp;nbsp;&amp;nbsp;insights, innovations, tags)&lt;br/&gt;+ ArticleCardSkeleton&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="660" width="230" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c_filter_bar" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;FilterBar&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/filter-bar.tsx&lt;br/&gt;Props: sources, tags, dates,&lt;br/&gt;&amp;nbsp;&amp;nbsp;activeFilterCount, onApply&lt;br/&gt;- MultiSelect (sources/tags)&lt;br/&gt;- Date range filters&lt;br/&gt;+ MultiSelectPopover&lt;br/&gt;+ DateFilter&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="550" y="660" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c_knowledge_graph" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;KnowledgeGraph&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/knowledge-graph.tsx&lt;br/&gt;- apiFetch('/analyses/graph')&lt;br/&gt;- react-force-graph-2d&lt;br/&gt;- Group→Article→Tag nodes&lt;br/&gt;- Click expand / hover preview&lt;br/&gt;- Right panel: detail view&lt;br/&gt;- Guest mode: fake data&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="660" width="220" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c_grafana_panel" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;GrafanaPanel&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/grafana-panel.tsx&lt;br/&gt;Props: grafanaUrl, dashboardUid,&lt;br/&gt;&amp;nbsp;&amp;nbsp;panelId, title, height&lt;br/&gt;- /api/grafana-embed proxy&lt;br/&gt;- Auto-refresh (60s default)&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="660" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="c_source_card" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;SourceCard&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/scraper-source-card.tsx&lt;br/&gt;Interface: ScraperSetting&lt;br/&gt;- Active toggle, edit&lt;br/&gt;- useNextScrapeCountdown()&lt;br/&gt;- 14-day activity graph&lt;br/&gt;- RssKeywordManager&lt;br/&gt;+ ActiveBadge, ActivityGraph&lt;br/&gt;+ GlowDot, formatFrequency&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="830" width="240" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c_arxiv_kw_mgr" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ArxivKeywordManager&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/arxiv-keyword-manager.tsx&lt;br/&gt;Props: keywords, categories,&lt;br/&gt;&amp;nbsp;&amp;nbsp;onAdd/DeleteKeyword,&lt;br/&gt;&amp;nbsp;&amp;nbsp;onAdd/DeleteCategory&lt;br/&gt;- 7 ARXIV_FIELDS&lt;br/&gt;- 18 ARXIV_CATEGORIES&lt;br/&gt;- parseKeyword/serializeKeyword&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="310" y="830" width="240" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c_source_form" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ScraperSourceForm&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/scraper-source-form.tsx&lt;br/&gt;Props: onSubmit(ScraperSourceFormData)&lt;br/&gt;- source_type, name, url,&lt;br/&gt;&amp;nbsp;&amp;nbsp;frequency, is_active&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="830" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="c_error_boundary" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;ErrorBoundary&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/error-boundary.tsx&lt;br/&gt;Class Component&lt;br/&gt;Props: children&lt;br/&gt;State: hasError&lt;br/&gt;+ retry UI on error&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="850" y="830" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="c_failed_list" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;FailedTaskList&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/failed-task-list.tsx&lt;br/&gt;Props: items: FailedTask[]&lt;br/&gt;Interface: FailedTask&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="830" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="c_session_prov" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;SessionProviderWrapper&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;components/session-provider.tsx&lt;br/&gt;Props: children&lt;br/&gt;- next-auth SessionProvider&lt;br/&gt;- refetchOnWindowFocus=false&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1000" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e_source_card_kw" edge="1" source="c_source_card" target="c_arxiv_kw_mgr" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_home_article" edge="1" source="c_home" target="c_article_card" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_home_filter" edge="1" source="c_home" target="c_filter_bar" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_graph_comp" edge="1" source="c_graph" target="c_knowledge_graph" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_monitor_grafana" edge="1" source="c_admin_monitoring" target="c_grafana_panel" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_scraper_source" edge="1" source="c_admin_scraper" target="c_source_card" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=diamond;endFill=0;strokeWidth=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_lib" value="&lt;b&gt;Lib — Utilities &amp;amp; Auth&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1110" width="240" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_api_fetch" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;apiFetch()&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;lib/api-fetch.ts&lt;br/&gt;+ apiFetch(path, options?,&lt;br/&gt;&amp;nbsp;&amp;nbsp;proxy=true): Response&lt;br/&gt;— proxy=true: /api/proxy/{path}&lt;br/&gt;— proxy=false: direct BACKEND_URL&lt;br/&gt;— 401 → signOut + redirect&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1150" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c_auth" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;auth (NextAuth)&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;lib/auth.ts&lt;br/&gt;+ authConfig: NextAuthOptions&lt;br/&gt;+ default: NextAuth(authConfig)&lt;br/&gt;Providers: CredentialsProvider,&lt;br/&gt;&amp;nbsp;&amp;nbsp;GoogleProvider (login+register)&lt;br/&gt;Strategy: JWT&lt;br/&gt;Callbacks: signIn, jwt, session&lt;br/&gt;+ makeAccessToken(payload): string&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="310" y="1150" width="240" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="c_loki" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;pushToLoki()&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;lib/loki-logger.ts&lt;br/&gt;+ pushToLoki(entry: LogEntry): void&lt;br/&gt;Interface: LogEntry&lt;br/&gt;&amp;nbsp;&amp;nbsp;{ level, labels?, fields }&lt;br/&gt;— Fire-and-forget POST&lt;br/&gt;— Basic auth to Grafana Loki&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="580" y="1150" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c_utils" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;cn()&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;lib/utils.ts&lt;br/&gt;+ cn(...inputs): string&lt;br/&gt;— clsx + tailwind-merge&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="1150" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_hooks" value="&lt;b&gt;Hooks &amp;amp; Contexts&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1320" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_pagination" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;usePagination()&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;hooks/use-pagination.ts&lt;br/&gt;Returns: { page, sort, order,&lt;br/&gt;&amp;nbsp;&amp;nbsp;sources, tags, published*, scraped*,&lt;br/&gt;&amp;nbsp;&amp;nbsp;setPage, setSort, setFilters,&lt;br/&gt;&amp;nbsp;&amp;nbsp;activeFilterCount }&lt;br/&gt;— URL search params based&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1360" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="c_topic_ctx" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;TopicProvider / useTopic&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;contexts/topic-context.tsx&lt;br/&gt;Value: { topics, selectedTopicId,&lt;br/&gt;&amp;nbsp;&amp;nbsp;selectedTopic, setSelectedTopicId,&lt;br/&gt;&amp;nbsp;&amp;nbsp;refresh, isLoading }&lt;br/&gt;Interface: Topic&lt;br/&gt;&amp;nbsp;&amp;nbsp;{ id, name, display_name,&lt;br/&gt;&amp;nbsp;&amp;nbsp;color_hex, sort_order }&lt;br/&gt;— localStorage persistence&lt;br/&gt;— apiFetch('/topics') on mount&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="1360" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="c_countdown" value="&lt;p style='margin:0;padding:4px;text-align:center;'&gt;&lt;b&gt;useNextScrapeCountdown()&lt;/b&gt;&lt;/p&gt;&lt;hr size='1'/&gt;&lt;p style='margin:0;padding:2px 4px;font-size:10px;'&gt;In scraper-source-card.tsx&lt;br/&gt;Params: lastScrapedAt?,&lt;br/&gt;&amp;nbsp;&amp;nbsp;frequencyHours?&lt;br/&gt;Returns: string (e.g. &quot;2h:15m:30s&quot;)&lt;br/&gt;+ formatFrequency()&lt;br/&gt;+ formatCountdown()&lt;/p&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1360" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_proxy_loki" edge="1" source="c_api_proxy" target="c_loki" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;fontSize=10;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nextauth_auth" edge="1" source="c_api_nextauth" target="c_auth" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_link_start_auth" edge="1" source="c_api_link_start" target="c_auth" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_link_cb_auth" edge="1" source="c_api_link_cb" target="c_auth" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endFill=0;strokeWidth=1;dashed=1;fontSize=10;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_shadcn" value="&lt;b&gt;UI Components (shadcn/ui + Radix)&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1550" width="300" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_badge" value="&lt;b&gt;Badge&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;variants: default, secondary,&lt;br/&gt;destructive, outline, ghost, link&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1590" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_button" value="&lt;b&gt;Button&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;variants: default, destructive,&lt;br/&gt;outline, secondary, ghost, link&lt;br/&gt;sizes: default, xs, sm, lg, icon&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1590" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_card" value="&lt;b&gt;Card&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Card, CardHeader, CardTitle,&lt;br/&gt;CardContent, CardFooter&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1590" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_dialog" value="&lt;b&gt;Dialog&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Dialog, DialogContent,&lt;br/&gt;DialogHeader, DialogTitle&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1590" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_table" value="&lt;b&gt;Table&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Table, TableHeader, TableBody,&lt;br/&gt;TableRow, TableCell&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="740" y="1590" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_tabs" value="&lt;b&gt;Tabs&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Tabs, TabsList,&lt;br/&gt;TabsTrigger, TabsContent&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="920" y="1590" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_command" value="&lt;b&gt;Command&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Command, CommandInput,&lt;br/&gt;CommandList, CommandItem&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1660" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_popover" value="&lt;b&gt;Popover&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Popover, PopoverTrigger,&lt;br/&gt;PopoverContent&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="220" y="1660" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_switch" value="&lt;b&gt;Switch&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;sizes: default, sm&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1660" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_checkbox" value="&lt;b&gt;Checkbox&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1660" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_scroll" value="&lt;b&gt;ScrollArea&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;ScrollArea, ScrollBar&lt;/font&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1660" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="c_shad_skeleton" value="&lt;b&gt;Skeleton&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="860" y="1660" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_flow" value="&lt;b&gt;Data Flow — API Proxy &amp;amp; Auth&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1740" width="280" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_client" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;Browser Client&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;apiFetch() / signIn()&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1780" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_proxy" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;/api/proxy&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Next.js Route Handler&lt;br/&gt;pushToLoki() + redact()&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1780" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_nextauth" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;NextAuth&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Credentials + Google&lt;br/&gt;JWT session + accessToken&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1870" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_backend" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;Backend API&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;FastAPI (BACKEND_URL)&lt;br/&gt;Bearer JWT auth&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1780" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_google" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;Google OAuth&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;OAuth 2.0 flow&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1870" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_loki" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;Grafana Loki&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Fire-and-forget logs&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1780" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_grafana" value="&lt;p style='margin:0;padding:6px;text-align:center;'&gt;&lt;b&gt;Grafana&lt;/b&gt;&lt;br/&gt;&lt;font style='font-size:9px'&gt;Dashboard panels&lt;br/&gt;SSRF-guarded embed&lt;/font&gt;&lt;/p&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1860" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_client_proxy" edge="1" source="flow_client" target="flow_proxy" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=10;label=apiFetch;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_proxy_backend" edge="1" source="flow_proxy" target="flow_backend" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=10;label=proxy;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_proxy_loki" edge="1" source="flow_proxy" target="flow_loki" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;dashed=1;fontSize=10;label=logs;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_client_nextauth" edge="1" source="flow_client" target="flow_nextauth" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=10;label=signIn();exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_nextauth_backend" edge="1" source="flow_nextauth" target="flow_backend" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=10;label=verify/register;exitX=1;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_nextauth_google" edge="1" source="flow_nextauth" target="flow_google" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;fontSize=10;label=OAuth;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ef_grafana_embed" edge="1" source="flow_grafana" target="flow_client" parent="1" style="html=1;endArrow=block;endFill=1;strokeWidth=2;dashed=1;fontSize=10;label=embed;exitX=0;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_legend" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1950" width="100" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_pages" value="App Pages / Layouts" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1990" width="150" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_comps" value="Business Components" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="1990" width="150" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_api" value="API Routes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1990" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_domain2" value="Lib / Auth" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="1990" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_hooks2" value="Hooks / Contexts" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1990" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_ui2" value="shadcn/ui" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1990" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_ext" value="External Services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="960" y="1990" width="130" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

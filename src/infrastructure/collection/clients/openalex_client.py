@@ -26,6 +26,7 @@ class OpenAlexRateLimitedError(Exception):
 
 @dataclass
 class OpenAlexEntry:
+    """Parsed representation of a single work from the OpenAlex API."""
     work_id: str
     url: str
     title: str
@@ -49,7 +50,7 @@ _doi_prefix_publisher_cache: dict[str, Optional[str]] = {}
 
 
 def _extract_doi_registrant(doi: str) -> str:
-    """Return the '10.XXXX/' prefix from a DOI (registrant code + slash)."""
+    """Return the registrant prefix (e.g. '10.1145/') from a DOI string."""
     slash = doi.find("/")
     return doi[: slash + 1] if slash != -1 else doi
 
@@ -75,6 +76,7 @@ _DOI_PREFIX_TO_PUBLISHER: dict[str, str] = {
 
 
 def _derive_publisher_from_doi(doi: str) -> Optional[str]:
+    """Look up a known publisher from a DOI registrant prefix map."""
     for prefix, publisher in _DOI_PREFIX_TO_PUBLISHER.items():
         if doi.startswith(prefix):
             return publisher
@@ -82,6 +84,7 @@ def _derive_publisher_from_doi(doi: str) -> Optional[str]:
 
 
 def _derive_publisher_from_landing_url(url: str) -> Optional[str]:
+    """Infer publisher name from known hostname patterns in a landing page URL."""
     if not url:
         return None
     if "acm.org" in url:
@@ -114,6 +117,7 @@ def _derive_publisher_from_landing_url(url: str) -> Optional[str]:
 
 
 def _reconstruct_abstract(inverted_index: Optional[dict]) -> str:
+    """Reconstruct plain-text abstract from OpenAlex inverted-index format."""
     if not inverted_index:
         return ""
     word_positions: list[tuple[int, str]] = []
@@ -175,6 +179,7 @@ class OpenAlexClient:
         max_results: int = 20,
         days_back: Optional[int] = None,
     ) -> List[OpenAlexEntry]:
+        """Search OpenAlex for papers matching query; returns parsed entries, empty list on failure."""
         filters = list(_BASE_FILTERS)
         if days_back is not None and days_back > 0:
             from_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
@@ -221,6 +226,7 @@ class OpenAlexClient:
         return entries
 
     def _parse_entry(self, paper: dict) -> Optional[OpenAlexEntry]:
+        """Parse a single OpenAlex work dict into an OpenAlexEntry, or None on failure."""
         try:
             work_id = paper.get("id", "")
             title = paper.get("title") or ""

@@ -13,12 +13,14 @@ logger = get_logger(__name__)
 
 
 class TagNormalizationHandler:
+    """Normalizes tags from a completed analysis and emits the result event."""
 
     def __init__(self, use_case: NormalizeTagsUseCase, event_bus: EventBus) -> None:
         self._use_case = use_case
         self._event_bus = event_bus
 
     def handle(self, event: AnalysisCompletedEvent) -> None:
+        """Run tag normalization on the analysis result and publish outcome."""
         span = _otel_trace.get_current_span()
         span.set_attribute("analysis.id", str(event.analysis_id))
         span.set_attribute("article.id", str(event.article_id))

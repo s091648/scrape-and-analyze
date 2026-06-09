@@ -26,6 +26,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -42,6 +47,31 @@ jobs:
         run: npm install
         working-directory: site
 
+      - name: Install Graphviz
+        run: sudo apt-get install -y graphviz
+
+      - name: Install pylint for pyreverse
+        run: pip install pylint
+
+      - name: Generate backend UML (pyreverse)
+        run: python scripts/generate_uml.py
+
+      - name: Install frontend dependencies for madge
+        run: npm ci
+        working-directory: frontend
+
+      - name: Generate frontend dependency graph (madge)
+        working-directory: frontend
+        run: |
+          mkdir -p ../site/guide/architecture
+          npx --yes madge --json --extensions ts,tsx --ts-config tsconfig.json app/ lib/ components/ > ../site/guide/architecture/frontend-deps.json
+
+      - name: Generate frontend context graph
+        working-directory: frontend
+        run: node scripts/generate-frontend-context.mjs
+        env:
+          OUTPUT_PATH: ${{ github.workspace }}/site/guide/architecture/frontend-context.json
+
       - name: Sync spec content into site/
         run: |
           cp -r specs site/specs
@@ -52,6 +82,7 @@ jobs:
         working-directory: site
         env:
           VITEPRESS_BASE: "${{ steps.pages.outputs.base_path }}/"
+          STORYBOOK_URL: "${{ vars.STORYBOOK_URL }}"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

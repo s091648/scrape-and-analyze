@@ -8,6 +8,7 @@ import sys
 
 
 def configure_loki() -> None:
+    """Set up stdout handler and optional Loki handler for the root logger."""
     url = os.environ.get("GRAFANA_LOKI_URL")
     user = os.environ.get("GRAFANA_LOKI_USER")
     key = os.environ.get("GRAFANA_API_KEY")

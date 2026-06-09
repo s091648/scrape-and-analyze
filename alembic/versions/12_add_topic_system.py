@@ -38,7 +38,7 @@ def upgrade() -> None:
     op.execute("""
         INSERT INTO topics (id, name, display_name, description, color_hex, sort_order, is_active)
         VALUES (
-            gen_random_uuid(),
+            '2058f94a-94cd-4d9e-9ae0-082281b5d106',
             'digital-twins',
             'Digital Twins',
             'Digital twin and cyber-physical systems research',

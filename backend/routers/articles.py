@@ -1,132 +1,22 @@
 from typing import Literal, Optional, List
 from uuid import UUID
-from datetime import datetime, date, timezone
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
 from backend.database import get_db
+from backend.schemas.article import ArticleOut, PaginatedArticles, ArticleDetailOut
+from backend.services.article_service import (
+    get_articles_paginated,
+    build_article_out,
+    get_article_by_id,
+    get_tag_groups_for_article,
+    get_filter_sources,
+    get_filter_original_sources,
+    get_filter_tags,
+)
 
 router = APIRouter()
-
-ALLOWED_SORT_COLS = {"scraped_at", "published_at", "source", "title"}
-
-
-class ArticleOut(BaseModel):
-    id: UUID
-    url: str
-    source: str
-    title: str
-    content: str
-    published_at: Optional[datetime]
-    scraped_at: Optional[datetime]
-    via_source: Optional[str] = None
-    original_source: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-def _article_out(article) -> "ArticleOut":
-    meta = article.metadata_ or {}
-    return ArticleOut(
-        id=article.id,
-        url=article.url,
-        source=article.source,
-        title=article.title,
-        content=article.content,
-        published_at=article.published_at,
-        scraped_at=article.scraped_at,
-        via_source=meta.get("via_source"),
-        original_source=article.original_source or meta.get("original_source"),
-    )
-
-
-class PaginatedArticles(BaseModel):
-    items: list[ArticleOut]
-    total: int
-    page: int
-    size: int
-
-
-def get_articles_paginated(
-    db: Session,
-    sort: str,
-    order: str,
-    page: int,
-    size: int,
-    sources: List[str] | None = None,
-    aggregators: List[str] | None = None,
-    original_sources: List[str] | None = None,
-    tags: List[str] | None = None,
-    tag_ids: List[UUID] | None = None,
-    tag_groups: List[str] | None = None,
-    published_after: Optional[date] = None,
-    published_before: Optional[date] = None,
-    scraped_after: Optional[date] = None,
-    scraped_before: Optional[date] = None,
-    topic_id: Optional[UUID] = None,
-):
-    from models.article import Article
-
-    query = db.query(Article)
-
-    if topic_id:
-        query = query.filter(Article.topic_id == topic_id)
-
-    if sources:
-        query = query.filter(Article.source.in_(sources))
-
-    if aggregators:
-        query = query.filter(Article.source.in_(aggregators))
-
-    if original_sources:
-        query = query.filter(Article.original_source.in_(original_sources))
-
-    if tag_ids:
-        from models.tag import article_tags as at
-        from sqlalchemy import select
-        for tag_id in tag_ids:
-            tag_subq = select(at.c.article_id).where(at.c.tag_id == tag_id).scalar_subquery()
-            query = query.filter(Article.id.in_(tag_subq))
-
-    if tags:
-        from models.tag import Tag, article_tags as at
-        from sqlalchemy import select
-        for tag_name in tags:
-            tag_subq = select(at.c.article_id).join(
-                Tag, Tag.id == at.c.tag_id
-            ).where(Tag.name == tag_name).scalar_subquery()
-            query = query.filter(Article.id.in_(tag_subq))
-
-    if tag_groups:
-        from models.tag import Tag, article_tags as at
-        from models.tag_group import TagGroupDefinition
-        from sqlalchemy import select
-        for group_name in tag_groups:
-            group_subq = select(at.c.article_id).join(
-                Tag, Tag.id == at.c.tag_id
-            ).join(
-                TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id
-            ).where(TagGroupDefinition.name == group_name).scalar_subquery()
-            query = query.filter(Article.id.in_(group_subq))
-
-    if published_after:
-        query = query.filter(Article.published_at >= published_after)
-    if published_before:
-        query = query.filter(Article.published_at <= published_before)
-    if scraped_after:
-        query = query.filter(Article.scraped_at >= scraped_after)
-    if scraped_before:
-        query = query.filter(Article.scraped_at <= scraped_before)
-
-    col = getattr(Article, sort, None)
-    if col is not None:
-        query = query.order_by(col.desc() if order == "desc" else col.asc())
-
-    total = query.count()
-    items = query.offset((page - 1) * size).limit(size).all()
-    return total, items
 
 
 @router.get("/articles", response_model=PaginatedArticles)
@@ -163,9 +53,8 @@ def list_articles(
         scraped_before=scraped_before,
         topic_id=topic_id,
     )
-
     return PaginatedArticles(
-        items=[_article_out(item) for item in items],
+        items=[build_article_out(item) for item in items],
         total=total,
         page=page,
         size=size,
@@ -179,203 +68,61 @@ def get_source_categories():
 
 
 @router.get("/articles/filters/sources")
-def get_filter_sources(topic_id: Optional[UUID] = Query(default=None),
-                       db: Session = Depends(get_db)):
-    from models.article import Article
-    query = db.query(Article.source).distinct()
-    if topic_id:
-        query = query.filter(Article.topic_id == topic_id)
-    return [r[0] for r in query.order_by(Article.source).all()]
+def list_filter_sources(
+    topic_id: Optional[UUID] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return get_filter_sources(db, topic_id)
 
 
 @router.get("/articles/filters/original-sources")
-def get_filter_original_sources(topic_id: Optional[UUID] = Query(default=None),
-                                db: Session = Depends(get_db)):
-    from models.article import Article
-    query = db.query(Article.original_source).distinct().filter(Article.original_source.isnot(None))
-    if topic_id:
-        query = query.filter(Article.topic_id == topic_id)
-    return [r[0] for r in query.order_by(Article.original_source).all()]
+def list_filter_original_sources(
+    topic_id: Optional[UUID] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return get_filter_original_sources(db, topic_id)
 
 
 @router.get("/articles/filters/tags")
-def get_filter_tags(topic_id: Optional[UUID] = Query(default=None),
-                    db: Session = Depends(get_db)):
-    from models.tag import Tag, article_tags as at
-    from models.article import Article
-    query = db.query(Tag.name).distinct()
-    if topic_id:
-        query = (
-            query
-            .join(at, Tag.id == at.c.tag_id)
-            .join(Article, Article.id == at.c.article_id)
-            .filter(Article.topic_id == topic_id)
-        )
-    return [r[0] for r in query.order_by(Tag.name).all()]
-
-
-class TagGroupOut(BaseModel):
-    group_name: str
-    display_name: str
-    color: Optional[str] = None
-    tags: list[str]
-
-
-class FailedTaskOut(BaseModel):
-    id: UUID
-    task_type: str
-    article_url: Optional[str]
-    exception_type: Optional[str]
-    exception_message: Optional[str]
-    failed_at: Optional[datetime]
-    resolved: bool
-
-    class Config:
-        from_attributes = True
-
-
-class PaginatedFailedTasks(BaseModel):
-    items: list[FailedTaskOut]
-    total: int
-    page: int
-    size: int
-
-
-class ArticleDetailOut(BaseModel):
-    id: UUID
-    url: str
-    source: str
-    title: str
-    content: str
-    published_at: Optional[datetime]
-    scraped_at: Optional[datetime]
-    via_source: Optional[str] = None
-    original_source: Optional[str] = None
-    tags: list[str] = []
-    tag_groups: list[TagGroupOut] = []
-    pain_points: Optional[str] = None
-    insights: Optional[str] = None
-    innovations: Optional[str] = None
-    model_used: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-def get_article_by_id(db: Session, article_id: UUID):
-    from models.article import Article
-    return db.query(Article).filter(Article.id == article_id).first()
-
-
-def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:
-    from models.tag import Tag, article_tags as at
-    from models.tag_group import TagGroupDefinition
-    from models.tag_translation import TagsTranslation
-    from models.tag_group_translation import TagGroupDefinitionsTranslation
-
-    tags = (
-        db.query(Tag)
-        .join(at, Tag.id == at.c.tag_id)
-        .outerjoin(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
-        .filter(at.c.article_id == article_id)
-        .order_by(TagGroupDefinition.name, Tag.name)
-        .all()
-    )
-
-    # Batch-load translations for tags and groups
-    tag_ids = [t.id for t in tags]
-    tag_trans_map = {}
-    group_trans_map = {}
-    if lang != "en" and tag_ids:
-        tag_translations = db.query(TagsTranslation).filter(
-            TagsTranslation.tag_id.in_(tag_ids),
-            TagsTranslation.language == lang,
-        ).all()
-        tag_trans_map = {tt.tag_id: tt.name for tt in tag_translations}
-
-        group_ids = list({t.group_def.id for t in tags if t.group_def})
-        if group_ids:
-            group_translations = db.query(TagGroupDefinitionsTranslation).filter(
-                TagGroupDefinitionsTranslation.tag_group_definition_id.in_(group_ids),
-                TagGroupDefinitionsTranslation.language == lang,
-            ).all()
-            group_trans_map = {gt.tag_group_definition_id: gt for gt in group_translations}
-
-    groups: dict = {}
-    for tag in tags:
-        gname = tag.group_def.name if tag.group_def else "ungrouped"
-        if gname not in groups:
-            gdef = tag.group_def
-            display_name = gname
-            description = None
-            if gdef:
-                if lang != "en" and gdef.id in group_trans_map:
-                    display_name = group_trans_map[gdef.id].display_name
-                    description = group_trans_map[gdef.id].description
-                else:
-                    display_name = gdef.display_name
-                    description = gdef.description
-            else:
-                display_name = "Ungrouped"
-            groups[gname] = {
-                "group_name": gname,
-                "display_name": display_name,
-                "description": description,
-                "color": gdef.color_hex if gdef else None,
-                "tags": [],
-            }
-        tag_name = tag_trans_map.get(tag.id, tag.name) if lang != "en" else tag.name
-        groups[gname]["tags"].append(tag_name)
-
-    result = list(groups.values())
-    result.sort(key=lambda g: (g["group_name"] == "ungrouped", g["display_name"]))
-    return result
+def list_filter_tags(
+    topic_id: Optional[UUID] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    return get_filter_tags(db, topic_id)
 
 
 @router.get("/articles/{article_id}", response_model=ArticleDetailOut)
-def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session = Depends(get_db)):
-    from models.tag import Tag, article_tags as at
-    from models.analyses_translation import AnalysesTranslation
+def get_article(
+    article_id: UUID,
+    lang: str = Query(default="en"),
+    db: Session = Depends(get_db),
+):
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
-    analysis = article.analyses[0] if article.analyses else None
-    tag_names = (
-        db.query(Tag.name)
-        .join(at, Tag.id == at.c.tag_id)
-        .filter(at.c.article_id == article_id)
-        .order_by(Tag.name)
-        .all()
-    )
 
-    # Get content from analyses_translation (all languages including English)
-    pain_points = None
-    insights = None
-    innovations = None
+    analysis = article.analyses[0] if article.analyses else None
+    pain_points = insights = innovations = None
     if analysis:
+        from models.analyses_translation import AnalysesTranslation
         translation = db.query(AnalysesTranslation).filter(
             AnalysesTranslation.analysis_id == analysis.id,
-            AnalysesTranslation.language == lang
+            AnalysesTranslation.language == lang,
         ).first()
         if not translation and lang != "en":
-            # Fallback to English if requested language not available
             translation = db.query(AnalysesTranslation).filter(
                 AnalysesTranslation.analysis_id == analysis.id,
-                AnalysesTranslation.language == "en"
+                AnalysesTranslation.language == "en",
             ).first()
         if translation:
             pain_points = translation.pain_points
             insights = translation.insights
             innovations = translation.innovations
 
-    # Build tag_groups first (which also handles per-tag translation),
-    # then derive flat tags list from it for consistency.
     tag_groups_data = get_tag_groups_for_article(db, article_id, lang=lang)
-    flat_tags = []
-    for grp in tag_groups_data:
-        flat_tags.extend(grp["tags"])
+    flat_tags = [t for grp in tag_groups_data for t in grp["tags"]]
 
-    _meta = article.metadata_ or {}
+    meta = article.metadata_ or {}
     return ArticleDetailOut(
         id=article.id,
         url=article.url,
@@ -384,8 +131,8 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         content=article.content,
         published_at=article.published_at,
         scraped_at=article.scraped_at,
-        via_source=_meta.get("via_source"),
-        original_source=article.original_source or _meta.get("original_source"),
+        via_source=meta.get("via_source"),
+        original_source=article.original_source or meta.get("original_source"),
         tags=flat_tags,
         tag_groups=tag_groups_data,
         pain_points=pain_points,
@@ -393,16 +140,3 @@ def get_article(article_id: UUID, lang: str = Query(default="en"), db: Session =
         innovations=innovations,
         model_used=analysis.model_used if analysis else None,
     )
-
-
-@router.get("/failed-tasks", response_model=PaginatedFailedTasks)
-def list_failed_tasks(
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
-):
-    from models.failed_task import FailedTask
-    query = db.query(FailedTask).order_by(FailedTask.failed_at.desc())
-    total = query.count()
-    items = query.offset((page - 1) * size).limit(size).all()
-    return PaginatedFailedTasks(items=items, total=total, page=page, size=size)

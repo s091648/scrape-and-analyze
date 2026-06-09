@@ -20,6 +20,7 @@ DEFAULT_SELECTORS = [
 
 
 class HtmlArticleParser(BaseContentParser):
+    """Extracts article body text from HTML using CSS selector fallback chain."""
 
     def __init__(self, selectors: list[str] | None = None):
         self._selectors = selectors or DEFAULT_SELECTORS

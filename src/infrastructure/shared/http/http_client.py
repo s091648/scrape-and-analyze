@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 
 
 def _extract_domain(url: str) -> str:
+    """Extract the netloc (domain) from a URL string."""
     return urlparse(url).netloc
 
 
@@ -66,6 +67,7 @@ class HttpClient:
         )
 
     def get(self, url: str, timeout: int = 30, **kwargs) -> requests.Response:
+        """Rate-limited GET with retry, proxy support, and 403-driven UA rotation."""
         domain = _extract_domain(url)
         caller_headers: dict = kwargs.pop("headers", {})
 
@@ -128,8 +130,7 @@ class HttpClient:
         raise last_403_exc  # type: ignore[misc]
 
     def with_skip_retry_status(self, skip: frozenset) -> "HttpClient":
-        """Return a new HttpClient sharing the same rate limiter and UA pool,
-        but with the given HTTP status codes excluded from retry."""
+        """Return a new HttpClient sharing the same rate limiter and UA pool but excluding given statuses from retry."""
         return HttpClient(
             rate_limiter=self._rate_limiter,
             ua_pool=self._ua_pool,
@@ -142,6 +143,7 @@ class HttpClient:
 
     @classmethod
     def build_default(cls) -> "HttpClient":
+        """Construct an HttpClient with default rate limiter, UA pool, and proxy config."""
         proxies = get_proxies()
         return cls(
             rate_limiter=DomainRateLimiter(),
@@ -155,11 +157,13 @@ _default_client: Optional[HttpClient] = None
 
 
 def init_default_client(client: HttpClient) -> None:
+    """Set the module-level default HttpClient instance."""
     global _default_client
     _default_client = client
 
 
 def get_default_client() -> HttpClient:
+    """Return the default HttpClient, lazily creating one if not yet initialized."""
     global _default_client
     if _default_client is None:
         logger.warning("http_client_not_initialised_using_default")

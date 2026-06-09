@@ -34,6 +34,7 @@ class RoundRobinQueueSelector(QueueSelector):
         self._counter: int = 0
 
     def select(self, queues: List[Queue]) -> List[int]:
+        """Return non-empty queue indices starting from a rotating offset for fair host distribution."""
         n = len(queues)
         if n == 0:
             return []
@@ -51,6 +52,7 @@ class WeightedRoundRobinQueueSelector(QueueSelector):
     """
 
     def select(self, queues: List[Queue]) -> List[int]:
+        """Return non-empty queue indices sorted by depth descending to drain backlogs first."""
         candidates = [
             (i, queues[i].qsize())
             for i in range(len(queues))

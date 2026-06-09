@@ -5,6 +5,7 @@ from uuid import UUID
 
 @dataclass(frozen=True)
 class TranslationFailedEvent:
+    """Published when article or tag translation fails."""
     analysis_id: UUID
     article_id: UUID
     task_type: str = "translate_article"

@@ -6,6 +6,7 @@ from uuid import UUID
 
 @dataclass
 class TagNormalizationSuggestion:
+    """Tracks a suggestion to merge a new tag into an existing similar tag."""
     new_tag_id: UUID
     existing_tag_id: UUID
     similarity_score: float

@@ -12,11 +12,13 @@ logger = get_logger(__name__)
 
 
 class SqlAlchemyAnalysisRepository(AnalysisRepository):
+    """SQLAlchemy implementation of AnalysisRepository for persisting analysis results."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def save(self, analysis: Analysis) -> None:
+        """Persist an Analysis entity and its English translation row, then commit."""
         from models.analysis import Analysis as AnalysisModel
         from models.analyses_translation import AnalysesTranslation as AnalysesTranslationModel
 

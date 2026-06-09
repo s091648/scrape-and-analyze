@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class QuotaStrategy(ABC):
+    """Abstract base for LLM API quota/rate-limit strategies."""
     @abstractmethod
     def acquire(self, estimated_tokens: int) -> None:
         """Block until a request slot is available."""

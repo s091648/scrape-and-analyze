@@ -6,6 +6,7 @@ from src.modules.collection.domain.entities import ScraperSetting
 
 
 class ScraperSettingRepository(ABC):
+    """Abstract repository for accessing and updating ScraperSetting entities."""
 
     @abstractmethod
     def get_active_due(self) -> List[ScraperSetting]:

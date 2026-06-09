@@ -24,6 +24,7 @@ class DiscoverScrapeJobsUseCase:
         self._scraper_factory = scraper_factory
 
     def execute(self) -> List[ScrapeJob]:
+        """Query due scraper settings, discover pending URLs from each source, mark settings scraped, and return all ScrapeJobs."""
         due_settings = self._setting_repo.get_active_due()
 
         if not due_settings:
@@ -43,6 +44,7 @@ class DiscoverScrapeJobsUseCase:
         return all_jobs
 
     def _discover_for(self, setting: ScraperSetting) -> List[ScrapeJob]:
+        """Create a scraper for the given setting and discover its pending ScrapeJobs."""
         try:
             scraper = self._scraper_factory.create_for(setting)
             jobs = scraper.discover()

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class BaseContentParser(ABC):
+    """Abstract base class for content parsers that extract text from raw input."""
 
     @abstractmethod
     def parse(self, content: str) -> str:

@@ -6,12 +6,14 @@ from uuid import UUID
 
 @dataclass
 class TagGroupDefinitionData:
+    """Data transfer object carrying tag group definition fields."""
     name: str
     display_name: str
     description: Optional[str]
 
 
 class TagGroupDefinitionRepository(ABC):
+    """Abstract repository interface for TagGroupDefinition persistence."""
 
     @abstractmethod
     def find_by_topic_id(self, topic_id: UUID) -> List[TagGroupDefinitionData]:

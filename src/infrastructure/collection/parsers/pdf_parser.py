@@ -22,6 +22,7 @@ TARGET_SECTIONS = frozenset([
 
 
 class PdfParser(BaseContentParser):
+    """Downloads PDFs and extracts full text plus heuristic section splitting."""
 
     def __init__(self, max_chars: int = 15_000):
         self.max_chars = max_chars

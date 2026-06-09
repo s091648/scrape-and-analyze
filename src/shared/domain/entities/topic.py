@@ -8,6 +8,7 @@ from src.shared.domain.value_objects.tag_mode import TagMode
 
 @dataclass
 class Topic:
+    """Domain entity representing a topic category for article classification."""
     name: str
     display_name: str
     id: Optional[UUID] = None

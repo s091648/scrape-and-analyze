@@ -31,6 +31,7 @@ _DEFAULT_KEYWORDS = [
 
 
 class RssScraper(BaseScraper):
+    """Discovers and fetches articles from RSS/Atom feeds with keyword filtering."""
 
     def __init__(
         self,
@@ -56,6 +57,7 @@ class RssScraper(BaseScraper):
         self._html_parser = HtmlArticleParser()
 
     def discover(self) -> List[ScrapeJob]:
+        """Fetch the RSS feed and return ScrapeJobs for entries matching keywords."""
         entries = self._client.fetch_feed(self._url)
         jobs = []
         for entry in entries:
@@ -78,6 +80,7 @@ class RssScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch and parse an RSS article page into a ScrapedArticle."""
         fallback = SanitizeService.sanitize_content(job.metadata.get("description"))
         content = self._html_parser.fetch_and_parse(job.url, fallback=fallback)
         return ScrapedArticle(
@@ -92,6 +95,7 @@ class RssScraper(BaseScraper):
         )
 
     def _matches(self, text: str) -> bool:
+        """Return True if text matches any configured keyword pattern (or no filter is set)."""
         if self._keyword_pattern is None:
             return True
         return bool(text and self._keyword_pattern.search(text))

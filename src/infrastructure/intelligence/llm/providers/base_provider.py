@@ -93,6 +93,7 @@ class BaseProvider(LLMService, ABC):
         ...
 
     def _parse_result(self, result: dict) -> tuple[AnalysisContent, AnalysisMetadata]:
+        """Map a validated JSON dict into domain AnalysisContent and AnalysisMetadata value objects."""
         tag_groups = [
             AnalysisTagGroup(
                 group_name=tg.get("group", ""),
@@ -119,6 +120,7 @@ class BaseProvider(LLMService, ABC):
         content: str,
         prompt: str,
     ) -> Optional[tuple[AnalysisContent, AnalysisMetadata]]:
+        """Analyze article content via the LLM with retry, validation, and domain mapping."""
         try:
             for attempt in self._retry:
                 with attempt:
@@ -136,6 +138,7 @@ class BaseProvider(LLMService, ABC):
         return self._parse_result(result)
 
     def _validate(self, result: dict) -> bool:
+        """Check that the LLM response dict contains all required analysis fields."""
         return all(f in result for f in _REQUIRED_FIELDS)
 
     def translate(
@@ -143,6 +146,7 @@ class BaseProvider(LLMService, ABC):
         content: str,
         prompt: str,
     ) -> Optional[str]:
+        """Translate content via the LLM raw-text endpoint with retry and empty-check."""
         try:
             for attempt in self._translate_retry:
                 with attempt:

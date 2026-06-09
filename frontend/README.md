@@ -6,47 +6,113 @@
 
 # Frontend
 
-Next.js 16 + React 19 web application for browsing AI-analyzed articles, managing scraper sources, and visualizing tag relationships as a knowledge graph.
+Next.js 16 + React 19 web application for browsing AI-analyzed articles, managing scraper sources, visualizing tag relationships as a knowledge graph, and administering LLM providers.
 
 ## Architecture
 
 ```
 frontend/
-├── app/                        # Next.js App Router
-│   ├── page.tsx                # Home — article browse entry point
-│   ├── layout.tsx              # Root layout + navbar
-│   ├── home-page-content.tsx   # Article grid with pagination and filters
-│   ├── admin/                  # Admin dashboard
-│   ├── graph/                  # Knowledge graph page
-│   ├── login/ & register/      # Auth pages
-│   ├── settings/               # Scraper source configuration UI
+├── app/                              # Next.js App Router
+│   ├── page.tsx                      # Home — article browse entry point
+│   ├── layout.tsx                    # Root layout (SessionProvider, TopicProvider, I18nProvider, NavBar)
+│   ├── layout-shell.tsx              # Inner shell with ErrorBoundary
+│   ├── home-page-content.tsx         # Article grid with pagination and filters
+│   ├── articles/
+│   │   └── [articleId]/page.tsx      # Full article detail page
+│   ├── tags/page.tsx                 # Tag browser + normalization suggestions
+│   ├── graph/page.tsx                # Knowledge graph visualization
+│   ├── login/ & register/            # Auth pages
+│   ├── settings/                     # Scraper source configuration UI
+│   ├── admin/
+│   │   ├── llm-providers/page.tsx    # LLM provider CRUD (priority, rpm/tpm/rpd, is_active)
+│   │   ├── monitoring/               # Observability dashboard (traces, logs, metrics, Grafana)
+│   │   ├── scraper-settings/         # RSS / blog / ArXiv / OpenAlex / Semantic Scholar sources
+│   │   ├── topics/                   # Topic management
+│   │   └── user-management/          # User admin
 │   └── api/
-│       ├── auth/               # NextAuth route handlers
-│       ├── link-google/        # Google OAuth2 account linking
-│       └── proxy/              # Proxied requests to the backend API
+│       ├── auth/[[...nextauth]]/     # NextAuth route handlers
+│       ├── proxy/[...path]/          # Catch-all reverse proxy → backend:8000
+│       ├── grafana-embed/            # Grafana panel embed proxy (signed URLs)
+│       └── link-google/              # Google OAuth2 account linking (start + callback)
 ├── components/
-│   ├── article-card.tsx        # Article display card (title, preview, source, tags)
-│   ├── filter-bar.tsx          # Date range + multi-select source/tag filters
-│   ├── knowledge-graph.tsx     # Force-directed graph visualization
-│   ├── scraper-source-form.tsx # Form to add RSS / blog / ArXiv scraper sources
-│   ├── scraper-source-card.tsx # Display and inline-edit a scraper config
-│   ├── arxiv-keyword-manager.tsx # Manage ArXiv search terms
-│   ├── nav-bar.tsx             # Header with auth state
-│   ├── session-provider.tsx    # NextAuth SessionProvider wrapper
-│   └── ui/                     # Shadcn/UI primitives (button, input, modal, etc.)
+│   ├── common/
+│   │   ├── date-filter.tsx           # Reusable date-range picker
+│   │   ├── error-boundary.tsx        # React error boundary
+│   │   └── multi-select-popover.tsx  # Shared multi-select dropdown primitive
+│   ├── features/
+│   │   ├── articles/
+│   │   │   ├── article-card.tsx          # Article display card (title, preview, source, tags)
+│   │   │   ├── article-card-skeleton.tsx # Loading skeleton
+│   │   │   ├── article-detail-dialog.tsx # Full article detail dialog
+│   │   │   ├── filter-bar.tsx            # Multi-select filters: sources, aggregators, original_sources, tags, date
+│   │   │   ├── grouped-tag-select.tsx    # Tag selector grouped by tag group
+│   │   │   └── source-utils.ts           # Source display helpers
+│   │   ├── graph/
+│   │   │   └── knowledge-graph.tsx       # Force-directed graph (?aggregator=&original_source=&tag=)
+│   │   ├── monitoring/
+│   │   │   ├── article-workflow-dialog.tsx  # Per-article pipeline trace viewer
+│   │   │   ├── failed-task-list.tsx         # Failed tasks table with retry
+│   │   │   ├── grafana-panel.tsx            # Embedded Grafana panel
+│   │   │   ├── log-detail-dialog.tsx        # Structured log detail
+│   │   │   ├── logs-table.tsx               # Loki log stream table
+│   │   │   ├── metrics-chart.tsx            # OTel metrics chart
+│   │   │   ├── run-waterfall-dialog.tsx     # Pipeline run waterfall trace
+│   │   │   ├── stage-card.tsx               # Pipeline stage summary card
+│   │   │   ├── stat-card.tsx                # Metric stat card
+│   │   │   └── traces-table.tsx             # OTel traces table
+│   │   ├── navigation/
+│   │   │   ├── nav-bar.tsx                  # Header with auth state
+│   │   │   └── release-notes-popover.tsx    # Changelog popover
+│   │   ├── scraper/
+│   │   │   ├── arxiv-keyword-manager.tsx             # ArXiv search term manager
+│   │   │   ├── openalex-keyword-manager.tsx          # OpenAlex keyword manager
+│   │   │   ├── semantic-scholar-keyword-manager.tsx  # Semantic Scholar keyword manager
+│   │   │   ├── scraper-source-card.tsx               # Display + inline-edit a scraper config
+│   │   │   └── scraper-source-form.tsx               # Add RSS / blog / ArXiv / OpenAlex / SemanticScholar sources
+│   │   └── tags/
+│   │       ├── merge-group-dialog.tsx    # Merge tag groups dialog
+│   │       ├── pending-changes-panel.tsx # Review + commit pending tag changes
+│   │       ├── pending-suggestions.tsx   # Tag normalization suggestion list
+│   │       ├── tag-dialog.tsx            # Tag create/edit dialog
+│   │       ├── tag-group-card.tsx        # Tag group with its tags
+│   │       └── tag-mode-selector.tsx     # Toggle between browse / normalization modes
+│   ├── providers/
+│   │   └── session-provider.tsx          # NextAuth SessionProvider wrapper
+│   └── ui/                               # Shadcn/UI primitives (button, card, dialog, table, etc.)
 ├── hooks/
-│   └── use-pagination.tsx      # Shared pagination + filter state hook
+│   └── use-pagination.ts               # Shared pagination + filter state hook
 ├── lib/
-│   └── api-fetch.tsx           # Authenticated HTTP client (attaches JWT)
-├── middleware.ts               # NextAuth route protection
-├── globals.css                 # Tailwind CSS v4 theme + global styles
+│   ├── api/                            # Typed API client modules (one per backend router)
+│   │   ├── articles.ts                 # Articles API (filters: aggregator, original_source, tag)
+│   │   ├── auth.ts
+│   │   ├── client.ts                   # apiFetch() — attaches JWT, prefixes /api/proxy, appends lang
+│   │   ├── grafana.ts                  # Grafana Cloud API (traces, logs, metrics)
+│   │   ├── graph.ts                    # Graph API (?aggregator=&original_source=&tag=)
+│   │   ├── llm-providers.ts            # LLM providers CRUD
+│   │   ├── scraper-keywords.ts
+│   │   ├── scraper-settings.ts
+│   │   ├── source-categories.ts
+│   │   ├── tags.ts                     # Tags + normalization suggestions
+│   │   └── topics.ts
+│   ├── providers/
+│   │   ├── guest-mode-provider.tsx     # Guest paywall state (6-article limit)
+│   │   ├── i18n-provider.tsx           # Custom i18n (en + zh-TW, auto-resolves from IP)
+│   │   ├── index.tsx                   # Composes all providers
+│   │   └── topic-provider.tsx          # Active topic context (localStorage persistence)
+│   ├── auth.ts                         # NextAuth config (JWT, Google providers)
+│   ├── loki-logger.ts                  # Client-side Loki log shipping
+│   ├── observability-constants.ts      # Shared OTel attribute names
+│   ├── otlp-utils.ts                   # OTel trace/metric helpers
+│   └── utils.ts                        # General utilities (cn, etc.)
+├── middleware.ts                       # NextAuth route protection
+├── globals.css                         # Tailwind CSS v4 theme + global styles
 ├── tests/
-│   ├── unit/                   # Vitest + React Testing Library unit tests
-│   └── integration/            # Playwright integration tests (full user flows)
-│       └── fixtures/           # Auth state, API handlers, token generator
-├── vitest.config.ts            # Unit test config (Vitest + React Testing Library)
-├── playwright.config.ts        # Integration test config (Playwright)
-└── next.config.ts
+│   ├── unit/                           # Vitest + React Testing Library (40+ test files)
+│   └── integration/                    # Playwright E2E (articles, article-detail, graph, monitoring, etc.)
+│       └── fixtures/                   # Auth state, API handlers, token generator
+├── __tests__/api/                      # Next.js API route unit tests (proxy redaction, grafana-embed)
+├── vitest.config.ts
+└── playwright.config.ts
 ```
 
 ## Key Features
@@ -54,19 +120,24 @@ frontend/
 | Feature | Details |
 |---------|---------|
 | **Article Browse** | Paginated grid (6 cards/page for guests, unlimited for users) |
-| **Filtering** | Multi-select sources, tags, and date range (published or scraped date) |
-| **Full-text Search** | Passes `q` query param to `/articles` API |
-| **Knowledge Graph** | `react-force-graph-2d` force-directed graph of tag and article relationships |
+| **Article Detail** | Full detail page at `/articles/[articleId]` |
+| **Filtering** | Multi-select: sources, aggregators, original_sources, tags, date range |
+| **Full-text Search** | `q` query param forwarded to `/articles` API |
+| **Knowledge Graph** | `react-force-graph-2d`; filters by `aggregator`, `original_source`, `tag` |
+| **Tag Management** | `/tags` — browse tag groups, review normalization suggestions, merge groups |
+| **LLM Providers** | `/admin/llm-providers` — CRUD with priority, rpm/tpm/rpd, is_active toggle |
+| **Scraper Config** | Supports RSS, Blog (CSS selector), ArXiv, OpenAlex, Semantic Scholar |
+| **Monitoring** | Admin dashboard: OTel traces, Loki logs, OTel metrics, Grafana panels, failed tasks |
 | **Auth** | NextAuth v4 with JWT cookies; optional Google OAuth2 |
 | **Guest Paywall** | Overlay after 6 articles, redirects to login |
-| **Scraper Config** | Admin panel to add/edit/delete RSS, blog (CSS selector), and ArXiv sources |
+| **i18n** | en + zh-TW; auto-resolves from IP via `/api/languages` |
+| **Observability** | Client-side Loki log shipping, OTel OTLP utils, Grafana panel embeds |
 
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router), React 19, TypeScript
 - **Styling**: Tailwind CSS v4, Shadcn/UI (Radix UI primitives), Lucide icons
 - **Auth**: NextAuth v4
-- **State**: Zustand
 - **Graph**: react-force-graph-2d
 - **Tests**: Vitest + React Testing Library (unit), Playwright (E2E)
 

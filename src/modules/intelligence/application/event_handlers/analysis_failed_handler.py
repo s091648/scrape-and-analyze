@@ -10,10 +10,13 @@ logger = get_logger(__name__)
 
 
 class AnalysisFailedHandler:
+    """Persists a FailedTask record when LLM analysis fails."""
+
     def __init__(self, failed_task_repository: FailedTaskRepository) -> None:
         self._repo = failed_task_repository
 
     def handle(self, event: AnalysisFailedEvent) -> None:
+        """Save a FailedTask from the analysis failure event."""
         task = FailedTask(
             task_type="analyze",
             article_id=event.article_id,

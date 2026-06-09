@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class RssEntry:
+    """Parsed representation of a single item from an RSS/Atom feed."""
     url: str
     title: str
     description: str
@@ -96,6 +97,7 @@ class RssClient:
 
     @staticmethod
     def _to_entry(e) -> RssEntry:
+        """Convert a feedparser entry dict into an RssEntry."""
         return RssEntry(
             url=e.get("link", ""),
             title=e.get("title", ""),

@@ -83,6 +83,7 @@ class AnalysisPrompt(BasePrompt):
 
     @property
     def content(self) -> str:
+        """Return the current prompt text content."""
         return self._content
 
     def render(self, **kwargs) -> 'AnalysisPrompt':
@@ -115,6 +116,7 @@ class AnalysisPrompt(BasePrompt):
 
     @staticmethod
     def _format_fixed_groups(tag_groups: List[TagGroup]) -> str:
+        """Format tag groups into a bulleted list for the prompt template."""
         lines = []
         for tg in tag_groups:
             key = tg.name if tg.name else tg.display_name.lower().replace(" ", "_")

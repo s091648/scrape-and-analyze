@@ -1,0 +1,103 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="Claude" version="22.0.0" type="device">
+  <diagram id="observability" name="Observability">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Observability - Logging, Metrics and Tracing" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="logging" value="Logging (structlog + Loki)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#fff2cc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="logging_con" value="src/shared/logging.py
+
+get_logger(name) -> structlog logger
+
+Features:
+* Structured JSON logging
+* Contextual bindings (correlation_id)
+* Loki integration via Grafana
+
+Usage:
+logger.info(event_key, key=value)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="logging">
+          <mxGeometry y="40" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="tracing" value="Tracing (OpenTelemetry)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#dae8fc;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="320" y="80" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="tracing_con" value="src/infrastructure/shared/
+observability/otel_tracing.py
+
+get_tracer() -> OTel tracer
+
+Setup (conditional):
+* Requires GRAFANA_OTLP_USER
+* Requires GRAFANA_API_KEY
+* Requires GRAFANA_OTLP_ENDPOINT
+
+Exports: OTLP/HTTP -> Grafana Cloud
+Service name: scrape-analyzer" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="tracing">
+          <mxGeometry y="40" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="metrics" value="Metrics (OpenTelemetry)" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="240" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="metrics_con" value="src/infrastructure/shared/
+observability/otel_metrics.py
+
+Metric Types:
+* Counter: scraper_runs_total
+* Counter: scraper_articles_found_total
+* Counter: scraper_articles_new_total
+* Counter: scraper_articles_duplicate_total
+* Counter: scraper_errors_total
+* Histogram: scraper_run_duration_seconds
+
+Export:
+  OTLP/HTTP -> Grafana Cloud
+  Interval: 30 seconds" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="metrics">
+          <mxGeometry y="40" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="otel_handler" value="OTel Metrics Handler" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;fillColor=#e1d5e7;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=14" vertex="1" parent="1">
+          <mxGeometry x="880" y="80" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="otel_handler_con" value="src/infrastructure/collection/
+handlers/otel_metrics_handler.py
+
+Listens to:
+  PipelineCompletedEvent
+
+Actions:
+  * Increment scraper_runs_total
+  * Record scraper_run_duration_seconds
+  * Increment articles counters" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="otel_handler">
+          <mxGeometry y="40" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fallback" value="Fallback Behavior" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="fallback_con" value="If GRAFANA_* env vars missing:
+
+* Tracing: No-op tracer (OTel SDK default)
+* Metrics: Dummy Counter/Histogram (no-op)
+
+App starts normally in any environment without requiring observability backend." style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="fallback">
+          <mxGeometry y="30" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="env_req" value="Required ENV Variables" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;fillColor=#f5f5f5;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="320" y="280" width="240" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="env_req_con" value="For OTLP export:
+
+* GRAFANA_OTLP_USER
+* GRAFANA_API_KEY
+* GRAFANA_OTLP_ENDPOINT
+
+All three must be set for export to occur." style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=8;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=10" vertex="1" parent="env_req">
+          <mxGeometry y="30" width="240" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

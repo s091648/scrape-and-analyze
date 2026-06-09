@@ -10,6 +10,7 @@ services:
       - ./models:/app/models
       - ./shared:/app/shared
       - ./pytest.ini:/app/pytest.ini
+      - ./.coveragerc:/app/.coveragerc
     env_file:
       - .env
     depends_on:
@@ -89,6 +90,7 @@ services:
       - ./scripts:/app/scripts
       - ./backend:/app/backend
       - ./pytest.ini:/app/pytest.ini
+      - ./.coveragerc:/app/.coveragerc
     env_file:
       - .env
     depends_on:

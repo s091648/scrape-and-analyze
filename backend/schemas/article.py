@@ -1,0 +1,54 @@
+from typing import Optional
+from uuid import UUID
+from datetime import datetime
+from pydantic import BaseModel
+
+
+class ArticleTagGroupOut(BaseModel):
+    group_name: str
+    display_name: str
+    color: Optional[str] = None
+    tags: list[str]
+
+
+class ArticleOut(BaseModel):
+    id: UUID
+    url: str
+    source: str
+    title: str
+    content: str
+    published_at: Optional[datetime]
+    scraped_at: Optional[datetime]
+    via_source: Optional[str] = None
+    original_source: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedArticles(BaseModel):
+    items: list[ArticleOut]
+    total: int
+    page: int
+    size: int
+
+
+class ArticleDetailOut(BaseModel):
+    id: UUID
+    url: str
+    source: str
+    title: str
+    content: str
+    published_at: Optional[datetime]
+    scraped_at: Optional[datetime]
+    via_source: Optional[str] = None
+    original_source: Optional[str] = None
+    tags: list[str] = []
+    tag_groups: list[ArticleTagGroupOut] = []
+    pain_points: Optional[str] = None
+    insights: Optional[str] = None
+    innovations: Optional[str] = None
+    model_used: Optional[str] = None
+
+    class Config:
+        from_attributes = True

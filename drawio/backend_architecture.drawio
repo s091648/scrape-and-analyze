@@ -1,0 +1,299 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Backend Architecture" id="backend-arch-001">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontStyle=1;fontSize=24;" value="Backend Architecture" vertex="1">
+          <mxGeometry x="20" y="20" width="300" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== FastAPI App Entry ==================== -->
+        <mxCell id="app-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="FastAPI App (main.py)" vertex="1">
+          <mxGeometry x="400" y="60" width="560" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="app-cors" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="CORSMiddleware" vertex="1">
+          <mxGeometry x="410" y="95" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="app-proxy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="ProxyHeaders" vertex="1">
+          <mxGeometry x="540" y="95" width="100" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="app-logging" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="RequestLogging" vertex="1">
+          <mxGeometry x="650" y="95" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="app-health" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="GET /health" vertex="1">
+          <mxGeometry x="770" y="95" width="100" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== Middleware Layer ==================== -->
+        <mxCell id="mw-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="Middleware Layer" vertex="1">
+          <mxGeometry x="400" y="170" width="560" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="mw-logging" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=4;" value="RequestLoggingMiddleware&lt;br&gt;• UUID request_id&lt;br&gt;• JWT user extraction&lt;br&gt;• GeoIP lookup&lt;br&gt;• structlog output" vertex="1">
+          <mxGeometry x="410" y="195" width="250" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="mw-guards" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=4;" value="Auth Guards (auth/guards.py)&lt;br&gt;• require_admin (JWT + role=admin)&lt;br&gt;• require_user (JWT only)" vertex="1">
+          <mxGeometry x="680" y="195" width="270" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== Routers Layer ==================== -->
+        <mxCell id="routers-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="Routers Layer" vertex="1">
+          <mxGeometry x="100" y="290" width="1160" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="r-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="auth.py&lt;br&gt;12 endpoints" vertex="1">
+          <mxGeometry x="110" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="r-articles" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="articles.py&lt;br&gt;5 endpoints" vertex="1">
+          <mxGeometry x="260" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="r-graph" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="graph.py&lt;br&gt;2 endpoints" vertex="1">
+          <mxGeometry x="410" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="r-topics" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="topics.py&lt;br&gt;4 endpoints" vertex="1">
+          <mxGeometry x="560" y="320" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="r-settings" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="scraper_settings.py&lt;br&gt;4 endpoints" vertex="1">
+          <mxGeometry x="710" y="320" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="r-keywords" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="scraper_keywords.py&lt;br&gt;3 endpoints" vertex="1">
+          <mxGeometry x="880" y="320" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: App -> Middleware -->
+        <mxCell id="e-app-mw" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#6c8ebf;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="app-box" target="mw-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Arrow: Middleware -> Routers -->
+        <mxCell id="e-mw-routers" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#82b366;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="mw-box" target="routers-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== Schemas Layer ==================== -->
+        <mxCell id="schemas-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="Pydantic Schemas (schemas/)" vertex="1">
+          <mxGeometry x="100" y="430" width="560" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=4;" value="user.py&lt;br&gt;UserOut, UserProfileOut&lt;br&gt;RegisterCredentials, GoogleAuth" vertex="1">
+          <mxGeometry x="110" y="455" width="150" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s-topic" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=4;" value="topic.py&lt;br&gt;TopicCreate&lt;br&gt;TopicUpdate, TopicOut" vertex="1">
+          <mxGeometry x="270" y="455" width="120" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s-setting" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=4;" value="scraper_setting.py&lt;br&gt;Create, Update, Out" vertex="1">
+          <mxGeometry x="400" y="455" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="s-inline" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;spacingLeft=4;fontColor=#999999;" value="Inline (articles.py)&lt;br&gt;ArticleOut, ArticleDetailOut&lt;br&gt;PaginatedArticles, FailedTaskOut" vertex="1">
+          <mxGeometry x="540" y="455" width="110" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== Database Layer ==================== -->
+        <mxCell id="db-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="Database Layer (database.py)" vertex="1">
+          <mxGeometry x="720" y="430" width="540" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="db-engine" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=4;" value="SQLAlchemy Engine&lt;br&gt;PostgreSQL (DATABASE_URL)&lt;br&gt;SessionLocal + get_db() dependency" vertex="1">
+          <mxGeometry x="730" y="455" width="250" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="db-check" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=4;" value="check_db_connection()&lt;br&gt;SELECT 1 health check" vertex="1">
+          <mxGeometry x="990" y="455" width="250" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows: Routers -> Schemas / DB -->
+        <mxCell id="e-routers-schemas" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;exitX=0.3;exitY=1;entryX=0.5;entryY=0;" edge="1" source="routers-box" target="schemas-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-routers-db" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#666666;strokeWidth=2;exitX=0.7;exitY=1;entryX=0.5;entryY=0;" edge="1" source="routers-box" target="db-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ORM Models Layer ==================== -->
+        <mxCell id="models-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontStyle=1;fontSize=14;spacingTop=2;spacingLeft=4;" value="ORM Models (models/)" vertex="1">
+          <mxGeometry x="100" y="550" width="1160" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="m-topic" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="Topic&lt;br&gt;name, display_name&lt;br&gt;color, is_active" vertex="1">
+          <mxGeometry x="110" y="580" width="120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-article" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="Article&lt;br&gt;url, source, title&lt;br&gt;content, topic_id FK" vertex="1">
+          <mxGeometry x="240" y="580" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-analysis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="Analysis&lt;br&gt;article_id FK&lt;br&gt;pain_points, insights" vertex="1">
+          <mxGeometry x="380" y="580" width="120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-tag" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="Tag&lt;br&gt;name&lt;br&gt;tag_group_name" vertex="1">
+          <mxGeometry x="510" y="580" width="100" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-taggroup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="TagGroupDefinition&lt;br&gt;display_name, color&lt;br&gt;topic_id FK" vertex="1">
+          <mxGeometry x="620" y="580" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="User (auth schema)&lt;br&gt;email, role&lt;br&gt;hashed_password, google_id" vertex="1">
+          <mxGeometry x="760" y="580" width="140" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-setting" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="ScraperSetting&lt;br&gt;source_type, url&lt;br&gt;selector_config JSONB" vertex="1">
+          <mxGeometry x="910" y="580" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-keyword" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="ScraperKeyword&lt;br&gt;topic_id FK&lt;br&gt;keyword_type, keyword" vertex="1">
+          <mxGeometry x="1050" y="580" width="130" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="m-failed" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;align=left;spacingLeft=4;" value="FailedTask&lt;br&gt;article_id FK&lt;br&gt;exception, resolved" vertex="1">
+          <mxGeometry x="1190" y="580" width="60" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: DB -> Models -->
+        <mxCell id="e-db-models" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.7;entryY=0;" edge="1" source="db-box" target="models-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== Model Relationships ==================== -->
+        <!-- Topic -> Article (1:N) -->
+        <mxCell id="rel-topic-article" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;fontSize=9;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="m-topic" target="m-article">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-topic-article-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;align=center;" value="1:N" vertex="1">
+          <mxGeometry x="185" y="598" width="30" height="15" as="geometry" />
+        </mxCell>
+        <!-- Article -> Analysis (1:1) -->
+        <mxCell id="rel-article-analysis" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;fontSize=9;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="m-article" target="m-analysis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-article-analysis-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;align=center;" value="1:1" vertex="1">
+          <mxGeometry x="370" y="598" width="30" height="15" as="geometry" />
+        </mxCell>
+        <!-- Article <-> Tag (M:N via article_tags) -->
+        <mxCell id="rel-article-tag" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;dashed=1;fontSize=9;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="m-article" target="m-tag">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500" y="607" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel-article-tag-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;align=center;" value="M:N" vertex="1">
+          <mxGeometry x="500" y="572" width="30" height="15" as="geometry" />
+        </mxCell>
+        <!-- Tag -> TagGroupDefinition -->
+        <mxCell id="rel-tag-group" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;fontSize=9;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="m-tag" target="m-taggroup">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel-tag-group-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=8;align=center;" value="N:1" vertex="1">
+          <mxGeometry x="610" y="598" width="30" height="15" as="geometry" />
+        </mxCell>
+        <!-- Topic -> TagGroupDefinition (1:N) -->
+        <mxCell id="rel-topic-taggroup" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" source="m-topic" target="m-taggroup">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="660" />
+              <mxPoint x="685" y="660" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <!-- Topic -> ScraperSetting / ScraperKeyword -->
+        <mxCell id="rel-topic-setting" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;dashed=1;exitX=1;exitY=1;entryX=0;entryY=0.5;" edge="1" source="m-topic" target="m-setting">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="670" />
+              <mxPoint x="890" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rel-topic-keyword" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;strokeWidth=1;dashed=1;exitX=1;exitY=1;entryX=0;entryY=0.5;" edge="1" source="m-topic" target="m-keyword">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="680" />
+              <mxPoint x="1050" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== Env Vars & External Dependencies ==================== -->
+        <mxCell id="env-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=12;spacingTop=2;spacingLeft=4;" value="Environment Variables" vertex="1">
+          <mxGeometry x="20" y="80" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="env-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;align=left;spacingLeft=4;" value="DATABASE_URL - PostgreSQL&lt;br&gt;FRONTEND_ORIGIN - CORS&lt;br&gt;NEXTAUTH_SECRET - JWT&lt;br&gt;PORT - Uvicorn (8000)&lt;br&gt;MAXMIND_LICENSE_KEY - GeoIP" vertex="1">
+          <mxGeometry x="25" y="105" width="190" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ext-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=12;spacingTop=2;spacingLeft=4;" value="External Dependencies" vertex="1">
+          <mxGeometry x="20" y="230" width="200" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ext-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=10;align=left;spacingLeft=4;" value="FastAPI + Uvicorn&lt;br&gt;SQLAlchemy (ORM)&lt;br&gt;python-jose (JWT)&lt;br&gt;bcrypt (passwords)&lt;br&gt;structlog (logging)" vertex="1">
+          <mxGeometry x="25" y="255" width="190" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: env -> app -->
+        <mxCell id="e-env-app" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#d79b00;strokeWidth=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="env-box" target="app-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== API Endpoints Detail ==================== -->
+        <mxCell id="api-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=13;spacingTop=2;spacingLeft=4;" value="API Endpoints (30 total)" vertex="1">
+          <mxGeometry x="100" y="700" width="1160" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- Auth endpoints -->
+        <mxCell id="api-auth-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="auth.py (12)" vertex="1">
+          <mxGeometry x="110" y="725" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-auth-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="POST /auth/verify — credential login&lt;br&gt;POST /auth/register — register&lt;br&gt;POST /auth/google/authorize — Google auth&lt;br&gt;GET /auth/users 🔒admin — list users&lt;br&gt;POST /auth/users 🔒admin — create user&lt;br&gt;PATCH /auth/users/{id} 🔒admin — update user&lt;br&gt;DELETE /auth/users/{id} 🔒admin — delete user&lt;br&gt;GET /auth/me 🔒user — own profile&lt;br&gt;PATCH /auth/me 🔒user — update profile&lt;br&gt;POST /auth/me/password 🔒user — change pw&lt;br&gt;DELETE /auth/me 🔒user — delete account&lt;br&gt;POST/DELETE /auth/me/link-google 🔒user" vertex="1">
+          <mxGeometry x="110" y="745" width="220" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- Articles endpoints -->
+        <mxCell id="api-articles-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="articles.py (5)" vertex="1">
+          <mxGeometry x="340" y="725" width="90" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-articles-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="GET /articles — paginated list&lt;br&gt;&amp;nbsp;&amp;nbsp;(source, tag, date, topic_id filters)&lt;br&gt;GET /articles/filters/sources&lt;br&gt;GET /articles/filters/tags&lt;br&gt;GET /articles/{id} — detail&lt;br&gt;GET /failed-tasks — paginated" vertex="1">
+          <mxGeometry x="340" y="745" width="210" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Graph endpoints -->
+        <mxCell id="api-graph-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="graph.py (2)" vertex="1">
+          <mxGeometry x="340" y="845" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-graph-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="GET /analyses/graph — nodes+edges&lt;br&gt;GET /analyses/graph/group/{name}" vertex="1">
+          <mxGeometry x="340" y="865" width="210" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Topics endpoints -->
+        <mxCell id="api-topics-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="topics.py (4)" vertex="1">
+          <mxGeometry x="570" y="725" width="80" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-topics-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="GET /topics — list active&lt;br&gt;POST /topics 🔒admin — create&lt;br&gt;PATCH /topics/{id} 🔒admin — update&lt;br&gt;DELETE /topics/{id} 🔒admin — soft delete" vertex="1">
+          <mxGeometry x="570" y="745" width="210" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- Scraper Settings endpoints -->
+        <mxCell id="api-settings-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="scraper_settings.py (4)" vertex="1">
+          <mxGeometry x="800" y="725" width="150" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-settings-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="GET /scraper-settings 🔒admin — list&lt;br&gt;&amp;nbsp;&amp;nbsp;(with 14-day activity histogram)&lt;br&gt;POST /scraper-settings 🔒admin — create&lt;br&gt;PATCH /scraper-settings/{id} 🔒admin&lt;br&gt;DELETE /scraper-settings/{id} 🔒admin" vertex="1">
+          <mxGeometry x="800" y="745" width="230" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Scraper Keywords endpoints -->
+        <mxCell id="api-keywords-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontStyle=1;align=left;" value="scraper_keywords.py (3)" vertex="1">
+          <mxGeometry x="800" y="835" width="160" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="api-keywords-list" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=9;align=left;spacingLeft=4;fontColor=#333333;" value="GET /scraper-keywords 🔒admin&lt;br&gt;POST /scraper-keywords 🔒admin&lt;br&gt;DELETE /scraper-keywords/{id} 🔒admin" vertex="1">
+          <mxGeometry x="800" y="855" width="230" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#CCCCCC;verticalAlign=top;fontStyle=1;fontSize=11;spacingTop=2;spacingLeft=4;" value="Legend" vertex="1">
+          <mxGeometry x="1060" y="725" width="190" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-public" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="Public endpoint" vertex="1">
+          <mxGeometry x="1070" y="755" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" value="🔒 Admin only" vertex="1">
+          <mxGeometry x="1070" y="785" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="🔒 User (authenticated)" vertex="1">
+          <mxGeometry x="1070" y="815" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-mw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="Middleware" vertex="1">
+          <mxGeometry x="1070" y="845" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-model" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" value="ORM Model" vertex="1">
+          <mxGeometry x="1070" y="875" width="100" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

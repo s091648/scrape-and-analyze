@@ -10,11 +10,14 @@ logger = get_logger(__name__)
 
 
 class ArticleProcessedHandler:
+    """Analyzes a newly processed article and publishes the result event."""
+
     def __init__(self, use_case: AnalyzeArticleUseCase, event_bus: EventBus) -> None:
         self._use_case = use_case
         self._event_bus = event_bus
 
     def handle(self, event: ArticleProcessedEvent) -> None:
+        """Run LLM analysis on the article and emit success or failure event."""
         span = _otel_trace.get_current_span()
         span.set_attribute("article.id", str(event.article.id))
         span.set_attribute("article.url", event.article.url)

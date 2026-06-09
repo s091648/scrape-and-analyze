@@ -52,4 +52,12 @@ dev = [
     "responses",
     "httpx",
     "starlette",
+    "pylint>=3.0",
+    "graphviz>=0.20",
+]
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/conftest.py",
 ]

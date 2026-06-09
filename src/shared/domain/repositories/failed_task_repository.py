@@ -4,6 +4,7 @@ from src.modules.collection.domain.entities import FailedTask
 
 
 class FailedTaskRepository(ABC):
+    """Abstract repository interface for persisting FailedTask records."""
 
     @abstractmethod
     def save(self, task: FailedTask) -> None:

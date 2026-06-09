@@ -10,12 +10,14 @@ logger = get_logger(__name__)
 
 
 class GeminiProvider(BaseProvider):
+    """Google Gemini LLM provider implementing the BaseProvider interface."""
 
     def __init__(self, api_key: str, model: str) -> None:
         super().__init__(model=model)
         self._client = genai.Client(api_key=api_key)
 
     def _generate(self, content: str, prompt: str):
+        """Send a generate_content request to Gemini and return the raw response."""
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         try:
             response = self._client.models.generate_content(
@@ -30,6 +32,7 @@ class GeminiProvider(BaseProvider):
         return response
 
     def _call_api(self, content: str, prompt: str) -> dict:
+        """Call Gemini API, strip markdown fences, parse JSON, and attach token usage."""
         response = self._generate(content, prompt)
         text = response.text.strip()
         if text.startswith("```"):
@@ -44,6 +47,7 @@ class GeminiProvider(BaseProvider):
         return result
 
     def _call_api_raw(self, content: str, prompt: str) -> str:
+        """Call Gemini API and return raw text, returning empty string if blocked."""
         response = self._generate(content, prompt)
         if not response.candidates:
             return ""

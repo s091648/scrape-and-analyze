@@ -8,6 +8,7 @@ from src.modules.collection.domain.value_objects import SelectorConfig, ScraperK
 
 @dataclass
 class ScraperSetting:
+    """Configuration for a scraper source: URL, schedule interval, keywords, and selectors."""
     source: str
     source_type: str
     url: str

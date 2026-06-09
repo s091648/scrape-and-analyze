@@ -31,6 +31,7 @@ class ProcessScrapedArticleUseCase:
         self._arxiv_metadata_repo = arxiv_metadata_repo
 
     def execute(self, event: ArticleScrapedEvent) -> tuple[ArticleOutcome, Optional[Article]]:
+        """Deduplicate and persist the scraped article, returning the outcome and saved Article (or None on failure/duplicate)."""
         existing = self._dedup_service.find_existing(event.url)
 
         if existing is not None:
@@ -59,6 +60,7 @@ class ProcessScrapedArticleUseCase:
         return ArticleOutcome.NEW, saved
 
     def _build_article(self, event: ArticleScrapedEvent) -> Article:
+        """Construct an Article entity from an ArticleScrapedEvent."""
         return Article(
             url=event.url,
             url_hash=UrlHash.from_url(event.url).value,
@@ -72,6 +74,7 @@ class ProcessScrapedArticleUseCase:
         )
 
     def _save_arxiv_metadata(self, article: Article, metadata: dict) -> None:
+        """Persist ArxivMetadata for arxiv-sourced articles."""
         if self._arxiv_metadata_repo is None:
             return
         entity = ArxivMetadata(

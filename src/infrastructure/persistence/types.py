@@ -17,6 +17,7 @@ class SelectorConfigColumn(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
+        """Serialize a SelectorConfig model to a JSON dict for database storage."""
         if value is None:
             return None
         if isinstance(value, (RssConfig, BlogConfig, ArxivConfig)):
@@ -24,6 +25,7 @@ class SelectorConfigColumn(TypeDecorator):
         return value
 
     def process_result_value(self, value, dialect):
+        """Deserialize a JSON dict back to a typed SelectorConfig model."""
         if not value:
             return None
         if "type" in value:

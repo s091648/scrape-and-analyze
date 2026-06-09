@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 
 
 class BlogScraper(BaseScraper):
+    """Discovers and fetches articles from blog listing pages, respecting robots.txt."""
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class BlogScraper(BaseScraper):
         )
 
     def discover(self) -> List[ScrapeJob]:
+        """Fetch the blog listing page and extract links to individual articles."""
         try:
             response = get_default_client().get(self._base_url, timeout=30)
         except Exception as e:
@@ -59,6 +61,7 @@ class BlogScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch and parse a single blog article page into a ScrapedArticle."""
         try:
             response = get_default_client().get(job.url, timeout=30)
         except Exception as e:
@@ -80,11 +83,13 @@ class BlogScraper(BaseScraper):
         )
 
     def _extract_title(self, html: str) -> str:
+        """Extract the article title from HTML using the configured title selector."""
         soup = BeautifulSoup(html, "html.parser")
         tag = soup.select_one(self._selectors.get("title", "h1"))
         return tag.get_text(strip=True) if tag else ""
 
     def _extract_links(self, html: str) -> List[str]:
+        """Extract and deduplicate absolute links from the listing page HTML."""
         soup = BeautifulSoup(html, "html.parser")
         selector = self._selectors.get("links", "a")
         links = []
@@ -97,6 +102,7 @@ class BlogScraper(BaseScraper):
         return list(dict.fromkeys(links))
 
     def _can_fetch(self, url: str) -> bool:
+        """Check robots.txt permission for the given URL; returns True if allowed or unknown."""
         if not self._robots_loaded:
             self._load_robots()
         if self._robot_parser is None:
@@ -104,6 +110,7 @@ class BlogScraper(BaseScraper):
         return self._robot_parser.can_fetch("*", url)
 
     def _load_robots(self):
+        """Fetch and parse robots.txt for the base URL host."""
         self._robots_loaded = True
         parsed = urlparse(self._base_url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"

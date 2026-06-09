@@ -32,13 +32,16 @@ class HostQueueMap:
 
     @property
     def queues(self) -> List[Queue]:
+        """Return the list of per-host work queues."""
         return self._queues
 
     @property
     def semaphores(self) -> List[threading.BoundedSemaphore]:
+        """Return the list of per-host BoundedSemaphore(1) for mutual exclusion."""
         return self._semaphores
 
     @property
     def host_map(self) -> Dict[str, int]:
+        """Return a snapshot copy of the hostname-to-queue-index mapping."""
         with self._lock:
             return dict(self._map)

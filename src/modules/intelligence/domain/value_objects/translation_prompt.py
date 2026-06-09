@@ -67,6 +67,7 @@ class ArticleTranslationPrompt(BasePrompt):
 
     @property
     def content(self) -> str:
+        """Return the current prompt text content."""
         return self._content
 
     def render(
@@ -77,6 +78,7 @@ class ArticleTranslationPrompt(BasePrompt):
         insights: str,
         innovations: str,
     ) -> 'ArticleTranslationPrompt':
+        """Fill placeholders and return a new prompt with translated content fields."""
         lang_name = _LANGUAGE_NAMES.get(target_language, target_language)
         filled = self._content
         filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
@@ -95,9 +97,11 @@ class TagTranslationPrompt(BasePrompt):
 
     @property
     def content(self) -> str:
+        """Return the current prompt text content."""
         return self._content
 
     def render(self, target_language: str, tags: List[str]) -> 'TagTranslationPrompt':
+        """Fill placeholders and return a new prompt with the tag list."""
         lang_name = _LANGUAGE_NAMES.get(target_language, target_language)
         filled = self._content
         filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
@@ -113,9 +117,11 @@ class GroupTranslationPrompt(BasePrompt):
 
     @property
     def content(self) -> str:
+        """Return the current prompt text content."""
         return self._content
 
     def render(self, target_language: str, groups: List[str]) -> 'GroupTranslationPrompt':
+        """Fill placeholders and return a new prompt with the group list."""
         lang_name = _LANGUAGE_NAMES.get(target_language, target_language)
         filled = self._content
         filled = filled.replace("__TARGET_LANGUAGE__", lang_name)

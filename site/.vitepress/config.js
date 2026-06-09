@@ -12,6 +12,7 @@ export default defineConfig({
       { text: 'Codespaces', link: '/guide/codespaces' },
       { text: 'Constitution', link: '/constitution' },
       { text: 'Specs', link: '/specs/001-article-collection/spec' },
+      { text: 'Architecture', link: '/guide/architecture/uml' },
     ],
     sidebar: [
       {
@@ -20,6 +21,13 @@ export default defineConfig({
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
+        ],
+      },
+      {
+        text: 'Architecture',
+        items: [
+          { text: 'Pipeline', link: '/guide/architecture/uml' },
+          { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
         ],
       },
       {
@@ -60,6 +68,7 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/004-translation/spec' },
           { text: 'Plan', link: '/specs/004-translation/plan' },
           { text: 'Data Model', link: '/specs/004-translation/data-model' },
+          { text: 'Tasks', link: '/specs/004-translation/tasks' },
           { text: 'Contract: LLM Service Translate', link: '/specs/004-translation/contracts/llm-service-translate' },
           { text: 'Contract: Translation Repository', link: '/specs/004-translation/contracts/translation-repository' },
         ],
@@ -71,6 +80,7 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/005-tag-management/spec' },
           { text: 'Plan', link: '/specs/005-tag-management/plan' },
           { text: 'Data Model', link: '/specs/005-tag-management/data-model' },
+          { text: 'Tasks', link: '/specs/005-tag-management/tasks' },
           { text: 'Contract: API', link: '/specs/005-tag-management/contracts/api' },
         ],
       },
@@ -81,6 +91,7 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/006-observability/spec' },
           { text: 'Plan', link: '/specs/006-observability/plan' },
           { text: 'Data Model', link: '/specs/006-observability/data-model' },
+          { text: 'Tasks', link: '/specs/006-observability/tasks' },
           { text: 'Contract: Logging', link: '/specs/006-observability/contracts/logging-contract' },
         ],
       },
@@ -91,6 +102,7 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/007-scheduler/spec' },
           { text: 'Plan', link: '/specs/007-scheduler/plan' },
           { text: 'Data Model', link: '/specs/007-scheduler/data-model' },
+          { text: 'Tasks', link: '/specs/007-scheduler/tasks' },
           { text: 'Contract: Entry Point', link: '/specs/007-scheduler/contracts/entry-point-contract' },
         ],
       },

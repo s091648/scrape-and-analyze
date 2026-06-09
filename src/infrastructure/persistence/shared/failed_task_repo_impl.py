@@ -8,11 +8,13 @@ logger = get_logger(__name__)
 
 
 class SqlAlchemyFailedTaskRepository(FailedTaskRepository):
+    """SQLAlchemy implementation of the FailedTaskRepository interface."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def save(self, task: FailedTask) -> None:
+        """Persist a failed task record and commit immediately."""
         from models.failed_task import FailedTask as FailedTaskModel
 
         row = FailedTaskModel(

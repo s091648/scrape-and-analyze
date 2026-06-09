@@ -1,5 +1,31 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Users can now view the folder structure directly on cards for better navigation."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the overall user interface display for a more polished visual experience."
+      },
+      {
+        "type": "feat",
+        "description": "Updated the pipeline tab and documentation pages with improved layouts and content."
+      },
+      {
+        "type": "fix",
+        "description": "Resolved a database synchronization issue that occurred during system upgrades."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced new diagram prototypes to help visualize system workflows and architecture."
+      }
+    ]
+  },
+  {
     "version": "v1.0.1",
     "date": "2026-06-07",
     "changes": [
