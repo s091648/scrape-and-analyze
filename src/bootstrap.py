@@ -35,6 +35,7 @@ def build_llm_service(session):
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
 
     def _make_strategy(cfg):
+        """Instantiate a SlidingWindowStrategy or NoOpStrategy from a provider config dict."""
         s = cfg.get('strategy', {})
         if s.get('type') == 'sliding_window':
             return SlidingWindowStrategy(rpm=s['rpm'], tpm=s['tpm'], rpd=s['rpd'])
@@ -266,6 +267,7 @@ def build_collection_pipeline():
     # feature branch, replace this direct repo.save() with:
     #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
     def _on_discover_failed(task, exc) -> None:
+        """Record a discover-phase failure as a FailedTask and emit an OTel error span."""
         with _tracer.start_as_current_span("scraper.discover_failed") as span:
             span.set_attribute("task.type", "arxiv_discover")
             span.set_attribute("task.exception_type", type(exc).__name__)

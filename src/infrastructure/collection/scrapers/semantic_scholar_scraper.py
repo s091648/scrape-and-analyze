@@ -33,9 +33,8 @@ class SemanticScholarScraper(BaseScraper):
         self._pdf_parser = PdfParser() if fetch_pdf else None
 
     def discover(self) -> List[ScrapeJob]:
+        """Query the Semantic Scholar API and return ScrapeJobs for matching papers."""
         query = self._build_query()
-        if not query:
-            logger.info("semantic_scholar_no_keywords_skipping")
             return []
         try:
             entries = self._client.fetch_papers(
@@ -73,6 +72,7 @@ class SemanticScholarScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch article content, extracting PDF sections when available."""
         sections: dict = {}
         pdf_available = False
         pdf_url = job.metadata.get("open_access_pdf_url")

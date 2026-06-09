@@ -24,6 +24,7 @@ def _context_wrapper(fn, ctx: contextvars.Context):
     into the worker thread.  Python < 3.12 does NOT copy contextvars
     into ThreadPoolExecutor workers automatically."""
     def _run(*args, **kwargs):
+        """Execute fn inside the copied context for OTel span propagation."""
         return ctx.run(fn, *args, **kwargs)
     return _run
 
@@ -134,6 +135,7 @@ class ScrapeExecutor:
         pending_lock = threading.Lock()
 
         def _on_discover_complete():
+            """Decrement the pending discover counter after a discover finishes."""
             with pending_lock:
                 pending_discovers[0] -= 1
 
@@ -207,12 +209,14 @@ class ScrapeExecutor:
         pending_lock = threading.Lock()
 
         def _on_discover_complete():
+            """Decrement the pending discover counter after a discover finishes."""
             with pending_lock:
                 pending_discovers[0] -= 1
 
         all_fetch_tasks: List[FetchTask] = []
 
         def _route_and_collect(fetch_tasks: List[FetchTask]) -> None:
+            """Apply pre-fetch filter, collect fetch tasks, and route them into host queues."""
             if pre_fetch_filter is not None:
                 fetch_tasks = pre_fetch_filter(fetch_tasks)
             all_fetch_tasks.extend(fetch_tasks)
@@ -364,10 +368,12 @@ class ScrapeExecutor:
         host_queue_map: HostQueueMap,
         on_result: Callable[[ScrapedArticle], None],
     ) -> int:
+        """Spawn fetch worker threads and block until all tasks are processed."""
         done_flag: list[bool] = [False]
         total_fetched = 0
 
         def worker_loop(worker_id: int) -> int:
+            """Fetch worker: claim queues, execute FetchTasks, and collect results."""
             logger.info("worker_started", worker_id=worker_id)
             fetched = 0
 

@@ -95,6 +95,7 @@ class CollectionPipeline:
 
         # ── Discover phase ─────────────────────────────────────────────
         def _pre_fetch_filter(tasks):
+            """Filter out FetchTasks whose URLs have already been analyzed."""
             hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
             analyzed = self._article_repo.find_analyzed_url_hashes(set(hashes.keys()))
             if not analyzed:
@@ -121,6 +122,7 @@ class CollectionPipeline:
         results: List[ScrapedArticle] = []
 
         def on_result(article: ScrapedArticle) -> None:
+            """Collect a fetched article into the results list."""
             results.append(article)
 
         with tracer.start_as_current_span("pipeline.fetch") as fetch_span:

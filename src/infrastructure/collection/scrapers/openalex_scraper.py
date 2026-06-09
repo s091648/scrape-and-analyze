@@ -34,9 +34,8 @@ class OpenAlexScraper(BaseScraper):
         self._pdf_parser = PdfParser() if fetch_pdf else None
 
     def discover(self) -> List[ScrapeJob]:
+        """Query the OpenAlex API and return ScrapeJobs for matching works."""
         query = self._build_query()
-        if not query:
-            logger.info("openalex_no_keywords_skipping")
             return []
         try:
             entries = self._client.fetch_papers(
@@ -76,6 +75,7 @@ class OpenAlexScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch article content, extracting PDF sections when available."""
         sections: dict = {}
         pdf_available = False
         pdf_url = job.metadata.get("open_access_pdf_url")

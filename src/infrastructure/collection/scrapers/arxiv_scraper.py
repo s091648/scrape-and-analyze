@@ -36,6 +36,7 @@ class ArxivScraper(BaseScraper):
         self._pdf_parser = PdfParser() if fetch_pdf else None
 
     def discover(self) -> List[ScrapeJob]:
+        """Query the arXiv API and return ScrapeJobs for matching papers."""
         query = self._build_query()
         try:
             entries = self._client.fetch_entries(
@@ -67,6 +68,7 @@ class ArxivScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch article content, extracting PDF sections when available."""
         sections: dict = {}
         pdf_available = False
         pdf_url = job.metadata.get("pdf_url")

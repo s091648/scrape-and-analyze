@@ -38,6 +38,7 @@ class BlogScraper(BaseScraper):
         )
 
     def discover(self) -> List[ScrapeJob]:
+        """Fetch the blog listing page and extract links to individual articles."""
         try:
             response = get_default_client().get(self._base_url, timeout=30)
         except Exception as e:
@@ -60,6 +61,7 @@ class BlogScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
+        """Fetch and parse a single blog article page into a ScrapedArticle."""
         try:
             response = get_default_client().get(job.url, timeout=30)
         except Exception as e:
