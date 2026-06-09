@@ -1,9 +1,9 @@
 """Generate UML class diagram data from src/ using pyreverse.
 
 Outputs:
-  - site/guide/architecture/classes.dot  (raw Graphviz dot)
-  - site/guide/architecture/packages.dot  (package-level dot)
-  - site/guide/architecture/uml-data.json (structured data for Vue components)
+  - site/public/guide/architecture/classes.dot  (raw Graphviz dot)
+  - site/public/guide/architecture/packages.dot  (package-level dot)
+  - site/public/guide/architecture/uml-data.json (structured data for Vue components)
 """
 
 import ast
@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "src"
-OUTPUT_DIR = REPO_ROOT / "site" / "guide" / "architecture"
+OUTPUT_DIR = REPO_ROOT / "site" / "public" / "guide" / "architecture"
 
 # Layer classification based on pyreverse node ID prefixes.
 # pyreverse strips the src.modules.xxx prefix, so we match on what it actually outputs.
