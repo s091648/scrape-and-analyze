@@ -9,16 +9,19 @@ logger = get_logger(__name__)
 
 
 class SqlAlchemyArticleRepository(ArticleRepository):
+    """SQLAlchemy implementation of the ArticleRepository interface."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def find_by_url_hash(self, url_hash: str) -> Optional[Article]:
+        """Look up an article by its URL hash; returns None if not found."""
         from models.article import Article as ArticleModel
         row = self._session.query(ArticleModel).filter_by(url_hash=url_hash).first()
         return self._to_entity(row) if row else None
 
     def save(self, article: Article) -> Article:
+        """Persist a new article and return the entity with DB-generated fields."""
         from models.article import Article as ArticleModel
         row = ArticleModel(
             id=article.id,
@@ -39,10 +42,12 @@ class SqlAlchemyArticleRepository(ArticleRepository):
         return self._to_entity(row)
 
     def has_analysis(self, article_id: UUID) -> bool:
+        """Return True if the given article already has an associated analysis."""
         from models.analysis import Analysis
         return self._session.query(Analysis).filter_by(article_id=article_id).first() is not None
 
     def find_analyzed_url_hashes(self, url_hashes: Set[str]) -> Set[str]:
+        """Return the subset of url_hashes that already have an associated analysis."""
         if not url_hashes:
             return set()
         from models.article import Article as ArticleModel
@@ -57,6 +62,7 @@ class SqlAlchemyArticleRepository(ArticleRepository):
 
     @staticmethod
     def _to_entity(row) -> Article:
+        """Convert an ORM Article row to a domain Article entity."""
         return Article(
             id=row.id,
             url=row.url,

@@ -5,6 +5,7 @@ MAX_CONTENT_LENGTH = 50_000
 
 
 class SanitizeService:
+    """Strips unwanted HTML tags and converts HTML to clean plain text."""
     @staticmethod
     def sanitize_content(raw_html: Optional[str]) -> str:
         """Convert HTML to plain text and sanitize"""

@@ -16,6 +16,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         self._session = session
 
     def save_tag_translation(self, tag_id: UUID, language: str, name: str) -> None:
+        """Insert or update a tag's translated name for a given language."""
         from models.tag_translation import TagsTranslation as TagsTranslationModel
 
         existing = self._session.query(TagsTranslationModel).filter_by(
@@ -37,6 +38,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def find_tags_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
+        """Return tags that lack a translation row for the specified language."""
         from models.tag import Tag as TagModel
         from models.tag_translation import TagsTranslation as TagsTranslationModel
 
@@ -56,6 +58,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def save_group_translation(
         self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
     ) -> None:
+        """Insert or update a tag group's translated display name and description."""
         from models.tag_group_translation import TagGroupDefinitionsTranslation as TagGroupTranslationModel
 
         existing = self._session.query(TagGroupTranslationModel).filter_by(
@@ -83,6 +86,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def find_groups_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
+        """Return tag groups that lack a translation row for the specified language."""
         from models.tag_group import TagGroupDefinition as TagGroupDefinitionModel
         from models.tag_group_translation import TagGroupDefinitionsTranslation as TagGroupTranslationModel
 

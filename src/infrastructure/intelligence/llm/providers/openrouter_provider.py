@@ -11,12 +11,14 @@ _API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 class OpenRouterProvider(BaseProvider):
+    """OpenRouter LLM provider implementing the BaseProvider interface via chat completions API."""
 
     def __init__(self, api_key: str, model: str) -> None:
         super().__init__(model=model)
         self._api_key = api_key
 
     def _post(self, content: str, prompt: str) -> dict:
+        """POST to OpenRouter chat completions endpoint and return the JSON response dict."""
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         response = requests.post(
             _API_URL,
@@ -34,6 +36,7 @@ class OpenRouterProvider(BaseProvider):
         return response.json()
 
     def _call_api(self, content: str, prompt: str) -> dict:
+        """Call OpenRouter API, parse JSON from message content, attach token usage."""
         data = self._post(content, prompt)
         result = json.loads(data["choices"][0]["message"]["content"])
         usage = data.get("usage", {})
@@ -43,6 +46,7 @@ class OpenRouterProvider(BaseProvider):
         return result
 
     def _call_api_raw(self, content: str, prompt: str) -> str:
+        """Call OpenRouter API and return the raw message content text."""
         data = self._post(content, prompt)
         logger.info("openrouter_api_called_raw", model=self._model)
         return data["choices"][0]["message"]["content"]

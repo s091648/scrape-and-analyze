@@ -22,6 +22,7 @@ _RETRYABLE_STATUS = frozenset([429, 500, 502, 503, 504])
 
 
 def _is_retryable(exc: BaseException) -> bool:
+    """Determine if an HTTP exception is transient and worth retrying."""
     if isinstance(exc, requests.exceptions.HTTPError):
         if exc.response is None:
             return True
@@ -37,6 +38,7 @@ def _is_retryable(exc: BaseException) -> bool:
 
 
 def _compute_wait(retry_state: tenacity.RetryCallState) -> float:
+    """Compute exponential backoff wait with jitter; respects Retry-After for 429s."""
     exc = retry_state.outcome.exception()
     attempt = retry_state.attempt_number
 

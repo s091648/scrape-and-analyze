@@ -55,6 +55,7 @@ _UA_POOL: list[str] = [
 
 
 def _detect_platform(ua: str) -> str:
+    """Detect the OS platform from a User-Agent string."""
     if "Windows" in ua:
         return "Windows"
     if "Macintosh" in ua or "Mac OS X" in ua:
@@ -70,6 +71,7 @@ def _chrome_version(ua: str) -> str | None:
 
 
 def _edge_version(ua: str) -> str | None:
+    """Extract major version from Edge UA string."""
     import re
     m = re.search(r"Edg/(\d+)", ua)
     return m.group(1) if m else None

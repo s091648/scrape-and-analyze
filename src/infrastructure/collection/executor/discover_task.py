@@ -26,6 +26,7 @@ class DiscoverTask:
     host: str
 
     def execute(self) -> List[FetchTask]:
+        """Run scraper.discover() and return the resulting FetchTask list; empty list on failure."""
         try:
             jobs = self.scraper.discover()
         except ArxivRateLimitedError:

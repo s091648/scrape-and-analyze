@@ -51,12 +51,14 @@ class BaseEmbeddingProvider(EmbeddingService, ABC):
         ...
 
     def embed(self, text: str) -> List[float]:
+        """Embed a single text string and return its vector."""
         for attempt in self._retry:
             with attempt:
                 result = self._call_embed([text])
         return result[0]
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Embed a list of texts in chunks, with retry per chunk."""
         results: List[List[float]] = []
         for i in range(0, len(texts), _BATCH_SIZE):
             chunk = texts[i : i + _BATCH_SIZE]

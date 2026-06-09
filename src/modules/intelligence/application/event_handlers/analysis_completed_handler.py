@@ -31,6 +31,7 @@ class AnalysisCompletedHandler:
         self._target_languages = target_languages or ["zh-TW"]
 
     def handle(self, event: TagNormalizationCompletedEvent) -> None:
+        """Translate article analysis and tags for each configured target language."""
         span = _otel_trace.get_current_span()
         span.set_attribute("analysis.id", str(event.analysis_id))
         span.set_attribute("article.id", str(event.article_id))

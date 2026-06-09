@@ -29,6 +29,7 @@ class FetchTask:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def execute(self) -> Optional[ScrapedArticle]:
+        """Fetch full article content for this job via the scraper; None on failure."""
         try:
             return self.scraper.fetch(self.job)
         except Exception as e:

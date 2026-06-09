@@ -18,6 +18,8 @@ logger = get_logger(__name__)
 
 
 class AnalyzeArticleUseCase:
+    """Orchestrates LLM analysis of an article including prompt rendering and persistence."""
+
     def __init__(
         self,
         llm_service: LLMService,
@@ -35,6 +37,7 @@ class AnalyzeArticleUseCase:
         self._embedding_service = embedding_service
 
     def execute(self, article: Article) -> AnalysisResult:
+        """Analyze the article via LLM, persist the result, and return an AnalysisResult."""
         content = article.get_analysis_content()
         topic_display_name: Optional[str] = None
         if article.topic_id is not None:

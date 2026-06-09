@@ -5,6 +5,7 @@ from uuid import UUID
 
 @dataclass(frozen=True)
 class TagNormalizationFailedEvent:
+    """Published when tag normalization fails during post-analysis processing."""
     analysis_id: UUID
     article_id: UUID
     task_type: str = "tag_normalization"

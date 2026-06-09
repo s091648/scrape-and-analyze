@@ -11,6 +11,8 @@ logger = get_logger(__name__)
 
 
 class ArticleScrapedHandler:
+    """Handles ArticleScrapedEvent by delegating to ProcessScrapedArticleUseCase, recording stats, and publishing follow-up events."""
+
     def __init__(
         self,
         use_case: ProcessScrapedArticleUseCase,
@@ -22,6 +24,7 @@ class ArticleScrapedHandler:
         self._event_bus = event_bus
 
     def handle(self, event: ArticleScrapedEvent) -> bool:
+        """Process a scraped article event: dedup, persist, record outcome stats, and publish ArticleProcessedEvent on success."""
         span = _otel_trace.get_current_span()
         span.set_attribute("article.url", event.url)
         span.set_attribute("article.source", event.source)

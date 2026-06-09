@@ -33,12 +33,14 @@ _shutdown_requested = False
 
 
 def signal_handler(signum, frame):
+    """Sets the shutdown flag when SIGTERM or SIGINT is received."""
     global _shutdown_requested
     logger.warning("shutdown_signal_received", signal=signum)
     _shutdown_requested = True
 
 
 def check_timeout(start_time: float) -> bool:
+    """Returns True if execution has exceeded the 50-minute hard timeout."""
     elapsed = time.time() - start_time
     if elapsed >= MAX_EXECUTION_TIME:
         logger.warning("execution_timeout_reached", elapsed_seconds=elapsed)
@@ -48,6 +50,7 @@ def check_timeout(start_time: float) -> bool:
 
 
 def main() -> None:
+    """Entry point: wires dependencies, applies startup jitter, runs the scrape pipeline, and flushes telemetry."""
     from opentelemetry import trace as otel_trace
     from src.infrastructure.shared.observability import get_tracer, shutdown_tracing
     from src.bootstrap import build_collection_pipeline

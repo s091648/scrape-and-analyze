@@ -31,6 +31,7 @@ _DEFAULT_KEYWORDS = [
 
 
 class RssScraper(BaseScraper):
+    """Discovers and fetches articles from RSS/Atom feeds with keyword filtering."""
 
     def __init__(
         self,
@@ -92,6 +93,7 @@ class RssScraper(BaseScraper):
         )
 
     def _matches(self, text: str) -> bool:
+        """Return True if text matches any configured keyword pattern (or no filter is set)."""
         if self._keyword_pattern is None:
             return True
         return bool(text and self._keyword_pattern.search(text))

@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 
 def _extract_host(url: str) -> str:
+    """Return the network location (host) from a URL, falling back to the raw string."""
     try:
         netloc = urlparse(url).netloc
         return netloc if netloc else url
@@ -26,6 +27,7 @@ def _extract_host(url: str) -> str:
 
 
 class CollectionPipeline:
+    """Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources."""
     def __init__(
         self,
         setting_repo: ScraperSettingRepository,
@@ -43,6 +45,7 @@ class CollectionPipeline:
         self._article_repo = article_repo
 
     def run(self) -> int:
+        """Execute the full pipeline for all due sources and return the number of articles published."""
         tracer = get_tracer()
         start = time.time()
         due_settings = self._setting_repo.get_active_due()

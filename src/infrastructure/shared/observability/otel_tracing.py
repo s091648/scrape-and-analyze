@@ -13,6 +13,7 @@ import os
 
 
 def _setup_tracing():
+    """Initialize OTel tracing with Grafana Cloud OTLP exporter if env vars are present."""
     user = os.environ.get("GRAFANA_OTLP_USER", "").strip()
     api_key = os.environ.get("GRAFANA_API_KEY", "").strip()
     endpoint = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()

@@ -6,6 +6,7 @@ from src.shared.domain.entities import Topic
 
 
 class TopicRepository(ABC):
+    """Abstract repository interface for Topic lookup queries."""
 
     @abstractmethod
     def list_active(self) -> List[Topic]:

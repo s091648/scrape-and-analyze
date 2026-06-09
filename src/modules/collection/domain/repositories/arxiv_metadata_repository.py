@@ -6,6 +6,7 @@ from src.modules.collection.domain.entities import ArxivMetadata
 
 
 class ArxivMetadataRepository(ABC):
+    """Abstract repository for persisting and querying ArxivMetadata entities."""
 
     @abstractmethod
     def save(self, meta: ArxivMetadata) -> ArxivMetadata:

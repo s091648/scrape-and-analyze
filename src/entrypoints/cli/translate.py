@@ -34,6 +34,7 @@ SUPPORTED_LANGUAGES = LANGUAGE_NAMES
 
 
 def main():
+    """CLI entry point: translates article analyses and tags to a target language."""
     parser = argparse.ArgumentParser(description="Translate article analyses")
     parser.add_argument(
         "--language",

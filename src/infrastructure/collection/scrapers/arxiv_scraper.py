@@ -12,6 +12,7 @@ logger = get_logger(__name__)
 
 
 class ArxivScraper(BaseScraper):
+    """Discovers and fetches academic papers from the arXiv Export API."""
 
     def __init__(
         self,
@@ -98,6 +99,7 @@ class ArxivScraper(BaseScraper):
         )
 
     def _build_query(self) -> str:
+        """Construct the arXiv search query from keywords and categories."""
         if self._keywords:
             kw_clause = " OR ".join(self._keywords)
         else:

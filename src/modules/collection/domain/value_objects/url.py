@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class UrlHash:
+    """Immutable SHA-256 hash of a URL, used for deduplication across the pipeline."""
     value: str
 
     def __post_init__(self) -> None:

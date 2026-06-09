@@ -24,6 +24,7 @@ class ProviderHandler:
         content: str,
         prompt: str,
     ) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
+        """Acquire quota, delegate to the provider's analyze, and record actual token usage."""
         self.strategy.acquire(estimated_tokens=len(content) // 4)
         result = self.provider.analyze(content, prompt)
         if result is not None:
@@ -36,6 +37,7 @@ class ProviderHandler:
         content: str,
         prompt: str,
     ) -> Optional[str]:
+        """Acquire quota, delegate to the provider's translate, and record estimated token usage."""
         self.strategy.acquire(estimated_tokens=len(content) // 4)
         result = self.provider.translate(content, prompt)
         if result is not None:
@@ -61,6 +63,7 @@ class ResilientLLMService(LLMService):
         content: str,
         prompt: str,
     ) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
+        """Try each provider handler in priority order, falling back on rate-limit or failure."""
 
         handlers_snapshot = list(self._handlers)
 
@@ -105,6 +108,7 @@ class ResilientLLMService(LLMService):
         content: str,
         prompt: str,
     ) -> Optional[str]:
+        """Try each provider handler in priority order for translation, falling back on failure."""
 
         handlers_snapshot = list(self._handlers)
 
@@ -158,6 +162,7 @@ class EmbeddingProviderHandler:
     _can_count_tokens: bool = True
 
     def embed(self, text: str) -> List[float]:
+        """Acquire quota, call provider embed, and record actual token usage."""
         self.strategy.update_batch_size(1)
         self.strategy.acquire(max(1, len(text) // 4))
         if self._can_count_tokens:
@@ -175,6 +180,7 @@ class EmbeddingProviderHandler:
         return result
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Acquire quota for a batch, call provider embed_batch, and record token usage."""
         estimated = max(1, sum(len(t) for t in texts) // 4)
         self.strategy.update_batch_size(len(texts))
         self.strategy.acquire(estimated)
@@ -202,6 +208,7 @@ class ResilientEmbeddingService(EmbeddingService):
         self._handlers = sorted(handlers, key=lambda h: h.priority)
 
     def embed(self, text: str) -> Optional[List[float]]:
+        """Try each embedding handler in priority order, falling back on rate-limit or failure."""
 
         handlers_snapshot = list(self._handlers)
 
@@ -245,6 +252,7 @@ class ResilientEmbeddingService(EmbeddingService):
         self,
         texts: List[str],
     ) -> Optional[List[List[float]]]:
+        """Try each embedding handler in priority order for batch embed, falling back on failure."""
 
         handlers_snapshot = list(self._handlers)
 

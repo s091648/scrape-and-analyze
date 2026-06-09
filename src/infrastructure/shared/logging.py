@@ -22,18 +22,22 @@ _topic_id_var: ContextVar[str] = ContextVar("topic_id", default="")
 
 
 def bind_correlation_id(correlation_id: str) -> None:
+    """Set the correlation ID context variable for structured log enrichment."""
     _correlation_id_var.set(correlation_id)
 
 
 def get_correlation_id() -> str:
+    """Retrieve the current correlation ID from the context variable."""
     return _correlation_id_var.get()
 
 
 def bind_topic_id(topic_id: str) -> None:
+    """Set the topic ID context variable for structured log enrichment."""
     _topic_id_var.set(topic_id)
 
 
 def _add_correlation_id(logger: Any, method_name: str, event_dict: dict) -> dict:
+    """Structlog processor that injects the current correlation ID into log events."""
     corr_id = _correlation_id_var.get()
     if corr_id:
         event_dict["correlation_id"] = corr_id
@@ -41,6 +45,7 @@ def _add_correlation_id(logger: Any, method_name: str, event_dict: dict) -> dict
 
 
 def _add_topic_id(logger: Any, method_name: str, event_dict: dict) -> dict:
+    """Structlog processor that injects the current topic ID into log events."""
     tid = _topic_id_var.get()
     if tid:
         event_dict["topic_id"] = tid
@@ -48,6 +53,7 @@ def _add_topic_id(logger: Any, method_name: str, event_dict: dict) -> dict:
 
 
 def _add_otel_context(logger: Any, method_name: str, event_dict: dict) -> dict:
+    """Structlog processor that injects the current OTel trace_id and span_id into log events."""
     try:
         from opentelemetry import trace as _otel_trace
         ctx = _otel_trace.get_current_span().get_span_context()

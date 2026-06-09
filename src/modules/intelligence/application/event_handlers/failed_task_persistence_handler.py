@@ -13,11 +13,13 @@ logger = get_logger(__name__)
 
 
 class FailedTaskPersistenceHandler:
+    """Persists any FailedEvent as a FailedTask record with OTel error span."""
 
     def __init__(self, failed_task_repository: FailedTaskRepository) -> None:
         self._repo = failed_task_repository
 
     def handle(self, event: FailedEvent) -> None:
+        """Extract failure details from the event and persist a FailedTask."""
         span = _otel_trace.get_current_span()
         span.set_attribute("task.type", getattr(event, "task_type", "unknown"))
         exception_type = getattr(event, "exception_type", "unknown") or "unknown"

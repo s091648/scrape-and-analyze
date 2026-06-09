@@ -9,12 +9,14 @@ logger = get_logger(__name__)
 
 
 class ClaudeProvider(BaseProvider):
+    """Anthropic Claude LLM provider implementing the BaseProvider interface."""
 
     def __init__(self, api_key: str, model: str) -> None:
         super().__init__(model=model)
         self._client = anthropic.Anthropic(api_key=api_key)
 
     def _create_message(self, content: str, prompt: str):
+        """Send a message to the Claude API and return the raw response object."""
         full_prompt = f"{prompt}\n\n<article>\n{content}\n</article>"
         return self._client.messages.create(
             model=self._model,
@@ -23,6 +25,7 @@ class ClaudeProvider(BaseProvider):
         )
 
     def _call_api(self, content: str, prompt: str) -> dict:
+        """Call Claude API, parse JSON response, and attach token usage metadata."""
         response = self._create_message(content, prompt)
         result = json.loads(response.content[0].text)
         result["_input_tokens"] = response.usage.input_tokens
@@ -33,6 +36,7 @@ class ClaudeProvider(BaseProvider):
         return result
 
     def _call_api_raw(self, content: str, prompt: str) -> str:
+        """Call Claude API and return the raw text response without JSON parsing."""
         response = self._create_message(content, prompt)
         logger.info("claude_api_called_raw", model=self._model)
         return response.content[0].text

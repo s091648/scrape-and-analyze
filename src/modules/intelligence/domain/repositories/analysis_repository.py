@@ -7,6 +7,7 @@ from src.modules.intelligence.domain.entities import Analysis
 
 
 class AnalysisRepository(ABC):
+    """Abstract repository interface for Analysis entity persistence."""
 
     @abstractmethod
     def save(self, analysis: Analysis) -> None:

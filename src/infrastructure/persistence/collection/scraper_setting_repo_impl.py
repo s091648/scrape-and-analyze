@@ -15,11 +15,13 @@ _TOLERANCE_MINUTES = 30
 
 
 class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
+    """SQLAlchemy implementation of the ScraperSettingRepository interface."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def get_active_due(self) -> List[ScraperSetting]:
+        """Return all active scraper settings whose frequency interval has elapsed."""
         from models.scraper_setting import ScraperSetting as ScraperSettingModel
         from sqlalchemy import or_, func
 
@@ -44,6 +46,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
         return [self._to_entity(row) for row in rows]
 
     def mark_scraped(self, setting_id: UUID) -> None:
+        """Set last_scraped_at to now and commit for the given scraper setting."""
         from models.scraper_setting import ScraperSetting as ScraperSettingModel
         from datetime import datetime, timezone
 
@@ -57,6 +60,7 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
                 raise
 
     def _to_entity(self, row) -> ScraperSetting:
+        """Convert an ORM ScraperSetting row to a domain ScraperSetting entity."""
         # prompt_override lives on the related Topic, not on ScraperSetting itself.
         # Resolve it here to keep the entity self-contained.
         prompt_override: Optional[str] = None

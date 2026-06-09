@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 def _extract(items, vo_type, attr: str) -> list | None:
-    """Return a list of `attr` values for keyword_items matching vo_type, or None if empty."""
+    """Extract attribute values from items matching a value-object type; None if empty."""
     if not items:
         return None
     result = [getattr(k, attr) for k in items if isinstance(k, vo_type)]
@@ -42,6 +42,7 @@ class ConcreteScraperFactory(ScraperFactory):
         self._http_client = http_client
 
     def create_for(self, setting: ScraperSetting, days_back: int = None) -> BaseScraper:
+        """Instantiate the correct BaseScraper subclass for the given ScraperSetting."""
         cfg = setting.selector_config
 
         if isinstance(cfg, RssConfig):

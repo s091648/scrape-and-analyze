@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 
 
 class SemanticScholarScraper(BaseScraper):
+    """Discovers and fetches academic papers from the Semantic Scholar Graph API."""
 
     def __init__(
         self,
@@ -109,6 +110,7 @@ class SemanticScholarScraper(BaseScraper):
         )
 
     def _build_query(self) -> str:
+        """Build the search query string from configured keywords."""
         if not self._keywords:
             return ""
         return " ".join(self._keywords)

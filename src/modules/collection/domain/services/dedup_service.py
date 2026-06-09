@@ -16,6 +16,7 @@ from src.modules.collection.domain.value_objects import UrlHash
 
 
 class DedupService:
+    """URL deduplication service that checks whether an article has already been scraped or analyzed."""
 
     def __init__(self, article_repo: ArticleRepository) -> None:
         self._repo = article_repo

@@ -13,6 +13,7 @@ from src.shared.domain.entities import Article
 
 
 class ArticleRepository(ABC):
+    """Abstract repository interface for Article persistence operations."""
 
     @abstractmethod
     def find_by_url_hash(self, url_hash: str) -> Optional[Article]:

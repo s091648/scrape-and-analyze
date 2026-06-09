@@ -8,6 +8,7 @@ _ARXIV_MAX_ANALYSIS_CHARS = 15_000
 
 @dataclass
 class Article:
+    """Domain entity representing a scraped article with URL, content, and metadata."""
     url: str
     url_hash: str
     source: str

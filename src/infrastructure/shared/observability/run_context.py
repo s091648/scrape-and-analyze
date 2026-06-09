@@ -17,4 +17,5 @@ def init_run_context() -> tuple[str, str]:
 
 
 def get_run_id() -> str | None:
+    """Retrieve the current scraper run ID from the context variable."""
     return _run_id_var.get()

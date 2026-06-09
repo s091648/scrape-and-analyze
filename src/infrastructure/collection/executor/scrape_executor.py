@@ -589,6 +589,7 @@ class ScrapeExecutor:
     # ── Shared helpers ──────────────────────────────────────────────────
 
     def _try_claim(self, host_queue_map: HostQueueMap) -> Optional[int]:
+        """Attempt to acquire a non-empty queue's semaphore; returns queue index or None."""
         for idx in self._selector.select(host_queue_map.queues):
             if host_queue_map.semaphores[idx].acquire(blocking=False):
                 if not host_queue_map.queues[idx].empty():

@@ -30,6 +30,7 @@ class ArxivRateLimitedError(Exception):
 
 @dataclass
 class ArxivEntry:
+    """Parsed representation of a single arXiv paper entry from the Atom feed."""
     arxiv_id: str
     url: str
     pdf_url: str
@@ -135,6 +136,7 @@ class ArxivClient:
     # ── private ───────────────────────────────────────────────────────────
 
     def _parse_entry(self, elem) -> Optional[ArxivEntry]:
+        """Parse a single Atom <entry> element into an ArxivEntry, or None on failure."""
         id_elem = elem.find(f"{ATOM_NS}id")
         title_elem = elem.find(f"{ATOM_NS}title")
         summary_elem = elem.find(f"{ATOM_NS}summary")

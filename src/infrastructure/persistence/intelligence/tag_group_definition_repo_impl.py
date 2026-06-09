@@ -11,11 +11,14 @@ logger = get_logger(__name__)
 
 
 class SqlAlchemyTagGroupDefinitionRepository(TagGroupDefinitionRepository):
+    """SQLAlchemy implementation of TagGroupDefinitionRepository for tag group CRUD."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def find_by_topic_id(self, topic_id: UUID) -> List[TagGroupDefinitionData]:
+        """Return all tag group definitions for a given topic, ordered by sort_order."""
+        from models.tag_group import TagGroupDefinition
         from models.tag_group import TagGroupDefinition
 
         rows = (
@@ -41,6 +44,7 @@ class SqlAlchemyTagGroupDefinitionRepository(TagGroupDefinitionRepository):
         description: Optional[str] = None,
         embedding: Optional[List[float]] = None,
     ) -> None:
+        """Insert a new tag group or update its embedding if it already exists."""
         from models.tag_group import TagGroupDefinition
         from sqlalchemy import text
 

@@ -10,15 +10,18 @@ logger = get_logger(__name__)
 
 
 def _esc(s: str) -> str:
+    """Escape MarkdownV2 special characters in a string."""
     return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', s)
 
 
 class TelegramNotifier(BaseNotifier):
+    """Sends pipeline completion summaries to a Telegram chat via the Bot API."""
     def __init__(self, token: str, chat_id: str) -> None:
         self._token = token
         self._chat_id = chat_id
 
     def notify(self, event: PipelineCompletedEvent) -> None:
+        """Format and send the pipeline result as a MarkdownV2 Telegram message."""
         text = self._format_message(event)
         response = requests.post(
             f"https://api.telegram.org/bot{self._token}/sendMessage",
@@ -34,6 +37,7 @@ class TelegramNotifier(BaseNotifier):
         response.raise_for_status()
 
     def _format_message(self, event: PipelineCompletedEvent) -> str:
+        """Build a MarkdownV2-formatted summary table from pipeline completion stats."""
         results = event.stats
         duration = event.duration_seconds
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

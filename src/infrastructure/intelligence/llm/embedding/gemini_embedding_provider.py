@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 
 
 class GeminiEmbeddingProvider(BaseEmbeddingProvider):
+    """Google Gemini embedding provider with configurable output dimensionality."""
 
     def __init__(
         self,
@@ -23,6 +24,7 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         self._client = genai.Client(api_key=api_key)
 
     def _call_embed(self, texts: List[str]) -> List[List[float]]:
+        """Call Gemini embed_content API and return vectors for each text."""
         try:
             response = self._client.models.embed_content(
                 model=self._model,
@@ -38,6 +40,7 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         return [list(e.values) for e in response.embeddings]
 
     def count_tokens(self, text: str) -> int:
+        """Count tokens for a text using the Gemini count_tokens API."""
         token_count_response = self._client.models.count_tokens(
             model=self._model,
             contents=[text],
