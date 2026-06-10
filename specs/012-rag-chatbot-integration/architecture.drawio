@@ -1,0 +1,156 @@
+<mxfile host="app.diagrams.net" modified="2026-06-10" agent="Claude" version="21.0.0">
+  <diagram name="RAG Integration Architecture" id="rag-arch">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ========== SCRAPER PIPELINE ========== -->
+        <mxCell id="pipe_bg" value="🔄 Scraper Pipeline (src/)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="30" y="40" width="460" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="fetch" value="Full-text Fetch&#xa;(PDF / Blog / RSS)" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="pipe_bg">
+          <mxGeometry x="20" y="45" width="170" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="vhandler" value="VectorizeHandler (NEW)&#xa;Infrastructure layer&#xa;subscribes: ArticleFullTextFetchedEvent" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="pipe_bg">
+          <mxGeometry x="260" y="40" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pipe_arrow" value="ArticleFullTextFetchedEvent (new)" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="fetch" target="vhandler" parent="pipe_bg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========== PYTHON RAG SDK ========== -->
+        <mxCell id="sdk_bg" value="📦 Python RAG SDK  —  Proposed Interface" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="30" y="220" width="700" height="290" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sdk_cfg" value="configure(db_url, embedding_model, collection)" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="sdk_bg">
+          <mxGeometry x="20" y="45" width="350" height="35" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sdk_ing_bg" value="Ingestion API" style="swimlane;startSize=25;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="sdk_bg">
+          <mxGeometry x="20" y="95" width="310" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_chunk" value="chunk(text, metadata, strategy?) → List[Chunk]" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_ing_bg">
+          <mxGeometry x="10" y="28" width="290" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_embed" value="embed(chunks) → List[EmbeddedChunk]" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_ing_bg">
+          <mxGeometry x="10" y="55" width="290" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_save" value="save(chunks) → List[str]   ← idempotent" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_ing_bg">
+          <mxGeometry x="10" y="82" width="290" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_delete" value="delete(document_id) → int   ← removed count" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_ing_bg">
+          <mxGeometry x="10" y="108" width="290" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_ingest" value="ingest(text, metadata) → List[str]   ← convenience" style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="sdk_ing_bg">
+          <mxGeometry x="10" y="148" width="290" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="sdk_qry_bg" value="Query API" style="swimlane;startSize=25;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="sdk_bg">
+          <mxGeometry x="360" y="95" width="320" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_search" value="search(query, top_k?, filter?) → List[SearchResult]" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_qry_bg">
+          <mxGeometry x="10" y="28" width="300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_generate" value="generate(query, context, history?) → GenerateResponse" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="sdk_qry_bg">
+          <mxGeometry x="10" y="60" width="300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_rag_query" value="rag_query(question, history?, filter?) → RAGResponse" style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="sdk_qry_bg">
+          <mxGeometry x="10" y="102" width="300" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="sdk_shortcut_note" value="← convenience shortcut (search + generate)" style="text;html=1;fontSize=10;fontStyle=2;align=left;fontColor=#666666;" vertex="1" parent="sdk_qry_bg">
+          <mxGeometry x="10" y="128" width="300" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ========== POSTGRESQL ========== -->
+        <mxCell id="pg_bg" value="PostgreSQL — vectors schema (NEW)" style="swimlane;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="30" y="560" width="460" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="pg_table" value="article_chunks&#xa;────────────────────────&#xa;id            uuid  PK&#xa;article_id    uuid  FK → articles.id&#xa;chunk_index   int&#xa;content       text&#xa;embedding     vector(1536)&#xa;source_url    text&#xa;created_at    timestamptz&#xa;────────────────────────&#xa;UNIQUE(article_id, chunk_index)&#xa;INDEX ivfflat ON embedding" style="rounded=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="pg_bg">
+          <mxGeometry x="20" y="45" width="420" height="135" as="geometry" />
+        </mxCell>
+
+        <!-- ========== REDIS ========== -->
+        <mxCell id="redis_bg" value="Redis — Rate Limiting" style="swimlane;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="560" y="560" width="370" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="redis_keys" value="rate:guest:{cookie_uuid}:{YYYY-MM-DD}   TTL 86400s&#xa;rate:user:{user_id}:{YYYY-MM-DD}       TTL 86400s&#xa;────────────────────────────────────&#xa;Ops: INCR / GET / EXPIRE" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="redis_bg">
+          <mxGeometry x="20" y="42" width="330" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- ========== BACKEND ========== -->
+        <mxCell id="be_bg" value="⚙️ Backend Chat Service (FastAPI Router)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="780" y="220" width="580" height="330" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be_ep1" value="POST /chat/query   →  SSE Stream&#xa;────────────────────────────────────&#xa;Request body:&#xa;  question:   string&#xa;  session_id: string&#xa;  history:    Message[]&#xa;  topic_id?:  string | null&#xa;────────────────────────────────────&#xa;SSE event types:&#xa;  { type: &quot;delta&quot;,  text: string }&#xa;  { type: &quot;source&quot;, url, title }&#xa;  { type: &quot;done&quot;,   usage: {tokens} }&#xa;  { type: &quot;error&quot;,  message: string }" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="be_bg">
+          <mxGeometry x="20" y="45" width="320" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be_ep23" value="GET  /chat/session/{id}/history&#xa;DELETE /chat/session/{id}" style="rounded=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="be_bg">
+          <mxGeometry x="20" y="250" width="320" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be_rl" value="Rate Limiter (Redis)&#xa;────────────────────────&#xa;guest  →  __rag_gid cookie UUID  →  3 RPD&#xa;user   →  user_id                →  50 RPD&#xa;admin  →  bypass                 →  unlimited&#xa;────────────────────────&#xa;Cookie: HttpOnly, SameSite=Lax&#xa;Max-Age: 31536000 (1 year)&#xa;Fallback: hash(IP + User-Agent)" style="rounded=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="be_bg">
+          <mxGeometry x="360" y="45" width="200" height="215" as="geometry" />
+        </mxCell>
+
+        <!-- ========== FRONTEND ========== -->
+        <mxCell id="fe_bg" value="🖥️ Frontend React Package (npm)" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="780" y="40" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe_iqa" value="InlineQABar&#xa;──────────────────────&#xa;apiUrl: string&#xa;sessionId: string&#xa;authToken?: string | null&#xa;topicId?: string | null&#xa;lang?: string&#xa;placeholder?: string&#xa;──────────────────────&#xa;onAnswer?(msg: ChatMessage): void&#xa;onError?(err: Error): void" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="fe_bg">
+          <mxGeometry x="20" y="40" width="240" height="105" as="geometry" />
+        </mxCell>
+
+        <mxCell id="fe_fcb" value="FloatingChatbot&#xa;──────────────────────&#xa;apiUrl: string&#xa;sessionId: string&#xa;authToken?: string | null&#xa;topicId?: string | null&#xa;theme?: &apos;light&apos; | &apos;dark&apos;&#xa;initialOpen?: boolean&#xa;position?: bottom-right | bottom-left&#xa;──────────────────────&#xa;onOpen?(): void&#xa;onClose?(): void" style="rounded=1;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="fe_bg">
+          <mxGeometry x="310" y="40" width="250" height="105" as="geometry" />
+        </mxCell>
+
+        <!-- ========== PROXY ========== -->
+        <mxCell id="proxy" value="Next.js API Proxy&#xa;/api/proxy/[...path]" style="rounded=1;whiteSpace=wrap;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="870" y="580" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ========== ARROWS ========== -->
+        <!-- Pipeline → SDK (ingest) -->
+        <mxCell id="a1" value="ingest(fulltext, {article_id, url, topic_id})" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;exitX=0.5;exitY=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="vhandler" target="sdk_ing_bg" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Backend → SDK (rag_query) -->
+        <mxCell id="a2" value="rag_query(question, history, {topic_id})" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="be_ep1" target="sdk_qry_bg" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SDK Ingestion → PG -->
+        <mxCell id="a3" value="write vectors" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="sdk_ing_bg" target="pg_table" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SDK Query → PG -->
+        <mxCell id="a4" value="cosine search" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="sdk_qry_bg" target="pg_table" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Rate Limiter → Redis -->
+        <mxCell id="a5" value="INCR / GET / EXPIRE" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="be_rl" target="redis_bg" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend → Proxy -->
+        <mxCell id="a6" value="SSE stream via apiUrl" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="fe_bg" target="proxy" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Proxy → Backend -->
+        <mxCell id="a7" value="POST /chat/query" style="edgeStyle=orthogonalEdgeStyle;fontSize=10;" edge="1" source="proxy" target="be_ep1" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -166,5 +166,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/011-semantic-scholar-scraper/plan.md`.
+at `specs/012-rag-chatbot-integration/plan.md`.
 <!-- SPECKIT END -->
