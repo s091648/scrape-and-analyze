@@ -5,31 +5,27 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Implemented locale support and added translations for titles and content abstracts."
+        "description": "Added support for localized content and language settings across the application page."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced translation support for titles, abstracts, and content sections."
+      },
+      {
+        "type": "feat",
+        "description": "Enabled the display of folder structures directly on information cards."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the visual design and layout of the user interface."
+      },
+      {
+        "type": "feat",
+        "description": "Updated and refined the pipeline information tab for better clarity."
       },
       {
         "type": "fix",
-        "description": "Fixed an issue where certain tabs were displaying with an incorrect transparent background."
-      },
-      {
-        "type": "feat",
-        "description": "Added a folder structure visualization to item cards and updated provider location displays."
-      },
-      {
-        "type": "feat",
-        "description": "Improved general user interface components and display layouts for a better user experience."
-      },
-      {
-        "type": "feat",
-        "description": "Refined the pipeline visualization page and updated navigation tabs."
-      },
-      {
-        "type": "fix",
-        "description": "Resolved a database synchronization conflict occurring during system upgrades."
-      },
-      {
-        "type": "feat",
-        "description": "Introduced automatically generated system architecture diagrams and technical prototypes."
+        "description": "Fixed a display issue where certain navigation tabs appeared with a transparent background."
       }
     ]
   },
