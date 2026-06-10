@@ -47,7 +47,17 @@ class TagNormalizationHandler:
                 analysis_id=str(event.analysis_id),
                 article_id=str(event.article_id),
             )
-            article_title, article_content = self._fetch_article_body(event.article_id)
+            try:
+                article_title, article_content = self._fetch_article_body(event.article_id)
+            except Exception as e:
+                logger.error("article_body_fetch_failed", article_id=str(event.article_id), error=str(e))
+                self._event_bus.publish(TagNormalizationFailedEvent(
+                    analysis_id=event.analysis_id,
+                    article_id=event.article_id,
+                    exception_type=type(e).__name__,
+                    exception_message=str(e),
+                ))
+                return
             self._event_bus.publish(TagNormalizationCompletedEvent(
                 analysis_id=event.analysis_id,
                 article_id=event.article_id,
@@ -67,12 +77,12 @@ class TagNormalizationHandler:
             ))
 
     def _fetch_article_body(self, article_id) -> tuple[str, str]:
-        """Fetch article title and content from the database."""
-        try:
-            from models.article import Article
-            row = self._session.query(Article).filter_by(id=article_id).first()
-            if row:
-                return row.title or "", row.content or ""
-        except Exception as e:
-            logger.warning("article_body_fetch_failed", article_id=str(article_id), error=str(e))
+        """Fetch article title and content from the database.
+
+        Raises on DB failure so the caller can publish a TagNormalizationFailedEvent.
+        """
+        from models.article import Article
+        row = self._session.query(Article).filter_by(id=article_id).first()
+        if row:
+            return row.title or "", row.content or ""
         return "", ""

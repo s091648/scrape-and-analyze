@@ -66,6 +66,15 @@ class TranslateArticleBodyUseCase:
 
         translated_title, translated_content = ArticleBodyTranslationPrompt.parse_response(translated_text)
 
+        if translated_title is None and translated_content is None:
+            logger.error("article_body_translation_parse_failed", article_id=str(article_id), language=target_language)
+            return ArticleBodyTranslationResult(
+                article_id=article_id,
+                language=target_language,
+                content=ArticleBodyTranslationContent(title=None, content=None),
+                success=False,
+            )
+
         try:
             self._translation_repository.save(
                 article_id=article_id,
