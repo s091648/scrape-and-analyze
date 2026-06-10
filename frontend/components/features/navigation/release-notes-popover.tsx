@@ -109,7 +109,7 @@ export function ReleaseNotesPopover() {
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="relative text-muted-foreground hover:text-foreground transition-colors duration-200"
+                className="relative text-muted-foreground hover:text-foreground transition-colors duration-200 cursor-pointer"
                 aria-label="Release notes"
               >
                 <ScrollText className="h-5 w-5" />

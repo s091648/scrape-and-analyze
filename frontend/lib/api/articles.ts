@@ -10,6 +10,8 @@ export interface Article {
   published_at: string | null
   scraped_at: string | null
   url: string
+  translated_title?: string | null
+  translated_content?: string | null
 }
 
 export interface TagGroup {
@@ -26,6 +28,8 @@ export interface ArticleDetail extends Article {
   insights: string | null
   innovations: string | null
   model_used: string | null
+  translated_title?: string | null
+  translated_content?: string | null
 }
 
 export interface ArticleListParams {

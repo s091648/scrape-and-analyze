@@ -5,23 +5,27 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Users can now view the folder structure directly on cards for better navigation."
+        "description": "Added support for localized content and language settings across the application page."
       },
       {
         "type": "feat",
-        "description": "Enhanced the overall user interface display for a more polished visual experience."
+        "description": "Introduced translation support for titles, abstracts, and content sections."
       },
       {
         "type": "feat",
-        "description": "Updated the pipeline tab and documentation pages with improved layouts and content."
+        "description": "Enabled the display of folder structures directly on information cards."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the visual design and layout of the user interface."
+      },
+      {
+        "type": "feat",
+        "description": "Updated and refined the pipeline information tab for better clarity."
       },
       {
         "type": "fix",
-        "description": "Resolved a database synchronization issue that occurred during system upgrades."
-      },
-      {
-        "type": "feat",
-        "description": "Introduced new diagram prototypes to help visualize system workflows and architecture."
+        "description": "Fixed a display issue where certain navigation tabs appeared with a transparent background."
       }
     ]
   },

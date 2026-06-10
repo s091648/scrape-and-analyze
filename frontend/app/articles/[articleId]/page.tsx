@@ -77,9 +77,9 @@ export default function ArticleSharePage() {
       {!loading && article && (
         <ArticleCard
           id={article.id}
-          title={article.title}
+          title={article.translated_title ?? article.title}
           source={article.source}
-          content={article.content}
+          content={article.translated_content ?? article.content}
           published_at={article.published_at}
           scraped_at={article.scraped_at}
           url={article.url}

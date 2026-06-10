@@ -108,6 +108,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence.article_translation_repo_impl import SqlAlchemyArticleTranslationRepository
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
@@ -149,6 +150,7 @@ def build_collection_pipeline():
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
     tag_repo = SqlAlchemyTagRepository(session=session)
     tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=session)
+    article_translation_repo = SqlAlchemyArticleTranslationRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -187,6 +189,12 @@ def build_collection_pipeline():
         tag_translation_repository=tag_translation_repo,
         tag_prompt=prompt_factory.tag_translation_prompt(),
         group_prompt=prompt_factory.group_translation_prompt(),
+    )
+    from src.modules.intelligence.application.use_cases.translate_article_body import TranslateArticleBodyUseCase
+    translate_body_uc = TranslateArticleBodyUseCase(
+        llm_service=llm_service,
+        translation_repository=article_translation_repo,
+        prompt=prompt_factory.article_body_translation_prompt(),
     )
 
     # ── Normalize Tags Use Case ────────────────────────────────────────────
@@ -235,6 +243,7 @@ def build_collection_pipeline():
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,
         event_bus=event_bus,
+        session=session,
     )
     event_bus.subscribe(AnalysisCompletedEvent, with_span_deferred(
         SpanName.TAG_NORMALIZATION_HANDLE, tag_normalization_handler.handle, event_bus, _tracer))
@@ -242,6 +251,7 @@ def build_collection_pipeline():
     analysis_completed_handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
+        translate_body_uc=translate_body_uc,
         analyses_translation_repo=analyses_translation_repo,
         event_bus=event_bus,
         target_languages=TRANSLATION_LANGUAGES,
@@ -318,7 +328,9 @@ def build_translation_pipeline():
     回傳翻譯相關服務，可用於定時翻譯任務。
     """
     from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
+    from src.infrastructure.persistence.intelligence.article_translation_repo_impl import SqlAlchemyArticleTranslationRepository
     from src.modules.intelligence.application.use_cases import TranslateArticleUseCase, TranslateTagsUseCase
+    from src.modules.intelligence.application.use_cases.translate_article_body import TranslateArticleBodyUseCase
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
@@ -328,6 +340,7 @@ def build_translation_pipeline():
     # ── Repositories ───────────────────────────────────────────────────────
     analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
+    article_translation_repo = SqlAlchemyArticleTranslationRepository(session=session)
 
     # ── LLM Service ────────────────────────────────────────────────────────
     llm_service, _, _provider_names = build_llm_service(session)
@@ -347,12 +360,19 @@ def build_translation_pipeline():
         tag_prompt=prompt_factory.tag_translation_prompt(),
         group_prompt=prompt_factory.group_translation_prompt(),
     )
+    translate_body_uc = TranslateArticleBodyUseCase(
+        llm_service=llm_service,
+        translation_repository=article_translation_repo,
+        prompt=prompt_factory.article_body_translation_prompt(),
+    )
 
     logger.info("translation_bootstrap_complete")
     return {
         "use_case": translate_article_uc,
         "tag_use_case": translate_tags_uc,
+        "body_use_case": translate_body_uc,
         "session": session,
         "analyses_translation_repository": analyses_translation_repo,
         "tag_translation_repository": tag_translation_repo,
+        "article_translation_repository": article_translation_repo,
     }

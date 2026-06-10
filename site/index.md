@@ -27,7 +27,7 @@ features:
     details: 'LLM analysis capability — AnalyzeArticleUseCase + ResilientLLMService + SlidingWindowStrategy'
     link: '/specs/003-llm-analysis/spec'
   - title: '004 · Translation'
-    details: 'Brownfield spec — describes existing behavior of the translation capability as it currently stands.'
+    details: 'Partially brownfield — existing analysis/tag/group translation described as-is; article title and content translation are new greenfield requirements.'
     link: '/specs/004-translation/spec'
   - title: '005 · Tag Management'
     details: 'Brownfield spec — describes existing behavior of the tag management capability as it currently stands.'

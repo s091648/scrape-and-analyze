@@ -108,7 +108,7 @@ def _wire_pipeline(db_session, llm_service, embedding_service=None):
             embedding_service=embedding_service,
             tag_repository=tag_repo,
         )
-        tag_norm_handler = TagNormalizationHandler(use_case=normalize_uc, event_bus=event_bus)
+        tag_norm_handler = TagNormalizationHandler(use_case=normalize_uc, event_bus=event_bus, session=db_session)
         event_bus.subscribe(AnalysisCompletedEvent, tag_norm_handler.handle)
 
     return scraped_handler

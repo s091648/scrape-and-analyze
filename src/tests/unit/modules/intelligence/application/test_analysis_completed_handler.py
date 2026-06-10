@@ -1,7 +1,7 @@
 """
 Unit tests for AnalysisCompletedHandler — covers auto-translation after
 tag normalization, English content prerequisite, failure event publishing,
-and tag/group translation error swallowing.
+article body translation, and tag/group translation error swallowing.
 """
 import uuid
 from unittest.mock import MagicMock, call, patch
@@ -16,12 +16,18 @@ from src.modules.intelligence.application.events import (
     TranslationFailedEvent,
 )
 from src.modules.intelligence.domain.value_objects import AnalysesTranslationResult, AnalysesTranslationContent
+from src.modules.intelligence.domain.value_objects.analyses_translation_content import (
+    ArticleBodyTranslationContent,
+    ArticleBodyTranslationResult,
+)
 
 
-def _event():
+def _event(article_title="Test Title", article_content="Test content body."):
     return TagNormalizationCompletedEvent(
         analysis_id=uuid.uuid4(),
         article_id=uuid.uuid4(),
+        article_title=article_title,
+        article_content=article_content,
     )
 
 
@@ -37,32 +43,56 @@ def _en_content():
     )
 
 
+def _analysis_success(event, lang="zh-TW"):
+    return AnalysesTranslationResult(
+        analysis_id=event.analysis_id, language=lang,
+        content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
+        success=True,
+    )
+
+
+def _body_success(event, lang="zh-TW"):
+    return ArticleBodyTranslationResult(
+        article_id=event.article_id, language=lang,
+        content=ArticleBodyTranslationContent(title="已翻譯標題", content="已翻譯內容"),
+        success=True,
+    )
+
+
+def _body_failure(event, lang="zh-TW"):
+    return ArticleBodyTranslationResult(
+        article_id=event.article_id, language=lang,
+        content=ArticleBodyTranslationContent(title=None, content=None),
+        success=False,
+    )
+
+
 def _handler(target_languages=None):
     translate_article_uc = MagicMock()
     translate_tags_uc = MagicMock()
+    translate_body_uc = MagicMock()
     analyses_translation_repo = MagicMock()
     event_bus = MagicMock()
-    return AnalysisCompletedHandler(
+    handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
+        translate_body_uc=translate_body_uc,
         analyses_translation_repo=analyses_translation_repo,
         event_bus=event_bus,
         target_languages=target_languages or ["zh-TW"],
-    ), translate_article_uc, translate_tags_uc, analyses_translation_repo, event_bus
+    )
+    return handler, translate_article_uc, translate_tags_uc, translate_body_uc, analyses_translation_repo, event_bus
 
 
 # ── Calls translate_article_uc for each target language ─────────────────────
 
 def test_calls_translate_for_each_language():
-    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
-    article_uc.execute.return_value = AnalysesTranslationResult(
-        analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
-        success=True,
-    )
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
 
     handler.handle(event)
 
@@ -71,23 +101,29 @@ def test_calls_translate_for_each_language():
     assert call_langs == ["zh-TW", "ja"]
 
 
-# ── Skips translation when English content missing ───────────────────────────
+# ── Skips analysis translation when English content missing, but body still runs
 
-def test_skips_translation_when_no_english_content():
-    handler, article_uc, tags_uc, repo, bus = _handler()
+def test_skips_analysis_translation_when_no_english_content_but_body_still_runs():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
+    body_uc.execute.return_value = _body_success(event)
 
     handler.handle(event)
 
     article_uc.execute.assert_not_called()
-    bus.publish.assert_not_called()
+    body_uc.execute.assert_called_once_with(
+        article_id=event.article_id,
+        title=event.article_title,
+        content=event.article_content,
+        target_language="zh-TW",
+    )
 
 
 # ── Publishes TranslationFailedEvent when article translation fails ─────────
 
 def test_publishes_failed_event_when_translation_returns_failure():
-    handler, article_uc, tags_uc, repo, bus = _handler()
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
@@ -96,44 +132,43 @@ def test_publishes_failed_event_when_translation_returns_failure():
         content=AnalysesTranslationContent(summary=None, pain_points=None, insights=None, innovations=None),
         success=False,
     )
+    body_uc.execute.return_value = _body_success(event)
 
     handler.handle(event)
 
-    published = bus.publish.call_args[0][0]
-    assert isinstance(published, TranslationFailedEvent)
-    assert published.task_type == "translate_article"
-    assert published.analysis_id == event.analysis_id
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
+    assert any(e.task_type == "translate_article" for e in failed_events)
+    assert any(e.analysis_id == event.analysis_id for e in failed_events)
 
 
 # ── Publishes TranslationFailedEvent when article translation throws ────────
 
 def test_publishes_failed_event_when_translation_throws_exception():
-    handler, article_uc, tags_uc, repo, bus = _handler()
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
     article_uc.execute.side_effect = RuntimeError("provider crashed")
+    body_uc.execute.return_value = _body_success(event)
 
     handler.handle(event)
 
-    published = bus.publish.call_args[0][0]
-    assert isinstance(published, TranslationFailedEvent)
-    assert published.exception_type == "RuntimeError"
-    assert "provider crashed" in published.exception_message
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
+    assert any(e.exception_type == "RuntimeError" for e in failed_events)
+    assert any("provider crashed" in e.exception_message for e in failed_events)
 
 
 # ── Calls translate_tags and translate_groups for each language ─────────────
 
 def test_calls_translate_tags_and_groups_for_each_language():
-    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW"])
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
-    article_uc.execute.return_value = AnalysesTranslationResult(
-        analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
-        success=True,
-    )
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
 
     handler.handle(event)
 
@@ -144,49 +179,116 @@ def test_calls_translate_tags_and_groups_for_each_language():
 # ── Swallows tag/group translation exceptions ───────────────────────────────
 
 def test_swallows_tag_translation_exceptions():
-    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW"])
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
-    article_uc.execute.return_value = AnalysesTranslationResult(
-        analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
-        success=True,
-    )
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
     tags_uc.translate_tags.side_effect = RuntimeError("tag LLM failed")
     tags_uc.translate_groups.return_value = {"total": 0, "success": 0, "failed": 0}
 
-    # Should not raise
-    handler.handle(event)
+    handler.handle(event)  # Should not raise
 
     tags_uc.translate_groups.assert_called_once()
 
 
 def test_swallows_group_translation_exceptions():
-    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW"])
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
+    event = _event()
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
+    tags_uc.translate_tags.return_value = {"total": 0, "success": 0, "failed": 0}
+    tags_uc.translate_groups.side_effect = RuntimeError("group LLM failed")
+
+    handler.handle(event)  # Should not raise
+
+    tags_uc.translate_tags.assert_called_once()
+
+
+# ── T035: translate_body_uc called per language ──────────────────────────────
+
+def test_calls_translate_body_for_each_language():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
+    event = _event(article_title="My Title", article_content="My Content")
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
+
+    handler.handle(event)
+
+    assert body_uc.execute.call_count == 2
+    call_langs = [c.kwargs["target_language"] for c in body_uc.execute.call_args_list]
+    assert call_langs == ["zh-TW", "ja"]
+    for c in body_uc.execute.call_args_list:
+        assert c.kwargs["article_id"] == event.article_id
+        assert c.kwargs["title"] == "My Title"
+        assert c.kwargs["content"] == "My Content"
+
+
+# ── T036: missing English content — body translation still runs ──────────────
+
+def test_missing_english_content_still_calls_body_translation():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
+    event = _event()
+    repo.find_by_analysis_id_and_language.return_value = None
+    body_uc.execute.return_value = _body_success(event)
+
+    handler.handle(event)
+
+    article_uc.execute.assert_not_called()
+    body_uc.execute.assert_called_once()
+
+
+# ── T037: TranslationFailedEvent with task_type="translate_article" ──────────
+
+def test_publishes_translate_article_failed_event_with_correct_task_type():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
     article_uc.execute.return_value = AnalysesTranslationResult(
         analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
-        success=True,
+        content=AnalysesTranslationContent(summary=None, pain_points=None, insights=None, innovations=None),
+        success=False,
     )
-    tags_uc.translate_tags.return_value = {"total": 0, "success": 0, "failed": 0}
-    tags_uc.translate_groups.side_effect = RuntimeError("group LLM failed")
+    body_uc.execute.return_value = _body_success(event)
 
-    # Should not raise
     handler.handle(event)
 
-    tags_uc.translate_tags.assert_called_once()
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    failed = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
+    assert any(e.task_type == "translate_article" for e in failed)
+
+
+# ── T038: TranslationFailedEvent with task_type="translate_article_body" ─────
+
+def test_publishes_translate_article_body_failed_event_with_correct_task_type():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
+    event = _event()
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_failure(event)
+
+    handler.handle(event)
+
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    failed = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
+    assert any(e.task_type == "translate_article_body" for e in failed)
+    assert any(e.article_id == event.article_id for e in failed)
 
 
 # ── Span attribute tests ──────────────────────────────────────────────────────
 
 def test_span_records_analysis_and_article_ids():
-    handler, article_uc, tags_uc, repo, bus = _handler()
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
-    repo.find_by_analysis_id_and_language.return_value = None  # skip translation
+    repo.find_by_analysis_id_and_language.return_value = None
+    body_uc.execute.return_value = _body_success(event)
     mock_span = MagicMock()
 
     with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
@@ -197,9 +299,10 @@ def test_span_records_analysis_and_article_ids():
 
 
 def test_span_records_target_languages():
-    handler, article_uc, tags_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
+    body_uc.execute.return_value = _body_success(event)
     mock_span = MagicMock()
 
     with patch("opentelemetry.trace.get_current_span", return_value=mock_span):

@@ -1,4 +1,4 @@
-# Contract: AnalysesTranslationRepository + TagTranslationRepository
+# Contract: AnalysesTranslationRepository + TagTranslationRepository + ArticleTranslationRepository
 
 **Feature**: 004-translation | **Date**: 2026-05-29
 
@@ -60,3 +60,34 @@ class TagTranslationRepository(ABC):
 - Both `save_*` methods are idempotent upserts.
 - `find_tags_without_translation()` uses `~Tag.translations.any(language == target)` filter.
 - `find_groups_without_translation()` uses `~TagGroupDefinition.translations.any(language == target)` filter.
+
+---
+
+## ArticleTranslationRepository (Domain Interface)
+
+```python
+class ArticleTranslationRepository(ABC):
+    @abstractmethod
+    def save(self, article_id: UUID, language: str, title: str, content: Optional[str]) -> None:
+        """Upsert: update if (article_id, language) exists, insert otherwise."""
+
+    @abstractmethod
+    def find_by_article_id_and_language(self, article_id: UUID, language: str) -> Optional[ArticleTranslationContent]:
+        """Return the translation for a specific article and language, or None."""
+
+    @abstractmethod
+    def exists(self, article_id: UUID, language: str) -> bool:
+        """Return True if a translation exists for (article_id, language)."""
+
+    @abstractmethod
+    def find_articles_without_translation(self, language: str, limit: int) -> list:
+        """Return articles that have no translation row for the given language,
+        up to `limit` results. Each element includes article_id, title, and content."""
+```
+
+### Behavioral Guarantees
+
+- `save()` is idempotent — calling it twice with the same `(article_id, language)` does not create duplicates.
+- `exists()` is a lightweight check (COUNT query) — does not fetch content.
+- `find_articles_without_translation()` excludes articles that already have a translation in the target language. Returns original English title and content as source for the translation call.
+- `find_by_article_id_and_language()` returns `None` when no translation exists (not an error).

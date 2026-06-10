@@ -15,7 +15,8 @@ def _make_handler():
     )
     uc = MagicMock()
     bus = MagicMock()
-    return TagNormalizationHandler(use_case=uc, event_bus=bus), uc, bus
+    session = MagicMock()
+    return TagNormalizationHandler(use_case=uc, event_bus=bus, session=session), uc, bus
 
 
 def _make_event(tag_groups=(("digital_twin", ["virtual replica"]),)):

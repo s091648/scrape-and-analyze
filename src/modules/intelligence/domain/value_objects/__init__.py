@@ -10,6 +10,8 @@ from .translation_prompt import (
     LANGUAGE_NAMES,
 )
 from .analyses_translation_content import AnalysesTranslationContent, AnalysesTranslationResult
+from .analyses_translation_content import ArticleBodyTranslationContent, ArticleBodyTranslationResult
+from .translation_prompt import ArticleBodyTranslationPrompt
 
 
 __all__ = [
@@ -21,7 +23,10 @@ __all__ = [
     "ArticleTranslationPrompt",
     "TagTranslationPrompt",
     "GroupTranslationPrompt",
+    "ArticleBodyTranslationPrompt",
     "LANGUAGE_NAMES",
     "AnalysesTranslationContent",
     "AnalysesTranslationResult",
+    "ArticleBodyTranslationContent",
+    "ArticleBodyTranslationResult",
 ]

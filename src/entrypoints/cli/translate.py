@@ -70,6 +70,8 @@ def main():
     translation_repo = pipeline["analyses_translation_repository"]
     tag_translate_use_case = pipeline.get("tag_use_case")
     tag_translation_repo = pipeline.get("tag_translation_repository")
+    body_translate_use_case = pipeline.get("body_use_case")
+    article_translation_repo = pipeline.get("article_translation_repository")
 
     # ── 取得需要翻譯的 analyses ────────────────────────────────────────────
     analyses = translation_repo.find_analyses_without_translation(args.language, args.limit)
@@ -116,6 +118,31 @@ def main():
             failed=failed_count
         )
         print(f"Article translation complete: {success_count}/{len(analyses)} successful")
+
+    # ── 翻譯 article body (title + content) ───────────────────────────────
+    if body_translate_use_case and article_translation_repo:
+        articles_to_translate = article_translation_repo.find_articles_without_translation(
+            args.language, args.limit
+        )
+        logger.info("body_translations_to_process", count=len(articles_to_translate), language=args.language)
+
+        if not articles_to_translate:
+            print(f"No articles need body translation to {args.language}")
+        else:
+            body_success = 0
+            body_failed = 0
+            for article_data in articles_to_translate:
+                result = body_translate_use_case.execute(
+                    article_id=article_data["article_id"],
+                    title=article_data["title"] or "",
+                    content=article_data["content"] or "",
+                    target_language=args.language,
+                )
+                if result.success:
+                    body_success += 1
+                else:
+                    body_failed += 1
+            print(f"Body translation complete: {body_success}/{len(articles_to_translate)} successful")
 
     # ── 翻譯 tags & tag groups ─────────────────────────────────────────────
     if tag_translate_use_case and tag_translation_repo:

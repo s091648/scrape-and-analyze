@@ -53,8 +53,17 @@ def list_articles(
         scraped_before=scraped_before,
         topic_id=topic_id,
     )
+    trans_map: dict = {}
+    if lang != "en" and items:
+        from models.article_translation import ArticleTranslation
+        article_ids = [item.id for item in items]
+        translations = db.query(ArticleTranslation).filter(
+            ArticleTranslation.article_id.in_(article_ids),
+            ArticleTranslation.language == lang,
+        ).all()
+        trans_map = {t.article_id: t for t in translations}
     return PaginatedArticles(
-        items=[build_article_out(item) for item in items],
+        items=[build_article_out(item, trans_map.get(item.id)) for item in items],
         total=total,
         page=page,
         size=size,
@@ -122,6 +131,18 @@ def get_article(
     tag_groups_data = get_tag_groups_for_article(db, article_id, lang=lang)
     flat_tags = [t for grp in tag_groups_data for t in grp["tags"]]
 
+    translated_title = None
+    translated_content = None
+    if lang != "en":
+        from models.article_translation import ArticleTranslation
+        body_translation = db.query(ArticleTranslation).filter(
+            ArticleTranslation.article_id == article_id,
+            ArticleTranslation.language == lang,
+        ).first()
+        if body_translation:
+            translated_title = body_translation.title
+            translated_content = body_translation.content
+
     meta = article.metadata_ or {}
     return ArticleDetailOut(
         id=article.id,
@@ -139,4 +160,6 @@ def get_article(
         insights=insights,
         innovations=innovations,
         model_used=analysis.model_used if analysis else None,
+        translated_title=translated_title,
+        translated_content=translated_content,
     )

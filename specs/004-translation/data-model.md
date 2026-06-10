@@ -69,6 +69,28 @@ Translation of a tag group display name and description in a specific language.
 
 ---
 
+### ArticleTranslation (ORM Model)
+
+Translation of an article's title and content in a specific language.
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK, auto-generated | |
+| article_id | UUID | FK → articles.id, NOT NULL | Parent article |
+| language | VARCHAR(10) | NOT NULL | Target language code (e.g., "zh-TW") |
+| title | TEXT | NOT NULL | Translated article title |
+| content | TEXT | nullable | Translated article content (abstract/body) |
+| created_at | DATETIME | NOT NULL | |
+| updated_at | DATETIME | NOT NULL | |
+
+**Unique constraint**: `(article_id, language)` — one translation per article per language.
+
+**Indexes**: `article_id`, `language`.
+
+**Relationships**: Many-to-one with `Article` (CASCADE delete).
+
+---
+
 ## Value Objects
 
 ### AnalysesTranslationContent
@@ -93,11 +115,32 @@ Result of a translation attempt.
 | content | AnalysesTranslationContent | |
 | success | bool | False when LLM fails or save fails |
 
+### ArticleBodyTranslationContent
+
+Content-only value object for article title and content translation result (no IDs or language).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| title | Optional[str] | Translated title |
+| content | Optional[str] | Translated content |
+
+### ArticleBodyTranslationResult
+
+Result of an article body translation attempt.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| article_id | UUID | |
+| language | str | |
+| content | ArticleBodyTranslationContent | |
+| success | bool | False when LLM fails or save fails |
+
 ### Translation Prompt Value Objects
 
 | Prompt Class | Placeholders | Render Method |
 |--------------|-------------|---------------|
 | ArticleTranslationPrompt | `__TARGET_LANGUAGE__`, `__SUMMARY__`, `__PAIN_POINTS__`, `__INSIGHTS__`, `__INNOVATIONS__` | `render(target_language, summary, pain_points, insights, innovations)` |
+| ArticleBodyTranslationPrompt | `__TARGET_LANGUAGE__`, `__TITLE__`, `__CONTENT__` | `render(target_language, title, content)` |
 | TagTranslationPrompt | `__TARGET_LANGUAGE__`, `__TAGS__` | `render(target_language, tags)` |
 | GroupTranslationPrompt | `__TARGET_LANGUAGE__`, `__GROUPS__` | `render(target_language, groups)` |
 
@@ -115,9 +158,25 @@ Result of a translation attempt.
 
 ---
 
+## Events
+
+### TagNormalizationCompletedEvent (extended)
+
+The pipeline trigger event that kicks off all translation. Extended to carry article fields so the translation handler does not need an additional query.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| analysis_id | UUID | |
+| article_id | UUID | |
+| article_title | str | Original English article title |
+| article_content | str | Original English article content (abstract/body) |
+| topic_id | Optional[UUID] | |
+
+---
+
 ## State Transitions
 
-### Translation Lifecycle (per analysis, per language)
+### Translation Lifecycle (per analysis or article, per language)
 
 ```
 Not translated → [LLM call] → Translated (success)
