@@ -1,7 +1,7 @@
 # Research: RAG 智慧問答整合
 
 **Date**: 2026-06-10
-**Status**: Phase 0 完成，外部介面待 SDK/Package 開發者確認
+**Status**: Phase 0 完成，RAG SDK 介面已確認；Frontend component 介面待確認
 
 ---
 
@@ -27,7 +27,7 @@ CREATE TABLE vectors.article_chunks (
   article_id  UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
   chunk_index INT NOT NULL,
   content     TEXT NOT NULL,
-  embedding   VECTOR(1536),   -- 維度依 embedding model 決定，預設 1536 (OpenAI/Gemini)
+  embedding   VECTOR(768),    -- 與 tag vector 維度一致，768 維
   source_url  TEXT,
   created_at  TIMESTAMPTZ DEFAULT now(),
   UNIQUE(article_id, chunk_index)  -- 保證冪等性
@@ -37,61 +37,68 @@ CREATE INDEX ON vectors.article_chunks USING ivfflat (embedding vector_cosine_op
 
 ---
 
-## 2. Python RAG SDK 介面提案（待確認）
+## 2. Python RAG SDK 介面（已確認）
 
-**Decision**: 提議以下介面，待 SDK 開發者確認
+**Decision**: 使用外部 `RagArticleProcessor` 物件，已確認介面如下
 
-**Status**: PENDING — 需 SDK 開發者確認後更新此欄
+**Status**: CONFIRMED
 
-### Configuration
+### Import
 ```python
-sdk.configure(
-    db_url: str,           # PostgreSQL connection string
-    embedding_model: str,  # 模型識別字串，例如 "text-embedding-3-small"
-    collection: str = "article_chunks"  # 目標 table/collection 名稱
+from rag_sdk import RagArticleProcessor  # 套件名稱待定
+```
+
+### 類別設計：繼承架構
+
+```
+RagArticleProcessor (base)
+├── configure(dbname, user, password)       # 僅設定 vector DB 連線
+│
+├── VectorizingProcessor (子類別)
+│   └── configure(dbname, user, password, embedding_model_api)  # 額外設定 embedding model
+│   └── ingest(full_text, normalization, metadata)              # 寫入流程：chunk → embed → save
+│
+└── QueryingProcessor (子類別)
+    └── configure(dbname, user, password)    # 僅呼叫 super()，不需 embedding model
+    └── search / rag_query 等查詢方法（待定）
+```
+
+### Method 1: `configure()`
+```python
+def configure(
+    self,
+    dbname: str,                        # Vector database 名稱
+    user: str,                          # DB 使用者
+    password: str,                      # DB 密碼
+    embedding_model_api: Optional[str] = None  # Embedding model API endpoint
 ) -> None
 ```
 
-### Ingestion API（向量寫入）
+- `dbname`, `user`, `password` 為 vector database 連線資訊
+- `embedding_model_api` 為寫入時呼叫的 embedding model API；未設定則無法使用寫入功能
+- **繼承設計**：
+  - `VectorizingProcessor` 覆寫 `configure()`，加入 `embedding_model_api` 參數
+  - `QueryingProcessor` 覆寫 `configure()`，僅呼叫 `super().configure(dbname, user, password)` 不需 embedding
+
+### Method 2: `ingest()`
 ```python
-# 低層 API（可拆開用）
-sdk.chunk(text: str, metadata: dict, strategy: ChunkStrategy = None) -> List[Chunk]
-sdk.embed(chunks: List[Chunk]) -> List[EmbeddedChunk]
-sdk.save(chunks: List[EmbeddedChunk]) -> List[str]   # 回傳 chunk IDs，idempotent by (doc_id, chunk_index)
-
-# 補充 API
-sdk.delete(document_id: str) -> int   # 刪除某文章的所有 chunks，回傳刪除數量
-
-# Convenience shortcut（最常用）
-sdk.ingest(text: str, metadata: dict) -> List[str]   # = chunk + embed + save
+def ingest(
+    self,
+    full_text: str,                                    # 文章全文
+    normalization: Optional[Union[str, Callable]] = None,  # 正規化策略：字串名稱或 callable
+    metadata: Dict[str, Any]                            # 文章 metadata（article_id, source_url 等）
+) -> None
 ```
 
-**Note**: DB transaction（connect/commit/rollback）建議由 SDK 內部管理，不 expose 給呼叫方。若需要 batch 寫入，可考慮提供 `begin_batch()` / `commit_batch()` 進階 API，初版可不實作。
+- 內部實作 `chunk`, `embed`, `commit/save` 三步驟，不 expose 這些私有方法
+- `normalization` 可接受 callable 做客製化處理（例如自訂切 chunk 策略或文字清理）
+- `metadata` 至少需包含 `article_id` 與 `source_url` 以支援引用來源
 
-### Query API（向量查詢 + 回答生成）
-```python
-# 低層 API
-sdk.search(
-    query: str,
-    top_k: int = 5,
-    filter: dict = None   # 例如 {"topic_id": "xxx"} 縮小搜尋範圍
-) -> List[SearchResult]
+### Query API（待確認）
 
-sdk.generate(
-    query: str,
-    context: List[SearchResult],
-    history: List[Message] = None
-) -> GenerateResponse
+查詢相關方法（`search`, `rag_query` 等）由 `QueryingProcessor` 提供，介面尚未最終確認。目前 plan 中以 proposal 設計，待 SDK 開發者補充。
 
-# Convenience shortcut（後端最常用）
-sdk.rag_query(
-    question: str,
-    history: List[Message] = None,
-    filter: dict = None
-) -> RAGResponse   # = search + generate，包含 answer + sources
-```
-
-### Data Types（建議）
+### Data Types（Proposal，待確認）
 ```python
 @dataclass
 class SearchResult:
@@ -229,8 +236,9 @@ Set-Cookie: __rag_gid=<UUID v4>; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=
 
 | 項目 | 狀態 | 負責人 |
 |------|------|-------|
-| RAG SDK 方法名稱與簽章 | 待確認 | SDK 開發者 |
-| Embedding 向量維度 | 待確認（影響 DB schema） | SDK 開發者 |
+| ~~RAG SDK 方法名稱與簽章~~ | ✅ 已確認 | SDK 開發者 |
+| ~~Embedding 向量維度~~ | ✅ 已確認（768） | SDK 開發者 |
+| RAG SDK Query API（search / rag_query） | 待確認 | SDK 開發者 |
 | Frontend component 是否自管 history state | 待確認 | npm package 開發者 |
 | Frontend component 是否支援 SSE | 待確認 | npm package 開發者 |
 | Frontend component 的 auth header 傳遞方式 | 待確認 | npm package 開發者 |
