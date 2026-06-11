@@ -132,6 +132,8 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import FailedTaskPersistenceHandler
     from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
     from src.shared.application.events import ArticleProcessedEvent
+    from src.infrastructure.vector_store.rag_sdk_vector_store_impl import RagSdkVectorStoreService
+    from src.infrastructure.vector_store.vectorize_handler import VectorizeHandler
     from src.config.settings import TRANSLATION_LANGUAGES
     
 
@@ -215,6 +217,28 @@ def build_collection_pipeline():
 
     _tracer = _get_tracer()
 
+    # ── Vector Store ───────────────────────────────────────────────────────
+    _rag_enabled = bool(os.environ.get("CHAT_SERVICE_URL"))
+    if _rag_enabled:
+        try:
+            from rag_sdk import VectorizingProcessor  # type: ignore[import]
+            processor = VectorizingProcessor()
+            processor.configure(
+                dbname=os.environ.get("VECTOR_DB_NAME", ""),
+                user=os.environ.get("VECTOR_DB_USER", ""),
+                password=os.environ.get("VECTOR_DB_PASSWORD", ""),
+                embedding_model_api=os.environ.get("EMBEDDING_MODEL_API", ""),
+            )
+            vector_store = RagSdkVectorStoreService(processor)
+            vectorize_handler = VectorizeHandler(vector_store)
+            logger.info("rag_vector_store_initialized")
+        except Exception:
+            logger.exception("rag_vector_store_init_failed_disabling")
+            vectorize_handler = None
+    else:
+        vectorize_handler = None
+        logger.info("rag_disabled_chat_service_url_not_set")
+
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
@@ -231,6 +255,9 @@ def build_collection_pipeline():
     article_processed_handler = ArticleProcessedHandler(use_case=analyze_article_uc, event_bus=event_bus)
     event_bus.subscribe(ArticleProcessedEvent, with_span_deferred(
         SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
+
+    if vectorize_handler is not None:
+        event_bus.subscribe(ArticleProcessedEvent, vectorize_handler.handle)
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, with_span(

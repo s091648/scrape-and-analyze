@@ -18,6 +18,7 @@ from backend.routers.tags import router as tags_router
 from backend.routers.llm_providers import router as llm_providers_router
 from backend.routers.grafana import router as grafana_router
 from backend.routers.monitoring import router as monitoring_router
+from backend.routers.chat import router as chat_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -45,6 +46,7 @@ app.include_router(languages_router)
 app.include_router(tags_router)
 app.include_router(grafana_router)
 app.include_router(monitoring_router)
+app.include_router(chat_router)
 
 
 @app.get("/health")

@@ -488,5 +488,14 @@
     "aggregatorTypeDesc": "Select which academic paper aggregator to configure.",
     "aggregatorType": "Aggregator Type",
     "next": "Next"
+  },
+  "rag": {
+    "placeholder": "Ask the AI: what are the latest research trends?",
+    "rateLimitError": "Daily question limit reached",
+    "serviceUnavailable": "The Q&A service is temporarily unavailable, please try again later",
+    "genericError": "An error occurred, please try again",
+    "thinking": "Thinking…",
+    "emptyState": "Start a conversation with the AI assistant.",
+    "assistantTitle": "AI Research Assistant"
   }
 }

@@ -488,5 +488,14 @@
     "aggregatorTypeDesc": "選擇要設定的學術論文聚合器。",
     "aggregatorType": "聚合器類型",
     "next": "下一步"
+  },
+  "rag": {
+    "placeholder": "詢問 AI：最近有哪些相關研究？",
+    "rateLimitError": "已達每日問答上限",
+    "serviceUnavailable": "問答服務暫時無法使用，請稍後再試",
+    "genericError": "發生錯誤，請稍後再試",
+    "thinking": "思考中…",
+    "emptyState": "開始與 AI 助理對話。",
+    "assistantTitle": "AI 研究助理"
   }
 }

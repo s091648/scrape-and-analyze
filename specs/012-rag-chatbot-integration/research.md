@@ -1,7 +1,7 @@
 # Research: RAG 智慧問答整合
 
 **Date**: 2026-06-10
-**Status**: Phase 0 完成，RAG SDK 介面已確認；Frontend component 介面待確認
+**Status**: Phase 0 完成，所有介面已確認
 
 ---
 
@@ -94,103 +94,132 @@ def ingest(
 - `normalization` 可接受 callable 做客製化處理（例如自訂切 chunk 策略或文字清理）
 - `metadata` 至少需包含 `article_id` 與 `source_url` 以支援引用來源
 
-### Query API（待確認）
+### Query API（不適用）
 
-查詢相關方法（`search`, `rag_query` 等）由 `QueryingProcessor` 提供，介面尚未最終確認。目前 plan 中以 proposal 設計，待 SDK 開發者補充。
+**本系統後端不直接呼叫 SDK 的 Query API。**
 
-### Data Types（Proposal，待確認）
-```python
-@dataclass
-class SearchResult:
-    chunk_id: str
-    article_id: str
-    content: str
-    source_url: str
-    score: float   # cosine similarity
+查詢（RAG 檢索 + 生成）由外部 Chat Service 負責，後端只需打一個 OpenAI-compatible 的 `/v1/chat/completions` endpoint，SDK 的 `QueryingProcessor` 完全封裝在該 Chat Service 內部，不 expose 給本系統。
 
-@dataclass
-class RAGResponse:
-    answer: str
-    sources: List[SearchResult]
-    usage: dict   # token 使用量
-```
+因此 `VectorStoreService` Domain Interface 只需涵蓋**寫入路徑**（`ingest`），不需定義查詢相關方法。
 
 ---
 
-## 3. Frontend React Component 介面提案（待確認）
+## 3. Frontend React Component 介面（已確認）
 
-**Decision**: 以下為提議 props，待 npm package 開發者確認
+**Decision**: package 原始碼已讀，介面確認如下
 
-**Status**: PENDING — 需前端 package 開發者確認後更新此欄
+**Status**: CONFIRMED — 基於 `chatbot-plugin-ui` package 原始碼
 
-### 共用基礎 Props
+### 元件清單
+
+| 元件 | 用途 | 控制方式 |
+|------|------|---------|
+| `ChatbotPlugin` | 右下角浮動 FAB + 對話視窗 | Controlled（`messages`, `onSend`, `isLoading` 由父元件提供） |
+| `AgentInput` | 內嵌搜尋輸入欄 + tool call cards | Controlled（`onSend`, `isLoading`；`messages` 只渲染 `role==='tool'` 的訊息） |
+| `useChat` | 狀態管理 hook | 內建 `fetch` streaming，管理 `messages[]`，呼叫 `endpoint` |
+
+### `useChat` hook（核心整合點）
 ```typescript
-interface ChatConfig {
-  apiUrl: string;            // 後端 chat endpoint 的完整 URL
-  sessionId: string;         // 由父元件管理（建議用 crypto.randomUUID()）
-  authToken?: string | null; // JWT token，guest 傳 null
-  topicId?: string | null;   // 縮小 RAG 搜尋範圍到特定 topic
-  lang?: string;             // 顯示語言，預設跟隨 I18nProvider
-}
+useChat({
+  endpoint: '/api/proxy/chat/completions',  // Next.js proxy → backend
+  streamAdapter: openaiAdapter,              // 預設，解析 OpenAI SSE 格式
+  initialMessages: loadFromSessionStorage(), // 跨頁持久化
+  headers: {
+    'Authorization': `Bearer ${token}`,      // JWT 或省略（guest）
+    'X-Topic-Id': topicId ?? '',             // 傳遞 topic filter
+  },
+})
 ```
 
-### InlineQABar（內嵌問答欄）
-```typescript
-interface InlineQABarProps extends ChatConfig {
-  placeholder?: string;
-  onAnswer?(msg: ChatMessage): void;
-  onError?(err: Error): void;
-}
+### InlineQABarWrapper 顯示模式
+`AgentInput` 只顯示 tool call messages，**assistant 回答不在元件內渲染**。
+Wrapper 架構：
+```tsx
+// InlineQABarWrapper.tsx
+const { messages, sendMessage, isLoading } = useChat({ ... })
+const answer = messages.findLast(m => m.role === 'assistant')
+
+return (
+  <>
+    <AgentInput onSend={sendMessage} isLoading={isLoading} messages={messages} />
+    {answer && <AnswerDisplay message={answer} />}  {/* wrapper 自行渲染 */}
+  </>
+)
 ```
 
-### FloatingChatbot（右下角浮動聊天）
+### 對話歷史持久化（sessionStorage）
 ```typescript
-interface FloatingChatbotProps extends ChatConfig {
-  initialOpen?: boolean;
-  theme?: 'light' | 'dark';
-  position?: 'bottom-right' | 'bottom-left';
-  onOpen?(): void;
-  onClose?(): void;
+// chat-session.ts
+const SESSION_KEY = 'rag_chat_messages'
+
+export function loadSession(): Message[] {
+  return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '[]')
+}
+export function saveSession(messages: Message[]): void {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages))
+}
+export function clearSession(): void {
+  sessionStorage.removeItem(SESSION_KEY)
 }
 ```
+- 換頁保留，關 tab 消失
+- `useChat` 的 `onMessage` callback 觸發 `saveSession()`
 
-### 對話歷史管理
-建議由元件自己管理 session state（不需外部注入 messages）。
-父元件只需提供 `sessionId`，元件內部維護 `messages[]`。
-若需要跨頁面保留歷史，元件可提供 `onHistoryChange` callback 讓父元件存到 localStorage。
+### Auth Header 傳遞
+`useChat` 的 `headers` option 直接傳遞 `Authorization: Bearer {token}`，與現有 `apiFetch` 邏輯一致。
 
 ---
 
 ## 4. 後端 Chat Service API 設計
 
-**Decision**: 新增 FastAPI router，SSE 串流，Rate Limiting 用 Redis
+**Decision**: 後端作為薄 proxy，僅負責 Rate Limiting，不處理 RAG 邏輯；直接轉發 OpenAI-compatible stream
 
-### Endpoints
+### 後端角色（精簡）
+
 ```
-POST /chat/query
-  Body: { question: str, session_id: str, history: list[Message], topic_id: str | None }
-  Response: SSE stream
-
-GET  /chat/session/{session_id}/history
-  Response: { messages: list[Message] }
-
-DELETE /chat/session/{session_id}
-  Response: 204 No Content
+前端 → POST /api/proxy/chat/completions
+     → Next.js proxy → backend POST /chat/completions
+     → 後端驗證 rate limit → 轉發至 CHAT_SERVICE_URL/v1/chat/completions
+     → streaming response 原樣回傳前端
 ```
 
-### SSE Event Format
-```json
-{ "type": "delta",  "text": "部分回答文字" }
-{ "type": "source", "url": "https://...", "title": "文章標題" }
-{ "type": "done",   "usage": { "tokens": 1234 } }
-{ "type": "error",  "message": "找不到相關資料" }
+- 後端**不轉換** stream 格式，直接 pipe OpenAI-compatible SSE 回前端
+- RAG 檢索、引用來源生成、上下文管理全由外部 Chat Service 負責
+- 引用來源以 markdown 格式嵌在回答文字中，不需自訂 SSE event
+
+### 本後端對前端暴露的 Endpoint
+```
+POST /chat/completions
+  Headers: Authorization: Bearer {jwt}  （guest 可省略）
+           X-Topic-Id: {topic_id}        （optional，縮小 RAG 搜尋範圍）
+  Body: OpenAI-compatible ChatCompletion request
+    { "messages": [...], "stream": true }
+  Response: OpenAI-compatible SSE stream（直接 pipe 自外部 Chat Service）
 ```
 
-### SSE vs WebSocket 決策
-**選擇 SSE，設計上保留升級路徑。**
-- Tool Use / MCP 在 server-side 執行，結果透過 SSE 推送，client 不需雙向通訊
-- SSE event format（`{type, payload}`）設計成與 WebSocket message 格式相容
-- 如果未來需要 client-side tools（瀏覽器動作、使用者確認），屆時才換 WebSocket
+不需要 `GET /chat/session/{id}/history` 或 `DELETE` — 對話歷史由前端 `sessionStorage` 管理，後端無狀態。
+
+### 外部 Chat Service 呼叫
+```python
+# 環境變數
+CHAT_SERVICE_URL    # e.g. http://chat-service:8001
+CHAT_SERVICE_API_KEY
+
+# topic_id 從 X-Topic-Id header 取得，注入 request body extra field
+body = { "messages": [...], "stream": True, "topic_id": topic_id }
+POST {CHAT_SERVICE_URL}/v1/chat/completions
+  Authorization: Bearer {CHAT_SERVICE_API_KEY}
+  Body: body
+```
+
+### SSE 格式（OpenAI-compatible，直接 pass-through）
+```
+data: {"id":"...","choices":[{"delta":{"content":"部分回答"},"index":0}]}
+data: {"id":"...","choices":[{"delta":{"content":""},"finish_reason":"stop"}]}
+data: [DONE]
+```
+
+前端 `openaiAdapter`（package 內建）直接解析，不需客製。
 
 ---
 
@@ -214,6 +243,11 @@ Set-Cookie: __rag_gid=<UUID v4>; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=
 - **TTL**: 86400 秒（每天午夜後自動重置）
 - **Fallback**: 無 cookie（private browsing）→ `rate:guest:ip:{hash(IP+UA)}:{date}`
 
+### 環境準備
+- **本地**: `docker-compose.yml` 新增 `redis` service（`image: redis:7-alpine`），`backend` 與 `app` service 加入 `depends_on: redis`
+- **Railway**: 新增 Redis plugin，`REDIS_URL` 環境變數由 Railway 自動注入
+- **開發期 RAG SDK**: `pyproject.toml` 用 path dependency（`rag-sdk = { path = "../rag-sdk", editable = true }`），上線前替換為正式套件名稱
+
 ---
 
 ## 6. Pipeline 整合點
@@ -232,13 +266,19 @@ Set-Cookie: __rag_gid=<UUID v4>; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=
 
 ---
 
-## 未解決項目（待外部開發者確認）
+## 未解決項目
 
-| 項目 | 狀態 | 負責人 |
-|------|------|-------|
-| ~~RAG SDK 方法名稱與簽章~~ | ✅ 已確認 | SDK 開發者 |
-| ~~Embedding 向量維度~~ | ✅ 已確認（768） | SDK 開發者 |
-| RAG SDK Query API（search / rag_query） | 待確認 | SDK 開發者 |
-| Frontend component 是否自管 history state | 待確認 | npm package 開發者 |
-| Frontend component 是否支援 SSE | 待確認 | npm package 開發者 |
-| Frontend component 的 auth header 傳遞方式 | 待確認 | npm package 開發者 |
+所有項目已確認，無待解決事項。
+
+| 項目 | 狀態 | 結論 |
+|------|------|------|
+| ~~RAG SDK 方法名稱與簽章~~ | ✅ 已確認 | `VectorizingProcessor.ingest()` |
+| ~~Embedding 向量維度~~ | ✅ 已確認 | 768 維 |
+| ~~RAG SDK Query API~~ | ✅ 不適用 | 後端呼叫外部 Chat Service `/v1/chat/completions` |
+| ~~Frontend component history state~~ | ✅ 已確認 | `useChat` hook 管理；wrapper 同步至 `sessionStorage` |
+| ~~Frontend component SSE 支援~~ | ✅ 已確認 | `fetch` streaming + 內建 `openaiAdapter` |
+| ~~Frontend component auth header~~ | ✅ 已確認 | `useChat({ headers: { Authorization: ... } })` |
+| ~~CHAT_SERVICE_URL 環境變數~~ | ✅ 已確認 | 使用 `CHAT_SERVICE_URL` |
+| ~~topic_id 傳遞方式~~ | ✅ 已確認 | request body extra field |
+| ~~RAG SDK local path install~~ | ✅ 已確認 | 開發期 path dependency，上線改 PyPI |
+| ~~Redis 是否已存在~~ | ✅ 已確認 | 需新增：本地 docker-compose + Railway plugin |

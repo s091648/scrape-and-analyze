@@ -16,6 +16,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     command: sleep infinity
     stdin_open: true
     tty: true
@@ -37,6 +39,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     command: uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'
 
   # Next.js frontend
@@ -48,11 +52,22 @@ services:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules  # preserve installed modules
       - playwright_cache:/root/.cache/ms-playwright  # persist browser binaries
+      - ../chatbot-plugin-ui:/chatbot-plugin-ui  # local npm package for @Teng91/chatbot-plugin-ui
     ports:
       - "3000:3000"
     env_file:
       - .env
     command: npx next dev
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: pgvector/pgvector:pg15

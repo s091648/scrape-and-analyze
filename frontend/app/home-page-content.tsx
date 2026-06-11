@@ -11,6 +11,7 @@ import { usePagination } from '@/hooks/use-pagination'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Newspaper, Lock } from 'lucide-react'
 import { useTopic, useI18n, useGuestMode } from '@/lib/providers'
+import { InlineQABarWrapper } from '@/components/features/rag/InlineQABarWrapper'
 
 const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) => ({
   id: `guest-${i}`,
@@ -102,6 +103,10 @@ export default function HomePageContent() {
           </span>
         </div>
       </div>
+
+      {status === 'authenticated' && (
+        <InlineQABarWrapper className="mb-2" />
+      )}
 
       <FilterBar
         aggregators={aggregators}

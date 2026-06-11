@@ -16,6 +16,10 @@ vi.mock('@/components/common/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
+vi.mock('@/components/features/rag/FloatingChatbotWrapper', () => ({
+  FloatingChatbotWrapper: () => <div data-testid="floating-chatbot" />,
+}))
+
 describe('LayoutShell', () => {
   beforeEach(() => vi.clearAllMocks())
 

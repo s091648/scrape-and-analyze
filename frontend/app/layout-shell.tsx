@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation'
 import { NavBar } from '@/components/features/navigation/nav-bar'
 import { ErrorBoundary } from '@/components/common/error-boundary'
+import { FloatingChatbotWrapper } from '@/components/features/rag/FloatingChatbotWrapper'
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -16,6 +17,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       }>
         {children}
       </main>
+      <FloatingChatbotWrapper />
     </ErrorBoundary>
   )
 }

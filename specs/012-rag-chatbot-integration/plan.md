@@ -18,7 +18,7 @@
 
 **Language/Version**: Python 3.11（後端/scraper）、TypeScript + React 19.x（前端）
 
-**Primary Dependencies**: FastAPI（chat router）、SQLAlchemy + pgvector（向量儲存）、Redis（rate limiting）、外部 RAG SDK（TBD）、外部 React chat component package（TBD，local source build）
+**Primary Dependencies**: FastAPI（chat router）、SQLAlchemy + pgvector（向量儲存）、Redis（rate limiting）、外部 RAG SDK（`VectorizingProcessor.ingest()`）、`chatbot-plugin-ui` npm package（`ChatbotPlugin` + `AgentInput` + `useChat`）
 
 **Storage**: PostgreSQL `vectors` schema（新建）+ Redis（已有 Railway 支援）
 
@@ -57,11 +57,11 @@
 specs/012-rag-chatbot-integration/
 ├── plan.md              ← 本檔案
 ├── spec.md              ← 需求規格
-├── research.md          ← Phase 0 研究結果（外部介面提案）
-├── data-model.md        ← Phase 1 輸出（TBD）
-├── contracts/           ← Phase 1 輸出（TBD）
-│   ├── chat-api.md      ← POST /chat/query SSE 合約
-│   └── rag-sdk.md       ← RAG SDK 介面合約（待 SDK 開發者確認）
+├── research.md          ← Phase 0 研究結果（所有介面已確認）
+├── data-model.md        ← Phase 1 輸出 ✅
+├── contracts/           ← Phase 1 輸出 ✅
+│   ├── chat-api.md      ← POST /chat/completions OpenAI-compatible 合約
+│   └── rag-sdk.md       ← VectorizingProcessor.ingest() 介面合約
 └── tasks.md             ← Phase 2 輸出（/speckit-tasks 產生）
 ```
 
@@ -88,23 +88,24 @@ src/
 # Backend Chat Service（backend/）
 backend/
 ├── routers/
-│   └── chat.py                                 ← 新增 FastAPI router
+│   └── chat.py                                 ← 新增 FastAPI router（POST /chat/completions）
 ├── services/
-│   └── chat_service.py                         ← 業務邏輯（rate limit + RAG 呼叫）
+│   └── chat_service.py                         ← Rate limit 檢查 + proxy 至外部 Chat Service
 └── tests/
-    └── test_chat.py                            ← 新增單元測試
+    └── test_chat.py                            ← 新增單元測試（rate limit + proxy 行為）
 
 # Frontend（frontend/）
 frontend/
 ├── components/
 │   └── features/
 │       └── rag/
-│           ├── InlineQABarWrapper.tsx          ← 包裝外部 InlineQABar
+│           ├── InlineQABarWrapper.tsx          ← AgentInput + AnswerDisplay（useChat hook）
 │           ├── InlineQABarWrapper.stories.tsx  ← Storybook story（Constitution 要求）
-│           ├── FloatingChatbotWrapper.tsx      ← 包裝外部 FloatingChatbot
+│           ├── AnswerDisplay.tsx               ← 顯示最新 assistant 回答（markdown）
+│           ├── FloatingChatbotWrapper.tsx      ← ChatbotPlugin（useChat hook + sessionStorage）
 │           └── FloatingChatbotWrapper.stories.tsx
 ├── lib/
-│   └── chat-session.ts                        ← sessionId 管理工具
+│   └── chat-session.ts                        ← sessionStorage 存取工具（loadSession/saveSession/clearSession）
 └── tests/
     ├── unit/
     │   └── rag/
@@ -139,12 +140,14 @@ frontend/package.json                          ← 新增 chat component 依賴�
 
 ## Open Questions（實作前需確認）
 
-1. **RAG SDK 方法名稱與簽章** — 見 `research.md` 第 2 節提案，需 SDK 開發者確認
-2. **Embedding 向量維度** — 影響 `vector(N)` 的 N，需確認後才能跑 migration
-3. **Frontend component 的 SSE 支援方式** — 是 `fetch` SSE 還是 `EventSource`？影響 proxy 設定
-4. **Frontend component history 管理** — 元件自管還是外部注入？影響 wrapper 複雜度
-5. **RAG SDK 是否需要 local path install** — 若 SDK 尚未發布 npm/PyPI，需設定 monorepo workspace 或 path dependency
-6. **Redis 是否已在 Railway 專案中** — 需確認 Railway 環境變數（`REDIS_URL`）
+1. ~~**RAG SDK Query API 簽章**~~ — 不適用
+2. ~~**Embedding 向量維度**~~ — 已確認 768 維
+3. ~~**Frontend component 的 SSE 支援方式**~~ — 已確認：`fetch` streaming + 內建 `openaiAdapter`
+4. ~~**Frontend component history 管理**~~ — 已確認：`useChat` hook 管理，wrapper 同步至 `sessionStorage`
+5. ~~**外部 Chat Service URL 與 API Key**~~ — 已確認使用 `CHAT_SERVICE_URL` 環境變數
+6. ~~**`topic_id` 傳遞方式**~~ — 已確認：後端從 `X-Topic-Id` header 取值，注入 request body extra field `{ ..., "topic_id": "..." }` 轉發給 Chat Service
+7. ~~**RAG SDK local path install**~~ — 已確認：開發期間用 path dependency（`pip install -e ../rag-sdk`），上線前改為正式 PyPI 套件
+8. ~~**Redis 是否已在 Railway 專案中**~~ — 已確認：需新增；本地 `docker-compose.yml` 需加 `redis` service，Railway 需新增 Redis plugin 並設定 `REDIS_URL`
 
 ---
 
@@ -162,17 +165,20 @@ frontend/package.json                          ← 新增 chat component 依賴�
 - 向量化失敗需 try/except，不中斷現有 pipeline
 
 ### Phase C：Backend Chat Service（backend/）
-- 新增 `chat.py` router（POST /chat/query SSE endpoint）
-- 實作 Redis rate limiting（guest cookie + user_id 兩條路徑）
-- 整合 RAG SDK 的 `rag_query()`
-- 新增 `/chat/session/{id}/history` 與 DELETE endpoint
+- 新增 `chat.py` router（`POST /chat/completions`，無狀態，無 session history endpoint）
+- 實作 Redis rate limiting（guest cookie `__rag_gid` + user_id 兩條路徑，bypass for admin）
+- `ChatService` 驗證 rate limit → 轉發 OpenAI-compatible request 至 `CHAT_SERVICE_URL`，原樣 pipe SSE 回前端
+- 從 `X-Topic-Id` header 取得 topic，注入轉發 body 的 extra field `{ ..., "topic_id": "..." }`
 
 ### Phase D：Frontend 整合（frontend/）
-- 安裝/連結外部 npm package（local path build）
-- 建立 `InlineQABarWrapper` 與 `FloatingChatbotWrapper`
+- 安裝 `chatbot-plugin-ui` npm package（local path build 或 npm link）
+- 實作 `chat-session.ts`（`sessionStorage` 存取：`loadSession` / `saveSession` / `clearSession`）
+- 建立 `FloatingChatbotWrapper`：`useChat` hook + `ChatbotPlugin`，`onMessage` 時同步 `sessionStorage`
+- 建立 `InlineQABarWrapper`：`useChat` hook + `AgentInput` + `AnswerDisplay`（渲染最新 assistant 訊息）
 - 在 root layout 加入 `FloatingChatbotWrapper`
 - 在文章列表頁加入 `InlineQABarWrapper`
-- 實作 `chat-session.ts`（sessionId 生成與持久化）
+- Auth token 從 NextAuth session 取得後注入 `useChat({ headers: { Authorization: ... } })`
+- Topic ID 從 `TopicContext` 取得後注入 `useChat({ headers: { 'X-Topic-Id': ... } })`
 
 ### Phase E：測試
 - scraper unit tests（mock SDK）

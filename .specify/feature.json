@@ -1,1 +1,3 @@
-{"feature_directory":"specs/011-semantic-scholar-scraper"}
+{
+  "feature_directory": "specs/012-rag-chatbot-integration"
+}

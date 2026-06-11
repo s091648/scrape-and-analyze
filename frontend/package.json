@@ -43,7 +43,8 @@
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "@Teng91/chatbot-plugin-ui": "file:../../chatbot-plugin-ui/frontend/packages/chatbot-plugin-ui"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.2.1",
