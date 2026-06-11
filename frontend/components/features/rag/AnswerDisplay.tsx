@@ -1,6 +1,6 @@
 'use client'
 
-import type { Message } from '@Teng91/chatbot-plugin-ui'
+import type { Message } from '@s091648/chatbot-plugin-ui'
 
 interface AnswerDisplayProps {
   messages: Message[]

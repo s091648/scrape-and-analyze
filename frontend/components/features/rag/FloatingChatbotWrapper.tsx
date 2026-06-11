@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { ChatbotPlugin, openaiAdapter, useChat } from '@Teng91/chatbot-plugin-ui'
+import { ChatbotPlugin, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
 import { useTopic } from '@/lib/providers'
 import { loadSession, saveSession } from '@/lib/chat-session'
