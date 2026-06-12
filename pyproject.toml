@@ -61,9 +61,6 @@ dev = [
 [tool.uv.sources]
 rag-sdk = { path = "../rag-sdk", editable = true }
 
-[tool.uv.sources]
-rag-sdk = { path = "../rag-sdk", editable = true }
-
 [tool.coverage.run]
 omit = [
     "*/tests/*",

@@ -1,6 +1,7 @@
 'use client'
 
 import type { Message } from '@s091648/chatbot-plugin-ui'
+import { useI18n } from '@/lib/providers'
 
 interface AnswerDisplayProps {
   messages: Message[]
@@ -40,12 +41,13 @@ function renderMarkdownLinks(text: string): React.ReactNode[] {
 }
 
 export function AnswerDisplay({ messages, isLoading, error }: AnswerDisplayProps) {
+  const { t } = useI18n()
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
 
   if (isLoading && !lastAssistant) {
     return (
       <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm text-muted-foreground animate-pulse">
-        思考中…
+        {t('rag.thinking')}
       </div>
     )
   }
@@ -54,10 +56,10 @@ export function AnswerDisplay({ messages, isLoading, error }: AnswerDisplayProps
     const is429 = error.message.includes('429')
     const is503 = error.message.includes('503')
     const msg = is429
-      ? '已達每日問答上限'
+      ? t('rag.rateLimitError')
       : is503
-        ? '問答服務暫時無法使用，請稍後再試'
-        : '發生錯誤，請稍後再試'
+        ? t('rag.serviceUnavailable')
+        : t('rag.genericError')
     return (
       <div className="mt-3 px-4 py-3 rounded-lg bg-destructive/10 text-sm text-destructive">
         {msg}

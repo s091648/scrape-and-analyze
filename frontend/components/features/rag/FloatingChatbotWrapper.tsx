@@ -4,8 +4,10 @@ import { useCallback, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ChatbotPlugin, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useTopic } from '@/lib/providers'
+import { useI18n, useTopic } from '@/lib/providers'
 import { loadSession, saveSession } from '@/lib/chat-session'
+
+const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
 const FLOAT_SESSION_KEY = 'rag_float_chat_messages'
 
@@ -31,6 +33,7 @@ function saveFloatSession(messages: any[]) {
 export function FloatingChatbotWrapper() {
   const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
+  const { t } = useI18n()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -38,7 +41,7 @@ export function FloatingChatbotWrapper() {
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
 
   const { messages, sendMessage, isLoading } = useChat({
-    endpoint: '/api/proxy/chat/completions',
+    endpoint: CHAT_ENDPOINT,
     streamAdapter: openaiAdapter,
     initialMessages: loadFloatSession(),
     headers,
@@ -46,11 +49,11 @@ export function FloatingChatbotWrapper() {
       const is429 = err.message.includes('429')
       const is503 = err.message.includes('503')
       if (is429) {
-        toast.warning('已達每日問答上限')
+        toast.warning(t('rag.rateLimitError'))
       } else if (is503) {
-        toast.error('問答服務暫時無法使用，請稍後再試')
+        toast.error(t('rag.serviceUnavailable'))
       } else {
-        toast.error('發生錯誤，請稍後再試')
+        toast.error(t('rag.genericError'))
       }
     },
   })
@@ -70,12 +73,14 @@ export function FloatingChatbotWrapper() {
   )
 
   return (
-    <ChatbotPlugin
-      messages={messages}
-      onSend={handleSend}
-      isLoading={isLoading}
-      title="AI 研究助理"
-      placeholder="詢問 AI：最近有哪些相關研究？"
-    />
+    <div data-chatbot-theme="auto">
+      <ChatbotPlugin
+        messages={messages}
+        onSend={handleSend}
+        isLoading={isLoading}
+        title={t('rag.assistantTitle')}
+        placeholder={t('rag.placeholder')}
+      />
+    </div>
   )
 }

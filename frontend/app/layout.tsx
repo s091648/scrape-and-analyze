@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Rethink_Sans } from 'next/font/google'
 import './globals.css'
+import '@s091648/chatbot-plugin-ui/dist/style.css'
 import { AppProviders } from '@/lib/providers'
 import { LayoutShell } from './layout-shell'
 import { Toaster } from 'sonner'
