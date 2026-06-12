@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from src.infrastructure.vector_store.rag_sdk_vector_store_impl import RagSdkVectorStoreService
@@ -18,6 +18,7 @@ def _make_article(content="Full article text here."):
 
 def test_ingest_calls_processor_with_correct_args():
     processor = MagicMock()
+    processor.ingest = AsyncMock()
     service = RagSdkVectorStoreService(processor)
     article = _make_article()
 
@@ -26,14 +27,16 @@ def test_ingest_calls_processor_with_correct_args():
     processor.ingest.assert_called_once_with(
         full_text=article.content,
         metadata={
-            "article_id": str(article.id),
-            "source_url": str(article.url),
+            "url": str(article.url),
+            "title": article.title,
+            "source": article.source,
         },
     )
 
 
 def test_ingest_passes_full_content():
     processor = MagicMock()
+    processor.ingest = AsyncMock()
     service = RagSdkVectorStoreService(processor)
     article = _make_article(content="Long detailed content of the research paper.")
 
@@ -43,23 +46,37 @@ def test_ingest_passes_full_content():
     assert kwargs["full_text"] == "Long detailed content of the research paper."
 
 
-def test_ingest_includes_article_id_in_metadata():
+def test_ingest_includes_url_in_metadata():
     processor = MagicMock()
+    processor.ingest = AsyncMock()
     service = RagSdkVectorStoreService(processor)
     article = _make_article()
 
     service.ingest(article)
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["metadata"]["article_id"] == str(article.id)
+    assert kwargs["metadata"]["url"] == str(article.url)
 
 
-def test_ingest_includes_source_url_in_metadata():
+def test_ingest_includes_title_in_metadata():
     processor = MagicMock()
+    processor.ingest = AsyncMock()
     service = RagSdkVectorStoreService(processor)
     article = _make_article()
 
     service.ingest(article)
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["metadata"]["source_url"] == str(article.url)
+    assert kwargs["metadata"]["title"] == article.title
+
+
+def test_ingest_includes_source_in_metadata():
+    processor = MagicMock()
+    processor.ingest = AsyncMock()
+    service = RagSdkVectorStoreService(processor)
+    article = _make_article()
+
+    service.ingest(article)
+
+    _, kwargs = processor.ingest.call_args
+    assert kwargs["metadata"]["source"] == article.source

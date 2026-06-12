@@ -1,3 +1,5 @@
+import asyncio
+
 from src.modules.articles.domain.services.vector_store_service import VectorStoreService
 from src.shared.logging import get_logger
 
@@ -9,11 +11,12 @@ class RagSdkVectorStoreService(VectorStoreService):
         self._processor = processor
 
     def ingest(self, article) -> None:
-        self._processor.ingest(
+        asyncio.run(self._processor.ingest(
             full_text=article.content,
             metadata={
-                "article_id": str(article.id),
-                "source_url": str(article.url),
+                "url": str(article.url),
+                "title": article.title,
+                "source": article.source,
             },
-        )
+        ))
         logger.info("article_vectorized", article_id=str(article.id))

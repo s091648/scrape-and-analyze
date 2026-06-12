@@ -24,7 +24,7 @@ scraper = [
     "tenacity",
     "lxml",
     "pymupdf>=1.24",
-    "rag-sdk",
+    "chatbot-plugin-sdk",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [
@@ -59,7 +59,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-rag-sdk = { path = "../rag-sdk", editable = true }
+chatbot-plugin-sdk = { git = "https://github.com/Teng91/chatbot-plugin-sdk.git" }
 
 [tool.coverage.run]
 omit = [
