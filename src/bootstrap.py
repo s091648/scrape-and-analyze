@@ -221,13 +221,27 @@ def build_collection_pipeline():
     _rag_enabled = bool(os.environ.get("CHAT_SERVICE_URL"))
     if _rag_enabled:
         try:
-            from rag_sdk import VectorizingProcessor  # type: ignore[import]
-            processor = VectorizingProcessor()
-            processor.configure(
+            from chatbot_plugin_sdk import (
+                IngestProcessor,
+                SyncPgBackend,
+                DatabaseConfig,
+                EndpointProvider,
+            )
+            _embedding_dim = int(os.environ.get("EMBEDDING_DIM", "768"))
+            backend = SyncPgBackend(DatabaseConfig(
                 dbname=os.environ.get("VECTOR_DB_NAME", ""),
                 user=os.environ.get("VECTOR_DB_USER", ""),
                 password=os.environ.get("VECTOR_DB_PASSWORD", ""),
-                embedding_model_api=os.environ.get("EMBEDDING_MODEL_API", ""),
+                host=os.environ.get("VECTOR_DB_HOST", "localhost"),
+                port=int(os.environ.get("VECTOR_DB_PORT", "5432")),
+            ))
+            processor = IngestProcessor()
+            processor.configure(
+                backend=backend,
+                dense=EndpointProvider(
+                    url=os.environ.get("EMBEDDING_MODEL_API", ""),
+                    dimension=_embedding_dim,
+                ),
             )
             vector_store = RagSdkVectorStoreService(processor)
             vectorize_handler = VectorizeHandler(vector_store)
