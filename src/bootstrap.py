@@ -89,6 +89,134 @@ def build_llm_service(session):
 
 
 # ---------------------------------------------------------------------------
+# RAG 層: 從 DB rag_embedding_providers 建立 RagSdkIngestionService
+# ---------------------------------------------------------------------------
+
+def build_rag_ingestion_service(session):
+    """Build RagSdkIngestionService from DB rag_embedding_providers config.
+
+    Returns (rag_service, rag_config_failed_event).
+    Either or both may be None when RAG is disabled or misconfigured.
+    rag_config_failed_event must be published AFTER all event subscriptions are registered.
+    """
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+    from src.config.settings import CHAT_SERVICE_URL, missing_rag_config
+    from src.infrastructure.shared.logging import get_correlation_id
+
+    if not CHAT_SERVICE_URL:
+        logger.info("rag_disabled_chat_service_url_not_set")
+        return None, None
+
+    _rag_missing = missing_rag_config()
+    if _rag_missing:
+        event = RagConfigFailedEvent(
+            exception_type="MissingConfiguration",
+            exception_message=f"RAG disabled — missing required vars: {', '.join(_rag_missing)}",
+            context={"missing_vars": _rag_missing},
+            correlation_id=get_correlation_id() or None,
+        )
+        logger.warning("rag_config_incomplete_rag_disabled", missing_vars=_rag_missing)
+        return None, event
+
+    try:
+        from chatbot_plugin_sdk import (
+            IngestProcessor,
+            SyncPgBackend,
+            DatabaseConfig,
+            EndpointProvider,
+            LocalProvider,
+            NotConfiguredError,
+        )
+        from chatbot_plugin_sdk.rate_limit import SlidingWindowStrategy
+        from src.config.settings import (
+            VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
+            VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
+        )
+        from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
+        from shared.rag_embedding_provider import load_active_rag_providers
+
+        rows = load_active_rag_providers(session)
+        dense_row = next((r for r in rows if r.role == 'dense'), None)
+        sparse_row = next((r for r in rows if r.role == 'sparse'), None)
+
+        def _build_provider(row):
+            if row is None:
+                return None
+            api_key = None
+            if row.api_key_env:
+                import os
+                api_key = os.environ.get(row.api_key_env) or None
+            rate_limit = None
+            if all(v is not None for v in (row.rpm, row.tpm, row.rpd)):
+                rate_limit = SlidingWindowStrategy(rpm=row.rpm, tpm=row.tpm, rpd=row.rpd)
+            if row.provider_type == 'local':
+                if row.role == 'dense':
+                    from fastembed import TextEmbedding
+                    _model = TextEmbedding(row.model)
+                    return LocalProvider(
+                        fn=lambda texts, m=_model: [v.tolist() for v in m.embed(texts)],
+                        dimension=row.dimension,
+                    )
+                else:
+                    from fastembed import SparseTextEmbedding
+                    _model = SparseTextEmbedding(row.model)
+                    return LocalProvider(
+                        fn=lambda texts, m=_model: [
+                            {str(idx): weight for idx, weight in zip(v.indices, v.values)}
+                            for v in m.embed(texts)
+                        ],
+                        dimension=row.dimension,
+                    )
+            else:
+                response_key = 'sparse' if row.role == 'sparse' else 'dense'
+                return EndpointProvider(
+                    url=row.endpoint_url,
+                    response_key=response_key,
+                    api_key=api_key,
+                    dimension=row.dimension if row.role == 'dense' else None,
+                    rate_limit=rate_limit,
+                )
+
+        dense_provider = _build_provider(dense_row)
+        sparse_provider = _build_provider(sparse_row)
+
+        backend = SyncPgBackend(DatabaseConfig(
+            dbname=VECTOR_DB_NAME,
+            user=VECTOR_DB_USER,
+            password=VECTOR_DB_PASSWORD,
+            host=VECTOR_DB_HOST,
+            port=VECTOR_DB_PORT,
+            schema=VECTOR_DB_SCHEMA,
+        ))
+        processor = IngestProcessor()
+        processor.configure(backend=backend, dense=dense_provider, sparse=sparse_provider)
+
+        rag_service = RagSdkIngestionService(processor)
+        logger.info(
+            "rag_ingestion_initialized",
+            dense=dense_row.provider_type if dense_row else "disabled",
+            sparse=sparse_row.provider_type if sparse_row else "disabled",
+        )
+        return rag_service, None
+
+    except NotConfiguredError as exc:
+        from src.modules.intelligence.application.events import RagConfigFailedEvent
+        from src.infrastructure.shared.logging import get_correlation_id
+        event = RagConfigFailedEvent(
+            exception_type="NotConfiguredError",
+            exception_message=str(exc),
+            context={},
+            correlation_id=get_correlation_id() or None,
+        )
+        logger.warning("rag_ingestion_not_configured_disabling", error=str(exc))
+        return None, event
+
+    except Exception:
+        logger.exception("rag_ingestion_init_failed_disabling")
+        return None, None
+
+
+# ---------------------------------------------------------------------------
 # 主組裝函式
 # ---------------------------------------------------------------------------
 
@@ -130,11 +258,13 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisCompletedHandler
     from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
     from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import FailedTaskPersistenceHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
+    from src.modules.intelligence.application.events import (
+        AnalysisFailedEvent, AnalysisCompletedEvent,
+        TagNormalizationCompletedEvent, TagNormalizationFailedEvent,
+        TranslationFailedEvent, RagIngestionFailedEvent, RagConfigFailedEvent,
+    )
     from src.shared.application.events import ArticleProcessedEvent
-    from src.infrastructure.vector_store.rag_sdk_vector_store_impl import RagSdkVectorStoreService
-    from src.infrastructure.vector_store.vectorize_handler import VectorizeHandler
-    from src.config.settings import TRANSLATION_LANGUAGES
+    from src.config.settings import TRANSLATION_LANGUAGES, CHAT_SERVICE_URL
     
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
@@ -217,41 +347,12 @@ def build_collection_pipeline():
 
     _tracer = _get_tracer()
 
-    # ── Vector Store ───────────────────────────────────────────────────────
-    _rag_enabled = bool(os.environ.get("CHAT_SERVICE_URL"))
-    if _rag_enabled:
-        try:
-            from chatbot_plugin_sdk import (
-                IngestProcessor,
-                SyncPgBackend,
-                DatabaseConfig,
-                EndpointProvider,
-            )
-            _embedding_dim = int(os.environ.get("EMBEDDING_DIM", "768"))
-            backend = SyncPgBackend(DatabaseConfig(
-                dbname=os.environ.get("VECTOR_DB_NAME", ""),
-                user=os.environ.get("VECTOR_DB_USER", ""),
-                password=os.environ.get("VECTOR_DB_PASSWORD", ""),
-                host=os.environ.get("VECTOR_DB_HOST", "localhost"),
-                port=int(os.environ.get("VECTOR_DB_PORT", "5432")),
-            ))
-            processor = IngestProcessor()
-            processor.configure(
-                backend=backend,
-                dense=EndpointProvider(
-                    url=os.environ.get("EMBEDDING_MODEL_API", ""),
-                    dimension=_embedding_dim,
-                ),
-            )
-            vector_store = RagSdkVectorStoreService(processor)
-            vectorize_handler = VectorizeHandler(vector_store)
-            logger.info("rag_vector_store_initialized")
-        except Exception:
-            logger.exception("rag_vector_store_init_failed_disabling")
-            vectorize_handler = None
-    else:
-        vectorize_handler = None
-        logger.info("rag_disabled_chat_service_url_not_set")
+    # ── RAG Ingestion Setup ────────────────────────────────────────────────
+    _rag_ingestion_service, _rag_config_failed_event = build_rag_ingestion_service(session)
+    rag_ingestion_handler = None
+    if _rag_ingestion_service is not None:
+        from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import RagIngestionHandler
+        rag_ingestion_handler = RagIngestionHandler(_rag_ingestion_service, event_bus)
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
@@ -270,8 +371,8 @@ def build_collection_pipeline():
     event_bus.subscribe(ArticleProcessedEvent, with_span_deferred(
         SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
 
-    if vectorize_handler is not None:
-        event_bus.subscribe(ArticleProcessedEvent, vectorize_handler.handle)
+    if rag_ingestion_handler is not None:
+        event_bus.subscribe(ArticleProcessedEvent, rag_ingestion_handler.handle)
 
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, with_span(
@@ -280,6 +381,12 @@ def build_collection_pipeline():
         SpanName.TAG_NORMALIZATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
     event_bus.subscribe(TranslationFailedEvent, with_span(
         SpanName.TRANSLATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(RagIngestionFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(RagConfigFailedEvent, failed_task_handler.handle)
+
+    # Publish deferred startup failures after all subscriptions are registered
+    if _rag_config_failed_event is not None:
+        event_bus.publish(_rag_config_failed_event)
 
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,
