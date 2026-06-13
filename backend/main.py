@@ -16,6 +16,7 @@ from backend.routers.scraper_keywords import router as scraper_keywords_router
 from backend.routers.languages import router as languages_router
 from backend.routers.tags import router as tags_router
 from backend.routers.llm_providers import router as llm_providers_router
+from backend.routers.rag_embedding_providers import router as rag_embedding_providers_router
 from backend.routers.grafana import router as grafana_router
 from backend.routers.monitoring import router as monitoring_router
 from backend.routers.chat import router as chat_router
@@ -42,6 +43,7 @@ app.include_router(auth_router)
 app.include_router(topics_router)
 app.include_router(scraper_keywords_router)
 app.include_router(llm_providers_router)
+app.include_router(rag_embedding_providers_router)
 app.include_router(languages_router)
 app.include_router(tags_router)
 app.include_router(grafana_router)
