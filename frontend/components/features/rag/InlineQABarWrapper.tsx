@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { AgentInput, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { useI18n, useTopic } from '@/lib/providers'
-import { loadSession, saveSession } from '@/lib/chat-session'
 import { AnswerDisplay } from './AnswerDisplay'
 
 interface InlineQABarWrapperProps {
@@ -27,19 +26,11 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const { messages, sendMessage, isLoading, error } = useChat({
     endpoint: CHAT_ENDPOINT,
     streamAdapter: openaiAdapter,
-    initialMessages: loadSession(),
     headers,
     onError: (err) => {
-      // Errors are handled via the error state rendered in AnswerDisplay
       console.error('[InlineQABarWrapper] chat error:', err.message)
     },
   })
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      saveSession(messages)
-    }
-  }, [messages])
 
   const handleSend = useCallback(
     (text: string) => {

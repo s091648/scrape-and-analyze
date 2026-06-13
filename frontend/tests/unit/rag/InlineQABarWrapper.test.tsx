@@ -1,19 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { useChat, AgentInput } from '@Teng91/chatbot-plugin-ui'
+import { useChat, AgentInput } from '@s091648/chatbot-plugin-ui'
 
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
 }))
 
+const zhTW: Record<string, string> = {
+  'rag.rateLimitError': '已達每日問答上限',
+  'rag.serviceUnavailable': '問答服務暫時無法使用，請稍後再試',
+  'rag.genericError': '發生錯誤，請稍後再試',
+  'rag.thinking': '思考中…',
+  'rag.placeholder': '詢問 AI：最近有哪些相關研究？',
+}
+
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
-}))
-
-vi.mock('@/lib/chat-session', () => ({
-  loadSession: vi.fn().mockReturnValue([]),
-  saveSession: vi.fn(),
-  clearSession: vi.fn(),
+  useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
 }))
 
 const mockSendMessage = vi.fn()
@@ -22,7 +25,7 @@ const mockMessages = [
   { id: '2', role: 'assistant', content: 'Hi there!', timestamp: new Date() },
 ]
 
-vi.mock('@Teng91/chatbot-plugin-ui', () => ({
+vi.mock('@s091648/chatbot-plugin-ui', () => ({
   AgentInput: vi.fn(({ onSend, isLoading, placeholder }: any) => (
     <div>
       <input

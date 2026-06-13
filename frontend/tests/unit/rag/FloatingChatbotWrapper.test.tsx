@@ -1,13 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { useChat, ChatbotPlugin } from '@Teng91/chatbot-plugin-ui'
+import { useChat, ChatbotPlugin } from '@s091648/chatbot-plugin-ui'
+
+import { useSession } from 'next-auth/react'
 
 vi.mock('next-auth/react', () => ({
-  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
+  useSession: vi.fn().mockReturnValue({ data: { accessToken: 'tok' }, status: 'authenticated' }),
 }))
+
+const zhTW: Record<string, string> = {
+  'rag.rateLimitError': '已達每日問答上限',
+  'rag.serviceUnavailable': '問答服務暫時無法使用，請稍後再試',
+  'rag.genericError': '發生錯誤，請稍後再試',
+  'rag.thinking': '思考中…',
+  'rag.placeholder': '詢問 AI：最近有哪些相關研究？',
+  'rag.assistantTitle': 'AI 助理',
+}
 
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
+  useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
 }))
 
 vi.mock('sonner', () => ({
@@ -15,9 +27,10 @@ vi.mock('sonner', () => ({
 }))
 
 const mockSendMessage = vi.fn()
+const mockClearMessages = vi.fn()
 
-vi.mock('@Teng91/chatbot-plugin-ui', () => ({
-  ChatbotPlugin: vi.fn(({ messages, onSend, isLoading, title }: any) => (
+vi.mock('@s091648/chatbot-plugin-ui', () => ({
+  ChatbotPlugin: vi.fn(({ messages, onSend, isLoading, title, onNewChat }: any) => (
     <div data-testid="chatbot-plugin">
       <div data-testid="title">{title}</div>
       <button data-testid="fab" aria-label="Open chat" onClick={() => {}}>
@@ -31,6 +44,11 @@ vi.mock('@Teng91/chatbot-plugin-ui', () => ({
       >
         Send
       </button>
+      {onNewChat && (
+        <button data-testid="new-chat-btn" onClick={onNewChat}>
+          New Chat
+        </button>
+      )}
     </div>
   )),
   openaiAdapter: {},
@@ -45,9 +63,9 @@ describe('FloatingChatbotWrapper', () => {
       sendMessage: mockSendMessage,
       isLoading: false,
       error: null,
-      clearMessages: vi.fn(),
+      clearMessages: mockClearMessages,
     })
-    vi.mocked(ChatbotPlugin).mockImplementation(({ messages, onSend, isLoading, title }: any) => (
+    vi.mocked(ChatbotPlugin).mockImplementation(({ messages, onSend, isLoading, title, onNewChat }: any) => (
       <div data-testid="chatbot-plugin">
         <div data-testid="title">{title}</div>
         <button data-testid="fab" aria-label="Open chat" onClick={() => {}}>
@@ -61,6 +79,11 @@ describe('FloatingChatbotWrapper', () => {
         >
           Send
         </button>
+        {onNewChat && (
+          <button data-testid="new-chat-btn" onClick={onNewChat}>
+            New Chat
+          </button>
+        )}
       </div>
     ))
   })
@@ -109,7 +132,7 @@ describe('FloatingChatbotWrapper', () => {
       sendMessage: mockSendMessage,
       isLoading: false,
       error: null,
-      clearMessages: vi.fn(),
+      clearMessages: mockClearMessages,
     })
 
     const { FloatingChatbotWrapper } = await import(
@@ -128,7 +151,7 @@ describe('FloatingChatbotWrapper', () => {
         sendMessage: mockSendMessage,
         isLoading: false,
         error: null,
-        clearMessages: vi.fn(),
+        clearMessages: mockClearMessages,
       }
     })
 
@@ -142,14 +165,14 @@ describe('FloatingChatbotWrapper', () => {
     expect(vi.mocked(toast.warning)).toHaveBeenCalledWith('已達每日問答上限')
   })
 
-  it('saves messages to sessionStorage when messages update', async () => {
+  it('saves messages to localStorage when messages update', async () => {
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
     vi.mocked(useChat).mockReturnValue({
       messages: [{ id: '1', role: 'user', content: 'hello', timestamp: new Date() }],
       sendMessage: mockSendMessage,
       isLoading: false,
       error: null,
-      clearMessages: vi.fn(),
+      clearMessages: mockClearMessages,
     })
 
     const { FloatingChatbotWrapper } = await import(
@@ -160,5 +183,36 @@ describe('FloatingChatbotWrapper', () => {
       expect(setItemSpy).toHaveBeenCalled()
     })
     setItemSpy.mockRestore()
+  })
+
+  it('renders nothing when user is not authenticated', async () => {
+    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/rag/FloatingChatbotWrapper'
+    )
+    const { container } = render(<FloatingChatbotWrapper />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('clears messages and localStorage when onNewChat is triggered', async () => {
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
+    vi.mocked(useChat).mockReturnValue({
+      messages: [{ id: '1', role: 'user', content: 'hello', timestamp: new Date() }],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: mockClearMessages,
+    })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/rag/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    fireEvent.click(screen.getByTestId('new-chat-btn'))
+
+    expect(mockClearMessages).toHaveBeenCalled()
+    expect(removeItemSpy).toHaveBeenCalledWith('rag_float_chat_messages')
+    removeItemSpy.mockRestore()
   })
 })

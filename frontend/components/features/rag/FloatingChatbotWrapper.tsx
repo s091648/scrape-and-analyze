@@ -5,16 +5,15 @@ import { useSession } from 'next-auth/react'
 import { ChatbotPlugin, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
 import { useI18n, useTopic } from '@/lib/providers'
-import { loadSession, saveSession } from '@/lib/chat-session'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
-const FLOAT_SESSION_KEY = 'rag_float_chat_messages'
+const FLOAT_STORAGE_KEY = 'rag_float_chat_messages'
 
 function loadFloatSession() {
   if (typeof window === 'undefined') return []
   try {
-    const raw = sessionStorage.getItem(FLOAT_SESSION_KEY)
+    const raw = localStorage.getItem(FLOAT_STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })) : []
@@ -26,12 +25,12 @@ function loadFloatSession() {
 function saveFloatSession(messages: any[]) {
   if (typeof window === 'undefined') return
   try {
-    sessionStorage.setItem(FLOAT_SESSION_KEY, JSON.stringify(messages))
+    localStorage.setItem(FLOAT_STORAGE_KEY, JSON.stringify(messages))
   } catch {}
 }
 
 export function FloatingChatbotWrapper() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
 
@@ -40,7 +39,7 @@ export function FloatingChatbotWrapper() {
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
 
-  const { messages, sendMessage, isLoading } = useChat({
+  const { messages, sendMessage, isLoading, clearMessages } = useChat({
     endpoint: CHAT_ENDPOINT,
     streamAdapter: openaiAdapter,
     initialMessages: loadFloatSession(),
@@ -72,12 +71,20 @@ export function FloatingChatbotWrapper() {
     [sendMessage]
   )
 
+  const handleNewChat = useCallback(() => {
+    clearMessages()
+    localStorage.removeItem(FLOAT_STORAGE_KEY)
+  }, [clearMessages])
+
+  if (status !== 'authenticated') return null
+
   return (
     <div data-chatbot-theme="auto">
       <ChatbotPlugin
         messages={messages}
         onSend={handleSend}
         isLoading={isLoading}
+        onNewChat={handleNewChat}
         title={t('rag.assistantTitle')}
         placeholder={t('rag.placeholder')}
       />
