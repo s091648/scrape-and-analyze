@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 
 from opentelemetry import trace as _otel_trace
@@ -7,6 +8,7 @@ from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import FailedTask
 from src.shared.domain.repositories import FailedTaskRepository
 from src.shared.application.events.failed_event import FailedEvent
+from src.infrastructure.shared.logging import get_correlation_id
 
 
 logger = get_logger(__name__)
@@ -35,6 +37,12 @@ class FailedTaskPersistenceHandler:
             span.set_attribute("analysis.id", str(analysis_id))
         span.set_status(StatusCode.ERROR, exception_type)
 
+        corr_id_str = getattr(event, "correlation_id", None) or get_correlation_id()
+        try:
+            corr_id = uuid.UUID(corr_id_str) if corr_id_str else None
+        except (ValueError, AttributeError):
+            corr_id = None
+
         task = FailedTask(
             task_type=getattr(event, "task_type", "unknown"),
             article_id=getattr(event, "article_id", None),
@@ -44,6 +52,7 @@ class FailedTaskPersistenceHandler:
             exception_message=getattr(event, "exception_message", None),
             context=getattr(event, "context", None),
             traceback=getattr(event, "traceback", None),
+            correlation_id=corr_id,
             failed_at=datetime.now(timezone.utc),
         )
         try:

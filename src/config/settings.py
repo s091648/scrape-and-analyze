@@ -55,7 +55,7 @@ def log_config_warnings(logger) -> None:
 def validate_config() -> None:
     """Raise ValueError if required env vars are missing."""
     errors = []
-    if not DATABASE_URL:
+    if not os.environ.get("DATABASE_URL"):
         errors.append("DATABASE_URL is required")
     if errors:
         raise ValueError(f"Configuration errors: {', '.join(errors)}")
