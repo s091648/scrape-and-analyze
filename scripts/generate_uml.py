@@ -327,11 +327,35 @@ def build_class_ast_data() -> dict[str, dict]:
                     method_doc = method_doc[:160].rsplit(" ", 1)[0] + "…"
                 methods.append({"sig": sig, "doc": method_doc})
             typed_attrs = class_attrs or init_attrs
+
+            # Detect abstract class (inherits ABC/ABCMeta or has @abstractmethod)
+            # and Protocol (inherits Protocol)
+            base_names = [
+                b.id if isinstance(b, ast.Name) else
+                (b.attr if isinstance(b, ast.Attribute) else "")
+                for b in node.bases
+            ]
+            is_protocol = "Protocol" in base_names
+            is_abstract = (
+                "ABC" in base_names or "ABCMeta" in base_names or
+                any(
+                    isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and
+                    any(
+                        (isinstance(d, ast.Name) and d.id == "abstractmethod") or
+                        (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
+                        for d in stmt.decorator_list
+                    )
+                    for stmt in node.body
+                )
+            )
+
             result[node.name] = {
                 "docstring": docstring,
                 "typed_attrs": typed_attrs,
                 "typed_methods": methods,
                 "source_file": rel_path,
+                "is_abstract": is_abstract,
+                "is_protocol": is_protocol,
             }
     return result
 
@@ -970,30 +994,40 @@ def build_pipeline_from_bootstrap() -> list[dict]:
             handlers_for_event = event_to_handlers.get(event, [])
             main_handlers = [h for h in handlers_for_event
                              if "Failed" not in h and h not in visited_handlers]
+            # Parallel group ID: when multiple handlers process the same event simultaneously
+            parallel_group = (
+                f"pg_{re.sub(r'[^a-z]', '', event.lower())}"
+                if len(main_handlers) > 1 else ""
+            )
             for hc in main_handlers:
                 if hc in visited_handlers:
                     continue
                 visited_handlers.add(hc)
                 receives = [e for e, hs in event_to_handlers.items() if hc in hs]
                 publishes = class_publish_map.get(hc, [])
-                success_emits = [e for e in publishes if "Failed" not in e]
-                fail_emits = [e for e in publishes if "Failed" in e]
+                success_emits = list(dict.fromkeys(e for e in publishes if "Failed" not in e))
+                fail_emits = list(dict.fromkeys(e for e in publishes if "Failed" in e))
+                # Build one branch entry per failed event.
+                # Do NOT add branch handlers to visited_handlers — FailedTaskPersistenceHandler
+                # subscribes to ALL failed events and must appear in every stage's branch list.
                 branches: list[dict] = []
                 for fe in fail_emits:
-                    for bh in [h for h in event_to_handlers.get(fe, []) if h not in visited_handlers]:
-                        visited_handlers.add(bh)
-                        branches.append({
-                            "label": re.sub(r"([A-Z])", r" \1", fe).strip().replace(" Event", ""),
-                            "color": "#e94560",
-                            "emits": [fe],
-                            "classes": [bh] + handler_related.get(bh, []),
-                            "desc": f"{fe} → {bh}",
-                        })
+                    fe_handlers = event_to_handlers.get(fe, [])
+                    branch_classes = fe_handlers or []
+                    branch_related = [c for bh in fe_handlers for c in handler_related.get(bh, [])]
+                    branches.append({
+                        "label": re.sub(r"([A-Z])", r" \1", fe).strip().replace(" Event", ""),
+                        "color": "#e94560",
+                        "emits": [fe],
+                        "classes": branch_classes + branch_related,
+                        "desc": f"{fe} → {', '.join(fe_handlers) or 'FailedTaskPersistenceHandler'}",
+                    })
                 related = handler_related.get(hc, [])
                 hc_var = class_to_var.get(hc, "")
                 ordered_stages.append({
                     "step": step,
                     "id": re.sub(r"[^a-z]", "", hc.lower()),
+                    "parallel_group": parallel_group,
                     "icon": _infer_stage_icon(hc),
                     "label": _camel_to_label(hc),
                     "desc": (
@@ -1041,6 +1075,7 @@ def build_pipeline_from_bootstrap() -> list[dict]:
     ordered_stages.insert(0, {
         "step": 1,
         "id": "collection",
+        "parallel_group": "",
         "icon": "🚀",
         "label": "Collection Pipeline",
         "desc": (
@@ -1095,6 +1130,8 @@ def build_uml_data() -> dict:
         node["typed_attrs"] = ast_info.get("typed_attrs", [])
         node["typed_methods"] = ast_info.get("typed_methods", [])
         node["source_file"] = ast_info.get("source_file", node["full_path"])
+        node["is_abstract"] = ast_info.get("is_abstract", False)
+        node["is_protocol"] = ast_info.get("is_protocol", False)
 
         # Context classification uses source_file (full path) first so that
         # src/modules/collection/* and src/modules/intelligence/* are correctly
