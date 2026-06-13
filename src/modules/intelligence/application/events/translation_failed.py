@@ -14,3 +14,4 @@ class TranslationFailedEvent:
     exception_message: Optional[str] = None
     context: Optional[dict] = None
     traceback: Optional[str] = None
+    correlation_id: Optional[str] = None

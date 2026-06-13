@@ -1,12 +1,12 @@
 import asyncio
 
-from src.modules.articles.domain.services.vector_store_service import VectorStoreService
+from src.modules.intelligence.domain.services.rag_ingestion_service import RagIngestionService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-class RagSdkVectorStoreService(VectorStoreService):
+class RagSdkIngestionService(RagIngestionService):
     def __init__(self, processor) -> None:
         self._processor = processor
 
@@ -19,4 +19,4 @@ class RagSdkVectorStoreService(VectorStoreService):
                 "source": article.source,
             },
         ))
-        logger.info("article_vectorized", article_id=str(article.id))
+        logger.info("article_rag_ingested", article_id=str(article.id))

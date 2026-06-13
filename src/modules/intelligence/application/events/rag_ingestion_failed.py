@@ -4,12 +4,12 @@ from uuid import UUID
 
 
 @dataclass(frozen=True)
-class TagNormalizationFailedEvent:
-    """Published when tag normalization fails during post-analysis processing."""
-    analysis_id: UUID
+class RagIngestionFailedEvent:
+    """Published by RagIngestionHandler when RAG ingestion fails for an article."""
     article_id: UUID
-    task_type: str = "tag_normalization"
-    article_url: Optional[str] = None
+    article_url: str
+    task_type: str = "rag_ingest"
+    analysis_id: Optional[UUID] = None
     exception_type: Optional[str] = None
     exception_message: Optional[str] = None
     context: Optional[dict] = None

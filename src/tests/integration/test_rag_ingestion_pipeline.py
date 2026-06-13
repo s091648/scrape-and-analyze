@@ -1,15 +1,16 @@
 """
-Integration tests for the vectorization pipeline.
+Integration tests for the RAG ingestion pipeline.
 
 These tests use the real DB schema but mock the RAG SDK processor
 to avoid needing the actual embedding service.
 """
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from uuid import uuid4
 
-from src.infrastructure.vector_store.rag_sdk_vector_store_impl import RagSdkVectorStoreService
-from src.infrastructure.vector_store.vectorize_handler import VectorizeHandler
+from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
+from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import RagIngestionHandler
+from src.modules.intelligence.application.events.rag_ingestion_failed import RagIngestionFailedEvent
 from src.shared.application.events.article_processed import ArticleProcessedEvent
 from src.shared.domain.entities.article import Article
 
@@ -21,16 +22,17 @@ def _make_article():
         url_hash=str(uuid4()).replace("-", "")[:32],
         source="rss",
         title="Integration Test Article",
-        content="This is test content for the vectorization integration test.",
+        content="This is test content for the RAG ingestion integration test.",
     )
 
 
 @pytest.mark.integration
-class TestVectorizationPipeline:
+class TestRagIngestionPipeline:
     def test_handler_subscribes_and_fires(self):
         processor = MagicMock()
-        service = RagSdkVectorStoreService(processor)
-        handler = VectorizeHandler(service)
+        service = RagSdkIngestionService(processor)
+        event_bus = MagicMock()
+        handler = RagIngestionHandler(service, event_bus)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 
@@ -38,13 +40,14 @@ class TestVectorizationPipeline:
 
         processor.ingest.assert_called_once()
         _, kwargs = processor.ingest.call_args
-        assert kwargs["metadata"]["article_id"] == str(article.id)
+        assert kwargs["metadata"]["url"] == str(article.url)
 
     def test_idempotent_ingest_does_not_raise(self):
         """Same article ingested twice should not raise (SDK handles UNIQUE constraint)."""
         processor = MagicMock()
-        service = RagSdkVectorStoreService(processor)
-        handler = VectorizeHandler(service)
+        service = RagSdkIngestionService(processor)
+        event_bus = MagicMock()
+        handler = RagIngestionHandler(service, event_bus)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 
@@ -53,13 +56,19 @@ class TestVectorizationPipeline:
 
         assert processor.ingest.call_count == 2
 
-    def test_sdk_failure_does_not_propagate(self):
+    def test_sdk_failure_publishes_failed_event(self):
         processor = MagicMock()
         processor.ingest.side_effect = Exception("DB connection error")
-        service = RagSdkVectorStoreService(processor)
-        handler = VectorizeHandler(service)
+        service = RagSdkIngestionService(processor)
+        event_bus = MagicMock()
+        handler = RagIngestionHandler(service, event_bus)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 
         # Must not raise — pipeline must continue
         handler.handle(event)
+
+        event_bus.publish.assert_called_once()
+        published = event_bus.publish.call_args[0][0]
+        assert isinstance(published, RagIngestionFailedEvent)
+        assert published.article_id == article.id
