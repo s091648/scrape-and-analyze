@@ -239,6 +239,47 @@ function getStageNodes(classNames) {
   return searchLower.value ? nodes.filter(nodeMatchesSearch) : nodes
 }
 
+// ─── Pipeline SVG layout ──────────────────────────────────────────────────────
+
+const PL_CANVAS_W = 880
+const PL_STAGE_W = 300
+const PL_GAP = 32
+const PL_CONN_H = 68
+
+function plXCenters(count) {
+  const totalW = count * PL_STAGE_W + (count - 1) * PL_GAP
+  const startX = (PL_CANVAS_W - totalW) / 2
+  return Array.from({ length: count }, (_, i) =>
+    startX + i * (PL_STAGE_W + PL_GAP) + PL_STAGE_W / 2
+  )
+}
+
+// Returns bezier path strings; only draws from source stages that have emits.
+// If no source stage emits (implicit pipeline completion), falls back to canvas center.
+function plConnPaths(srcStages, tgtCount) {
+  const allSrcCenters = plXCenters(srcStages.length)
+  const emitIdxs = srcStages.reduce((acc, s, i) => { if (s.emits.length > 0) acc.push(i); return acc }, [])
+  const S = emitIdxs.length > 0 ? emitIdxs.map(i => allSrcCenters[i]) : [PL_CANVAS_W / 2]
+  const T = plXCenters(tgtCount)
+  const H = PL_CONN_H
+  const paths = []
+  if (S.length === 1) {
+    T.forEach(tx => paths.push(`M ${S[0]} 0 C ${S[0]} ${H * .5} ${tx} ${H * .5} ${tx} ${H}`))
+  } else if (tgtCount === 1) {
+    S.forEach(sx => paths.push(`M ${sx} 0 C ${sx} ${H * .5} ${T[0]} ${H * .5} ${T[0]} ${H}`))
+  } else {
+    for (let i = 0; i < Math.min(S.length, T.length); i++) {
+      paths.push(`M ${S[i]} 0 C ${S[i]} ${H * .5} ${T[i]} ${H * .5} ${T[i]} ${H}`)
+    }
+  }
+  return paths
+}
+
+// True when no source stage emits — means the connection is an implicit pipeline event
+function plIsImplicit(srcStages) {
+  return srcStages.every(s => s.emits.length === 0)
+}
+
 // ─── Card helpers ─────────────────────────────────────────────────────────────
 
 function cardId(nodeId) { return 'cc-' + nodeId.replace(/\./g, '-') }
@@ -578,91 +619,122 @@ onUnmounted(() => {
     </template>
 
     <!-- ══════════════════════════════════════════════════════════════════ -->
-    <!-- PIPELINE FLOW MODE  (AWS Step Functions style)                   -->
+    <!-- PIPELINE FLOW MODE  (SVG curved arrows)                          -->
     <!-- ══════════════════════════════════════════════════════════════════ -->
     <div v-else-if="topMode === 'pipeline'" class="sf-canvas">
       <div v-if="!pipelineRows.length" class="empty-msg" style="padding:3rem">
         Pipeline 資料未找到，請先執行 <code>make uml-backend</code>
       </div>
       <div v-else class="sf-graph">
+
+        <!-- Shared SVG marker — rendered once, referenced by all connector SVGs -->
+        <svg width="0" height="0" style="position:absolute;pointer-events:none">
+          <defs>
+            <marker id="pl-arr" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#999" />
+            </marker>
+          </defs>
+        </svg>
+
         <template v-for="(row, ri) in pipelineRows" :key="row.id">
 
-          <!-- ── Between-row event connector ── -->
-          <div v-if="ri > 0" class="sf-connector">
-            <div class="sf-vline"></div>
-            <div v-if="row.connector_event" class="sf-pill">▼ {{ row.connector_event }}</div>
-            <div class="sf-vline"></div>
-          </div>
+          <!-- ── SVG curved connector between rows ──
+               Drawn whenever the target row has receives (covers implicit pipeline events).
+               Paths are only drawn from source stages that actually emit;
+               if none emit, a single dashed center arrow represents the implicit event. -->
+          <svg v-if="ri > 0 && row.stages.some(s => s.receives.length > 0)"
+            :width="PL_CANVAS_W" :height="PL_CONN_H"
+            style="display:block;overflow:visible;flex-shrink:0"
+          >
+            <path
+              v-for="(d, pi) in plConnPaths(pipelineRows[ri - 1].stages, row.stages.length)"
+              :key="pi" :d="d"
+              fill="none" stroke="#999" stroke-width="1.5"
+              :stroke-dasharray="plIsImplicit(pipelineRows[ri - 1].stages) ? '6,3' : ''"
+              marker-end="url(#pl-arr)"
+            />
+            <g v-if="row.connector_event">
+              <rect
+                :x="PL_CANVAS_W / 2 - 82" :y="PL_CONN_H / 2 - 11"
+                width="164" height="22" rx="11"
+                style="fill:var(--vp-c-bg-soft);stroke:var(--vp-c-border);stroke-width:1"
+              />
+              <text
+                :x="PL_CANVAS_W / 2" :y="PL_CONN_H / 2 + 4"
+                text-anchor="middle" font-size="10" font-family="monospace"
+                style="fill:var(--vp-c-text-2)"
+              >{{ row.connector_event }}</text>
+            </g>
+          </svg>
 
-          <!-- ── Parallel fork bar ── -->
-          <div v-if="row.stages.length > 1" class="sf-fork-bar">
-            <div class="sf-fork-label">⇉ Fan-out</div>
-          </div>
+          <!-- ── Parallel label ── -->
+          <div v-if="row.stages.length > 1" class="sf-parallel-label">⇉ Fan-out</div>
 
-          <!-- ── Stage row (single or parallel) ── -->
-          <div class="sf-stages-row" :class="{ 'sf-parallel': row.stages.length > 1 }">
-            <template v-for="stage in row.stages" :key="stage.id">
-
-              <!-- fork arm: vertical line above box for parallel stages -->
-              <div v-if="row.stages.length > 1" class="sf-parallel-slot">
-                <div class="sf-vline sf-arm"></div>
-
-                <!-- ── Stage box ── -->
-                <div
-                  class="sf-box"
-                  :style="{ '--sc': stage.color }"
-                  @click="toggleStage(stage.id)"
-                >
-                  <div class="sf-box-hd">
-                    <div class="sf-step-dot">{{ stage.step }}</div>
-                    <span class="sf-box-icon">{{ stage.icon }}</span>
-                    <span class="sf-box-lbl">{{ stage.label }}</span>
-                    <span class="sf-chv">{{ expandedStages.has(stage.id) ? '▾' : '▸' }}</span>
-                  </div>
-                  <div class="sf-box-chips">
-                    <span v-for="e in stage.receives" :key="e" class="sf-chip sf-rx">{{ e }}</span>
-                    <span v-for="e in stage.emits" :key="e" class="sf-chip sf-tx">▶ {{ e }}</span>
-                  </div>
-                  <div v-if="expandedStages.has(stage.id)" class="sf-box-bd">
-                    <div class="sf-bd-cards">
-                      <div
-                        v-for="node in getStageNodes(stage.classes)" :key="node.id"
-                        :class="['class-card', 'card-clickable', { highlighted: highlightedId === node.id }]"
-                        :style="{ borderLeftColor: stage.color }"
-                        @click.stop="openDialog(node)"
-                      >
-                        <div class="cc-header">
-                          <div class="cc-name-group">
-                            <span class="cc-name">{{ node.class_name }}</span>
-                            <span v-if="node.is_abstract" class="cc-type-badge abc">ABC</span>
-                            <span v-if="node.is_protocol" class="cc-type-badge protocol">Protocol</span>
-                          </div>
-                          <span class="cc-badge" :style="{ background: LAYER_COLORS[node.layer] ?? '#888' }">{{ node.layer }}</span>
+          <!-- ── Stage boxes row ── -->
+          <div class="sf-stages-row" :style="{ width: PL_CANVAS_W + 'px', gap: PL_GAP + 'px' }">
+            <div
+              v-for="(stage, si) in row.stages" :key="stage.id"
+              class="sf-stage-slot"
+              :style="{ width: PL_STAGE_W + 'px' }"
+            >
+              <!-- Main stage box -->
+              <div
+                class="sf-box"
+                :style="{ '--sc': stage.color }"
+                @click="toggleStage(stage.id)"
+              >
+                <div class="sf-box-hd">
+                  <div class="sf-step-dot">{{ stage.step }}</div>
+                  <span class="sf-box-icon">{{ stage.icon }}</span>
+                  <span class="sf-box-lbl">{{ stage.label }}</span>
+                  <span class="sf-chv">{{ expandedStages.has(stage.id) ? '▾' : '▸' }}</span>
+                </div>
+                <div class="sf-box-chips">
+                  <span v-for="e in stage.receives" :key="e" class="sf-chip sf-rx">{{ e }}</span>
+                  <span v-for="e in stage.emits" :key="e" class="sf-chip sf-tx">▶ {{ e }}</span>
+                </div>
+                <div v-if="expandedStages.has(stage.id)" class="sf-box-bd">
+                  <div class="sf-bd-cards">
+                    <div
+                      v-for="node in getStageNodes(stage.classes)" :key="node.id"
+                      :class="['class-card', 'card-clickable', { highlighted: highlightedId === node.id }]"
+                      :style="{ borderLeftColor: stage.color }"
+                      @click.stop="openDialog(node)"
+                    >
+                      <div class="cc-header">
+                        <div class="cc-name-group">
+                          <span class="cc-name">{{ node.class_name }}</span>
+                          <span v-if="node.is_abstract" class="cc-type-badge abc">ABC</span>
+                          <span v-if="node.is_protocol" class="cc-type-badge protocol">Protocol</span>
                         </div>
-                        <div class="cc-module">{{ node.module || node.id }}</div>
-                        <div v-if="node.docstring" class="cc-doc">{{ node.docstring }}</div>
+                        <span class="cc-badge" :style="{ background: LAYER_COLORS[node.layer] ?? '#888' }">{{ node.layer }}</span>
                       </div>
+                      <div class="cc-module">{{ node.module || node.id }}</div>
+                      <div v-if="node.docstring" class="cc-doc">{{ node.docstring }}</div>
                     </div>
-                    <div v-if="flattenDiTree(stage.di).length" class="di-panel">
-                      <div class="di-title">📦 DI</div>
-                      <div v-for="(dr, i) in flattenDiTree(stage.di)" :key="i" class="di-row"
-                        :style="{ paddingLeft: (dr.indent * 18 + 8) + 'px' }">
-                        <span class="di-connector">{{ dr.indent === 0 ? '●' : '└' }}</span>
-                        <span v-if="dr.param" class="di-param">{{ dr.param }}:</span>
-                        <span class="di-chip"
-                          :class="{ 'di-chip-link': !!umlData?.nodes.find(n => n.class_name === dr.cls) }"
-                          @click.stop="openDialog(umlData?.nodes.find(n => n.class_name === dr.cls) ?? null)"
-                        >{{ dr.cls }}</span>
-                      </div>
+                  </div>
+                  <div v-if="flattenDiTree(stage.di).length" class="di-panel">
+                    <div class="di-title">📦 DI</div>
+                    <div v-for="(dr, i) in flattenDiTree(stage.di)" :key="i" class="di-row"
+                      :style="{ paddingLeft: (dr.indent * 18 + 8) + 'px' }">
+                      <span class="di-connector">{{ dr.indent === 0 ? '●' : '└' }}</span>
+                      <span v-if="dr.param" class="di-param">{{ dr.param }}:</span>
+                      <span class="di-chip"
+                        :class="{ 'di-chip-link': !!umlData?.nodes.find(n => n.class_name === dr.cls) }"
+                        @click.stop="openDialog(umlData?.nodes.find(n => n.class_name === dr.cls) ?? null)"
+                      >{{ dr.cls }}</span>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <!-- Error exits (dashed red branches) -->
-                <div v-if="stage.branches?.length" class="sf-errs">
-                  <div v-for="br in stage.branches" :key="br.emits[0]" class="sf-err">
+              <!-- Error exit: float RIGHT for single-stage rows; go BELOW for parallel rows
+                   (avoids overlapping the adjacent parallel stage boxes)             -->
+              <template v-if="stage.branches?.length">
+                <div v-if="row.stages.length === 1" class="sf-err-float">
+                  <div v-for="br in stage.branches" :key="br.emits[0]" class="sf-err-item">
                     <span class="sf-err-arr">⤷</span>
-                    <div class="sf-err-box">
+                    <div class="sf-err-box-card">
                       <div class="sf-err-hd">⚠ {{ br.label }}</div>
                       <div class="sf-err-evt">{{ br.emits[0] }}</div>
                       <div v-if="expandedStages.has(stage.id)" class="sf-err-cls">
@@ -671,89 +743,21 @@ onUnmounted(() => {
                     </div>
                   </div>
                 </div>
-
-                <!-- join arm: vertical line below box, OR end-of-branch marker -->
-                <div v-if="stage.emits.length" class="sf-vline sf-arm"></div>
-                <div v-else class="sf-end-marker" title="此分支不產生後續事件">⊗</div>
-              </div>
-
-              <!-- Single (non-parallel) stage: box + error exits side by side -->
-              <template v-else>
-                <div class="sf-single-row">
-
-                  <!-- Stage box -->
-                  <div
-                    class="sf-box"
-                    :style="{ '--sc': stage.color }"
-                    @click="toggleStage(stage.id)"
-                  >
-                    <div class="sf-box-hd">
-                      <div class="sf-step-dot">{{ stage.step }}</div>
-                      <span class="sf-box-icon">{{ stage.icon }}</span>
-                      <span class="sf-box-lbl">{{ stage.label }}</span>
-                      <span class="sf-chv">{{ expandedStages.has(stage.id) ? '▾' : '▸' }}</span>
-                    </div>
-                    <div class="sf-box-chips">
-                      <span v-for="e in stage.receives" :key="e" class="sf-chip sf-rx">{{ e }}</span>
-                      <span v-for="e in stage.emits" :key="e" class="sf-chip sf-tx">▶ {{ e }}</span>
-                    </div>
-                    <div v-if="expandedStages.has(stage.id)" class="sf-box-bd">
-                      <div class="sf-bd-cards">
-                        <div
-                          v-for="node in getStageNodes(stage.classes)" :key="node.id"
-                          :class="['class-card', 'card-clickable', { highlighted: highlightedId === node.id }]"
-                          :style="{ borderLeftColor: stage.color }"
-                          @click.stop="openDialog(node)"
-                        >
-                          <div class="cc-header">
-                            <div class="cc-name-group">
-                              <span class="cc-name">{{ node.class_name }}</span>
-                              <span v-if="node.is_abstract" class="cc-type-badge abc">ABC</span>
-                              <span v-if="node.is_protocol" class="cc-type-badge protocol">Protocol</span>
-                            </div>
-                            <span class="cc-badge" :style="{ background: LAYER_COLORS[node.layer] ?? '#888' }">{{ node.layer }}</span>
-                          </div>
-                          <div class="cc-module">{{ node.module || node.id }}</div>
-                          <div v-if="node.docstring" class="cc-doc">{{ node.docstring }}</div>
-                        </div>
-                      </div>
-                      <div v-if="flattenDiTree(stage.di).length" class="di-panel">
-                        <div class="di-title">📦 DI</div>
-                        <div v-for="(dr, i) in flattenDiTree(stage.di)" :key="i" class="di-row"
-                          :style="{ paddingLeft: (dr.indent * 18 + 8) + 'px' }">
-                          <span class="di-connector">{{ dr.indent === 0 ? '●' : '└' }}</span>
-                          <span v-if="dr.param" class="di-param">{{ dr.param }}:</span>
-                          <span class="di-chip"
-                            :class="{ 'di-chip-link': !!umlData?.nodes.find(n => n.class_name === dr.cls) }"
-                            @click.stop="openDialog(umlData?.nodes.find(n => n.class_name === dr.cls) ?? null)"
-                          >{{ dr.cls }}</span>
-                        </div>
+                <div v-else class="sf-err-below">
+                  <div v-for="br in stage.branches" :key="br.emits[0]" class="sf-err-item">
+                    <span class="sf-err-arr-down">↳</span>
+                    <div class="sf-err-box-card">
+                      <div class="sf-err-hd">⚠ {{ br.label }}</div>
+                      <div class="sf-err-evt">{{ br.emits[0] }}</div>
+                      <div v-if="expandedStages.has(stage.id)" class="sf-err-cls">
+                        <div v-for="cls in br.classes" :key="cls">{{ cls }}</div>
                       </div>
                     </div>
                   </div>
-
-                  <!-- Error exits column -->
-                  <div v-if="stage.branches?.length" class="sf-errs">
-                    <div v-for="br in stage.branches" :key="br.emits[0]" class="sf-err">
-                      <span class="sf-err-arr">⤷</span>
-                      <div class="sf-err-box">
-                        <div class="sf-err-hd">⚠ {{ br.label }}</div>
-                        <div class="sf-err-evt">{{ br.emits[0] }}</div>
-                        <div v-if="expandedStages.has(stage.id)" class="sf-err-cls">
-                          <div v-for="cls in br.classes" :key="cls">{{ cls }}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                 </div>
               </template>
-
-            </template>
+            </div>
           </div>
-
-          <!-- ── Parallel join bar ── -->
-          <div v-if="row.stages.length > 1" class="sf-join-bar"></div>
 
         </template>
       </div>
@@ -1171,68 +1175,22 @@ onUnmounted(() => {
 .chip-nav:hover { background: var(--vp-c-brand); color: #fff; }
 .chip-ext { background: var(--vp-c-bg-mute); color: var(--vp-c-text-3); }
 
-/* ── Pipeline view (AWS Step Functions style) ───────────────────────────────── */
+/* ── Pipeline view (SVG curved arrows) ─────────────────────────────────────── */
 .sf-canvas { flex: 1; overflow-y: auto; overflow-x: auto; }
 .sf-graph {
   display: flex; flex-direction: column; align-items: center;
-  padding: 20px 24px; min-width: 400px;
+  padding: 20px 24px 40px; min-width: fit-content;
 }
 
-/* Between-row event connector */
-.sf-connector { display: flex; flex-direction: column; align-items: center; }
-.sf-vline { width: 2px; background: var(--vp-c-border); flex-shrink: 0; }
-.sf-vline:not(.sf-arm) { height: 14px; }
-.sf-arm { height: 20px; }
-.sf-pill {
-  font-size: 10px; font-family: monospace; white-space: nowrap;
-  padding: 2px 12px; border-radius: 10px;
-  background: var(--vp-c-bg-soft); border: 1px solid var(--vp-c-border);
-  color: var(--vp-c-text-2); max-width: 340px;
-  overflow: hidden; text-overflow: ellipsis;
-}
-
-/* Parallel fork / join bars */
-.sf-fork-bar, .sf-join-bar {
-  height: 2px; background: var(--vp-c-border);
-  align-self: stretch; flex-shrink: 0;
-}
-.sf-fork-bar {
-  display: flex; align-items: center; justify-content: center;
-  height: 22px; border-top: 2px solid var(--vp-c-border);
-  background: transparent; position: relative;
-}
-.sf-fork-label {
-  font-size: 10px; color: var(--vp-c-text-3); font-weight: 600;
-  background: var(--vp-c-bg); padding: 0 6px;
-  letter-spacing: .04em;
-}
-.sf-join-bar {
-  border-top: 2px dashed var(--vp-c-border);
-  height: 0; opacity: .5;
-}
-
-.sf-end-marker {
-  font-size: 13px; color: var(--vp-c-text-3); font-weight: 700;
-  margin: 4px 0; line-height: 1; letter-spacing: .03em;
-}
-
-/* Stage row: single or parallel */
+/* Stage row */
 .sf-stages-row {
-  display: flex; gap: 0; justify-content: center; align-items: flex-start;
+  display: flex; justify-content: center; align-items: flex-start;
+  flex-shrink: 0;
 }
-.sf-stages-row.sf-parallel { gap: 24px; }
-
-/* Parallel stage column (includes fork arm + box + error exits + join arm) */
-.sf-parallel-slot {
-  display: flex; flex-direction: column; align-items: center;
-}
-
-/* Single stage row: box + error exits side by side */
-.sf-single-row { display: flex; align-items: flex-start; gap: 10px; }
 
 /* Stage box */
 .sf-box {
-  width: 300px; border-radius: 10px;
+  border-radius: 10px;
   border: 1.5px solid var(--sc, var(--vp-c-border));
   background: var(--vp-c-bg-soft);
   cursor: pointer; transition: box-shadow .2s, transform .15s;
@@ -1257,28 +1215,34 @@ onUnmounted(() => {
   display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 10px;
   background: var(--vp-c-bg); border-top: 1px solid rgba(0,0,0,.07);
 }
-.sf-chip {
-  font-size: 9px; font-family: monospace; padding: 2px 7px;
-  border-radius: 8px; white-space: nowrap;
-}
+.sf-chip { font-size: 9px; font-family: monospace; padding: 2px 7px; border-radius: 8px; white-space: nowrap; }
 .sf-rx { background: rgba(68,187,153,.12); color: #44BB99; border: 1px solid rgba(68,187,153,.2); }
 .sf-tx { background: rgba(119,170,221,.12); color: #77AADD; border: 1px solid rgba(119,170,221,.2); }
-
 .sf-box-bd {
   border-top: 1px solid var(--vp-c-border);
   background: var(--vp-c-bg); padding: 10px;
 }
 .sf-bd-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 
-/* Error exits */
-.sf-errs {
+/* Stage slot: wraps the box + error branches */
+.sf-stage-slot { position: relative; display: flex; flex-direction: column; }
+
+/* Error exit — single stage: float absolute to the right */
+.sf-err-float {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 12px;
   display: flex; flex-direction: column; gap: 8px;
-  padding-top: 8px; align-self: flex-start;
+  z-index: 5;
 }
-.sf-err { display: flex; align-items: flex-start; gap: 6px; }
+/* Error exit — parallel stage: flow below the box */
+.sf-err-below { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+
+.sf-err-item { display: flex; align-items: flex-start; gap: 4px; }
 .sf-err-arr { font-size: 18px; color: #e94560; line-height: 1.6; flex-shrink: 0; }
-.sf-err-box {
-  min-width: 155px; max-width: 195px;
+.sf-err-arr-down { font-size: 16px; color: #e94560; line-height: 1.8; flex-shrink: 0; }
+.sf-err-box-card {
+  min-width: 160px; max-width: 200px;
   border: 1.5px dashed #e94560; border-radius: 7px;
   padding: 6px 10px; background: rgba(233,69,96,.05);
 }
@@ -1286,6 +1250,12 @@ onUnmounted(() => {
 .sf-err-evt { font-size: 9px; font-family: monospace; color: var(--vp-c-text-3); margin-top: 2px; word-break: break-all; }
 .sf-err-cls { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
 .sf-err-cls div { font-size: 10px; color: var(--vp-c-text-2); font-family: monospace; }
+
+/* Parallel fan-out label */
+.sf-parallel-label {
+  font-size: 10px; font-weight: 600; color: var(--vp-c-text-3);
+  letter-spacing: .04em; margin-bottom: 4px;
+}
 
 /* ── DI panel ───────────────────────────────────────────────────────────────── */
 .di-panel {
