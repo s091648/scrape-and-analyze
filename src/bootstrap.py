@@ -123,16 +123,16 @@ def build_rag_ingestion_service(session):
             IngestProcessor,
             SyncPgBackend,
             DatabaseConfig,
-            EndpointProvider,
-            LocalProvider,
             NotConfiguredError,
         )
-        from chatbot_plugin_sdk.rate_limit import SlidingWindowStrategy
         from src.config.settings import (
             VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
             VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
         )
         from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
+        from src.infrastructure.intelligence.vector_store.providers import (
+            GeminiRagDenseProvider, LocalDenseRagProvider, LocalSparseRagProvider, EndpointRagProvider,
+        )
         from shared.rag_embedding_provider import load_active_rag_providers
 
         rows = load_active_rag_providers(session)
@@ -142,39 +142,27 @@ def build_rag_ingestion_service(session):
         def _build_provider(row):
             if row is None:
                 return None
-            api_key = None
-            if row.api_key_env:
-                import os
-                api_key = os.environ.get(row.api_key_env) or None
-            rate_limit = None
-            if all(v is not None for v in (row.rpm, row.tpm, row.rpd)):
-                rate_limit = SlidingWindowStrategy(rpm=row.rpm, tpm=row.tpm, rpd=row.rpd)
-            if row.provider_type == 'local':
+            api_key = os.environ.get(row.api_key_env) if row.api_key_env else None
+            if row.provider_type == 'gemini':
+                return GeminiRagDenseProvider(
+                    api_key=api_key or '',
+                    model=row.model,
+                    dimension=row.dimension,
+                )
+            elif row.provider_type == 'local':
                 if row.role == 'dense':
-                    from fastembed import TextEmbedding
-                    _model = TextEmbedding(row.model)
-                    return LocalProvider(
-                        fn=lambda texts, m=_model: [v.tolist() for v in m.embed(texts)],
-                        dimension=row.dimension,
-                    )
+                    return LocalDenseRagProvider(model=row.model, dimension=row.dimension)
                 else:
-                    from fastembed import SparseTextEmbedding
-                    _model = SparseTextEmbedding(row.model)
-                    return LocalProvider(
-                        fn=lambda texts, m=_model: [
-                            {str(idx): weight for idx, weight in zip(v.indices, v.values)}
-                            for v in m.embed(texts)
-                        ],
-                        dimension=row.dimension,
-                    )
-            else:
-                response_key = 'sparse' if row.role == 'sparse' else 'dense'
-                return EndpointProvider(
+                    return LocalSparseRagProvider(model=row.model, dimension=row.dimension)
+            else:  # endpoint
+                return EndpointRagProvider(
                     url=row.endpoint_url,
-                    response_key=response_key,
+                    role=row.role,
                     api_key=api_key,
-                    dimension=row.dimension if row.role == 'dense' else None,
-                    rate_limit=rate_limit,
+                    dimension=row.dimension,
+                    rpm=row.rpm,
+                    tpm=row.tpm,
+                    rpd=row.rpd,
                 )
 
         dense_provider = _build_provider(dense_row)
@@ -239,7 +227,6 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.article_translation_repo_impl import SqlAlchemyArticleTranslationRepository
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
-    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
     from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus

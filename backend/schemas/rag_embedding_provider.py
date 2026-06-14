@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class RagEmbeddingProviderCreate(BaseModel):
     role: Literal['dense', 'sparse']
-    provider_type: Literal['endpoint', 'local']
+    provider_type: Literal['endpoint', 'local', 'gemini']
     model: Optional[str] = Field(default=None, min_length=1)
     endpoint_url: Optional[str] = Field(default=None, min_length=1)
     api_key_env: Optional[str] = Field(default=None, min_length=1)
@@ -19,7 +19,7 @@ class RagEmbeddingProviderCreate(BaseModel):
 
 class RagEmbeddingProviderUpdate(BaseModel):
     role: Optional[Literal['dense', 'sparse']] = None
-    provider_type: Optional[Literal['endpoint', 'local']] = None
+    provider_type: Optional[Literal['endpoint', 'local', 'gemini']] = None
     model: Optional[str] = Field(default=None, min_length=1)
     endpoint_url: Optional[str] = Field(default=None, min_length=1)
     api_key_env: Optional[str] = Field(default=None, min_length=1)

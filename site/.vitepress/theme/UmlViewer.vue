@@ -596,7 +596,7 @@ onUnmounted(() => {
 
           <!-- ── Parallel fork bar ── -->
           <div v-if="row.stages.length > 1" class="sf-fork-bar">
-            <div class="sf-fork-label">⇉ Parallel</div>
+            <div class="sf-fork-label">⇉ Fan-out</div>
           </div>
 
           <!-- ── Stage row (single or parallel) ── -->
@@ -672,8 +672,9 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <!-- join arm: vertical line below box -->
+                <!-- join arm: vertical line below box, OR end-of-branch marker -->
                 <div v-if="stage.emits.length" class="sf-vline sf-arm"></div>
+                <div v-else class="sf-end-marker" title="此分支不產生後續事件">⊗</div>
               </div>
 
               <!-- Single (non-parallel) stage: box + error exits side by side -->
@@ -1206,8 +1207,13 @@ onUnmounted(() => {
   letter-spacing: .04em;
 }
 .sf-join-bar {
-  border-top: 2px solid var(--vp-c-border);
-  height: 0;
+  border-top: 2px dashed var(--vp-c-border);
+  height: 0; opacity: .5;
+}
+
+.sf-end-marker {
+  font-size: 13px; color: var(--vp-c-text-3); font-weight: 700;
+  margin: 4px 0; line-height: 1; letter-spacing: .03em;
 }
 
 /* Stage row: single or parallel */

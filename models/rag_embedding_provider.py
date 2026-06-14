@@ -26,7 +26,7 @@ class RagEmbeddingProvider(Base):
 
     __table_args__ = (
         CheckConstraint("role IN ('dense', 'sparse')", name='ck_rag_role'),
-        CheckConstraint("provider_type IN ('endpoint', 'local')", name='ck_rag_provider_type'),
+        CheckConstraint("provider_type IN ('endpoint', 'local', 'gemini')", name='ck_rag_provider_type'),
         Index(
             'uq_rag_embedding_providers_active_role',
             'role',

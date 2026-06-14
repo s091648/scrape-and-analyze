@@ -3,7 +3,7 @@ import { apiFetch } from './client'
 export interface RagEmbeddingProvider {
   id: string
   role: 'dense' | 'sparse'
-  provider_type: 'endpoint' | 'local'
+  provider_type: 'endpoint' | 'local' | 'gemini'
   model: string | null
   endpoint_url: string | null
   api_key_env: string | null

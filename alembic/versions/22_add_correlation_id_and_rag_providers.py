@@ -44,7 +44,7 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint("role IN ('dense', 'sparse')", name='ck_rag_role'),
-        sa.CheckConstraint("provider_type IN ('endpoint', 'local')", name='ck_rag_provider_type'),
+        sa.CheckConstraint("provider_type IN ('endpoint', 'local', 'gemini')", name='ck_rag_provider_type'),
     )
     # Partial unique index: at most one active provider per role
     op.create_index(

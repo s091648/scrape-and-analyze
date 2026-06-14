@@ -41,7 +41,7 @@ function ProviderCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    provider_type: provider.provider_type,
+    provider_type: provider.provider_type as 'endpoint' | 'local' | 'gemini',
     model: provider.model ?? '',
     endpoint_url: provider.endpoint_url ?? '',
     api_key_env: provider.api_key_env ?? '',
@@ -89,6 +89,7 @@ function ProviderCard({
               >
                 <option value="endpoint">{t('admin.mode_endpoint')}</option>
                 <option value="local">{t('admin.mode_local')}</option>
+                <option value="gemini">{t('admin.mode_gemini')}</option>
               </select>
             </div>
             {form.provider_type === 'endpoint' ? (
@@ -104,6 +105,27 @@ function ProviderCard({
                 </div>
                 <div>
                   <label className={labelClass}>{t('admin.apiKeyEnvVar')} ({t('admin.optional')})</label>
+                  <input
+                    className={inputClass}
+                    value={form.api_key_env}
+                    onChange={e => setForm(f => ({ ...f, api_key_env: e.target.value }))}
+                    placeholder={t('admin.apiKeyEnvVarPlaceholder')}
+                  />
+                </div>
+              </>
+            ) : form.provider_type === 'gemini' ? (
+              <>
+                <div>
+                  <label className={labelClass}>{t('admin.geminiModel')}</label>
+                  <input
+                    className={inputClass}
+                    value={form.model}
+                    onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+                    placeholder={t('admin.geminiModelPlaceholder')}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>{t('admin.apiKeyEnvVar')}</label>
                   <input
                     className={inputClass}
                     value={form.api_key_env}
@@ -275,7 +297,10 @@ function AddProviderCard({
     setForm(emptyForm)
   }
 
-  const isValid = form.provider_type === 'endpoint' ? !!form.endpoint_url : !!form.model
+  const isValid =
+    form.provider_type === 'endpoint' ? !!form.endpoint_url :
+    form.provider_type === 'gemini' ? !!form.model && !!form.api_key_env :
+    !!form.model
 
   if (!expanded) {
     return (
@@ -301,11 +326,12 @@ function AddProviderCard({
         <label className={labelClass}>{t('admin.providerMode')}</label>
         <select
           value={form.provider_type}
-          onChange={e => setForm(f => ({ ...f, provider_type: e.target.value as 'endpoint' | 'local' }))}
+          onChange={e => setForm(f => ({ ...f, provider_type: e.target.value as 'endpoint' | 'local' | 'gemini' }))}
           className={inputClass}
         >
           <option value="endpoint">{t('admin.mode_endpoint')}</option>
           <option value="local">{t('admin.mode_local')}</option>
+          <option value="gemini">{t('admin.mode_gemini')}</option>
         </select>
       </div>
       {form.provider_type === 'endpoint' ? (
@@ -321,6 +347,27 @@ function AddProviderCard({
           </div>
           <div>
             <label className={labelClass}>{t('admin.apiKeyEnvVar')} ({t('admin.optional')})</label>
+            <input
+              className={inputClass}
+              value={form.api_key_env}
+              onChange={e => setForm(f => ({ ...f, api_key_env: e.target.value }))}
+              placeholder={t('admin.apiKeyEnvVarPlaceholder')}
+            />
+          </div>
+        </>
+      ) : form.provider_type === 'gemini' ? (
+        <>
+          <div>
+            <label className={labelClass}>{t('admin.geminiModel')}</label>
+            <input
+              className={inputClass}
+              value={form.model}
+              onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
+              placeholder={t('admin.geminiModelPlaceholder')}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>{t('admin.apiKeyEnvVar')}</label>
             <input
               className={inputClass}
               value={form.api_key_env}
