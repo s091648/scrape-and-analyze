@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { AgentInput, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
-import { useI18n, useTopic } from '@/lib/providers'
+import { useI18n, useTopic, useTheme } from '@/lib/providers'
 import { AnswerDisplay } from './AnswerDisplay'
 
 interface InlineQABarWrapperProps {
@@ -17,6 +17,7 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
+  const { theme } = useTheme()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -41,7 +42,7 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   )
 
   return (
-    <div className={className} data-chatbot-theme="auto">
+    <div className={className} data-chatbot-theme={theme}>
       <AgentInput
         onSend={handleSend}
         isLoading={isLoading}

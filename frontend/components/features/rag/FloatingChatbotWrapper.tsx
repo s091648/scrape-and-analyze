@@ -4,7 +4,7 @@ import { useCallback, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { ChatbotPlugin, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useI18n, useTopic } from '@/lib/providers'
+import { useI18n, useTopic, useTheme } from '@/lib/providers'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
@@ -33,6 +33,7 @@ export function FloatingChatbotWrapper() {
   const { data: session, status } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
+  const { theme } = useTheme()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -79,7 +80,7 @@ export function FloatingChatbotWrapper() {
   if (status !== 'authenticated') return null
 
   return (
-    <div data-chatbot-theme="auto">
+    <div data-chatbot-theme={theme}>
       <ChatbotPlugin
         messages={messages}
         onSend={handleSend}

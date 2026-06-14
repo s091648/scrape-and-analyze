@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: 'Scrape Analyzer' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${rethinkSans.variable} font-sans`}>
         <AppProviders>
           <LayoutShell>{children}</LayoutShell>
