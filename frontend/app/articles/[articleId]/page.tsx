@@ -37,7 +37,7 @@ export default function ArticleSharePage() {
     const params = new URLSearchParams()
     if (topicId) params.set('topic', topicId)
     params.set('article', articleId)
-    return `/?${params.toString()}`
+    return `/articles?${params.toString()}`
   })()
 
   const showPrompt = status !== 'loading'
@@ -68,7 +68,7 @@ export default function ArticleSharePage() {
           <p className="text-sm text-muted-foreground">
             {t('share.articleNotFoundDesc')}
           </p>
-          <Link href="/" className="text-sm text-primary underline underline-offset-4">
+          <Link href="/articles" className="text-sm text-primary underline underline-offset-4">
             {t('share.backToArticles')}
           </Link>
         </div>

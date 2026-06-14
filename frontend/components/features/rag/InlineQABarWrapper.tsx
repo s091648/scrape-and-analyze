@@ -17,7 +17,7 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
-  const { theme } = useTheme()
+  const { mode } = useTheme()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -42,8 +42,9 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   )
 
   return (
-    <div className={className} data-chatbot-theme={theme}>
+    <div className={className}>
       <AgentInput
+        theme={mode}
         onSend={handleSend}
         isLoading={isLoading}
         messages={messages}

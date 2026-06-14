@@ -7,6 +7,7 @@ import { FloatingChatbotWrapper } from '@/components/features/rag/FloatingChatbo
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isStandalone = pathname.startsWith('/articles/')
+  const isHome = pathname === '/'
 
   return (
     <ErrorBoundary>
@@ -17,7 +18,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       }>
         {children}
       </main>
-      <FloatingChatbotWrapper />
+      {!isHome && <FloatingChatbotWrapper />}
     </ErrorBoundary>
   )
 }

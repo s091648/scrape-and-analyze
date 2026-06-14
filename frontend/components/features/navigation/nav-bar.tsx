@@ -111,9 +111,9 @@ export function NavBar() {
         {/* Left nav */}
         <div className="flex items-center gap-1">
           <Link
-            href={`/${topicParam}`}
+            href={`/articles${topicParam}`}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-              pathname === '/'
+              pathname === '/articles'
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }`}
@@ -189,7 +189,7 @@ export function NavBar() {
                 <button
                   type="button"
                   onClick={cycleMode}
-                  className="text-muted-foreground hover:text-foreground transition-colors duration-200"
+                  className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-200"
                   aria-label={`Theme: ${themeLabel}`}
                 >
                   <ThemeIcon className="h-5 w-5" />

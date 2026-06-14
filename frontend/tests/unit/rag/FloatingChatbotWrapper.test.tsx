@@ -17,9 +17,11 @@ const zhTW: Record<string, string> = {
   'rag.assistantTitle': 'AI 助理',
 }
 
+const mockCycleMode = vi.fn()
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
+  useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
 }))
 
 vi.mock('sonner', () => ({
@@ -193,6 +195,55 @@ describe('FloatingChatbotWrapper', () => {
     )
     const { container } = render(<FloatingChatbotWrapper />)
     expect(container.firstChild).toBeNull()
+  })
+
+  it('passes mode from useTheme as theme prop to ChatbotPlugin', async () => {
+    const { useTheme } = await import('@/lib/providers')
+    vi.mocked(useTheme).mockReturnValue({ mode: 'dark', theme: 'dark', cycleMode: mockCycleMode, setMode: vi.fn() })
+
+    let receivedTheme: string | undefined
+    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme, messages, onSend, isLoading, title, onNewChat }: any) => {
+      receivedTheme = theme
+      return (
+        <div data-testid="chatbot-plugin">
+          <button data-testid="new-chat-btn" onClick={onNewChat}>New</button>
+        </div>
+      )
+    })
+
+    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
+    render(<FloatingChatbotWrapper />)
+    expect(receivedTheme).toBe('dark')
+  })
+
+  it('passes "light" mode as theme prop when mode is light', async () => {
+    const { useTheme } = await import('@/lib/providers')
+    vi.mocked(useTheme).mockReturnValue({ mode: 'light', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+
+    let receivedTheme: string | undefined
+    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme }: any) => {
+      receivedTheme = theme
+      return <div data-testid="chatbot-plugin" />
+    })
+
+    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
+    render(<FloatingChatbotWrapper />)
+    expect(receivedTheme).toBe('light')
+  })
+
+  it('passes "auto" mode as theme prop when mode is auto', async () => {
+    const { useTheme } = await import('@/lib/providers')
+    vi.mocked(useTheme).mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+
+    let receivedTheme: string | undefined
+    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme }: any) => {
+      receivedTheme = theme
+      return <div data-testid="chatbot-plugin" />
+    })
+
+    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
+    render(<FloatingChatbotWrapper />)
+    expect(receivedTheme).toBe('auto')
   })
 
   it('clears messages and localStorage when onNewChat is triggered', async () => {

@@ -7,14 +7,14 @@ test.describe('Article Sharing — URL sync', () => {
   })
 
   test('opening article card adds ?article= to URL', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await page.waitForURL(/topic=/)
     await page.getByText('Digital Twin Innovation').click()
     await expect(page).toHaveURL(/article=art-001/)
   })
 
   test('closing article dialog removes ?article from URL', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await page.waitForURL(/topic=/)
     await page.getByText('Digital Twin Innovation').click()
     await expect(page.getByRole('dialog')).toBeVisible()
@@ -24,12 +24,12 @@ test.describe('Article Sharing — URL sync', () => {
   })
 
   test('direct URL with ?article= auto-opens the matching dialog', async ({ page }) => {
-    await page.goto('/?topic=topic-001&article=art-001')
+    await page.goto('/articles?topic=topic-001&article=art-001')
     await expect(page.getByRole('dialog')).toBeVisible()
   })
 
   test('URL preserves existing topic param when article opens', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await page.waitForURL(/topic=/)
     await page.getByText('Digital Twin Innovation').click()
     await expect(page).toHaveURL(/topic=/)
@@ -39,7 +39,6 @@ test.describe('Article Sharing — URL sync', () => {
 
 test.describe('Article Sharing — share icon clipboard', () => {
   test.beforeEach(async ({ page }) => {
-    // Mock clipboard API before page load so it is available when the component runs
     await page.addInitScript(() => {
       const captured: string[] = []
       Object.defineProperty(navigator, 'clipboard', {
@@ -58,9 +57,8 @@ test.describe('Article Sharing — share icon clipboard', () => {
   })
 
   test('clicking share icon writes a /articles/{id} URL to clipboard', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await page.waitForURL(/topic=/)
-    // Click share button (force bypasses opacity:0 visibility check)
     await page.getByRole('button', { name: 'Share article' }).first().click({ force: true })
     const clipboardText = await page.evaluate(() =>
       (window as any).__clipboardCapture?.[(window as any).__clipboardCapture.length - 1] ?? ''
@@ -91,12 +89,10 @@ test.describe('Article Sharing — standalone page', () => {
 
   test('standalone page shows Open in App link for authenticated user', async ({ page }) => {
     await page.goto('/articles/art-001')
-    // Global setup provides an authenticated session
     await expect(page.getByText(/open in app/i)).toBeVisible()
   })
 
   test('invalid article ID shows 404 message', async ({ page }) => {
-    // Override article detail route to return 404 for this specific test
     await page.route(
       (url: URL) => /\/api\/proxy\/articles\/invalid-id$/.test(url.pathname),
       route => route.fulfill({ status: 404, json: { detail: 'not found' } })

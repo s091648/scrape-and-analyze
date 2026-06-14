@@ -39,7 +39,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
     e.stopPropagation()
     const params = new URLSearchParams()
     if (selectedTopicId) params.set('topic', selectedTopicId)
-    const shareUrl = `${window.location.origin}/articles/${id}?${params.toString()}`
+    const shareUrl = `${window.location.origin}/articles/${id}${params.size ? `?${params}` : ''}`
     try {
       await navigator.clipboard.writeText(shareUrl)
       setCopied(true)

@@ -14,9 +14,11 @@ const zhTW: Record<string, string> = {
   'rag.placeholder': '詢問 AI：最近有哪些相關研究？',
 }
 
+const mockCycleMode = vi.fn()
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
+  useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
 }))
 
 const mockSendMessage = vi.fn()
@@ -134,6 +136,36 @@ describe('InlineQABarWrapper', () => {
     render(<InlineQABarWrapper />)
     const cursor = document.querySelector('.animate-pulse')
     expect(cursor).toBeInTheDocument()
+  })
+
+  it('passes mode from useTheme as theme prop to AgentInput', async () => {
+    const { useTheme } = await import('@/lib/providers')
+    vi.mocked(useTheme).mockReturnValue({ mode: 'dark', theme: 'dark', cycleMode: mockCycleMode, setMode: vi.fn() })
+
+    let receivedTheme: string | undefined
+    vi.mocked(AgentInput).mockImplementationOnce(({ theme, onSend, placeholder }: any) => {
+      receivedTheme = theme
+      return <button data-testid="send-btn" onClick={() => onSend('x')}>Send</button>
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/rag/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(receivedTheme).toBe('dark')
+  })
+
+  it('passes "auto" mode as theme prop when mode is auto', async () => {
+    const { useTheme } = await import('@/lib/providers')
+    vi.mocked(useTheme).mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+
+    let receivedTheme: string | undefined
+    vi.mocked(AgentInput).mockImplementationOnce(({ theme, onSend }: any) => {
+      receivedTheme = theme
+      return <button data-testid="send-btn" onClick={() => onSend('x')}>Send</button>
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/rag/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(receivedTheme).toBe('auto')
   })
 
   it('shows rate limit error message on 429 error', async () => {

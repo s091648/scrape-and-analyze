@@ -33,7 +33,7 @@ export function FloatingChatbotWrapper() {
   const { data: session, status } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
-  const { theme } = useTheme()
+  const { mode } = useTheme()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -80,15 +80,14 @@ export function FloatingChatbotWrapper() {
   if (status !== 'authenticated') return null
 
   return (
-    <div data-chatbot-theme={theme}>
-      <ChatbotPlugin
-        messages={messages}
-        onSend={handleSend}
-        isLoading={isLoading}
-        onNewChat={handleNewChat}
-        title={t('rag.assistantTitle')}
-        placeholder={t('rag.placeholder')}
-      />
-    </div>
+    <ChatbotPlugin
+      theme={mode}
+      messages={messages}
+      onSend={handleSend}
+      isLoading={isLoading}
+      onNewChat={handleNewChat}
+      title={t('rag.assistantTitle')}
+      placeholder={t('rag.placeholder')}
+    />
   )
 }
