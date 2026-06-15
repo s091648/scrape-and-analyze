@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from chatbot_plugin_sdk.providers import LocalProvider
+import os
+
+from chatbot_plugin_sdk.providers.local import LocalProvider
 
 
 class LocalDenseRagProvider:
@@ -13,7 +15,8 @@ class LocalDenseRagProvider:
 
     def __init__(self, model: str, dimension: int) -> None:
         from fastembed import TextEmbedding
-        _model = TextEmbedding(model)
+        cache_dir = os.getenv("FASTEMBED_CACHE_PATH") or None
+        _model = TextEmbedding(model, cache_dir=cache_dir)
         self._provider = LocalProvider(
             fn=lambda texts: [v.tolist() for v in _model.embed(texts)],
             dimension=dimension,

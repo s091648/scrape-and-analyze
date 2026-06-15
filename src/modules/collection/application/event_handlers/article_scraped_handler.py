@@ -52,6 +52,7 @@ class ArticleScrapedHandler:
 
         if article is not None:
             span.set_attribute("article.id", str(article.id))
-            self._event_bus.publish(ArticleProcessedEvent(article=article))
+            full_text = event.full_text or event.content
+            self._event_bus.publish(ArticleProcessedEvent(article=article, full_text=full_text))
 
         return outcome != ArticleOutcome.FAILED

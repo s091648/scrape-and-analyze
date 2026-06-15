@@ -16,16 +16,17 @@ def _make_article(content="Full article text here."):
     )
 
 
-def test_ingest_calls_processor_with_correct_args():
+def test_ingest_calls_processor_with_provided_full_text():
     processor = MagicMock()
     processor.ingest = AsyncMock()
     service = RagSdkIngestionService(processor)
     article = _make_article()
+    full_text = "Title\n\nAbstract text\n\n## Introduction\nIntro body"
 
-    service.ingest(article)
+    service.ingest(article, full_text)
 
     processor.ingest.assert_called_once_with(
-        full_text=article.content,
+        full_text=full_text,
         metadata={
             "url": str(article.url),
             "title": article.title,
@@ -34,16 +35,18 @@ def test_ingest_calls_processor_with_correct_args():
     )
 
 
-def test_ingest_passes_full_content():
+def test_ingest_uses_provided_full_text_not_article_content():
     processor = MagicMock()
     processor.ingest = AsyncMock()
     service = RagSdkIngestionService(processor)
-    article = _make_article(content="Long detailed content of the research paper.")
+    article = _make_article(content="Short abstract only.")
+    full_text = "Short abstract only.\n\n## Introduction\nFull PDF section text."
 
-    service.ingest(article)
+    service.ingest(article, full_text)
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["full_text"] == "Long detailed content of the research paper."
+    assert kwargs["full_text"] == full_text
+    assert "Full PDF section text." in kwargs["full_text"]
 
 
 def test_ingest_includes_url_in_metadata():
@@ -52,7 +55,7 @@ def test_ingest_includes_url_in_metadata():
     service = RagSdkIngestionService(processor)
     article = _make_article()
 
-    service.ingest(article)
+    service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
     assert kwargs["metadata"]["url"] == str(article.url)
@@ -64,7 +67,7 @@ def test_ingest_includes_title_in_metadata():
     service = RagSdkIngestionService(processor)
     article = _make_article()
 
-    service.ingest(article)
+    service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
     assert kwargs["metadata"]["title"] == article.title
@@ -76,7 +79,7 @@ def test_ingest_includes_source_in_metadata():
     service = RagSdkIngestionService(processor)
     article = _make_article()
 
-    service.ingest(article)
+    service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
     assert kwargs["metadata"]["source"] == article.source

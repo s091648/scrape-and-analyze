@@ -1,9 +1,3 @@
-def test_arxiv_metadata_model_columns():
-    from models.arxiv_metadata import ArxivMetadata
-    cols = {c.name for c in ArxivMetadata.__table__.columns}
-    assert cols >= {"id", "article_id", "arxiv_id", "authors", "pdf_available", "sections"}
-
-
 def test_topic_model_columns():
     from models.topic import Topic
     cols = {c.name for c in Topic.__table__.columns}

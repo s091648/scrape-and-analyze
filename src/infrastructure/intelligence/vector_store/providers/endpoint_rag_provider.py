@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from chatbot_plugin_sdk.providers import EndpointProvider
+from chatbot_plugin_sdk.providers.endpoint import EndpointProvider
 
 
 class EndpointRagProvider:

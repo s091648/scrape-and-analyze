@@ -31,10 +31,10 @@ class ChatService:
         self._chat_service_url = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
         self._chat_service_api_key = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
-    async def check_rate_limit(self, identity: ChatIdentity) -> int:
-        """Check and increment rate limit counter. Returns remaining (-1 = unlimited)."""
+    async def check_rate_limit(self, identity: ChatIdentity) -> tuple[int, int]:
+        """Check and increment rate limit counter. Returns (remaining, limit). remaining=-1 means unlimited."""
         if identity.tier == "admin":
-            return -1
+            return -1, -1
 
         today = date.today().isoformat()
         if identity.tier == "user":
@@ -59,7 +59,24 @@ class ChatService:
         if count > limit:
             raise RateLimitExceeded(limit=limit)
 
-        return limit - count
+        return limit - count, limit
+
+    async def get_quota(self, identity: ChatIdentity) -> tuple[int, int]:
+        """Read current quota without consuming a request. Returns (remaining, limit). -1 means unlimited."""
+        if identity.tier == "admin":
+            return -1, -1
+
+        today = date.today().isoformat()
+        if identity.tier == "user":
+            key = f"rate:user:{identity.user_id}:{today}"
+            limit = DAILY_LIMIT_USER
+        else:
+            key = f"rate:guest:{identity.guest_id}:{today}"
+            limit = DAILY_LIMIT_GUEST
+
+        count_raw = await self._redis.get(key)
+        count = int(count_raw) if count_raw else 0
+        return max(0, limit - count), limit
 
     async def stream_completions(
         self, messages: list, topic_id: Optional[str] = None

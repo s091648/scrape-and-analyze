@@ -33,7 +33,6 @@ def db_engine():
     from models.base import Base
     from models.article import Article              # noqa: F401
     from models.topic import Topic                  # noqa: F401
-    from models.arxiv_metadata import ArxivMetadata  # noqa: F401
     from models.analysis import Analysis            # noqa: F401
     from models.analyses_translation import AnalysesTranslation  # noqa: F401
     from models.failed_task import FailedTask       # noqa: F401

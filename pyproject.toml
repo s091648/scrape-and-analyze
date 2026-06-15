@@ -25,6 +25,7 @@ scraper = [
     "lxml",
     "pymupdf>=1.24",
     "chatbot-plugin-sdk",
+    "fastembed>=0.3",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [
@@ -59,7 +60,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-chatbot-plugin-sdk = { git = "https://github.com/Teng91/chatbot-plugin-sdk.git" }
+chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v0.2.0" }
 
 [tool.coverage.run]
 omit = [

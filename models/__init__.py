@@ -13,6 +13,4 @@ from models.auth import AuthBase, User
 from models.scraper_setting import ScraperBase, ScraperSetting
 from models.tag_normalization_suggestion import TagNormalizationSuggestion  # noqa: F401
 from models.article_translation import ArticleTranslation  # noqa: F401 — registers Article.article_translations backref
-from models.rag_embedding_provider import RagEmbeddingProvider  # noqa: F401
-
 configure_mappers()

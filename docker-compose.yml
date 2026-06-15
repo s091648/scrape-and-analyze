@@ -11,6 +11,7 @@ services:
       - ./shared:/app/shared
       - ./pytest.ini:/app/pytest.ini
       - ./.coveragerc:/app/.coveragerc
+      - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env
     depends_on:
@@ -127,6 +128,7 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
+      - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env
     depends_on:
@@ -139,3 +141,4 @@ volumes:
   pgadmin_data:
   frontend_node_modules:
   playwright_cache:
+  fastembed_cache:

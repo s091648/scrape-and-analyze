@@ -5,8 +5,8 @@ from uuid import UUID
 
 @dataclass(frozen=True)
 class RagConfigFailedEvent:
-    """Published at startup when RAG is enabled (CHAT_SERVICE_URL set) but required
-    config vars are missing. article_id/url are None since this is not per-article."""
+    """Published at startup when VECTOR_DB_* vars are set but RAG is still misconfigured.
+    article_id/url are None since this is not per-article."""
     task_type: str = "rag_config"
     article_id: Optional[UUID] = None
     article_url: Optional[str] = None

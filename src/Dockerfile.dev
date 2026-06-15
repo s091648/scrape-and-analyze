@@ -3,11 +3,12 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     VIRTUAL_ENV=/app/.venv \
-    PATH=/app/.venv/bin:$PATH
+    PATH=/app/.venv/bin:$PATH \
+    FASTEMBED_CACHE_PATH=/app/.fastembed_cache
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client git && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 
@@ -20,6 +21,30 @@ RUN uv sync --frozen \
     --group dev
 
 RUN ls -la /app/.venv/bin
+
+RUN mkdir -p /app/src/infrastructure/intelligence/vector_store
+COPY src/infrastructure/intelligence/vector_store/rag_config.toml /app/src/infrastructure/intelligence/vector_store/rag_config.toml
+
+RUN /app/.venv/bin/python - <<'EOF'
+import tomllib, os
+cache = os.environ["FASTEMBED_CACHE_PATH"]
+os.makedirs(cache, exist_ok=True)
+cfg_path = "/app/src/infrastructure/intelligence/vector_store/rag_config.toml"
+with open(cfg_path, "rb") as f:
+    cfg = tomllib.load(f)
+for role in ("dense", "sparse"):
+    section = cfg.get(role, {})
+    if section.get("provider_type") == "local" and section.get("model"):
+        model = section["model"]
+        if role == "dense":
+            from fastembed import TextEmbedding
+            print(f"Downloading dense model: {model}", flush=True)
+            TextEmbedding(model, cache_dir=cache)
+        else:
+            from fastembed import SparseTextEmbedding
+            print(f"Downloading sparse model: {model}", flush=True)
+            SparseTextEmbedding(model, cache_dir=cache)
+EOF
 
 # 程式碼透過 docker-compose volumes 掛載，不在此 COPY
 CMD ["sleep", "infinity"]

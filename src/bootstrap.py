@@ -89,23 +89,27 @@ def build_llm_service(session):
 
 
 # ---------------------------------------------------------------------------
-# RAG 層: 從 DB rag_embedding_providers 建立 RagSdkIngestionService
+# RAG 層: 從 rag_config.toml 建立 RagSdkIngestionService
 # ---------------------------------------------------------------------------
 
-def build_rag_ingestion_service(session):
-    """Build RagSdkIngestionService from DB rag_embedding_providers config.
+def _load_rag_config() -> dict:
+    import tomllib
+    from pathlib import Path
+    config_path = Path(__file__).resolve().parent / "infrastructure" / "intelligence" / "vector_store" / "rag_config.toml"
+    with open(config_path, "rb") as f:
+        return tomllib.load(f)
+
+
+def build_rag_ingestion_service():
+    """Build RagSdkIngestionService from rag_config.toml.
 
     Returns (rag_service, rag_config_failed_event).
     Either or both may be None when RAG is disabled or misconfigured.
     rag_config_failed_event must be published AFTER all event subscriptions are registered.
     """
     from src.modules.intelligence.application.events import RagConfigFailedEvent
-    from src.config.settings import CHAT_SERVICE_URL, missing_rag_config
+    from src.config.settings import missing_rag_config
     from src.infrastructure.shared.logging import get_correlation_id
-
-    if not CHAT_SERVICE_URL:
-        logger.info("rag_disabled_chat_service_url_not_set")
-        return None, None
 
     _rag_missing = missing_rag_config()
     if _rag_missing:
@@ -125,48 +129,60 @@ def build_rag_ingestion_service(session):
             DatabaseConfig,
             NotConfiguredError,
         )
+    except ModuleNotFoundError:
+        logger.info("rag_disabled_sdk_not_installed")
+        return None, None
+
+    try:
         from src.config.settings import (
             VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
             VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
+            VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
         )
         from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
         from src.infrastructure.intelligence.vector_store.providers import (
             GeminiRagDenseProvider, LocalDenseRagProvider, LocalSparseRagProvider, EndpointRagProvider,
         )
-        from shared.rag_embedding_provider import load_active_rag_providers
 
-        rows = load_active_rag_providers(session)
-        dense_row = next((r for r in rows if r.role == 'dense'), None)
-        sparse_row = next((r for r in rows if r.role == 'sparse'), None)
+        cfg = _load_rag_config()
 
-        def _build_provider(row):
-            if row is None:
+        def _build_provider(role: str):
+            section = cfg.get(role, {})
+            if not section:
                 return None
-            api_key = os.environ.get(row.api_key_env) if row.api_key_env else None
-            if row.provider_type == 'gemini':
-                return GeminiRagDenseProvider(
-                    api_key=api_key or '',
-                    model=row.model,
-                    dimension=row.dimension,
-                )
-            elif row.provider_type == 'local':
-                if row.role == 'dense':
-                    return LocalDenseRagProvider(model=row.model, dimension=row.dimension)
+            provider_type = section.get("provider_type")
+            model = section.get("model")
+            dimension = section.get("dimension")
+            if provider_type == "local":
+                if role == "dense":
+                    return LocalDenseRagProvider(model=model, dimension=dimension)
                 else:
-                    return LocalSparseRagProvider(model=row.model, dimension=row.dimension)
-            else:  # endpoint
-                return EndpointRagProvider(
-                    url=row.endpoint_url,
-                    role=row.role,
-                    api_key=api_key,
-                    dimension=row.dimension,
-                    rpm=row.rpm,
-                    tpm=row.tpm,
-                    rpd=row.rpd,
+                    return LocalSparseRagProvider(model=model, dimension=dimension)
+            elif provider_type == "gemini":
+                api_key_env = section.get("api_key_env", "RAG_GEMINI_API_KEY")
+                return GeminiRagDenseProvider(
+                    api_key=os.environ.get(api_key_env) or "",
+                    model=model,
+                    dimension=dimension,
+                    rpm=section.get("rpm"),
+                    tpm=section.get("tpm"),
+                    rpd=section.get("rpd"),
                 )
+            elif provider_type == "endpoint":
+                api_key_env = section.get("api_key_env")
+                return EndpointRagProvider(
+                    url=section["endpoint_url"],
+                    role=role,
+                    api_key=os.environ.get(api_key_env) if api_key_env else None,
+                    dimension=dimension,
+                    rpm=section.get("rpm"),
+                    tpm=section.get("tpm"),
+                    rpd=section.get("rpd"),
+                )
+            return None
 
-        dense_provider = _build_provider(dense_row)
-        sparse_provider = _build_provider(sparse_row)
+        dense_provider = _build_provider("dense")
+        sparse_provider = _build_provider("sparse")
 
         backend = SyncPgBackend(DatabaseConfig(
             dbname=VECTOR_DB_NAME,
@@ -175,6 +191,8 @@ def build_rag_ingestion_service(session):
             host=VECTOR_DB_HOST,
             port=VECTOR_DB_PORT,
             schema=VECTOR_DB_SCHEMA,
+            articles_table=VECTOR_DB_ARTICLES_TABLE,
+            chunks_table=VECTOR_DB_CHUNKS_TABLE,
         ))
         processor = IngestProcessor()
         processor.configure(backend=backend, dense=dense_provider, sparse=sparse_provider)
@@ -182,8 +200,8 @@ def build_rag_ingestion_service(session):
         rag_service = RagSdkIngestionService(processor)
         logger.info(
             "rag_ingestion_initialized",
-            dense=dense_row.provider_type if dense_row else "disabled",
-            sparse=sparse_row.provider_type if sparse_row else "disabled",
+            dense=cfg.get("dense", {}).get("provider_type", "disabled"),
+            sparse=cfg.get("sparse", {}).get("provider_type", "disabled"),
         )
         return rag_service, None
 
@@ -228,7 +246,6 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
-    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -251,8 +268,8 @@ def build_collection_pipeline():
         TranslationFailedEvent, RagIngestionFailedEvent, RagConfigFailedEvent,
     )
     from src.shared.application.events import ArticleProcessedEvent
-    from src.config.settings import TRANSLATION_LANGUAGES, CHAT_SERVICE_URL
-    
+    from src.config.settings import TRANSLATION_LANGUAGES
+
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -264,7 +281,6 @@ def build_collection_pipeline():
     analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
-    arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
     tag_repo = SqlAlchemyTagRepository(session=session)
@@ -288,7 +304,6 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
-        arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -335,11 +350,13 @@ def build_collection_pipeline():
     _tracer = _get_tracer()
 
     # ── RAG Ingestion Setup ────────────────────────────────────────────────
-    _rag_ingestion_service, _rag_config_failed_event = build_rag_ingestion_service(session)
+    _rag_ingestion_service, _rag_config_failed_event = build_rag_ingestion_service()
     rag_ingestion_handler = None
     if _rag_ingestion_service is not None:
+        from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
         from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import RagIngestionHandler
-        rag_ingestion_handler = RagIngestionHandler(_rag_ingestion_service, event_bus)
+        _ingest_for_rag_uc = IngestArticleForRagUseCase(_rag_ingestion_service)
+        rag_ingestion_handler = RagIngestionHandler(_ingest_for_rag_uc, event_bus)
 
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(

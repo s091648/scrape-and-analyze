@@ -6,11 +6,17 @@ from typing import Optional
 
 import structlog
 from fastapi import APIRouter, Cookie, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from jose import JWTError, jwt
 from opentelemetry import trace as _otel_trace
 
-from backend.services.chat_service import ChatIdentity, ChatService, RateLimitExceeded
+from backend.services.chat_service import (
+    DAILY_LIMIT_GUEST,
+    DAILY_LIMIT_USER,
+    ChatIdentity,
+    ChatService,
+    RateLimitExceeded,
+)
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -18,7 +24,7 @@ router = APIRouter()
 
 def _make_redis():
     import redis.asyncio as aioredis
-    redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+    redis_url = os.environ.get("REDIS_URL") or "redis://redis:6379/0"
     return aioredis.from_url(redis_url)
 
 
@@ -81,9 +87,10 @@ async def chat_completions(
 
     redis_client = _make_redis()
     remaining = -1
+    limit = -1
     try:
         service = ChatService(redis_client)
-        remaining = await service.check_rate_limit(identity)
+        remaining, limit = await service.check_rate_limit(identity)
     except RateLimitExceeded as exc:
         tier_label = "訪客" if identity.tier == "guest" else "用戶"
         raise HTTPException(
@@ -97,10 +104,12 @@ async def chat_completions(
         await redis_client.aclose()
 
     span.set_attribute("chat.rate_limit_remaining", remaining)
+    span.set_attribute("chat.rate_limit_limit", limit)
     logger.info(
         "chat_request",
         tier=identity.tier,
         remaining=remaining,
+        limit=limit,
         topic_id=x_topic_id,
     )
 
@@ -116,8 +125,50 @@ async def chat_completions(
     response = StreamingResponse(
         generate(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-RateLimit-Remaining": str(remaining),
+            "X-RateLimit-Limit": str(limit),
+        },
     )
+    if new_cookie:
+        response.set_cookie(
+            "__rag_gid",
+            new_cookie,
+            httponly=True,
+            samesite="lax",
+            max_age=31536000,
+            path="/",
+        )
+    return response
+
+
+@router.get("/chat/quota")
+async def chat_quota(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+    rag_gid: Optional[str] = Cookie(alias="__rag_gid", default=None),
+):
+    identity = _parse_identity(authorization)
+    new_cookie: Optional[str] = None
+    if identity is None:
+        identity, new_cookie = _guest_identity(request, rag_gid)
+
+    redis_client = _make_redis()
+    try:
+        service = ChatService(redis_client)
+        remaining, limit = await service.get_quota(identity)
+    finally:
+        await redis_client.aclose()
+
+    response = JSONResponse({
+        "tier": identity.tier,
+        "remaining": remaining,
+        "limit": limit,
+        "guest_daily_limit": DAILY_LIMIT_GUEST,
+        "member_daily_limit": DAILY_LIMIT_USER,
+    })
     if new_cookie:
         response.set_cookie(
             "__rag_gid",

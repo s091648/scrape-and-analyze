@@ -13,9 +13,6 @@ TRANSLATION_LANGUAGES: list[str] = [
     if lang.strip()
 ]
 
-# RAG / Chat Service
-CHAT_SERVICE_URL: str = os.environ.get("CHAT_SERVICE_URL", "")
-
 # Vector DB connection
 VECTOR_DB_NAME: str = os.environ.get("VECTOR_DB_NAME", "")
 VECTOR_DB_USER: str = os.environ.get("VECTOR_DB_USER", "")
@@ -23,16 +20,17 @@ VECTOR_DB_PASSWORD: str = os.environ.get("VECTOR_DB_PASSWORD", "")
 VECTOR_DB_HOST: str = os.environ.get("VECTOR_DB_HOST", "localhost")
 VECTOR_DB_PORT: int = int(os.environ.get("VECTOR_DB_PORT", "5432"))
 VECTOR_DB_SCHEMA: str = os.environ.get("VECTOR_DB_SCHEMA", "vectors")
+VECTOR_DB_ARTICLES_TABLE: str = os.environ.get("VECTOR_DB_ARTICLES_TABLE", "articles")
+VECTOR_DB_CHUNKS_TABLE: str = os.environ.get("VECTOR_DB_CHUNKS_TABLE", "article_chunks")
 
 
 def missing_rag_config() -> list[str]:
-    """Returns names of missing required RAG env vars when CHAT_SERVICE_URL is set.
+    """Returns names of missing required RAG env vars.
 
-    Only checks DB connection credentials. Embedding provider config is stored
-    in the rag_embedding_providers table (managed via Admin UI).
+    Only checks DB connection credentials. Embedding provider config is in
+    src/infrastructure/intelligence/vector_store/rag_config.toml.
+    RAG ingestion is enabled whenever VECTOR_DB_NAME/USER/PASSWORD are all set.
     """
-    if not CHAT_SERVICE_URL:
-        return []
     missing = []
     if not VECTOR_DB_NAME:
         missing.append("VECTOR_DB_NAME")

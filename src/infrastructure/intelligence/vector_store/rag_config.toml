@@ -1,0 +1,32 @@
+# RAG embedding provider configuration.
+# model and dimension must remain consistent between ingestion and retrieval runs.
+# provider_type: "local" (fastembed in-process), "gemini", or "endpoint"
+
+[dense]
+provider_type = "gemini"
+model = "gemini-embedding-001"
+api_key_env = "RAG_GEMINI_API_KEY"
+dimension = 768
+rpm=100
+tpm=30000
+rpd=1000
+
+# Gemini example:
+# provider_type = "gemini"
+# model = "gemini-embedding-001"
+# dimension = 768
+# api_key_env = "RAG_GEMINI_API_KEY"
+
+[sparse]
+provider_type = "local"
+model = "prithvida/Splade_PP_en_v1"
+dimension = 30522
+
+# Endpoint example:
+# provider_type = "endpoint"
+# endpoint_url = "http://embed-service:8080"
+# dimension = 30522
+# api_key_env = "SPARSE_API_KEY"
+# rpm = 60
+# tpm = 100000
+# rpd = 1000
