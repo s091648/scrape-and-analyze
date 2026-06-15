@@ -22,6 +22,7 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'article.translation_failed.handle':     'admin.stageLabel_translationFailed',
   'scraper.pipeline_completed.handle':      'admin.stageLabel_pipelineCompleted',
   'scraper.pipeline_completed.notify':      'admin.stageLabel_pipelineNotify',
+  'article.rag_ingest':                    'admin.stageLabel_ragIngest',
 }
 
 const ATTR_I18N_KEYS: Record<string, string> = {
@@ -60,6 +61,9 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'articles.after_dedup':          'admin.stageAttr_articlesAfterDedup',
   'articles.skipped':              'admin.stageAttr_articlesSkipped',
   'articles.published':            'admin.stageAttr_articlesPublished',
+  'rag_ingest.success':            'admin.stageAttr_ragIngestSuccess',
+  'rag_ingest.duration_seconds':   'admin.stageAttr_ragIngestDuration',
+  'rag_ingest.error_type':         'admin.stageAttr_ragIngestErrorType',
 }
 
 function formatValue(v: OtlpAttributeValue): string {

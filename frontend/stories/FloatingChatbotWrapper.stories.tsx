@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { fn } from 'storybook/test'
 import { FloatingChatbotWrapper } from '../components/features/rag/FloatingChatbotWrapper'
+import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof FloatingChatbotWrapper> = {
   title: 'Features/RAG/FloatingChatbotWrapper',
@@ -73,6 +74,39 @@ export const RateLimitError: Story = {
             clearMessages: fn(),
           }
         },
+      },
+    },
+  },
+}
+
+export const DefaultDark: Story = {
+  name: 'Default (Dark)',
+  decorators: [withDarkMode],
+}
+
+export const WithConversationDark: Story = {
+  name: 'WithConversation (Dark)',
+  decorators: [withDarkMode],
+  parameters: {
+    moduleMock: {
+      '@Teng91/chatbot-plugin-ui': {
+        useChat: () => ({
+          messages: [
+            { id: '1', role: 'user', content: '最近有哪些 RAG 研究？', timestamp: new Date() },
+            {
+              id: '2',
+              role: 'assistant',
+              content:
+                '根據近期研究：\n\n1. [RAG vs Fine-Tuning](https://arxiv.org/abs/2401.00001) — 比較兩種方法的效果。\n\n2. [Self-RAG](https://arxiv.org/abs/2310.11511) — 自省式檢索增強生成。',
+              timestamp: new Date(),
+            },
+            { id: '3', role: 'user', content: '這些論文有什麼共同點？', timestamp: new Date() },
+          ],
+          sendMessage: fn(),
+          isLoading: true,
+          error: null,
+          clearMessages: fn(),
+        }),
       },
     },
   },
