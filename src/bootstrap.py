@@ -89,19 +89,11 @@ def build_llm_service(session):
 
 
 # ---------------------------------------------------------------------------
-# RAG 層: 從 rag_config.toml 建立 RagSdkIngestionService
+# RAG 層: 從 env vars 建立 RagSdkIngestionService
 # ---------------------------------------------------------------------------
 
-def _load_rag_config() -> dict:
-    import tomllib
-    from pathlib import Path
-    config_path = Path(__file__).resolve().parent / "infrastructure" / "intelligence" / "vector_store" / "rag_config.toml"
-    with open(config_path, "rb") as f:
-        return tomllib.load(f)
-
-
 def build_rag_ingestion_service():
-    """Build RagSdkIngestionService from rag_config.toml.
+    """Build RagSdkIngestionService from environment variables.
 
     Returns (rag_service, rag_config_failed_event).
     Either or both may be None when RAG is disabled or misconfigured.
@@ -128,6 +120,8 @@ def build_rag_ingestion_service():
             SyncPgBackend,
             DatabaseConfig,
             NotConfiguredError,
+            build_dense_provider,
+            build_sparse_provider,
         )
     except ModuleNotFoundError:
         logger.info("rag_disabled_sdk_not_installed")
@@ -138,51 +132,34 @@ def build_rag_ingestion_service():
             VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
             VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
             VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
+            RAG_DENSE_PROVIDER, RAG_DENSE_MODEL, RAG_DENSE_DIMENSION,
+            RAG_DENSE_API_KEY_ENV, RAG_DENSE_ENDPOINT_URL,
+            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
+            RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
+            RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD,
         )
         from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
-        from src.infrastructure.intelligence.vector_store.providers import (
-            GeminiRagDenseProvider, LocalDenseRagProvider, LocalSparseRagProvider, EndpointRagProvider,
-        )
 
-        cfg = _load_rag_config()
+        dense_provider = build_dense_provider({
+            "provider_type": RAG_DENSE_PROVIDER,
+            "model": RAG_DENSE_MODEL,
+            "dimension": RAG_DENSE_DIMENSION,
+            "api_key": os.environ.get(RAG_DENSE_API_KEY_ENV, "") if RAG_DENSE_API_KEY_ENV else "",
+            "endpoint_url": RAG_DENSE_ENDPOINT_URL,
+            "rpm": RAG_DENSE_RPM,
+            "tpm": RAG_DENSE_TPM,
+            "rpd": RAG_DENSE_RPD,
+        }) if RAG_DENSE_PROVIDER else None
 
-        def _build_provider(role: str):
-            section = cfg.get(role, {})
-            if not section:
-                return None
-            provider_type = section.get("provider_type")
-            model = section.get("model")
-            dimension = section.get("dimension")
-            if provider_type == "local":
-                if role == "dense":
-                    return LocalDenseRagProvider(model=model, dimension=dimension)
-                else:
-                    return LocalSparseRagProvider(model=model, dimension=dimension)
-            elif provider_type == "gemini":
-                api_key_env = section.get("api_key_env", "RAG_GEMINI_API_KEY")
-                return GeminiRagDenseProvider(
-                    api_key=os.environ.get(api_key_env) or "",
-                    model=model,
-                    dimension=dimension,
-                    rpm=section.get("rpm"),
-                    tpm=section.get("tpm"),
-                    rpd=section.get("rpd"),
-                )
-            elif provider_type == "endpoint":
-                api_key_env = section.get("api_key_env")
-                return EndpointRagProvider(
-                    url=section["endpoint_url"],
-                    role=role,
-                    api_key=os.environ.get(api_key_env) if api_key_env else None,
-                    dimension=dimension,
-                    rpm=section.get("rpm"),
-                    tpm=section.get("tpm"),
-                    rpd=section.get("rpd"),
-                )
-            return None
-
-        dense_provider = _build_provider("dense")
-        sparse_provider = _build_provider("sparse")
+        sparse_provider = build_sparse_provider({
+            "provider_type": RAG_SPARSE_PROVIDER,
+            "model": RAG_SPARSE_MODEL,
+            "dimension": RAG_SPARSE_DIMENSION,
+            "endpoint_url": RAG_SPARSE_ENDPOINT_URL,
+            "rpm": RAG_SPARSE_RPM,
+            "tpm": RAG_SPARSE_TPM,
+            "rpd": RAG_SPARSE_RPD,
+        }) if RAG_SPARSE_PROVIDER else None
 
         backend = SyncPgBackend(DatabaseConfig(
             dbname=VECTOR_DB_NAME,
@@ -200,8 +177,8 @@ def build_rag_ingestion_service():
         rag_service = RagSdkIngestionService(processor)
         logger.info(
             "rag_ingestion_initialized",
-            dense=cfg.get("dense", {}).get("provider_type", "disabled"),
-            sparse=cfg.get("sparse", {}).get("provider_type", "disabled"),
+            dense=RAG_DENSE_PROVIDER or "disabled",
+            sparse=RAG_SPARSE_PROVIDER or "disabled",
         )
         return rag_service, None
 
