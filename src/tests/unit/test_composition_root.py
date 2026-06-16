@@ -102,10 +102,10 @@ def test_t016_article_scraped_event_subscription():
 
 
 def test_t017_article_processed_event_subscription():
-    """ArticleProcessedEvent must have exactly one handler registered."""
+    """ArticleProcessedEvent must have at least one handler (analysis); RAG handler is optional."""
     pipeline, *_ = _build_pipeline_with_mocks()
     handlers = pipeline._event_bus._handlers.get(ArticleProcessedEvent, [])
-    assert len(handlers) == 1, f"expected 1 handler for ArticleProcessedEvent, got {len(handlers)}"
+    assert len(handlers) >= 1, f"expected at least 1 handler for ArticleProcessedEvent, got {len(handlers)}"
 
 
 def test_t018_analysis_completed_event_subscription():

@@ -84,7 +84,7 @@ class OpenAlexScraper(BaseScraper):
 
         if self._fetch_pdf and pdf_url and self._pdf_parser:
             pdf_full_text = self._pdf_parser.parse(pdf_url)
-            if pdf_full_text.strip():  # scanned PDFs produce whitespace-only output
+            if (pdf_full_text or "").strip():  # scanned PDFs produce whitespace-only output
                 pdf_available = True
                 raw_sections = self._pdf_parser.extract_sections(pdf_full_text)
                 sections = {
