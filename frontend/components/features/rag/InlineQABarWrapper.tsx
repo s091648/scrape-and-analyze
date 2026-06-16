@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { AgentInput, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
+import { toast } from 'sonner'
 import { useI18n, useTopic, useTheme } from '@/lib/providers'
 import { AnswerDisplay } from './AnswerDisplay'
 
@@ -29,7 +30,13 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     streamAdapter: openaiAdapter,
     headers,
     onError: (err) => {
-      console.error('[InlineQABarWrapper] chat error:', err.message)
+      if (err.message.includes('429')) {
+        toast.warning(t('rag.rateLimitError'))
+      } else if (err.message.includes('503')) {
+        toast.error(t('rag.serviceUnavailable'))
+      } else {
+        toast.error(t('rag.genericError'))
+      }
     },
   })
 

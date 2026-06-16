@@ -17,22 +17,26 @@ interface Quota {
   tier: string
 }
 
-function loadFloatSession(): Message[] {
+function loadFloatSession(userId: string): Message[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = localStorage.getItem(FLOAT_STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })) : []
+    // Discard if stored for a different user (prevents guest→auth carry-over)
+    if (parsed.userId !== userId) return []
+    return Array.isArray(parsed.messages)
+      ? parsed.messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }))
+      : []
   } catch {
     return []
   }
 }
 
-function saveFloatSession(messages: Message[]) {
+function saveFloatSession(userId: string, messages: Message[]) {
   if (typeof window === 'undefined') return
   try {
-    localStorage.setItem(FLOAT_STORAGE_KEY, JSON.stringify(messages))
+    localStorage.setItem(FLOAT_STORAGE_KEY, JSON.stringify({ userId, messages }))
   } catch {}
 }
 
@@ -48,6 +52,11 @@ export function FloatingChatbotWrapper() {
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
+
+  // 'guest' for unauthenticated; actual user id for authenticated
+  const userId = status === 'authenticated'
+    ? (((session?.user as any)?.id as string) ?? 'guest')
+    : 'guest'
 
   // Captures sources SSE event emitted after the content chunks
   const pendingSourcesRef = useRef<ArticleSource[]>([])
@@ -81,8 +90,9 @@ export function FloatingChatbotWrapper() {
     } catch {}
   }, [token])
 
+  // Fetch quota for all users (authenticated + guests via __rag_gid cookie)
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status !== 'loading') {
       fetchQuota()
     }
   }, [status, fetchQuota])
@@ -90,7 +100,7 @@ export function FloatingChatbotWrapper() {
   const { messages, sendMessage, isLoading, clearMessages } = useChat({
     endpoint: CHAT_ENDPOINT,
     streamAdapter: customAdapter,
-    initialMessages: loadFloatSession(),
+    initialMessages: loadFloatSession(userId),
     headers,
     onError: (err) => {
       const is429 = err.message.includes('429')
@@ -106,24 +116,28 @@ export function FloatingChatbotWrapper() {
     },
   })
 
-  // Associate pending sources with the last assistant message when stream finishes
+  // When stream finishes: associate pending sources + re-fetch server quota
   useEffect(() => {
-    if (prevIsLoadingRef.current && !isLoading && pendingSourcesRef.current.length > 0) {
-      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
-      if (lastAssistant) {
-        setMessageSources(s => ({ ...s, [lastAssistant.id]: pendingSourcesRef.current }))
+    if (prevIsLoadingRef.current && !isLoading) {
+      if (pendingSourcesRef.current.length > 0) {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
+        if (lastAssistant) {
+          setMessageSources(s => ({ ...s, [lastAssistant.id]: pendingSourcesRef.current }))
+        }
+        pendingSourcesRef.current = []
       }
-      pendingSourcesRef.current = []
+      // Re-fetch actual server quota (reflects InlineQABarWrapper usage too)
+      fetchQuota()
     }
     prevIsLoadingRef.current = isLoading
-  }, [isLoading, messages])
+  }, [isLoading, messages, fetchQuota])
 
-  // Persist messages to localStorage
+  // Persist messages to localStorage, tagged with current userId
   useEffect(() => {
     if (messages.length > 0) {
-      saveFloatSession(messages)
+      saveFloatSession(userId, messages)
     }
-  }, [messages])
+  }, [messages, userId])
 
   // Clear history on logout so the next user starts fresh
   useEffect(() => {
@@ -136,7 +150,6 @@ export function FloatingChatbotWrapper() {
     (text: string) => {
       if (!text.trim()) return
       sendMessage(text)
-      setQuota(q => q && q.remaining > 0 ? { ...q, remaining: q.remaining - 1 } : q)
     },
     [sendMessage]
   )
