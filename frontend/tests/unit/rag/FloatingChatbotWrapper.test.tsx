@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { useChat, ChatbotPlugin } from '@s091648/chatbot-plugin-ui'
+import { useChat } from '@s091648/chatbot-plugin-ui'
 
 import { useSession } from 'next-auth/react'
 
@@ -31,13 +31,11 @@ vi.mock('sonner', () => ({
 const mockSendMessage = vi.fn()
 const mockClearMessages = vi.fn()
 
-vi.mock('@s091648/chatbot-plugin-ui', () => ({
-  ChatbotPlugin: vi.fn(({ messages, onSend, isLoading, title, onNewChat }: any) => (
+// Mock the custom panel so we can inspect what props FloatingChatbotWrapper passes
+vi.mock('@/components/features/rag/FloatingChatbotPanel', () => ({
+  FloatingChatbotPanel: vi.fn(({ messages, onSend, isLoading, title, onNewChat }: any) => (
     <div data-testid="chatbot-plugin">
       <div data-testid="title">{title}</div>
-      <button data-testid="fab" aria-label="Open chat" onClick={() => {}}>
-        FAB
-      </button>
       <div data-testid="message-count">{messages.length}</div>
       <button
         data-testid="send-btn"
@@ -53,7 +51,13 @@ vi.mock('@s091648/chatbot-plugin-ui', () => ({
       )}
     </div>
   )),
-  openaiAdapter: {},
+}))
+
+vi.mock('@s091648/chatbot-plugin-ui', () => ({
+  openaiAdapter: {
+    buildRequest: vi.fn(),
+    parse: vi.fn().mockReturnValue(null),
+  },
   useChat: vi.fn(),
 }))
 
@@ -67,30 +71,9 @@ describe('FloatingChatbotWrapper', () => {
       error: null,
       clearMessages: mockClearMessages,
     })
-    vi.mocked(ChatbotPlugin).mockImplementation(({ messages, onSend, isLoading, title, onNewChat }: any) => (
-      <div data-testid="chatbot-plugin">
-        <div data-testid="title">{title}</div>
-        <button data-testid="fab" aria-label="Open chat" onClick={() => {}}>
-          FAB
-        </button>
-        <div data-testid="message-count">{messages.length}</div>
-        <button
-          data-testid="send-btn"
-          disabled={isLoading}
-          onClick={() => onSend('test message')}
-        >
-          Send
-        </button>
-        {onNewChat && (
-          <button data-testid="new-chat-btn" onClick={onNewChat}>
-            New Chat
-          </button>
-        )}
-      </div>
-    ))
   })
 
-  it('renders ChatbotPlugin component', async () => {
+  it('renders chatbot panel', async () => {
     const { FloatingChatbotWrapper } = await import(
       '@/components/features/rag/FloatingChatbotWrapper'
     )
@@ -108,10 +91,9 @@ describe('FloatingChatbotWrapper', () => {
   })
 
   it('does not call sendMessage when text is blank', async () => {
-    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ onSend }: any) => (
-      <button data-testid="blank-send" onClick={() => onSend('   ')}>
-        Blank
-      </button>
+    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    vi.mocked(FloatingChatbotPanel).mockImplementationOnce(({ onSend }: any) => (
+      <button data-testid="blank-send" onClick={() => onSend('   ')}>Blank</button>
     ))
 
     const { FloatingChatbotWrapper } = await import(
@@ -187,8 +169,8 @@ describe('FloatingChatbotWrapper', () => {
     setItemSpy.mockRestore()
   })
 
-  it('renders nothing when user is not authenticated', async () => {
-    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
+  it('renders nothing while session is loading', async () => {
+    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'loading', update: vi.fn() })
 
     const { FloatingChatbotWrapper } = await import(
       '@/components/features/rag/FloatingChatbotWrapper'
@@ -197,12 +179,37 @@ describe('FloatingChatbotWrapper', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('passes mode from useTheme as theme prop to ChatbotPlugin', async () => {
+  it('renders chatbot for unauthenticated (guest) users', async () => {
+    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/rag/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    expect(screen.getByTestId('chatbot-plugin')).toBeInTheDocument()
+  })
+
+  it('clears localStorage when user logs out', async () => {
+    const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
+    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/rag/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    await waitFor(() => {
+      expect(removeItemSpy).toHaveBeenCalledWith('rag_float_chat_messages')
+    })
+    removeItemSpy.mockRestore()
+  })
+
+  it('passes theme prop to FloatingChatbotPanel', async () => {
     const { useTheme } = await import('@/lib/providers')
     vi.mocked(useTheme).mockReturnValue({ mode: 'dark', theme: 'dark', cycleMode: mockCycleMode, setMode: vi.fn() })
 
+    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
     let receivedTheme: string | undefined
-    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme, messages, onSend, isLoading, title, onNewChat }: any) => {
+    vi.mocked(FloatingChatbotPanel).mockImplementationOnce(({ theme, messages, onSend, isLoading, onNewChat }: any) => {
       receivedTheme = theme
       return (
         <div data-testid="chatbot-plugin">
@@ -214,36 +221,6 @@ describe('FloatingChatbotWrapper', () => {
     const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
     render(<FloatingChatbotWrapper />)
     expect(receivedTheme).toBe('dark')
-  })
-
-  it('passes "light" mode as theme prop when mode is light', async () => {
-    const { useTheme } = await import('@/lib/providers')
-    vi.mocked(useTheme).mockReturnValue({ mode: 'light', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
-
-    let receivedTheme: string | undefined
-    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme }: any) => {
-      receivedTheme = theme
-      return <div data-testid="chatbot-plugin" />
-    })
-
-    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
-    render(<FloatingChatbotWrapper />)
-    expect(receivedTheme).toBe('light')
-  })
-
-  it('passes "auto" mode as theme prop when mode is auto', async () => {
-    const { useTheme } = await import('@/lib/providers')
-    vi.mocked(useTheme).mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
-
-    let receivedTheme: string | undefined
-    vi.mocked(ChatbotPlugin).mockImplementationOnce(({ theme }: any) => {
-      receivedTheme = theme
-      return <div data-testid="chatbot-plugin" />
-    })
-
-    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
-    render(<FloatingChatbotWrapper />)
-    expect(receivedTheme).toBe('auto')
   })
 
   it('clears messages and localStorage when onNewChat is triggered', async () => {

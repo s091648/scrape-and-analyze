@@ -1,0 +1,3 @@
+[submodule "chatbot-plugin"]
+	path = chatbot-plugin
+	url = https://github.com/s091648/chatbot-plugin.git

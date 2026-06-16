@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { ChatbotPlugin, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
+import { openaiAdapter, useChat, type StreamAdapter, type StreamEvent, type Message } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
 import { useI18n, useTopic, useTheme } from '@/lib/providers'
+import { FloatingChatbotPanel, type ArticleSource } from './FloatingChatbotPanel'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 const QUOTA_ENDPOINT = '/api/proxy/chat/quota'
@@ -16,7 +17,7 @@ interface Quota {
   tier: string
 }
 
-function loadFloatSession() {
+function loadFloatSession(): Message[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = localStorage.getItem(FLOAT_STORAGE_KEY)
@@ -28,7 +29,7 @@ function loadFloatSession() {
   }
 }
 
-function saveFloatSession(messages: any[]) {
+function saveFloatSession(messages: Message[]) {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(FLOAT_STORAGE_KEY, JSON.stringify(messages))
@@ -41,11 +42,32 @@ export function FloatingChatbotWrapper() {
   const { t } = useI18n()
   const { mode } = useTheme()
   const [quota, setQuota] = useState<Quota | null>(null)
+  const [messageSources, setMessageSources] = useState<Record<string, ArticleSource[]>>({})
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
+
+  // Captures sources SSE event emitted after the content chunks
+  const pendingSourcesRef = useRef<ArticleSource[]>([])
+  const prevIsLoadingRef = useRef(false)
+
+  const customAdapter = useMemo((): StreamAdapter => ({
+    ...openaiAdapter,
+    parse(line: string): StreamEvent | null {
+      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+        try {
+          const json = JSON.parse(line.slice(6).trim())
+          if (Array.isArray(json.sources)) {
+            pendingSourcesRef.current = json.sources
+            return null
+          }
+        } catch {}
+      }
+      return openaiAdapter.parse(line)
+    },
+  }), [])
 
   const fetchQuota = useCallback(async () => {
     try {
@@ -67,7 +89,7 @@ export function FloatingChatbotWrapper() {
 
   const { messages, sendMessage, isLoading, clearMessages } = useChat({
     endpoint: CHAT_ENDPOINT,
-    streamAdapter: openaiAdapter,
+    streamAdapter: customAdapter,
     initialMessages: loadFloatSession(),
     headers,
     onError: (err) => {
@@ -84,11 +106,31 @@ export function FloatingChatbotWrapper() {
     },
   })
 
+  // Associate pending sources with the last assistant message when stream finishes
+  useEffect(() => {
+    if (prevIsLoadingRef.current && !isLoading && pendingSourcesRef.current.length > 0) {
+      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
+      if (lastAssistant) {
+        setMessageSources(s => ({ ...s, [lastAssistant.id]: pendingSourcesRef.current }))
+      }
+      pendingSourcesRef.current = []
+    }
+    prevIsLoadingRef.current = isLoading
+  }, [isLoading, messages])
+
+  // Persist messages to localStorage
   useEffect(() => {
     if (messages.length > 0) {
       saveFloatSession(messages)
     }
   }, [messages])
+
+  // Clear history on logout so the next user starts fresh
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      localStorage.removeItem(FLOAT_STORAGE_KEY)
+    }
+  }, [status])
 
   const handleSend = useCallback(
     (text: string) => {
@@ -102,18 +144,21 @@ export function FloatingChatbotWrapper() {
   const handleNewChat = useCallback(() => {
     clearMessages()
     localStorage.removeItem(FLOAT_STORAGE_KEY)
+    setMessageSources({})
   }, [clearMessages])
 
-  if (status !== 'authenticated') return null
+  // Show spinner placeholder while session resolves
+  if (status === 'loading') return null
 
   const quotaSuffix = quota !== null && quota.remaining >= 0
     ? ` · ${quota.remaining}/${quota.limit}`
     : ''
 
   return (
-    <ChatbotPlugin
+    <FloatingChatbotPanel
       theme={mode}
       messages={messages}
+      messageSources={messageSources}
       onSend={handleSend}
       isLoading={isLoading}
       onNewChat={handleNewChat}

@@ -8,6 +8,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockUsePathname(),
 }))
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
+}))
+
 vi.mock('@/components/features/navigation/nav-bar', () => ({
   NavBar: () => <nav data-testid="navbar">NavBar</nav>,
 }))

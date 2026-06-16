@@ -114,6 +114,24 @@ services:
         condition: service_healthy
     # no command; `docker compose run` will supply the test command
 
+  # Chatbot Plugin — OpenAI-compatible RAG chat service
+  chatbot_plugin:
+    build:
+      context: ./chatbot-plugin
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./chatbot-plugin/src:/app/src
+      - chatbot_fastembed_cache:/app/.fastembed_cache
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    environment:
+      - GEMINI_MODEL=gemini-2.5-flash
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Job service - 一次性任務：migration、db dump/sync、backfill、scrape
   job_service:
     build:
@@ -142,3 +160,4 @@ volumes:
   frontend_node_modules:
   playwright_cache:
   fastembed_cache:
+  chatbot_fastembed_cache:

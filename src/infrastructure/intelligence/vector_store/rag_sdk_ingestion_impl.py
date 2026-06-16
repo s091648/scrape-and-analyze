@@ -21,6 +21,7 @@ class RagSdkIngestionService(RagIngestionService):
                 "url": str(article.url),
                 "title": article.title,
                 "source": article.source,
+                "public_article_id": str(article.id),
             },
         ))
         duration = time.monotonic() - start

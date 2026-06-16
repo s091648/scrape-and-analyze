@@ -118,6 +118,7 @@ def main():
     failed = 0
 
     for row in rows:
+        article_id = str(row[0])
         article_url = row[1]
         article_title = row[2] or ""
         content = row[3] or ""
@@ -137,7 +138,12 @@ def main():
         try:
             processor.ingest(
                 content,
-                metadata={"url": article_url, "title": article_title, **metadata},
+                metadata={
+                    "url": article_url,
+                    "title": article_title,
+                    "public_article_id": article_id,
+                    **metadata,
+                },
             )
             done += 1
             if done % 10 == 0:
