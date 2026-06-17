@@ -160,8 +160,13 @@ export function FloatingChatbotWrapper() {
     setMessageSources({})
   }, [clearMessages])
 
-  // Show spinner placeholder while session resolves
+  // Hide during session resolution
   if (status === 'loading') return null
+  // For unauthenticated users: wait for quota check, then hide if exhausted (quota = 0 → ask to login)
+  if (status === 'unauthenticated') {
+    if (quota === null) return null  // still loading guest quota
+    if (quota.remaining <= 0) return null  // guest quota exhausted
+  }
 
   const quotaSuffix = quota !== null && quota.remaining >= 0
     ? ` · ${quota.remaining}/${quota.limit}`

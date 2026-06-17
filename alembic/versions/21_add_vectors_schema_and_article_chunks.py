@@ -26,6 +26,7 @@ def upgrade() -> None:
         sa.Column("title", sa.Text(), nullable=True),
         sa.Column("source", sa.Text(), nullable=True),
         sa.Column("public_article_id", UUID(as_uuid=True), nullable=True),
+        sa.Column("topic_id", UUID(as_uuid=True), nullable=True),
         sa.Column("metadata", JSONB, nullable=True),
         sa.Column(
             "created_at",

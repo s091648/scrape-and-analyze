@@ -15,6 +15,7 @@ class RagSdkIngestionService(RagIngestionService):
 
     def ingest(self, article, full_text: str) -> None:
         start = time.monotonic()
+        topic_id = getattr(article, 'topic_id', None)
         asyncio.run(self._processor.ingest(
             full_text=full_text,
             metadata={
@@ -22,6 +23,7 @@ class RagSdkIngestionService(RagIngestionService):
                 "title": article.title,
                 "source": article.source,
                 "public_article_id": str(article.id),
+                "topic_id": str(topic_id) if topic_id else None,
             },
         ))
         duration = time.monotonic() - start
