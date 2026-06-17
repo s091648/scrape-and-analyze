@@ -129,7 +129,7 @@ jobs:
           railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35  # storybook UI
           railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
         env:
-          RAILWAY_TOKEN: ${{ secrets.PRODUCTION_RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       # -------------------------------------------------------------------
       # Create GitHub Release with the stamped notes as body

@@ -61,7 +61,7 @@ specs/012-rag-chatbot-integration/
 ├── data-model.md        ← Phase 1 輸出 ✅
 ├── contracts/           ← Phase 1 輸出 ✅
 │   ├── chat-api.md      ← POST /chat/completions OpenAI-compatible 合約
-│   └── rag-sdk.md       ← VectorizingProcessor.ingest() 介面合約
+│   └── rag-sdk.md       ← IngestProcessor.ingest() 介面合約（chatbot_plugin_sdk）
 └── tasks.md             ← Phase 2 輸出（/speckit-tasks 產生）
 ```
 
@@ -71,59 +71,66 @@ specs/012-rag-chatbot-integration/
 # Scraper Pipeline 擴充（src/）
 src/
 ├── modules/
-│   └── articles/
+│   └── intelligence/
 │       ├── domain/
-│       │   ├── services/
-│       │   │   └── vector_store_service.py     ← 新增 Domain Interface
-│       │   └── events/
-│       │       └── article_vectorized_event.py ← 新增 Domain Event（TBD 是否需要）
+│       │   └── services/
+│       │       └── rag_ingestion_service.py      ← Domain Interface（RagIngestionService ABC）
 │       └── application/
-│           └── use_cases/
-│               └── vectorize_article_use_case.py  ← 新增（可選，視複雜度決定）
+│           ├── use_cases/
+│           │   └── ingest_article_for_rag.py     ← IngestArticleForRagUseCase（bot detection + fallback 組裝）
+│           ├── event_handlers/
+│           │   └── rag_ingestion_handler.py      ← RagIngestionHandler（try/except, OTel span）
+│           └── events/
+│               └── rag_ingestion_failed.py       ← RagIngestionFailedEvent
 └── infrastructure/
-    └── vector_store/
-        ├── __init__.py
-        └── rag_sdk_vector_store_impl.py        ← 新增 Infrastructure 實作
+    └── intelligence/
+        └── vector_store/
+            ├── __init__.py
+            └── rag_sdk_ingestion_impl.py         ← RagSdkIngestionService（包裝 IngestProcessor）
 
 # Backend Chat Service（backend/）
 backend/
 ├── routers/
-│   └── chat.py                                 ← 新增 FastAPI router（POST /chat/completions）
+│   └── chat.py                                   ← FastAPI router（POST /chat/completions、GET /chat/quota）
 ├── services/
-│   └── chat_service.py                         ← Rate limit 檢查 + proxy 至外部 Chat Service
+│   └── chat_service.py                           ← Rate limit 檢查 + proxy 至外部 Chat Service
 └── tests/
-    └── test_chat.py                            ← 新增單元測試（rate limit + proxy 行為）
+    ├── test_chat_service.py                      ← ChatService 單元測試（rate limit 邏輯）
+    └── test_chat_router.py                       ← chat router 路由測試
 
 # Frontend（frontend/）
 frontend/
 ├── components/
 │   └── features/
 │       └── rag/
-│           ├── InlineQABarWrapper.tsx          ← AgentInput + AnswerDisplay（useChat hook）
-│           ├── InlineQABarWrapper.stories.tsx  ← Storybook story（Constitution 要求）
-│           ├── AnswerDisplay.tsx               ← 顯示最新 assistant 回答（markdown）
-│           ├── FloatingChatbotWrapper.tsx      ← ChatbotPlugin（useChat hook + sessionStorage）
-│           └── FloatingChatbotWrapper.stories.tsx
+│           ├── InlineQABarWrapper.tsx            ← useChat + AgentInput + AnswerDisplay + quota display
+│           ├── AnswerDisplay.tsx                 ← 顯示最新 assistant 回答（markdown）
+│           ├── FloatingChatbotWrapper.tsx        ← useChat hook + localStorage 歷史 + customAdapter（sources）
+│           └── FloatingChatbotPanel.tsx          ← 自作浮動 UI（markdown 渲染、sources 來源 chip、ArticleDetailDialog）
 ├── lib/
-│   └── chat-session.ts                        ← sessionStorage 存取工具（loadSession/saveSession/clearSession）
+│   ├── chat-session.ts                          ← sessionStorage 存取工具（InlineQABar 用）
+│   └── providers/
+│       ├── chat-quota-provider.tsx              ← ChatQuotaContext（GET /chat/quota 輪詢）
+│       └── guest-mode-provider.tsx              ← GuestModeContext（訪客模式切換）
 └── tests/
     ├── unit/
     │   └── rag/
-    │       └── InlineQABarWrapper.test.tsx
+    │       ├── InlineQABarWrapper.test.tsx
+    │       └── FloatingChatbotWrapper.test.tsx
     └── integration/
-        └── chat-flow.spec.ts                  ← Playwright E2E
+        └── chat-flow.spec.ts                    ← Playwright E2E
 
 # 資料庫（models/ + alembic/）
 models/
-└── article_chunk.py                           ← 新增 SQLAlchemy ORM model（vectors schema）
+└── article_chunk.py                             ← SQLAlchemy ORM model（vectors schema，SDK 內部寫入）
 
 alembic/versions/
-└── 18_add_vectors_schema_and_article_chunks.py ← 新增 migration
+└── 21_add_vectors_schema_and_article_chunks.py  ← migration
 
 # Docker / 設定
-docker-compose.yml                             ← 新增 redis service（若尚未存在）
-pyproject.toml                                 ← 新增 RAG SDK 依賴
-frontend/package.json                          ← 新增 chat component 依賴（local path or npm）
+docker-compose.yml                               ← redis service 已加入
+pyproject.toml                                   ← chatbot_plugin_sdk path dependency
+frontend/package.json                            ← @s091648/chatbot-plugin-ui
 ```
 
 ---
@@ -143,7 +150,7 @@ frontend/package.json                          ← 新增 chat component 依賴�
 1. ~~**RAG SDK Query API 簽章**~~ — 不適用
 2. ~~**Embedding 向量維度**~~ — 已確認 768 維
 3. ~~**Frontend component 的 SSE 支援方式**~~ — 已確認：`fetch` streaming + 內建 `openaiAdapter`
-4. ~~**Frontend component history 管理**~~ — 已確認：`useChat` hook 管理，wrapper 同步至 `sessionStorage`
+4. ~~**Frontend component history 管理**~~ — 已確認：`useChat` hook 管理；FloatingChatbot は `localStorage`（userId タグ）で跨セッション持久化、ログアウト時クリア
 5. ~~**外部 Chat Service URL 與 API Key**~~ — 已確認使用 `CHAT_SERVICE_URL` 環境變數
 6. ~~**`topic_id` 傳遞方式**~~ — 已確認：後端從 `X-Topic-Id` header 取值，注入 request body extra field `{ ..., "topic_id": "..." }` 轉發給 Chat Service
 7. ~~**RAG SDK local path install**~~ — 已確認：開發期間用 path dependency（`pip install -e ../rag-sdk`），上線前改為正式 PyPI 套件
@@ -159,22 +166,24 @@ frontend/package.json                          ← 新增 chat component 依賴�
 - 環境變數：`REDIS_URL`、`RAG_SDK_DB_URL`（或複用現有 DB URL）
 
 ### Phase B：Scraper Pipeline 擴充（src/）
-- 定義 `VectorStoreService` Domain Interface
-- 實作 `RagSdkVectorStoreImpl`（包裝外部 SDK）
-- 在 `bootstrap.py` 訂閱事件，接向量化 handler
-- 向量化失敗需 try/except，不中斷現有 pipeline
+- 定義 `RagIngestionService` Domain Interface（`src/modules/intelligence/domain/services/`）
+- 實作 `RagSdkIngestionService`（`src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py`），包裝 `chatbot_plugin_sdk.processors.ingest.IngestProcessor`
+- 實作 `IngestArticleForRagUseCase`：bot detection 過濾、full_text 為空時從 article 欄位組裝 fallback
+- 實作 `RagIngestionHandler`：呼叫 use case，失敗時 publish `RagIngestionFailedEvent`，不 re-raise
+- 在 `bootstrap.py` 訂閱事件，handler 接 `ArticleProcessedEvent`，full_text 從 event 取得（in-memory 傳遞）
 
 ### Phase C：Backend Chat Service（backend/）
-- 新增 `chat.py` router（`POST /chat/completions`，無狀態，無 session history endpoint）
-- 實作 Redis rate limiting（guest cookie `__rag_gid` + user_id 兩條路徑，bypass for admin）
+- `chat.py` router：`POST /chat/completions`（SSE streaming）、`GET /chat/quota`（配額查詢）
+- 實作 Redis rate limiting（guest cookie `__rag_gid` + user_id + IP fallback，bypass for admin）
 - `ChatService` 驗證 rate limit → 轉發 OpenAI-compatible request 至 `CHAT_SERVICE_URL`，原樣 pipe SSE 回前端
 - 從 `X-Topic-Id` header 取得 topic，注入轉發 body 的 extra field `{ ..., "topic_id": "..." }`
 
 ### Phase D：Frontend 整合（frontend/）
-- 安裝 `chatbot-plugin-ui` npm package（local path build 或 npm link）
-- 實作 `chat-session.ts`（`sessionStorage` 存取：`loadSession` / `saveSession` / `clearSession`）
-- 建立 `FloatingChatbotWrapper`：`useChat` hook + `ChatbotPlugin`，`onMessage` 時同步 `sessionStorage`
-- 建立 `InlineQABarWrapper`：`useChat` hook + `AgentInput` + `AnswerDisplay`（渲染最新 assistant 訊息）
+- 安裝 `@s091648/chatbot-plugin-ui` npm package（submodule local build）
+- 建立 `ChatQuotaProvider`（`chat-quota-provider.tsx`）與 `GuestModeProvider`（`guest-mode-provider.tsx`）
+- 建立 `FloatingChatbotPanel.tsx`：自作浮動 Chat UI（markdown 渲染、sources 來源 chip 點擊開啟 `ArticleDetailDialog`、新對話按鈕）
+- 建立 `FloatingChatbotWrapper`：`useChat` hook + `customAdapter`（解析 SSE sources 事件）、`localStorage`（userId 標記）歷史持久化；未認證且非訪客模式時隱藏
+- 建立 `InlineQABarWrapper`：`useChat` hook + `AgentInput` + `AnswerDisplay` + quota 顯示
 - 在 root layout 加入 `FloatingChatbotWrapper`
 - 在文章列表頁加入 `InlineQABarWrapper`
 - Auth token 從 NextAuth session 取得後注入 `useChat({ headers: { Authorization: ... } })`

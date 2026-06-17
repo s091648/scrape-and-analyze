@@ -1,78 +1,56 @@
-# Contract: RAG SDK（VectorizingProcessor）
+# Contract: RAG SDK（IngestProcessor）
 
-**Package**: `rag_sdk`（開發期：path install；上線：PyPI 套件）
-**Used by**: `src/infrastructure/vector_store/rag_sdk_vector_store_impl.py`
+**Package**: `chatbot_plugin_sdk`（開發期：submodule path install；上線：PyPI 套件）
+**Used by**: `src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py`
 **Scope**: 寫入路徑（`ingest`）。查詢/檢索由外部 Chat Service 負責，本系統不呼叫 SDK 的查詢 API。
 
 ---
 
-## Class Hierarchy
-
-```
-RagArticleProcessor  (base)
-└── VectorizingProcessor
-    ├── configure(dbname, user, password, embedding_model_api)
-    └── ingest(full_text, normalization, metadata)
-```
-
-本系統只使用 `VectorizingProcessor`。`QueryingProcessor` 完全封裝在外部 Chat Service 內，不 expose 給本系統。
-
----
-
-## `configure()`
+## Class
 
 ```python
-def configure(
-    self,
-    dbname: str,
-    user: str,
-    password: str,
-    embedding_model_api: Optional[str] = None,
-) -> None
+from chatbot_plugin_sdk.processors.ingest import IngestProcessor
 ```
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `dbname` | `str` | Yes | PostgreSQL database name（vector DB） |
-| `user` | `str` | Yes | DB user |
-| `password` | `str` | Yes | DB password |
-| `embedding_model_api` | `str \| None` | Yes（ingest 前必須設定） | Embedding model API endpoint |
-
-在 composition root（`src/bootstrap.py`）中於 startup 時呼叫一次。
+本系統只使用 `IngestProcessor`。`QueryingProcessor` 完全封裝在外部 Chat Service 內，不 expose 給本系統。
 
 ---
 
 ## `ingest()`
 
 ```python
-def ingest(
+async def ingest(
     self,
     full_text: str,
-    normalization: Optional[Union[str, Callable]] = None,
-    metadata: Dict[str, Any] = {},
+    articles_column_values: Dict[str, Any],
 ) -> None
 ```
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `full_text` | `str` | Yes | 文章全文（任意來源：PDF 解析後文字、HTML stripped text、RSS 純文字） |
-| `normalization` | `str \| Callable \| None` | No | 切 chunk 與文字清理策略；`None` 使用 SDK 預設行為 |
-| `metadata` | `dict` | Yes | 至少含 `article_id`（str UUID）與 `source_url`（str） |
+| `articles_column_values` | `dict` | Yes | 文章 metadata，詳見下方 |
 
-**metadata 最小要求**:
+**`articles_column_values` 欄位**：
+
 ```python
-metadata = {
-    "article_id": str(article.id),   # str UUID
-    "source_url": str(article.url),  # 文章原始 URL
+articles_column_values = {
+    "url": str(article.url),
+    "title": article.title,
+    "source": article.source,
+    "public_article_id": str(article.id),
+    "topic_id": str(article.topic_id) if article.topic_id else None,
 }
 ```
 
-**SDK 內部步驟**（不 expose，由 SDK 管理）:
+**SDK 內部步驟**（不 expose，由 SDK 管理）：
 1. `chunk` — 切割全文為語意片段
-2. `embed` — 每片段呼叫 `embedding_model_api` 生成 768 維向量
+2. `embed` — 每片段生成 embedding 向量（768 維）
 3. `save` — 寫入 `vectors.article_chunks`；`UNIQUE(article_id, chunk_index)` 保證冪等性
 
-**Error behaviour**: 失敗時 raise exception。Caller（`VectorizeHandler`）須包在 `try/except` 並 log，**不得 re-raise**，確保現有 pipeline 繼續執行。
+**Error behaviour**: 失敗時 raise exception。Caller（`RagIngestionHandler`）須包在 `try/except` 並 log，**不得 re-raise**，確保現有 pipeline 繼續執行。
+
+**Async**: `ingest()` 是 coroutine，caller 透過 `asyncio.run()` 在同步 context 中呼叫。
 
 ---
 
@@ -81,95 +59,100 @@ metadata = {
 ### Domain Interface
 
 ```python
-# src/modules/articles/domain/services/vector_store_service.py
+# src/modules/intelligence/domain/services/rag_ingestion_service.py
 from abc import ABC, abstractmethod
 
-class VectorStoreService(ABC):
+class RagIngestionService(ABC):
     @abstractmethod
-    def ingest(self, article: Article) -> None: ...
+    def ingest(self, article, full_text: str) -> None: ...
 ```
 
 ### Infrastructure Implementation
 
 ```python
-# src/infrastructure/vector_store/rag_sdk_vector_store_impl.py
-from rag_sdk import VectorizingProcessor
-from src.modules.articles.domain.services.vector_store_service import VectorStoreService
+# src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py
+import asyncio
+from chatbot_plugin_sdk.processors.ingest import IngestProcessor
+from src.modules.intelligence.domain.services.rag_ingestion_service import RagIngestionService
 
-class RagSdkVectorStoreService(VectorStoreService):
-    def __init__(self, processor: VectorizingProcessor) -> None:
+class RagSdkIngestionService(RagIngestionService):
+    def __init__(self, processor: IngestProcessor) -> None:
         self._processor = processor
 
-    def ingest(self, article: Article) -> None:
-        self._processor.ingest(
-            full_text=article.full_text,
-            metadata={
-                "article_id": str(article.id),
-                "source_url": str(article.url),
+    def ingest(self, article, full_text: str) -> None:
+        topic_id = getattr(article, 'topic_id', None)
+        asyncio.run(self._processor.ingest(
+            full_text=full_text,
+            articles_column_values={
+                "url": str(article.url),
+                "title": article.title,
+                "source": article.source,
+                "public_article_id": str(article.id),
+                "topic_id": str(topic_id) if topic_id else None,
             },
-        )
+        ))
 ```
 
-### Vectorize Handler
+### Use Case（Bot Detection + Fallback）
 
 ```python
-# src/infrastructure/vector_store/vectorize_handler.py
-class VectorizeHandler:
-    def __init__(self, vector_store: VectorStoreService) -> None:
-        self._vector_store = vector_store
+# src/modules/intelligence/application/use_cases/ingest_article_for_rag.py
+class IngestArticleForRagUseCase:
+    def execute(self, article, full_text: str = "") -> None:
+        # 1. full_text が空なら article フィールドから組み立て
+        # 2. bot detection ページ（"verify you're not a robot" 等）はスキップ
+        # 3. rag_ingestion_service.ingest(article, full_text) を呼び出す
+```
 
-    def handle(self, event: AnalysisCompletedEvent) -> None:
-        try:
-            self._vector_store.ingest(event.article)
-        except Exception:
-            logger.exception("vectorize_failed", article_id=str(event.article.id))
-            # 不 re-raise：pipeline 繼續
+### RAG Ingestion Handler
+
+```python
+# src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py
+class RagIngestionHandler:
+    def handle(self, event) -> None:
+        with tracer.start_as_current_span("article.rag_ingest"):
+            try:
+                self._use_case.execute(event.article, full_text=event.full_text)
+            except Exception:
+                logger.exception("rag_ingest_failed", ...)
+                self._event_bus.publish(RagIngestionFailedEvent(...))
+                # 不 re-raise：pipeline 繼續
 ```
 
 ### Bootstrap 配置
 
 ```python
 # src/bootstrap.py（片段）
-processor = VectorizingProcessor()
-processor.configure(
-    dbname=settings.VECTOR_DB_NAME,
-    user=settings.VECTOR_DB_USER,
-    password=settings.VECTOR_DB_PASSWORD,
-    embedding_model_api=settings.EMBEDDING_MODEL_API,
-)
-vector_store = RagSdkVectorStoreService(processor)
-vectorize_handler = VectorizeHandler(vector_store)
-event_bus.subscribe(AnalysisCompletedEvent, vectorize_handler.handle)
+from chatbot_plugin_sdk.processors.ingest import IngestProcessor
+processor = IngestProcessor()
+# （設定由 SDK 內部讀取環境變數）
+rag_ingestion_service = RagSdkIngestionService(processor)
+ingest_use_case = IngestArticleForRagUseCase(rag_ingestion_service)
+rag_handler = RagIngestionHandler(ingest_use_case, event_bus)
+event_bus.subscribe(ArticleProcessedEvent, rag_handler.handle)
 ```
 
 ---
 
 ## 安裝設定
 
-### 開發期（path install）
+### 開發期（submodule path install）
 
 `pyproject.toml`:
 ```toml
 [tool.uv.sources]
-rag-sdk = { path = "../rag-sdk", editable = true }
+chatbot-plugin-sdk = { path = "../chatbot-plugin", editable = true }
 
 [project.optional-dependencies]
 scraper = [
   # ... 現有依賴 ...
-  "rag-sdk",
+  "chatbot-plugin-sdk",
 ]
 ```
 
 ### 上線（PyPI）
 
-確認套件名稱後，移除 `[tool.uv.sources]` 中的 path override，改為正式套件版本號：
-```toml
-[project.optional-dependencies]
-scraper = [
-  # ... 現有依賴 ...
-  "rag-sdk>=1.0.0",
-]
-```
+確認套件名稱後，移除 `[tool.uv.sources]` 中的 path override，改為正式套件版本號。
 
 ---
 
@@ -177,7 +160,7 @@ scraper = [
 
 | 變數 | 用途 |
 |------|------|
-| `VECTOR_DB_NAME` | pgvector DB 名稱（通常與主 DB 相同） |
+| `EMBEDDING_MODEL_API` | Embedding model API endpoint |
+| `VECTOR_DB_NAME` | pgvector DB 名稱 |
 | `VECTOR_DB_USER` | pgvector DB user |
 | `VECTOR_DB_PASSWORD` | pgvector DB password |
-| `EMBEDDING_MODEL_API` | Embedding model API endpoint（`VectorizingProcessor.configure` 用） |

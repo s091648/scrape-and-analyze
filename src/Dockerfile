@@ -13,34 +13,24 @@ RUN uv sync --frozen \
     --no-group backend \
     --no-group dev
 
-# Pre-download fastembed models at build time so the cron job doesn't need to
-# re-download on each run. Model names are read from rag_config.toml — no build
-# args needed; the same config file drives both build-time prefetch and runtime.
 ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
 
-RUN mkdir -p /app/src/infrastructure/intelligence/vector_store
-COPY src/infrastructure/intelligence/vector_store/rag_config.toml /app/src/infrastructure/intelligence/vector_store/rag_config.toml
+ARG RAG_DENSE_PROVIDER=gemini
+ARG RAG_DENSE_MODEL=gemini-embedding-001
+ARG RAG_SPARSE_PROVIDER=local
+ARG RAG_SPARSE_MODEL=prithivida/Splade_PP_en_v1
 
-RUN /app/.venv/bin/python - <<'EOF'
-import tomllib, os
-cache = os.environ["FASTEMBED_CACHE_PATH"]
-os.makedirs(cache, exist_ok=True)
-cfg_path = "/app/src/infrastructure/intelligence/vector_store/rag_config.toml"
-with open(cfg_path, "rb") as f:
-    cfg = tomllib.load(f)
-for role in ("dense", "sparse"):
-    section = cfg.get(role, {})
-    if section.get("provider_type") == "local" and section.get("model"):
-        model = section["model"]
-        if role == "dense":
-            from fastembed import TextEmbedding
-            print(f"Downloading dense model: {model}", flush=True)
-            TextEmbedding(model, cache_dir=cache)
-        else:
-            from fastembed import SparseTextEmbedding
-            print(f"Downloading sparse model: {model}", flush=True)
-            SparseTextEmbedding(model, cache_dir=cache)
-EOF
+RUN set -eu; \
+    cache="$FASTEMBED_CACHE_PATH"; \
+    mkdir -p "$cache"; \
+    if [ "$RAG_DENSE_PROVIDER" = "local" ]; then \
+        echo "Downloading dense model: $RAG_DENSE_MODEL"; \
+        /app/.venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('$RAG_DENSE_MODEL', cache_dir='$cache')"; \
+    fi; \
+    if [ "$RAG_SPARSE_PROVIDER" = "local" ]; then \
+        echo "Downloading sparse model: $RAG_SPARSE_MODEL"; \
+        /app/.venv/bin/python -c "from fastembed import SparseTextEmbedding; SparseTextEmbedding('$RAG_SPARSE_MODEL', cache_dir='$cache')"; \
+    fi
 
 FROM python:3.11-slim
 

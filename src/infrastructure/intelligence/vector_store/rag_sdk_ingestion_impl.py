@@ -18,7 +18,7 @@ class RagSdkIngestionService(RagIngestionService):
         topic_id = getattr(article, 'topic_id', None)
         asyncio.run(self._processor.ingest(
             full_text=full_text,
-            metadata={
+            articles_column_values={
                 "url": str(article.url),
                 "title": article.title,
                 "source": article.source,

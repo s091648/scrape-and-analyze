@@ -15,13 +15,12 @@ env:
 
 jobs:
   # -----------------------------------------------
-  # Stage 0: DB Migration (push to master only)
+  # Stage 0: DB Migration (push to master AND PR)
   # -----------------------------------------------
   migrate:
     name: DB Migration
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     environment: scraper / staging
 
     steps:
@@ -45,10 +44,10 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   # -----------------------------------------------
-  # Stage 1: Unit Tests (no external dependencies)
+  # Stage 1: Src Unit Tests (no external dependencies)
   # -----------------------------------------------
-  unit-test:
-    name: Unit Tests
+  src-unit-test:
+    name: Src Unit Tests
     runs-on: ubuntu-latest
     needs: [migrate]
     if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
@@ -86,7 +85,7 @@ jobs:
         with:
           pytest-xml-coverage-path: ./coverage.xml
           junitxml-path: ./pytest.xml
-          title: Unit Test Coverage
+          title: Src Unit Test Coverage
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute pass rate
@@ -118,14 +117,14 @@ jobs:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
         run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
 
-      - name: Update unit pass rate badge
+      - name: Update src unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: ${{ secrets.GIST_ID }}
-          filename: unit-passrate.json
-          label: unit tests
+          filename: src-unit-passrate.json
+          label: src unit tests
           message: ${{ steps.passrate.outputs.msg }}
           color: ${{ steps.passrate.outputs.color }}
 
@@ -352,15 +351,15 @@ jobs:
           color: ${{ steps.passrate.outputs.color }}
 
   # -----------------------------------------------
-  # Stage 2: Integration Tests (requires Postgres)
+  # Stage 2: Src Integration Tests (requires Postgres)
   # -----------------------------------------------
-  integration-test:
-    name: Integration Tests
+  src-integration-test:
+    name: Src Integration Tests
     runs-on: ubuntu-latest
-    needs: [migrate, unit-test]
+    needs: [migrate, src-unit-test]
     if: |
       always() &&
-      needs.unit-test.result == 'success' &&
+      needs.src-unit-test.result == 'success' &&
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
@@ -426,7 +425,7 @@ jobs:
         with:
           pytest-xml-coverage-path: ./coverage-integration.xml
           junitxml-path: ./pytest-integration.xml
-          title: Integration Test Coverage
+          title: Src Integration Test Coverage
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute pass rate
@@ -458,14 +457,14 @@ jobs:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
         run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
 
-      - name: Update integration pass rate badge
+      - name: Update src integration pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: ${{ secrets.GIST_ID }}
-          filename: integration-passrate.json
-          label: integration tests
+          filename: src-integration-passrate.json
+          label: src integration tests
           message: ${{ steps.passrate.outputs.msg }}
           color: ${{ steps.passrate.outputs.color }}
 
@@ -623,16 +622,95 @@ jobs:
           color: ${{ steps.passrate.outputs.color }}
 
   # -----------------------------------------------
-  # Stage 5: DB Rollback (push to master, on test failure)
+  # Stage 4a: Deploy Backend to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-backend:
+    name: Deploy Backend to Staging
+    runs-on: ubuntu-latest
+    needs: [backend-unit, backend-integration]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.backend-unit.result == 'success' &&
+      needs.backend-integration.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy dashboard-backend to Railway (staging)
+        run: railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4b: Deploy Frontend to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-frontend:
+    name: Deploy Frontend to Staging
+    runs-on: ubuntu-latest
+    needs: [frontend-unit, frontend-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.frontend-unit.result == 'success' &&
+      needs.frontend-e2e.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy dashboard-frontend to Railway (staging)
+        run: railway up --detach --service 54f665be-c49e-407e-bf23-e414587b9984 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4c: Deploy Scrape-Analyzer to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-src:
+    name: Deploy Scrape-Analyzer to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy scrape-and-analyze to Railway (staging)
+        run: railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 5: DB Rollback (if migrate succeeded but any test failed)
   # -----------------------------------------------
   rollback:
     name: DB Rollback
     runs-on: ubuntu-latest
-    needs: [migrate, unit-test, integration-test]
+    needs: [migrate, src-unit-test, src-integration-test, backend-unit, backend-integration, frontend-unit, frontend-e2e]
     if: |
       always() &&
       needs.migrate.result == 'success' &&
-      (needs.unit-test.result == 'failure' || needs.integration-test.result == 'failure')
+      (
+        needs.src-unit-test.result == 'failure' ||
+        needs.src-integration-test.result == 'failure' ||
+        needs.backend-unit.result == 'failure' ||
+        needs.backend-integration.result == 'failure' ||
+        needs.frontend-unit.result == 'failure' ||
+        needs.frontend-e2e.result == 'failure'
+      )
     environment: scraper / staging
 
     steps:

@@ -34,7 +34,7 @@
 
 - [X] T005 在 `alembic/versions/` 新增 migration `21_add_vectors_schema_and_article_chunks.py`，建立 `vectors` schema、啟用 `vector` extension、建立 `vectors.article_chunks` table（含 ivfflat index），down migration 完整實作（見 `data-model.md`）
 - [X] T006 [P] 在 `models/article_chunk.py` 建立 `ArticleChunk` SQLAlchemy ORM model（schema=`vectors`，欄位：`id`, `article_id`, `chunk_index`, `content`, `embedding VECTOR(768)`, `source_url`, `created_at`，unique constraint `(article_id, chunk_index)`）
-- [X] T007 [P] 在 `src/modules/articles/domain/services/vector_store_service.py` 建立 `VectorStoreService` ABC（單一抽象方法 `ingest(self, article: Article) -> None`）
+- [X] T007 [P] 在 `src/modules/intelligence/domain/services/rag_ingestion_service.py` 建立 `RagIngestionService` ABC（單一抽象方法 `ingest(self, article, full_text: str) -> None`）
 
 **Checkpoint**: `make migrate` 執行成功，`vectors.article_chunks` table 存在於 DB
 
@@ -48,15 +48,15 @@
 
 ### Tests for US3
 
-- [X] T008 [P] [US3] 在 `src/tests/unit/test_vectorize_handler.py` 建立 `VectorizeHandler` 單元測試：mock `VectorStoreService`，驗證 `ArticleProcessedEvent` 觸發 `ingest()` 呼叫；驗證 `ingest()` 拋出例外時 handler 不 re-raise 且記錄 log
-- [X] T009 [P] [US3] 在 `src/tests/unit/test_rag_sdk_vector_store_impl.py` 建立 `RagSdkVectorStoreService` 單元測試：mock `VectorizingProcessor`，驗證 `ingest()` 以正確 `full_text` 與 `metadata`（含 `article_id` 與 `source_url`）呼叫 SDK
-- [X] T010 [US3] 在 `src/tests/integration/test_vectorization_pipeline.py` 建立 integration test（`@pytest.mark.integration`）：建立 test Article，觸發向量化 use case，驗證冪等性（重複呼叫不產生重複片段）
+- [X] T008 [P] [US3] 在 `src/tests/unit/modules/intelligence/application/test_rag_ingestion_handler.py` 建立 `RagIngestionHandler` 單元測試：mock `IngestArticleForRagUseCase`，驗證 `ArticleProcessedEvent` 觸發 `execute()` 呼叫；驗證拋出例外時 handler 不 re-raise、記錄 log 並 publish `RagIngestionFailedEvent`
+- [X] T009 [P] [US3] 在 `src/tests/unit/infrastructure/intelligence/vector_store/test_rag_sdk_ingestion_impl.py` 建立 `RagSdkIngestionService` 單元測試：mock `IngestProcessor`，驗證 `ingest()` 以正確 `full_text` 與 `articles_column_values`（含 `public_article_id`、`url`、`title`、`source`、`topic_id`）呼叫 SDK
+- [X] T010 [US3] 在 `src/tests/integration/test_rag_ingestion_pipeline.py` 建立 integration test（`@pytest.mark.integration`）：建立 test Article，觸發 RAG ingestion use case，驗證冪等性（重複呼叫不產生重複片段）
 
 ### Implementation for US3
 
-- [X] T011 [US3] 在 `src/infrastructure/vector_store/__init__.py` 及 `src/infrastructure/vector_store/rag_sdk_vector_store_impl.py` 實作 `RagSdkVectorStoreService(VectorStoreService)`，包裝 `VectorizingProcessor.ingest()`（見 `contracts/rag-sdk.md`）
-- [X] T012 [US3] 在 `src/infrastructure/vector_store/vectorize_handler.py` 實作 `VectorizeHandler`：`handle(self, event) -> None`，包 `try/except`，失敗時 `logger.exception(...)` 不 re-raise（符合 constitution §VIII Handler 命名規則）
-- [X] T013 [US3] 在 `src/bootstrap.py` 中建立並配置 `VectorizingProcessor`（`configure()` 讀取環境變數）、建立 `RagSdkVectorStoreService`、建立 `VectorizeHandler`、`event_bus.subscribe(ArticleProcessedEvent, vectorize_handler.handle)`
+- [X] T011 [US3] 在 `src/infrastructure/intelligence/vector_store/__init__.py` 及 `src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py` 實作 `RagSdkIngestionService(RagIngestionService)`，包裝 `IngestProcessor.ingest()`（見 `contracts/rag-sdk.md`）；在 `src/modules/intelligence/application/use_cases/ingest_article_for_rag.py` 實作 `IngestArticleForRagUseCase`（bot detection 過濾、full_text fallback 組裝）
+- [X] T012 [US3] 在 `src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py` 實作 `RagIngestionHandler`：`handle(self, event) -> None`，包 OTel span（`article.rag_ingest`），失敗時 `logger.exception(...)` 不 re-raise、publish `RagIngestionFailedEvent`（符合 constitution §VIII Handler 命名規則）
+- [X] T013 [US3] 在 `src/bootstrap.py` 中建立 `IngestProcessor`（SDK 讀取環境變數）、`RagSdkIngestionService`、`IngestArticleForRagUseCase`、`RagIngestionHandler`、`event_bus.subscribe(ArticleProcessedEvent, rag_handler.handle)`
 
 **Checkpoint**: US3 可獨立驗證 — 執行 `make test`（unit）與 `make test-integration`（integration），向量化流程測試通過
 
