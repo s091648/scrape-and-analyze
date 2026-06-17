@@ -504,6 +504,7 @@
     "thinking": "Thinking…",
     "emptyState": "Start a conversation with the AI assistant.",
     "assistantTitle": "AI Research Assistant",
-    "clearChat": "Clear chat"
+    "clearChat": "Clear chat",
+    "remainingRequests": "requests remaining today"
   }
 }

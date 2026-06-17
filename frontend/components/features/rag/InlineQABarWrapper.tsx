@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { AgentInput, openaiAdapter, useChat } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useChatQuota } from '@/lib/providers'
 import { AnswerDisplay } from './AnswerDisplay'
 
 interface InlineQABarWrapperProps {
@@ -19,11 +19,14 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
   const { mode } = useTheme()
+  const { quota, refreshQuota } = useChatQuota()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
+
+  const prevIsLoadingRef = useRef(false)
 
   const { messages, sendMessage, isLoading, error } = useChat({
     endpoint: CHAT_ENDPOINT,
@@ -32,6 +35,7 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     onError: (err) => {
       if (err.message.includes('429')) {
         toast.warning(t('rag.rateLimitError'))
+        refreshQuota()
       } else if (err.message.includes('503')) {
         toast.error(t('rag.serviceUnavailable'))
       } else {
@@ -40,6 +44,14 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     },
   })
 
+  // Re-fetch server quota when response completes (keeps FloatingChatbotWrapper in sync)
+  useEffect(() => {
+    if (prevIsLoadingRef.current && !isLoading) {
+      refreshQuota()
+    }
+    prevIsLoadingRef.current = isLoading
+  }, [isLoading, refreshQuota])
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return
@@ -47,6 +59,10 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     },
     [sendMessage]
   )
+
+  const quotaText = quota && quota.remaining >= 0
+    ? `${quota.remaining} / ${quota.limit} ${t('rag.remainingRequests')}`
+    : null
 
   return (
     <div className={className}>
@@ -57,6 +73,9 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
         messages={messages}
         placeholder={placeholder ?? t('rag.placeholder')}
       />
+      {quotaText && (
+        <p className="mt-1 text-right text-[11px] text-muted-foreground">{quotaText}</p>
+      )}
       <AnswerDisplay messages={messages} isLoading={isLoading} error={error} />
     </div>
   )

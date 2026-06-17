@@ -504,6 +504,7 @@
     "thinking": "思考中…",
     "emptyState": "開始與 AI 助理對話。",
     "assistantTitle": "AI 研究助理",
-    "clearChat": "清除對話"
+    "clearChat": "清除對話",
+    "remainingRequests": "次剩餘額度"
   }
 }
