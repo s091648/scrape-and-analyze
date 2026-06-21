@@ -1,16 +1,22 @@
 <!--
 Sync Impact Report:
-- Version change: 1.2.0 → 1.3.0 (MINOR: Added VIII. UML Architecture Diagram Conventions)
-- Modified principles: None
-- Added sections: VIII. UML Architecture Diagram Conventions — documents naming rules
-  required by scripts/generate_uml.py for pipeline auto-generation to remain correct
-  (event/handler naming, directory structure, publish patterns, repo naming)
+- Version change: 1.3.0 → 1.4.0 (MINOR: Added IX. FastAPI Microservice Structure;
+  updated IV service list; updated VI logging rule)
+- Modified principles:
+  - IV. Docker-First: service count 7 → 10; added fastembed, chatbot_plugin, redis;
+    added Docker Compose profiles rule for one-off services
+  - VI. Observability: widened logging rule to include stdlib logging + _JsonFormatter
+    used by microservices (backend/, chatbot-plugin/, services/fastembed/)
+- Added sections:
+  - IX. FastAPI Microservice Structure — documents config.py / observability.py /
+    routers/ / services/ layout, env var discipline (.env.example as source of truth),
+    and JSON log format shared across all services
 - Removed sections: None
 - Templates requiring updates:
   - .specify/templates/tasks-template.md: ✅ compatible
   - .specify/templates/plan-template.md: ✅ compatible
   - .specify/templates/spec-template.md: ✅ compatible
-- Follow-up TODOs: None
+- Follow-up TODOs: Update chatbot-plugin/CLAUDE.md to reflect new service structure
 -->
 
 # Scrape-and-Analyze Constitution
@@ -121,11 +127,18 @@ implementation is complete but automated coverage is absent.
 - **Makefile as interface**: All developer-facing operations (migrate,
   test, scrape, dump/sync, backfill) MUST be accessible via Makefile
   targets that execute inside the appropriate Docker service.
-- **Service architecture**: 7 services — `app` (scraper runner),
-  `backend` (FastAPI on :8000), `frontend` (Next.js on :3000),
-  `postgres` (:5433→5432), `pgadmin` (:886→80), `test_service`
-  (one-off pytest), `job_service` (migrations, dump/sync, scrape,
-  backfill).
+- **Service architecture**: 10 services across two tiers.
+  Always-on (`docker compose up`): `postgres` (:5432), `redis`
+  (:6379), `pgadmin` (:80), `backend` (FastAPI :8000), `frontend`
+  (Next.js :3000), `fastembed` (ONNX embedding server :8080),
+  `chatbot_plugin` (RAG chat API :8001). One-off tools (started
+  via `docker compose run`, never via `docker compose up`): `app`
+  (scraper runner), `test_service` (pytest), `job_service`
+  (migrations, dump/sync, backfill).
+- **Docker Compose profiles**: One-off services MUST carry
+  `profiles: ["tools"]`. `docker compose up` MUST NOT start tool
+  containers. `docker compose run --rm <service> <cmd>` works
+  without `--profile tools`.
 
 Rationale: Docker-first eliminates "works on my machine" issues and
 ensures parity between developer environments and CI service
@@ -152,8 +165,13 @@ deployment pipeline.
 
 ### VI. Observability as a First-Class Concern
 
-- **Structured logging**: structlog with Loki transport. All services
-  MUST log via structlog, not `print()` or bare `logging`.
+- **Structured logging**: All services MUST emit structured JSON logs
+  to stdout and optionally ship to Loki. The scraper (`src/`) uses
+  structlog; FastAPI microservices (`backend/`, `chatbot-plugin/`,
+  `services/fastembed/`) use stdlib `logging` with a `_JsonFormatter`
+  producing `{"event", "level", "logger", "service", "timestamp"}`
+  output compatible with scraper's structlog format. `print()` and
+  unformatted `logging.basicConfig()` are forbidden in all services.
 - **Tracing**: OpenTelemetry traces to Grafana Cloud. New HTTP
   endpoints and scraper pipeline steps MUST include span creation.
 - **Metrics**: OpenTelemetry metrics for scrape volume, LLM usage,
@@ -259,6 +277,50 @@ Rationale: Consistent style reduces review friction. Committed
 `uv.lock` and strict TypeScript prevent dependency drift and runtime
 type errors.
 
+### IX. FastAPI Microservice Structure
+
+Each Python microservice (`backend/`, `chatbot-plugin/`,
+`services/fastembed/`) MUST follow this layout:
+
+- **`config.py`** — All `os.environ.get()` reads in one place. Pure
+  reads only; no side effects, no imports from the rest of the
+  package. Every other module imports from here — no `os.environ`
+  calls elsewhere in the service.
+- **`observability.py`** — Exports
+  `configure_logging(service, loki_url, loki_user, loki_api_key, app_env)`.
+  Installs a JSON stdout handler and optionally a Loki handler.
+  Called once at module top-level in `main.py`, before any logger is
+  used.
+- **`routers/__init__.py`** — Imports and re-exports router objects
+  to a single name (e.g. `api_router`, `embed_router`).
+- **`routers/<name>.py`** — Route handlers only. Reads services from
+  `request.app.state`; imports config from `config`. Zero business
+  logic.
+- **`services/__init__.py`** — Empty.
+- **`services/<name>.py`** — Service class with injected
+  dependencies; async/sync business logic methods. No knowledge of
+  HTTP or config.
+- **`main.py`** — Thin entry point: calls `configure_logging()`,
+  defines `lifespan` (builds dependencies → assigns to `app.state` →
+  yields → teardown), creates `FastAPI(lifespan=lifespan)`, calls
+  `app.include_router(...)`.
+
+**Environment variable discipline**: All env vars MUST appear in
+`.env.example` (the Railway shared-variable source of truth).
+Hardcoded values in `docker-compose.yml` `environment:` blocks are
+forbidden; always use `env_file: .env` and declare defaults only in
+`config.py`.
+
+**Log format** (all microservices, compatible with scraper structlog):
+
+```json
+{"event": "...", "level": "info", "logger": "...", "service": "...", "timestamp": "..."}
+```
+
+Rationale: Consistent structure across services reduces onboarding
+friction and ensures Loki/Grafana queries work identically whether
+targeting the scraper, backend, or embedding service.
+
 ## Technology Stack
 
 | Layer | Technology | Version |
@@ -338,4 +400,4 @@ type errors.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.3.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-06-09
+**Version**: 1.4.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-06-21

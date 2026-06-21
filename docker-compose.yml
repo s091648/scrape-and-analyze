@@ -1,7 +1,40 @@
 # docker-compose.yml
+#
+# 預設 (docker compose up) 啟動的服務：
+#   postgres, redis, pgadmin, backend, frontend, fastembed, chatbot_plugin
+#
+# 一次性工具服務 (profile: tools)，不會被 docker compose up 帶起：
+#   app, test_service, job_service
+#   使用方式：
+#     docker compose run --rm job_service make migrate
+#     docker compose run --rm test_service pytest src/tests/unit/
+#     docker compose --profile tools up -d app   # 需要互動式 shell 時
+
 services:
-  # Scraper / Analyzer — runs src/ code and unit tests
+  # Fastembed embedding service — SPLADE 模型集中在此，scraper 與 chatbot-plugin 共用
+  fastembed:
+    build:
+      context: ./services/fastembed
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/fastembed/main.py:/app/main.py
+      - ./services/fastembed/config.py:/app/config.py
+      - ./services/fastembed/observability.py:/app/observability.py
+      - ./services/fastembed/routers:/app/routers
+      - ./services/fastembed/services:/app/services
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # SPLADE 模型載入需要時間
+
+  # Scraper / Analyzer — 一次性工具容器，需加 --profile tools 才會啟動
   app:
+    profiles:
+      - tools
     build:
       context: .
       dockerfile: src/Dockerfile.dev
@@ -49,11 +82,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+      args:
+        - GITHUB_PACKAGE_TOKEN=${GITHUB_PACKAGE_TOKEN}
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules  # preserve installed modules
       - playwright_cache:/root/.cache/ms-playwright  # persist browser binaries
-      - ../chatbot-plugin-ui:/chatbot-plugin-ui  # local npm package for @Teng91/chatbot-plugin-ui
     ports:
       - "3000:3000"
     env_file:
@@ -94,8 +128,10 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
-  # Test service - 一次性任務：跑單元/整合測試，包含所有 mounted 目錄
+  # Test service — 一次性工具容器，需加 --profile tools 才會啟動
   test_service:
+    profiles:
+      - tools
     build:
       context: .
       dockerfile: src/Dockerfile.dev
@@ -126,14 +162,16 @@ services:
       - "8001:8000"
     env_file:
       - .env
-    environment:
-      - GEMINI_MODEL=gemini-2.5-flash
     depends_on:
       postgres:
         condition: service_healthy
+      fastembed:
+        condition: service_healthy
 
-  # Job service - 一次性任務：migration、db dump/sync、backfill、scrape
+  # Job service — 一次性工具容器，需加 --profile tools 才會啟動
   job_service:
+    profiles:
+      - tools
     build:
       context: .
       dockerfile: src/Dockerfile.dev
