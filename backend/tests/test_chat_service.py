@@ -26,7 +26,7 @@ def service(mock_redis):
 @pytest.mark.asyncio
 async def test_admin_bypasses_rate_limit(service, mock_redis):
     identity = ChatIdentity(tier="admin", user_id="admin-1")
-    remaining = await service.check_rate_limit(identity)
+    remaining, limit = await service.check_rate_limit(identity)
     assert remaining == -1
     mock_redis.incr.assert_not_called()
 
@@ -35,7 +35,7 @@ async def test_admin_bypasses_rate_limit(service, mock_redis):
 async def test_user_rate_limit_increments_key(service, mock_redis):
     identity = ChatIdentity(tier="user", user_id="user-abc")
     mock_redis.incr.return_value = 1
-    remaining = await service.check_rate_limit(identity)
+    remaining, _ = await service.check_rate_limit(identity)
     assert remaining == DAILY_LIMIT_USER - 1
     key_used = mock_redis.incr.call_args[0][0]
     assert "rate:user:user-abc" in key_used
@@ -54,7 +54,7 @@ async def test_user_rate_limit_exceeded(service, mock_redis):
 async def test_guest_rate_limit_with_cookie(service, mock_redis):
     identity = ChatIdentity(tier="guest", guest_id="cookie-uuid-123")
     mock_redis.incr.return_value = 1
-    remaining = await service.check_rate_limit(identity)
+    remaining, _ = await service.check_rate_limit(identity)
     assert remaining == DAILY_LIMIT_GUEST - 1
     key_used = mock_redis.incr.call_args[0][0]
     assert "rate:guest:cookie-uuid-123" in key_used
