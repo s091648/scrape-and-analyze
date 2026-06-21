@@ -22,6 +22,8 @@ vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
+  useGuestMode: vi.fn().mockReturnValue({ isGuestMode: true }),
+  useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
 }))
 
 vi.mock('sonner', () => ({
@@ -32,7 +34,7 @@ const mockSendMessage = vi.fn()
 const mockClearMessages = vi.fn()
 
 // Mock the custom panel so we can inspect what props FloatingChatbotWrapper passes
-vi.mock('@/components/features/rag/FloatingChatbotPanel', () => ({
+vi.mock('@/components/features/chat/FloatingChatbotPanel', () => ({
   FloatingChatbotPanel: vi.fn(({ messages, onSend, isLoading, title, onNewChat }: any) => (
     <div data-testid="chatbot-plugin">
       <div data-testid="title">{title}</div>
@@ -75,7 +77,7 @@ describe('FloatingChatbotWrapper', () => {
 
   it('renders chatbot panel', async () => {
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     expect(screen.getByTestId('chatbot-plugin')).toBeInTheDocument()
@@ -83,7 +85,7 @@ describe('FloatingChatbotWrapper', () => {
 
   it('calls sendMessage when send button clicked', async () => {
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     fireEvent.click(screen.getByTestId('send-btn'))
@@ -91,13 +93,13 @@ describe('FloatingChatbotWrapper', () => {
   })
 
   it('does not call sendMessage when text is blank', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     vi.mocked(FloatingChatbotPanel).mockImplementationOnce(({ onSend }: any) => (
       <button data-testid="blank-send" onClick={() => onSend('   ')}>Blank</button>
     ))
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     const btn = screen.queryByTestId('blank-send')
@@ -120,7 +122,7 @@ describe('FloatingChatbotWrapper', () => {
     })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     expect(screen.getByTestId('message-count').textContent).toBe('4')
@@ -140,7 +142,7 @@ describe('FloatingChatbotWrapper', () => {
     })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     capturedOnError?.(new Error('HTTP 429'))
@@ -160,7 +162,7 @@ describe('FloatingChatbotWrapper', () => {
     })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     await waitFor(() => {
@@ -173,7 +175,7 @@ describe('FloatingChatbotWrapper', () => {
     vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'loading', update: vi.fn() })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     const { container } = render(<FloatingChatbotWrapper />)
     expect(container.firstChild).toBeNull()
@@ -183,7 +185,7 @@ describe('FloatingChatbotWrapper', () => {
     vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     expect(screen.getByTestId('chatbot-plugin')).toBeInTheDocument()
@@ -194,7 +196,7 @@ describe('FloatingChatbotWrapper', () => {
     vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     await waitFor(() => {
@@ -207,7 +209,7 @@ describe('FloatingChatbotWrapper', () => {
     const { useTheme } = await import('@/lib/providers')
     vi.mocked(useTheme).mockReturnValue({ mode: 'dark', theme: 'dark', cycleMode: mockCycleMode, setMode: vi.fn() })
 
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     let receivedTheme: string | undefined
     vi.mocked(FloatingChatbotPanel).mockImplementationOnce(({ theme, messages, onSend, isLoading, onNewChat }: any) => {
       receivedTheme = theme
@@ -218,7 +220,7 @@ describe('FloatingChatbotWrapper', () => {
       )
     })
 
-    const { FloatingChatbotWrapper } = await import('@/components/features/rag/FloatingChatbotWrapper')
+    const { FloatingChatbotWrapper } = await import('@/components/features/chat/FloatingChatbotWrapper')
     render(<FloatingChatbotWrapper />)
     expect(receivedTheme).toBe('dark')
   })
@@ -234,7 +236,7 @@ describe('FloatingChatbotWrapper', () => {
     })
 
     const { FloatingChatbotWrapper } = await import(
-      '@/components/features/rag/FloatingChatbotWrapper'
+      '@/components/features/chat/FloatingChatbotWrapper'
     )
     render(<FloatingChatbotWrapper />)
     fireEvent.click(screen.getByTestId('new-chat-btn'))

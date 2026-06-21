@@ -48,9 +48,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => {
+    const handler = (e: MediaQueryListEvent) => {
       if (mode === 'auto') {
-        const resolved = getSystemTheme()
+        const resolved: ResolvedTheme = e.matches ? 'dark' : 'light'
         setTheme(resolved)
         applyTheme(resolved)
       }

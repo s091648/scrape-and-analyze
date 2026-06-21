@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 const fixture = {
   id: 'abc',
@@ -86,7 +86,7 @@ describe('ArticleCard', () => {
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
-    fireEvent.click(screen.getByText('Test Article'))
+    await act(async () => { fireEvent.click(screen.getByText('Test Article')) })
     await waitFor(() => {
       expect(screen.getByText('Key insights here.')).toBeInTheDocument()
     })

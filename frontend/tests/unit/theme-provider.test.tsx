@@ -18,7 +18,12 @@ function setupMatchMedia(dark: boolean) {
       addEventListener: vi.fn((event: string, fn: any) => {
         if (event === 'change') _changeListeners.push(fn)
       }),
-      removeEventListener: vi.fn(),
+      removeEventListener: vi.fn((event: string, fn: any) => {
+        if (event === 'change') {
+          const idx = _changeListeners.indexOf(fn)
+          if (idx !== -1) _changeListeners.splice(idx, 1)
+        }
+      }),
       dispatchEvent: vi.fn(),
     })),
   })

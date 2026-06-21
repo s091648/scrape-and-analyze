@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { InlineQABarWrapper } from '@/components/features/rag/InlineQABarWrapper'
+import { InlineQABarWrapper } from '@/components/features/chat/InlineQABarWrapper'
 
 export default function Page() {
   return (

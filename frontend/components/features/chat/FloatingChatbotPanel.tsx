@@ -7,12 +7,8 @@ import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
 import { ArticleDetailDialog } from '@/components/features/articles/article-detail-dialog'
 import { useI18n } from '@/lib/providers'
 
-export interface ArticleSource {
-  id: string
-  title: string | null
-  url: string
-  public_article_id: string | null
-}
+export type { ArticleSource } from './types'
+import type { ArticleSource } from './types'
 
 export interface FloatingChatbotPanelProps {
   messages: Message[]
@@ -20,12 +16,15 @@ export interface FloatingChatbotPanelProps {
   onSend: (text: string) => void
   isLoading: boolean
   onNewChat?: () => void
+  onAbort?: () => void
   title?: string
   placeholder?: string
   theme?: 'light' | 'dark' | 'auto'
 }
 
-function parseInline(text: string): ReactNode[] {
+type SourceClickFn = (src: ArticleSource) => void
+
+function parseInline(text: string, sources?: ArticleSource[], onSourceClick?: SourceClickFn): ReactNode[] {
   const parts: ReactNode[] = []
   let i = 0
   let buf = ''
@@ -40,13 +39,65 @@ function parseInline(text: string): ReactNode[] {
         continue
       }
     }
+    if (text[i] === '[') {
+      const closeBracket = text.indexOf(']', i + 1)
+      if (closeBracket !== -1) {
+        const linkText = text.slice(i + 1, closeBracket)
+        // [text](url) markdown link
+        if (text[closeBracket + 1] === '(') {
+          const closeParen = text.indexOf(')', closeBracket + 2)
+          if (closeParen !== -1) {
+            const url = text.slice(closeBracket + 2, closeParen)
+            if (/^https?:\/\//.test(url)) {
+              if (buf) { parts.push(buf); buf = '' }
+              parts.push(
+                <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                  className="text-blue-500 underline hover:text-blue-700 dark:text-blue-400">
+                  {linkText}
+                </a>
+              )
+              i = closeParen + 1
+              continue
+            }
+          }
+        }
+        // [Title] citation — match against sources by title
+        if (sources && sources.length > 0) {
+          const lower = linkText.toLowerCase().trim()
+          const matched = sources.find(s => {
+            const t = (s.title ?? '').toLowerCase().trim()
+            return t === lower || t.includes(lower) || lower.includes(t)
+          })
+          if (matched) {
+            if (buf) { parts.push(buf); buf = '' }
+            if (matched.public_article_id && onSourceClick) {
+              parts.push(
+                <button key={i} onClick={() => onSourceClick(matched)}
+                  className="text-blue-500 underline hover:text-blue-700 dark:text-blue-400 cursor-pointer">
+                  {linkText}
+                </button>
+              )
+            } else {
+              parts.push(
+                <a key={i} href={matched.url} target="_blank" rel="noopener noreferrer"
+                  className="text-blue-500 underline hover:text-blue-700 dark:text-blue-400">
+                  {linkText}
+                </a>
+              )
+            }
+            i = closeBracket + 1
+            continue
+          }
+        }
+      }
+    }
     buf += text[i++]
   }
   if (buf) parts.push(buf)
   return parts
 }
 
-function renderMarkdown(text: string): ReactNode {
+function renderMarkdown(text: string, sources?: ArticleSource[], onSourceClick?: SourceClickFn): ReactNode {
   const lines = text.split('\n')
   const result: ReactNode[] = []
   const listItems: string[] = []
@@ -57,7 +108,7 @@ function renderMarkdown(text: string): ReactNode {
     result.push(
       <ul key={key++} className="my-1 ml-4 list-disc space-y-0.5">
         {listItems.map((item, j) => (
-          <li key={j} className="text-xs leading-relaxed">{parseInline(item)}</li>
+          <li key={j} className="text-xs leading-relaxed">{parseInline(item, sources, onSourceClick)}</li>
         ))}
       </ul>
     )
@@ -70,7 +121,7 @@ function renderMarkdown(text: string): ReactNode {
       listItems.push(t.slice(2))
     } else {
       flush()
-      if (t) result.push(<p key={key++} className="text-xs leading-relaxed my-0.5">{parseInline(t)}</p>)
+      if (t) result.push(<p key={key++} className="text-xs leading-relaxed my-0.5">{parseInline(t, sources, onSourceClick)}</p>)
     }
   }
   flush()
@@ -83,6 +134,7 @@ export function FloatingChatbotPanel({
   onSend,
   isLoading,
   onNewChat,
+  onAbort,
   title = 'AI Assistant',
   placeholder = 'Ask a question...',
   theme = 'auto',
@@ -110,6 +162,13 @@ export function FloatingChatbotPanel({
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, open])
+
+  useEffect(() => {
+    if (!open || !isLoading || !onAbort) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onAbort() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, isLoading, onAbort])
 
   const submit = () => {
     const text = input.trim()
@@ -182,7 +241,11 @@ export function FloatingChatbotPanel({
                   >
                     {m.role === 'user'
                       ? <span className="text-xs leading-relaxed">{m.content || <span className="opacity-40">…</span>}</span>
-                      : (m.content ? renderMarkdown(m.content) : <span className="text-xs opacity-40">…</span>)
+                      : (m.content ? renderMarkdown(
+                          m.content,
+                          messageSources[m.id],
+                          (src) => src.public_article_id && openArticleDialog(src.public_article_id)
+                        ) : <span className="text-xs opacity-40">…</span>)
                     }
                   </div>
                   {messageSources[m.id]?.length > 0 && (

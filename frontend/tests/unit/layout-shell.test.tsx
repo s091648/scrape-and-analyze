@@ -20,7 +20,7 @@ vi.mock('@/components/common/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@/components/features/rag/FloatingChatbotWrapper', () => ({
+vi.mock('@/components/features/chat/FloatingChatbotWrapper', () => ({
   FloatingChatbotWrapper: () => <div data-testid="floating-chatbot" />,
 }))
 

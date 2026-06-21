@@ -19,6 +19,7 @@ vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
+  useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
 }))
 
 const mockSendMessage = vi.fn()
@@ -72,7 +73,7 @@ describe('InlineQABarWrapper', () => {
 
   it('renders AgentInput', async () => {
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     expect(screen.getByTestId('agent-input')).toBeInTheDocument()
@@ -80,7 +81,7 @@ describe('InlineQABarWrapper', () => {
 
   it('calls sendMessage when send button clicked with non-empty text', async () => {
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     fireEvent.click(screen.getByTestId('send-btn'))
@@ -95,7 +96,7 @@ describe('InlineQABarWrapper', () => {
     ))
 
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     const btn = screen.queryByTestId('blank-send')
@@ -113,7 +114,7 @@ describe('InlineQABarWrapper', () => {
     })
 
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     await waitFor(() => {
@@ -131,7 +132,7 @@ describe('InlineQABarWrapper', () => {
     })
 
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     const cursor = document.querySelector('.animate-pulse')
@@ -148,7 +149,7 @@ describe('InlineQABarWrapper', () => {
       return <button data-testid="send-btn" onClick={() => onSend('x')}>Send</button>
     })
 
-    const { InlineQABarWrapper } = await import('@/components/features/rag/InlineQABarWrapper')
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
     render(<InlineQABarWrapper />)
     expect(receivedTheme).toBe('dark')
   })
@@ -163,7 +164,7 @@ describe('InlineQABarWrapper', () => {
       return <button data-testid="send-btn" onClick={() => onSend('x')}>Send</button>
     })
 
-    const { InlineQABarWrapper } = await import('@/components/features/rag/InlineQABarWrapper')
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
     render(<InlineQABarWrapper />)
     expect(receivedTheme).toBe('auto')
   })
@@ -178,7 +179,7 @@ describe('InlineQABarWrapper', () => {
     })
 
     const { InlineQABarWrapper } = await import(
-      '@/components/features/rag/InlineQABarWrapper'
+      '@/components/features/chat/InlineQABarWrapper'
     )
     render(<InlineQABarWrapper />)
     expect(screen.getByText('已達每日問答上限')).toBeInTheDocument()

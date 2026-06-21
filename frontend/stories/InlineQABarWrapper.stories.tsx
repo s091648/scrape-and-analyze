@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { fn } from 'storybook/test'
-import { InlineQABarWrapper } from '../components/features/rag/InlineQABarWrapper'
+import { InlineQABarWrapper } from '../components/features/chat/InlineQABarWrapper'
 import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof InlineQABarWrapper> = {
-  title: 'Features/RAG/InlineQABarWrapper',
+  title: 'Features/Chat/InlineQABarWrapper',
   component: InlineQABarWrapper,
   parameters: {
     nextjs: { appDirectory: true },

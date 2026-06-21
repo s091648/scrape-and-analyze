@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { fn } from 'storybook/test'
-import { FloatingChatbotWrapper } from '../components/features/rag/FloatingChatbotWrapper'
+import { FloatingChatbotWrapper } from '../components/features/chat/FloatingChatbotWrapper'
 import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof FloatingChatbotWrapper> = {
-  title: 'Features/RAG/FloatingChatbotWrapper',
+  title: 'Features/Chat/FloatingChatbotWrapper',
   component: FloatingChatbotWrapper,
   parameters: {
     nextjs: { appDirectory: true },

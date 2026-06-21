@@ -72,7 +72,7 @@ export function FloatingChatbotWrapper() {
     },
   }), [])
 
-  const { messages, sendMessage, isLoading, clearMessages } = useChat({
+  const { messages, sendMessage, isLoading, clearMessages, abort } = useChat({
     endpoint: CHAT_ENDPOINT,
     streamAdapter: customAdapter,
     initialMessages: loadFloatSession(userId),
@@ -150,6 +150,7 @@ export function FloatingChatbotWrapper() {
       onSend={handleSend}
       isLoading={isLoading}
       onNewChat={handleNewChat}
+      onAbort={abort}
       title={`${t('rag.assistantTitle')}${quotaSuffix}`}
       placeholder={t('rag.placeholder')}
     />
