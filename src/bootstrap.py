@@ -172,7 +172,13 @@ def build_rag_ingestion_service():
             chunks_table=VECTOR_DB_CHUNKS_TABLE,
         ))
         processor = IngestProcessor()
-        processor.configure(backend=backend, dense=dense_provider, sparse=sparse_provider)
+        embed_batch_size = int(os.environ.get("RAG_EMBED_BATCH_SIZE", "8"))
+        processor.configure(
+            backend=backend,
+            dense=dense_provider,
+            sparse=sparse_provider,
+            embed_batch_size=embed_batch_size,
+        )
 
         rag_service = RagSdkIngestionService(processor)
         logger.info(

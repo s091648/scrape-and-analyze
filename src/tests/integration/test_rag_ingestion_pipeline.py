@@ -5,12 +5,13 @@ These tests use the real DB schema but mock the RAG SDK processor
 to avoid needing the actual embedding service.
 """
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
 from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import RagIngestionHandler
 from src.modules.intelligence.application.events.rag_ingestion_failed import RagIngestionFailedEvent
+from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
 from src.shared.application.events.article_processed import ArticleProcessedEvent
 from src.shared.domain.entities.article import Article
 
@@ -26,13 +27,20 @@ def _make_article():
     )
 
 
+def _make_handler(processor):
+    service = RagSdkIngestionService(processor)
+    use_case = IngestArticleForRagUseCase(service)
+    event_bus = MagicMock()
+    handler = RagIngestionHandler(use_case, event_bus)
+    return handler, event_bus
+
+
 @pytest.mark.integration
 class TestRagIngestionPipeline:
     def test_handler_subscribes_and_fires(self):
         processor = MagicMock()
-        service = RagSdkIngestionService(processor)
-        event_bus = MagicMock()
-        handler = RagIngestionHandler(service, event_bus)
+        processor.ingest = AsyncMock()
+        handler, _ = _make_handler(processor)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 
@@ -40,14 +48,13 @@ class TestRagIngestionPipeline:
 
         processor.ingest.assert_called_once()
         _, kwargs = processor.ingest.call_args
-        assert kwargs["metadata"]["url"] == str(article.url)
+        assert kwargs["articles_column_values"]["url"] == str(article.url)
 
     def test_idempotent_ingest_does_not_raise(self):
         """Same article ingested twice should not raise (SDK handles UNIQUE constraint)."""
         processor = MagicMock()
-        service = RagSdkIngestionService(processor)
-        event_bus = MagicMock()
-        handler = RagIngestionHandler(service, event_bus)
+        processor.ingest = AsyncMock()
+        handler, _ = _make_handler(processor)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 
@@ -58,10 +65,8 @@ class TestRagIngestionPipeline:
 
     def test_sdk_failure_publishes_failed_event(self):
         processor = MagicMock()
-        processor.ingest.side_effect = Exception("DB connection error")
-        service = RagSdkIngestionService(processor)
-        event_bus = MagicMock()
-        handler = RagIngestionHandler(service, event_bus)
+        processor.ingest = AsyncMock(side_effect=Exception("DB connection error"))
+        handler, event_bus = _make_handler(processor)
         article = _make_article()
         event = ArticleProcessedEvent(article=article)
 

@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import time
+from typing import TYPE_CHECKING
 
-from chatbot_plugin_sdk.processors.ingest import IngestProcessor
+if TYPE_CHECKING:
+    from chatbot_plugin_sdk.processors.ingest import IngestProcessor
 
 from src.modules.intelligence.domain.services.rag_ingestion_service import RagIngestionService
 from src.shared.logging import get_logger

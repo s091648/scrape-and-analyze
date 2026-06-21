@@ -27,10 +27,12 @@ def test_ingest_calls_processor_with_provided_full_text():
 
     processor.ingest.assert_called_once_with(
         full_text=full_text,
-        metadata={
+        articles_column_values={
             "url": str(article.url),
             "title": article.title,
             "source": article.source,
+            "public_article_id": str(article.id),
+            "topic_id": None,
         },
     )
 
@@ -49,7 +51,7 @@ def test_ingest_uses_provided_full_text_not_article_content():
     assert "Full PDF section text." in kwargs["full_text"]
 
 
-def test_ingest_includes_url_in_metadata():
+def test_ingest_includes_url_in_articles_column_values():
     processor = MagicMock()
     processor.ingest = AsyncMock()
     service = RagSdkIngestionService(processor)
@@ -58,10 +60,10 @@ def test_ingest_includes_url_in_metadata():
     service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["metadata"]["url"] == str(article.url)
+    assert kwargs["articles_column_values"]["url"] == str(article.url)
 
 
-def test_ingest_includes_title_in_metadata():
+def test_ingest_includes_title_in_articles_column_values():
     processor = MagicMock()
     processor.ingest = AsyncMock()
     service = RagSdkIngestionService(processor)
@@ -70,10 +72,10 @@ def test_ingest_includes_title_in_metadata():
     service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["metadata"]["title"] == article.title
+    assert kwargs["articles_column_values"]["title"] == article.title
 
 
-def test_ingest_includes_source_in_metadata():
+def test_ingest_includes_source_in_articles_column_values():
     processor = MagicMock()
     processor.ingest = AsyncMock()
     service = RagSdkIngestionService(processor)
@@ -82,4 +84,16 @@ def test_ingest_includes_source_in_metadata():
     service.ingest(article, "some text")
 
     _, kwargs = processor.ingest.call_args
-    assert kwargs["metadata"]["source"] == article.source
+    assert kwargs["articles_column_values"]["source"] == article.source
+
+
+def test_ingest_includes_public_article_id_in_articles_column_values():
+    processor = MagicMock()
+    processor.ingest = AsyncMock()
+    service = RagSdkIngestionService(processor)
+    article = _make_article()
+
+    service.ingest(article, "some text")
+
+    _, kwargs = processor.ingest.call_args
+    assert kwargs["articles_column_values"]["public_article_id"] == str(article.id)

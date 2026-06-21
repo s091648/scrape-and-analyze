@@ -49,6 +49,10 @@ class IngestArticleForRagUseCase:
             )
             return
 
+        # PostgreSQL rejects NUL bytes in text columns; strip them before ingestion.
+        # PyMuPDF occasionally leaves \x00 in PDF-extracted text.
+        full_text = full_text.replace('\x00', ' ')
+
         self._rag_ingestion_service.ingest(article, full_text)
         logger.debug("rag_ingested", article_id=str(article.id), chars=len(full_text))
 
