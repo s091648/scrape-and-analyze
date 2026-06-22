@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced persistent chat dialogs to save and resume conversation history."
+        "description": "Introduced an AI-powered chatbot with Retrieval-Augmented Generation for more accurate information retrieval."
       },
       {
         "type": "feat",
-        "description": "Added support for light and dark modes across the chat interface and homepage."
+        "description": "Added support for persistent chat dialogs, allowing users to revisit previous conversations."
       },
       {
         "type": "feat",
-        "description": "Added a new administrative page to manage AI model providers and configurations."
+        "description": "Implemented a theme toggle to switch between light and dark viewing modes."
       },
       {
         "type": "feat",
-        "description": "Enhanced the chat interface with support for markdown rendering."
+        "description": "Added a new administrative dashboard for managing RAG embedding providers and configurations."
       },
       {
         "type": "feat",
-        "description": "Introduced new floating chatbot and inline Q&A interface components."
+        "description": "Introduced a visual pipeline view to track the status of document ingestion and background tasks."
+      },
+      {
+        "type": "feat",
+        "description": "Updated the chatbot interface to support markdown rendering for formatted text and citations."
+      },
+      {
+        "type": "feat",
+        "description": "Added usage quota tracking and visibility directly within the chat components."
       },
       {
         "type": "fix",
-        "description": "Fixed issues with state management and conversation tracking in guest mode."
-      },
-      {
-        "type": "feat",
-        "description": "Implemented a visual pipeline view for better tracking of document processing tasks."
-      },
-      {
-        "type": "feat",
-        "description": "Updated the citation format to improve the clarity of source references in chat responses."
+        "description": "Fixed an issue affecting session state management when using the application in guest mode."
       }
     ]
   },
