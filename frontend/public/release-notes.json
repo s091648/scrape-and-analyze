@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced an integrated AI chatbot with support for Retrieval-Augmented Generation (RAG) to improve information retrieval."
+        "description": "Introduced persistent chat dialogs to save and resume conversation history."
       },
       {
         "type": "feat",
-        "description": "Added support for Google Gemini as a provider for AI embedding and chat services."
+        "description": "Added support for light and dark modes across the chat interface and homepage."
       },
       {
         "type": "feat",
-        "description": "Added support for switching between light and dark themes across the chat interface."
+        "description": "Added a new administrative page to manage AI model providers and configurations."
       },
       {
         "type": "feat",
-        "description": "Enhanced the chat interface with new floating and inline components and support for markdown rendering."
+        "description": "Enhanced the chat interface with support for markdown rendering."
       },
       {
         "type": "feat",
-        "description": "Added a new dialog feature that supports persistent conversation history between sessions."
-      },
-      {
-        "type": "feat",
-        "description": "Improved document processing with PDF text sanitization and better handling for empty files."
-      },
-      {
-        "type": "feat",
-        "description": "Introduced a new administrative dashboard for managing AI provider configurations and quotas."
+        "description": "Introduced new floating chatbot and inline Q&A interface components."
       },
       {
         "type": "fix",
-        "description": "Resolved issues with guest mode states and session management for non-authenticated users."
+        "description": "Fixed issues with state management and conversation tracking in guest mode."
+      },
+      {
+        "type": "feat",
+        "description": "Implemented a visual pipeline view for better tracking of document processing tasks."
+      },
+      {
+        "type": "feat",
+        "description": "Updated the citation format to improve the clarity of source references in chat responses."
       }
     ]
   },
