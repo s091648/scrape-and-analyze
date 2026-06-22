@@ -101,7 +101,7 @@ async def chat_completions(
                 "detail": f"每日問答次數已達上限（{tier_label}：{exc.limit}次/天）",
                 "limit": exc.limit,
             },
-        )
+        ) from exc
     finally:
         await redis_client.aclose()
 
@@ -116,14 +116,13 @@ async def chat_completions(
     )
 
     async def generate():
-        # ChatService(redis_client=None): streaming uses httpx only, no redis needed.
-        # The redis_client from rate-limiting above is already closed.
-        svc = ChatService()
+        # Reuse service; stream_completions only uses httpx, not redis.
         try:
-            async for chunk in svc.stream_completions(messages, x_topic_id):
+            async for chunk in service.stream_completions(messages, x_topic_id):
                 yield chunk
         except Exception:
             logger.exception("chat_stream_failed", tier=identity.tier)
+            yield b'data: {"error": "chat_stream_failed"}\n\n'
             yield b"data: [DONE]\n\n"
 
     response = StreamingResponse(
