@@ -116,6 +116,8 @@ async def chat_completions(
     )
 
     async def generate():
+        # ChatService(redis_client=None): streaming uses httpx only, no redis needed.
+        # The redis_client from rate-limiting above is already closed.
         svc = ChatService()
         try:
             async for chunk in svc.stream_completions(messages, x_topic_id):

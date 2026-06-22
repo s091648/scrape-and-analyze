@@ -368,8 +368,10 @@ def build_collection_pipeline():
         SpanName.TAG_NORMALIZATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
     event_bus.subscribe(TranslationFailedEvent, with_span(
         SpanName.TRANSLATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
-    event_bus.subscribe(RagIngestionFailedEvent, failed_task_handler.handle)
-    event_bus.subscribe(RagConfigFailedEvent, failed_task_handler.handle)
+    event_bus.subscribe(RagIngestionFailedEvent, with_span(
+        SpanName.RAG_INGESTION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(RagConfigFailedEvent, with_span(
+        SpanName.RAG_CONFIG_FAILED_HANDLE, failed_task_handler.handle, _tracer))
 
     # Publish deferred startup failures after all subscriptions are registered
     if _rag_config_failed_event is not None:

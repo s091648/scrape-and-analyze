@@ -92,6 +92,8 @@ class SpanName(StrEnum):
     ANALYSIS_FAILED_HANDLE = "article.analysis_failed.handle"
     TAG_NORMALIZATION_FAILED_HANDLE = "article.tag_normalization_failed.handle"
     TRANSLATION_FAILED_HANDLE = "article.translation_failed.handle"
+    RAG_INGESTION_FAILED_HANDLE = "rag.ingestion_failed.handle"
+    RAG_CONFIG_FAILED_HANDLE = "rag.config_failed.handle"
     PIPELINE_COMPLETED_HANDLE = "scraper.pipeline_completed.handle"
     PIPELINE_COMPLETED_NOTIFY = "scraper.pipeline_completed.notify"
 

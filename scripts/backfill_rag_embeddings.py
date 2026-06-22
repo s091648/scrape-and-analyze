@@ -70,10 +70,10 @@ def main():
     # ── Build IngestProcessor ──────────────────────────────────────────────────
     from chatbot_plugin_sdk import IngestProcessor, SyncPgBackend, DatabaseConfig, EndpointProvider
 
-    embedding_dim = int(os.environ.get("DENSE_EMBEDDING_DIM", "768"))
-    embedding_api = os.environ.get("DENSE_EMBEDDING_MODEL_API", "")
+    embedding_dim = int(os.environ.get("RAG_DENSE_DIMENSION", "768"))
+    embedding_api = os.environ.get("RAG_DENSE_ENDPOINT_URL", "")
     if not embedding_api and not args.dry_run:
-        print("ERROR: DENSE_EMBEDDING_MODEL_API must be set", file=sys.stderr)
+        print("ERROR: RAG_DENSE_ENDPOINT_URL must be set", file=sys.stderr)
         sys.exit(1)
 
     backend = SyncPgBackend(DatabaseConfig(
@@ -86,7 +86,7 @@ def main():
 
     dense_provider = EndpointProvider(url=embedding_api, dimension=embedding_dim)
 
-    sparse_api = os.environ.get("SPARSE_EMBEDDING_MODEL_API", "")  # URL only; "local" not supported in backfill script
+    sparse_api = os.environ.get("RAG_SPARSE_ENDPOINT_URL", "")  # URL only; "local" not supported in backfill script
     sparse_provider = None
     if sparse_api:
         sparse_provider = EndpointProvider(url=sparse_api, response_key="sparse")
