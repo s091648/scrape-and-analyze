@@ -24,7 +24,12 @@ export interface FloatingChatbotPanelProps {
 
 type SourceClickFn = (src: ArticleSource) => void
 
-function parseInline(text: string, sources?: ArticleSource[], onSourceClick?: SourceClickFn): ReactNode[] {
+function parseInline(
+  text: string,
+  sources?: ArticleSource[],
+  onSourceClick?: SourceClickFn,
+  onRefClick?: (idx: number) => void,
+): ReactNode[] {
   const parts: ReactNode[] = []
   let i = 0
   let buf = ''
@@ -59,6 +64,26 @@ function parseInline(text: string, sources?: ArticleSource[], onSourceClick?: So
               i = closeParen + 1
               continue
             }
+          }
+        }
+        // [N] citation reference
+        if (/^\d+$/.test(linkText) && sources?.length) {
+          const num = parseInt(linkText, 10)
+          if (num >= 1 && num <= sources.length) {
+            const src = sources[num - 1]
+            if (buf) { parts.push(buf); buf = '' }
+            parts.push(
+              <button
+                key={i}
+                onClick={() => onRefClick?.(num - 1)}
+                title={src.title ?? src.url}
+                className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 mx-0.5 align-middle cursor-pointer"
+              >
+                {num}
+              </button>
+            )
+            i = closeBracket + 1
+            continue
           }
         }
         // [Title] citation — match against sources by title
@@ -97,7 +122,12 @@ function parseInline(text: string, sources?: ArticleSource[], onSourceClick?: So
   return parts
 }
 
-function renderMarkdown(text: string, sources?: ArticleSource[], onSourceClick?: SourceClickFn): ReactNode {
+function renderMarkdown(
+  text: string,
+  sources?: ArticleSource[],
+  onSourceClick?: SourceClickFn,
+  onRefClick?: (idx: number) => void,
+): ReactNode {
   const lines = text.split('\n')
   const result: ReactNode[] = []
   const listItems: string[] = []
@@ -108,7 +138,7 @@ function renderMarkdown(text: string, sources?: ArticleSource[], onSourceClick?:
     result.push(
       <ul key={key++} className="my-1 ml-4 list-disc space-y-0.5">
         {listItems.map((item, j) => (
-          <li key={j} className="text-xs leading-relaxed">{parseInline(item, sources, onSourceClick)}</li>
+          <li key={j} className="text-xs leading-relaxed">{parseInline(item, sources, onSourceClick, onRefClick)}</li>
         ))}
       </ul>
     )
@@ -121,7 +151,7 @@ function renderMarkdown(text: string, sources?: ArticleSource[], onSourceClick?:
       listItems.push(t.slice(2))
     } else {
       flush()
-      if (t) result.push(<p key={key++} className="text-xs leading-relaxed my-0.5">{parseInline(t, sources, onSourceClick)}</p>)
+      if (t) result.push(<p key={key++} className="text-xs leading-relaxed my-0.5">{parseInline(t, sources, onSourceClick, onRefClick)}</p>)
     }
   }
   flush()
@@ -146,6 +176,9 @@ export function FloatingChatbotPanel({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogArticle, setDialogArticle] = useState<ArticleDetail | null>(null)
+  const [highlighted, setHighlighted] = useState<{ msgId: string; idx: number } | null>(null)
+  const sourceRefsMap = useRef<Map<string, (HTMLElement | null)[]>>(new Map())
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openArticleDialog = useCallback(async (publicArticleId: string) => {
     setDialogOpen(true)
@@ -158,6 +191,17 @@ export function FloatingChatbotPanel({
       setDialogLoading(false)
     }
   }, [locale])
+
+  const handleRefClick = useCallback((msgId: string, idx: number) => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    setHighlighted({ msgId, idx })
+    const refs = sourceRefsMap.current.get(msgId)
+    refs?.[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    highlightTimer.current = setTimeout(() => {
+      setHighlighted(null)
+      highlightTimer.current = null
+    }, 2000)
+  }, [])
 
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -244,30 +288,49 @@ export function FloatingChatbotPanel({
                       : (m.content ? renderMarkdown(
                           m.content,
                           messageSources[m.id],
-                          (src) => src.public_article_id && openArticleDialog(src.public_article_id)
+                          (src) => src.public_article_id && openArticleDialog(src.public_article_id),
+                          (idx) => handleRefClick(m.id, idx),
                         ) : <span className="text-xs opacity-40">…</span>)
                     }
                   </div>
                   {messageSources[m.id]?.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1 max-w-[85%]">
-                      {messageSources[m.id].map(src =>
+                      {messageSources[m.id].map((src, idx) =>
                         src.public_article_id ? (
                           <button
                             key={src.id}
+                            ref={el => {
+                              if (!sourceRefsMap.current.has(m.id)) sourceRefsMap.current.set(m.id, [])
+                              sourceRefsMap.current.get(m.id)![idx] = el
+                            }}
                             onClick={() => openArticleDialog(src.public_article_id!)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border border-border text-[10px] text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                              highlighted?.msgId === m.id && highlighted?.idx === idx
+                                ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
+                                : 'border-border hover:border-foreground/30'
+                            }`}
                           >
+                            <span className="shrink-0 text-[9px] font-bold text-blue-500">{idx + 1}</span>
                             <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                             <span className="truncate max-w-[160px]">{src.title ?? src.url}</span>
                           </button>
                         ) : (
                           <a
                             key={src.id}
+                            ref={el => {
+                              if (!sourceRefsMap.current.has(m.id)) sourceRefsMap.current.set(m.id, [])
+                              sourceRefsMap.current.get(m.id)![idx] = el as HTMLElement | null
+                            }}
                             href={src.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border border-border text-[10px] text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                              highlighted?.msgId === m.id && highlighted?.idx === idx
+                                ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
+                                : 'border-border hover:border-foreground/30'
+                            }`}
                           >
+                            <span className="shrink-0 text-[9px] font-bold text-blue-500">{idx + 1}</span>
                             <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                             <span className="truncate max-w-[160px]">{src.title ?? src.url}</span>
                           </a>

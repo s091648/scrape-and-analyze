@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { Message } from '@s091648/chatbot-plugin-ui'
 import { ExternalLink } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
@@ -15,7 +15,11 @@ interface AnswerDisplayProps {
   sources?: ArticleSource[]
 }
 
-function parseInline(text: string): React.ReactNode[] {
+function parseInline(
+  text: string,
+  sources?: ArticleSource[],
+  onRefClick?: (idx: number) => void,
+): React.ReactNode[] {
   const parts: React.ReactNode[] = []
   let i = 0
   let buf = ''
@@ -32,20 +36,43 @@ function parseInline(text: string): React.ReactNode[] {
     }
     if (text[i] === '[') {
       const closeBracket = text.indexOf(']', i + 1)
-      if (closeBracket !== -1 && text[closeBracket + 1] === '(') {
-        const closeParen = text.indexOf(')', closeBracket + 2)
-        if (closeParen !== -1) {
-          const linkText = text.slice(i + 1, closeBracket)
-          const linkUrl = text.slice(closeBracket + 2, closeParen)
-          if (/^https?:\/\//.test(linkUrl)) {
+      if (closeBracket !== -1) {
+        const inner = text.slice(i + 1, closeBracket)
+        // [text](url) markdown link
+        if (text[closeBracket + 1] === '(') {
+          const closeParen = text.indexOf(')', closeBracket + 2)
+          if (closeParen !== -1) {
+            const linkUrl = text.slice(closeBracket + 2, closeParen)
+            if (/^https?:\/\//.test(linkUrl)) {
+              if (buf) { parts.push(buf); buf = '' }
+              parts.push(
+                <a key={i} href={linkUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-800 dark:text-blue-400">
+                  {inner}
+                </a>
+              )
+              i = closeParen + 1
+              continue
+            }
+          }
+        }
+        // [N] citation reference
+        if (/^\d+$/.test(inner) && sources?.length) {
+          const num = parseInt(inner, 10)
+          if (num >= 1 && num <= sources.length) {
+            const src = sources[num - 1]
             if (buf) { parts.push(buf); buf = '' }
             parts.push(
-              <a key={i} href={linkUrl} target="_blank" rel="noopener noreferrer"
-                className="text-blue-600 underline hover:text-blue-800 dark:text-blue-400">
-                {linkText}
-              </a>
+              <button
+                key={i}
+                onClick={() => onRefClick?.(num - 1)}
+                title={src.title ?? src.url}
+                className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 mx-0.5 align-middle cursor-pointer"
+              >
+                {num}
+              </button>
             )
-            i = closeParen + 1
+            i = closeBracket + 1
             continue
           }
         }
@@ -57,7 +84,11 @@ function parseInline(text: string): React.ReactNode[] {
   return parts
 }
 
-function renderMarkdown(text: string): React.ReactNode {
+function renderMarkdown(
+  text: string,
+  sources?: ArticleSource[],
+  onRefClick?: (idx: number) => void,
+): React.ReactNode {
   const lines = text.split('\n')
   const result: React.ReactNode[] = []
   const listItems: string[] = []
@@ -67,7 +98,7 @@ function renderMarkdown(text: string): React.ReactNode {
     if (!listItems.length) return
     result.push(
       <ul key={key++} className="my-1 ml-4 list-disc space-y-0.5">
-        {listItems.map((item, j) => <li key={j}>{parseInline(item)}</li>)}
+        {listItems.map((item, j) => <li key={j}>{parseInline(item, sources, onRefClick)}</li>)}
       </ul>
     )
     listItems.length = 0
@@ -79,7 +110,7 @@ function renderMarkdown(text: string): React.ReactNode {
       listItems.push(t.slice(2))
     } else {
       flush()
-      if (t) result.push(<p key={key++} className={key > 1 ? 'mt-2' : ''}>{parseInline(t)}</p>)
+      if (t) result.push(<p key={key++} className={key > 1 ? 'mt-2' : ''}>{parseInline(t, sources, onRefClick)}</p>)
     }
   }
   flush()
@@ -93,6 +124,9 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogArticle, setDialogArticle] = useState<ArticleDetail | null>(null)
+  const [highlightedSrcIdx, setHighlightedSrcIdx] = useState<number | null>(null)
+  const sourceRefs = useRef<(HTMLElement | null)[]>([])
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openArticleDialog = useCallback(async (publicArticleId: string) => {
     setDialogOpen(true)
@@ -105,6 +139,16 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
       setDialogLoading(false)
     }
   }, [locale])
+
+  const handleRefClick = useCallback((idx: number) => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    setHighlightedSrcIdx(idx)
+    sourceRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    highlightTimer.current = setTimeout(() => {
+      setHighlightedSrcIdx(null)
+      highlightTimer.current = null
+    }, 2000)
+  }, [])
 
   if (isLoading && !lastAssistant) {
     return (
@@ -134,30 +178,42 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
   return (
     <>
       <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm leading-relaxed">
-        {renderMarkdown(lastAssistant.content)}
+        {renderMarkdown(lastAssistant.content, sources, handleRefClick)}
         {isLoading && (
           <span className="inline-block w-1.5 h-4 ml-0.5 bg-foreground/60 animate-pulse align-middle" />
         )}
         {!isLoading && sources && sources.length > 0 && (
           <div className="mt-3 pt-2 border-t border-border flex flex-wrap gap-1.5">
-            {sources.map(src =>
+            {sources.map((src, idx) =>
               src.public_article_id ? (
                 <button
                   key={src.id}
+                  ref={el => { sourceRefs.current[idx] = el }}
                   onClick={() => openArticleDialog(src.public_article_id!)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border border-border text-[11px] text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                    highlightedSrcIdx === idx
+                      ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
+                      : 'border-border hover:border-foreground/30'
+                  }`}
                 >
+                  <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
                   <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                   <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
                 </button>
               ) : (
                 <a
                   key={src.id}
+                  ref={el => { sourceRefs.current[idx] = el as HTMLElement | null }}
                   href={src.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border border-border text-[11px] text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                    highlightedSrcIdx === idx
+                      ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
+                      : 'border-border hover:border-foreground/30'
+                  }`}
                 >
+                  <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
                   <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                   <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
                 </a>

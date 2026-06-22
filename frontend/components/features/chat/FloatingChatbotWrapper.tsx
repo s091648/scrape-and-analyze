@@ -92,12 +92,16 @@ export function FloatingChatbotWrapper() {
   // When stream finishes: associate pending sources + re-fetch server quota
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
-      if (pendingSourcesRef.current.length > 0) {
+      // Capture the array reference BEFORE clearing the ref — the functional updater
+      // passed to setMessageSources is called during the next render, by which point
+      // pendingSourcesRef.current would already be [] if we cleared it first.
+      const captured = pendingSourcesRef.current
+      pendingSourcesRef.current = []
+      if (captured.length > 0) {
         const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
         if (lastAssistant) {
-          setMessageSources(s => ({ ...s, [lastAssistant.id]: pendingSourcesRef.current }))
+          setMessageSources(s => ({ ...s, [lastAssistant.id]: captured }))
         }
-        pendingSourcesRef.current = []
       }
       // Re-fetch actual server quota (reflects InlineQABarWrapper usage too)
       refreshQuota()

@@ -73,7 +73,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   type="button"
                   onClick={handleShare}
                   aria-label={t('copy.shareArticle')}
-                  className="p-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  className="p-0.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
                   {copied
                     ? <Check className="h-3.5 w-3.5 text-green-500" />
@@ -85,8 +85,9 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   target="_blank"
                   rel="noreferrer"
                   onClick={e => e.stopPropagation()}
+                  className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                 </a>
               </div>
             </div>
