@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { fn } from 'storybook/test'
 import { userEvent, within } from '@storybook/test'
-import { FloatingChatbotPanel } from '../components/features/rag/FloatingChatbotPanel'
+import { FloatingChatbotPanel } from '../components/features/chat/FloatingChatbotPanel'
 import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof FloatingChatbotPanel> = {
@@ -73,19 +73,19 @@ export const WithSources: Story = {
         { id: 's2', title: '站內文章：RAG 實踐筆記', url: 'https://example.com/article/1', public_article_id: 'pub-abc123' },
       ],
     },
-    parameters: {
-      moduleMock: {
-        '@/lib/api/articles': {
-          fetchArticleById: async () => ({
-            title: 'RAG 實踐筆記',
-            content: '本文介紹如何在生產環境實作 RAG 系統。',
-            url: 'https://example.com/article/1',
-            source: 'Internal',
-            published_at: '2024-06-01',
-            via_source: null,
-            original_source: null,
-          }),
-        },
+  },
+  parameters: {
+    moduleMock: {
+      '@/lib/api/articles': {
+        fetchArticleById: async () => ({
+          title: 'RAG 實踐筆記',
+          content: '本文介紹如何在生產環境實作 RAG 系統。',
+          url: 'https://example.com/article/1',
+          source: 'Internal',
+          published_at: '2024-06-01',
+          via_source: null,
+          original_source: null,
+        }),
       },
     },
   },

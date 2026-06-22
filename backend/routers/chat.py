@@ -37,7 +37,9 @@ def _parse_identity(authorization: Optional[str]) -> Optional[ChatIdentity]:
         payload = jwt.decode(
             token, secret, algorithms=["HS256"], options={"verify_exp": False}
         )
-        if payload.get("exp", 0) < int(time.time()):
+        if "exp" not in payload:
+            return None
+        if payload["exp"] < int(time.time()):
             return None
         role = payload.get("role", "user")
         user_id = payload.get("sub")

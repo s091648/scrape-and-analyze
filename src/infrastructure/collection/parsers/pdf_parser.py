@@ -36,8 +36,8 @@ class PdfParser(BaseContentParser):
             return ''
 
         try:
-            doc = fitz.open(stream=response.content, filetype='pdf')
-            pages = [page.get_text() for page in doc]
+            with fitz.open(stream=response.content, filetype='pdf') as doc:
+                pages = [page.get_text() for page in doc]
             return self._sanitize('\n'.join(pages))
         except Exception as e:
             logger.warning('pdf_parse_failed', url=pdf_url, error=str(e))

@@ -25,25 +25,25 @@ describe('AnswerDisplay', () => {
   })
 
   it('renders nothing when no messages and no loading/error', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     const { container } = render(<AnswerDisplay messages={[]} />)
     expect(container.firstChild).toBeNull()
   })
 
   it('shows loading text when isLoading and no assistant message', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(<AnswerDisplay messages={[]} isLoading />)
     expect(screen.getByText('思考中…')).toBeInTheDocument()
   })
 
   it('shows assistant answer when messages include assistant reply', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(<AnswerDisplay messages={[makeMessage('1', 'assistant', 'Hello world')]} />)
     expect(screen.getByText('Hello world')).toBeInTheDocument()
   })
 
   it('renders markdown links as anchor tags with correct attributes', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[
@@ -58,7 +58,7 @@ describe('AnswerDisplay', () => {
   })
 
   it('shows surrounding text around markdown links', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[makeMessage('1', 'assistant', 'See [Paper](https://arxiv.org/abs/123) here.')]}
@@ -69,25 +69,25 @@ describe('AnswerDisplay', () => {
   })
 
   it('shows 429 rate limit error when no assistant message', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(<AnswerDisplay messages={[]} error={new Error('HTTP 429')} />)
     expect(screen.getByText('已達每日問答上限')).toBeInTheDocument()
   })
 
   it('shows 503 service unavailable error when no assistant message', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(<AnswerDisplay messages={[]} error={new Error('HTTP 503')} />)
     expect(screen.getByText('問答服務暫時無法使用，請稍後再試')).toBeInTheDocument()
   })
 
   it('shows generic error message for unknown errors when no assistant message', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(<AnswerDisplay messages={[]} error={new Error('Network error')} />)
     expect(screen.getByText('發生錯誤，請稍後再試')).toBeInTheDocument()
   })
 
   it('shows loading cursor when isLoading with existing assistant message', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[makeMessage('1', 'assistant', 'Partial answer…')]}
@@ -100,7 +100,7 @@ describe('AnswerDisplay', () => {
   })
 
   it('uses the last assistant message when multiple exist', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[
@@ -115,7 +115,7 @@ describe('AnswerDisplay', () => {
   })
 
   it('does not show error when an assistant message exists', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[makeMessage('1', 'assistant', 'Got it')]}
@@ -127,7 +127,7 @@ describe('AnswerDisplay', () => {
   })
 
   it('does not show loading text when isLoading but assistant message already exists', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[makeMessage('1', 'assistant', 'Streaming…')]}
@@ -138,7 +138,7 @@ describe('AnswerDisplay', () => {
   })
 
   it('renders multi-line content as separate paragraphs', async () => {
-    const { AnswerDisplay } = await import('@/components/features/rag/AnswerDisplay')
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay
         messages={[makeMessage('1', 'assistant', 'Line one\nLine two\nLine three')]}
