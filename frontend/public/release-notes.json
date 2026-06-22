@@ -1,5 +1,43 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Introduced an integrated AI chatbot with support for Retrieval-Augmented Generation (RAG) to improve information retrieval."
+      },
+      {
+        "type": "feat",
+        "description": "Added support for Google Gemini as a provider for AI embedding and chat services."
+      },
+      {
+        "type": "feat",
+        "description": "Added support for switching between light and dark themes across the chat interface."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the chat interface with new floating and inline components and support for markdown rendering."
+      },
+      {
+        "type": "feat",
+        "description": "Added a new dialog feature that supports persistent conversation history between sessions."
+      },
+      {
+        "type": "feat",
+        "description": "Improved document processing with PDF text sanitization and better handling for empty files."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced a new administrative dashboard for managing AI provider configurations and quotas."
+      },
+      {
+        "type": "fix",
+        "description": "Resolved issues with guest mode states and session management for non-authenticated users."
+      }
+    ]
+  },
+  {
     "version": "v1.1.0",
     "date": "2026-06-10",
     "changes": [
