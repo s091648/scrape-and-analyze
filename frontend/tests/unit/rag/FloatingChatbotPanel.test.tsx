@@ -48,20 +48,20 @@ describe('FloatingChatbotPanel', () => {
   const openPanel = () => fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
 
   it('renders toggle button initially', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     expect(screen.getByRole('button', { name: 'Open chat' })).toBeInTheDocument()
   })
 
   it('opens panel when toggle button clicked', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} title="My Bot" />)
     openPanel()
     expect(screen.getByTestId('title')).toHaveTextContent('My Bot')
   })
 
   it('closes panel when header close button clicked', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     openPanel()
     // Two "Close chat" buttons exist when panel is open: header X and the toggle.
@@ -72,14 +72,14 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('shows empty state when panel is open with no messages', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     openPanel()
     expect(screen.getByText('Start a conversation.')).toBeInTheDocument()
   })
 
   it('renders user and assistant messages', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -96,7 +96,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('calls onSend with trimmed input when send button clicked', async () => {
     const onSend = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
     openPanel()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'My question' } })
@@ -105,7 +105,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('clears input after send', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     openPanel()
     const input = screen.getByRole('textbox')
@@ -116,7 +116,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('does not call onSend when input is empty', async () => {
     const onSend = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
     openPanel()
     fireEvent.click(screen.getByTestId('send-btn'))
@@ -125,7 +125,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('does not call onSend when input is whitespace only', async () => {
     const onSend = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
     openPanel()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '   ' } })
@@ -135,7 +135,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('submits on Enter key press', async () => {
     const onSend = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
     openPanel()
     const input = screen.getByRole('textbox')
@@ -146,7 +146,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('does not submit on Shift+Enter', async () => {
     const onSend = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
     openPanel()
     const input = screen.getByRole('textbox')
@@ -156,14 +156,14 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('shows typing indicator when isLoading', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} isLoading />)
     openPanel()
     expect(screen.getByLabelText('Agent is typing')).toBeInTheDocument()
   })
 
   it('disables send button and input when isLoading', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} isLoading />)
     openPanel()
     expect(screen.getByTestId('send-btn')).toBeDisabled()
@@ -172,7 +172,7 @@ describe('FloatingChatbotPanel', () => {
 
   it('calls onNewChat when new chat button clicked', async () => {
     const onNewChat = vi.fn()
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} onNewChat={onNewChat} />)
     openPanel()
     fireEvent.click(screen.getByTestId('new-chat-btn'))
@@ -180,14 +180,14 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('does not render new chat button when onNewChat not provided', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     openPanel()
     expect(screen.queryByTestId('new-chat-btn')).not.toBeInTheDocument()
   })
 
   it('renders external link for source without public_article_id', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -204,7 +204,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('renders internal article button for source with public_article_id', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -219,7 +219,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('calls fetchArticleById when internal source button clicked', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -237,7 +237,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('uses url as display text when source title is null', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -252,7 +252,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('renders bold markdown inside assistant message', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
       <FloatingChatbotPanel
         {...defaultProps}
@@ -265,7 +265,7 @@ describe('FloatingChatbotPanel', () => {
   })
 
   it('applies custom placeholder to input', async () => {
-    const { FloatingChatbotPanel } = await import('@/components/features/rag/FloatingChatbotPanel')
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} placeholder="Ask anything…" />)
     openPanel()
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument()

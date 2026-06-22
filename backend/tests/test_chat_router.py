@@ -159,3 +159,173 @@ def test_guest_with_existing_cookie_uses_cookie_id():
 
     key_used = mock_redis.incr.call_args[0][0]
     assert "existing-cookie-uuid" in key_used
+
+
+def test_stream_exception_yields_error_event_before_done():
+    from backend.main import app
+
+    client = TestClient(app, raise_server_exceptions=False)
+    mock_redis = make_mock_redis()
+
+    async def failing_stream(self, messages, topic_id=None):
+        raise RuntimeError("upstream failure")
+        yield  # make it an async generator
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch("backend.routers.chat.ChatService.stream_completions", new=failing_stream),
+    ):
+        response = client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+        )
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "chat_stream_failed" in body
+    assert "data: [DONE]" in body
+
+
+def test_parse_identity_rejects_token_missing_exp():
+    from backend.main import app
+    from jose import jwt
+
+    client = TestClient(app)
+    mock_redis = make_mock_redis()
+    # Token without exp claim
+    token = jwt.encode({"sub": "user-1", "role": "user"}, "test-secret", algorithm="HS256")
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch("backend.routers.chat.ChatService.stream_completions", new=make_stream_chunks()),
+        patch.dict("os.environ", {"NEXTAUTH_SECRET": "test-secret"}),
+    ):
+        response = client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    # Falls back to guest identity — still succeeds
+    assert response.status_code == 200
+    key_used = mock_redis.incr.call_args[0][0]
+    assert "rate:guest:" in key_used
+
+
+def test_parse_identity_rejects_expired_token():
+    from backend.main import app
+    from jose import jwt
+    import time
+
+    client = TestClient(app)
+    mock_redis = make_mock_redis()
+    token = jwt.encode(
+        {"sub": "user-1", "role": "user", "exp": int(time.time()) - 3600},
+        "test-secret",
+        algorithm="HS256",
+    )
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch("backend.routers.chat.ChatService.stream_completions", new=make_stream_chunks()),
+        patch.dict("os.environ", {"NEXTAUTH_SECRET": "test-secret"}),
+    ):
+        response = client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    key_used = mock_redis.incr.call_args[0][0]
+    assert "rate:guest:" in key_used
+
+
+# ── /chat/quota ───────────────────────────────────────────────────────────────
+
+
+def make_quota_redis(count=0):
+    redis = make_mock_redis()
+    redis.get = AsyncMock(return_value=str(count).encode() if count else None)
+    return redis
+
+
+def test_chat_quota_guest_returns_remaining():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis(count=1)
+
+    with patch("backend.routers.chat._make_redis", return_value=mock_redis):
+        response = client.get("/chat/quota")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tier"] == "guest"
+    assert "remaining" in data
+    assert "limit" in data
+    assert data["limit"] > 0
+
+
+def test_chat_quota_sets_cookie_on_first_visit():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis()
+
+    with patch("backend.routers.chat._make_redis", return_value=mock_redis):
+        response = client.get("/chat/quota")
+
+    assert response.status_code == 200
+    assert "__rag_gid" in response.cookies
+
+
+def test_chat_quota_user_returns_user_tier():
+    from backend.main import app
+    from backend.tests.conftest import make_user_token
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis()
+    token = make_user_token()
+
+    with patch("backend.routers.chat._make_redis", return_value=mock_redis):
+        response = client.get(
+            "/chat/quota",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["tier"] == "user"
+
+
+def test_chat_quota_admin_returns_unlimited():
+    from backend.main import app
+    from backend.tests.conftest import make_admin_token
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis()
+    token = make_admin_token()
+
+    with patch("backend.routers.chat._make_redis", return_value=mock_redis):
+        response = client.get(
+            "/chat/quota",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["tier"] == "admin"
+    assert data["remaining"] == -1
+
+
+def test_chat_quota_existing_cookie_used():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis(count=2)
+
+    with patch("backend.routers.chat._make_redis", return_value=mock_redis):
+        client.get("/chat/quota", cookies={"__rag_gid": "known-cookie"})
+
+    key_used = mock_redis.get.call_args[0][0]
+    assert "known-cookie" in key_used

@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+
+// jsdom does not implement scrollIntoView
+Element.prototype.scrollIntoView = vi.fn()
+
+const mockFetchArticleById = vi.fn()
+vi.mock('@/lib/api/articles', () => ({
+  fetchArticleById: (...args: any[]) => mockFetchArticleById(...args),
+}))
+
+vi.mock('@/components/features/articles/article-detail-dialog', () => ({
+  ArticleDetailDialog: vi.fn(() => null),
+}))
 
 const zhTW: Record<string, string> = {
   'rag.thinking': '思考中…',
@@ -19,9 +31,26 @@ const makeMessage = (id: string, role: 'user' | 'assistant', content: string) =>
   timestamp: new Date(),
 })
 
+const makeSource = (overrides = {}) => ({
+  id: 'src-1',
+  title: 'Test Article',
+  url: 'https://example.com',
+  public_article_id: null,
+  ...overrides,
+})
+
 describe('AnswerDisplay', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockFetchArticleById.mockResolvedValue({
+      title: 'Test Article',
+      content: 'Content',
+      url: 'https://example.com',
+      source: 'rss',
+      published_at: null,
+      via_source: null,
+      original_source: null,
+    })
   })
 
   it('renders nothing when no messages and no loading/error', async () => {
@@ -147,5 +176,105 @@ describe('AnswerDisplay', () => {
     expect(screen.getByText('Line one')).toBeInTheDocument()
     expect(screen.getByText('Line two')).toBeInTheDocument()
     expect(screen.getByText('Line three')).toBeInTheDocument()
+  })
+
+  it('renders bold markdown as <strong> element', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'This is **bold** text')]}
+      />
+    )
+    const bold = screen.getByText('bold')
+    expect(bold.tagName).toBe('STRONG')
+  })
+
+  it('renders bullet list items', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', '- First item\n- Second item')]}
+      />
+    )
+    expect(screen.getByText('First item')).toBeInTheDocument()
+    expect(screen.getByText('Second item')).toBeInTheDocument()
+    expect(document.querySelector('ul')).toBeInTheDocument()
+  })
+
+  it('renders external link source chip when source has no public_article_id', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    const src = makeSource({ title: 'External Source', url: 'https://ext.com' })
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Answer')]}
+        sources={[src]}
+      />
+    )
+    const link = screen.getByRole('link', { name: /External Source/ })
+    expect(link).toHaveAttribute('href', 'https://ext.com')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('renders internal article button when source has public_article_id', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    const src = makeSource({ title: 'Internal Article', public_article_id: 'pub-123' })
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Answer')]}
+        sources={[src]}
+      />
+    )
+    expect(screen.getByRole('button', { name: /Internal Article/ })).toBeInTheDocument()
+  })
+
+  it('uses url as display text for source chip when title is null', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    const src = makeSource({ title: null, url: 'https://no-title.com' })
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Answer')]}
+        sources={[src]}
+      />
+    )
+    expect(screen.getByRole('link', { name: /https:\/\/no-title\.com/ })).toBeInTheDocument()
+  })
+
+  it('calls fetchArticleById when internal source chip is clicked', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    const src = makeSource({ title: 'Clickable Article', public_article_id: 'pub-456' })
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Answer')]}
+        sources={[src]}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Clickable Article/ }))
+    await waitFor(() => {
+      expect(mockFetchArticleById).toHaveBeenCalledWith('pub-456', 'zh-TW')
+    })
+  })
+
+  it('renders [N] citation button when sources are provided', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    const src = makeSource({ title: 'Cited Paper' })
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'See [1] for details')]}
+        sources={[src]}
+      />
+    )
+    // citation button renders the number
+    expect(screen.getByTitle('Cited Paper')).toBeInTheDocument()
+  })
+
+  it('does not render source chips when sources array is empty', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Answer')]}
+        sources={[]}
+      />
+    )
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 })
