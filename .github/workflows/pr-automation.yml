@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: pr-automation-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -71,14 +71,9 @@ jobs:
       - name: Check if release-notes.json was manually edited
         id: check_manual
         run: |
-          # If HEAD commit is by the bot, we're in a re-trigger loop — skip.
-          HEAD_AUTHOR=$(git log -1 --format="%an")
-          if [ "$HEAD_AUTHOR" = "github-actions[bot]" ]; then
-            echo "Last commit was by bot, skipping to prevent loop."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          elif [ -n "$(git log -1 --format='%an' -- frontend/public/release-notes.json)" ] && \
-               [ "$(git log -1 --format='%an' -- frontend/public/release-notes.json)" != "github-actions[bot]" ]; then
-            echo "Manual edit detected (last author: $(git log -1 --format='%an' -- frontend/public/release-notes.json)), skipping generation."
+          LAST_AUTHOR=$(git log -1 --format="%an" -- frontend/public/release-notes.json)
+          if [ -n "$LAST_AUTHOR" ] && [ "$LAST_AUTHOR" != "github-actions[bot]" ]; then
+            echo "Manual edit detected (last author: $LAST_AUTHOR), skipping generation."
             echo "skip=true" >> $GITHUB_OUTPUT
           else
             echo "skip=false" >> $GITHUB_OUTPUT
