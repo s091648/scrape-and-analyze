@@ -281,7 +281,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --frozen --group backend --group dev
+          uv sync --frozen --group backend --group dev --group observability
         env:
           UV_SYSTEM_PYTHON: "1"
 
