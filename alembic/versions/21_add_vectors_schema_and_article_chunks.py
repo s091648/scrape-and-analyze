@@ -6,7 +6,7 @@ Create Date: 2026-06-11
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "21_add_vectors_schema_and_article_chunks"
 down_revision = "20_add_article_translation"

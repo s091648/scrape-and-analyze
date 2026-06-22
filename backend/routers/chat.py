@@ -37,7 +37,9 @@ def _parse_identity(authorization: Optional[str]) -> Optional[ChatIdentity]:
         payload = jwt.decode(
             token, secret, algorithms=["HS256"], options={"verify_exp": False}
         )
-        if payload.get("exp", 0) < int(time.time()):
+        if "exp" not in payload:
+            return None
+        if payload["exp"] < int(time.time()):
             return None
         role = payload.get("role", "user")
         user_id = payload.get("sub")
@@ -114,6 +116,8 @@ async def chat_completions(
     )
 
     async def generate():
+        # ChatService(redis_client=None): streaming uses httpx only, no redis needed.
+        # The redis_client from rate-limiting above is already closed.
         svc = ChatService()
         try:
             async for chunk in svc.stream_completions(messages, x_topic_id):

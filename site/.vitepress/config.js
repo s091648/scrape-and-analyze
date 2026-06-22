@@ -150,6 +150,29 @@ export default defineConfig({
           { text: 'Contract: Semantic Scholar API', link: '/specs/011-semantic-scholar-scraper/contracts/semantic-scholar-api' },
         ],
       },
+      {
+        text: '012 · Rag Chatbot Integration',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/012-rag-chatbot-integration/spec' },
+          { text: 'Plan', link: '/specs/012-rag-chatbot-integration/plan' },
+          { text: 'Data Model', link: '/specs/012-rag-chatbot-integration/data-model' },
+          { text: 'Tasks', link: '/specs/012-rag-chatbot-integration/tasks' },
+          { text: 'Research', link: '/specs/012-rag-chatbot-integration/research' },
+          { text: 'Requirements', link: '/specs/012-rag-chatbot-integration/checklists/requirements' },
+          { text: 'Contract: Chat API', link: '/specs/012-rag-chatbot-integration/contracts/chat-api' },
+          { text: 'Contract: Rag Sdk', link: '/specs/012-rag-chatbot-integration/contracts/rag-sdk' },
+        ],
+      },
+      {
+        text: '013 · Dark Mode Toggle',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/013-dark-mode-toggle/spec' },
+          { text: 'Plan', link: '/specs/013-dark-mode-toggle/plan' },
+          { text: 'Tasks', link: '/specs/013-dark-mode-toggle/tasks' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },

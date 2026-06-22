@@ -5,11 +5,9 @@ import uuid
 
 from models.base import Base
 
-try:
-    from pgvector.sqlalchemy import Vector
-    _VECTOR_TYPE = Vector(768)
-except ImportError:
-    from sqlalchemy import Text as _VECTOR_TYPE  # type: ignore[assignment]
+from pgvector.sqlalchemy import Vector
+
+_VECTOR_TYPE = Vector(768)
 
 
 class ArticleChunk(Base):

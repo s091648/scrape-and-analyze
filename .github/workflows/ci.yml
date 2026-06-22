@@ -134,6 +134,8 @@ jobs:
   backend-unit:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
+    needs: [migrate]
+    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 15
 
     env:
@@ -167,7 +169,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --frozen --group backend --group dev
+          uv sync --frozen --group backend --group dev --group observability
         env:
           UV_SYSTEM_PYTHON: "1"
 
@@ -279,7 +281,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install uv
-          uv sync --frozen --group backend --group dev
+          uv sync --frozen --group backend --group dev --group observability
         env:
           UV_SYSTEM_PYTHON: "1"
 
@@ -474,6 +476,8 @@ jobs:
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
+    needs: [migrate]
+    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 15
     defaults:
       run:

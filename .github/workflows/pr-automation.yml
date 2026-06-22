@@ -12,6 +12,10 @@ on:
     branches: [master]
   workflow_dispatch:
 
+concurrency:
+  group: pr-automation-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
