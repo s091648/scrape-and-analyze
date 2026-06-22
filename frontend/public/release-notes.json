@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced an AI-powered chatbot with Retrieval-Augmented Generation for more accurate information retrieval."
+        "description": "Introduced a new floating chatbot and inline Q&A bar for easier interaction."
       },
       {
         "type": "feat",
-        "description": "Added support for persistent chat dialogs, allowing users to revisit previous conversations."
+        "description": "Added support for rendering markdown syntax within the chat interface."
       },
       {
         "type": "feat",
-        "description": "Implemented a theme toggle to switch between light and dark viewing modes."
+        "description": "Added light and dark mode support for the chat interface and homepage."
       },
       {
         "type": "feat",
-        "description": "Added a new administrative dashboard for managing RAG embedding providers and configurations."
-      },
-      {
-        "type": "feat",
-        "description": "Introduced a visual pipeline view to track the status of document ingestion and background tasks."
-      },
-      {
-        "type": "feat",
-        "description": "Updated the chatbot interface to support markdown rendering for formatted text and citations."
-      },
-      {
-        "type": "feat",
-        "description": "Added usage quota tracking and visibility directly within the chat components."
+        "description": "Enabled persistent chat dialogs to allow users to save and resume conversations."
       },
       {
         "type": "fix",
-        "description": "Fixed an issue affecting session state management when using the application in guest mode."
+        "description": "Resolved an issue where session state was not correctly maintained in guest mode."
+      },
+      {
+        "type": "feat",
+        "description": "Added a management page for administrators to configure RAG providers and view usage quotas."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the pipeline flow visualization with a new interactive step-function style view."
+      },
+      {
+        "type": "feat",
+        "description": "Improved PDF document processing to handle empty files and sanitize extracted text."
       }
     ]
   },
