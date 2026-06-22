@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced a new RAG-powered chatbot for intelligent document interaction and question answering."
+        "description": "Introduced new floating chatbot and inline Q&A components for a more flexible user interface"
       },
       {
         "type": "feat",
-        "description": "Added support for Markdown rendering and improved the chatbot user interface."
+        "description": "Added support for rendering markdown syntax within the chatbot interface"
       },
       {
         "type": "feat",
-        "description": "Implemented light and dark mode themes across the application interface."
+        "description": "Implemented light and dark mode themes for the application homepage and chat interface"
       },
       {
         "type": "feat",
-        "description": "Enabled chat persistence to allow users to save and resume previous conversations."
+        "description": "Launched a new administrative page to manage and configure RAG provider settings"
       },
       {
         "type": "feat",
-        "description": "Added support for Google Gemini as a document embedding provider."
+        "description": "Introduced a visual pipeline view to track background data processing stages"
       },
       {
         "type": "feat",
-        "description": "Introduced a new administration dashboard for managing chat providers and settings."
-      },
-      {
-        "type": "feat",
-        "description": "Added usage quota tracking and visibility for the chat interface."
+        "description": "Added a dialog persistence feature to save and resume chat history across sessions"
       },
       {
         "type": "fix",
-        "description": "Resolved an issue where guest sessions were not correctly maintaining their state."
+        "description": "Resolved state management and routing issues when using the chatbot in guest mode"
+      },
+      {
+        "type": "feat",
+        "description": "Improved document processing with enhanced PDF text sanitization and better handling of empty files"
       }
     ]
   },
