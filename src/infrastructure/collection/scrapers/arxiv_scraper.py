@@ -78,7 +78,8 @@ class ArxivScraper(BaseScraper):
             pdf_full_text = self._pdf_parser.parse(pdf_url)
             if (pdf_full_text or "").strip():  # scanned PDFs produce whitespace-only output
                 pdf_available = True
-                sections = self._pdf_parser.extract_sections(pdf_full_text)
+                raw = self._pdf_parser.extract_sections(pdf_full_text)
+                sections = {k: v.replace("\x00", "") for k, v in raw.items()}
 
         return ScrapedArticle(
             url=job.url,

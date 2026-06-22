@@ -68,7 +68,7 @@ class PdfParser(BaseContentParser):
                 continue
             start = match.end()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-            sections[name] = text[start:end].strip()
+            sections[name] = self._sanitize(text[start:end].strip())
 
         return sections
 
