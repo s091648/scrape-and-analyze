@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Scrape Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 11 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 13 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -50,4 +50,10 @@ features:
   - title: '011 · Semantic Scholar Scraper'
     details: '新增 Semantic Scholar scraper 至 scraping pipeline，以解決 arXiv rate limit 問題，同時擴大論文來源涵蓋範圍。實作後發現 Semantic Scholar 免費 API 無法個人申請 key，且首次執行即 429；改以 OpenAlex 作為主要免費學術論文 API 並同步實作。'
     link: '/specs/011-semantic-scholar-scraper/spec'
+  - title: '012 · Rag Chatbot Integration'
+    details: '在現有 scrape-analyzer 系統中整合 RAG（檢索增強生成）功能，讓使用者能透過對話介面詢問與已爬取文章相關的問題，系統以語意搜尋配合智慧回答回應使用者。'
+    link: '/specs/012-rag-chatbot-integration/spec'
+  - title: '013 · Dark Mode Toggle'
+    details: '在 NavBar 加一個切換 light / dark / auto mode 的 icon，點擊依序切換，icon 隨之改變。RAG 元件隨 theme 更新。'
+    link: '/specs/013-dark-mode-toggle/spec'
 ---
