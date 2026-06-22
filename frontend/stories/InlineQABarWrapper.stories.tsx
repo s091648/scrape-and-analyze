@@ -25,7 +25,7 @@ export const Loading: Story = {
   },
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '最近的 LLM 研究？', timestamp: new Date() },
@@ -47,7 +47,7 @@ export const WithAnswer: Story = {
   },
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '最近的 LLM 研究？', timestamp: new Date() },
@@ -75,7 +75,7 @@ export const RateLimitError: Story = {
   },
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [],
           sendMessage: fn(),
@@ -94,7 +94,7 @@ export const ServiceUnavailableError: Story = {
   },
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [],
           sendMessage: fn(),
@@ -123,7 +123,7 @@ export const WithAnswerDark: Story = {
   decorators: [withDarkMode],
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '最近的 LLM 研究？', timestamp: new Date() },

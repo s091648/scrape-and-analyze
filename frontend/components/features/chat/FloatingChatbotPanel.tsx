@@ -209,7 +209,7 @@ export function FloatingChatbotPanel({
 
   useEffect(() => {
     if (!open || !isLoading || !onAbort) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onAbort() }
+    const handler = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') onAbort() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open, isLoading, onAbort])

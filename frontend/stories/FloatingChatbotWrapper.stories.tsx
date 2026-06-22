@@ -19,7 +19,7 @@ export const Default: Story = {}
 export const WithConversation: Story = {
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '最近有哪些 RAG 研究？', timestamp: new Date() },
@@ -45,7 +45,7 @@ export const WithConversation: Story = {
 export const Loading: Story = {
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '你好！', timestamp: new Date() },
@@ -63,7 +63,7 @@ export const Loading: Story = {
 export const RateLimitError: Story = {
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: (opts: any) => {
           opts?.onError?.(new Error('HTTP 429'))
           return {
@@ -89,7 +89,7 @@ export const WithConversationDark: Story = {
   decorators: [withDarkMode],
   parameters: {
     moduleMock: {
-      '@Teng91/chatbot-plugin-ui': {
+      '@s091648/chatbot-plugin-ui': {
         useChat: () => ({
           messages: [
             { id: '1', role: 'user', content: '最近有哪些 RAG 研究？', timestamp: new Date() },
