@@ -67,9 +67,9 @@ test.describe('Guest Mode', () => {
     await expect(page.getByRole('link', { name: /register|註冊/i })).toBeVisible()
   })
 
-  test('non-guest unauthenticated user still sees paywall on home page', async ({ page }) => {
-    // Go directly to home WITHOUT entering guest mode
-    await page.goto('/')
+  test('non-guest unauthenticated user still sees paywall on articles page', async ({ page }) => {
+    // Go directly to articles WITHOUT entering guest mode
+    await page.goto('/articles')
 
     // Should show blurred placeholder articles
     const blurredEl = page.locator('.blur-\\[2px\\]')

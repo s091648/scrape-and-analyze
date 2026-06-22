@@ -7,12 +7,12 @@ test.describe('Article list page', () => {
   })
 
   test('article list renders on load', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await expect(page.getByText('Digital Twin Innovation')).toBeVisible()
   })
 
   test('source filter updates URL', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     // Open the Filters panel
     await page.getByRole('button', { name: /filters/i }).click()
     // Open Source popover
@@ -29,7 +29,7 @@ test.describe('Article list page', () => {
     await page.route('/api/proxy/articles**', route => route.fulfill({
       json: { items: [{ id: 'art-001', title: 'Article 1', source: 'rss', content: 'x', published_at: null, scraped_at: null, url: 'https://x.com' }], total: 30, page: 1, size: 20 }
     }))
-    await page.goto('/')
+    await page.goto('/articles')
     // Find and click next page — look for page 2 button or next button
     const page2 = page.getByRole('button', { name: '2' }).or(page.getByRole('button', { name: /next/i }))
     await page2.first().click()
@@ -37,7 +37,7 @@ test.describe('Article list page', () => {
   })
 
   test('aggregator filter updates URL', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/articles')
     await page.getByRole('button', { name: /filters/i }).click()
     // The aggregator popover button label comes from the filter bar
     const aggregatorBtn = page.getByRole('button', { name: /aggregator/i })
@@ -50,7 +50,7 @@ test.describe('Article list page', () => {
   })
 
   test('sort change resets to page 1', async ({ page }) => {
-    await page.goto('/?page=3&sort=scraped_at')
+    await page.goto('/articles?page=3&sort=scraped_at')
     // Find sort dropdown and change it
     const sortSelect = page.getByRole('combobox').or(page.locator('select[name="sort"]'))
     if (await sortSelect.count() > 0) {

@@ -147,6 +147,11 @@ export async function mockApiRoutes(page: Page) {
   // Tag groups — needed by FilterBar (must come before catch-all)
   await page.route(proxyPrefix('tag-groups'), route => route.fulfill({ json: [] }))
 
+  // Chat quota — needed by ChatQuotaProvider and FloatingChatbotWrapper on /articles
+  await page.route(proxy('chat/quota'), route =>
+    route.fulfill({ json: { tier: 'guest', remaining: 5, limit: 10, guest_daily_limit: 10, member_daily_limit: 30 } })
+  )
+
   // Topics — needed by TopicContext on every page load (must be last = highest priority)
   await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))
 }
