@@ -22,6 +22,10 @@ vi.mock('@/lib/providers', () => ({
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
 }))
 
+vi.mock('sonner', () => ({
+  toast: { warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+}))
+
 const mockSendMessage = vi.fn()
 const mockMessages = [
   { id: '1', role: 'user', content: 'hello', timestamp: new Date() },
@@ -183,5 +187,151 @@ describe('InlineQABarWrapper', () => {
     )
     render(<InlineQABarWrapper />)
     expect(screen.getByText('已達每日問答上限')).toBeInTheDocument()
+  })
+
+  it('shows toast.warning on 429 via onError callback', async () => {
+    let capturedOnError: ((e: Error) => void) | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedOnError = opts.onError
+      return { messages: [], sendMessage: mockSendMessage, isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    capturedOnError?.(new Error('HTTP 429'))
+
+    const { toast } = await import('sonner')
+    expect(vi.mocked(toast.warning)).toHaveBeenCalledWith('已達每日問答上限')
+  })
+
+  it('shows toast.error on 503 via onError callback', async () => {
+    let capturedOnError: ((e: Error) => void) | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedOnError = opts.onError
+      return { messages: [], sendMessage: mockSendMessage, isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    capturedOnError?.(new Error('HTTP 503'))
+
+    const { toast } = await import('sonner')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('問答服務暫時無法使用，請稍後再試')
+  })
+
+  it('shows toast.error on generic error via onError callback', async () => {
+    let capturedOnError: ((e: Error) => void) | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedOnError = opts.onError
+      return { messages: [], sendMessage: mockSendMessage, isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    capturedOnError?.(new Error('Network error'))
+
+    const { toast } = await import('sonner')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('發生錯誤，請稍後再試')
+  })
+
+  it('shows quota text when quota has remaining >= 0', async () => {
+    const { useChatQuota } = await import('@/lib/providers')
+    vi.mocked(useChatQuota).mockReturnValue({
+      quota: { remaining: 5, limit: 10 },
+      refreshQuota: vi.fn(),
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(screen.getByText(/5 \/ 10/)).toBeInTheDocument()
+    expect(screen.getByText(/rag\.remainingRequests/)).toBeInTheDocument()
+  })
+
+  it('does not show quota text when quota is null', async () => {
+    const { useChatQuota } = await import('@/lib/providers')
+    vi.mocked(useChatQuota).mockReturnValue({ quota: null, refreshQuota: vi.fn() })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(screen.queryByText(/\/ 10/)).not.toBeInTheDocument()
+  })
+
+  it('calls abort when Escape pressed while loading', async () => {
+    const mockAbort = vi.fn()
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: true,
+      error: null,
+      clearMessages: vi.fn(),
+      abort: mockAbort,
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(mockAbort).toHaveBeenCalled()
+  })
+
+  it('does not call abort on non-Escape key while loading', async () => {
+    const mockAbort = vi.fn()
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: true,
+      error: null,
+      clearMessages: vi.fn(),
+      abort: mockAbort,
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(mockAbort).not.toHaveBeenCalled()
+  })
+
+  it('calls refreshQuota when loading transitions from true to false', async () => {
+    const mockRefreshQuota = vi.fn()
+    const { useChatQuota } = await import('@/lib/providers')
+    vi.mocked(useChatQuota).mockReturnValue({ quota: null, refreshQuota: mockRefreshQuota })
+
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: true,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    const { rerender } = render(<InlineQABarWrapper />)
+
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+    rerender(<InlineQABarWrapper />)
+
+    await waitFor(() => {
+      expect(mockRefreshQuota).toHaveBeenCalled()
+    })
+  })
+
+  it('clears lastSources when send is triggered', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [{ id: '1', role: 'assistant', content: 'answer', timestamp: new Date() }],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    fireEvent.click(screen.getByTestId('send-btn'))
+    expect(mockSendMessage).toHaveBeenCalledWith('test question')
   })
 })

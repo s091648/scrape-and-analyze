@@ -162,3 +162,90 @@ def test_pdf_parser_parse_returns_text_on_http_failure():
     parser = PdfParser()
     result = parser.parse('https://this-domain-does-not-exist-xyz.invalid/paper.pdf')
     assert result == ''
+
+
+def test_pdf_parser_sanitize_removes_null_bytes():
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    parser = PdfParser()
+    result = parser._sanitize("hello\x00world\x00!")
+    assert "\x00" not in result
+    assert result == "hello world !"
+
+
+def test_pdf_parser_extract_sections_normalizes_conclusions_to_conclusion():
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    text = "\nAbstract\nSome abstract text.\n\nConclusions\nFinal thoughts here.\n"
+    parser = PdfParser()
+    sections = parser.extract_sections(text)
+    assert "conclusion" in sections
+    assert "conclusions" not in sections
+
+
+def test_pdf_parser_extract_sections_normalizes_methods_to_methodology():
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    text = "\nAbstract\nSome abstract text.\n\nMethods\nOur experimental approach.\n"
+    parser = PdfParser()
+    sections = parser.extract_sections(text)
+    assert "methodology" in sections
+    assert "methods" not in sections
+
+
+def test_pdf_parser_prepare_for_analysis_falls_back_when_only_one_section():
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    # Only one target section — less than 2, so falls back
+    text = "\nAbstract\nOnly one section found here.\n"
+    parser = PdfParser()
+    result = parser.prepare_for_analysis(text, fallback="use this fallback")
+    assert result == "use this fallback"
+
+
+def test_pdf_parser_extract_sections_returns_empty_for_non_target_sections_only():
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    # 'Discussion' and 'Results' are not in TARGET_SECTIONS → extract_sections returns {}
+    text = "\nDiscussion\nWe discuss the implications.\n\nResults\nWe found significant effects.\n"
+    parser = PdfParser()
+    sections = parser.extract_sections(text)
+    # 'discussion' and 'results' are not in TARGET_SECTIONS frozenset
+    assert "discussion" not in sections
+    assert "results" not in sections
+
+
+def test_pdf_parser_parse_successful_pdf(monkeypatch):
+    """parse() returns extracted text when fitz opens the PDF successfully."""
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    from unittest.mock import patch, MagicMock
+
+    mock_page = MagicMock()
+    mock_page.get_text.return_value = "Page one content."
+    mock_doc = MagicMock()
+    mock_doc.__enter__ = lambda self: self
+    mock_doc.__exit__ = MagicMock(return_value=False)
+    mock_doc.__iter__ = lambda self: iter([mock_page])
+
+    mock_response = MagicMock()
+    mock_response.content = b"%PDF-1.4 fake"
+
+    with patch("src.infrastructure.collection.parsers.pdf_parser.get_default_client") as mock_client, \
+         patch("fitz.open", return_value=mock_doc):
+        mock_client.return_value.get.return_value = mock_response
+        parser = PdfParser()
+        result = parser.parse("https://example.com/paper.pdf")
+
+    assert result == "Page one content."
+
+
+def test_pdf_parser_parse_returns_empty_when_fitz_raises(monkeypatch):
+    """parse() returns '' when fitz.open raises an exception."""
+    from src.infrastructure.collection.parsers.pdf_parser import PdfParser
+    from unittest.mock import patch, MagicMock
+
+    mock_response = MagicMock()
+    mock_response.content = b"not a pdf"
+
+    with patch("src.infrastructure.collection.parsers.pdf_parser.get_default_client") as mock_client, \
+         patch("fitz.open", side_effect=Exception("Invalid PDF format")):
+        mock_client.return_value.get.return_value = mock_response
+        parser = PdfParser()
+        result = parser.parse("https://example.com/bad.pdf")
+
+    assert result == ""

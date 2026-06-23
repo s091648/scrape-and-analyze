@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
+
 const fixture = {
   id: 'abc',
   title: 'Test Article',
@@ -102,5 +106,49 @@ describe('ArticleCard', () => {
       expect(screen.getByText('AI')).toBeInTheDocument()
       expect(screen.getByText('IoT')).toBeInTheDocument()
     })
+  })
+
+  it('renders scraped_at date when provided', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    // scraped_at '2026-01-02T00:00:00Z' → Jan 2
+    expect(screen.getByText(/jan 2/i)).toBeInTheDocument()
+  })
+
+  it('renders via_source badge when provided', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} via_source="arxiv" />)
+    expect(screen.getByText(/arxiv/i)).toBeInTheDocument()
+  })
+
+  it('renders scraped_at date when provided', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    expect(screen.getByText(/jan 2/i)).toBeInTheDocument()
+  })
+
+  it('renders via_source badge when provided', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} via_source="arxiv" />)
+    expect(screen.getByText(/arxiv/i)).toBeInTheDocument()
+  })
+
+  it('uses translated_title over original title when provided', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} translated_title="翻譯標題" />)
+    expect(screen.getByText('翻譯標題')).toBeInTheDocument()
+  })
+
+  it('renders external link icon next to title', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    const link = screen.getAllByRole('link').find(l => l.getAttribute('href') === 'https://example.com')
+    expect(link).toBeTruthy()
+  })
+
+  it('does not show dialog before card is clicked', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

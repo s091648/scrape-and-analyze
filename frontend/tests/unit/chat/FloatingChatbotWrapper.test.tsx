@@ -245,4 +245,81 @@ describe('FloatingChatbotWrapper', () => {
     expect(removeItemSpy).toHaveBeenCalledWith('rag_float_chat_messages')
     removeItemSpy.mockRestore()
   })
+
+  it('hides chatbot for unauthenticated non-guest users', async () => {
+    const { useGuestMode } = await import('@/lib/providers')
+    vi.mocked(useGuestMode).mockReturnValueOnce({ isGuestMode: false })
+    vi.mocked(useSession).mockReturnValueOnce({ data: null, status: 'unauthenticated', update: vi.fn() })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    const { container } = render(<FloatingChatbotWrapper />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('shows toast.error on 503 via onError callback', async () => {
+    let capturedOnError: ((e: Error) => void) | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedOnError = opts.onError
+      return {
+        messages: [],
+        sendMessage: mockSendMessage,
+        isLoading: false,
+        error: null,
+        clearMessages: mockClearMessages,
+      }
+    })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    capturedOnError?.(new Error('HTTP 503'))
+
+    const { toast } = await import('sonner')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('問答服務暫時無法使用，請稍後再試')
+  })
+
+  it('shows toast.error on generic error via onError callback', async () => {
+    let capturedOnError: ((e: Error) => void) | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedOnError = opts.onError
+      return {
+        messages: [],
+        sendMessage: mockSendMessage,
+        isLoading: false,
+        error: null,
+        clearMessages: mockClearMessages,
+      }
+    })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    capturedOnError?.(new Error('unexpected failure'))
+
+    const { toast } = await import('sonner')
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('發生錯誤，請稍後再試')
+  })
+
+  it('shows quota suffix in title when quota has remaining >= 0', async () => {
+    const { useChatQuota } = await import('@/lib/providers')
+    vi.mocked(useChatQuota).mockReturnValueOnce({ quota: { remaining: 3, limit: 10 }, refreshQuota: vi.fn() })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    expect(screen.getByTestId('title').textContent).toContain('3/10')
+  })
+
+  it('does not show quota suffix in title when quota is null', async () => {
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+    expect(screen.getByTestId('title').textContent).not.toContain('/')
+  })
 })

@@ -270,4 +270,155 @@ describe('FloatingChatbotPanel', () => {
     openPanel()
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument()
   })
+
+  it('calls onAbort when Escape pressed while open and loading', async () => {
+    const onAbort = vi.fn()
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(<FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />)
+    openPanel()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onAbort).toHaveBeenCalled()
+  })
+
+  it('does not call onAbort when panel is closed', async () => {
+    const onAbort = vi.fn()
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(<FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />)
+    // Do not open panel — Escape should not trigger abort
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onAbort).not.toHaveBeenCalled()
+  })
+
+  it('does not call onAbort when not loading', async () => {
+    const onAbort = vi.fn()
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(<FloatingChatbotPanel {...defaultProps} isLoading={false} onAbort={onAbort} />)
+    openPanel()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onAbort).not.toHaveBeenCalled()
+  })
+
+  it('renders list items from markdown bullet points in assistant message', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('1', 'assistant', '- First item\n- Second item')]}
+      />
+    )
+    openPanel()
+    expect(screen.getByText('First item')).toBeInTheDocument()
+    expect(screen.getByText('Second item')).toBeInTheDocument()
+    expect(document.querySelector('ul')).toBeInTheDocument()
+  })
+
+  it('renders [N] citation button inline in assistant message', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
+        messageSources={{
+          msg1: [{ id: 's1', title: 'Cited Paper', url: 'https://example.com', public_article_id: null }],
+        }}
+      />
+    )
+    openPanel()
+    // citation button renders the reference number
+    expect(screen.getByTitle('Cited Paper')).toBeInTheDocument()
+  })
+
+  it('renders [Title] citation as button for source with public_article_id', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('msg1', 'assistant', '[Cited Paper] was relevant')]}
+        messageSources={{
+          msg1: [{ id: 's2', title: 'Cited Paper', url: 'https://example.com', public_article_id: 'pub-abc' }],
+        }}
+      />
+    )
+    openPanel()
+    // inline citation should render as a clickable button (has public_article_id)
+    const citationBtn = screen.getByRole('button', { name: 'Cited Paper' })
+    expect(citationBtn).toBeInTheDocument()
+  })
+
+  it('renders [Title] citation as link for source without public_article_id', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('msg1', 'assistant', '[External Paper] was cited')]}
+        messageSources={{
+          msg1: [{ id: 's3', title: 'External Paper', url: 'https://external.com', public_article_id: null }],
+        }}
+      />
+    )
+    openPanel()
+    const citationLink = screen.getByRole('link', { name: 'External Paper' })
+    expect(citationLink).toHaveAttribute('href', 'https://external.com')
+  })
+
+  it('highlights source chip and scrolls to it when [N] citation clicked', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
+        messageSources={{
+          msg1: [{ id: 's1', title: 'Paper A', url: 'https://example.com', public_article_id: null }],
+        }}
+      />
+    )
+    openPanel()
+    const citationBtn = screen.getByTitle('Paper A')
+    fireEvent.click(citationBtn)
+    // The source chip should now have highlighted border classes
+    await waitFor(() => {
+      const link = screen.getByRole('link', { name: /Paper A/ })
+      expect(link.className).toMatch(/border-blue-500/)
+    })
+  })
+
+  it('renders markdown link [text](url) as anchor', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('1', 'assistant', 'Visit [Google](https://google.com) for more')]}
+      />
+    )
+    openPanel()
+    const link = screen.getByRole('link', { name: 'Google' })
+    expect(link).toHaveAttribute('href', 'https://google.com')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
+  it('shows timestamp below user messages', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('1', 'user', 'Hello')]}
+      />
+    )
+    openPanel()
+    // toLocaleTimeString format varies but time should be present
+    expect(document.querySelector('[class*="text-\\[10px\\]"]')).toBeTruthy()
+  })
+
+  it('shows empty placeholder (…) when assistant message content is empty', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('1', 'assistant', '')]}
+      />
+    )
+    openPanel()
+    // Empty assistant content renders the placeholder ellipsis
+    expect(document.querySelector('.opacity-40')).toBeTruthy()
+  })
 })
