@@ -137,6 +137,7 @@ def build_rag_ingestion_service():
             RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
             RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
             RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD,
+            RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
         )
         from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
 
@@ -172,12 +173,13 @@ def build_rag_ingestion_service():
             chunks_table=VECTOR_DB_CHUNKS_TABLE,
         ))
         processor = IngestProcessor()
-        embed_batch_size = int(os.environ.get("RAG_EMBED_BATCH_SIZE", "8"))
         processor.configure(
             backend=backend,
             dense=dense_provider,
             sparse=sparse_provider,
-            embed_batch_size=embed_batch_size,
+            embed_batch_size=RAG_EMBED_BATCH_SIZE,
+            chunk_size=RAG_CHUNK_SIZE,
+            chunk_overlap=RAG_CHUNK_OVERLAP,
         )
 
         rag_service = RagSdkIngestionService(processor)

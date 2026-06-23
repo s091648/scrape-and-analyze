@@ -53,6 +53,19 @@ RAG_SPARSE_RPM: int | None = _int_or_none("RAG_SPARSE_RPM")
 RAG_SPARSE_TPM: int | None = _int_or_none("RAG_SPARSE_TPM")
 RAG_SPARSE_RPD: int | None = _int_or_none("RAG_SPARSE_RPD")
 
+# Number of chunks packed into a single embed() call.
+# Larger values reduce total API requests. Google gemini-embedding-001 supports up to
+# 100 inputs per call; 96 keeps most articles (≤80 chunks) in 1 request while staying
+# safely under the limit. Reduce if you see payload errors from the API.
+RAG_EMBED_BATCH_SIZE: int = int(os.environ.get("RAG_EMBED_BATCH_SIZE", "96"))
+
+# Chunking parameters — only affect ingest, not retrieve.
+# chunk_size: characters per chunk. step = chunk_size - chunk_overlap.
+# A 36,000-char article with defaults (500/50) → ~80 chunks.
+# Setting chunk_size=1500, overlap=150 → ~27 chunks per same article.
+RAG_CHUNK_SIZE: int = int(os.environ.get("RAG_CHUNK_SIZE", "500"))
+RAG_CHUNK_OVERLAP: int = int(os.environ.get("RAG_CHUNK_OVERLAP", "50"))
+
 
 def missing_rag_config() -> list[str]:
     """Returns names of missing required RAG env vars.

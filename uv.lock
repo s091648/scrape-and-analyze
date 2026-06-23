@@ -524,8 +524,8 @@ wheels = [
 
 [[package]]
 name = "chatbot-plugin-sdk"
-version = "0.5.1"
-source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.10.0#680586d07bc8011b176a62bb8756cd4af3766f75" }
+version = "0.11.0"
+source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.12.0#a6a5b2f673c625c4c382f058e74deba050d6fdd9" }
 dependencies = [
     { name = "asyncpg" },
     { name = "httpx" },
@@ -2916,7 +2916,7 @@ observability = [
 scraper = [
     { name = "anthropic" },
     { name = "beautifulsoup4" },
-    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.10.0" },
+    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.12.0" },
     { name = "fastembed", specifier = ">=0.3" },
     { name = "feedparser" },
     { name = "lxml" },

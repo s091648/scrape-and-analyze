@@ -33,7 +33,7 @@ def test_chat_completions_returns_streaming_response():
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
         patch(
-            "backend.routers.chat.ChatService.stream_completions",
+            "backend.routers.chat.ChatCompletionService.stream_completions",
             new=make_stream_chunks("test reply"),
         ),
     ):
@@ -75,7 +75,7 @@ def test_chat_completions_admin_bypasses_rate_limit():
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
         patch(
-            "backend.routers.chat.ChatService.stream_completions",
+            "backend.routers.chat.ChatCompletionService.stream_completions",
             new=make_stream_chunks(),
         ),
     ):
@@ -103,7 +103,7 @@ def test_chat_completions_x_topic_id_forwarded_to_stream():
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
         patch(
-            "backend.routers.chat.ChatService.stream_completions",
+            "backend.routers.chat.ChatCompletionService.stream_completions",
             new=capturing_stream,
         ),
     ):
@@ -125,7 +125,7 @@ def test_guest_first_visit_sets_rag_gid_cookie():
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
         patch(
-            "backend.routers.chat.ChatService.stream_completions",
+            "backend.routers.chat.ChatCompletionService.stream_completions",
             new=make_stream_chunks(),
         ),
     ):
@@ -147,7 +147,7 @@ def test_guest_with_existing_cookie_uses_cookie_id():
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
         patch(
-            "backend.routers.chat.ChatService.stream_completions",
+            "backend.routers.chat.ChatCompletionService.stream_completions",
             new=make_stream_chunks(),
         ),
     ):
@@ -169,11 +169,11 @@ def test_stream_exception_yields_error_event_before_done():
 
     async def failing_stream(self, messages, topic_id=None):
         raise RuntimeError("upstream failure")
-        yield  # make it an async generator
+        yield
 
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch("backend.routers.chat.ChatService.stream_completions", new=failing_stream),
+        patch("backend.routers.chat.ChatCompletionService.stream_completions", new=failing_stream),
     ):
         response = client.post(
             "/chat/completions",
@@ -192,12 +192,11 @@ def test_parse_identity_rejects_token_missing_exp():
 
     client = TestClient(app)
     mock_redis = make_mock_redis()
-    # Token without exp claim
     token = jwt.encode({"sub": "user-1", "role": "user"}, "test-secret", algorithm="HS256")
 
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch("backend.routers.chat.ChatService.stream_completions", new=make_stream_chunks()),
+        patch("backend.routers.chat.ChatCompletionService.stream_completions", new=make_stream_chunks()),
         patch.dict("os.environ", {"NEXTAUTH_SECRET": "test-secret"}),
     ):
         response = client.post(
@@ -206,7 +205,6 @@ def test_parse_identity_rejects_token_missing_exp():
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    # Falls back to guest identity — still succeeds
     assert response.status_code == 200
     key_used = mock_redis.incr.call_args[0][0]
     assert "rate:guest:" in key_used
@@ -227,7 +225,7 @@ def test_parse_identity_rejects_expired_token():
 
     with (
         patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch("backend.routers.chat.ChatService.stream_completions", new=make_stream_chunks()),
+        patch("backend.routers.chat.ChatCompletionService.stream_completions", new=make_stream_chunks()),
         patch.dict("os.environ", {"NEXTAUTH_SECRET": "test-secret"}),
     ):
         response = client.post(

@@ -8,7 +8,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-DAILY_LIMIT_USER = 50
+DAILY_LIMIT_USER = 10
 DAILY_LIMIT_GUEST = 3
 
 
@@ -25,25 +25,24 @@ class ChatIdentity:
     guest_id: Optional[str] = None  # cookie UUID or "ip:{hash}"
 
 
-class ChatService:
-    def __init__(self, redis_client=None) -> None:
+class RateLimitService:
+    """Redis-backed daily quota tracker. Owns the Redis connection for its lifetime."""
+
+    def __init__(self, redis_client) -> None:
         self._redis = redis_client
-        self._chat_service_url = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
-        self._chat_service_api_key = os.environ.get("CHAT_SERVICE_API_KEY", "")
+
+    def _key_and_limit(self, identity: ChatIdentity) -> tuple[str, int]:
+        today = date.today().isoformat()
+        if identity.tier == "user":
+            return f"rate:user:{identity.user_id}:{today}", DAILY_LIMIT_USER
+        return f"rate:guest:{identity.guest_id}:{today}", DAILY_LIMIT_GUEST
 
     async def check_rate_limit(self, identity: ChatIdentity) -> tuple[int, int]:
-        """Check and increment rate limit counter. Returns (remaining, limit). remaining=-1 means unlimited."""
+        """Increment counter and return (remaining, limit). remaining=-1 means unlimited."""
         if identity.tier == "admin":
             return -1, -1
 
-        today = date.today().isoformat()
-        if identity.tier == "user":
-            key = f"rate:user:{identity.user_id}:{today}"
-            limit = DAILY_LIMIT_USER
-        else:
-            key = f"rate:guest:{identity.guest_id}:{today}"
-            limit = DAILY_LIMIT_GUEST
-
+        key, limit = self._key_and_limit(identity)
         count = await self._redis.incr(key)
         if count == 1:
             await self._redis.expire(key, 86400)
@@ -66,17 +65,18 @@ class ChatService:
         if identity.tier == "admin":
             return -1, -1
 
-        today = date.today().isoformat()
-        if identity.tier == "user":
-            key = f"rate:user:{identity.user_id}:{today}"
-            limit = DAILY_LIMIT_USER
-        else:
-            key = f"rate:guest:{identity.guest_id}:{today}"
-            limit = DAILY_LIMIT_GUEST
-
+        key, limit = self._key_and_limit(identity)
         count_raw = await self._redis.get(key)
         count = int(count_raw) if count_raw else 0
         return max(0, limit - count), limit
+
+
+class ChatCompletionService:
+    """Stateless httpx proxy to the downstream LLM chat service. No Redis dependency."""
+
+    def __init__(self) -> None:
+        self._chat_service_url = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
+        self._chat_service_api_key = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
     async def stream_completions(
         self, messages: list, topic_id: Optional[str] = None

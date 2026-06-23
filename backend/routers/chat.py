@@ -13,9 +13,10 @@ from opentelemetry import trace as _otel_trace
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
     DAILY_LIMIT_USER,
+    ChatCompletionService,
     ChatIdentity,
-    ChatService,
     RateLimitExceeded,
+    RateLimitService,
 )
 
 logger = structlog.get_logger()
@@ -91,8 +92,8 @@ async def chat_completions(
     remaining = -1
     limit = -1
     try:
-        service = ChatService(redis_client)
-        remaining, limit = await service.check_rate_limit(identity)
+        rate_svc = RateLimitService(redis_client)
+        remaining, limit = await rate_svc.check_rate_limit(identity)
     except RateLimitExceeded as exc:
         tier_label = "訪客" if identity.tier == "guest" else "用戶"
         raise HTTPException(
@@ -115,10 +116,11 @@ async def chat_completions(
         topic_id=x_topic_id,
     )
 
+    completion_svc = ChatCompletionService()
+
     async def generate():
-        # Reuse service; stream_completions only uses httpx, not redis.
         try:
-            async for chunk in service.stream_completions(messages, x_topic_id):
+            async for chunk in completion_svc.stream_completions(messages, x_topic_id):
                 yield chunk
         except Exception:
             logger.exception("chat_stream_failed", tier=identity.tier)
@@ -160,8 +162,8 @@ async def chat_quota(
 
     redis_client = _make_redis()
     try:
-        service = ChatService(redis_client)
-        remaining, limit = await service.get_quota(identity)
+        rate_svc = RateLimitService(redis_client)
+        remaining, limit = await rate_svc.get_quota(identity)
     finally:
         await redis_client.aclose()
 
