@@ -751,6 +751,32 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
+  # Stage 4e: Deploy Fastembed to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-fastembed:
+    name: Deploy Fastembed to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy fastembed to Railway (staging)
+        run: railway up --detach --service c97be150-c9cc-42d0-a23e-04406573ee93 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
   # Stage 5: DB Rollback (if migrate succeeded but any test failed)
   # -----------------------------------------------
   rollback:
