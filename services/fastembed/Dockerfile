@@ -37,7 +37,12 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/.fastembed_cache /app/.fastembed_cache
+
 COPY main.py .
+COPY config.py .
+COPY observability.py .
+COPY routers/ ./routers/
+COPY services/ ./services/
 
 RUN addgroup --system appuser && adduser --system --group appuser && \
     chown -R appuser:appuser /app
