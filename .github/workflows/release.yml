@@ -128,6 +128,7 @@ jobs:
           railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754  # dashboard-backend
           railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35  # storybook UI
           railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
+          railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2  # chatbot-plugin
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 

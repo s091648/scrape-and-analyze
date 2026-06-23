@@ -722,6 +722,31 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
+  # Stage 4d: Deploy Chatbot Plugin to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-chatbot:
+    name: Deploy Chatbot Plugin to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy chatbot-plugin to Railway (staging)
+        run: railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
   # Stage 5: DB Rollback (if migrate succeeded but any test failed)
   # -----------------------------------------------
   rollback:
