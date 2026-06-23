@@ -742,7 +742,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy chatbot-plugin to Railway (staging)
-        run: railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2 --environment staging
+        run: (cd chatbot-plugin && railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2 --environment staging)
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
