@@ -1,3 +1,4 @@
+import asyncio
 import os
 from dataclasses import dataclass
 from datetime import date
@@ -90,18 +91,35 @@ class ChatCompletionService:
             "Authorization": f"Bearer {self._chat_service_api_key}",
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream(
-                "POST",
-                f"{self._chat_service_url}/v1/chat/completions",
-                json=body,
-                headers=headers,
-            ) as response:
-                logger.info(
-                    "chat_service_response",
-                    chat_service_status=response.status_code,
-                    topic_id=topic_id,
-                )
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    yield chunk
+        max_retries = 3
+        retry_delay = 2.0
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=httpx.Timeout(connect=30.0, read=120.0, write=10.0, pool=10.0)) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{self._chat_service_url}/v1/chat/completions",
+                        json=body,
+                        headers=headers,
+                    ) as response:
+                        logger.info(
+                            "chat_service_response",
+                            chat_service_status=response.status_code,
+                            topic_id=topic_id,
+                        )
+                        response.raise_for_status()
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
+                return  # success — exit generator
+            except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                if attempt < max_retries:
+                    wait = retry_delay * (2 ** (attempt - 1))
+                    logger.info(
+                        "chat_service_retry",
+                        attempt=attempt,
+                        retry_after=wait,
+                        error=str(exc),
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
