@@ -31,7 +31,9 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     FASTEMBED_CACHE_PATH=/app/.fastembed_cache \
-    PATH=/app/.venv/bin:$PATH
+    PATH=/app/.venv/bin:$PATH \
+    OMP_NUM_THREADS=1 \
+    MALLOC_ARENA_MAX=2
 
 WORKDIR /app
 

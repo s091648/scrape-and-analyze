@@ -97,11 +97,15 @@ export function FloatingChatbotWrapper() {
       // pendingSourcesRef.current would already be [] if we cleared it first.
       const captured = pendingSourcesRef.current
       pendingSourcesRef.current = []
+      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
       if (captured.length > 0) {
-        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
         if (lastAssistant) {
           setMessageSources(s => ({ ...s, [lastAssistant.id]: captured }))
         }
+      }
+      // Stream ended with an empty assistant message → upstream LLM failure
+      if (lastAssistant && !lastAssistant.content?.trim()) {
+        toast.error(t('rag.serviceUnavailable'))
       }
       // Re-fetch actual server quota (reflects InlineQABarWrapper usage too)
       refreshQuota()
