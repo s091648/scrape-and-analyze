@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Added support for light and dark modes across the application interface"
+        "description": "Introduced support for light and dark mode themes across the application."
       },
       {
         "type": "feat",
-        "description": "Enhanced the chatbot UI with a 'thinking' state, markdown syntax rendering, and internationalization support"
+        "description": "Added new floating chatbot and inline Q&A components to the user interface."
       },
       {
         "type": "feat",
-        "description": "Implemented floating chatbot and inline Q&A components with real-time quota display"
+        "description": "Enabled Markdown rendering for improved formatting of chat messages."
       },
       {
         "type": "feat",
-        "description": "Added an administrative dashboard for managing RAG embedding providers"
+        "description": "Added a 'thinking' status indicator to the chatbot for better real-time feedback."
       },
       {
         "type": "feat",
-        "description": "Enabled chat history persistence and improved dialog management features"
-      },
-      {
-        "type": "feat",
-        "description": "Introduced a retry option for chatbot messages to handle connection issues"
-      },
-      {
-        "type": "feat",
-        "description": "Added a visual pipeline view to track task flows and event branches"
+        "description": "Integrated a usage quota display for the inline Q&A component."
       },
       {
         "type": "fix",
-        "description": "Resolved issues with guest mode state and improved error handling for failed message responses"
+        "description": "Improved the reliability of chat responses and the display of source citations."
+      },
+      {
+        "type": "fix",
+        "description": "Fixed session and state management for users in guest mode."
+      },
+      {
+        "type": "feat",
+        "description": "Added a retry option for chat messages that fail to send."
       }
     ]
   },
