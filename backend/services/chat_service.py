@@ -80,11 +80,13 @@ class ChatCompletionService:
         self._chat_service_api_key = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
     async def stream_completions(
-        self, messages: list, topic_id: Optional[str] = None
+        self, messages: list, topic_id: Optional[str] = None, pinned_article_ids: Optional[list] = None
     ) -> AsyncIterator[bytes]:
         body: dict = {"messages": messages, "stream": True}
         if topic_id:
             body["topic_id"] = topic_id
+        if pinned_article_ids:
+            body["pinned_article_ids"] = pinned_article_ids
 
         headers = {
             "Content-Type": "application/json",

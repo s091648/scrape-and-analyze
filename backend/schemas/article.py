@@ -23,6 +23,7 @@ class ArticleOut(BaseModel):
     original_source: Optional[str] = None
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
+    has_vectors: bool = False
 
     class Config:
         from_attributes = True
@@ -53,6 +54,7 @@ class ArticleDetailOut(BaseModel):
     model_used: Optional[str] = None
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
+    has_vectors: bool = False
 
     class Config:
         from_attributes = True

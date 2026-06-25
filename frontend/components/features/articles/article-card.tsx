@@ -1,12 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe, Share2, Check, Download } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
 import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
-import { useI18n, useTopic } from '@/lib/providers'
+import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
 import type { ArticleDetail } from '@/lib/api/articles'
 
 export type { Article }
@@ -18,9 +18,10 @@ interface ArticleCardProps extends Article {
   onOpenChange?: (open: boolean) => void
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
+  const { togglePinnedArticle, isPinned } = usePinnedArticle()
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen! : internalOpen
@@ -125,11 +126,30 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 </span>
               )}
             </div>
-            {via_source && (
-              <span className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-[10px] font-medium text-muted-foreground shrink-0">
-                {formatViaSource(via_source)}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {via_source && (
+                <span className="inline-flex items-center h-5 px-2 rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                  {formatViaSource(via_source)}
+                </span>
+              )}
+              {has_vectors && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); togglePinnedArticle({ id, title: displayTitle }) }}
+                  aria-label={isPinned(id) ? 'Remove from AI chat' : 'Ask AI about this article'}
+                  title={isPinned(id) ? 'Remove from AI chat' : 'Ask AI about this article'}
+                  className={`inline-flex items-center justify-center h-5 w-5 rounded-full transition-colors ${
+                    isPinned(id)
+                      ? 'bg-purple-100 dark:bg-purple-900/40'
+                      : 'hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                  }`}
+                >
+                  <Sparkles className={`h-3 w-3 transition-colors ${
+                    isPinned(id) ? 'text-purple-600 dark:text-purple-400' : 'text-purple-400'
+                  }`} />
+                </button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

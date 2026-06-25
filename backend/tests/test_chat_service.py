@@ -274,3 +274,83 @@ async def test_stream_completions_omits_topic_id_when_none():
             pass
 
     assert "topic_id" not in captured_body
+
+
+# ── pinned_article_ids passthrough ────────────────────────────────────────────
+
+
+def _make_stream_mock():
+    """Returns (mock_client_cm, captured_body) — captured_body is filled after stream() runs."""
+    captured_body: dict = {}
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+
+    async def _aiter_bytes():
+        return
+        yield
+
+    mock_response.aiter_bytes = _aiter_bytes
+
+    mock_stream_cm = MagicMock()
+    mock_stream_cm.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_stream_cm.__aexit__ = AsyncMock(return_value=False)
+
+    def _stream(method, url, json, headers):
+        captured_body.update(json)
+        return mock_stream_cm
+
+    mock_client = MagicMock()
+    mock_client.stream = _stream
+
+    mock_client_cm = MagicMock()
+    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
+
+    return mock_client_cm, captured_body
+
+
+@pytest.mark.asyncio
+async def test_stream_completions_includes_pinned_article_ids_in_body():
+    svc = ChatCompletionService()
+    mock_cm, captured = _make_stream_mock()
+
+    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
+        async for _ in svc.stream_completions(
+            messages=[{"role": "user", "content": "hi"}],
+            pinned_article_ids=["uuid-1", "uuid-2"],
+        ):
+            pass
+
+    assert captured.get("pinned_article_ids") == ["uuid-1", "uuid-2"]
+
+
+@pytest.mark.asyncio
+async def test_stream_completions_omits_pinned_article_ids_when_none():
+    svc = ChatCompletionService()
+    mock_cm, captured = _make_stream_mock()
+
+    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
+        async for _ in svc.stream_completions(
+            messages=[{"role": "user", "content": "hi"}],
+            pinned_article_ids=None,
+        ):
+            pass
+
+    assert "pinned_article_ids" not in captured
+
+
+@pytest.mark.asyncio
+async def test_stream_completions_omits_pinned_article_ids_when_empty_list():
+    svc = ChatCompletionService()
+    mock_cm, captured = _make_stream_mock()
+
+    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
+        async for _ in svc.stream_completions(
+            messages=[{"role": "user", "content": "hi"}],
+            pinned_article_ids=[],
+        ):
+            pass
+
+    assert "pinned_article_ids" not in captured

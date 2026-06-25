@@ -73,6 +73,7 @@ async def chat_completions(
     request: Request,
     authorization: Optional[str] = Header(default=None),
     x_topic_id: Optional[str] = Header(default=None),
+    x_pinned_article_ids: Optional[str] = Header(default=None),
     rag_gid: Optional[str] = Cookie(alias="__rag_gid", default=None),
 ):
     span = _otel_trace.get_current_span()
@@ -116,11 +117,12 @@ async def chat_completions(
         topic_id=x_topic_id,
     )
 
+    pinned_ids = [pid.strip() for pid in x_pinned_article_ids.split(",") if pid.strip()] if x_pinned_article_ids else None
     completion_svc = ChatCompletionService()
 
     async def generate():
         try:
-            async for chunk in completion_svc.stream_completions(messages, x_topic_id):
+            async for chunk in completion_svc.stream_completions(messages, x_topic_id, pinned_ids):
                 yield chunk
         except Exception:
             logger.exception("chat_stream_failed", tier=identity.tier)

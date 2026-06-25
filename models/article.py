@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Index, ForeignKey
+from sqlalchemy import Boolean, Column, String, Text, DateTime, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime, timezone
 import uuid
@@ -21,6 +21,7 @@ class Article(Base):
     correlation_id = Column(UUID(as_uuid=True), nullable=False)
     topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id'), nullable=True)
     original_source = Column(String(200), nullable=True)
+    has_vectors = Column(Boolean, nullable=False, server_default='false')
 
     __table_args__ = (
         Index('idx_articles_url_hash', 'url_hash'),

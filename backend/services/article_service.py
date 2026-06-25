@@ -21,6 +21,7 @@ def build_article_out(article, translation=None) -> ArticleOut:
         original_source=article.original_source or meta.get("original_source"),
         translated_title=translation.title if translation else None,
         translated_content=translation.content if translation else None,
+        has_vectors=article.has_vectors,
     )
 
 

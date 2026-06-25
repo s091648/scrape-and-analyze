@@ -698,6 +698,33 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
+  # Stage 4b2: Deploy Storybook to Staging (PR only)
+  # -----------------------------------------------
+  deploy-staging-storybook:
+    name: Deploy Storybook to Staging
+    runs-on: ubuntu-latest
+    needs: [frontend-unit, frontend-e2e]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.frontend-unit.result == 'success' &&
+      needs.frontend-e2e.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy storybook to Railway (staging)
+        run: (cd frontend && railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35 --environment staging --dockerfile Dockerfile.storybook)
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
   # Stage 4c: Deploy Scrape-Analyzer to Staging (PR only)
   # -----------------------------------------------
   deploy-staging-src:

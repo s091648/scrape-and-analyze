@@ -162,4 +162,5 @@ def get_article(
         model_used=analysis.model_used if analysis else None,
         translated_title=translated_title,
         translated_content=translated_content,
+        has_vectors=article.has_vectors,
     )
