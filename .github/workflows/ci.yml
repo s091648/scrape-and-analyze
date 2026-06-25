@@ -651,7 +651,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [backend-unit, backend-integration]
     if: |
-      github.event_name == 'pull_request' &&
       needs.backend-unit.result == 'success' &&
       needs.backend-integration.result == 'success'
     environment: scraper / staging
@@ -678,7 +677,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
     if: |
-      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
@@ -705,7 +703,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
     if: |
-      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
@@ -732,7 +729,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
     if: |
-      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
@@ -759,7 +755,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [src-unit-test]
     if: |
-      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
@@ -785,7 +780,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [src-unit-test]
     if: |
-      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
