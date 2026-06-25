@@ -12,6 +12,7 @@ export interface Article {
   url: string
   translated_title?: string | null
   translated_content?: string | null
+  has_vectors?: boolean
 }
 
 export interface TagGroup {

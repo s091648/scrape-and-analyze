@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { openaiAdapter, useChat, type StreamAdapter, type StreamEvent, type Message } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota, usePinnedArticle } from '@/lib/providers'
 import { FloatingChatbotPanel, type ArticleSource } from './FloatingChatbotPanel'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
@@ -40,12 +40,16 @@ export function FloatingChatbotWrapper() {
   const { mode } = useTheme()
   const { isGuestMode } = useGuestMode()
   const { quota, refreshQuota } = useChatQuota()
+  const { pinnedArticles, removePinnedArticle, clearPinnedArticles } = usePinnedArticle()
   const [messageSources, setMessageSources] = useState<Record<string, ArticleSource[]>>({})
+  const [chatOpen, setChatOpen] = useState(false)
+  const prevPinnedCountRef = useRef(0)
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
+  if (pinnedArticles.length > 0) headers['X-Pinned-Article-Ids'] = pinnedArticles.map(a => a.id).join(',')
 
   // 'guest' for unauthenticated; actual user id for authenticated
   const userId = status === 'authenticated'
@@ -130,6 +134,12 @@ export function FloatingChatbotWrapper() {
     }
   }, [status])
 
+  // Auto-open only when an article is added (count increases), not on removal
+  useEffect(() => {
+    if (pinnedArticles.length > prevPinnedCountRef.current) setChatOpen(true)
+    prevPinnedCountRef.current = pinnedArticles.length
+  }, [pinnedArticles.length])
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return
@@ -142,7 +152,8 @@ export function FloatingChatbotWrapper() {
     clearMessages()
     localStorage.removeItem(FLOAT_STORAGE_KEY)
     setMessageSources({})
-  }, [clearMessages])
+    clearPinnedArticles()
+  }, [clearMessages, clearPinnedArticles])
 
   // Hide during session resolution
   if (status === 'loading') return null
@@ -164,6 +175,10 @@ export function FloatingChatbotWrapper() {
       onAbort={abort}
       title={`${t('rag.assistantTitle')}${quotaSuffix}`}
       placeholder={t('rag.placeholder')}
+      open={chatOpen}
+      onOpenChange={setChatOpen}
+      pinnedArticles={pinnedArticles}
+      onRemovePinnedArticle={removePinnedArticle}
     />
   )
 }

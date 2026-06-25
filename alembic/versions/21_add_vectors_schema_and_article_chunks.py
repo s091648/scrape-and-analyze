@@ -18,6 +18,12 @@ def upgrade() -> None:
     op.execute("CREATE SCHEMA IF NOT EXISTS vectors")
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
+    # Denormalised flag on public.articles — kept in sync by trigger below
+    op.execute(
+        "ALTER TABLE public.articles "
+        "ADD COLUMN IF NOT EXISTS has_vectors BOOLEAN NOT NULL DEFAULT FALSE"
+    )
+
     # Parent table — stores article metadata for search result joins
     op.create_table(
         "articles",
@@ -92,8 +98,47 @@ def upgrade() -> None:
         "ON vectors.article_chunks USING hnsw (sparse_vector sparsevec_cosine_ops)"
     )
 
+    op.execute("""
+        CREATE OR REPLACE FUNCTION public.sync_article_has_vectors()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          IF TG_OP = 'INSERT' THEN
+            IF NEW.public_article_id IS NOT NULL THEN
+              UPDATE public.articles SET has_vectors = TRUE WHERE id = NEW.public_article_id;
+            END IF;
+          ELSIF TG_OP = 'DELETE' THEN
+            IF OLD.public_article_id IS NOT NULL THEN
+              UPDATE public.articles
+              SET has_vectors = EXISTS (
+                SELECT 1 FROM vectors.articles WHERE public_article_id = OLD.public_article_id
+              )
+              WHERE id = OLD.public_article_id;
+            END IF;
+          END IF;
+          RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql
+    """)
+    op.execute("""
+        CREATE TRIGGER trg_sync_article_has_vectors
+          AFTER INSERT OR DELETE ON vectors.articles
+          FOR EACH ROW EXECUTE FUNCTION public.sync_article_has_vectors()
+    """)
+
+    # Backfill articles that already have vector rows
+    op.execute("""
+        UPDATE public.articles a
+        SET has_vectors = TRUE
+        WHERE EXISTS (
+          SELECT 1 FROM vectors.articles va WHERE va.public_article_id = a.id
+        )
+    """)
+
 
 def downgrade() -> None:
+    op.execute("DROP TRIGGER IF EXISTS trg_sync_article_has_vectors ON vectors.articles")
+    op.execute("DROP FUNCTION IF EXISTS public.sync_article_has_vectors()")
+    op.execute("ALTER TABLE public.articles DROP COLUMN IF EXISTS has_vectors")
     op.execute("DROP TABLE IF EXISTS vectors.article_chunks CASCADE")
     op.execute("DROP TABLE IF EXISTS vectors.articles CASCADE")
     op.execute("DROP SCHEMA IF EXISTS vectors")

@@ -23,7 +23,7 @@ function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabe
   )
 }
 import type { Message } from '@s091648/chatbot-plugin-ui'
-import { X, Send, SquarePen, Bot, MessageSquare, ExternalLink } from 'lucide-react'
+import { X, Send, SquarePen, Bot, MessageSquare, ExternalLink, Sparkles } from 'lucide-react'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
 import { ArticleDetailDialog } from '@/components/features/articles/article-detail-dialog'
 import { useI18n } from '@/lib/providers'
@@ -41,6 +41,10 @@ export interface FloatingChatbotPanelProps {
   title?: string
   placeholder?: string
   theme?: 'light' | 'dark' | 'auto'
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  pinnedArticles?: { id: string; title: string }[]
+  onRemovePinnedArticle?: (id: string) => void
 }
 
 type SourceClickFn = (src: ArticleSource) => void
@@ -189,8 +193,11 @@ export function FloatingChatbotPanel({
   title = 'AI Assistant',
   placeholder = 'Ask a question...',
   theme = 'auto',
+  open,
+  onOpenChange,
+  pinnedArticles,
+  onRemovePinnedArticle,
 }: FloatingChatbotPanelProps) {
-  const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const { t, locale } = useI18n()
@@ -276,7 +283,7 @@ export function FloatingChatbotPanel({
                 </button>
               )}
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => onOpenChange(false)}
                 className="p-1.5 rounded-md hover:bg-muted transition-colors"
                 aria-label={t('rag.closeChat')}
               >
@@ -384,7 +391,27 @@ export function FloatingChatbotPanel({
             <div ref={endRef} />
           </div>
 
-          <footer className="border-t border-border px-3 py-3 shrink-0">
+          <footer className="border-t border-border px-3 py-3 shrink-0 space-y-2">
+            {pinnedArticles && pinnedArticles.length > 0 && (
+              <div className="flex flex-col gap-1 px-1">
+                {pinnedArticles.map(article => (
+                  <div key={article.id} className="flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-purple-500 shrink-0" />
+                    <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 font-medium">
+                      {article.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemovePinnedArticle?.(article.id)}
+                      className="p-0.5 rounded hover:bg-muted transition-colors shrink-0"
+                      aria-label="Remove article reference"
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2">
               <input
                 className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60"
@@ -411,7 +438,7 @@ export function FloatingChatbotPanel({
       )}
 
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => onOpenChange(!open)}
         className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
         aria-label={open ? t('rag.closeChat') : t('rag.openChat')}
         aria-expanded={open}
