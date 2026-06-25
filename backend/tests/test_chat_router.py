@@ -96,7 +96,7 @@ def test_chat_completions_x_topic_id_forwarded_to_stream():
     mock_redis = make_mock_redis()
     captured_topic_id = []
 
-    async def capturing_stream(self, messages, topic_id=None):
+    async def capturing_stream(self, messages, topic_id=None, pinned_article_ids=None):
         captured_topic_id.append(topic_id)
         yield b"data: [DONE]\n\n"
 
@@ -114,6 +114,86 @@ def test_chat_completions_x_topic_id_forwarded_to_stream():
         )
 
     assert captured_topic_id == ["topic-uuid-123"]
+
+
+def test_chat_completions_x_pinned_article_ids_forwarded_to_stream():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_mock_redis()
+    captured_pinned = []
+
+    async def capturing_stream(self, messages, topic_id=None, pinned_article_ids=None):
+        captured_pinned.append(pinned_article_ids)
+        yield b"data: [DONE]\n\n"
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch(
+            "backend.routers.chat.ChatCompletionService.stream_completions",
+            new=capturing_stream,
+        ),
+    ):
+        client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+            headers={"X-Pinned-Article-Ids": "uuid-1,uuid-2,uuid-3"},
+        )
+
+    assert captured_pinned == [["uuid-1", "uuid-2", "uuid-3"]]
+
+
+def test_chat_completions_x_pinned_article_ids_trims_whitespace():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_mock_redis()
+    captured_pinned = []
+
+    async def capturing_stream(self, messages, topic_id=None, pinned_article_ids=None):
+        captured_pinned.append(pinned_article_ids)
+        yield b"data: [DONE]\n\n"
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch(
+            "backend.routers.chat.ChatCompletionService.stream_completions",
+            new=capturing_stream,
+        ),
+    ):
+        client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+            headers={"X-Pinned-Article-Ids": " uuid-1 , uuid-2 "},
+        )
+
+    assert captured_pinned == [["uuid-1", "uuid-2"]]
+
+
+def test_chat_completions_no_x_pinned_article_ids_passes_none():
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_mock_redis()
+    captured_pinned = []
+
+    async def capturing_stream(self, messages, topic_id=None, pinned_article_ids=None):
+        captured_pinned.append(pinned_article_ids)
+        yield b"data: [DONE]\n\n"
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch(
+            "backend.routers.chat.ChatCompletionService.stream_completions",
+            new=capturing_stream,
+        ),
+    ):
+        client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+        )
+
+    assert captured_pinned == [None]
 
 
 def test_guest_first_visit_sets_rag_gid_cookie():
@@ -167,7 +247,7 @@ def test_stream_exception_yields_error_event_before_done():
     client = TestClient(app, raise_server_exceptions=False)
     mock_redis = make_mock_redis()
 
-    async def failing_stream(self, messages, topic_id=None):
+    async def failing_stream(self, messages, topic_id=None, pinned_article_ids=None):
         raise RuntimeError("upstream failure")
         yield
 
