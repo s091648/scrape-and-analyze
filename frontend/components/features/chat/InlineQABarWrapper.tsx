@@ -41,6 +41,9 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
             pendingSourcesRef.current = json.sources
             return null
           }
+          if (typeof json.thinking === 'string') {
+            return { type: 'thinking_delta', content: json.thinking }
+          }
         } catch {}
       }
       return openaiAdapter.parse(line)
@@ -100,6 +103,17 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
         isLoading={isLoading}
         messages={messages}
         placeholder={placeholder ?? t('rag.placeholder')}
+        labels={{
+          inputAriaLabel: t('rag.agentInputAriaLabel'),
+          sendAriaLabel: t('rag.agentSendAriaLabel'),
+          send: t('rag.agentSend'),
+          sendLoading: t('rag.agentSendLoading'),
+          toolCallCard: {
+            statusRunning: t('rag.toolStatusRunning'),
+            statusDone: t('rag.toolStatusDone'),
+            statusError: t('rag.toolStatusError'),
+          },
+        }}
       />
       {quotaText && (
         <p className="mt-1 text-right text-[11px] text-muted-foreground">{quotaText}</p>

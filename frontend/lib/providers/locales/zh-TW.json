@@ -505,6 +505,22 @@
     "emptyState": "開始與 AI 助理對話。",
     "assistantTitle": "AI 研究助理",
     "clearChat": "清除對話",
-    "remainingRequests": "次剩餘額度"
+    "remainingRequests": "次剩餘額度",
+    "headerStatus": "線上",
+    "newConversation": "新對話",
+    "closeChat": "關閉聊天",
+    "openChat": "開啟聊天",
+    "agentName": "助理",
+    "typingAriaLabel": "助理正在輸入",
+    "inputAriaLabel": "輸入訊息",
+    "sendAriaLabel": "傳送訊息",
+    "agentInputAriaLabel": "輸入問題",
+    "agentSendAriaLabel": "傳送",
+    "agentSend": "執行",
+    "agentSendLoading": "執行中...",
+    "toolStatusRunning": "執行中",
+    "toolStatusDone": "完成",
+    "toolStatusError": "錯誤",
+    "thinkingToggle": "思考過程"
   }
 }

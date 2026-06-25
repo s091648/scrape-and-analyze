@@ -505,6 +505,22 @@
     "emptyState": "Start a conversation with the AI assistant.",
     "assistantTitle": "AI Research Assistant",
     "clearChat": "Clear chat",
-    "remainingRequests": "requests remaining today"
+    "remainingRequests": "requests remaining today",
+    "headerStatus": "Online",
+    "newConversation": "New conversation",
+    "closeChat": "Close chat",
+    "openChat": "Open chat",
+    "agentName": "Agent",
+    "typingAriaLabel": "Agent is typing",
+    "inputAriaLabel": "Type a message",
+    "sendAriaLabel": "Send message",
+    "agentInputAriaLabel": "Agent input",
+    "agentSendAriaLabel": "Send",
+    "agentSend": "Run",
+    "agentSendLoading": "Running...",
+    "toolStatusRunning": "Running",
+    "toolStatusDone": "Done",
+    "toolStatusError": "Error",
+    "thinkingToggle": "Thinking process"
   }
 }

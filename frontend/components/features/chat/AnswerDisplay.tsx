@@ -117,6 +117,27 @@ function renderMarkdown(
   return <>{result}</>
 }
 
+function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabel: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mb-3 rounded-lg border border-border overflow-hidden text-xs">
+      <button
+        className="flex items-center gap-1.5 w-full px-3 py-2 text-left text-muted-foreground hover:bg-muted/50 transition-colors"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <span className={`text-[9px] transition-transform duration-150 inline-block ${open ? 'rotate-90' : ''}`}>▶</span>
+        {toggleLabel}
+      </button>
+      {open && (
+        <pre className="px-3 py-2 text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-words border-t border-border bg-muted/30 font-sans">
+          {thinking}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDisplayProps) {
   const { t, locale } = useI18n()
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
@@ -177,6 +198,9 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
 
   return (
     <>
+      {lastAssistant.thinking && (
+        <ThinkingBlock thinking={lastAssistant.thinking} toggleLabel={t('rag.thinkingToggle')} />
+      )}
       <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm leading-relaxed">
         {renderMarkdown(lastAssistant.content, sources, handleRefClick)}
         {isLoading && (

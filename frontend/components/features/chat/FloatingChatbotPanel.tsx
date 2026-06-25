@@ -1,6 +1,27 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent, type ReactNode } from 'react'
+
+function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabel: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="mb-1 rounded-lg border border-border overflow-hidden text-xs max-w-[85%]">
+      <button
+        className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-muted-foreground hover:bg-muted/50 transition-colors"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <span className={`text-[9px] transition-transform duration-150 inline-block ${open ? 'rotate-90' : ''}`}>▶</span>
+        {toggleLabel}
+      </button>
+      {open && (
+        <pre className="px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-words border-t border-border bg-muted/30 font-sans">
+          {thinking}
+        </pre>
+      )}
+    </div>
+  )
+}
 import type { Message } from '@s091648/chatbot-plugin-ui'
 import { X, Send, SquarePen, Bot, MessageSquare, ExternalLink } from 'lucide-react'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
@@ -172,7 +193,7 @@ export function FloatingChatbotPanel({
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogArticle, setDialogArticle] = useState<ArticleDetail | null>(null)
@@ -239,7 +260,7 @@ export function FloatingChatbotPanel({
               </div>
               <div>
                 <div className="text-sm font-semibold leading-none" data-testid="title">{title}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">Online</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{t('rag.headerStatus')}</div>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -249,7 +270,7 @@ export function FloatingChatbotPanel({
                   onClick={onNewChat}
                   disabled={isLoading}
                   className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-                  aria-label="New conversation"
+                  aria-label={t('rag.newConversation')}
                 >
                   <SquarePen className="h-4 w-4" />
                 </button>
@@ -257,7 +278,7 @@ export function FloatingChatbotPanel({
               <button
                 onClick={() => setOpen(false)}
                 className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                aria-label="Close chat"
+                aria-label={t('rag.closeChat')}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -268,13 +289,16 @@ export function FloatingChatbotPanel({
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <MessageSquare className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-xs">Start a conversation.</p>
+                <p className="text-xs">{t('rag.emptyState')}</p>
               </div>
             ) : (
               messages.map(m => (
                 <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
                   {m.role !== 'user' && (
-                    <span className="text-[10px] text-muted-foreground mb-1 ml-1">Agent</span>
+                    <span className="text-[10px] text-muted-foreground mb-1 ml-1">{t('rag.agentName')}</span>
+                  )}
+                  {m.role !== 'user' && m.thinking && (
+                    <ThinkingBlock thinking={m.thinking} toggleLabel={t('rag.thinkingToggle')} />
                   )}
                   <div
                     className={`max-w-[85%] px-3 py-2 rounded-2xl ${
@@ -347,7 +371,7 @@ export function FloatingChatbotPanel({
               ))
             )}
             {isLoading && (
-              <div className="flex items-center gap-1 ml-1" aria-label="Agent is typing">
+              <div className="flex items-center gap-1 ml-1" aria-label={t('rag.typingAriaLabel')}>
                 {[0, 1, 2].map(i => (
                   <div
                     key={i}
@@ -370,14 +394,14 @@ export function FloatingChatbotPanel({
                 onKeyDown={onKey}
                 placeholder={placeholder}
                 disabled={isLoading}
-                aria-label="Type a message"
+                aria-label={t('rag.inputAriaLabel')}
               />
               <button
                 data-testid="send-btn"
                 onClick={submit}
                 disabled={isLoading || !input.trim()}
                 className="p-1 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
-                aria-label="Send message"
+                aria-label={t('rag.sendAriaLabel')}
               >
                 <Send className="h-3 w-3" />
               </button>
@@ -389,7 +413,7 @@ export function FloatingChatbotPanel({
       <button
         onClick={() => setOpen(v => !v)}
         className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
-        aria-label={open ? 'Close chat' : 'Open chat'}
+        aria-label={open ? t('rag.closeChat') : t('rag.openChat')}
         aria-expanded={open}
       >
         {open ? <X className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}

@@ -66,6 +66,9 @@ export function FloatingChatbotWrapper() {
             pendingSourcesRef.current = json.sources
             return null
           }
+          if (typeof json.thinking === 'string') {
+            return { type: 'thinking_delta', content: json.thinking }
+          }
         } catch {}
       }
       return openaiAdapter.parse(line)
