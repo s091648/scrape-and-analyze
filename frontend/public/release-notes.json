@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced light and dark mode themes for the application interface"
+        "description": "Introduced a new 'thinking' state and improved markdown rendering for chatbot interactions."
       },
       {
         "type": "feat",
-        "description": "Launched a new AI-powered chatbot with persistent conversation history"
+        "description": "Enabled conversation persistence to allow users to save and revisit previous chat histories."
       },
       {
         "type": "feat",
-        "description": "Added support for markdown rendering and improved citation formatting in chat responses"
+        "description": "Added support for light and dark mode themes across the application interface."
       },
       {
         "type": "feat",
-        "description": "Added a visual pipeline view to help users track the status of background processes"
+        "description": "Implemented a visual pipeline view to help track the progress of data processing tasks."
       },
       {
         "type": "feat",
-        "description": "Introduced an administration dashboard for managing AI provider settings"
+        "description": "Added an administration interface for managing RAG providers and system configurations."
       },
       {
         "type": "feat",
-        "description": "Added a real-time quota display to the search interface for usage tracking"
+        "description": "Added a quota usage display to the search bar to help track service limits."
       },
       {
         "type": "fix",
-        "description": "Improved chatbot stability by adding retry logic and better handling for empty messages"
+        "description": "Improved message reliability by adding a retry option and fixing empty response handling."
       },
       {
         "type": "fix",
-        "description": "Resolved an issue where guest mode session states were not correctly maintained"
+        "description": "Resolved stability issues when using the application in guest mode."
       }
     ]
   },
