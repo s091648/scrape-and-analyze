@@ -144,3 +144,64 @@ export const WithAnswerDark: Story = {
     },
   },
 }
+
+export const WithThinking: Story = {
+  name: 'WithThinking (collapsed by default)',
+  args: {
+    placeholder: '詢問 AI：最近有哪些相關研究？',
+  },
+  parameters: {
+    moduleMock: {
+      '@s091648/chatbot-plugin-ui': {
+        useChat: () => ({
+          messages: [
+            { id: '1', role: 'user', content: '什麼是 Chain-of-Thought prompting？', timestamp: new Date() },
+            {
+              id: '2',
+              role: 'assistant',
+              content:
+                'Chain-of-Thought（CoT）prompting 是一種提示工程技術，透過引導模型逐步推理來提升複雜任務的準確率。',
+              thinking:
+                '使用者問的是 CoT prompting 技術。\n\n讓我回顧關鍵知識點：\n\n1. CoT 由 Wei et al. (2022) 提出，在 few-shot 設定中展示推理步驟\n2. 標準 prompting 直接輸出答案；CoT 先展示推理再給答案\n3. 對於數學、邏輯、常識推理任務效果最佳\n4. Zero-shot CoT 只需加入 "Let\'s think step by step"\n5. 在大型模型（100B+）上效果更為顯著\n\n結論：這是一個相對清晰的問題，可以給出簡潔但完整的解釋。',
+              timestamp: new Date(),
+            },
+          ],
+          sendMessage: fn(),
+          isLoading: false,
+          error: null,
+          clearMessages: fn(),
+        }),
+      },
+    },
+  },
+}
+
+export const WithThinkingDark: Story = {
+  name: 'WithThinking (Dark)',
+  args: {
+    placeholder: '詢問 AI：最近有哪些相關研究？',
+  },
+  decorators: [withDarkMode],
+  parameters: {
+    moduleMock: {
+      '@s091648/chatbot-plugin-ui': {
+        useChat: () => ({
+          messages: [
+            { id: '1', role: 'user', content: '什麼是 Chain-of-Thought prompting？', timestamp: new Date() },
+            {
+              id: '2',
+              role: 'assistant',
+              content: 'Chain-of-Thought prompting 透過引導模型逐步推理來提升複雜任務的準確率。',
+              thinking: '讓我仔細分析 CoT 的核心機制與優缺點...',
+              timestamp: new Date(),
+            },
+          ],
+          sendMessage: fn(),
+          isLoading: false,
+          error: null,
+          clearMessages: fn(),
+        }),
+      },
+    },
+  },
+}

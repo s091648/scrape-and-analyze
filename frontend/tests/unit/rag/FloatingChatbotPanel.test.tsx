@@ -45,12 +45,13 @@ describe('FloatingChatbotPanel', () => {
     })
   })
 
-  const openPanel = () => fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
+  // i18n mock returns the key itself, so aria-labels equal the translation key
+  const openPanel = () => fireEvent.click(screen.getByRole('button', { name: 'rag.openChat' }))
 
   it('renders toggle button initially', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
-    expect(screen.getByRole('button', { name: 'Open chat' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'rag.openChat' })).toBeInTheDocument()
   })
 
   it('opens panel when toggle button clicked', async () => {
@@ -66,7 +67,7 @@ describe('FloatingChatbotPanel', () => {
     openPanel()
     // Two "Close chat" buttons exist when panel is open: header X and the toggle.
     // The header X button (no aria-expanded) is the first in DOM order.
-    const [headerClose] = screen.getAllByRole('button', { name: 'Close chat' })
+    const [headerClose] = screen.getAllByRole('button', { name: 'rag.closeChat' })
     fireEvent.click(headerClose)
     expect(screen.queryByRole('log')).not.toBeInTheDocument()
   })
@@ -75,7 +76,7 @@ describe('FloatingChatbotPanel', () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} />)
     openPanel()
-    expect(screen.getByText('Start a conversation.')).toBeInTheDocument()
+    expect(screen.getByText('rag.emptyState')).toBeInTheDocument()
   })
 
   it('renders user and assistant messages', async () => {
@@ -159,7 +160,7 @@ describe('FloatingChatbotPanel', () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(<FloatingChatbotPanel {...defaultProps} isLoading />)
     openPanel()
-    expect(screen.getByLabelText('Agent is typing')).toBeInTheDocument()
+    expect(screen.getByLabelText('rag.typingAriaLabel')).toBeInTheDocument()
   })
 
   it('disables send button and input when isLoading', async () => {
@@ -420,5 +421,114 @@ describe('FloatingChatbotPanel', () => {
     openPanel()
     // Empty assistant content renders the placeholder ellipsis
     expect(document.querySelector('.opacity-40')).toBeTruthy()
+  })
+
+  it('shows thinking toggle button for assistant message with thinking content', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Here is my answer.',
+          thinking: 'Let me think about this carefully...',
+          timestamp: new Date('2024-01-01T10:00:00'),
+        }]}
+      />
+    )
+    openPanel()
+    // t('rag.thinkingToggle') returns the key itself in this mock
+    expect(screen.getByRole('button', { name: /rag\.thinkingToggle/ })).toBeInTheDocument()
+  })
+
+  it('hides thinking content by default (collapsed state)', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'My inner thoughts',
+          timestamp: new Date('2024-01-01T10:00:00'),
+        }]}
+      />
+    )
+    openPanel()
+    expect(screen.queryByText('My inner thoughts')).not.toBeInTheDocument()
+  })
+
+  it('shows thinking content when thinking toggle is clicked', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'My inner thoughts',
+          timestamp: new Date('2024-01-01T10:00:00'),
+        }]}
+      />
+    )
+    openPanel()
+    fireEvent.click(screen.getByRole('button', { name: /rag\.thinkingToggle/ }))
+    expect(screen.getByText('My inner thoughts')).toBeInTheDocument()
+  })
+
+  it('collapses thinking content when toggle clicked twice', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'Hidden thoughts',
+          timestamp: new Date('2024-01-01T10:00:00'),
+        }]}
+      />
+    )
+    openPanel()
+    const toggle = screen.getByRole('button', { name: /rag\.thinkingToggle/ })
+    fireEvent.click(toggle)
+    expect(screen.getByText('Hidden thoughts')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('Hidden thoughts')).not.toBeInTheDocument()
+  })
+
+  it('does not show thinking block for assistant messages without thinking', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[makeMessage('1', 'assistant', 'Normal answer')]}
+      />
+    )
+    openPanel()
+    expect(screen.queryByRole('button', { name: /rag\.thinkingToggle/ })).not.toBeInTheDocument()
+  })
+
+  it('does not show thinking block for user messages', async () => {
+    const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
+    render(
+      <FloatingChatbotPanel
+        {...defaultProps}
+        messages={[{
+          id: '1',
+          role: 'user',
+          content: 'User question',
+          thinking: 'Should not show',
+          timestamp: new Date('2024-01-01T10:00:00'),
+        }]}
+      />
+    )
+    openPanel()
+    expect(screen.queryByRole('button', { name: /rag\.thinkingToggle/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Should not show')).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { AnswerDisplay } from '../components/features/rag/AnswerDisplay'
+import { AnswerDisplay } from '../components/features/chat/AnswerDisplay'
 import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof AnswerDisplay> = {
@@ -117,6 +117,38 @@ export const Error429Dark: Story = {
   args: {
     messages: [],
     error: new Error('HTTP 429'),
+  },
+  decorators: [withDarkMode],
+}
+
+export const WithThinking: Story = {
+  name: 'WithThinking (collapsed by default)',
+  args: {
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: '根據近期研究，RAG 系統能顯著改善大型語言模型的準確率，特別是在知識密集型任務上表現突出。',
+        thinking:
+          '使用者詢問的是 RAG 系統的效益。讓我逐步思考：\n\n1. RAG 代表 Retrieval-Augmented Generation\n2. 它通過從外部知識庫檢索相關資訊來增強 LLM 的回答\n3. 主要優勢包括：減少幻覺、保持知識最新、無需重新訓練模型\n4. 研究顯示在 QA benchmarks 上有 15-30% 的準確率提升',
+        timestamp: new Date(),
+      },
+    ],
+  },
+}
+
+export const WithThinkingDark: Story = {
+  name: 'WithThinking (Dark)',
+  args: {
+    messages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: 'RAG 系統能顯著改善大型語言模型的準確率。',
+        thinking: '讓我仔細分析這個問題的各個面向，確保回答全面且準確...',
+        timestamp: new Date(),
+      },
+    ],
   },
   decorators: [withDarkMode],
 }

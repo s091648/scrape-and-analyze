@@ -15,6 +15,7 @@ vi.mock('@/components/features/articles/article-detail-dialog', () => ({
 
 const zhTW: Record<string, string> = {
   'rag.thinking': '思考中…',
+  'rag.thinkingToggle': '思考過程',
   'rag.rateLimitError': '已達每日問答上限',
   'rag.serviceUnavailable': '問答服務暫時無法使用，請稍後再試',
   'rag.genericError': '發生錯誤，請稍後再試',
@@ -276,5 +277,84 @@ describe('AnswerDisplay', () => {
       />
     )
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('shows thinking toggle button when lastAssistant has thinking content', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'Some reasoning...',
+          timestamp: new Date(),
+        }]}
+      />
+    )
+    expect(screen.getByRole('button', { name: /思考過程/ })).toBeInTheDocument()
+  })
+
+  it('hides thinking content by default (collapsed)', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'Hidden reasoning',
+          timestamp: new Date(),
+        }]}
+      />
+    )
+    expect(screen.queryByText('Hidden reasoning')).not.toBeInTheDocument()
+  })
+
+  it('shows thinking content when toggle is clicked', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'Visible reasoning',
+          timestamp: new Date(),
+        }]}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /思考過程/ }))
+    expect(screen.getByText('Visible reasoning')).toBeInTheDocument()
+  })
+
+  it('collapses thinking content when toggle clicked twice', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[{
+          id: '1',
+          role: 'assistant',
+          content: 'Answer',
+          thinking: 'Some reasoning',
+          timestamp: new Date(),
+        }]}
+      />
+    )
+    const toggle = screen.getByRole('button', { name: /思考過程/ })
+    fireEvent.click(toggle)
+    expect(screen.getByText('Some reasoning')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('Some reasoning')).not.toBeInTheDocument()
+  })
+
+  it('does not show thinking toggle when thinking is absent', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        messages={[makeMessage('1', 'assistant', 'Normal answer')]}
+      />
+    )
+    expect(screen.queryByRole('button', { name: /思考過程/ })).not.toBeInTheDocument()
   })
 })

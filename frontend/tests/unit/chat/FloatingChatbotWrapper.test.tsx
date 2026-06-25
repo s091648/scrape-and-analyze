@@ -322,4 +322,38 @@ describe('FloatingChatbotWrapper', () => {
     render(<FloatingChatbotWrapper />)
     expect(screen.getByTestId('title').textContent).not.toContain('/')
   })
+
+  it('customAdapter maps {"thinking":"..."} SSE line to thinking_delta event', async () => {
+    let capturedAdapter: any
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedAdapter = opts.streamAdapter
+      return { messages: [], sendMessage: vi.fn(), isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+
+    const line = 'data: {"thinking": "Let me reason through this"}'
+    const event = capturedAdapter.parse(line)
+    expect(event).toEqual({ type: 'thinking_delta', content: 'Let me reason through this' })
+  })
+
+  it('customAdapter returns null for {"sources":[...]} SSE line (handled via side-effect)', async () => {
+    let capturedAdapter: any
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedAdapter = opts.streamAdapter
+      return { messages: [], sendMessage: vi.fn(), isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { FloatingChatbotWrapper } = await import(
+      '@/components/features/chat/FloatingChatbotWrapper'
+    )
+    render(<FloatingChatbotWrapper />)
+
+    const line = 'data: {"sources": [{"id":"s1","title":"Paper","url":"https://example.com","public_article_id":null}]}'
+    const event = capturedAdapter.parse(line)
+    expect(event).toBeNull()
+  })
 })

@@ -12,6 +12,13 @@ const zhTW: Record<string, string> = {
   'rag.genericError': '發生錯誤，請稍後再試',
   'rag.thinking': '思考中…',
   'rag.placeholder': '詢問 AI：最近有哪些相關研究？',
+  'rag.agentInputAriaLabel': '輸入問題',
+  'rag.agentSendAriaLabel': '傳送',
+  'rag.agentSend': '執行',
+  'rag.agentSendLoading': '執行中...',
+  'rag.toolStatusRunning': '執行中',
+  'rag.toolStatusDone': '完成',
+  'rag.toolStatusError': '錯誤',
 }
 
 const mockCycleMode = vi.fn()
@@ -333,5 +340,42 @@ describe('InlineQABarWrapper', () => {
     render(<InlineQABarWrapper />)
     fireEvent.click(screen.getByTestId('send-btn'))
     expect(mockSendMessage).toHaveBeenCalledWith('test question')
+  })
+
+  it('customAdapter maps {"thinking":"..."} SSE line to thinking_delta event', async () => {
+    let capturedAdapter: any
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedAdapter = opts.streamAdapter
+      return { messages: [], sendMessage: vi.fn(), isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    const line = 'data: {"thinking": "Reasoning about this"}'
+    const event = capturedAdapter.parse(line)
+    expect(event).toEqual({ type: 'thinking_delta', content: 'Reasoning about this' })
+  })
+
+  it('passes translated labels to AgentInput', async () => {
+    let receivedLabels: any
+    vi.mocked(AgentInput).mockImplementationOnce(({ labels, onSend }: any) => {
+      receivedLabels = labels
+      return <button data-testid="send-btn" onClick={() => onSend('x')}>Send</button>
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    expect(receivedLabels).toBeDefined()
+    expect(receivedLabels.send).toBe('執行')
+    expect(receivedLabels.sendLoading).toBe('執行中...')
+    expect(receivedLabels.sendAriaLabel).toBe('傳送')
+    expect(receivedLabels.inputAriaLabel).toBe('輸入問題')
+    expect(receivedLabels.toolCallCard).toMatchObject({
+      statusRunning: '執行中',
+      statusDone: '完成',
+      statusError: '錯誤',
+    })
   })
 })
