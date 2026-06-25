@@ -1,11 +1,25 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
+import React from 'react'
 import { fn } from 'storybook/test'
+import { SessionProvider } from 'next-auth/react'
 import { InlineQABarWrapper } from '../components/features/chat/InlineQABarWrapper'
 import { withDarkMode } from './decorators'
+
+const mockSession = {
+  user: { name: 'Test User', email: 'test@example.com' },
+  expires: '2027-01-01T00:00:00.000Z',
+}
 
 const meta: Meta<typeof InlineQABarWrapper> = {
   title: 'Features/Chat/InlineQABarWrapper',
   component: InlineQABarWrapper,
+  decorators: [
+    (Story) => (
+      <SessionProvider session={mockSession}>
+        <Story />
+      </SessionProvider>
+    ),
+  ],
   parameters: {
     nextjs: { appDirectory: true },
   },
