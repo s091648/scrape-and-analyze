@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced a new 'thinking' state and improved markdown rendering for chatbot interactions."
+        "description": "Added support for light and dark modes across the application interface"
       },
       {
         "type": "feat",
-        "description": "Enabled conversation persistence to allow users to save and revisit previous chat histories."
+        "description": "Enhanced the chatbot UI with a 'thinking' state, markdown syntax rendering, and internationalization support"
       },
       {
         "type": "feat",
-        "description": "Added support for light and dark mode themes across the application interface."
+        "description": "Implemented floating chatbot and inline Q&A components with real-time quota display"
       },
       {
         "type": "feat",
-        "description": "Implemented a visual pipeline view to help track the progress of data processing tasks."
+        "description": "Added an administrative dashboard for managing RAG embedding providers"
       },
       {
         "type": "feat",
-        "description": "Added an administration interface for managing RAG providers and system configurations."
+        "description": "Enabled chat history persistence and improved dialog management features"
       },
       {
         "type": "feat",
-        "description": "Added a quota usage display to the search bar to help track service limits."
+        "description": "Introduced a retry option for chatbot messages to handle connection issues"
+      },
+      {
+        "type": "feat",
+        "description": "Added a visual pipeline view to track task flows and event branches"
       },
       {
         "type": "fix",
-        "description": "Improved message reliability by adding a retry option and fixing empty response handling."
-      },
-      {
-        "type": "fix",
-        "description": "Resolved stability issues when using the application in guest mode."
+        "description": "Resolved issues with guest mode state and improved error handling for failed message responses"
       }
     ]
   },
