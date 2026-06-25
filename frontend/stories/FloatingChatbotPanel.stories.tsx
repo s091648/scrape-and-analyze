@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { fn } from 'storybook/test'
-import { userEvent, within } from '@storybook/test'
+import { fn, userEvent, within } from 'storybook/test'
 import { FloatingChatbotPanel } from '../components/features/chat/FloatingChatbotPanel'
 import { withDarkMode } from './decorators'
 
