@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced new floating chatbot and inline Q&A components for a more flexible user interface"
+        "description": "Introduced light and dark mode themes for the application interface"
       },
       {
         "type": "feat",
-        "description": "Added support for rendering markdown syntax within the chatbot interface"
+        "description": "Launched a new AI-powered chatbot with persistent conversation history"
       },
       {
         "type": "feat",
-        "description": "Implemented light and dark mode themes for the application homepage and chat interface"
+        "description": "Added support for markdown rendering and improved citation formatting in chat responses"
       },
       {
         "type": "feat",
-        "description": "Launched a new administrative page to manage and configure RAG provider settings"
+        "description": "Added a visual pipeline view to help users track the status of background processes"
       },
       {
         "type": "feat",
-        "description": "Introduced a visual pipeline view to track background data processing stages"
+        "description": "Introduced an administration dashboard for managing AI provider settings"
       },
       {
         "type": "feat",
-        "description": "Added a dialog persistence feature to save and resume chat history across sessions"
+        "description": "Added a real-time quota display to the search interface for usage tracking"
       },
       {
         "type": "fix",
-        "description": "Resolved state management and routing issues when using the chatbot in guest mode"
+        "description": "Improved chatbot stability by adding retry logic and better handling for empty messages"
       },
       {
-        "type": "feat",
-        "description": "Improved document processing with enhanced PDF text sanitization and better handling of empty files"
+        "type": "fix",
+        "description": "Resolved an issue where guest mode session states were not correctly maintained"
       }
     ]
   },
