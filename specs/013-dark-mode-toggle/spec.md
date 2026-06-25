@@ -1,6 +1,6 @@
 # Feature Specification: Light / Dark / Auto Theme Toggle
 
-**Feature Branch**: `012-rag-chatbot-integration`
+**Feature Branch**: `013-dark-mode-toggle`
 
 **Created**: 2026-06-14
 

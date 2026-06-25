@@ -102,23 +102,23 @@ backend/
 frontend/
 ├── components/
 │   └── features/
-│       └── rag/
+│       └── chat/
 │           ├── InlineQABarWrapper.tsx            ← useChat + AgentInput + AnswerDisplay + quota display
 │           ├── AnswerDisplay.tsx                 ← 顯示最新 assistant 回答（markdown）
 │           ├── FloatingChatbotWrapper.tsx        ← useChat hook + localStorage 歷史 + customAdapter（sources）
 │           └── FloatingChatbotPanel.tsx          ← 自作浮動 UI（markdown 渲染、sources 來源 chip、ArticleDetailDialog）
 ├── lib/
-│   ├── chat-session.ts                          ← sessionStorage 存取工具（InlineQABar 用）
+│   ├── chat-session.ts                          ← sessionStorage 存取工具（備用；FloatingChatbot 使用自身 inline localStorage 函式）
 │   └── providers/
 │       ├── chat-quota-provider.tsx              ← ChatQuotaContext（GET /chat/quota 輪詢）
 │       └── guest-mode-provider.tsx              ← GuestModeContext（訪客模式切換）
 └── tests/
     ├── unit/
-    │   └── rag/
+    │   └── chat/
     │       ├── InlineQABarWrapper.test.tsx
     │       └── FloatingChatbotWrapper.test.tsx
     └── integration/
-        └── chat-flow.spec.ts                    ← Playwright E2E
+        └── chat-flow.spec.ts                    ← Playwright E2E（未完成，T026）
 
 # 資料庫（models/ + alembic/）
 models/
@@ -183,9 +183,9 @@ frontend/package.json                            ← @s091648/chatbot-plugin-ui
 - 建立 `ChatQuotaProvider`（`chat-quota-provider.tsx`）與 `GuestModeProvider`（`guest-mode-provider.tsx`）
 - 建立 `FloatingChatbotPanel.tsx`：自作浮動 Chat UI（markdown 渲染、sources 來源 chip 點擊開啟 `ArticleDetailDialog`、新對話按鈕）
 - 建立 `FloatingChatbotWrapper`：`useChat` hook + `customAdapter`（解析 SSE sources 事件）、`localStorage`（userId 標記）歷史持久化；未認證且非訪客模式時隱藏
-- 建立 `InlineQABarWrapper`：`useChat` hook + `AgentInput` + `AnswerDisplay` + quota 顯示
-- 在 root layout 加入 `FloatingChatbotWrapper`
-- 在文章列表頁加入 `InlineQABarWrapper`
+- 建立 `InlineQABarWrapper`：`useChat` hook + `AgentInput` + `AnswerDisplay` + quota 顯示（無 sessionStorage 持久化，in-memory only）
+- 在 `layout-shell.tsx` 加入 `FloatingChatbotWrapper`，僅在 `/articles`、`/graph`、`/tags` 路徑顯示（path-gating）
+- 在 `app/page.tsx`（首頁）加入 `InlineQABarWrapper`
 - Auth token 從 NextAuth session 取得後注入 `useChat({ headers: { Authorization: ... } })`
 - Topic ID 從 `TopicContext` 取得後注入 `useChat({ headers: { 'X-Topic-Id': ... } })`
 
