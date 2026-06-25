@@ -2,7 +2,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Clock, Globe, Sparkles } from 'lucide-react'
+import { Clock, ExternalLink, Globe, Sparkles } from 'lucide-react'
 import { ArticleDetail } from '@/lib/api/articles'
 import { ArticleDetailSkeleton } from './article-card-skeleton'
 import { useI18n } from '@/lib/providers'
@@ -36,7 +36,18 @@ export function ArticleDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-          <DialogTitle className="text-lg leading-snug pr-6">{displayTitle}</DialogTitle>
+          <DialogTitle className="text-lg leading-snug pr-6">
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-start gap-2 hover:underline cursor-pointer"
+              onClick={e => e.stopPropagation()}
+            >
+              {displayTitle}
+              <ExternalLink className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+            </a>
+          </DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Globe className="h-3 w-3" />{displaySource}

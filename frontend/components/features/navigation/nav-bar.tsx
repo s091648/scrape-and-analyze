@@ -5,13 +5,12 @@ import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Rss, Settings, ChevronDown, Globe, BookOpen } from 'lucide-react'
+import { Rss, Settings, ChevronDown, Globe, BookOpen, Sun, Moon, Monitor } from 'lucide-react'
 import { GitHubLogoIcon } from '@radix-ui/react-icons'
 import { ReleaseNotesPopover } from '@/components/features/navigation/release-notes-popover'
 import { fetchMe } from '@/lib/api/auth'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useTopic } from '@/lib/providers'
-import { useI18n } from '@/lib/providers'
+import { useTopic, useI18n, useTheme } from '@/lib/providers'
 
 function initials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -28,6 +27,9 @@ export function NavBar() {
   const token = (session as any)?.accessToken
   const { topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading } = useTopic()
   const { locale, setLocale, availableLanguages, t, isLoading: i18nLoading } = useI18n()
+  const { mode, cycleMode } = useTheme()
+  const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
+  const themeLabel = mode === 'light' ? 'Light' : mode === 'dark' ? 'Dark' : 'Auto'
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -109,9 +111,9 @@ export function NavBar() {
         {/* Left nav */}
         <div className="flex items-center gap-1">
           <Link
-            href={`/${topicParam}`}
+            href={`/articles${topicParam}`}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-              pathname === '/'
+              pathname === '/articles'
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             }`}
@@ -182,6 +184,20 @@ export function NavBar() {
           </div>
 
           <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={cycleMode}
+                  className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-200"
+                  aria-label={`Theme: ${themeLabel}`}
+                >
+                  <ThemeIcon className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{themeLabel}</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <a

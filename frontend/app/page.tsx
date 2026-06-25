@@ -1,12 +1,14 @@
 'use client'
 
 import { Suspense } from 'react'
-import HomePageContent from './home-page-content'
+import { InlineQABarWrapper } from '@/components/features/chat/InlineQABarWrapper'
 
 export default function Page() {
   return (
     <Suspense fallback={<div />}>
-      <HomePageContent />
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <InlineQABarWrapper className="w-full max-w-2xl" />
+      </div>
     </Suspense>
   )
 }

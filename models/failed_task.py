@@ -19,10 +19,12 @@ class FailedTask(Base):
     context = Column(JSONB, nullable=True)
     traceback = Column(Text, nullable=True)
     failed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    correlation_id = Column(UUID(as_uuid=True), nullable=True)
     resolved = Column(Boolean, default=False)
     resolved_at = Column(DateTime(timezone=True))
 
     __table_args__ = (
         Index('idx_failed_tasks_resolved', 'resolved'),
         Index('idx_failed_tasks_failed_at', 'failed_at'),
+        Index('idx_failed_tasks_correlation_id', 'correlation_id'),
     )

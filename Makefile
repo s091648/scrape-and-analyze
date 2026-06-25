@@ -6,6 +6,7 @@
 	backfill-tag-group-definitions-remote \
 	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
+	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
 	data-migrate data-migrate-list data-migrate-down \
 	create-admin scrape translate translate-remote run retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
@@ -124,6 +125,20 @@ backfill-suggestions:
 
 backfill-suggestions-dry-run:
 	docker compose run --rm job_service python /app/scripts/backfill_tag_suggestions.py --dry-run
+
+backfill-rag:
+	docker compose run --rm job_service python /app/scripts/backfill_rag_embeddings.py $(_BACKFILL_ARGS)
+
+backfill-rag-dry-run:
+	docker compose run --rm job_service python /app/scripts/backfill_rag_embeddings.py --dry-run $(_BACKFILL_ARGS)
+
+backfill-rag-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_RAILWAY_STAGING_DB_URL must be set in .env"; exit 1)
+	docker compose run --rm job_service python /app/scripts/backfill_rag_embeddings.py --remote $(_BACKFILL_ARGS)
+
+backfill-rag-remote-production:
+	@test -n "$(REMOTE_RAILWAY_DB_URL)" || (echo "REMOTE_RAILWAY_DB_URL must be set in .env"; exit 1)
+	docker compose run --rm job_service python /app/scripts/backfill_rag_embeddings.py --remote --env production $(_BACKFILL_ARGS)
 
 # Scrape (and optionally analyze) from a specific source.
 # Usage:

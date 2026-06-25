@@ -39,7 +39,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
     e.stopPropagation()
     const params = new URLSearchParams()
     if (selectedTopicId) params.set('topic', selectedTopicId)
-    const shareUrl = `${window.location.origin}/articles/${id}?${params.toString()}`
+    const shareUrl = `${window.location.origin}/articles/${id}${params.size ? `?${params}` : ''}`
     try {
       await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
@@ -73,7 +73,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   type="button"
                   onClick={handleShare}
                   aria-label={t('copy.shareArticle')}
-                  className="p-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  className="p-0.5 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
                   {copied
                     ? <Check className="h-3.5 w-3.5 text-green-500" />
@@ -85,8 +85,9 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   target="_blank"
                   rel="noreferrer"
                   onClick={e => e.stopPropagation()}
+                  className="cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                 >
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                 </a>
               </div>
             </div>
@@ -101,10 +102,16 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         <CardContent className="pt-0 border-t border-border mt-3">
           <div className="flex items-center justify-between gap-2 pt-3">
             <div className="flex flex-wrap items-center gap-2 min-w-0">
-              <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground">
+              <a
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+              >
                 <Globe className="h-3 w-3" />
                 {displaySource}
-              </span>
+              </a>
               {published_at && (
                 <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />

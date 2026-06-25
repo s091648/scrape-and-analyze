@@ -15,15 +15,18 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
-const { mockUseTopic, mockUseI18n } = vi.hoisted(() => ({
+const { mockUseTopic, mockUseI18n, mockUseTheme } = vi.hoisted(() => ({
   mockUseTopic: vi.fn(),
   mockUseI18n: vi.fn(),
+  mockUseTheme: vi.fn(),
 }))
 const mockSetSelectedTopicId = vi.fn()
 const mockSetLocale = vi.fn()
+const mockCycleMode = vi.fn()
 vi.mock('@/lib/providers', () => ({
   useTopic: () => mockUseTopic(),
   useI18n: () => mockUseI18n(),
+  useTheme: () => mockUseTheme(),
 }))
 
 vi.mock('@/lib/api/auth', () => ({
@@ -65,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseTopic.mockReturnValue(defaultTopicCtx)
   mockUseI18n.mockReturnValue(defaultI18nCtx)
+  mockUseTheme.mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
 })
 
 describe('NavBar', () => {
@@ -192,5 +196,36 @@ describe('NavBar', () => {
     mockUseSession.mockReturnValue({ data: null })
     render(<NavBar />)
     expect(screen.getByText('Select topic')).toBeInTheDocument()
+  })
+})
+
+describe('NavBar — theme toggle', () => {
+  beforeEach(() => {
+    mockUseSession.mockReturnValue({ data: null })
+  })
+
+  it('renders theme toggle button with aria-label matching current mode', () => {
+    mockUseTheme.mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+    render(<NavBar />)
+    expect(screen.getByRole('button', { name: 'Theme: Auto' })).toBeInTheDocument()
+  })
+
+  it('aria-label is "Theme: Light" when mode is light', () => {
+    mockUseTheme.mockReturnValue({ mode: 'light', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+    render(<NavBar />)
+    expect(screen.getByRole('button', { name: 'Theme: Light' })).toBeInTheDocument()
+  })
+
+  it('aria-label is "Theme: Dark" when mode is dark', () => {
+    mockUseTheme.mockReturnValue({ mode: 'dark', theme: 'dark', cycleMode: mockCycleMode, setMode: vi.fn() })
+    render(<NavBar />)
+    expect(screen.getByRole('button', { name: 'Theme: Dark' })).toBeInTheDocument()
+  })
+
+  it('calls cycleMode when theme toggle is clicked', () => {
+    mockUseTheme.mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() })
+    render(<NavBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Theme: Auto' }))
+    expect(mockCycleMode).toHaveBeenCalledOnce()
   })
 })

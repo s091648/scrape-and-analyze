@@ -33,7 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+COPY package*.json .npmrc ./
+ARG GITHUB_PACKAGE_TOKEN
+ENV GITHUB_PACKAGE_TOKEN=$GITHUB_PACKAGE_TOKEN
 RUN npm install
 
 # Download Playwright browsers

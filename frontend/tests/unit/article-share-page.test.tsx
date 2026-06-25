@@ -155,7 +155,7 @@ describe('ArticleSharePage', () => {
     })
   })
 
-  it('openInApp link points to /?article= when no topic param', async () => {
+  it('openInApp link points to /articles?article= when no topic param', async () => {
     mockFetchArticleById.mockResolvedValue(articleFixture)
     mockUseSession.mockReturnValue({ status: 'authenticated' })
     mockGetSearchParam.mockReturnValue(null)
@@ -163,6 +163,7 @@ describe('ArticleSharePage', () => {
     render(<ArticleSharePage />)
     await waitFor(() => {
       const link = screen.getByText('share.openInApp').closest('a')
+      expect(link?.getAttribute('href')).toMatch(/^\/articles\?/)
       expect(link?.getAttribute('href')).toMatch(/article=art-001/)
     })
   })

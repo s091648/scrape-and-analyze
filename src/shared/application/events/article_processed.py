@@ -6,3 +6,4 @@ from src.shared.domain.entities.article import Article
 class ArticleProcessedEvent:
     """Event emitted after an article has been successfully processed and persisted."""
     article: Article
+    full_text: str = ""

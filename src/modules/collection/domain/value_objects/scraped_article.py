@@ -20,3 +20,4 @@ class ScrapedArticle:
     published_at: Optional[datetime] = None
     authors: List[str] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)
+    full_text: str = ""

@@ -60,7 +60,7 @@ export default function HomePageContent() {
     } else {
       params.delete('article')
     }
-    router.replace(`/?${params.toString()}`, { scroll: false })
+    router.replace(`/articles?${params.toString()}`, { scroll: false })
   }, [searchParams, router])
 
   useEffect(() => {
@@ -165,9 +165,29 @@ export default function HomePageContent() {
             <ChevronLeft className="h-4 w-4" />
             {t('home.previous')}
           </Button>
-          <span className="text-sm text-muted-foreground">
-            {t('home.pageOf').replace('{page}', String(page)).replace('{total}', String(totalPages))}
-          </span>
+          {(() => {
+            const [before, after] = t('home.pageOf').replace('{total}', String(totalPages)).split('{page}')
+            return (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                {before}
+                <input
+                  key={page}
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  defaultValue={page}
+                  className="w-12 h-7 text-sm text-center rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = parseInt((e.target as HTMLInputElement).value)
+                      if (!isNaN(val) && val >= 1 && val <= totalPages) setPage(val)
+                    }
+                  }}
+                />
+                {after}
+              </span>
+            )
+          })()}
           <Button
             variant="outline"
             size="sm"

@@ -89,6 +89,125 @@ def build_llm_service(session):
 
 
 # ---------------------------------------------------------------------------
+# RAG 層: 從 env vars 建立 RagSdkIngestionService
+# ---------------------------------------------------------------------------
+
+def build_rag_ingestion_service():
+    """Build RagSdkIngestionService from environment variables.
+
+    Returns (rag_service, rag_config_failed_event).
+    Either or both may be None when RAG is disabled or misconfigured.
+    rag_config_failed_event must be published AFTER all event subscriptions are registered.
+    """
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+    from src.config.settings import missing_rag_config
+    from src.infrastructure.shared.logging import get_correlation_id
+
+    _rag_missing = missing_rag_config()
+    if _rag_missing:
+        event = RagConfigFailedEvent(
+            exception_type="MissingConfiguration",
+            exception_message=f"RAG disabled — missing required vars: {', '.join(_rag_missing)}",
+            context={"missing_vars": _rag_missing},
+            correlation_id=get_correlation_id() or None,
+        )
+        logger.warning("rag_config_incomplete_rag_disabled", missing_vars=_rag_missing)
+        return None, event
+
+    try:
+        from chatbot_plugin_sdk import (
+            IngestProcessor,
+            SyncPgBackend,
+            DatabaseConfig,
+            NotConfiguredError,
+            build_dense_provider,
+            build_sparse_provider,
+        )
+    except ModuleNotFoundError:
+        logger.info("rag_disabled_sdk_not_installed")
+        return None, None
+
+    try:
+        from src.config.settings import (
+            VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
+            VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
+            VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
+            RAG_DENSE_PROVIDER, RAG_DENSE_MODEL, RAG_DENSE_DIMENSION,
+            RAG_DENSE_API_KEY_ENV, RAG_DENSE_ENDPOINT_URL,
+            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
+            RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
+            RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD,
+            RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
+        )
+        from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
+
+        dense_provider = build_dense_provider({
+            "provider_type": RAG_DENSE_PROVIDER,
+            "model": RAG_DENSE_MODEL,
+            "dimension": RAG_DENSE_DIMENSION,
+            "api_key": os.environ.get(RAG_DENSE_API_KEY_ENV, "") if RAG_DENSE_API_KEY_ENV else "",
+            "endpoint_url": RAG_DENSE_ENDPOINT_URL,
+            "rpm": RAG_DENSE_RPM,
+            "tpm": RAG_DENSE_TPM,
+            "rpd": RAG_DENSE_RPD,
+        }) if RAG_DENSE_PROVIDER else None
+
+        sparse_provider = build_sparse_provider({
+            "provider_type": RAG_SPARSE_PROVIDER,
+            "model": RAG_SPARSE_MODEL,
+            "dimension": RAG_SPARSE_DIMENSION,
+            "endpoint_url": RAG_SPARSE_ENDPOINT_URL,
+            "rpm": RAG_SPARSE_RPM,
+            "tpm": RAG_SPARSE_TPM,
+            "rpd": RAG_SPARSE_RPD,
+        }) if RAG_SPARSE_PROVIDER else None
+
+        backend = SyncPgBackend(DatabaseConfig(
+            dbname=VECTOR_DB_NAME,
+            user=VECTOR_DB_USER,
+            password=VECTOR_DB_PASSWORD,
+            host=VECTOR_DB_HOST,
+            port=VECTOR_DB_PORT,
+            schema=VECTOR_DB_SCHEMA,
+            articles_table=VECTOR_DB_ARTICLES_TABLE,
+            chunks_table=VECTOR_DB_CHUNKS_TABLE,
+        ))
+        processor = IngestProcessor()
+        processor.configure(
+            backend=backend,
+            dense=dense_provider,
+            sparse=sparse_provider,
+            embed_batch_size=RAG_EMBED_BATCH_SIZE,
+            chunk_size=RAG_CHUNK_SIZE,
+            chunk_overlap=RAG_CHUNK_OVERLAP,
+        )
+
+        rag_service = RagSdkIngestionService(processor)
+        logger.info(
+            "rag_ingestion_initialized",
+            dense=RAG_DENSE_PROVIDER or "disabled",
+            sparse=RAG_SPARSE_PROVIDER or "disabled",
+        )
+        return rag_service, None
+
+    except NotConfiguredError as exc:
+        from src.modules.intelligence.application.events import RagConfigFailedEvent
+        from src.infrastructure.shared.logging import get_correlation_id
+        event = RagConfigFailedEvent(
+            exception_type="NotConfiguredError",
+            exception_message=str(exc),
+            context={},
+            correlation_id=get_correlation_id() or None,
+        )
+        logger.warning("rag_ingestion_not_configured_disabling", error=str(exc))
+        return None, event
+
+    except Exception:
+        logger.exception("rag_ingestion_init_failed_disabling")
+        return None, None
+
+
+# ---------------------------------------------------------------------------
 # 主組裝函式
 # ---------------------------------------------------------------------------
 
@@ -111,9 +230,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.article_translation_repo_impl import SqlAlchemyArticleTranslationRepository
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
-    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
-    from src.infrastructure.persistence.collection.arxiv_metadata_repo_impl import SqlAlchemyArxivMetadataRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -130,10 +247,14 @@ def build_collection_pipeline():
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler, AnalysisCompletedHandler
     from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
     from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import FailedTaskPersistenceHandler
-    from src.modules.intelligence.application.events import AnalysisFailedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent, TagNormalizationFailedEvent, TranslationFailedEvent
+    from src.modules.intelligence.application.events import (
+        AnalysisFailedEvent, AnalysisCompletedEvent,
+        TagNormalizationCompletedEvent, TagNormalizationFailedEvent,
+        TranslationFailedEvent, RagIngestionFailedEvent, RagConfigFailedEvent,
+    )
     from src.shared.application.events import ArticleProcessedEvent
     from src.config.settings import TRANSLATION_LANGUAGES
-    
+
 
     # ── DB 初始化 ──────────────────────────────────────────────────────────
     init_db()
@@ -145,7 +266,6 @@ def build_collection_pipeline():
     analyses_translation_repo = SqlAlchemyAnalysesTranslationRepository(session=session)
     tag_translation_repo = SqlAlchemyTagTranslationRepository(session=session)
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
-    arxiv_metadata_repo = SqlAlchemyArxivMetadataRepository(session=session)
     topic_repo = SqlAlchemyTopicRepository(session=session)
     failed_task_repo = SqlAlchemyFailedTaskRepository(session=session)
     tag_repo = SqlAlchemyTagRepository(session=session)
@@ -169,7 +289,6 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
-        arxiv_metadata_repo=arxiv_metadata_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -215,6 +334,15 @@ def build_collection_pipeline():
 
     _tracer = _get_tracer()
 
+    # ── RAG Ingestion Setup ────────────────────────────────────────────────
+    _rag_ingestion_service, _rag_config_failed_event = build_rag_ingestion_service()
+    rag_ingestion_handler = None
+    if _rag_ingestion_service is not None:
+        from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
+        from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import RagIngestionHandler
+        _ingest_for_rag_uc = IngestArticleForRagUseCase(_rag_ingestion_service)
+        rag_ingestion_handler = RagIngestionHandler(_ingest_for_rag_uc, event_bus)
+
     # ── Event Handlers 訂閱 ────────────────────────────────────────────────
     article_scraped_handler = ArticleScrapedHandler(
         use_case=process_article_uc,
@@ -232,6 +360,9 @@ def build_collection_pipeline():
     event_bus.subscribe(ArticleProcessedEvent, with_span_deferred(
         SpanName.ARTICLE_PROCESSED_HANDLE, article_processed_handler.handle, event_bus, _tracer))
 
+    if rag_ingestion_handler is not None:
+        event_bus.subscribe(ArticleProcessedEvent, rag_ingestion_handler.handle)
+
     failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo)
     event_bus.subscribe(AnalysisFailedEvent, with_span(
         SpanName.ANALYSIS_FAILED_HANDLE, failed_task_handler.handle, _tracer))
@@ -239,6 +370,14 @@ def build_collection_pipeline():
         SpanName.TAG_NORMALIZATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
     event_bus.subscribe(TranslationFailedEvent, with_span(
         SpanName.TRANSLATION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(RagIngestionFailedEvent, with_span(
+        SpanName.RAG_INGESTION_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+    event_bus.subscribe(RagConfigFailedEvent, with_span(
+        SpanName.RAG_CONFIG_FAILED_HANDLE, failed_task_handler.handle, _tracer))
+
+    # Publish deferred startup failures after all subscriptions are registered
+    if _rag_config_failed_event is not None:
+        event_bus.publish(_rag_config_failed_event)
 
     tag_normalization_handler = TagNormalizationHandler(
         use_case=normalize_tags_uc,

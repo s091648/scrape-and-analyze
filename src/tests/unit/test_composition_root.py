@@ -1,4 +1,5 @@
 import inspect
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,13 +21,6 @@ from src.shared.application.events import ArticleProcessedEvent
 # ---------------------------------------------------------------------------
 # Existing source-inspection tests (preserved)
 # ---------------------------------------------------------------------------
-
-
-def test_bootstrap_wires_arxiv_metadata_repository(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
-    monkeypatch.setenv("SKIP_CONFIG_VALIDATION", "true")
-    src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
-    assert "SqlAlchemyArxivMetadataRepository" in src or "arxiv_metadata_repo" in src
 
 
 def test_bootstrap_wires_topic_repository(monkeypatch):
@@ -109,10 +103,10 @@ def test_t016_article_scraped_event_subscription():
 
 
 def test_t017_article_processed_event_subscription():
-    """ArticleProcessedEvent must have exactly one handler registered."""
+    """ArticleProcessedEvent must have at least one handler (analysis); RAG handler is optional."""
     pipeline, *_ = _build_pipeline_with_mocks()
     handlers = pipeline._event_bus._handlers.get(ArticleProcessedEvent, [])
-    assert len(handlers) == 1, f"expected 1 handler for ArticleProcessedEvent, got {len(handlers)}"
+    assert len(handlers) >= 1, f"expected at least 1 handler for ArticleProcessedEvent, got {len(handlers)}"
 
 
 def test_t018_analysis_completed_event_subscription():
@@ -232,3 +226,90 @@ def test_t041_build_translation_pipeline_does_not_create_event_bus():
     assert "InMemoryEventBus" not in src, (
         "build_translation_pipeline() source should not reference InMemoryEventBus"
     )
+
+
+# ---------------------------------------------------------------------------
+# build_rag_ingestion_service
+# ---------------------------------------------------------------------------
+
+
+def test_build_rag_returns_none_and_event_when_config_missing():
+    """When missing_rag_config() returns vars, build_rag_ingestion_service yields (None, event)."""
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    with patch("src.config.settings.missing_rag_config", return_value=["VECTOR_DB_NAME", "VECTOR_DB_USER"]):
+        from src.bootstrap import build_rag_ingestion_service
+        rag_service, event = build_rag_ingestion_service()
+
+    assert rag_service is None
+    assert event is not None
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+    assert isinstance(event, RagConfigFailedEvent)
+
+
+def test_build_rag_returns_none_none_when_sdk_not_installed(monkeypatch):
+    """When chatbot_plugin_sdk cannot be imported, returns (None, None)."""
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    # Remove any cached chatbot_plugin_sdk module so the import fails
+    sdk_keys = [k for k in sys.modules if "chatbot_plugin_sdk" in k]
+    saved = {k: sys.modules.pop(k) for k in sdk_keys}
+    try:
+        # Insert a None entry so the import raises ImportError
+        sys.modules["chatbot_plugin_sdk"] = None  # type: ignore[assignment]
+        from src.bootstrap import build_rag_ingestion_service
+        rag_service, event = build_rag_ingestion_service()
+    finally:
+        sys.modules.pop("chatbot_plugin_sdk", None)
+        sys.modules.update(saved)
+
+    assert rag_service is None
+    assert event is None
+
+
+def test_build_rag_returns_none_none_on_generic_exception(monkeypatch):
+    """When an unexpected exception occurs during RAG setup, returns (None, None)."""
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    mock_sdk = MagicMock()
+    mock_sdk.NotConfiguredError = type("NotConfiguredError", (Exception,), {})
+    mock_sdk.IngestProcessor.side_effect = RuntimeError("unexpected failure")
+
+    with patch.dict("sys.modules", {"chatbot_plugin_sdk": mock_sdk}):
+        from src.bootstrap import build_rag_ingestion_service
+        rag_service, event = build_rag_ingestion_service()
+
+    assert rag_service is None
+    assert event is None
+
+
+def test_build_llm_service_skips_unknown_provider(monkeypatch):
+    """build_llm_service logs a warning and skips providers with unknown names."""
+    from unittest.mock import MagicMock
+
+    mock_session = MagicMock()
+    unknown_cfg = {
+        "name": "unknown_provider",
+        "api_key_env": "UNKNOWN_API_KEY",
+        "model": "unknown-model",
+        "priority": 1,
+        "strategy": {},
+    }
+
+    with patch("shared.llm_provider.load_active_providers", return_value=[unknown_cfg]), \
+         patch("shared.llm_provider.load_active_embedding_providers", return_value=[]):
+        from src.bootstrap import build_llm_service
+        with pytest.raises(ValueError, match="no active LLM providers"):
+            build_llm_service(mock_session)

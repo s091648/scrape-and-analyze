@@ -24,6 +24,7 @@ class ArticleScrapedEvent:
     published_at: Optional[datetime] = None
     authors: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    full_text: str = ""
 
     @classmethod
     def from_scraped_article(cls, article: ScrapedArticle) -> "ArticleScrapedEvent":
@@ -37,6 +38,7 @@ class ArticleScrapedEvent:
             published_at=article.published_at,
             authors=article.authors,
             metadata=article.extra,
+            full_text=article.full_text,
         )
 
     def to_scraped_article(self) -> ScrapedArticle:

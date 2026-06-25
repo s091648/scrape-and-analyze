@@ -13,3 +13,4 @@ class FailedEvent(Protocol):
     exception_message: Optional[str]
     context: Optional[dict]
     traceback: Optional[str]
+    correlation_id: Optional[str]

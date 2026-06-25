@@ -1,5 +1,43 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Introduced new floating chatbot and inline Q&A components for a more flexible user interface"
+      },
+      {
+        "type": "feat",
+        "description": "Added support for rendering markdown syntax within the chatbot interface"
+      },
+      {
+        "type": "feat",
+        "description": "Implemented light and dark mode themes for the application homepage and chat interface"
+      },
+      {
+        "type": "feat",
+        "description": "Launched a new administrative page to manage and configure RAG provider settings"
+      },
+      {
+        "type": "feat",
+        "description": "Introduced a visual pipeline view to track background data processing stages"
+      },
+      {
+        "type": "feat",
+        "description": "Added a dialog persistence feature to save and resume chat history across sessions"
+      },
+      {
+        "type": "fix",
+        "description": "Resolved state management and routing issues when using the chatbot in guest mode"
+      },
+      {
+        "type": "feat",
+        "description": "Improved document processing with enhanced PDF text sanitization and better handling of empty files"
+      }
+    ]
+  },
+  {
     "version": "v1.1.0",
     "date": "2026-06-10",
     "changes": [

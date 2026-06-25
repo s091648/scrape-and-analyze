@@ -4,7 +4,9 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json .npmrc ./
+ARG GITHUB_PACKAGE_TOKEN
+ENV GITHUB_PACKAGE_TOKEN=$GITHUB_PACKAGE_TOKEN
 RUN npm ci
 
 COPY . .
@@ -15,7 +17,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+ARG GITHUB_PACKAGE_TOKEN
+ENV GITHUB_PACKAGE_TOKEN=$GITHUB_PACKAGE_TOKEN
+
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.npmrc ./
 RUN npm ci --only=production --omit=dev
 
 COPY --from=builder /app/.next ./.next

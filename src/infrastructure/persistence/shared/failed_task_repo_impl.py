@@ -28,6 +28,7 @@ class SqlAlchemyFailedTaskRepository(FailedTaskRepository):
             context=task.context,
             traceback=task.traceback,
             failed_at=task.failed_at,
+            correlation_id=task.correlation_id,
         )
         self._session.add(row)
         try:

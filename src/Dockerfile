@@ -4,6 +4,8 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
@@ -13,14 +15,35 @@ RUN uv sync --frozen \
     --no-group backend \
     --no-group dev
 
+ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+
+ARG RAG_DENSE_PROVIDER=gemini
+ARG RAG_DENSE_MODEL=gemini-embedding-001
+ARG RAG_SPARSE_PROVIDER=local
+ARG RAG_SPARSE_MODEL=prithivida/Splade_PP_en_v1
+
+RUN set -eu; \
+    cache="$FASTEMBED_CACHE_PATH"; \
+    mkdir -p "$cache"; \
+    if [ "$RAG_DENSE_PROVIDER" = "local" ]; then \
+        echo "Downloading dense model: $RAG_DENSE_MODEL"; \
+        /app/.venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('$RAG_DENSE_MODEL', cache_dir='$cache')"; \
+    fi; \
+    if [ "$RAG_SPARSE_PROVIDER" = "local" ]; then \
+        echo "Downloading sparse model: $RAG_SPARSE_MODEL"; \
+        /app/.venv/bin/python -c "from fastembed import SparseTextEmbedding; SparseTextEmbedding('$RAG_SPARSE_MODEL', cache_dir='$cache')"; \
+    fi
+
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    FASTEMBED_CACHE_PATH=/app/.fastembed_cache
 
 WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/.fastembed_cache /app/.fastembed_cache
 
 COPY models/ ./models/
 COPY shared/ ./shared/

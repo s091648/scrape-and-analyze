@@ -79,13 +79,14 @@ class OpenAlexScraper(BaseScraper):
         """Fetch article content, extracting PDF sections when available."""
         sections: dict = {}
         pdf_available = False
+        pdf_full_text = ""
         pdf_url = job.metadata.get("open_access_pdf_url")
 
         if self._fetch_pdf and pdf_url and self._pdf_parser:
-            full_text = self._pdf_parser.parse(pdf_url)
-            if full_text:
+            pdf_full_text = self._pdf_parser.parse(pdf_url)
+            if (pdf_full_text or "").strip():  # scanned PDFs produce whitespace-only output
                 pdf_available = True
-                raw_sections = self._pdf_parser.extract_sections(full_text)
+                raw_sections = self._pdf_parser.extract_sections(pdf_full_text)
                 sections = {
                     name: body.replace("\x00", "")
                     for name, body in raw_sections.items()
@@ -113,6 +114,7 @@ class OpenAlexScraper(BaseScraper):
                 "primary_topic": job.metadata.get("primary_topic"),
                 "primary_field": job.metadata.get("primary_field"),
             },
+            full_text=pdf_full_text,
         )
 
     def _build_query(self) -> str:

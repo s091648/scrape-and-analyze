@@ -36,12 +36,17 @@ class PdfParser(BaseContentParser):
             return ''
 
         try:
-            doc = fitz.open(stream=response.content, filetype='pdf')
-            pages = [page.get_text() for page in doc]
-            return '\n'.join(pages)
+            with fitz.open(stream=response.content, filetype='pdf') as doc:
+                pages = [page.get_text() for page in doc]
+            return self._sanitize('\n'.join(pages))
         except Exception as e:
             logger.warning('pdf_parse_failed', url=pdf_url, error=str(e))
             return ''
+
+    @staticmethod
+    def _sanitize(text: str) -> str:
+        """Remove characters that are invalid in PostgreSQL text columns."""
+        return text.replace('\x00', ' ')
 
     def extract_sections(self, text: str) -> dict[str, str]:
         """
@@ -63,7 +68,7 @@ class PdfParser(BaseContentParser):
                 continue
             start = match.end()
             end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-            sections[name] = text[start:end].strip()
+            sections[name] = self._sanitize(text[start:end].strip())
 
         return sections
 

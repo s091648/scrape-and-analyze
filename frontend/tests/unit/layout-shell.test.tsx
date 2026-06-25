@@ -8,12 +8,20 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mockUsePathname(),
 }))
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
+}))
+
 vi.mock('@/components/features/navigation/nav-bar', () => ({
   NavBar: () => <nav data-testid="navbar">NavBar</nav>,
 }))
 
 vi.mock('@/components/common/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+vi.mock('@/components/features/chat/FloatingChatbotWrapper', () => ({
+  FloatingChatbotWrapper: () => <div data-testid="floating-chatbot" />,
 }))
 
 describe('LayoutShell', () => {

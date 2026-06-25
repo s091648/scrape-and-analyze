@@ -24,6 +24,8 @@ scraper = [
     "tenacity",
     "lxml",
     "pymupdf>=1.24",
+    "chatbot-plugin-sdk",
+    "fastembed>=0.3",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [
@@ -34,6 +36,7 @@ backend = [
     "email-validator>=2.0",
     "bcrypt>=4.0",
     "httpx",
+    "redis>=5.0",
 ]
 # 可觀測性 — scraper 與 backend 共用，prod 才需要
 observability = [
@@ -55,6 +58,9 @@ dev = [
     "pylint>=3.0",
     "graphviz>=0.20",
 ]
+
+[tool.uv.sources]
+chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v0.13.0" }
 
 [tool.coverage.run]
 omit = [

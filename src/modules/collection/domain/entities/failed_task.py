@@ -19,5 +19,6 @@ class FailedTask:
     exception_message: Optional[str] = None
     context: Optional[dict] = None
     traceback: Optional[str] = None
+    correlation_id: Optional[UUID] = None
     failed_at: Optional[datetime] = None
     resolved: bool = False

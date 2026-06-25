@@ -5,6 +5,9 @@ from unittest.mock import MagicMock
 
 # Set a consistent test secret for all JWT-related tests
 os.environ["NEXTAUTH_SECRET"] = "test-secret"
+# Provide a syntactically valid dummy URL so SQLAlchemy doesn't blow up at import
+# time in unit tests that don't have a real database available.
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/testdb")
 
 SECRET = os.environ["NEXTAUTH_SECRET"]
 
