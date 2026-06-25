@@ -98,12 +98,17 @@ def main():
     processor.configure(backend=backend, dense=dense_provider, sparse=sparse_provider)
 
     # ── Fetch articles not yet in vector store ─────────────────────────────────
-    # Uses UUID5(NAMESPACE_URL, url) to match the article_id convention in IngestProcessor
     query = text("""
-        SELECT id, url, title, content, metadata_
-        FROM articles
-        WHERE url IS NOT NULL AND content IS NOT NULL AND LENGTH(TRIM(content)) > 0
-        ORDER BY scraped_at DESC
+        SELECT a.id, a.url, a.title, a.content, a.metadata_
+        FROM articles a
+        WHERE a.url IS NOT NULL
+          AND a.content IS NOT NULL
+          AND LENGTH(TRIM(a.content)) > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM vectors.articles va
+              WHERE va.public_article_id = a.id
+          )
+        ORDER BY a.scraped_at DESC
     """ + (" LIMIT :limit" if args.limit else ""))
 
     params = {"limit": args.limit} if args.limit else {}

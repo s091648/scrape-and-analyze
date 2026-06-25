@@ -72,7 +72,7 @@
 
 - [X] T014 [P] [US1] 在 `backend/tests/test_chat_service.py` 建立 `ChatService` 單元測試：mock Redis，驗證 guest/user/admin 三種身份的 rate limit 邏輯；驗證超過上限回傳 `RateLimitExceeded`；驗證首次 guest 請求時設置 `__rag_gid` cookie
 - [X] T015 [P] [US1] 在 `backend/tests/test_chat_router.py` 建立 `POST /chat/completions` 路由測試：mock `ChatService`，驗證 200 SSE 回應、429 rate limit 回應、`X-Topic-Id` header 正確傳入 service
-- [X] T016 [P] [US1] 在 `frontend/tests/unit/rag/InlineQABarWrapper.test.tsx` 建立 `InlineQABarWrapper` 單元測試（Vitest）：mock `useChat`，驗證 `AgentInput` 渲染、送出訊息後 `AnswerDisplay` 顯示 assistant 回答、空白輸入不觸發 `sendMessage`
+- [X] T016 [P] [US1] 在 `frontend/tests/unit/chat/InlineQABarWrapper.test.tsx` 建立 `InlineQABarWrapper` 單元測試（Vitest）：mock `useChat`，驗證 `AgentInput` 渲染、送出訊息後 `AnswerDisplay` 顯示 assistant 回答、空白輸入不觸發 `sendMessage`
 
 ### Implementation for US1
 
@@ -80,10 +80,10 @@
 - [X] T018 [US1] 在 `backend/routers/chat.py` 實作 `POST /chat/completions` FastAPI router：解析 JWT（optional）取 identity tier、呼叫 `ChatService`、SSE `StreamingResponse`、429 exception handler、設置 `__rag_gid` cookie（guest 首次）
 - [X] T019 [US1] 在 `backend/main.py` 引入並 `include_router` chat router（無 prefix）
 - [X] T020 [P] [US1] 在 `frontend/lib/chat-session.ts` 實作 `loadSession()`, `saveSession(messages: Message[])`, `clearSession()`（使用 `sessionStorage`，key: `rag_chat_messages`）
-- [X] T021 [P] [US1] 在 `frontend/components/features/rag/AnswerDisplay.tsx` 實作顯示最新 assistant 訊息的元件（`ReactMarkdown` 渲染 markdown，含錯誤狀態與 loading 狀態）
-- [X] T022 [US1] 在 `frontend/components/features/rag/InlineQABarWrapper.tsx` 實作 wrapper：`useChat({ endpoint: '/api/proxy/chat/completions', streamAdapter: openaiAdapter, initialMessages: loadSession(), headers: { Auth, 'X-Topic-Id' } })`、渲染 `AgentInput` + `AnswerDisplay`、`onMessage` 時呼叫 `saveSession()`
+- [X] T021 [P] [US1] 在 `frontend/components/features/chat/AnswerDisplay.tsx` 實作顯示最新 assistant 訊息的元件（markdown 渲染含引用來源，含錯誤狀態與 loading 狀態）
+- [X] T022 [US1] 在 `frontend/components/features/chat/InlineQABarWrapper.tsx` 實作 wrapper：`useChat({ endpoint: '/api/proxy/chat/completions', streamAdapter: customAdapter, headers: { Auth, 'X-Topic-Id' } })`、渲染 `AgentInput` + `AnswerDisplay` + quota 顯示；無 sessionStorage 持久化（in-memory only）
 - [X] T023 [P] [US1] 在 `frontend/stories/InlineQABarWrapper.stories.tsx` 新增 Storybook story（default + loading + withAnswer + error 四個 variant，constitution §II 要求）
-- [X] T024 [US1] 在文章列表頁（`frontend/app/home-page-content.tsx`）加入 `<InlineQABarWrapper />`（登入用戶可見），從 `useSession` 取得 token、從 `TopicContext` 取得 `topicId`
+- [X] T024 [US1] 在 `frontend/app/page.tsx`（首頁）加入 `<InlineQABarWrapper />`，從 `useSession` 取得 token、從 `TopicContext` 取得 `topicId`
 
 **Checkpoint**: US1 可獨立驗證 — `make test` 後端測試通過；`npm run test` 前端測試通過；瀏覽首頁 InlineQABar 渲染正常
 
@@ -97,12 +97,12 @@
 
 ### Tests for US2
 
-- [X] T025 [P] [US2] 在 `frontend/tests/unit/rag/FloatingChatbotWrapper.test.tsx` 建立 `FloatingChatbotWrapper` 單元測試（Vitest）：mock `useChat`，驗證 FAB 點擊展開/關閉、多輪訊息顯示、`sessionStorage` 讀寫行為
+- [X] T025 [P] [US2] 在 `frontend/tests/unit/chat/FloatingChatbotWrapper.test.tsx` 建立 `FloatingChatbotWrapper` 單元測試（Vitest）：mock `useChat`，驗證 FAB 點擊展開/關閉、多輪訊息顯示、`localStorage` 讀寫行為
 - [ ] T026 [US2] 在 `frontend/tests/integration/chat-flow.spec.ts` 建立 Playwright E2E 測試：FAB 展開、輸入問題、驗證串流回答顯示；換頁後回來驗證對話紀錄保留；rate limit 達上限後驗證 429 提示訊息顯示（不崩潰）
 
 ### Implementation for US2
 
-- [X] T027 [US2] 在 `frontend/components/features/rag/FloatingChatbotWrapper.tsx` 實作 wrapper：`useChat`（共用 `loadSession` / `saveSession`）、渲染 `ChatbotPlugin`（`messages`, `onSend`, `isLoading` props）、從 `useSession` 取 token、從 `TopicContext` 取 `topicId`、on error 顯示 toast 錯誤（不崩潰頁面）
+- [X] T027 [US2] 在 `frontend/components/features/chat/FloatingChatbotWrapper.tsx` 實作 wrapper：`useChat`（含 `customAdapter` 解析 SSE sources 事件）、`localStorage`（`userId` 標記）歷史持久化（`loadFloatSession` / `saveFloatSession` inline 函式）、渲染 `FloatingChatbotPanel`（`messages`, `messageSources`, `onSend`, `isLoading`, `onNewChat`, `onAbort` props）、從 `useSession` 取 token、從 `TopicContext` 取 `topicId`、on error 顯示 toast 錯誤（不崩潰頁面）；未認證且非訪客模式時隱藏
 - [X] T028 [P] [US2] 在 `frontend/stories/FloatingChatbotWrapper.stories.tsx` 新增 Storybook story（default + conversation + loading + error 四個 variant，constitution §II 要求）
 - [X] T029 [US2] 在 `frontend/app/layout-shell.tsx` 加入 `<FloatingChatbotWrapper />`（ErrorBoundary 內側，session provider 可用）
 

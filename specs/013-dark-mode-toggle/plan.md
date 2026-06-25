@@ -1,6 +1,6 @@
 # Implementation Plan: Light / Dark / Auto Theme Toggle
 
-**Branch**: `012-rag-chatbot-integration` | **Date**: 2026-06-14 | **Spec**: [spec.md](./spec.md)
+**Branch**: `013-dark-mode-toggle` | **Date**: 2026-06-14 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/013-dark-mode-toggle/spec.md`
 
@@ -79,11 +79,11 @@ ThemeProvider          ← 最外層（先於 Session，確保 theme 在 SSR hyd
 ```
 useTheme() → { mode }
      ↓
-<ChatbotPlugin theme={mode} />   ← 直接傳 prop，讓元件自身設 data-chatbot-theme
-<AgentInput theme={mode} />
+<FloatingChatbotPanel theme={mode} />   ← 自作浮動 UI，根 div 設 data-chatbot-theme={mode}
+<AgentInput theme={mode} />             ← 外部套件元件，接受 theme prop
 ```
 
-**關鍵細節**：不可在外層 wrapper div 設 `data-chatbot-theme`，否則元件自身的 default `data-chatbot-theme="auto"` 會透過 CSS 覆蓋外層，導致主題失效。
+**關鍵細節**：`FloatingChatbotPanel` 為自作元件，直接在其 root div 設 `data-chatbot-theme={theme}`。`AgentInput` 為外部套件元件，接受 `theme` prop 並自行套用 `data-chatbot-theme`。兩者均不需要在外層 wrapper div 設 `data-chatbot-theme`。
 
 ### NavBar Toggle
 
@@ -137,5 +137,5 @@ const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
 | `frontend/lib/providers/index.tsx` | ThemeProvider 加入 AppProviders；export useTheme |
 | `frontend/app/layout.tsx` | `<html suppressHydrationWarning>` |
 | `frontend/components/features/navigation/nav-bar.tsx` | Toggle button |
-| `frontend/components/features/rag/FloatingChatbotWrapper.tsx` | theme prop 傳遞 |
-| `frontend/components/features/rag/InlineQABarWrapper.tsx` | theme prop 傳遞 |
+| `frontend/components/features/chat/FloatingChatbotWrapper.tsx` | theme prop 傳遞 |
+| `frontend/components/features/chat/InlineQABarWrapper.tsx` | theme prop 傳遞 |

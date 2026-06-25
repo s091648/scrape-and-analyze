@@ -59,6 +59,8 @@ jobs:
       - name: Install frontend dependencies for madge
         run: npm ci
         working-directory: frontend
+        env:
+          GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Generate frontend dependency graph (madge)
         working-directory: frontend

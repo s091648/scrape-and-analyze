@@ -41,13 +41,11 @@
 
 **Purpose**: 讓 chatbot UI 元件隨全域 theme 更新
 
-- [X] T005 [US3] 更新 `frontend/components/features/rag/FloatingChatbotWrapper.tsx`：
+- [X] T005 [US3] 更新 `frontend/components/features/chat/FloatingChatbotWrapper.tsx`：
   - 從 `useTheme()` 取 `mode`（非 `theme`）
-  - 移除外層 `<div data-chatbot-theme={...}>` wrapper
-  - 直接傳 `theme={mode}` prop 給 `<ChatbotPlugin>`
-- [X] T006 [P] [US3] 更新 `frontend/components/features/rag/InlineQABarWrapper.tsx`：
+  - 傳 `theme={mode}` prop 給 `<FloatingChatbotPanel>`（自作浮動 UI，非外部 `ChatbotPlugin`）
+- [X] T006 [P] [US3] 更新 `frontend/components/features/chat/InlineQABarWrapper.tsx`：
   - 從 `useTheme()` 取 `mode`
-  - 移除 wrapper div 的 `data-chatbot-theme` attribute
   - 直接傳 `theme={mode}` prop 給 `<AgentInput>`
 
 **Checkpoint**: 切換至 dark → 開啟 FloatingChatbot → 聊天視窗呈現深色 `--cp-surface` token
