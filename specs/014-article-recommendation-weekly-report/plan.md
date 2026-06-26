@@ -109,8 +109,13 @@ src/
 │       │   │   └── weekly_report.py
 │       │   ├── repositories/
 │       │   │   └── weekly_report_repository.py   # interface
-│       │   └── services/
-│       │       └── image_generation_service.py   # interface
+│       │   ├── services/
+│       │   │   ├── image_generation_service.py   # interface
+│       │   │   └── blob_storage_service.py       # interface (R2 impl in infrastructure)
+│       │   └── value_objects/
+│       │       ├── article_summary_for_report.py # per-article prompt input DTO
+│       │       ├── weekly_report_prompt.py       # extends BasePrompt; render(topic, articles, week)
+│       │       └── image_generation_prompt.py    # extends BasePrompt; render(topic, top_tags, week)
 │       └── application/
 │           └── use_cases/
 │               └── generate_weekly_report_use_case.py

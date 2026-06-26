@@ -196,6 +196,108 @@ llm_providers
 
 ---
 
+## Article Selection for Weekly Report
+
+**Sorting strategy** (applied within a 7-day window for a given `topic_id`):
+
+```sql
+ORDER BY
+  COALESCE(am.citation_count, 0) DESC,
+  COALESCE(am.view_count, 0) DESC,
+  a.published_at DESC NULLS LAST
+LIMIT :top_n  -- default 20, configurable
+```
+
+**Rationale**:
+- `COALESCE(citation_count, 0)` ensures academic papers with citations rank first without excluding non-academic articles entirely (RSS/Blog articles have `citation_count = NULL`, treated as 0)
+- `view_count` as secondary signal surfaces trending content among non-academic sources
+- `published_at` as tiebreaker uses actual content recency (not scrape lag)
+- Articles with `published_at = NULL` sink to the bottom — this is acceptable for edge-case scraper failures
+
+---
+
+## `ArticleSummaryForReport` Value Object
+
+Used as per-article input to `WeeklyReportPrompt.render()`. Assembled by `WeeklyReportRepoImpl` via a JOIN across `articles`, `analyses`, and `analysis_tags`.
+
+```python
+# src/modules/weekly_report/domain/value_objects/article_summary_for_report.py
+
+@dataclass(frozen=True)
+class ArticleSummaryForReport:
+    title: str
+    summary: Optional[str]          # from analyses.summary
+    pain_points: Optional[str]      # from analyses.pain_points
+    insights: Optional[str]         # from analyses.insights
+    innovations: Optional[str]      # from analyses.innovations
+    tags: List[str]                 # flat list of tag names from analysis_tags
+    citation_count: Optional[int]   # from article_metrics (for ranking context)
+    view_count: int                 # from article_metrics
+    published_at: Optional[datetime]
+```
+
+**Notes**:
+- Articles without an `analyses` row (analysis failed or pending) are excluded from report input — only `status='completed'` analyses are included
+- `tags` is a flat list (e.g., `["transformer", "attention mechanism", "computer vision"]`), not grouped, for compact prompt representation
+
+---
+
+## Domain Value Objects: Prompt Types
+
+Both follow the existing `BasePrompt` pattern from `src/modules/intelligence/domain/value_objects/base_prompt.py`.
+
+### `WeeklyReportPrompt`
+
+```python
+# src/modules/weekly_report/domain/value_objects/weekly_report_prompt.py
+
+def render(
+    self,
+    topic_name: str,
+    articles: List[ArticleSummaryForReport],
+    week_start: date,
+) -> 'WeeklyReportPrompt':
+    ...
+```
+
+Returns JSON with `{"title": "...", "summary_text": "..."}`.
+
+### `ImageGenerationPrompt`
+
+```python
+# src/modules/weekly_report/domain/value_objects/image_generation_prompt.py
+
+def render(
+    self,
+    topic_name: str,
+    top_tags: List[str],   # top ~5 most frequent tags from selected articles
+    week_label: str,       # e.g. "Week of June 23, 2026"
+) -> 'ImageGenerationPrompt':
+    ...
+```
+
+The `top_tags` list is derived by the use case (frequency count over all article tags) before calling `render()`.
+
+---
+
+## Domain Services
+
+### `BlobStorageService` Interface
+
+```python
+# src/modules/weekly_report/domain/services/blob_storage_service.py
+
+class BlobStorageService(ABC):
+    @abstractmethod
+    def upload(self, data: bytes, key: str, content_type: str = "image/png") -> str:
+        """Upload bytes to blob storage. Returns public URL."""
+        ...
+```
+
+`R2BlobStorageService` in `src/infrastructure/storage/r2_blob_storage.py` implements this interface. The use case injects `BlobStorageService`, not `R2BlobStorageService` directly (hexagonal architecture: use case depends only on domain interfaces).
+
+---
+
 ## Domain Entities (DDD)
 
 ### `src/modules/weekly_report/domain/entities/weekly_report.py`

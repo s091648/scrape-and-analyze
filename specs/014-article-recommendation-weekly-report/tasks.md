@@ -125,44 +125,51 @@
 ### Implementation — DDD Domain Layer
 
 - [ ] T040 [P] [US3] Create `src/modules/weekly_report/domain/entities/weekly_report.py` with `WeeklyReport` dataclass (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_ids, article_count, status, error_message)
-- [ ] T041 [P] [US3] Create `src/modules/weekly_report/domain/repositories/weekly_report_repository.py` abstract repository interface (fetch top articles by topic/week, get/save WeeklyReport)
+- [ ] T041 [P] [US3] Create `src/modules/weekly_report/domain/repositories/weekly_report_repository.py` abstract repository interface (fetch top articles by topic/week using sort strategy from data-model.md, get/save WeeklyReport)
 - [ ] T042 [P] [US3] Create `src/modules/weekly_report/domain/services/image_generation_service.py` abstract service interface (`generate_image(prompt: str) -> bytes`)
+- [ ] T043 [P] [US3] Create `src/modules/weekly_report/domain/services/blob_storage_service.py` abstract interface (`upload(data: bytes, key: str, content_type: str) -> str` returns public URL); use case injects this interface, not `R2BlobStorageService` directly
+- [ ] T044 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/article_summary_for_report.py` frozen dataclass: `title`, `summary`, `pain_points`, `insights`, `innovations` (all Optional[str] from analyses table), `tags: List[str]` (flat tag list), `citation_count: Optional[int]`, `view_count: int`, `published_at: Optional[datetime]`
+- [ ] T045 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/weekly_report_prompt.py` extending `BasePrompt`; `render(topic_name: str, articles: List[ArticleSummaryForReport], week_start: date)` fills template and returns JSON-requesting prompt for `{"title": "...", "summary_text": "..."}` output
+- [ ] T046 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/image_generation_prompt.py` extending `BasePrompt`; `render(topic_name: str, top_tags: List[str], week_label: str)` returns image generation prompt string (16:9 abstract art, futuristic data visualization aesthetic)
 
 ### Implementation — Application Layer
 
-- [ ] T043 [US3] Create `src/modules/weekly_report/application/use_cases/generate_weekly_report_use_case.py` orchestrating: fetch top N articles for topic+week → build LLM summary prompt → `ResilientLLMService.analyze()` → generate image → R2 upload → persist WeeklyReport → send email+Telegram notifications to subscribed users; depends on T040, T041, T042
+- [ ] T047 [US3] Create `src/modules/weekly_report/application/use_cases/generate_weekly_report_use_case.py` orchestrating: (1) fetch top N articles via repo (COALESCE sort), (2) derive `top_tags` by frequency count, (3) `WeeklyReportPrompt().render(...)` → `LLMService.analyze()` → parse JSON title+summary, (4) `ImageGenerationPrompt().render(...)` → `ImageGenerationService.generate_image()` → `BlobStorageService.upload()`, (5) persist WeeklyReport, (6) send email+Telegram to subscribed users; depends on T040–T046
 
 ### Implementation — Infrastructure Layer
 
-- [ ] T044 [P] [US3] Create `src/infrastructure/intelligence/image/base_image_provider.py` abstract base class implementing `ImageGenerationService`
-- [ ] T045 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK, `imagen-3.0-generate-001` model, `GEMINI_API_KEY`; depends on T042, T044
-- [ ] T046 [P] [US3] Create `src/infrastructure/storage/r2_blob_storage.py` `R2BlobStorageService` using `boto3` S3-compatible client with R2 endpoint (`https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`); `upload(data, key)` returns `{R2_PUBLIC_URL}/{key}`
-- [ ] T047 [US3] Create `src/infrastructure/weekly_report/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface: fetch articles by topic_id and date range, upsert `weekly_reports` ORM row; depends on T041, T009
-- [ ] T048 [P] [US3] Create `src/infrastructure/notifications/weekly_report_email_notifier.py` `WeeklyReportEmailNotifier` using `resend` Python SDK; sends HTML email to each subscribed user with `email_enabled=True` using `RESEND_API_KEY` and `RESEND_FROM_EMAIL`
-- [ ] T049 [P] [US3] Create `src/infrastructure/notifications/weekly_report_telegram_notifier.py` `WeeklyReportTelegramNotifier` reusing existing Telegram HTTP pattern, parameterized with each user's `telegram_chat_id` from `user_notification_settings` where `telegram_enabled=True`
+- [ ] T048 [P] [US3] Create `src/infrastructure/intelligence/image/base_image_provider.py` abstract base class for image generation providers
+- [ ] T049 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK and `imagen-3.0-generate-001` model; depends on T042, T048
+- [ ] T050 [P] [US3] Create `src/infrastructure/storage/r2_blob_storage.py` `R2BlobStorageService` implementing `BlobStorageService` (T043) using `boto3` S3-compatible client with `R2_*` env vars; depends on T043
+- [ ] T051 [US3] Create `src/infrastructure/weekly_report/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface (T041): fetches articles+analyses+tags via JOIN with `COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC NULLS LAST`, assembles `ArticleSummaryForReport` list, upserts `WeeklyReport` ORM row; depends on T041, T044
+
+### Implementation — Notifications
+
+- [ ] T052 [P] [US3] Create `src/infrastructure/notifications/weekly_report_email_notifier.py` `WeeklyReportEmailNotifier` using `resend` Python SDK; queries `user_notification_settings` for subscribed users with `email_enabled=True`; sends HTML email per user using `RESEND_API_KEY` and `RESEND_FROM_EMAIL`
+- [ ] T053 [P] [US3] Create `src/infrastructure/notifications/weekly_report_telegram_notifier.py` `WeeklyReportTelegramNotifier` reusing existing Telegram HTTP pattern; queries `user_notification_settings` for subscribed users with `telegram_enabled=True` and non-null `telegram_chat_id`; sends per-user message
 
 ### Implementation — Bootstrap & Entrypoint
 
-- [ ] T050 [US3] Add `build_weekly_pipeline()` to `src/bootstrap.py` wiring: `WeeklyReportRepoImpl`, `ResilientLLMService` (reuse existing builder), `GeminiImagenProvider`, `R2BlobStorageService`, `WeeklyReportEmailNotifier`, `WeeklyReportTelegramNotifier` → `GenerateWeeklyReportUseCase`; depends on T043–T049
-- [ ] T051 [US3] Create `src/entrypoints/cli/weekly_main.py` CLI entrypoint calling `build_weekly_pipeline()` and running `GenerateWeeklyReportUseCase` for each active topic with articles in the past 7 days; accepts `--topic-id` and `--week-start` CLI args for manual triggers; depends on T050
+- [ ] T054 [US3] Add `build_weekly_pipeline()` to `src/bootstrap.py` wiring: `WeeklyReportRepoImpl`, `ResilientLLMService` (reuse existing builder), `GeminiImagenProvider`, `R2BlobStorageService`, `WeeklyReportEmailNotifier`, `WeeklyReportTelegramNotifier` → `GenerateWeeklyReportUseCase`; depends on T047–T053
+- [ ] T055 [US3] Create `src/entrypoints/cli/weekly_main.py` CLI entrypoint calling `build_weekly_pipeline()` and running `GenerateWeeklyReportUseCase` for each active topic with articles in the past 7 days; accepts `--topic-id` and `--week-start` CLI args for manual triggers; depends on T054
 
 ### Implementation — Backend Subscription & Notification Settings API
 
-- [ ] T052 [P] [US3] Add `GET /user/subscriptions`, `POST /user/subscriptions` (`{"topic_id": "uuid"}`), `DELETE /user/subscriptions/{topic_id}` endpoints to `backend/routers/user.py` (require_user auth, using UserTopicSubscription ORM)
-- [ ] T053 [P] [US3] Add `GET /user/notification-settings`, `PUT /user/notification-settings` endpoints to `backend/routers/user.py` (require_user auth, upsert pattern on UserNotificationSettings)
+- [ ] T056 [P] [US3] Add `GET /user/subscriptions`, `POST /user/subscriptions` (`{"topic_id": "uuid"}`), `DELETE /user/subscriptions/{topic_id}` endpoints to `backend/routers/user.py` (require_user auth)
+- [ ] T057 [P] [US3] Add `GET /user/notification-settings`, `PUT /user/notification-settings` endpoints to `backend/routers/user.py` (require_user auth, upsert pattern on `UserNotificationSettings`)
 
 ### Implementation — Frontend Settings UI
 
-- [ ] T054 [P] [US3] Extend `frontend/app/settings/page.tsx` with topic subscription section: list all topics, Subscribe/Unsubscribe buttons per topic, reads current subscriptions via `fetchSubscriptions()`
-- [ ] T055 [P] [US3] Extend `frontend/app/settings/page.tsx` with notification settings form: email_enabled toggle, telegram_chat_id text input, telegram_enabled toggle; calls `fetchNotificationSettings()` on load and `updateNotificationSettings()` on save
-- [ ] T056 [P] [US3] Add `fetchSubscriptions()`, `subscribeToTopic(topicId)`, `unsubscribeTopic(topicId)`, `fetchNotificationSettings()`, `updateNotificationSettings(settings)` to `frontend/lib/api/user.ts`
+- [ ] T058 [P] [US3] Extend `frontend/app/settings/page.tsx` with topic subscription section: list all topics, Subscribe/Unsubscribe buttons per topic, reads current subscriptions via `fetchSubscriptions()`
+- [ ] T059 [P] [US3] Extend `frontend/app/settings/page.tsx` with notification settings form: email_enabled toggle, telegram_chat_id text input, telegram_enabled toggle; calls `fetchNotificationSettings()` on load and `updateNotificationSettings()` on save
+- [ ] T060 [P] [US3] Add `fetchSubscriptions()`, `subscribeToTopic(topicId)`, `unsubscribeTopic(topicId)`, `fetchNotificationSettings()`, `updateNotificationSettings(settings)` to `frontend/lib/api/user.ts`
 
 ### Tests
 
-- [ ] T057 [P] [US3] Write unit test for `GenerateWeeklyReportUseCase` (mock LLM service, image gen, R2, notifiers) in `src/tests/unit/test_generate_weekly_report_use_case.py`
-- [ ] T058 [P] [US3] Write unit test for `GeminiImagenProvider` (mock google-genai client) in `src/tests/unit/test_gemini_imagen_provider.py`
-- [ ] T059 [P] [US3] Write unit test for `R2BlobStorageService` (mock boto3 client, verify upload URL construction) in `src/tests/unit/test_r2_blob_storage.py`
-- [ ] T060 [P] [US3] Write backend integration test for `GET/POST/DELETE /user/subscriptions` and `GET/PUT /user/notification-settings` in `backend/tests/test_user_subscriptions.py`
+- [ ] T061 [P] [US3] Write unit test for `GenerateWeeklyReportUseCase` (mock LLM service, image gen, blob storage, notifiers) in `src/tests/unit/test_generate_weekly_report_use_case.py`
+- [ ] T062 [P] [US3] Write unit test for `GeminiImagenProvider` (mock google-genai client) in `src/tests/unit/test_gemini_imagen_provider.py`
+- [ ] T063 [P] [US3] Write unit test for `R2BlobStorageService` (mock boto3 client, verify upload URL construction) in `src/tests/unit/test_r2_blob_storage.py`
+- [ ] T064 [P] [US3] Write backend integration test for `GET/POST/DELETE /user/subscriptions` and `GET/PUT /user/notification-settings` in `backend/tests/test_user_subscriptions.py`
 
 **Checkpoint**: Weekly report generation runs end-to-end (may use mocked R2/Imagen); subscribed users receive notifications; settings page allows subscription and notification management
 
@@ -176,25 +183,25 @@
 
 ### Implementation — Backend
 
-- [ ] T061 [P] [US4] Create `backend/schemas/weekly_report.py` with `WeeklyReportOut` Pydantic schema (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_count, status, created_at)
-- [ ] T062 [P] [US4] Create `backend/services/weekly_report_service.py` with `get_weekly_reports(topic_id, limit, offset)` and `get_latest_weekly_report(topic_id)` (returns most recent `status='completed'` report) functions
-- [ ] T063 [US4] Create `backend/routers/weekly_reports.py` with `GET /weekly-reports` (paginated, public), `GET /weekly-reports/latest` (single, public), `POST /admin/weekly-reports/generate` (require_admin, body: topic_id + week_start_date); depends on T061, T062
-- [ ] T064 [US4] Register `backend/routers/weekly_reports.py` in `backend/main.py`; depends on T063
+- [ ] T065 [P] [US4] Create `backend/schemas/weekly_report.py` with `WeeklyReportOut` Pydantic schema (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_count, status, created_at)
+- [ ] T066 [P] [US4] Create `backend/services/weekly_report_service.py` with `get_weekly_reports(topic_id, limit, offset)` and `get_latest_weekly_report(topic_id)` (returns most recent `status='completed'` report) functions
+- [ ] T067 [US4] Create `backend/routers/weekly_reports.py` with `GET /weekly-reports` (paginated, public), `GET /weekly-reports/latest` (single, public), `POST /admin/weekly-reports/generate` (require_admin, body: topic_id + week_start_date); depends on T065, T066
+- [ ] T068 [US4] Register `backend/routers/weekly_reports.py` in `backend/main.py`; depends on T067
 
 ### Implementation — Frontend
 
-- [ ] T065 [P] [US4] Create `frontend/lib/api/weekly-reports.ts` with `fetchLatestWeeklyReport(topicId: string)` and `fetchWeeklyReports(topicId: string, limit?: number, offset?: number)` using `apiFetch()`
-- [ ] T066 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-skeleton.tsx` loading skeleton component
-- [ ] T067 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.tsx` displaying report title, summary_text (markdown rendered), and cover_image_url as CSS background-image
-- [ ] T068 [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.tsx` with week navigation dropdown (Shadcn Select) and `WeeklyReportCard`; fetches via `fetchLatestWeeklyReport`/`fetchWeeklyReports`; shows "No report for this week yet" placeholder when null; uses `WeeklyReportSkeleton` while loading; depends on T065, T066, T067
-- [ ] T069 [US4] Extend `frontend/app/page.tsx` to render `<WeeklyReportWidget topicId={currentTopicId} />` above `<InlineQABarWrapper>`; depends on T068
-- [ ] T070 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.stories.tsx` Storybook story (required by Constitution §II) with no-report and with-report states
-- [ ] T071 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.stories.tsx` Storybook story (required by Constitution §II) with and without cover image
+- [ ] T069 [P] [US4] Create `frontend/lib/api/weekly-reports.ts` with `fetchLatestWeeklyReport(topicId: string)` and `fetchWeeklyReports(topicId: string, limit?: number, offset?: number)` using `apiFetch()`
+- [ ] T070 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-skeleton.tsx` loading skeleton component
+- [ ] T071 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.tsx` displaying report title, summary_text (markdown rendered), and cover_image_url as CSS background-image
+- [ ] T072 [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.tsx` with week navigation dropdown (Shadcn Select) and `WeeklyReportCard`; fetches via `fetchLatestWeeklyReport`/`fetchWeeklyReports`; shows "No report for this week yet" placeholder when null; uses `WeeklyReportSkeleton` while loading; depends on T069, T070, T071
+- [ ] T073 [US4] Extend `frontend/app/page.tsx` to render `<WeeklyReportWidget topicId={currentTopicId} />` above `<InlineQABarWrapper>`; depends on T072
+- [ ] T074 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.stories.tsx` Storybook story (required by Constitution §II) with no-report and with-report states
+- [ ] T075 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.stories.tsx` Storybook story (required by Constitution §II) with and without cover image
 
 ### Tests
 
-- [ ] T072 [P] [US4] Write backend integration test for `GET /weekly-reports` and `GET /weekly-reports/latest` endpoint responses in `backend/tests/test_weekly_reports.py`
-- [ ] T073 [P] [US4] Write frontend unit test for `WeeklyReportWidget` (empty state, loaded state) in `frontend/tests/unit/weekly-report-widget.test.tsx`
+- [ ] T076 [P] [US4] Write backend integration test for `GET /weekly-reports` and `GET /weekly-reports/latest` in `backend/tests/test_weekly_reports.py`
+- [ ] T077 [P] [US4] Write frontend unit test for `WeeklyReportWidget` (empty state, loaded state) in `frontend/tests/unit/weekly-report-widget.test.tsx`
 
 **Checkpoint**: Homepage displays weekly report widget above InlineQABar; empty state shows placeholder; week dropdown navigates past reports
 
@@ -204,9 +211,9 @@
 
 **Purpose**: E2E validation and final cross-cutting quality checks
 
-- [ ] T074 [P] Write E2E test for sort by citation_count reordering the article list in `frontend/tests/integration/sort-articles.spec.ts`
-- [ ] T075 [P] Write E2E test for weekly report widget display and week dropdown navigation in `frontend/tests/integration/weekly-report-widget.spec.ts`
-- [ ] T076 Run quickstart.md validation: apply migrations 18–21 via `docker compose run --rm job_service make migrate`, generate a weekly report via admin API, verify citation count on scraped articles, and verify view count tracking and flush
+- [ ] T078 [P] Write E2E test for sort by citation_count reordering the article list in `frontend/tests/integration/sort-articles.spec.ts`
+- [ ] T079 [P] Write E2E test for weekly report widget display and week dropdown navigation in `frontend/tests/integration/weekly-report-widget.spec.ts`
+- [ ] T080 Run quickstart.md validation: apply migrations 18–21 via `docker compose run --rm job_service make migrate`, generate a weekly report via admin API, verify citation count on scraped articles, and verify view count tracking and flush
 
 ---
 
@@ -235,7 +242,7 @@
 
 ### Within Each User Story
 
-- Domain entities before services before repositories
+- Domain entities before services/value objects before repositories
 - Backend schemas before services before routers
 - Backend implementation before frontend API client
 - Frontend API client before frontend components
@@ -247,7 +254,7 @@
 
 ### Phase 2 (after T004 sets revision chain)
 
-T005, T006, T007, T008, T009, T010, T011 can all run in parallel.
+T005–T011 can all run in parallel.
 
 ### Phase 3 (US1)
 
@@ -257,25 +264,23 @@ T023, T024 (tests) run in parallel after implementation.
 
 ### Phase 6 (US3)
 
-T040, T041, T042 (domain layer) run in parallel.
-T044, T045, T046, T048, T049 (infrastructure) run in parallel after T042.
-T052, T053, T054, T055, T056 run in parallel.
-T057, T058, T059, T060 (tests) run in parallel.
+T040–T046 (domain layer) run in parallel — entities, interfaces, value objects all have no inter-dependencies.
+T048, T049, T050, T052, T053 (infrastructure) run in parallel after T042/T043.
+T056, T057, T058, T059, T060 (backend API + frontend settings) run in parallel.
+T061, T062, T063, T064 (tests) run in parallel.
 
-### Parallel Example: Phase 6 Infrastructure
+### Parallel Example: Phase 6 Domain Layer
 
 ```bash
-# Domain layer in parallel:
+# All domain tasks in parallel:
 Task T040: Create weekly_report.py entity
 Task T041: Create weekly_report_repository.py interface
 Task T042: Create image_generation_service.py interface
-
-# Infrastructure layer in parallel (after T042):
-Task T044: Create base_image_provider.py
-Task T045: Create gemini_imagen_provider.py
-Task T046: Create r2_blob_storage.py
-Task T048: Create WeeklyReportEmailNotifier
-Task T049: Create WeeklyReportTelegramNotifier
+Task T043: Create blob_storage_service.py interface
+Task T044: Create article_summary_for_report.py DTO
+Task T045: Create weekly_report_prompt.py value object
+Task T046: Create image_generation_prompt.py value object
+# Then T047 (use case) which depends on all of T040-T046
 ```
 
 ---
@@ -314,8 +319,9 @@ After Phase 2 completes:
 
 - `[P]` tasks = different files, no blocking dependencies — safe to run in parallel
 - `[Story]` label maps task to specific user story for traceability
-- Each user story is independently testable after its phase completes
 - Favorites (`backend/routers/user.py` created in Phase 5) and Subscriptions (endpoints added in Phase 6) share the same router file — Phase 5 creates it, Phase 6 extends it
 - Migrations 18–21 are additive (new tables) except 21 which modifies a CheckConstraint — all run via `make migrate`
-- Constitution §II requires Storybook stories for all new feature components (T070, T071)
-- Weekly runner entrypoint (T051) deploys as Railway Cron Service: `0 8 * * 1`
+- Constitution §II requires Storybook stories for all new feature components (T074, T075)
+- Weekly runner entrypoint (T055) deploys as Railway Cron Service: `0 8 * * 1`
+- `WeeklyReportPrompt` and `ImageGenerationPrompt` live in `weekly_report/domain/value_objects/`, NOT in `intelligence/domain/value_objects/` — different bounded context
+- `BlobStorageService` interface (T043) ensures the use case (T047) depends only on domain abstractions, not on R2 directly — required for hexagonal architecture compliance
