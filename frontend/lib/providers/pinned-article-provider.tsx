@@ -4,6 +4,7 @@ import { createContext, useContext, useCallback, useState } from 'react'
 export interface PinnedArticle {
   id: string
   title: string
+  tags?: string[]
 }
 
 interface PinnedArticleContextValue {

@@ -521,6 +521,9 @@
     "toolStatusRunning": "Running",
     "toolStatusDone": "Done",
     "toolStatusError": "Error",
-    "thinkingToggle": "Thinking process"
+    "thinkingToggle": "Thinking process",
+    "addToChat": "Ask AI about this article",
+    "removeFromChat": "Remove from AI chat",
+    "removeArticleRef": "Remove article reference"
   }
 }

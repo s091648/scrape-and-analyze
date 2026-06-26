@@ -521,6 +521,9 @@
     "toolStatusRunning": "執行中",
     "toolStatusDone": "完成",
     "toolStatusError": "錯誤",
-    "thinkingToggle": "思考過程"
+    "thinkingToggle": "思考過程",
+    "addToChat": "向 AI 詢問這篇文章",
+    "removeFromChat": "移除 AI 文章參考",
+    "removeArticleRef": "移除文章參考"
   }
 }

@@ -7,7 +7,7 @@ function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabe
   return (
     <div className="mb-1 rounded-lg border border-border overflow-hidden text-xs max-w-[85%]">
       <button
-        className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-muted-foreground hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-1.5 w-full px-2.5 py-1.5 text-left text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
@@ -43,7 +43,7 @@ export interface FloatingChatbotPanelProps {
   theme?: 'light' | 'dark' | 'auto'
   open: boolean
   onOpenChange: (open: boolean) => void
-  pinnedArticles?: { id: string; title: string }[]
+  pinnedArticles?: { id: string; title: string; tags?: string[] }[]
   onRemovePinnedArticle?: (id: string) => void
 }
 
@@ -276,7 +276,7 @@ export function FloatingChatbotPanel({
                   data-testid="new-chat-btn"
                   onClick={onNewChat}
                   disabled={isLoading}
-                  className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                  className="p-1.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50 cursor-pointer"
                   aria-label={t('rag.newConversation')}
                 >
                   <SquarePen className="h-4 w-4" />
@@ -284,7 +284,7 @@ export function FloatingChatbotPanel({
               )}
               <button
                 onClick={() => onOpenChange(false)}
-                className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer"
                 aria-label={t('rag.closeChat')}
               >
                 <X className="h-4 w-4" />
@@ -393,21 +393,35 @@ export function FloatingChatbotPanel({
 
           <footer className="border-t border-border px-3 py-3 shrink-0 space-y-2">
             {pinnedArticles && pinnedArticles.length > 0 && (
-              <div className="flex flex-col gap-1 px-1">
+              <div className="flex flex-col gap-1.5 px-1">
                 {pinnedArticles.map(article => (
-                  <div key={article.id} className="flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3 text-purple-500 shrink-0" />
-                    <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 font-medium">
-                      {article.title}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onRemovePinnedArticle?.(article.id)}
-                      className="p-0.5 rounded hover:bg-muted transition-colors shrink-0"
-                      aria-label="Remove article reference"
-                    >
-                      <X className="h-3 w-3 text-muted-foreground" />
-                    </button>
+                  <div key={article.id} className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-3 w-3 text-purple-500 shrink-0" />
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 font-medium">
+                        {article.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onRemovePinnedArticle?.(article.id)}
+                        className="p-0.5 rounded hover:bg-muted transition-colors shrink-0 cursor-pointer"
+                        aria-label={t('rag.removeArticleRef')}
+                      >
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pl-5">
+                        {article.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center h-4 px-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-[9px] text-purple-700 dark:text-purple-300"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -427,7 +441,7 @@ export function FloatingChatbotPanel({
                 data-testid="send-btn"
                 onClick={submit}
                 disabled={isLoading || !input.trim()}
-                className="p-1 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 transition-opacity"
+                className="p-1 rounded-lg bg-primary text-primary-foreground disabled:opacity-40 transition-opacity cursor-pointer"
                 aria-label={t('rag.sendAriaLabel')}
               >
                 <Send className="h-3 w-3" />
@@ -439,7 +453,7 @@ export function FloatingChatbotPanel({
 
       <button
         onClick={() => onOpenChange(!open)}
-        className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+        className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors cursor-pointer"
         aria-label={open ? t('rag.closeChat') : t('rag.openChat')}
         aria-expanded={open}
       >

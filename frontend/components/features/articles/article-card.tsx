@@ -21,7 +21,7 @@ interface ArticleCardProps extends Article {
 export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
-  const { togglePinnedArticle, isPinned } = usePinnedArticle()
+  const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen! : internalOpen
@@ -31,6 +31,24 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  async function handleTogglePin(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (isPinned(id)) {
+      removePinnedArticle(id)
+    } else {
+      let tags: string[] = []
+      if (detail?.tags) {
+        tags = detail.tags
+      } else {
+        try {
+          const fetched = await fetchArticleById(id, locale)
+          tags = fetched.tags || []
+        } catch {}
+      }
+      togglePinnedArticle({ id, title: displayTitle, tags })
+    }
+  }
 
   const displayTitle = translated_title ?? title
   const displayContent = translated_content ?? content
@@ -135,10 +153,10 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
               {has_vectors && (
                 <button
                   type="button"
-                  onClick={e => { e.stopPropagation(); togglePinnedArticle({ id, title: displayTitle }) }}
-                  aria-label={isPinned(id) ? 'Remove from AI chat' : 'Ask AI about this article'}
-                  title={isPinned(id) ? 'Remove from AI chat' : 'Ask AI about this article'}
-                  className={`inline-flex items-center justify-center h-5 w-5 rounded-full transition-colors ${
+                  onClick={handleTogglePin}
+                  aria-label={isPinned(id) ? t('rag.removeFromChat') : t('rag.addToChat')}
+                  title={isPinned(id) ? t('rag.removeFromChat') : t('rag.addToChat')}
+                  className={`inline-flex items-center justify-center h-5 w-5 rounded-full cursor-pointer transition-colors ${
                     isPinned(id)
                       ? 'bg-purple-100 dark:bg-purple-900/40'
                       : 'hover:bg-purple-100 dark:hover:bg-purple-900/40'
