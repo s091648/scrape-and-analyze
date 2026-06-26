@@ -3,7 +3,7 @@ import { AnswerDisplay } from '../components/features/chat/AnswerDisplay'
 import { withDarkMode } from './decorators'
 
 const meta: Meta<typeof AnswerDisplay> = {
-  title: 'Features/RAG/AnswerDisplay',
+  title: 'Features/Chat/AnswerDisplay',
   component: AnswerDisplay,
   parameters: {
     nextjs: { appDirectory: true },
