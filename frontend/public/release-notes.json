@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced support for light and dark mode themes across the application."
+        "description": "Introduced light and dark mode themes for the chat interface."
       },
       {
         "type": "feat",
-        "description": "Added new floating chatbot and inline Q&A components to the user interface."
+        "description": "Enhanced the chatbot UI with a new thinking state indicator and internationalization support."
       },
       {
         "type": "feat",
-        "description": "Enabled Markdown rendering for improved formatting of chat messages."
+        "description": "Added new floating chatbot and inline QA bar components for more flexible site integration."
       },
       {
         "type": "feat",
-        "description": "Added a 'thinking' status indicator to the chatbot for better real-time feedback."
+        "description": "Added support for pinning specific articles to prioritize them in chatbot responses."
       },
       {
         "type": "feat",
-        "description": "Integrated a usage quota display for the inline Q&A component."
+        "description": "Implemented a usage quota display within the inline QA component."
       },
       {
         "type": "fix",
-        "description": "Improved the reliability of chat responses and the display of source citations."
-      },
-      {
-        "type": "fix",
-        "description": "Fixed session and state management for users in guest mode."
+        "description": "Improved stability by handling empty assistant messages and streaming failures more gracefully."
       },
       {
         "type": "feat",
-        "description": "Added a retry option for chat messages that fail to send."
+        "description": "Added support for persistent chat dialogs to maintain conversation history across sessions."
+      },
+      {
+        "type": "feat",
+        "description": "Integrated a new visual pipeline view to monitor AI processing steps and background tasks."
       }
     ]
   },
