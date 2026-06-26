@@ -5,35 +5,35 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced light and dark mode themes for the chat interface."
+        "description": "Improved the user interface for pinned articles"
       },
       {
         "type": "feat",
-        "description": "Enhanced the chatbot UI with a new thinking state indicator and internationalization support."
+        "description": "Added a new thinking state to the chatbot UI with internationalization support"
       },
       {
         "type": "feat",
-        "description": "Added new floating chatbot and inline QA bar components for more flexible site integration."
+        "description": "Enabled retry functionality for chatbot messages"
       },
       {
         "type": "feat",
-        "description": "Added support for pinning specific articles to prioritize them in chatbot responses."
+        "description": "Added support for light and dark mode across the application"
       },
       {
         "type": "feat",
-        "description": "Implemented a usage quota display within the inline QA component."
+        "description": "Introduced a new pipeline visualization style for RAG processes"
       },
       {
         "type": "fix",
-        "description": "Improved stability by handling empty assistant messages and streaming failures more gracefully."
+        "description": "Resolved an issue where guest mode state was not correctly maintained"
       },
       {
-        "type": "feat",
-        "description": "Added support for persistent chat dialogs to maintain conversation history across sessions."
+        "type": "fix",
+        "description": "Fixed an error where failed server-sent events would not return properly"
       },
       {
-        "type": "feat",
-        "description": "Integrated a new visual pipeline view to monitor AI processing steps and background tasks."
+        "type": "chore",
+        "description": "Automated the generation of release notes for pull requests"
       }
     ]
   },
