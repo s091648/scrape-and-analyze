@@ -717,7 +717,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy storybook to Railway (staging)
-        run: (cd frontend && railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35 --environment staging)
+        run: railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35 --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
