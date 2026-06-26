@@ -108,17 +108,54 @@ CREATE INDEX idx_user_notif_settings_user_id ON user_notification_settings (user
 
 ### `models/llm_provider.py`
 
-Add `'image'` to the accepted values for the `type` column. Update the `CheckConstraint`:
+Add `'multimodal'` to the accepted values for the `type` column. Update the `CheckConstraint`:
 
 ```python
 type = Column(String(20), nullable=False, default='llm')
-# Add CheckConstraint to allow 'llm', 'embedding', 'image'
+# Add CheckConstraint to allow 'llm', 'embedding', 'multimodal'
 __table_args__ = (
-    CheckConstraint("type IN ('llm', 'embedding', 'image')", name='ck_llm_provider_type'),
+    CheckConstraint("type IN ('llm', 'embedding', 'multimodal')", name='ck_llm_provider_type'),
 )
 ```
 
-Note: The existing `providers.toml` must also be updated to register image providers.
+The specific multimodal model (e.g., Gemini Imagen, DALL-E) is DB-configured via `providers.toml`, NOT hardcoded. Example `providers.toml` entry:
+
+```toml
+[[providers]]
+name = "gemini-imagen"
+type = "multimodal"
+model = "imagen-3.0-generate-001"   # operator-configurable
+api_key_env = "GEMINI_API_KEY"
+priority = 1
+
+[providers.strategy]
+type = "sliding_window"
+rpm = 2
+tpm = 0
+rpd = 50
+```
+
+---
+
+### `user_article_favorites`
+
+Records which articles a logged-in user has favorited.
+
+```sql
+CREATE TABLE user_article_favorites (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    article_id  UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE (user_id, article_id)
+);
+CREATE INDEX idx_user_article_favs_user_id ON user_article_favorites (user_id);
+CREATE INDEX idx_user_article_favs_article_id ON user_article_favorites (article_id);
+```
+
+**ORM Model**: Add to `models/user_subscription.py` as `UserArticleFavorite` class.
+
+**ON CONFLICT**: Backend `POST /user/favorites/{article_id}` uses `INSERT … ON CONFLICT DO NOTHING` to make the endpoint idempotent.
 
 ---
 
@@ -127,11 +164,11 @@ Note: The existing `providers.toml` must also be updated to register image provi
 ```
 18_article_metrics_table.py
 19_weekly_reports_table.py
-20_user_subscription_tables.py
-21_llm_provider_type_image.py
+20_user_subscription_tables.py       # includes user_article_favorites
+21_llm_provider_type_multimodal.py   # adds 'multimodal' to type constraint
 ```
 
-Each migration is independent. Migrations 18–20 are additive (new tables); migration 21 adds a constraint to an existing table.
+Each migration is independent. Migrations 18–20 are additive (new tables); migration 21 modifies the CheckConstraint on `llm_providers`.
 
 ---
 
@@ -141,17 +178,20 @@ Each migration is independent. Migrations 18–20 are additive (new tables); mig
 auth.users
     ├── user_topic_subscriptions (user_id FK)
     │       └── topics (topic_id FK)
-    └── user_notification_settings (user_id FK, 1:1)
+    ├── user_notification_settings (user_id FK, 1:1)
+    └── user_article_favorites (user_id FK)
+            └── articles (article_id FK)
 
 articles
-    └── article_metrics (article_id FK, 1:1)
+    ├── article_metrics (article_id FK, 1:1)
+    └── user_article_favorites (article_id FK)
 
 topics
     ├── weekly_reports (topic_id FK)
     └── user_topic_subscriptions (topic_id FK)
 
 llm_providers
-    └── type IN ('llm', 'embedding', 'image')
+    └── type IN ('llm', 'embedding', 'multimodal')
 ```
 
 ---

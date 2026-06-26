@@ -136,14 +136,14 @@ src/
 models/
 ├── article_metrics.py          # new
 ├── weekly_report.py            # new
-└── user_subscription.py        # new: UserTopicSubscription + UserNotificationSettings
+└── user_subscription.py        # new: UserTopicSubscription + UserNotificationSettings + UserArticleFavorite
 
 # Alembic migrations
 alembic/versions/
 ├── 18_article_metrics_table.py
 ├── 19_weekly_reports_table.py
-├── 20_user_subscription_tables.py
-└── 21_llm_provider_type_image.py
+├── 20_user_subscription_tables.py       # includes user_article_favorites
+└── 21_llm_provider_type_multimodal.py  # adds 'multimodal' to type constraint
 
 # Frontend
 frontend/
@@ -152,9 +152,9 @@ frontend/
 ├── components/
 │   └── features/
 │       ├── articles/
-│       │   ├── article-card.tsx             # extend: citation_count badge, view_count, fire view event
+│       │   ├── article-card.tsx             # extend: heart icon (left of title), citation_count badge, view_count, fire view event
 │       │   ├── article-detail-dialog.tsx    # extend: citation_count + view_count display
-│       │   └── filter-bar.tsx               # extend: sort dropdown on right
+│       │   └── filter-bar.tsx               # extend: sort dropdown on right + Favorites toggle
 │       └── weekly-report/                   # new feature directory
 │           ├── weekly-report-widget.tsx
 │           ├── weekly-report-card.tsx
@@ -163,9 +163,9 @@ frontend/
 │           └── weekly-report-card.stories.tsx    # required by Constitution §II
 └── lib/
     └── api/
-        ├── articles.ts             # extend: recordArticleView(), update types
+        ├── articles.ts             # extend: recordArticleView(), update types (citation_count, view_count, is_favorited)
         ├── weekly-reports.ts       # new
-        └── user.ts                 # new or extend: subscriptions + notification settings
+        └── user.ts                 # new or extend: subscriptions, notification settings, favorites (addFavorite, removeFavorite, getFavorites)
 ```
 
 **Structure Decision**: Web application (Option 2). Feature touches all three service layers: `src/` (scraper/DDD), `backend/` (FastAPI), and `frontend/` (Next.js). A new fourth DDD bounded context (`weekly_report`) is added to `src/modules/`.
@@ -175,7 +175,7 @@ frontend/
 ### Phase A: Data Foundation (Migrations + Models)
 1. Create 4 Alembic migrations (18–21)
 2. Create ORM models: `article_metrics.py`, `weekly_report.py`, `user_subscription.py`
-3. Extend `LlmProvider` model with `type='image'` constraint
+3. Extend `LlmProvider` model with `type='multimodal'` constraint
 
 ### Phase B: Article Metrics Collection
 1. Extend `ScrapedArticle` value object with `citation_count`

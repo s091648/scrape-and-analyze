@@ -13,12 +13,18 @@ sort: "scraped_at" | "published_at" | "source" | "title" | "citation_count" | "v
 order: "asc" | "desc"
 ```
 
+New query param added:
+```
+favorites_only: bool = false   // when true + user authenticated, restricts to user's favorites
+```
+
 Response `ArticleOut` gains:
 ```json
 {
   "id": "uuid",
-  "citation_count": 42,   // null if not available
-  "view_count": 118,      // 0 if never viewed
+  "citation_count": 42,    // null if not available
+  "view_count": 118,       // 0 if never viewed
+  "is_favorited": true,    // bool — only meaningful when user is authenticated; false for guests
   ...existing fields
 }
 ```
@@ -128,6 +134,32 @@ Unsubscribe from a topic.
 
 ---
 
+### `GET /user/favorites` (authenticated)
+
+Get the list of article IDs the current user has favorited.
+
+**Response**: `{ "article_ids": ["uuid", "uuid", ...] }`
+
+**Auth**: `require_user`
+
+### `POST /user/favorites/{article_id}`
+
+Add an article to the current user's favorites. Idempotent (ON CONFLICT DO NOTHING).
+
+**Response**: `201 Created` | `204 No Content` (if already favorited)
+
+**Auth**: `require_user`
+
+### `DELETE /user/favorites/{article_id}`
+
+Remove an article from the current user's favorites.
+
+**Response**: `204 No Content`
+
+**Auth**: `require_user`
+
+---
+
 ### `GET /user/notification-settings` (authenticated)
 
 Get the current user's notification settings.
@@ -177,8 +209,8 @@ New functions in `frontend/lib/api/`:
 - `components/features/weekly-report/WeeklyReportSkeleton.tsx` — loading state
 
 ### Modified components
-- `components/features/articles/filter-bar.tsx` — add sort dropdown (right side, immediate apply)
-- `components/features/articles/article-card.tsx` — show citation_count badge, view_count badge
+- `components/features/articles/filter-bar.tsx` — add sort dropdown (right side, immediate apply) + Favorites toggle (logged-in only, hidden for guests)
+- `components/features/articles/article-card.tsx` — add heart icon (left of title, hover-visible when unfavorited / always-visible when favorited, hidden for guests); show citation_count badge, view_count badge
 - `components/features/articles/article-detail-dialog.tsx` — show citation_count + view_count, fire POST /articles/{id}/view on open
 - `app/page.tsx` — add `WeeklyReportWidget` above `InlineQABarWrapper`
 - `app/settings/page.tsx` — add topic subscription UI and notification settings form
