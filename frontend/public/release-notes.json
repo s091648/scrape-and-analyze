@@ -5,35 +5,31 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Introduced light and dark mode themes for the chat interface."
+        "description": "Added new light and dark mode themes for the chat interface"
       },
       {
         "type": "feat",
-        "description": "Enhanced the chatbot UI with a new thinking state indicator and internationalization support."
+        "description": "Introduced an enhanced thinking chatbot UI with internationalization support"
       },
       {
         "type": "feat",
-        "description": "Added new floating chatbot and inline QA bar components for more flexible site integration."
+        "description": "Implemented retry functionality for chatbot interactions"
       },
       {
         "type": "feat",
-        "description": "Added support for pinning specific articles to prioritize them in chatbot responses."
+        "description": "Added support for Markdown syntax rendering within the chat interface"
       },
       {
         "type": "feat",
-        "description": "Implemented a usage quota display within the inline QA component."
+        "description": "Added a new RAG providers admin page for easier configuration and management"
       },
       {
         "type": "fix",
-        "description": "Improved stability by handling empty assistant messages and streaming failures more gracefully."
+        "description": "Fixed attachment UI issues and improved message source management"
       },
       {
-        "type": "feat",
-        "description": "Added support for persistent chat dialogs to maintain conversation history across sessions."
-      },
-      {
-        "type": "feat",
-        "description": "Integrated a new visual pipeline view to monitor AI processing steps and background tasks."
+        "type": "fix",
+        "description": "Resolved guest mode state persistence and errors during PDF processing"
       }
     ]
   },

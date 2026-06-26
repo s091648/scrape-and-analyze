@@ -17,6 +17,7 @@ const config: StorybookConfig = {
     '@storybook/addon-a11y',
     '@storybook/addon-docs',
     '@storybook/addon-mcp',
+    'storybook-addon-module-mock',
   ],
   framework: '@storybook/nextjs-vite',
   staticDirs: ['../public'],

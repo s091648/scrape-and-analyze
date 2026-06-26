@@ -4,6 +4,8 @@ import { Toaster } from "sonner";
 import { I18nProvider } from "../lib/providers/i18n-provider";
 import { ThemeProvider } from "../lib/providers/theme-provider";
 import "../app/globals.css";
+import "./chatbot-ui/base.css";
+import "@s091648/chatbot-plugin-ui/dist/style.css";
 
 const preview: Preview = {
   decorators: [
