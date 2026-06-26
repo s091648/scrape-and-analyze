@@ -1,0 +1,16 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[data-chatbot-theme] button {
+  cursor: pointer;
+}
+
+[data-chatbot-theme] input,
+[data-chatbot-theme] textarea {
+  font-family: var(--cp-font-body);
+}

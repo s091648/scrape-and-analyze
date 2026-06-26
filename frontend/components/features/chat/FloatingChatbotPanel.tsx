@@ -34,6 +34,7 @@ import type { ArticleSource } from './types'
 export interface FloatingChatbotPanelProps {
   messages: Message[]
   messageSources: Record<string, ArticleSource[]>
+  messageAttachments?: Record<string, Array<{ id: string; title: string }>>
   onSend: (text: string) => void
   isLoading: boolean
   onNewChat?: () => void
@@ -186,6 +187,7 @@ function renderMarkdown(
 export function FloatingChatbotPanel({
   messages,
   messageSources,
+  messageAttachments,
   onSend,
   isLoading,
   onNewChat,
@@ -369,6 +371,20 @@ export function FloatingChatbotPanel({
                       )}
                     </div>
                   )}
+                  {m.role === 'user' && messageAttachments?.[m.id]?.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1 max-w-[85%] justify-end">
+                      {messageAttachments[m.id].map(article => (
+                        <button
+                          key={article.id}
+                          onClick={() => openArticleDialog(article.id)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 text-[10px] text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate max-w-[160px]">{article.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {m.role === 'user' && (
                     <span className="text-[10px] text-muted-foreground mt-1">
                       {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -393,35 +409,22 @@ export function FloatingChatbotPanel({
 
           <footer className="border-t border-border px-3 py-3 shrink-0 space-y-2">
             {pinnedArticles && pinnedArticles.length > 0 && (
-              <div className="flex flex-col gap-1.5 px-1">
+              <div className="flex flex-wrap gap-1 px-1">
                 {pinnedArticles.map(article => (
-                  <div key={article.id} className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <Sparkles className="h-3 w-3 text-purple-500 shrink-0" />
-                      <span className="text-[10px] text-purple-600 dark:text-purple-400 truncate flex-1 font-medium">
-                        {article.title}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onRemovePinnedArticle?.(article.id)}
-                        className="p-0.5 rounded hover:bg-muted transition-colors shrink-0 cursor-pointer"
-                        aria-label={t('rag.removeArticleRef')}
-                      >
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                    </div>
-                    {article.tags && article.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pl-5">
-                        {article.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="inline-flex items-center h-4 px-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-[9px] text-purple-700 dark:text-purple-300"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                  <div
+                    key={article.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 text-[10px] text-purple-700 dark:text-purple-300"
+                  >
+                    <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                    <span className="truncate max-w-[140px]">{article.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => onRemovePinnedArticle?.(article.id)}
+                      className="ml-0.5 rounded-full hover:bg-purple-200 dark:hover:bg-purple-800 transition-colors cursor-pointer shrink-0"
+                      aria-label={t('rag.removeArticleRef')}
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
                   </div>
                 ))}
               </div>

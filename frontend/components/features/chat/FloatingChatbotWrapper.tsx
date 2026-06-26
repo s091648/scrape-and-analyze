@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { openaiAdapter, useChat, type StreamAdapter, type StreamEvent, type Message } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota, usePinnedArticle } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota, usePinnedArticle, type PinnedArticle } from '@/lib/providers'
 import { FloatingChatbotPanel, type ArticleSource } from './FloatingChatbotPanel'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
@@ -42,8 +42,11 @@ export function FloatingChatbotWrapper() {
   const { quota, refreshQuota } = useChatQuota()
   const { pinnedArticles, removePinnedArticle, clearPinnedArticles } = usePinnedArticle()
   const [messageSources, setMessageSources] = useState<Record<string, ArticleSource[]>>({})
+  const [messageAttachments, setMessageAttachments] = useState<Record<string, PinnedArticle[]>>({})
   const [chatOpen, setChatOpen] = useState(false)
   const prevPinnedCountRef = useRef(0)
+  const pendingPinnedRef = useRef<PinnedArticle[]>([])
+  const prevUserMsgCountRef = useRef(0)
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
@@ -140,18 +143,34 @@ export function FloatingChatbotWrapper() {
     prevPinnedCountRef.current = pinnedArticles.length
   }, [pinnedArticles.length])
 
+  // When a new user message appears, attach the pending pinned articles snapshot to it
+  useEffect(() => {
+    const userMessages = messages.filter((m: { role: string; id: string }) => m.role === 'user')
+    if (userMessages.length > prevUserMsgCountRef.current && pendingPinnedRef.current.length > 0) {
+      const lastUser = userMessages[userMessages.length - 1]
+      const snapshot = pendingPinnedRef.current
+      pendingPinnedRef.current = []
+      setMessageAttachments(prev => ({ ...prev, [lastUser.id]: snapshot }))
+    }
+    prevUserMsgCountRef.current = userMessages.length
+  }, [messages])
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return
+      if (pinnedArticles.length > 0) pendingPinnedRef.current = [...pinnedArticles]
       sendMessage(text)
     },
-    [sendMessage]
+    [sendMessage, pinnedArticles]
   )
 
   const handleNewChat = useCallback(() => {
     clearMessages()
     localStorage.removeItem(FLOAT_STORAGE_KEY)
     setMessageSources({})
+    setMessageAttachments({})
+    pendingPinnedRef.current = []
+    prevUserMsgCountRef.current = 0
     clearPinnedArticles()
   }, [clearMessages, clearPinnedArticles])
 
@@ -169,6 +188,7 @@ export function FloatingChatbotWrapper() {
       theme={mode}
       messages={messages}
       messageSources={messageSources}
+      messageAttachments={messageAttachments}
       onSend={handleSend}
       isLoading={isLoading}
       onNewChat={handleNewChat}
