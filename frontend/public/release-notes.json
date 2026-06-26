@@ -5,35 +5,31 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Improved the user interface for pinned articles"
+        "description": "Added new light and dark mode themes for the chat interface"
       },
       {
         "type": "feat",
-        "description": "Added a new thinking state to the chatbot UI with internationalization support"
+        "description": "Introduced an enhanced thinking chatbot UI with internationalization support"
       },
       {
         "type": "feat",
-        "description": "Enabled retry functionality for chatbot messages"
+        "description": "Implemented retry functionality for chatbot interactions"
       },
       {
         "type": "feat",
-        "description": "Added support for light and dark mode across the application"
+        "description": "Added support for Markdown syntax rendering within the chat interface"
       },
       {
         "type": "feat",
-        "description": "Introduced a new pipeline visualization style for RAG processes"
+        "description": "Added a new RAG providers admin page for easier configuration and management"
       },
       {
         "type": "fix",
-        "description": "Resolved an issue where guest mode state was not correctly maintained"
+        "description": "Fixed attachment UI issues and improved message source management"
       },
       {
         "type": "fix",
-        "description": "Fixed an error where failed server-sent events would not return properly"
-      },
-      {
-        "type": "chore",
-        "description": "Automated the generation of release notes for pull requests"
+        "description": "Resolved guest mode state persistence and errors during PDF processing"
       }
     ]
   },
