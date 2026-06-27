@@ -34,7 +34,7 @@ Add article recommendation signals (citation count from academic scrapers + view
 
 **Scale/Scope**: 
 - ~1,000 articles per topic per week (existing scrape volume)
-- 4 Alembic migrations (18–21)
+- 1 Alembic migration (23) covering all new tables + model changes
 - 3 new DB tables, 1 modified model
 - 1 new scraper module (`weekly_report`), 1 new entrypoint
 - ~8 new backend endpoints, ~5 new frontend components
@@ -45,7 +45,7 @@ Add article recommendation signals (citation count from academic scrapers + view
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| §I DDD — hexagonal architecture | ✅ PASS | New `weekly_report` module follows domain/application/infrastructure layers. `ArticleMetrics` domain signals integrated into `collection` module via `ScrapedArticle` value object extension. |
+| §I DDD — hexagonal architecture | ✅ PASS | Weekly report artifacts added inside existing `intelligence` bounded context — no new top-level module. `ArticleMetrics` domain signals integrated into `collection` module via `ScrapedArticle` value object extension. |
 | §II Atomic Frontend — component hierarchy | ✅ PASS | `WeeklyReportWidget` goes in `components/features/weekly-report/`. All Storybook stories required. Sort control added to existing `filter-bar.tsx` (no new common component). |
 | §III Test Discipline — mandatory tests | ✅ PASS | Test tasks included for all layers: unit tests for weekly_report use case and image service, integration tests for new endpoints, E2E for sort and weekly report widget. |
 | §IV Docker-first — service architecture | ✅ PASS | Weekly runner uses existing Docker service (`app`). New Railway Cron Service uses same image. boto3 and resend added to `pyproject.toml`. |
@@ -54,7 +54,7 @@ Add article recommendation signals (citation count from academic scrapers + view
 | §VIII UML conventions | ✅ PASS | New `weekly_report` module follows `src/modules/weekly_report/` structure. Events end in `Event`. Handler exposes `handle()`. |
 | §IX FastAPI microservice structure | ✅ PASS | No new microservices. Backend router additions follow existing `backend/routers/` pattern. |
 
-**Post-design re-check**: ✅ All gates pass. The design creates a new DDD bounded context (`weekly_report`) cleanly separated from `collection`. The only cross-context coupling is reading `Article` entities from the DB for report generation — done via a read-only repository interface in the `weekly_report` domain.
+**Post-design re-check**: ✅ All gates pass. Weekly report is placed inside the `intelligence` bounded context (LLM + image generation is its core purpose). Cross-context data access (reading `Article`/`Analysis`/`Tag` entities) is via a read-only `WeeklyReportRepository` interface in `intelligence/domain/repositories/` — implementations query the DB directly without importing `collection` domain types.
 
 ## Complexity Tracking
 
@@ -88,7 +88,7 @@ specs/014-article-recommendation-weekly-report/
 backend/
 ├── routers/
 │   ├── articles.py         # extend: citation_count/view_count in ArticleOut, POST /articles/{id}/view, sort by new fields
-│   ├── weekly_reports.py   # new: GET /weekly-reports, GET /weekly-reports/latest, POST /admin/weekly-reports/generate
+│   ├── weekly_reports.py   # new: GET /weekly-reports, GET /weekly-reports/latest
 │   └── user.py             # new: GET|PUT /user/notification-settings, GET|POST|DELETE /user/subscriptions/{topic_id}
 ├── schemas/
 │   ├── article.py          # extend ArticleOut + ArticleDetailOut with citation_count, view_count
@@ -103,39 +103,38 @@ src/
 │   ├── collection/
 │   │   └── domain/
 │   │       └── value_objects/scraped_article.py  # extend: add citation_count field
-│   └── weekly_report/                             # new bounded context
+│   └── intelligence/                              # weekly report lives here, not a separate bounded context
 │       ├── domain/
 │       │   ├── entities/
-│       │   │   └── weekly_report.py
+│       │   │   └── weekly_report.py               # new
 │       │   ├── repositories/
-│       │   │   └── weekly_report_repository.py   # interface
+│       │   │   └── weekly_report_repository.py    # new: interface
 │       │   ├── services/
-│       │   │   ├── image_generation_service.py   # interface
-│       │   │   └── blob_storage_service.py       # interface (R2 impl in infrastructure)
+│       │   │   ├── image_generation_service.py    # new: interface
+│       │   │   └── blob_storage_service.py        # new: interface (R2 impl in infrastructure)
 │       │   └── value_objects/
-│       │       ├── article_summary_for_report.py # per-article prompt input DTO
-│       │       ├── weekly_report_prompt.py       # extends BasePrompt; render(topic, articles, week)
-│       │       └── image_generation_prompt.py    # extends BasePrompt; render(topic, top_tags, week)
+│       │       ├── article_summary_for_report.py  # new: per-article prompt input DTO
+│       │       ├── weekly_report_prompt.py        # new: extends BasePrompt
+│       │       └── image_generation_prompt.py     # new: extends BasePrompt
 │       └── application/
 │           └── use_cases/
-│               └── generate_weekly_report_use_case.py
+│               └── generate_weekly_report.py      # new
 ├── infrastructure/
 │   ├── collection/
 │   │   └── scrapers/
 │   │       ├── openalex_scraper.py     # extend: pass citation_count through to ScrapedArticle
 │   │       └── semantic_scholar_scraper.py  # extend: pass citation_count through
 │   ├── intelligence/
-│   │   └── image/
-│   │       ├── base_image_provider.py
-│   │       └── gemini_imagen_provider.py  # new
-│   ├── storage/
-│   │   └── r2_blob_storage.py          # new
-│   └── weekly_report/
-│       └── repositories/
-│           └── weekly_report_repo_impl.py  # new
+│   │   ├── image/
+│   │   │   ├── base_image_provider.py         # new
+│   │   │   └── gemini_imagen_provider.py      # new
+│   │   └── repositories/
+│   │       └── weekly_report_repo_impl.py     # new
+│   └── storage/
+│       └── r2_blob_storage.py          # new
 └── entrypoints/
     └── cli/
-        └── weekly_main.py  # new: weekly runner entrypoint
+        └── weekly_main.py  # new: weekly runner entrypoint (validates multimodal provider on startup)
 
 # ORM Models (shared)
 models/
@@ -145,10 +144,7 @@ models/
 
 # Alembic migrations
 alembic/versions/
-├── 18_article_metrics_table.py
-├── 19_weekly_reports_table.py
-├── 20_user_subscription_tables.py       # includes user_article_favorites
-└── 21_llm_provider_type_multimodal.py  # adds 'multimodal' to type constraint
+└── 23_article_recommendation_weekly_report.py  # all new tables + llm_provider type column
 
 # Frontend
 frontend/
@@ -173,14 +169,14 @@ frontend/
         └── user.ts                 # new or extend: subscriptions, notification settings, favorites (addFavorite, removeFavorite, getFavorites)
 ```
 
-**Structure Decision**: Web application (Option 2). Feature touches all three service layers: `src/` (scraper/DDD), `backend/` (FastAPI), and `frontend/` (Next.js). A new fourth DDD bounded context (`weekly_report`) is added to `src/modules/`.
+**Structure Decision**: Web application (Option 2). Feature touches all three service layers: `src/` (scraper/DDD), `backend/` (FastAPI), and `frontend/` (Next.js). Weekly report generation is an application of LLM + image generation and belongs inside the existing `intelligence` bounded context — no new top-level module is created.
 
 ## Implementation Phases
 
 ### Phase A: Data Foundation (Migrations + Models)
-1. Create 4 Alembic migrations (18–21)
+1. Create single Alembic migration `23_article_recommendation_weekly_report.py` (all new tables + `type` column on `llm_providers`)
 2. Create ORM models: `article_metrics.py`, `weekly_report.py`, `user_subscription.py`
-3. Extend `LlmProvider` model with `type='multimodal'` constraint
+3. Extend `LlmProvider` model to add `CheckConstraint` for `type IN ('llm', 'embedding', 'multimodal')` and fix duplicate `type` column definition
 
 ### Phase B: Article Metrics Collection
 1. Extend `ScrapedArticle` value object with `citation_count`
@@ -202,13 +198,13 @@ frontend/
 4. Update `useArticles` hook / articles page to pass sort params to API
 
 ### Phase E: Weekly Report Infrastructure
-1. Create `weekly_report` DDD module (`domain/`, `application/`)
-2. Create `GeminiImagenProvider` implementing `ImageGenerationService`
-3. Create `R2BlobStorageService`
-4. Create `WeeklyReportRepoImpl`
-5. Create `GenerateWeeklyReportUseCase`
+1. Add weekly report domain artifacts inside existing `intelligence` module: `WeeklyReport` entity, `WeeklyReportRepository` interface, `ImageGenerationService` interface, `BlobStorageService` interface, `ArticleSummaryForReport` value object, `WeeklyReportPrompt`, `ImageGenerationPrompt`
+2. Create `GeminiImagenProvider` implementing `ImageGenerationService` (`src/infrastructure/intelligence/image/`)
+3. Create `R2BlobStorageService` (`src/infrastructure/storage/`)
+4. Create `WeeklyReportRepoImpl` (`src/infrastructure/intelligence/repositories/`)
+5. Create `GenerateWeeklyReportUseCase` (`src/modules/intelligence/application/use_cases/generate_weekly_report.py`)
 6. Wire in `src/bootstrap.py` via new `build_weekly_pipeline()` function
-7. Create `src/entrypoints/cli/weekly_main.py`
+7. Create `src/entrypoints/cli/weekly_main.py` — on startup queries DB for active `type='multimodal'` provider; exits with clear error if none found
 
 ### Phase F: Notification Pipeline
 1. Extend `user_notification_settings` query to identify subscribed users per topic
@@ -218,7 +214,7 @@ frontend/
 5. Add `providers.toml` entry for Imagen provider
 
 ### Phase G: Backend API for Reports + Subscriptions
-1. Create `backend/routers/weekly_reports.py`
+1. Create `backend/routers/weekly_reports.py` (`GET /weekly-reports`, `GET /weekly-reports/latest`)
 2. Create `backend/routers/user.py` (subscription + notification settings endpoints)
 3. Create `backend/schemas/weekly_report.py`
 4. Register new routers in `backend/main.py`

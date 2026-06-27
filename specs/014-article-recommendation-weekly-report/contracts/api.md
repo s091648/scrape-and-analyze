@@ -81,24 +81,6 @@ topic_id: UUID (required)
 
 **Response**: `WeeklyReportOut | null`
 
-### `POST /admin/weekly-reports/generate` (admin only)
-
-Trigger weekly report generation for a specific topic and week.
-
-**Request body**:
-```json
-{
-  "topic_id": "uuid",
-  "week_start_date": "2026-06-22"  // Monday ISO date
-}
-```
-
-**Response**: `WeeklyReportOut` (status='pending' initially; generation is async)
-
-**Auth**: `require_admin`
-
----
-
 ### `GET /user/subscriptions` (authenticated)
 
 Get the current user's topic subscriptions.
@@ -169,7 +151,8 @@ Get the current user's notification settings.
 {
   "email_enabled": true,
   "telegram_chat_id": "123456789",
-  "telegram_enabled": false
+  "telegram_enabled": false,
+  "locale": "zh-TW"
 }
 ```
 
@@ -184,9 +167,12 @@ Upsert notification settings.
 {
   "email_enabled": true,
   "telegram_chat_id": "123456789",
-  "telegram_enabled": true
+  "telegram_enabled": true,
+  "locale": "zh-TW"
 }
 ```
+
+**`locale`**: Controls the language of email notification wrapper (subject, greeting, CTA). Accepted values: `"en"`, `"zh-TW"`. Defaults to `"en"`.
 
 **Response**: `200 OK` with updated settings.
 

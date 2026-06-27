@@ -27,16 +27,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create Alembic migration `alembic/versions/18_article_metrics_table.py` per data-model.md `article_metrics` DDL (article_id FK, citation_count nullable, view_count, last_flushed_at, indexes)
-- [ ] T005 [P] Create Alembic migration `alembic/versions/19_weekly_reports_table.py` per data-model.md `weekly_reports` DDL (topic_id FK, week_start_date, title, summary_text, cover_image_url, article_ids JSONB, status, UNIQUE on topic_id+week_start_date)
-- [ ] T006 [P] Create Alembic migration `alembic/versions/20_user_subscription_tables.py` per data-model.md: `user_topic_subscriptions`, `user_notification_settings`, and `user_article_favorites` tables with all FKs and UNIQUE constraints
-- [ ] T007 [P] Create Alembic migration `alembic/versions/21_llm_provider_type_multimodal.py` to update `CheckConstraint` on `llm_providers.type` to allow `'llm'`, `'embedding'`, `'multimodal'`
-- [ ] T008 [P] Create ORM model `models/article_metrics.py` with `ArticleMetrics` class (UUID PK, article_id FK → articles, citation_count nullable int, view_count int default 0, last_flushed_at, UNIQUE on article_id)
-- [ ] T009 [P] Create ORM model `models/weekly_report.py` with `WeeklyReport` class (UUID PK, topic_id FK → topics ON DELETE SET NULL, week_start_date, title, summary_text, cover_image_url, article_ids JSONB, article_count, status, error_message)
-- [ ] T010 [P] Create ORM model `models/user_subscription.py` with three classes: `UserTopicSubscription` (user_id+topic_id UNIQUE), `UserNotificationSettings` (user_id UNIQUE, email_enabled, telegram_chat_id, telegram_enabled), `UserArticleFavorite` (user_id+article_id UNIQUE)
-- [ ] T011 [P] Extend `models/llm_provider.py` `CheckConstraint` to include `'multimodal'` in allowed type values alongside `'llm'` and `'embedding'`
+- [ ] T004 Create single Alembic migration `alembic/versions/23_article_recommendation_weekly_report.py` (revises `22_add_correlation_id_and_rag_providers`) containing all DDL per data-model.md: `article_metrics`, `weekly_reports`, `user_topic_subscriptions`, `user_notification_settings`, `user_article_favorites` tables + `op.add_column` for `llm_providers.type` (String(20), default='llm') + `op.create_check_constraint('ck_llm_provider_type', 'llm_providers', "type IN ('llm', 'embedding', 'multimodal')")` with all indexes and UNIQUE constraints
+- [ ] T005 [P] Create ORM model `models/article_metrics.py` with `ArticleMetrics` class (UUID PK, article_id FK → articles, citation_count nullable int, view_count int default 0, last_flushed_at, UNIQUE on article_id)
+- [ ] T006 [P] Create ORM model `models/weekly_report.py` with `WeeklyReport` class (UUID PK, topic_id FK → topics ON DELETE SET NULL, week_start_date, title, summary_text, cover_image_url, article_ids JSONB, article_count, status, error_message)
+- [ ] T007 [P] Create ORM model `models/user_subscription.py` with three classes: `UserTopicSubscription` (user_id+topic_id UNIQUE), `UserNotificationSettings` (user_id UNIQUE, email_enabled, telegram_chat_id, telegram_enabled, locale String(10) default='en'), `UserArticleFavorite` (user_id+article_id UNIQUE)
+- [ ] T008 [P] Fix `models/llm_provider.py`: remove duplicate `type` column definition (lines 16–17 currently have two identical `type =` assignments); add `CheckConstraint("type IN ('llm', 'embedding', 'multimodal')", name='ck_llm_provider_type')` to `__table_args__`
 
-**Checkpoint**: All migrations and ORM models complete — user story implementation can begin
+**Checkpoint**: Migration and ORM models complete — user story implementation can begin
 
 ---
 
@@ -51,9 +48,9 @@
 - [ ] T012 [P] [US1] Extend `src/modules/collection/domain/value_objects/scraped_article.py` with `citation_count: Optional[int] = None` field
 - [ ] T013 [P] [US1] Extend `src/infrastructure/collection/scrapers/openalex_scraper.py` to extract and pass `citation_count` into `ScrapedArticle`
 - [ ] T014 [P] [US1] Extend `src/infrastructure/collection/scrapers/semantic_scholar_scraper.py` to extract and pass `citation_count` into `ScrapedArticle`
-- [ ] T015 [US1] Extend `ProcessScrapedArticleUseCase` in `src/modules/collection/application/use_cases/process_scraped_article_use_case.py` to upsert `article_metrics` row (citation_count from ScrapedArticle, view_count=0) after article save; depends on T012, T008
+- [ ] T015 [US1] Extend `ProcessScrapedArticleUseCase` in `src/modules/collection/application/use_cases/process_scraped_article_use_case.py` to upsert `article_metrics` row (citation_count from ScrapedArticle, view_count=0) after article save; depends on T012, T005
 - [ ] T016 [P] [US1] Extend `backend/schemas/article.py` `ArticleOut` and `ArticleDetailOut` with `citation_count: Optional[int] = None` and `view_count: int = 0`
-- [ ] T017 [US1] Extend `backend/services/article_service.py` `get_articles_paginated` to `LEFT JOIN article_metrics` and include `citation_count`, `view_count` in output mapping; depends on T016, T008
+- [ ] T017 [US1] Extend `backend/services/article_service.py` `get_articles_paginated` to `LEFT JOIN article_metrics` and include `citation_count`, `view_count` in output mapping; depends on T016, T005
 - [ ] T018 [US1] Add `POST /articles/{id}/view` endpoint to `backend/routers/articles.py`: Redis `INCR view:{article_id}` with IP dedup key `viewed:{ip}:{article_id}` (24h TTL via `EXPIRE`); returns 204 regardless of duplicate
 - [ ] T019 [US1] Add view count flush function to `backend/services/article_service.py` (scan `view:*` Redis keys, `GETDEL`, `UPDATE article_metrics SET view_count = view_count + :count`); add admin endpoint `POST /admin/articles/flush-view-counts` in `backend/routers/articles.py`; register background periodic flush on FastAPI startup using `VIEW_COUNT_FLUSH_INTERVAL` env var (default 900s)
 - [ ] T020 [P] [US1] Extend `frontend/lib/api/articles.ts` with `recordArticleView(id: string)` fire-and-forget function (`POST /articles/{id}/view`); update `ArticleOut` TypeScript type with `citation_count: number | null` and `view_count: number`
@@ -99,7 +96,7 @@
 ### Implementation
 
 - [ ] T030 [P] [US5] Extend `backend/schemas/article.py` `ArticleOut` with `is_favorited: bool = False`
-- [ ] T031 [US5] Extend `backend/services/article_service.py` to `LEFT JOIN user_article_favorites` for authenticated users to populate `is_favorited`; add `favorites_only: bool = False` query param that restricts results to user's favorited articles; depends on T030, T010
+- [ ] T031 [US5] Extend `backend/services/article_service.py` to `LEFT JOIN user_article_favorites` for authenticated users to populate `is_favorited`; add `favorites_only: bool = False` query param that restricts results to user's favorited articles; depends on T030, T007
 - [ ] T032 [US5] Create `backend/routers/user.py` with `GET /user/favorites` (returns `{"article_ids": [...]}` list), `POST /user/favorites/{article_id}` (`INSERT … ON CONFLICT DO NOTHING`, 201 or 204), `DELETE /user/favorites/{article_id}` (204) — all with `require_user` auth
 - [ ] T033 [US5] Register `backend/routers/user.py` router in `backend/main.py`
 - [ ] T034 [P] [US5] Add `addFavorite(articleId: string)`, `removeFavorite(articleId: string)`, `getFavorites()` functions to `frontend/lib/api/user.ts`
@@ -124,34 +121,34 @@
 
 ### Implementation — DDD Domain Layer
 
-- [ ] T040 [P] [US3] Create `src/modules/weekly_report/domain/entities/weekly_report.py` with `WeeklyReport` dataclass (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_ids, article_count, status, error_message)
-- [ ] T041 [P] [US3] Create `src/modules/weekly_report/domain/repositories/weekly_report_repository.py` abstract repository interface (fetch top articles by topic/week using sort strategy from data-model.md, get/save WeeklyReport)
-- [ ] T042 [P] [US3] Create `src/modules/weekly_report/domain/services/image_generation_service.py` abstract service interface (`generate_image(prompt: str) -> bytes`)
-- [ ] T043 [P] [US3] Create `src/modules/weekly_report/domain/services/blob_storage_service.py` abstract interface (`upload(data: bytes, key: str, content_type: str) -> str` returns public URL); use case injects this interface, not `R2BlobStorageService` directly
-- [ ] T044 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/article_summary_for_report.py` frozen dataclass: `title`, `summary`, `pain_points`, `insights`, `innovations` (all Optional[str] from analyses table), `tags: List[str]` (flat tag list), `citation_count: Optional[int]`, `view_count: int`, `published_at: Optional[datetime]`
-- [ ] T045 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/weekly_report_prompt.py` extending `BasePrompt`; `render(topic_name: str, articles: List[ArticleSummaryForReport], week_start: date)` fills template and returns JSON-requesting prompt for `{"title": "...", "summary_text": "..."}` output
-- [ ] T046 [P] [US3] Create `src/modules/weekly_report/domain/value_objects/image_generation_prompt.py` extending `BasePrompt`; `render(topic_name: str, top_tags: List[str], week_label: str)` returns image generation prompt string (16:9 abstract art, futuristic data visualization aesthetic)
+- [ ] T040 [P] [US3] Create `src/modules/intelligence/domain/entities/weekly_report.py` with `WeeklyReport` dataclass (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_ids, article_count, status, error_message)
+- [ ] T041 [P] [US3] Create `src/modules/intelligence/domain/repositories/weekly_report_repository.py` abstract repository interface (fetch top articles by topic/week using sort strategy from data-model.md, get/save WeeklyReport)
+- [ ] T042 [P] [US3] Create `src/modules/intelligence/domain/services/image_generation_service.py` abstract service interface (`generate_image(prompt: str) -> bytes`)
+- [ ] T043 [P] [US3] Create `src/modules/intelligence/domain/services/blob_storage_service.py` abstract interface (`upload(data: bytes, key: str, content_type: str) -> str` returns public URL); use case injects this interface, not `R2BlobStorageService` directly
+- [ ] T044 [P] [US3] Create `src/modules/intelligence/domain/value_objects/article_summary_for_report.py` frozen dataclass: `title`, `summary`, `pain_points`, `insights`, `innovations` (all Optional[str] from analyses table), `tags: List[str]` (flat tag list), `citation_count: Optional[int]`, `view_count: int`, `published_at: Optional[datetime]`; note: lives in `intelligence/domain/value_objects/` alongside existing `analysis_prompt.py` — no cross-module import needed
+- [ ] T045 [P] [US3] Create `src/modules/intelligence/domain/value_objects/weekly_report_prompt.py` extending `BasePrompt`; `render(topic_name: str, articles: List[ArticleSummaryForReport], week_start: date)` fills template and returns JSON-requesting prompt for `{"title": "...", "summary_text": "..."}` output
+- [ ] T046 [P] [US3] Create `src/modules/intelligence/domain/value_objects/image_generation_prompt.py` extending `BasePrompt`; `render(topic_name: str, top_tags: List[str], week_label: str)` returns image generation prompt string (16:9 abstract art, futuristic data visualization aesthetic)
 
 ### Implementation — Application Layer
 
-- [ ] T047 [US3] Create `src/modules/weekly_report/application/use_cases/generate_weekly_report_use_case.py` orchestrating: (1) fetch top N articles via repo (COALESCE sort), (2) derive `top_tags` by frequency count, (3) `WeeklyReportPrompt().render(...)` → `LLMService.analyze()` → parse JSON title+summary, (4) `ImageGenerationPrompt().render(...)` → `ImageGenerationService.generate_image()` → `BlobStorageService.upload()`, (5) persist WeeklyReport, (6) send email+Telegram to subscribed users; depends on T040–T046
+- [ ] T047 [US3] Create `src/modules/intelligence/application/use_cases/generate_weekly_report.py` orchestrating: (1) fetch top N articles via repo (COALESCE sort), (2) derive `top_tags` by frequency count, (3) `WeeklyReportPrompt().render(...)` → `LLMService.analyze()` → parse JSON title+summary, (4) `ImageGenerationPrompt().render(...)` → `ImageGenerationService.generate_image()` → `BlobStorageService.upload()`, (5) persist WeeklyReport, (6) send email+Telegram to subscribed users; depends on T040–T046
 
 ### Implementation — Infrastructure Layer
 
 - [ ] T048 [P] [US3] Create `src/infrastructure/intelligence/image/base_image_provider.py` abstract base class for image generation providers
 - [ ] T049 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK and `imagen-3.0-generate-001` model; depends on T042, T048
 - [ ] T050 [P] [US3] Create `src/infrastructure/storage/r2_blob_storage.py` `R2BlobStorageService` implementing `BlobStorageService` (T043) using `boto3` S3-compatible client with `R2_*` env vars; depends on T043
-- [ ] T051 [US3] Create `src/infrastructure/weekly_report/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface (T041): fetches articles+analyses+tags via JOIN with `COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC NULLS LAST`, assembles `ArticleSummaryForReport` list, upserts `WeeklyReport` ORM row; depends on T041, T044
+- [ ] T051 [US3] Create `src/infrastructure/intelligence/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface (T041): fetches articles+analyses+tags via JOIN with `COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC NULLS LAST`, assembles `ArticleSummaryForReport` list, upserts `WeeklyReport` ORM row; depends on T041, T044, T006
 
 ### Implementation — Notifications
 
-- [ ] T052 [P] [US3] Create `src/infrastructure/notifications/weekly_report_email_notifier.py` `WeeklyReportEmailNotifier` using `resend` Python SDK; queries `user_notification_settings` for subscribed users with `email_enabled=True`; sends HTML email per user using `RESEND_API_KEY` and `RESEND_FROM_EMAIL`
+- [ ] T052 [P] [US3] Create `src/infrastructure/notifications/weekly_report_email_notifier.py` `WeeklyReportEmailNotifier` using `resend` Python SDK; queries `user_notification_settings` for subscribed users with `email_enabled=True`; sends HTML email per user using `RESEND_API_KEY` and `RESEND_FROM_EMAIL`; email layout matches homepage weekly report widget: full-width `cover_image_url` as header background image, semi-transparent white overlay box containing report title and summary text, CTA button "查看完整報告" / "View Full Report" linking to site root — text rendered in user's `locale` from `user_notification_settings`
 - [ ] T053 [P] [US3] Create `src/infrastructure/notifications/weekly_report_telegram_notifier.py` `WeeklyReportTelegramNotifier` reusing existing Telegram HTTP pattern; queries `user_notification_settings` for subscribed users with `telegram_enabled=True` and non-null `telegram_chat_id`; sends per-user message
 
 ### Implementation — Bootstrap & Entrypoint
 
 - [ ] T054 [US3] Add `build_weekly_pipeline()` to `src/bootstrap.py` wiring: `WeeklyReportRepoImpl`, `ResilientLLMService` (reuse existing builder), `GeminiImagenProvider`, `R2BlobStorageService`, `WeeklyReportEmailNotifier`, `WeeklyReportTelegramNotifier` → `GenerateWeeklyReportUseCase`; depends on T047–T053
-- [ ] T055 [US3] Create `src/entrypoints/cli/weekly_main.py` CLI entrypoint calling `build_weekly_pipeline()` and running `GenerateWeeklyReportUseCase` for each active topic with articles in the past 7 days; accepts `--topic-id` and `--week-start` CLI args for manual triggers; depends on T054
+- [ ] T055 [US3] Create `src/entrypoints/cli/weekly_main.py` CLI entrypoint: (1) on startup query DB for active `type='multimodal'` provider — log error and exit(1) if none found; (2) call `build_weekly_pipeline()` and run `GenerateWeeklyReportUseCase` for each active topic with articles in the past 7 days; accepts `--topic-id` and `--week-start` CLI args for manual triggers; depends on T054
 
 ### Implementation — Backend Subscription & Notification Settings API
 
@@ -161,12 +158,12 @@
 ### Implementation — Frontend Settings UI
 
 - [ ] T058 [P] [US3] Extend `frontend/app/settings/page.tsx` with topic subscription section: list all topics, Subscribe/Unsubscribe buttons per topic, reads current subscriptions via `fetchSubscriptions()`
-- [ ] T059 [P] [US3] Extend `frontend/app/settings/page.tsx` with notification settings form: email_enabled toggle, telegram_chat_id text input, telegram_enabled toggle; calls `fetchNotificationSettings()` on load and `updateNotificationSettings()` on save
+- [ ] T059 [P] [US3] Extend `frontend/app/settings/page.tsx` with notification settings form: email_enabled toggle, telegram_chat_id text input, telegram_enabled toggle, locale select (`en` / `zh-TW`); calls `fetchNotificationSettings()` on load and `updateNotificationSettings()` on save
 - [ ] T060 [P] [US3] Add `fetchSubscriptions()`, `subscribeToTopic(topicId)`, `unsubscribeTopic(topicId)`, `fetchNotificationSettings()`, `updateNotificationSettings(settings)` to `frontend/lib/api/user.ts`
 
 ### Tests
 
-- [ ] T061 [P] [US3] Write unit test for `GenerateWeeklyReportUseCase` (mock LLM service, image gen, blob storage, notifiers) in `src/tests/unit/test_generate_weekly_report_use_case.py`
+- [ ] T061 [P] [US3] Write unit test for `GenerateWeeklyReportUseCase` (mock LLM service, image gen, blob storage, notifiers) in `src/tests/unit/test_generate_weekly_report.py`
 - [ ] T062 [P] [US3] Write unit test for `GeminiImagenProvider` (mock google-genai client) in `src/tests/unit/test_gemini_imagen_provider.py`
 - [ ] T063 [P] [US3] Write unit test for `R2BlobStorageService` (mock boto3 client, verify upload URL construction) in `src/tests/unit/test_r2_blob_storage.py`
 - [ ] T064 [P] [US3] Write backend integration test for `GET/POST/DELETE /user/subscriptions` and `GET/PUT /user/notification-settings` in `backend/tests/test_user_subscriptions.py`
@@ -185,7 +182,7 @@
 
 - [ ] T065 [P] [US4] Create `backend/schemas/weekly_report.py` with `WeeklyReportOut` Pydantic schema (id, topic_id, week_start_date, title, summary_text, cover_image_url, article_count, status, created_at)
 - [ ] T066 [P] [US4] Create `backend/services/weekly_report_service.py` with `get_weekly_reports(topic_id, limit, offset)` and `get_latest_weekly_report(topic_id)` (returns most recent `status='completed'` report) functions
-- [ ] T067 [US4] Create `backend/routers/weekly_reports.py` with `GET /weekly-reports` (paginated, public), `GET /weekly-reports/latest` (single, public), `POST /admin/weekly-reports/generate` (require_admin, body: topic_id + week_start_date); depends on T065, T066
+- [ ] T067 [US4] Create `backend/routers/weekly_reports.py` with `GET /weekly-reports` (paginated, public) and `GET /weekly-reports/latest` (single, public); depends on T065, T066
 - [ ] T068 [US4] Register `backend/routers/weekly_reports.py` in `backend/main.py`; depends on T067
 
 ### Implementation — Frontend
@@ -223,10 +220,10 @@
 
 - **Setup (Phase 1)**: No dependencies — start immediately
 - **Foundational (Phase 2)**: Depends on Phase 1; BLOCKS all user stories
-- **US1 (Phase 3)**: Depends on Phase 2 (needs `ArticleMetrics` ORM T008)
+- **US1 (Phase 3)**: Depends on Phase 2 (needs `ArticleMetrics` ORM T005)
 - **US2 (Phase 4)**: Depends on Phase 3 (needs `article_metrics` JOIN from T017)
-- **US5 (Phase 5)**: Depends on Phase 2 (needs `UserArticleFavorite` ORM T010); can start in parallel with Phase 3/4
-- **US3 (Phase 6)**: Depends on Phase 2 (needs `WeeklyReport`, `UserTopicSubscription`, `UserNotificationSettings` ORMs T009, T010); largely independent of Phase 3–5
+- **US5 (Phase 5)**: Depends on Phase 2 (needs `UserArticleFavorite` ORM T007); can start in parallel with Phase 3/4
+- **US3 (Phase 6)**: Depends on Phase 2 (needs `WeeklyReport`, `UserTopicSubscription`, `UserNotificationSettings` ORMs T006, T007); largely independent of Phase 3–5
 - **US4 (Phase 7)**: Depends on Phase 6 (weekly reports must be generable for meaningful testing)
 - **Polish (Phase 8)**: Depends on all user story phases
 
@@ -252,9 +249,9 @@
 
 ## Parallel Opportunities
 
-### Phase 2 (after T004 sets revision chain)
+### Phase 2 (after T004 migration is written)
 
-T005–T011 can all run in parallel.
+T005–T008 (ORM models) can all run in parallel with each other.
 
 ### Phase 3 (US1)
 
@@ -320,8 +317,11 @@ After Phase 2 completes:
 - `[P]` tasks = different files, no blocking dependencies — safe to run in parallel
 - `[Story]` label maps task to specific user story for traceability
 - Favorites (`backend/routers/user.py` created in Phase 5) and Subscriptions (endpoints added in Phase 6) share the same router file — Phase 5 creates it, Phase 6 extends it
-- Migrations 18–21 are additive (new tables) except 21 which modifies a CheckConstraint — all run via `make migrate`
+- Migration 23 is a single revision containing all new tables and the `llm_providers.type` column + CheckConstraint — runs via `make migrate`
 - Constitution §II requires Storybook stories for all new feature components (T074, T075)
 - Weekly runner entrypoint (T055) deploys as Railway Cron Service: `0 8 * * 1`
-- `WeeklyReportPrompt` and `ImageGenerationPrompt` live in `weekly_report/domain/value_objects/`, NOT in `intelligence/domain/value_objects/` — different bounded context
+- `WeeklyReportPrompt`, `ImageGenerationPrompt`, `ArticleSummaryForReport`, `WeeklyReport` entity, and all domain interfaces live in `intelligence/domain/` — weekly report is NOT a separate bounded context; it is an application of LLM + image generation inside `intelligence`
 - `BlobStorageService` interface (T043) ensures the use case (T047) depends only on domain abstractions, not on R2 directly — required for hexagonal architecture compliance
+- `WeeklyReportRepoImpl` lives in `src/infrastructure/intelligence/repositories/` (new subdirectory alongside existing `llm/`, `image/`, etc.)
+- `user_notification_settings.locale` controls email wrapper language; supported values `'en'` and `'zh-TW'` match the app's existing i18n locales
+- Multimodal provider is NOT seeded in migration 23 — admin must add via LLM provider admin UI; `weekly_main.py` validates on startup

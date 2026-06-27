@@ -93,6 +93,7 @@ CREATE TABLE user_notification_settings (
     email_enabled       BOOLEAN NOT NULL DEFAULT TRUE,
     telegram_chat_id    VARCHAR(50),        -- NULL if not configured
     telegram_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
+    locale              VARCHAR(10) NOT NULL DEFAULT 'en',  -- 'en' | 'zh-TW'; controls email language
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at          TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE (user_id)
@@ -101,6 +102,8 @@ CREATE INDEX idx_user_notif_settings_user_id ON user_notification_settings (user
 ```
 
 **ORM Model**: Add to `models/user_subscription.py` (same file as `UserTopicSubscription`)
+
+**`locale` usage**: The `locale` value is passed to the weekly report email notifier. The HTML email wrapper (subject line, greeting, CTA button text) is rendered in that locale. Supported values match the app's existing i18n locales (`en`, `zh-TW`).
 
 ---
 
@@ -118,22 +121,7 @@ __table_args__ = (
 )
 ```
 
-The specific multimodal model (e.g., Gemini Imagen, DALL-E) is DB-configured via `providers.toml`, NOT hardcoded. Example `providers.toml` entry:
-
-```toml
-[[providers]]
-name = "gemini-imagen"
-type = "multimodal"
-model = "imagen-3.0-generate-001"   # operator-configurable
-api_key_env = "GEMINI_API_KEY"
-priority = 1
-
-[providers.strategy]
-type = "sliding_window"
-rpm = 2
-tpm = 0
-rpd = 50
-```
+The specific multimodal model (e.g., Imagen 3, Imagen 4 Ultra) is DB-configured — no model is hardcoded and no seed is added in the migration. The admin must add the multimodal provider via the existing LLM provider admin UI after deployment. `weekly_main.py` validates on startup that at least one active `type='multimodal'` provider exists and exits with a clear error if none is found.
 
 ---
 
@@ -162,13 +150,10 @@ CREATE INDEX idx_user_article_favs_article_id ON user_article_favorites (article
 ## Alembic Migration Sequence
 
 ```
-18_article_metrics_table.py
-19_weekly_reports_table.py
-20_user_subscription_tables.py       # includes user_article_favorites
-21_llm_provider_type_multimodal.py   # adds 'multimodal' to type constraint
+23_article_recommendation_weekly_report.py
 ```
 
-Each migration is independent. Migrations 18–20 are additive (new tables); migration 21 modifies the CheckConstraint on `llm_providers`.
+Single migration revising from `22_add_correlation_id_and_rag_providers`. Creates all four new tables (`article_metrics`, `weekly_reports`, `user_topic_subscriptions`, `user_notification_settings`, `user_article_favorites`) and adds the `type` column + `CheckConstraint` to `llm_providers` in one revision.
 
 ---
 
@@ -221,7 +206,7 @@ LIMIT :top_n  -- default 20, configurable
 Used as per-article input to `WeeklyReportPrompt.render()`. Assembled by `WeeklyReportRepoImpl` via a JOIN across `articles`, `analyses`, and `analysis_tags`.
 
 ```python
-# src/modules/weekly_report/domain/value_objects/article_summary_for_report.py
+# src/modules/intelligence/domain/value_objects/article_summary_for_report.py
 
 @dataclass(frozen=True)
 class ArticleSummaryForReport:
@@ -244,12 +229,12 @@ class ArticleSummaryForReport:
 
 ## Domain Value Objects: Prompt Types
 
-Both follow the existing `BasePrompt` pattern from `src/modules/intelligence/domain/value_objects/base_prompt.py`.
+Both live inside `src/modules/intelligence/domain/value_objects/` and extend the existing `BasePrompt` directly (no cross-module import needed — weekly report is part of `intelligence`).
 
 ### `WeeklyReportPrompt`
 
 ```python
-# src/modules/weekly_report/domain/value_objects/weekly_report_prompt.py
+# src/modules/intelligence/domain/value_objects/weekly_report_prompt.py
 
 def render(
     self,
@@ -265,7 +250,7 @@ Returns JSON with `{"title": "...", "summary_text": "..."}`.
 ### `ImageGenerationPrompt`
 
 ```python
-# src/modules/weekly_report/domain/value_objects/image_generation_prompt.py
+# src/modules/intelligence/domain/value_objects/image_generation_prompt.py
 
 def render(
     self,
@@ -285,7 +270,7 @@ The `top_tags` list is derived by the use case (frequency count over all article
 ### `BlobStorageService` Interface
 
 ```python
-# src/modules/weekly_report/domain/services/blob_storage_service.py
+# src/modules/intelligence/domain/services/blob_storage_service.py
 
 class BlobStorageService(ABC):
     @abstractmethod
@@ -300,7 +285,7 @@ class BlobStorageService(ABC):
 
 ## Domain Entities (DDD)
 
-### `src/modules/weekly_report/domain/entities/weekly_report.py`
+### `src/modules/intelligence/domain/entities/weekly_report.py`
 
 ```python
 @dataclass
