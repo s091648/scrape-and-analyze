@@ -15,9 +15,8 @@
 
 **Purpose**: Add new dependencies and environment configuration needed across all user stories
 
-- [ ] T001 Add `boto3>=1.34` and `resend>=2.0` to `pyproject.toml` core dependencies group
-- [ ] T002 Add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `IMAGEN_API_KEY`, `VIEW_COUNT_FLUSH_INTERVAL` to `.env.example` with comments
-- [ ] T003 [P] Add gemini-imagen provider entry (`type='multimodal'`, `model='imagen-3.0-generate-001'`) to `providers.toml`
+- [ ] T001 Add `boto3>=1.34` and `resend>=2.0` to `pyproject.toml` core dependencies group (`google-genai` already present)
+- [ ] T002 Add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `VIEW_COUNT_FLUSH_INTERVAL` to `.env.example` with comments
 
 ---
 
@@ -136,7 +135,7 @@
 ### Implementation — Infrastructure Layer
 
 - [ ] T048 [P] [US3] Create `src/infrastructure/intelligence/image/base_image_provider.py` abstract base class for image generation providers
-- [ ] T049 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK and `imagen-3.0-generate-001` model; depends on T042, T048
+- [ ] T049 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK; constructor accepts `model: str` (read from the active multimodal `LlmProvider` DB record at runtime — never hardcoded) and `api_key: str` (resolved from `api_key_env`); calls `client.models.generate_images(model=self._model, prompt=prompt, ...)`; depends on T042, T048
 - [ ] T050 [P] [US3] Create `src/infrastructure/storage/r2_blob_storage.py` `R2BlobStorageService` implementing `BlobStorageService` (T043) using `boto3` S3-compatible client with `R2_*` env vars; depends on T043
 - [ ] T051 [US3] Create `src/infrastructure/intelligence/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface (T041): fetches articles+analyses+tags via JOIN with `COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC NULLS LAST`, assembles `ArticleSummaryForReport` list, upserts `WeeklyReport` ORM row; depends on T041, T044, T006
 
@@ -210,7 +209,7 @@
 
 - [ ] T078 [P] Write E2E test for sort by citation_count reordering the article list in `frontend/tests/integration/sort-articles.spec.ts`
 - [ ] T079 [P] Write E2E test for weekly report widget display and week dropdown navigation in `frontend/tests/integration/weekly-report-widget.spec.ts`
-- [ ] T080 Run quickstart.md validation: apply migrations 18–21 via `docker compose run --rm job_service make migrate`, generate a weekly report via admin API, verify citation count on scraped articles, and verify view count tracking and flush
+- [ ] T080 Run quickstart.md validation: apply migration 23 via `docker compose run --rm job_service make migrate`, manually trigger weekly report via `docker compose run --rm job_service uv run python -m src.entrypoints.cli.weekly_main --topic-id <id>`, verify citation count on scraped articles, and verify view count tracking and flush
 
 ---
 

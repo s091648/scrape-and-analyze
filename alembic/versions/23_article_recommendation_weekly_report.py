@@ -49,9 +49,9 @@ def upgrade():
         sa.Column('title', sa.Text(), nullable=False),
         sa.Column('summary_text', sa.Text(), nullable=False),
         sa.Column('cover_image_url', sa.Text(), nullable=True),
-        sa.Column('article_ids', JSONB, nullable=False, server_default='[]'),
+        sa.Column('article_ids', JSONB, nullable=False, server_default=sa.text("'[]'")),
         sa.Column('article_count', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('status', sa.String(20), nullable=False, server_default='pending'),
+        sa.Column('status', sa.String(20), nullable=False, server_default=sa.text("'pending'")),
         sa.Column('error_message', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
@@ -85,7 +85,7 @@ def upgrade():
         sa.Column('email_enabled', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('telegram_chat_id', sa.String(50), nullable=True),
         sa.Column('telegram_enabled', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('locale', sa.String(10), nullable=False, server_default='en'),
+        sa.Column('locale', sa.String(10), nullable=False, server_default=sa.text("'en'")),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
     )
@@ -105,7 +105,7 @@ def upgrade():
     op.create_index('idx_user_article_favs_article_id', 'user_article_favorites', ['article_id'])
 
     # --- llm_providers: add type column + CheckConstraint ---
-    op.add_column('llm_providers', sa.Column('type', sa.String(20), nullable=False, server_default='llm'))
+    op.add_column('llm_providers', sa.Column('type', sa.String(20), nullable=False, server_default=sa.text("'llm'")))
     op.create_check_constraint(
         'ck_llm_provider_type',
         'llm_providers',
