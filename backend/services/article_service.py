@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.schemas.article import ArticleOut
 
 
-def build_article_out(article, translation=None) -> ArticleOut:
+def build_article_out(article, translation=None, metrics=None, favorite=None) -> ArticleOut:
     meta = article.metadata_ or {}
     return ArticleOut(
         id=article.id,
@@ -22,6 +22,9 @@ def build_article_out(article, translation=None) -> ArticleOut:
         translated_title=translation.title if translation else None,
         translated_content=translation.content if translation else None,
         has_vectors=article.has_vectors,
+        citation_count=metrics.citation_count if metrics else None,
+        view_count=metrics.view_count if metrics else 0,
+        is_favorited=favorite is not None,
     )
 
 
@@ -42,10 +45,23 @@ def get_articles_paginated(
     scraped_after: Optional[date] = None,
     scraped_before: Optional[date] = None,
     topic_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
+    favorites_only: bool = False,
 ):
     from models.article import Article
+    from models.article_metrics import ArticleMetrics
+    from models.user_subscription import UserArticleFavorite
 
-    query = db.query(Article)
+    query = db.query(Article, ArticleMetrics, UserArticleFavorite).outerjoin(
+        ArticleMetrics, ArticleMetrics.article_id == Article.id
+    ).outerjoin(
+        UserArticleFavorite,
+        (UserArticleFavorite.article_id == Article.id) & (UserArticleFavorite.user_id == user_id)
+        if user_id else (UserArticleFavorite.article_id == None),
+    )
+
+    if favorites_only and user_id:
+        query = query.filter(UserArticleFavorite.user_id == user_id)
 
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
@@ -90,13 +106,17 @@ def get_articles_paginated(
     if scraped_before:
         query = query.filter(Article.scraped_at <= scraped_before)
 
-    col = getattr(Article, sort, None)
-    if col is not None:
+    if sort in ("citation_count", "view_count"):
+        col = getattr(ArticleMetrics, sort)
         query = query.order_by(col.desc() if order == "desc" else col.asc())
+    else:
+        col = getattr(Article, sort, None)
+        if col is not None:
+            query = query.order_by(col.desc() if order == "desc" else col.asc())
 
     total = query.count()
-    items = query.offset((page - 1) * size).limit(size).all()
-    return total, items
+    rows = query.offset((page - 1) * size).limit(size).all()
+    return total, rows  # list of (Article, ArticleMetrics|None, UserArticleFavorite|None)
 
 
 def get_article_by_id(db: Session, article_id: UUID):
@@ -177,6 +197,44 @@ def get_filter_original_sources(db: Session, topic_id: Optional[UUID] = None) ->
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
     return [r[0] for r in query.order_by(Article.original_source).all()]
+
+
+async def flush_view_counts(db: Session) -> int:
+    """Scan Redis view:* keys, flush accumulated counts to article_metrics, return flushed count."""
+    import redis.asyncio as aioredis
+    import os
+    from models.article_metrics import ArticleMetrics
+    from sqlalchemy import text
+
+    redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+    r = aioredis.from_url(redis_url)
+    flushed = 0
+    try:
+        cursor = 0
+        while True:
+            cursor, keys = await r.scan(cursor, match="view:*", count=100)
+            for key in keys:
+                raw = await r.getdel(key)
+                if not raw:
+                    continue
+                count = int(raw)
+                if count <= 0:
+                    continue
+                article_id_str = key.decode().split(":", 1)[1]
+                db.execute(
+                    text(
+                        "UPDATE article_metrics SET view_count = view_count + :count "
+                        "WHERE article_id = :article_id"
+                    ),
+                    {"count": count, "article_id": article_id_str},
+                )
+                flushed += 1
+            if cursor == 0:
+                break
+        db.commit()
+    finally:
+        await r.aclose()
+    return flushed
 
 
 def get_filter_tags(db: Session, topic_id: Optional[UUID] = None) -> list:

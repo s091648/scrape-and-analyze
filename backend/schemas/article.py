@@ -24,6 +24,9 @@ class ArticleOut(BaseModel):
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
     has_vectors: bool = False
+    citation_count: Optional[int] = None
+    view_count: int = 0
+    is_favorited: bool = False
 
     class Config:
         from_attributes = True
@@ -55,6 +58,8 @@ class ArticleDetailOut(BaseModel):
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
     has_vectors: bool = False
+    citation_count: Optional[int] = None
+    view_count: int = 0
 
     class Config:
         from_attributes = True

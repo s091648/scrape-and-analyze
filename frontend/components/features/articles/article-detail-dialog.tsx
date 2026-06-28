@@ -1,9 +1,10 @@
 'use client'
+import { useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Clock, ExternalLink, Globe, Sparkles } from 'lucide-react'
-import { ArticleDetail } from '@/lib/api/articles'
+import { Clock, ExternalLink, Globe, Sparkles, Quote, Eye } from 'lucide-react'
+import { ArticleDetail, recordArticleView } from '@/lib/api/articles'
 import { ArticleDetailSkeleton } from './article-card-skeleton'
 import { useI18n } from '@/lib/providers'
 
@@ -12,6 +13,7 @@ import { deriveDisplaySource, formatViaSource } from './source-utils'
 interface ArticleDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  id: string
   title: string
   source: string
   url: string
@@ -24,10 +26,14 @@ interface ArticleDetailDialogProps {
 }
 
 export function ArticleDetailDialog({
-  open, onOpenChange, title, source, url, via_source, original_source, published_at, content, detail, loading,
+  open, onOpenChange, id, title, source, url, via_source, original_source, published_at, content, detail, loading,
 }: ArticleDetailDialogProps) {
   const { t, locale } = useI18n()
   const hasAnalysis = detail && !!detail.model_used
+
+  useEffect(() => {
+    if (open) recordArticleView(id)
+  }, [open, id])
   const displaySource = deriveDisplaySource(url, source, original_source)
   const displayTitle = detail?.translated_title ?? title
   const displayContent = detail?.translated_content ?? detail?.content ?? content
@@ -61,6 +67,18 @@ export function ArticleDetailDialog({
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 {new Date(published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
+            {detail?.citation_count != null && detail.citation_count > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Quote className="h-3 w-3" />
+                {detail.citation_count.toLocaleString()} citations
+              </span>
+            )}
+            {detail?.view_count != null && detail.view_count > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Eye className="h-3 w-3" />
+                {detail.view_count.toLocaleString()} views
               </span>
             )}
           </div>

@@ -1,7 +1,8 @@
+import os
 from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -14,16 +15,24 @@ from backend.services.article_service import (
     get_filter_sources,
     get_filter_original_sources,
     get_filter_tags,
+    flush_view_counts,
 )
+from backend.auth.guards import get_optional_user_id
 
 router = APIRouter()
+
+
+def _get_redis():
+    import redis.asyncio as aioredis
+    url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+    return aioredis.from_url(url)
 
 
 @router.get("/articles", response_model=PaginatedArticles)
 def list_articles(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    sort: Literal["scraped_at", "published_at", "source", "title"] = "scraped_at",
+    sort: Literal["scraped_at", "published_at", "source", "title", "citation_count", "view_count"] = "scraped_at",
     order: Literal["asc", "desc"] = "desc",
     source: List[str] = Query(default=[]),
     aggregator: List[str] = Query(default=[]),
@@ -36,10 +45,12 @@ def list_articles(
     scraped_after: Optional[date] = Query(default=None),
     scraped_before: Optional[date] = Query(default=None),
     topic_id: Optional[UUID] = Query(default=None),
+    favorites_only: bool = Query(default=False),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
+    current_user_id: Optional[UUID] = Depends(get_optional_user_id),
 ):
-    total, items = get_articles_paginated(
+    total, rows = get_articles_paginated(
         db, sort, order, page, size,
         sources=source or None,
         aggregators=aggregator or None,
@@ -52,18 +63,20 @@ def list_articles(
         scraped_after=scraped_after,
         scraped_before=scraped_before,
         topic_id=topic_id,
+        user_id=current_user_id,
+        favorites_only=favorites_only,
     )
     trans_map: dict = {}
-    if lang != "en" and items:
+    if lang != "en" and rows:
         from models.article_translation import ArticleTranslation
-        article_ids = [item.id for item in items]
+        article_ids = [r[0].id for r in rows]
         translations = db.query(ArticleTranslation).filter(
             ArticleTranslation.article_id.in_(article_ids),
             ArticleTranslation.language == lang,
         ).all()
         trans_map = {t.article_id: t for t in translations}
     return PaginatedArticles(
-        items=[build_article_out(item, trans_map.get(item.id)) for item in items],
+        items=[build_article_out(article, trans_map.get(article.id), metrics, favorite) for article, metrics, favorite in rows],
         total=total,
         page=page,
         size=size,
@@ -109,6 +122,9 @@ def get_article(
     article = get_article_by_id(db, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+
+    from models.article_metrics import ArticleMetrics as ArticleMetricsModel
+    metrics = db.query(ArticleMetricsModel).filter(ArticleMetricsModel.article_id == article_id).first()
 
     analysis = article.analyses[0] if article.analyses else None
     pain_points = insights = innovations = None
@@ -163,4 +179,31 @@ def get_article(
         translated_title=translated_title,
         translated_content=translated_content,
         has_vectors=article.has_vectors,
+        citation_count=metrics.citation_count if metrics else None,
+        view_count=metrics.view_count if metrics else 0,
     )
+
+
+@router.post("/articles/{article_id}/view", status_code=204)
+async def record_article_view(article_id: UUID, request: Request):
+    """Increment view count in Redis with IP deduplication (24h TTL)."""
+    client_ip = request.client.host if request.client else "unknown"
+    dedup_key = f"viewed:{client_ip}:{article_id}"
+    view_key = f"view:{article_id}"
+    r = _get_redis()
+    try:
+        already_viewed = await r.get(dedup_key)
+        if not already_viewed:
+            await r.incr(view_key)
+            await r.expire(dedup_key, 86400)
+    finally:
+        await r.aclose()
+    return Response(status_code=204)
+
+
+@router.post("/admin/articles/flush-view-counts")
+async def admin_flush_view_counts(db: Session = Depends(get_db)):
+    """Flush Redis view counts into article_metrics table."""
+    from backend.auth.guards import require_admin
+    flushed = await flush_view_counts(db)
+    return {"flushed": flushed}

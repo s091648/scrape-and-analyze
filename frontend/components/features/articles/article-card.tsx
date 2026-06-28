@@ -1,12 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles, Quote, Eye, Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
+import { addFavorite, removeFavorite } from '@/lib/api/user'
 import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
 import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
+import { useSession } from 'next-auth/react'
 import type { ArticleDetail } from '@/lib/api/articles'
 
 export type { Article }
@@ -16,12 +18,17 @@ import { deriveDisplaySource, formatViaSource, toTitleCase } from './source-util
 interface ArticleCardProps extends Article {
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  citation_count?: number | null
+  view_count?: number
+  is_favorited?: boolean
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
+  const { status } = useSession()
+  const isAuthenticated = status === 'authenticated'
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen! : internalOpen
@@ -31,6 +38,20 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [favorited, setFavorited] = useState(!!is_favorited)
+
+  async function handleToggleFavorite(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!isAuthenticated) return
+    const next = !favorited
+    setFavorited(next)
+    try {
+      if (next) await addFavorite(id)
+      else await removeFavorite(id)
+    } catch {
+      setFavorited(!next)
+    }
+  }
 
   async function handleTogglePin(e: React.MouseEvent) {
     e.stopPropagation()
@@ -86,6 +107,18 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  className={`shrink-0 mt-0.5 transition-opacity duration-200 ${
+                    favorited ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  <Heart className={`h-3.5 w-3.5 ${favorited ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
+                </button>
+              )}
               <span className="flex-1">{toTitleCase(displayTitle)}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
@@ -143,6 +176,18 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   {new Date(scraped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
               )}
+              {citation_count != null && citation_count > 0 && (
+                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
+                  <Quote className="h-3 w-3" />
+                  {citation_count.toLocaleString()}
+                </span>
+              )}
+              {view_count != null && view_count > 0 && (
+                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
+                  <Eye className="h-3 w-3" />
+                  {view_count.toLocaleString()}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {via_source && (
@@ -175,6 +220,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
       <ArticleDetailDialog
         open={open}
         onOpenChange={setOpen}
+        id={id}
         title={displayTitle}
         source={source}
         url={url}

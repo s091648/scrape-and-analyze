@@ -13,6 +13,9 @@ export interface Article {
   translated_title?: string | null
   translated_content?: string | null
   has_vectors?: boolean
+  citation_count: number | null
+  view_count: number
+  is_favorited?: boolean
 }
 
 export interface TagGroup {
@@ -48,6 +51,7 @@ export interface ArticleListParams {
   scraped_before?: string
   sort?: string
   order?: string
+  favorites_only?: boolean
 }
 
 export async function fetchArticles(
@@ -69,6 +73,7 @@ export async function fetchArticles(
   if (params.published_before) qs.set('published_before', params.published_before)
   if (params.scraped_after) qs.set('scraped_after', params.scraped_after)
   if (params.scraped_before) qs.set('scraped_before', params.scraped_before)
+  if (params.favorites_only) qs.set('favorites_only', 'true')
   const res = await apiFetch(`/articles?${qs}`, {}, locale)
   return res.json()
 }
@@ -93,4 +98,8 @@ export async function fetchArticleFilterOriginalSources(topicId?: string, locale
 export async function fetchArticleFilterTags(locale?: string): Promise<string[]> {
   const res = await apiFetch('/articles/filters/tags', {}, locale)
   return res.json()
+}
+
+export function recordArticleView(id: string): void {
+  apiFetch(`/articles/${id}/view`, { method: 'POST' }).catch(() => {})
 }

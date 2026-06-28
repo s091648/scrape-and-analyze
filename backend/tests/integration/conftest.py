@@ -37,6 +37,13 @@ def db_engine():
     from models.llm_provider import LlmProvider          # noqa: F401
     from models.scraper_keyword import ScraperKeyword    # noqa: F401
     from models.failed_task import FailedTask            # noqa: F401
+    from models.article_metrics import ArticleMetrics    # noqa: F401
+    from models.weekly_report import WeeklyReport        # noqa: F401
+    from models.user_subscription import (               # noqa: F401
+        UserTopicSubscription,
+        UserNotificationSettings,
+        UserArticleFavorite,
+    )
 
     # Exclude auth-schema tables (User) — those exist only in public.
     # Use checkfirst=False so SQLAlchemy creates tables in the test schema
@@ -90,4 +97,9 @@ def api_client(db_session):
 
 def admin_token() -> str:
     payload = {"sub": "admin", "role": "admin", "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+
+
+def user_token(user_id: str = "user-uuid-001") -> str:
+    payload = {"sub": user_id, "role": "user", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
