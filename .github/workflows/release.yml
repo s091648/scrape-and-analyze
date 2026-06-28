@@ -33,7 +33,6 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
 
       - uses: actions/setup-python@v5
         with:
@@ -103,6 +102,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.RELEASE_PAT }}@github.com/${{ github.repository }}.git
           git add frontend/public/release-notes.json
           git diff --staged --quiet || \
             git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]"
