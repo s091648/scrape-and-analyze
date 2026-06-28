@@ -33,6 +33,9 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+        env:
+          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
 
       - uses: actions/setup-python@v5
         with:
@@ -105,7 +108,7 @@ jobs:
           git add frontend/public/release-notes.json
           git diff --staged --quiet || \
             git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]"
-          git push "https://x-access-token:${{ secrets.RELEASE_PAT }}@github.com/${{ github.repository }}.git" HEAD:master
+          git push origin master
 
       # -------------------------------------------------------------------
       # Migrate production DB before deploy
