@@ -1,0 +1,98 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+
+const mockReport = {
+  id: 'report-1',
+  topic_id: 'topic-1',
+  week_start_date: '2026-06-16',
+  title: 'AI Weekly Highlights',
+  summary_text: 'A great week in AI research.',
+  cover_image_url: null,
+  article_count: 5,
+  status: 'completed',
+  created_at: '2026-06-23T00:00:00Z',
+}
+
+vi.mock('@/lib/api/weekly-reports', () => ({
+  fetchLatestWeeklyReport: vi.fn(),
+  fetchWeeklyReports: vi.fn(),
+}))
+
+vi.mock('@/components/ui/native-select', () => ({
+  NativeSelect: ({ children, ...props }: any) => <select {...props}>{children}</select>,
+}))
+
+import { fetchLatestWeeklyReport, fetchWeeklyReports } from '@/lib/api/weekly-reports'
+
+describe('WeeklyReportWidget', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('renders nothing when topicId is null', async () => {
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    const { container } = render(<WeeklyReportWidget topicId={null} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('shows empty state placeholder when no report exists', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(null)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [], total: 0, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/no report for this week yet/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows report title when report exists', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+    })
+  })
+
+  it('shows report summary text', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('A great week in AI research.')).toBeInTheDocument()
+    })
+  })
+
+  it('renders week navigation dropdown when multiple reports exist', async () => {
+    const report2 = { ...mockReport, id: 'report-2', week_start_date: '2026-06-09', title: 'Previous Week' }
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox')).toBeInTheDocument()
+    })
+  })
+
+  it('does not render dropdown when only one report', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    })
+  })
+})

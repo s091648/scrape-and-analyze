@@ -33,7 +33,7 @@ export default function HomePageContent() {
   const router = useRouter()
   const { t, locale } = useI18n()
   const {
-    page, sort, order, setPage, setFilters,
+    page, sort, order, favoritesOnly, setPage, setSort, setFilters, setFavoritesOnly,
     aggregators, originalSources, tags, tagGroups,
     publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
     activeFilterCount,
@@ -82,6 +82,7 @@ export default function HomePageContent() {
         published_before: publishedBefore,
         scraped_after: scrapedAfter,
         scraped_before: scrapedBefore,
+        favorites_only: favoritesOnly || undefined,
       },
       locale,
     )
@@ -113,6 +114,10 @@ export default function HomePageContent() {
         scrapedAfter={scrapedAfter}
         scrapedBefore={scrapedBefore}
         activeFilterCount={activeFilterCount}
+        sort={sort}
+        onSortChange={setSort}
+        favoritesOnly={favoritesOnly}
+        onFavoritesToggle={setFavoritesOnly}
         onApply={setFilters}
       />
 
