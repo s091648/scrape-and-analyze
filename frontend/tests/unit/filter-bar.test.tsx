@@ -139,3 +139,40 @@ describe('FilterBar', () => {
     })
   })
 })
+
+describe('FilterBar — sort dropdown', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setupApiMock()
+  })
+
+  it('renders sort dropdown with current value', async () => {
+    render(<FilterBar {...defaultProps} sort="citation_count" onSortChange={vi.fn()} />)
+    await waitFor(() => {
+      const select = screen.getByRole('combobox')
+      expect(select).toHaveValue('citation_count')
+    })
+  })
+
+  it('calls onSortChange when sort selection changes', async () => {
+    const onSortChange = vi.fn()
+    render(<FilterBar {...defaultProps} sort="scraped_at" onSortChange={onSortChange} />)
+    await waitFor(() => {
+      const select = screen.getByRole('combobox')
+      fireEvent.change(select, { target: { value: 'view_count' } })
+      expect(onSortChange).toHaveBeenCalledWith('view_count')
+    })
+  })
+
+  it('renders all sort options', async () => {
+    render(<FilterBar {...defaultProps} sort="scraped_at" onSortChange={vi.fn()} />)
+    await waitFor(() => {
+      const select = screen.getByRole('combobox')
+      const options = Array.from(select.querySelectorAll('option')).map(o => (o as HTMLOptionElement).value)
+      expect(options).toContain('scraped_at')
+      expect(options).toContain('citation_count')
+      expect(options).toContain('view_count')
+      expect(options).toContain('published_at')
+    })
+  })
+})

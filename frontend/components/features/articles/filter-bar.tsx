@@ -2,14 +2,25 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { SlidersHorizontal, X } from 'lucide-react'
+import { NativeSelect } from '@/components/ui/native-select'
+import { SlidersHorizontal, X, Heart } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
 import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
 import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { useI18n, useTopic } from '@/lib/providers'
+import { useSession } from 'next-auth/react'
 import { GroupedTagSelect } from './grouped-tag-select'
+
+const SORT_OPTIONS = [
+  { value: 'scraped_at', label: 'Scraped At' },
+  { value: 'published_at', label: 'Published At' },
+  { value: 'citation_count', label: 'Citation Count' },
+  { value: 'view_count', label: 'View Count' },
+  { value: 'source', label: 'Source' },
+  { value: 'title', label: 'Title' },
+]
 
 interface FilterBarProps {
   aggregators: string[]
@@ -21,6 +32,10 @@ interface FilterBarProps {
   scrapedAfter: string
   scrapedBefore: string
   activeFilterCount: number
+  sort?: string
+  onSortChange?: (sort: string) => void
+  favoritesOnly?: boolean
+  onFavoritesToggle?: (v: boolean) => void
   onApply: (updates: {
     aggregator?: string[]
     original_source?: string[]
@@ -38,10 +53,13 @@ export function FilterBar({
   originalSources: activeOriginalSources,
   tags: activeTags, tagGroups: activeTagGroups,
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
-  activeFilterCount, onApply,
+  activeFilterCount, sort = 'scraped_at', onSortChange,
+  favoritesOnly = false, onFavoritesToggle, onApply,
 }: FilterBarProps) {
   const { t, locale } = useI18n()
   const { selectedTopicId } = useTopic()
+  const { status } = useSession()
+  const isAuthenticated = status === 'authenticated'
   const [open, setOpen] = useState(false)
   const [aggregatorOptions, setAggregatorOptions] = useState<SourceEntry[]>([])
   const [originalSourceOptions, setOriginalSourceOptions] = useState<string[]>([])
@@ -108,18 +126,42 @@ export function FilterBar({
 
   return (
     <div className="space-y-3">
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5 text-xs"
-        onClick={() => setOpen(o => !o)}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {t('filterBar.filters')}
-        {activeFilterCount > 0 && (
-          <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => setOpen(o => !o)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {t('filterBar.filters')}
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
+          )}
+        </Button>
+        {isAuthenticated && (
+          <Button
+            variant={favoritesOnly ? 'default' : 'outline'}
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => onFavoritesToggle?.(!favoritesOnly)}
+          >
+            <Heart className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-current' : ''}`} />
+            Favorites
+          </Button>
         )}
-      </Button>
+        <div className="ml-auto">
+          <NativeSelect
+            size="sm"
+            value={sort}
+            onChange={e => onSortChange?.(e.target.value)}
+          >
+            {SORT_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
 
       {open && (
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
