@@ -231,6 +231,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
+    from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -271,6 +272,7 @@ def build_collection_pipeline():
     tag_repo = SqlAlchemyTagRepository(session=session)
     tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=session)
     article_translation_repo = SqlAlchemyArticleTranslationRepository(session=session)
+    article_metrics_repo = SqlAlchemyArticleMetricsRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -289,6 +291,7 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
+        article_metrics_repo=article_metrics_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -454,6 +457,55 @@ def build_collection_pipeline():
         translation_languages=list(TRANSLATION_LANGUAGES) if TRANSLATION_LANGUAGES else [],
     )
     return pipeline, pipeline_stats
+
+
+# ---------------------------------------------------------------------------
+# Weekly Report Pipeline
+# ---------------------------------------------------------------------------
+
+def build_weekly_pipeline():
+    """Assemble GenerateWeeklyReportUseCase with all dependencies from env vars and DB."""
+    from src.infrastructure.persistence.database import get_session, init_db
+    from src.infrastructure.persistence.intelligence.weekly_report_repo_impl import WeeklyReportRepoImpl
+    from src.infrastructure.storage.r2_blob_storage import R2BlobStorageService
+    from src.infrastructure.notifications.weekly_report_email_notifier import WeeklyReportEmailNotifier
+    from src.infrastructure.notifications.weekly_report_telegram_notifier import WeeklyReportTelegramNotifier
+    from src.modules.intelligence.application.use_cases.generate_weekly_report import GenerateWeeklyReportUseCase
+
+    init_db()
+    session = get_session()
+
+    llm_service, _, _ = build_llm_service(session)
+
+    report_repo = WeeklyReportRepoImpl(session=session)
+
+    # Imagen provider: requires an active 'multimodal' LlmProvider in DB
+    from shared.llm_provider import load_active_multimodal_provider
+    multimodal_cfg = load_active_multimodal_provider(session)
+    if not multimodal_cfg:
+        raise ValueError("No active multimodal provider found in DB — add one via the admin UI")
+
+    from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
+    api_key = os.environ.get(multimodal_cfg["api_key_env"], "")
+    image_service = GeminiImagenProvider(model=multimodal_cfg["model"], api_key=api_key)
+
+    blob_storage = R2BlobStorageService.from_env()
+
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "")
+    email_notifier = WeeklyReportEmailNotifier(session=session, api_key=resend_key, from_email=from_email) if resend_key else None
+
+    telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    telegram_notifier = WeeklyReportTelegramNotifier(session=session, bot_token=telegram_token) if telegram_token else None
+
+    return GenerateWeeklyReportUseCase(
+        report_repo=report_repo,
+        llm_service=llm_service,
+        image_service=image_service,
+        blob_storage=blob_storage,
+        email_notifier=email_notifier,
+        telegram_notifier=telegram_notifier,
+    ), session
 
 
 # ---------------------------------------------------------------------------

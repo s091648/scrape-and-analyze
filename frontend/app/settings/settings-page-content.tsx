@@ -4,6 +4,11 @@ import { useSession, signOut } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { fetchMe, updateMe, changePassword, deleteMe, unlinkGoogle } from '@/lib/api/auth'
+import { fetchTopics, type Topic } from '@/lib/api/topics'
+import {
+  fetchSubscriptions, subscribeToTopic, unsubscribeTopic,
+  fetchNotificationSettings, updateNotificationSettings, type NotificationSettings,
+} from '@/lib/api/user'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useI18n, useGuestMode } from '@/lib/providers'
@@ -67,6 +72,19 @@ export default function SettingsPageContent() {
   const [linkMsg, setLinkMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [topics, setTopics] = useState<Topic[]>([])
+  const [subscribedTopicIds, setSubscribedTopicIds] = useState<Set<string>>(new Set())
+  const [subLoading, setSubLoading] = useState<string | null>(null)
+
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
+    email_enabled: false,
+    telegram_chat_id: null,
+    telegram_enabled: false,
+    locale: 'en',
+  })
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifMsg, setNotifMsg] = useState<string | null>(null)
+
   useEffect(() => {
     const linked = searchParams.get('linked')
     if (linked === 'success') {
@@ -91,6 +109,45 @@ export default function SettingsPageContent() {
       })
       .finally(() => setIsLoading(false))
   }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    void Promise.allSettled([
+      fetchTopics().then(setTopics),
+      fetchSubscriptions().then(d => setSubscribedTopicIds(new Set(d.topic_ids))),
+      fetchNotificationSettings().then(setNotifSettings),
+    ])
+  }, [token])
+
+  async function handleToggleSubscription(topicId: string) {
+    setSubLoading(topicId)
+    try {
+      if (subscribedTopicIds.has(topicId)) {
+        await unsubscribeTopic(topicId)
+        setSubscribedTopicIds(prev => { const s = new Set(prev); s.delete(topicId); return s })
+      } else {
+        await subscribeToTopic(topicId)
+        setSubscribedTopicIds(prev => new Set([...prev, topicId]))
+      }
+    } finally {
+      setSubLoading(null)
+    }
+  }
+
+  async function handleSaveNotifSettings() {
+    setNotifSaving(true)
+    setNotifMsg(null)
+    try {
+      const updated = await updateNotificationSettings(notifSettings)
+      setNotifSettings(updated)
+      setNotifMsg('Saved')
+    } catch {
+      setNotifMsg('Failed to save')
+    } finally {
+      setNotifSaving(false)
+      setTimeout(() => setNotifMsg(null), 3000)
+    }
+  }
 
   if (isGuestMode) {
     return (
@@ -382,6 +439,81 @@ export default function SettingsPageContent() {
               )}
             </div>
           )}
+
+          {/* Topic subscriptions section */}
+          {topics.length > 0 && (
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+              <h2 className="font-semibold text-sm">Weekly Report Subscriptions</h2>
+              <p className="text-xs text-muted-foreground">Subscribe to topics to receive weekly summary reports.</p>
+              <div className="space-y-2">
+                {topics.map(topic => (
+                  <div key={topic.id} className="flex items-center justify-between">
+                    <span className="text-sm">{topic.display_name}</span>
+                    <Button
+                      size="sm"
+                      variant={subscribedTopicIds.has(topic.id) ? 'default' : 'outline'}
+                      disabled={subLoading === topic.id}
+                      onClick={() => handleToggleSubscription(topic.id)}
+                    >
+                      {subscribedTopicIds.has(topic.id) ? 'Unsubscribe' : 'Subscribe'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notification settings section */}
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <h2 className="font-semibold text-sm">Notification Settings</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm">Email notifications</label>
+                <input
+                  type="checkbox"
+                  checked={notifSettings.email_enabled}
+                  onChange={e => setNotifSettings(prev => ({ ...prev, email_enabled: e.target.checked }))}
+                  className="h-4 w-4"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Telegram Chat ID</label>
+                <input
+                  type="text"
+                  value={notifSettings.telegram_chat_id ?? ''}
+                  onChange={e => setNotifSettings(prev => ({ ...prev, telegram_chat_id: e.target.value || null }))}
+                  placeholder="e.g. 123456789"
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm">Telegram notifications</label>
+                <input
+                  type="checkbox"
+                  checked={notifSettings.telegram_enabled}
+                  onChange={e => setNotifSettings(prev => ({ ...prev, telegram_enabled: e.target.checked }))}
+                  className="h-4 w-4"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Language</label>
+                <select
+                  value={notifSettings.locale}
+                  onChange={e => setNotifSettings(prev => ({ ...prev, locale: e.target.value }))}
+                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="en">English</option>
+                  <option value="zh-TW">繁體中文</option>
+                </select>
+              </div>
+            </div>
+            <Button size="sm" onClick={handleSaveNotifSettings} disabled={notifSaving}>
+              {notifSaving ? 'Saving…' : 'Save notification settings'}
+            </Button>
+            {notifMsg && (
+              <p className={`text-sm ${notifMsg === 'Saved' ? 'text-green-600' : 'text-destructive'}`}>{notifMsg}</p>
+            )}
+          </div>
 
           {/* Delete account section */}
           <div className="rounded-2xl border border-destructive/30 bg-card p-6 space-y-4">
