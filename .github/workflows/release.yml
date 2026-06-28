@@ -102,6 +102,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global --unset-all http.https://github.com/.extraheader || true
           git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $(echo -n 'x-access-token:${{ secrets.RELEASE_PAT }}' | base64)"
           git add frontend/public/release-notes.json
           git diff --staged --quiet || \
