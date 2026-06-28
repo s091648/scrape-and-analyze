@@ -1,0 +1,75 @@
+import { test, expect } from '@playwright/test'
+
+const articleWithCitation = {
+  id: 'art-high-citation',
+  title: 'High Citation Paper',
+  source: 'openalex',
+  content: 'Highly cited research.',
+  published_at: '2026-01-10T00:00:00Z',
+  scraped_at: '2026-01-11T00:00:00Z',
+  url: 'https://openalex.org/high',
+  citation_count: 500,
+  view_count: 100,
+}
+
+const articleLowCitation = {
+  id: 'art-low-citation',
+  title: 'Low Citation Paper',
+  source: 'arxiv',
+  content: 'Less cited research.',
+  published_at: '2026-01-12T00:00:00Z',
+  scraped_at: '2026-01-13T00:00:00Z',
+  url: 'https://arxiv.org/low',
+  citation_count: 5,
+  view_count: 10,
+}
+
+async function mockArticlesSortedByCitation(page: any, order: 'asc' | 'desc' = 'desc') {
+  const items = order === 'desc'
+    ? [articleWithCitation, articleLowCitation]
+    : [articleLowCitation, articleWithCitation]
+
+  await page.route((url: URL) => url.pathname === '/api/proxy/articles', route => {
+    const params = new URL(url.href).searchParams
+    if (params.get('sort') === 'citation_count') {
+      route.fulfill({ json: { items, total: 2, page: 1, size: 20 } })
+    } else {
+      route.fulfill({ json: { items: [articleWithCitation, articleLowCitation], total: 2, page: 1, size: 20 } })
+    }
+  })
+}
+
+test.describe('Sort by citation count', () => {
+  test.beforeEach(async ({ page }) => {
+    // Mock supporting routes
+    await page.route((url: URL) => url.pathname.startsWith('/api/proxy/'), route => {
+      const p = url.pathname
+      if (p === '/api/proxy/topics') return route.fulfill({ json: [] })
+      if (p.includes('filters')) return route.fulfill({ json: [] })
+      if (p.includes('source-categories')) return route.fulfill({ json: { aggregator: [], scraper: [] } })
+      if (p.includes('weekly-reports')) return route.fulfill({ json: null })
+      route.fulfill({ status: 404, json: {} })
+    })
+    await mockArticlesSortedByCitation(page, 'desc')
+  })
+
+  test('sort dropdown changes URL to sort=citation_count', async ({ page }) => {
+    await page.goto('/articles')
+    const select = page.getByRole('combobox')
+    await select.selectOption('citation_count')
+    await expect(page).toHaveURL(/sort=citation_count/)
+  })
+
+  test('high citation count article appears first after sort', async ({ page }) => {
+    await page.goto('/articles?sort=citation_count&order=desc')
+    const titles = page.locator('[class*="font-semibold"]')
+    const firstTitle = titles.first()
+    await expect(firstTitle).toContainText('High Citation Paper')
+  })
+
+  test('sort value is reflected in the sort dropdown', async ({ page }) => {
+    await page.goto('/articles?sort=citation_count')
+    const select = page.getByRole('combobox')
+    await expect(select).toHaveValue('citation_count')
+  })
+})

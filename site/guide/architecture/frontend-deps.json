@@ -1,0 +1,459 @@
+{
+  "app/admin/layout.tsx": [
+    "app/settings/layout.tsx"
+  ],
+  "app/admin/llm-providers/page.tsx": [
+    "components/ui/accordion-section.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/index.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/admin/monitoring/monitoring-content.tsx": [
+    "components/features/monitoring/logs-table.tsx",
+    "components/features/monitoring/metrics-chart.tsx",
+    "components/features/monitoring/stat-card.tsx",
+    "components/features/monitoring/traces-table.tsx",
+    "components/ui/button.tsx",
+    "components/ui/native-select.tsx",
+    "components/ui/tabs.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "app/admin/monitoring/page.tsx": [
+    "app/admin/monitoring/monitoring-content.tsx",
+    "lib/auth.ts"
+  ],
+  "app/admin/scraper-settings/page.tsx": [
+    "components/features/scraper/arxiv-keyword-manager.tsx",
+    "components/features/scraper/openalex-keyword-manager.tsx",
+    "components/features/scraper/scraper-source-card.tsx",
+    "components/features/scraper/semantic-scholar-keyword-manager.tsx",
+    "components/ui/accordion-section.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "lib/api/scraper-keywords.ts",
+    "lib/api/scraper-settings.ts",
+    "lib/api/source-categories.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/admin/topics/page.tsx": [
+    "components/features/tags/tag-mode-selector.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "lib/api/topics.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/admin/user-management/page.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "lib/api/auth.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/api/auth/[[...nextauth]]/route.ts": [
+    "lib/auth.ts"
+  ],
+  "app/api/grafana-embed/route.ts": [
+    "lib/auth.ts"
+  ],
+  "app/api/link-google/callback/route.ts": [],
+  "app/api/link-google/start/route.ts": [],
+  "app/api/proxy/[...path]/route.ts": [
+    "lib/auth.ts",
+    "lib/loki-logger.ts"
+  ],
+  "app/articles/[articleId]/page.tsx": [
+    "components/features/articles/article-card.tsx",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/globals.css": [],
+  "app/graph/page.tsx": [
+    "components/features/graph/knowledge-graph.tsx",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/home-page-content.tsx": [
+    "components/features/articles/article-card.tsx",
+    "components/features/articles/filter-bar.tsx",
+    "components/ui/button.tsx",
+    "hooks/use-pagination.ts",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/layout-shell.tsx": [
+    "components/common/error-boundary.tsx",
+    "components/features/navigation/nav-bar.tsx"
+  ],
+  "app/layout.tsx": [
+    "app/globals.css",
+    "app/layout-shell.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "app/login/login-page-content.tsx": [
+    "components/ui/button.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "app/login/page.tsx": [
+    "app/login/login-page-content.tsx"
+  ],
+  "app/page.tsx": [
+    "app/home-page-content.tsx"
+  ],
+  "app/register/page.tsx": [
+    "app/register/register-page-content.tsx"
+  ],
+  "app/register/register-page-content.tsx": [
+    "components/ui/button.tsx",
+    "lib/api/auth.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/settings/layout.tsx": [
+    "lib/providers/index.tsx",
+    "lib/providers/topic-provider.tsx",
+    "lib/utils.ts"
+  ],
+  "app/settings/page.tsx": [
+    "app/settings/settings-page-content.tsx"
+  ],
+  "app/settings/settings-page-content.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/skeleton.tsx",
+    "lib/api/auth.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/tags/page.tsx": [
+    "components/features/tags/merge-group-dialog.tsx",
+    "components/features/tags/pending-changes-panel.tsx",
+    "components/features/tags/pending-suggestions.tsx",
+    "components/features/tags/tag-group-card.tsx",
+    "components/features/tags/tag-mode-selector.tsx",
+    "components/ui/button.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "lib/api/tags.ts",
+    "lib/api/topics.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/common/date-filter.tsx": [
+    "components/ui/badge.tsx",
+    "components/ui/button.tsx",
+    "components/ui/popover.tsx"
+  ],
+  "components/common/error-boundary.tsx": [],
+  "components/common/multi-select-popover.tsx": [
+    "components/ui/badge.tsx",
+    "components/ui/button.tsx",
+    "components/ui/checkbox.tsx",
+    "components/ui/command.tsx",
+    "components/ui/popover.tsx"
+  ],
+  "components/features/articles/article-card-skeleton.tsx": [
+    "components/ui/skeleton.tsx"
+  ],
+  "components/features/articles/article-card.tsx": [
+    "components/features/articles/article-card-skeleton.tsx",
+    "components/features/articles/article-detail-dialog.tsx",
+    "components/features/articles/source-utils.ts",
+    "components/ui/card.tsx",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/articles/article-detail-dialog.tsx": [
+    "components/features/articles/article-card-skeleton.tsx",
+    "components/features/articles/source-utils.ts",
+    "components/ui/badge.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/articles/filter-bar.tsx": [
+    "components/common/date-filter.tsx",
+    "components/common/multi-select-popover.tsx",
+    "components/features/articles/grouped-tag-select.tsx",
+    "components/ui/badge.tsx",
+    "components/ui/button.tsx",
+    "lib/api/articles.ts",
+    "lib/api/source-categories.ts",
+    "lib/api/tags.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/articles/grouped-tag-select.tsx": [
+    "components/ui/badge.tsx",
+    "components/ui/button.tsx",
+    "components/ui/checkbox.tsx",
+    "components/ui/popover.tsx",
+    "lib/api/tags.ts"
+  ],
+  "components/features/articles/source-utils.ts": [],
+  "components/features/graph/knowledge-graph.tsx": [
+    "components/features/articles/filter-bar.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/skeleton.tsx",
+    "lib/api/articles.ts",
+    "lib/api/graph.ts",
+    "lib/providers/index.tsx",
+    "lib/providers/topic-provider.tsx"
+  ],
+  "components/features/monitoring/article-workflow-dialog.tsx": [
+    "components/features/monitoring/log-detail-dialog.tsx",
+    "components/features/monitoring/stage-card.tsx",
+    "components/ui/dialog.tsx",
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/monitoring/failed-task-list.tsx": [],
+  "components/features/monitoring/grafana-panel.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/log-detail-dialog.tsx": [
+    "components/ui/dialog.tsx",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/logs-table.tsx": [
+    "components/features/monitoring/article-workflow-dialog.tsx",
+    "components/features/monitoring/log-detail-dialog.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/table-panel.tsx",
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/metrics-chart.tsx": [
+    "components/ui/skeleton.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/grafana.ts",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/run-waterfall-dialog.tsx": [
+    "components/ui/dialog.tsx",
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/stage-card.tsx": [
+    "components/ui/tooltip.tsx",
+    "lib/api/grafana.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/stat-card.tsx": [
+    "components/ui/skeleton.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/traces-table.tsx": [
+    "components/features/articles/article-detail-dialog.tsx",
+    "components/features/monitoring/article-workflow-dialog.tsx",
+    "components/features/monitoring/run-waterfall-dialog.tsx",
+    "components/ui/table-panel.tsx",
+    "lib/api/articles.ts",
+    "lib/api/grafana.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/navigation/nav-bar.tsx": [
+    "components/features/navigation/release-notes-popover.tsx",
+    "components/ui/button.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/auth.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/navigation/release-notes-popover.tsx": [
+    "components/ui/popover.tsx",
+    "components/ui/tooltip.tsx"
+  ],
+  "components/features/scraper/arxiv-keyword-manager.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/native-select.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/scraper/openalex-keyword-manager.tsx": [
+    "components/ui/button.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/scraper/scraper-source-card.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/switch.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/scraper/scraper-source-form.tsx": [
+    "components/ui/button.tsx"
+  ],
+  "components/features/scraper/semantic-scholar-keyword-manager.tsx": [
+    "components/ui/button.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/tags/merge-group-dialog.tsx": [
+    "components/ui/button.tsx",
+    "lib/api/tags.ts"
+  ],
+  "components/features/tags/pending-changes-panel.tsx": [
+    "components/ui/button.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/tags/pending-suggestions.tsx": [
+    "components/ui/button.tsx",
+    "lib/api/tags.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/tags/tag-dialog.tsx": [
+    "components/features/articles/article-card.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/skeleton.tsx",
+    "lib/api/articles.ts",
+    "lib/api/tags.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/tags/tag-group-card.tsx": [
+    "components/features/tags/tag-dialog.tsx",
+    "components/ui/button.tsx",
+    "lib/api/tags.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/tags/tag-mode-selector.tsx": [
+    "components/ui/tabs.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/providers/session-provider.tsx": [],
+  "components/ui/accordion-section.tsx": [],
+  "components/ui/badge.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/button.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/card.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/checkbox.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/command.tsx": [
+    "components/ui/dialog.tsx",
+    "lib/utils.ts"
+  ],
+  "components/ui/dialog.tsx": [
+    "components/ui/button.tsx",
+    "lib/utils.ts"
+  ],
+  "components/ui/native-select.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/popover.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/scroll-area.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/skeleton.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/switch.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/table-panel.tsx": [
+    "components/ui/skeleton.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/utils.ts"
+  ],
+  "components/ui/table.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/tabs.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/tooltip.tsx": [
+    "lib/utils.ts"
+  ],
+  "hooks/use-pagination.ts": [],
+  "lib/api/articles.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/auth.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/client.ts": [],
+  "lib/api/grafana.ts": [],
+  "lib/api/graph.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/index.ts": [
+    "lib/api/articles.ts",
+    "lib/api/auth.ts",
+    "lib/api/client.ts",
+    "lib/api/graph.ts",
+    "lib/api/llm-providers.ts",
+    "lib/api/scraper-keywords.ts",
+    "lib/api/scraper-settings.ts",
+    "lib/api/topics.ts"
+  ],
+  "lib/api/llm-providers.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/scraper-keywords.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/scraper-settings.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/source-categories.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/tags.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/topics.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/auth.ts": [],
+  "lib/loki-logger.ts": [],
+  "lib/observability-constants.ts": [],
+  "lib/otlp-utils.ts": [
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts"
+  ],
+  "lib/providers/guest-mode-provider.tsx": [],
+  "lib/providers/i18n-provider.tsx": [
+    "lib/api/client.ts",
+    "lib/providers/locales/en.json",
+    "lib/providers/locales/zh-TW.json"
+  ],
+  "lib/providers/index.tsx": [
+    "components/providers/session-provider.tsx",
+    "lib/providers/guest-mode-provider.tsx",
+    "lib/providers/i18n-provider.tsx",
+    "lib/providers/topic-provider.tsx"
+  ],
+  "lib/providers/locales/en.json": [],
+  "lib/providers/locales/zh-TW.json": [],
+  "lib/providers/topic-provider.tsx": [
+    "lib/api/topics.ts"
+  ],
+  "lib/utils.ts": []
+}
