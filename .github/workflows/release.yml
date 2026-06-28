@@ -20,6 +20,7 @@ permissions:
 
 env:
   PYTHON_VERSION: '3.11'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   release:
@@ -34,8 +35,6 @@ jobs:
           ref: master
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT }}
-        env:
-          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
 
       - uses: actions/setup-python@v5
         with:
