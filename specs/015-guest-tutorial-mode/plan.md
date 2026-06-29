@@ -14,7 +14,7 @@ Add a step-by-step Tutorial Modal (4 steps: Welcome → Articles → Graph → S
 
 **Primary Dependencies**: Shadcn/UI (Dialog, Button), Radix UI, Tailwind CSS v4, Lucide React, existing `GuestModeProvider` + `I18nProvider`
 
-**Storage**: `sessionStorage` key `guest_tutorial_seen` (string `"true"`) — no DB changes
+**Storage**: `localStorage` key `tutorial_seen_pages` (JSON string[]) for future per-page tutorial state; global tutorial auto-trigger is role-based (not storage-based) — no DB changes
 
 **Testing**: Vitest (unit) + Playwright (E2E)
 
@@ -95,11 +95,16 @@ frontend/
 
 1. Add `isTutorialOpen: boolean` and `tutorialStep: number` to state
 2. Implement `openTutorial()`, `closeTutorial()`, `nextTutorialStep()`, `prevTutorialStep()`
-3. Modify `enterGuestMode()`: after setting guest mode, check `sessionStorage.getItem('guest_tutorial_seen')`; if absent → set `isTutorialOpen=true, tutorialStep=0`
+3. Modify `enterGuestMode()`: **always** set `isTutorialOpen=true, tutorialStep=0` — no storage check required (guest tutorial is unconditional)
 4. Modify `exitGuestMode()`: reset `isTutorialOpen=false, tutorialStep=0`
-5. Export new fields/actions via context
+5. `closeTutorial()`: set `isTutorialOpen=false` — no localStorage write for guest tutorial
+6. Export new fields/actions via context
 
-**Guard**: `openTutorial()` is a no-op if `!isGuestMode`.
+**Auto-trigger policy**:
+- Guest: `enterGuestMode()` → unconditionally opens tutorial
+- Member: tutorial never auto-opens; `openTutorial()` is the only trigger (called from NavBar)
+
+**Guard**: `openTutorial()` is a no-op if `status === 'unauthenticated' && !isGuestMode`.
 
 ---
 

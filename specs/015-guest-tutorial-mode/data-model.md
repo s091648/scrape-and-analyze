@@ -62,19 +62,38 @@ interface TutorialState {
 
 ---
 
-## SessionStorage Schema
+## Storage Schema
+
+### SessionStorage (existing, unchanged)
 
 | Key | Type | Value | Lifetime |
 |-----|------|-------|----------|
 | `guest_mode` | string | `"true"` | Session (tab) — existing key, not modified |
-| `guest_tutorial_seen` | string | `"true"` | Session (tab) — new key for this feature |
+
+### LocalStorage (new for this feature)
+
+| Key | Type | Value | Lifetime | Used by |
+|-----|------|-------|----------|---------|
+| `tutorial_seen_pages` | string | JSON `string[]` e.g. `'["home","graph"]'` | Persistent | Future per-page tutorials |
+
+**Auto-trigger rules (by role)**:
+
+| Role | Auto-show tutorial? | localStorage check? |
+|------|--------------------|--------------------|
+| 純未登入（paywall） | ❌ Never | ❌ N/A |
+| Guest mode | ✅ **Always** (每次進入 guest mode 都顯示) | ❌ No check — unconditional |
+| Member (authenticated) | ❌ Never auto-shows | ❌ N/A |
 
 **Write conditions**:
-- `guest_tutorial_seen` is written to `"true"` when user closes or completes the tutorial
-- `guest_tutorial_seen` is **never** written if guest mode is exited without opening tutorial
+- `tutorial_seen_pages` is appended with a page id (e.g. `"graph"`) when a future page-specific tutorial is completed (MVP: not yet used — reserved for page-level tutorials)
 
-**Read conditions**:
-- `enterGuestMode()` reads `guest_tutorial_seen`; if absent → set `isTutorialOpen: true` and `tutorialStep: 0`
+**Read conditions** (future page-specific tutorials):
+- A page component reads `tutorial_seen_pages` to decide whether to show its local tutorial step
+- The global tutorial modal does NOT check any localStorage key before showing for guests
+
+**Why localStorage (not sessionStorage) for seen_pages**:
+- Page-specific tutorial preferences should persist across sessions (e.g. "don't show me the graph tutorial again")
+- Members may want to reset: clearing `tutorial_seen_pages` from localStorage re-enables page tutorials
 
 ---
 
@@ -152,10 +171,13 @@ interface TutorialState {
         ▼
 enterGuestMode()
         │
-        ├─ sessionStorage.get('guest_tutorial_seen') === null?
-        │       YES → set isTutorialOpen=true, tutorialStep=0
-        │       NO  → tutorial stays closed
+        └─ ALWAYS → isTutorialOpen=true, tutorialStep=0  (no storage check)
+
+[User logs in (member)]
         │
+        └─ tutorial stays closed (isTutorialOpen remains false)
+           Member can open manually via HelpCircle
+
         ▼
 [Tutorial Modal Open — Step 0]
         │
@@ -163,14 +185,12 @@ enterGuestMode()
         ├─ User clicks "Back" → tutorialStep--
         ├─ User clicks "Skip" or "X"
         │       → isTutorialOpen=false
-        │       → sessionStorage.set('guest_tutorial_seen', 'true')
         ├─ User reaches last step, clicks "Get Started"
         │       → isTutorialOpen=false
-        │       → sessionStorage.set('guest_tutorial_seen', 'true')
         └─ Guest mode exits (user logs in)
                 → exitGuestMode() → isTutorialOpen=false (reset)
 
-[Tutorial Closed — NavBar HelpCircle icon visible]
+[Tutorial Closed — NavBar HelpCircle icon visible for guest OR member]
         │
         └─ User clicks HelpCircle
                 → openTutorial() → isTutorialOpen=true, tutorialStep=0

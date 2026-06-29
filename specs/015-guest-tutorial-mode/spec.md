@@ -35,7 +35,7 @@ Guest Mode（spec 009）已實作完成：使用者可從 `/login` 點擊「以�
 2. **Given** Tutorial Modal 已開啟，**When** 使用者點擊「Next」，**Then** 進入下一個步驟，步驟指示器（stepper dots / progress）更新
 3. **Given** Tutorial Modal 已開啟，**When** 使用者點擊「X」或「Skip」，**Then** Modal 關閉，不會再自動彈出（同一 session 內）
 4. **Given** 使用者完成所有步驟並點擊「Get Started」，**When** 最後一步完成，**Then** Modal 關閉，使用者留在主頁
-5. **Given** 使用者重新整理頁面（仍在 guest mode），**When** 頁面重載，**Then** Tutorial Modal **不再**自動顯示（同一 session 已完成或跳過）
+5. **Given** 使用者重新整理頁面（仍在 guest mode），**When** 頁面重載，**Then** Tutorial Modal **再次**自動顯示（guest mode 每次都顯示 tutorial）
 
 ---
 
@@ -99,17 +99,18 @@ Tutorial 內容支援中英雙語，隨 app 的語系設定自動切換。
 
 ### Functional Requirements
 
-- **FR-001**: 系統 MUST 在使用者首次進入 guest mode（當前 session 內）時自動顯示 Tutorial Modal
-- **FR-002**: 系統 MUST 在同一 session 內的後續頁面重載中**不再**自動顯示 Tutorial（使用 `sessionStorage` 記錄已完成/跳過狀態）
+- **FR-001**: 系統 MUST 在使用者每次進入 guest mode 時**無條件**自動顯示 Tutorial Modal（不做任何 storage 檢查）
+- **FR-002**: 系統 MUST NOT 在 member（已登入）的任何頁面載入時自動顯示 Tutorial；member 只能透過 HelpCircle 手動開啟
 - **FR-003**: Tutorial Modal MUST 包含至少 4 個步驟：Welcome、Articles、Graph、Sign Up CTA
 - **FR-004**: 使用者 MUST 能夠透過「X」或「Skip」在任意步驟關閉 Tutorial
 - **FR-005**: Tutorial Modal MUST 顯示當前步驟指示（如進度條或 dot indicators）
 - **FR-006**: Tutorial MUST 提供「Back」（第一步除外）與「Next」導航按鈕
 - **FR-007**: 最後一步 MUST 提供「Sign In」與「Register」CTA 按鈕
-- **FR-008**: guest mode 下 NavBar MUST 提供可手動重開 Tutorial 的入口（icon 或連結）
-- **FR-009**: 非 guest mode 使用者（已登入或純未登入）MUST NOT 看到 Tutorial 入口或 Modal
+- **FR-008**: guest mode 及已登入 member 下 NavBar MUST 提供可手動重開 Tutorial 的入口（HelpCircle icon）
+- **FR-009**: 純未登入使用者（paywall 狀態）MUST NOT 看到 Tutorial 入口或 Modal
 - **FR-010**: Tutorial 所有文字內容 MUST 支援 i18n（en + zh-TW）
 - **FR-011**: Tutorial Modal MUST 在 guest mode 被清除（如登入完成）時自動關閉
+- **FR-012**: 系統 MUST 使用 `localStorage` 儲存 per-page tutorial 狀態（`tutorial_seen_pages`），供未來各頁面個別引導使用；全域 tutorial 的自動觸發不依賴此 storage
 
 ### Key Entities
 

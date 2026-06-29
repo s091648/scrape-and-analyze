@@ -77,14 +77,18 @@ interface GuestModeContextType {
 
 | Action | Pre-condition | State change | Side effect |
 |--------|--------------|--------------|-------------|
-| `enterGuestMode()` | — | `isGuestMode=true`; if `!sessionStorage.get('guest_tutorial_seen')` → `isTutorialOpen=true, tutorialStep=0` | Sets `sessionStorage 'guest_mode'='true'` |
+| `enterGuestMode()` | — | `isGuestMode=true`, `isTutorialOpen=true`, `tutorialStep=0` (unconditional) | Sets `sessionStorage 'guest_mode'='true'` |
 | `exitGuestMode()` | — | `isGuestMode=false`, `isTutorialOpen=false`, `tutorialStep=0` | Removes `sessionStorage 'guest_mode'` |
-| `openTutorial()` | `isGuestMode=true` | `isTutorialOpen=true`, `tutorialStep=0` | — |
-| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | Sets `sessionStorage 'guest_tutorial_seen'='true'` |
+| `openTutorial()` | `isGuestMode=true` OR `status==='authenticated'` | `isTutorialOpen=true`, `tutorialStep=0` | — |
+| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | No localStorage write (guest tutorial is stateless) |
 | `nextTutorialStep()` | `tutorialStep < TUTORIAL_STEPS.length - 1` | `tutorialStep++` | — |
 | `prevTutorialStep()` | `tutorialStep > 0` | `tutorialStep--` | — |
 
-**Guard**: `openTutorial()` is a no-op if `!isGuestMode`.
+**Auto-trigger policy**:
+- **Guest**: `enterGuestMode()` always sets `isTutorialOpen=true` — no storage check, unconditional
+- **Member**: tutorial never auto-opens; HelpCircle is the only entry point
+
+**Guard**: `openTutorial()` is a no-op if `status === 'unauthenticated' && !isGuestMode` (paywall state).
 
 ---
 
@@ -96,7 +100,7 @@ interface GuestModeContextType {
 
 ```typescript
 // Conditionally render in NavBar right-side icon group:
-{isGuestMode && (
+{(isGuestMode || status === 'authenticated') && (
   <button
     onClick={openTutorial}
     aria-label={t('tutorial.reopenLabel')}  // i18n key: "Reopen tutorial"
@@ -107,6 +111,8 @@ interface GuestModeContextType {
 )}
 ```
 
+- **Visible to**: guest mode users AND authenticated members
+- **Hidden from**: pure unauthenticated users (paywall state — `status === 'unauthenticated' && !isGuestMode`)
 - Position: In the right-side icon group, before the language/theme toggles (or after settings icon slot)
 - Size: `h-5 w-5` (matching existing NavBar icons)
 - Tooltip: Uses existing `Tooltip` primitive with `t('tutorial.reopenLabel')` text
