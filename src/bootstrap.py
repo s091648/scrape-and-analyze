@@ -136,7 +136,7 @@ def build_rag_ingestion_service():
             RAG_DENSE_API_KEY_ENV, RAG_DENSE_ENDPOINT_URL,
             RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
             RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
-            RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD,
+            RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD, RAG_SPARSE_TIMEOUT,
             RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
         )
         from src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl import RagSdkIngestionService
@@ -160,6 +160,7 @@ def build_rag_ingestion_service():
             "rpm": RAG_SPARSE_RPM,
             "tpm": RAG_SPARSE_TPM,
             "rpd": RAG_SPARSE_RPD,
+            "timeout": RAG_SPARSE_TIMEOUT,
         }) if RAG_SPARSE_PROVIDER else None
 
         backend = SyncPgBackend(DatabaseConfig(

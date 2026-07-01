@@ -52,6 +52,7 @@ RAG_SPARSE_ENDPOINT_URL: str = os.environ.get("RAG_SPARSE_ENDPOINT_URL", "")
 RAG_SPARSE_RPM: int | None = _int_or_none("RAG_SPARSE_RPM")
 RAG_SPARSE_TPM: int | None = _int_or_none("RAG_SPARSE_TPM")
 RAG_SPARSE_RPD: int | None = _int_or_none("RAG_SPARSE_RPD")
+RAG_SPARSE_TIMEOUT: float = float(os.environ.get("RAG_SPARSE_TIMEOUT", "120"))
 
 # Number of chunks packed into a single embed() call.
 # Larger values reduce total API requests. Google gemini-embedding-001 supports up to
