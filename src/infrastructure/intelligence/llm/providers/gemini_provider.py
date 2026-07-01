@@ -14,7 +14,7 @@ class GeminiProvider(BaseProvider):
 
     def __init__(self, api_key: str, model: str) -> None:
         super().__init__(model=model)
-        self._client = genai.Client(api_key=api_key)
+        self._client = genai.Client(api_key=api_key, http_options={"timeout": 120})
 
     def _generate(self, content: str, prompt: str):
         """Send a generate_content request to Gemini and return the raw response."""
