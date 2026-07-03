@@ -1,32 +1,42 @@
-# Implementation Plan: Guest Tutorial Mode
+# Implementation Plan: Guest Tutorial Mode & Feature Spotlight
 
-**Branch**: `015-guest-tutorial-mode` | **Date**: 2026-06-29 | **Spec**: [spec.md](./spec.md)
-
-**Input**: Feature specification from `specs/015-guest-tutorial-mode/spec.md`
+**Branch**: `015-guest-tutorial-mode` | **Date**: 2026-06-29 | **Updated**: 2026-07-04 | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 
-Add a step-by-step Tutorial Modal (4 steps: Welcome → Articles → Graph → Sign Up CTA) that auto-triggers when a user enters guest mode for the first time in a session. State is managed by extending the existing `GuestModeProvider`; UI uses the existing Shadcn `Dialog` primitive. A `HelpCircle` icon in NavBar lets guests manually reopen the tutorial. No backend changes required.
+Replace the centered-modal Tutorial with a **spotlight/highlight tour**: a dimmed overlay with a cutout over the target UI element, a description card anchored next to it, and automatic page navigation to the step's route. Two kinds of tours share this UI:
+
+- **Guest Onboarding Tour** (`kind: "onboarding"`) — 4 steps (Welcome → Articles → Graph → Sign Up CTA), auto-starts unconditionally every time a user enters guest mode, can force-navigate across pages.
+- **Feature Spotlight Tour** (`kind: "spotlight"`) — auto-starts for guest/member users the first time they visit the tour's target page, if not already marked seen in `localStorage`. Never force-navigates. Scoped to a single route.
+
+Tutorial state moves out of `GuestModeProvider` into a new `TutorialProvider` (tutorial concerns now apply to all users, not just guests). Highlight positioning is implemented with a generic `useTutorialTarget` hook (no third-party tour library) and the description card is anchored via the existing `components/ui/popover.tsx` (`PopoverAnchor` + Radix's `virtualRef`). No backend changes; all "seen" state lives in `localStorage`.
 
 ## Technical Context
 
 **Language/Version**: TypeScript + React 19, Next.js 16 (App Router)
 
-**Primary Dependencies**: Shadcn/UI (Dialog, Button), Radix UI, Tailwind CSS v4, Lucide React, existing `GuestModeProvider` + `I18nProvider`
+**Primary Dependencies**: Shadcn/UI (Popover, Dialog for the centered-card fallback, Button), Radix UI (`@radix-ui/react-popper` `virtualRef` for anchoring to an arbitrary rect), Tailwind CSS v4, Lucide React, `next/navigation` (`usePathname`, `useRouter`)
 
-**Storage**: `localStorage` key `tutorial_seen_pages` (JSON string[]) for future per-page tutorial state; global tutorial auto-trigger is role-based (not storage-based) — no DB changes
+**Storage**: `localStorage` key `tutorial_seen_tours` (JSON `string[]` of seen Feature Spotlight tour ids); Guest Onboarding auto-trigger remains unconditional/role-based, not storage-gated. No DB changes — see "Why localStorage, not DB" below.
 
-**Testing**: Vitest (unit) + Playwright (E2E)
+**Testing**: Vitest (unit, incl. a `ResizeObserver` polyfill in `vitest.setup.ts`) + Playwright (E2E)
 
-**Target Platform**: Web browser (desktop primary, mobile responsive)
+**Target Platform**: Web browser (desktop: full spotlight tour; mobile < 768px: centered-card fallback only)
 
 **Project Type**: Web application — frontend-only feature
 
-**Performance Goals**: Modal renders <100ms; no new API calls introduced
+**Performance Goals**: Overlay renders <100ms after target found; highlight position recalculates within one animation frame of resize/scroll; no new API calls introduced
 
-**Constraints**: Zero new npm packages; must not break existing guest mode tests
+**Constraints**: Zero new npm packages; must not break existing guest mode tests; highlight targets must not be clickable during a tour
 
-**Scale/Scope**: Pure frontend, ~5 files modified/created
+**Scale/Scope**: Pure frontend, ~10 files modified/created
+
+### Why localStorage, not DB, for "seen" state
+
+Considered storing per-user seen-tour state in the backend (new `User` column/table + API endpoint) so it would sync across a member's devices. Rejected:
+- Guest users have no account — their state can only ever live client-side, so a DB path can't cover the guest case anyway.
+- The codebase already has this exact pattern for members: `ReleaseNotesPopover` (`frontend/components/features/navigation/release-notes-popover.tsx`) tracks `last_seen_release_version` in `localStorage` for all users, no backend involved.
+- Worst case of a localStorage-only approach is a member seeing a spotlight tour again after switching browsers/devices — low-stakes, not worth a migration + endpoint + schema change.
 
 ## Constitution Check
 
@@ -34,14 +44,14 @@ Add a step-by-step Tutorial Modal (4 steps: Welcome → Articles → Graph → S
 
 | Principle | Status | Notes |
 |-----------|--------|-------|
-| **II. Atomic Frontend Architecture** | ✅ Pass | `TutorialModal` → `components/features/tutorial/` (feature organism); `tutorial-steps.ts` alongside it. Uses `components/ui/dialog.tsx` (atom) correctly |
-| **III. (implied) NextAuth / Session** | ✅ Pass | No auth changes; reads `useGuestMode()` which reads `useSession()` internally |
-| **VII. (implied) No direct backend calls** | ✅ Pass | No new API calls; tutorial is static content |
+| **II. Atomic Frontend Architecture** | ✅ Pass | `TutorialOverlay` → `components/features/tutorial/` (feature organism); reuses `components/ui/popover.tsx` (atom) for anchored positioning instead of introducing a new positioning primitive |
+| **III. (implied) NextAuth / Session** | ✅ Pass | No auth changes; `TutorialProvider` reads `useSession()` / `useGuestMode()` internally |
+| **VII. (implied) No direct backend calls** | ✅ Pass | No new API calls; tutorial content and seen-state are static/localStorage only |
 | **IX. (implied) No hardcoded env vars** | ✅ N/A | No env vars involved |
-| **YAGNI / No speculative features** | ✅ Pass | Exactly what spec requires; no spotlight library, no analytics events beyond scope |
+| **YAGNI / No speculative features** | ✅ Pass | The generic `useTutorialTarget` hook (scroll/resize/async-mount handling) is justified by an explicitly stated near-term need (chat feature spotlight), not speculative; no spotlight library added |
 | **i18n consistency** | ✅ Pass | All text via `t()` + locale files; matches existing pattern |
 
-**Post-design re-check**: ✅ All gates still pass. `GuestModeProvider` extension adds 6 fields; still <120 lines total — well within maintainability bounds.
+**Post-design re-check**: ✅ All gates still pass. Splitting `GuestModeProvider` (now `isGuestMode`/enter/exit only) from the new `TutorialProvider` restores single-responsibility now that tutorials serve all users, not just guests.
 
 ## Project Structure
 
@@ -56,7 +66,7 @@ specs/015-guest-tutorial-mode/
 ├── quickstart.md        # Phase 1 output
 ├── contracts/
 │   └── ui-contract.md   # Phase 1 output
-└── tasks.md             # Phase 2 output (/speckit-tasks command)
+└── tasks.md              # Phase 2 output (/speckit-tasks command)
 ```
 
 ### Source Code (repository root)
@@ -64,102 +74,95 @@ specs/015-guest-tutorial-mode/
 ```text
 frontend/
 ├── app/
-│   └── layout.tsx                          # MODIFY: mount <TutorialModal />
+│   └── layout-shell.tsx                    # MODIFY: mount <TutorialOverlay /> (was <TutorialModal />)
 ├── components/
 │   └── features/
 │       ├── navigation/
-│       │   └── nav-bar.tsx                 # MODIFY: add HelpCircle icon (guest-only)
-│       └── tutorial/                       # NEW directory
-│           ├── tutorial-modal.tsx          # NEW: Modal with stepper UI
-│           └── tutorial-steps.ts           # NEW: static step definitions
+│       │   └── nav-bar.tsx                 # MODIFY: HelpCircle calls useTutorial(); add id="tutorial-target-*" on Articles/Graph links + login button
+│       └── tutorial/
+│           ├── tutorial-registry.ts        # NEW (replaces tutorial-steps.ts): TutorialStep + TutorialTour types, TUTORIAL_TOURS[]
+│           ├── tutorial-overlay.tsx        # NEW (replaces tutorial-modal.tsx): spotlight + centered-card dual-mode renderer
+│           ├── use-tutorial-target.ts      # NEW: generic highlight positioning hook
+│           └── use-is-mobile.ts            # NEW: <768px breakpoint hook
 ├── lib/
 │   └── providers/
-│       ├── guest-mode-provider.tsx         # MODIFY: add tutorial state + actions
+│       ├── guest-mode-provider.tsx         # MODIFY: strip tutorial state back out; isGuestMode/enter/exit only
+│       ├── tutorial-provider.tsx           # NEW: tutorial state machine + auto-trigger logic for both tour kinds
+│       ├── index.tsx                       # MODIFY: mount TutorialProvider inside GuestModeProvider; export useTutorial
 │       └── locales/
-│           ├── en.json                     # MODIFY: add tutorial.* keys
-│           └── zh-TW.json                  # MODIFY: add tutorial.* keys (zh-TW)
+│           ├── en.json                     # MODIFY: tutorial.* keys (unchanged content, same keys)
+│           └── zh-TW.json                  # MODIFY: tutorial.* keys (zh-TW)
 └── tests/
     ├── unit/
-    │   └── tutorial-modal.test.tsx         # NEW: unit tests
+    │   ├── tutorial-overlay.test.tsx       # NEW (replaces tutorial-modal.test.tsx)
+    │   ├── tutorial-provider.test.tsx      # NEW (replaces tutorial assertions in guest-mode-context.test.tsx)
+    │   └── use-tutorial-target.test.ts     # NEW
     └── integration/
-        └── guest-tutorial.spec.ts          # NEW: Playwright E2E
+        └── guest-tutorial.spec.ts          # MODIFY: spotlight-aware assertions, mobile fallback, route navigation
 ```
 
-**Structure Decision**: Frontend-only, follows existing atomic design. New `components/features/tutorial/` feature directory follows the established pattern (`articles/`, `graph/`, `monitoring/`, etc.).
+**Structure Decision**: Frontend-only, follows existing atomic design. `GuestModeProvider` returns to its pre-015 single responsibility; tutorial orchestration moves to a dedicated `TutorialProvider` since it now serves guests, members, and (indirectly, via visibility rules) is aware of paywall users too.
 
 ## Implementation Phases
 
-### Phase A — Core State (GuestModeProvider Extension)
+### Phase A — Provider Split & Tutorial State
 
-**Files**: `frontend/lib/providers/guest-mode-provider.tsx`
+**Files**: `frontend/lib/providers/guest-mode-provider.tsx`, `frontend/lib/providers/tutorial-provider.tsx`, `frontend/lib/providers/index.tsx`
 
-1. Add `isTutorialOpen: boolean` and `tutorialStep: number` to state
-2. Implement `openTutorial()`, `closeTutorial()`, `nextTutorialStep()`, `prevTutorialStep()`
-3. Modify `enterGuestMode()`: **always** set `isTutorialOpen=true, tutorialStep=0` — no storage check required (guest tutorial is unconditional)
-4. Modify `exitGuestMode()`: reset `isTutorialOpen=false, tutorialStep=0`
-5. `closeTutorial()`: set `isTutorialOpen=false` — no localStorage write for guest tutorial
-6. Export new fields/actions via context
-
-**Auto-trigger policy**:
-- Guest: `enterGuestMode()` → unconditionally opens tutorial
-- Member: tutorial never auto-opens; `openTutorial()` is the only trigger (called from NavBar)
-
-**Guard**: `openTutorial()` is a no-op if `status === 'unauthenticated' && !isGuestMode`.
+1. Strip `isTutorialOpen`/`tutorialStep`/tutorial actions out of `GuestModeProvider`; it goes back to `{ isGuestMode, enterGuestMode, exitGuestMode }`
+2. New `TutorialProvider`: `isTutorialOpen`, `activeTourId`, `tutorialStep`, `openTutorial(tourId?)`, `closeTutorial()`, `nextTutorialStep()`, `prevTutorialStep()`
+3. `useEffect` on `isGuestMode` transitioning to `true` → `openTutorial("guest-onboarding")` unconditionally
+4. `useEffect` on `[pathname, isGuestMode, status]` → for each `kind: "spotlight"` tour in the registry: if `tour.steps[0].route === pathname && !seenTourIds.includes(tour.id) && (isGuestMode || status === "authenticated") && !isTutorialOpen` → `openTutorial(tour.id)`
+5. `closeTutorial()`: if the active tour's `kind === "spotlight"`, append its id to `localStorage['tutorial_seen_tours']`
+6. `openTutorial()` with no argument defaults to `"guest-onboarding"` (used by NavBar HelpCircle); guarded as a no-op when `status === 'unauthenticated' && !isGuestMode`
+7. Mount order in `index.tsx`: `GuestModeProvider > TutorialProvider > children`; export `useTutorial` alongside `useGuestMode`
 
 ---
 
-### Phase B — Tutorial Steps Config
+### Phase B — Tutorial Registry
 
-**Files**: `frontend/components/features/tutorial/tutorial-steps.ts`
+**Files**: `frontend/components/features/tutorial/tutorial-registry.ts`
 
-1. Define `TutorialStep` interface
-2. Define `TUTORIAL_STEPS` array (4 entries: welcome, articles, graph, cta)
-3. Import Lucide icons: `Sparkles`, `Newspaper`, `GitBranch`, `LogIn`
-
----
-
-### Phase C — TutorialModal Component
-
-**Files**: `frontend/components/features/tutorial/tutorial-modal.tsx`
-
-1. Import `Dialog`, `DialogContent` from `components/ui/dialog`
-2. Import `Button` from `components/ui/button`
-3. Read state from `useGuestMode()`
-4. Render `null` when `!isTutorialOpen`
-5. Render `Dialog` (open=`isTutorialOpen`, onOpenChange calls `closeTutorial`)
-6. Inside dialog:
-   - Dot step indicator: N dots, current step filled
-   - Icon (48×48 if present)
-   - Title: `t(TUTORIAL_STEPS[tutorialStep].titleKey)`
-   - Description: `t(TUTORIAL_STEPS[tutorialStep].descriptionKey)`
-   - Navigation row:
-     - "Back" button: hidden on step 0, calls `prevTutorialStep()`
-     - "Next" button: visible steps 0..N-2, calls `nextTutorialStep()`
-     - Last step: "Sign In" → `router.push('/login')` + `closeTutorial()`, "Register" → `router.push('/register')` + `closeTutorial()`
-     - "Skip": calls `closeTutorial()` (all steps except last)
-     - "X" close: always visible, calls `closeTutorial()`
-7. Use `useI18n()` for all text (or however `t()` is exposed in the project)
+1. `TutorialStep`: `{ id, titleKey, descriptionKey, icon?, targetId?, route }`
+2. `TutorialTour`: `{ id, kind: "onboarding" | "spotlight", steps: TutorialStep[] }`
+3. `TUTORIAL_TOURS`: one entry, `"guest-onboarding"` — welcome (`route: "/"`, no `targetId`), articles (`route: "/articles"`, `targetId: "tutorial-target-articles"`), graph (`route: "/graph"`, `targetId: "tutorial-target-graph"`), cta (`route: "/"`, `targetId: "tutorial-target-login"`)
+4. Import Lucide icons: `Sparkles`, `Newspaper`, `GitBranch`, `LogIn`
+5. Adding a future Feature Spotlight tour = appending one `TutorialTour` entry with `kind: "spotlight"` and all steps sharing one `route`
 
 ---
 
-### Phase D — Mount TutorialModal in Layout
+### Phase C — Highlight Positioning
 
-**Files**: `frontend/app/layout.tsx` (or the component that wraps inside `GuestModeProvider`)
+**Files**: `frontend/components/features/tutorial/use-tutorial-target.ts`, `frontend/components/features/tutorial/use-is-mobile.ts`
 
-1. Import `TutorialModal`
-2. Add `<TutorialModal />` inside the `GuestModeProvider` scope
+1. `useTutorialTarget(targetId?: string): DOMRect | null` — polls `document.getElementById` via `requestAnimationFrame` for up to 3s if not immediately found (handles post-navigation async mount); once found, recalculates on `resize`, `scroll` (capture phase, for non-fixed/scrollable ancestor targets), and via `ResizeObserver` on the element itself; returns `null` if never found (caller falls back to centered card)
+2. `useIsMobile(): boolean` — `window.innerWidth < 768`, updates on `resize`
+3. `vitest.setup.ts`: add a minimal `ResizeObserver` polyfill for jsdom
 
 ---
 
-### Phase E — NavBar HelpCircle Icon
+### Phase D — TutorialOverlay Component
 
-**Files**: `frontend/components/features/navigation/nav-bar.tsx`
+**Files**: `frontend/components/features/tutorial/tutorial-overlay.tsx`
 
-1. Import `HelpCircle` from `lucide-react`
-2. Import `openTutorial` from `useGuestMode()`
-3. Add conditional render: `{isGuestMode && <button onClick={openTutorial}>…<HelpCircle /></button>}`
-4. Wrap in `Tooltip` using existing `components/ui/tooltip` pattern
-5. Add i18n key `tutorial.reopenLabel` to tooltip content
+1. Read `isTutorialOpen`, `activeTourId`, `tutorialStep` from `useTutorial()`; render `null` when closed
+2. Resolve active `TutorialTour` + current `TutorialStep` from `TUTORIAL_TOURS`
+3. `useEffect` on `[tutorialStep, activeTourId]`: if `step.route !== pathname`, `router.push(step.route)`
+4. `rect = useTutorialTarget(useIsMobile() ? undefined : step.targetId)`
+5. **Spotlight mode** (`rect !== null`): full-screen transparent click-blocking div (`pointer-events: auto`) + a div positioned at `rect` with `box-shadow: 0 0 0 9999px rgba(0,0,0,0.6)` for the dimmed-with-cutout effect + `PopoverAnchor virtualRef` anchored description card (title/description/step dots/Back/Next/Skip/X, or Sign In/Register on the last step)
+6. **Centered-card mode** (`rect === null` — Welcome step, mobile, or target-not-found timeout): reuses the actual `Dialog`/`DialogContent` primitive (same markup as the pre-redesign `TutorialModal`), which gives Escape-to-close, focus trap, and backdrop-click-to-close for free
+7. **Spotlight mode** has no `Dialog` wrapper (custom overlay div, not Radix `Dialog`), so it manually replicates Escape-to-close via a `keydown` listener (`useEffect` while `isTutorialOpen`) and manages initial focus on the description card for keyboard nav (SC-003); there is no backdrop-click-to-close since the click-blocking layer intentionally swallows all clicks
+8. All copy via `useI18n()`'s `t()`
+
+---
+
+### Phase E — Mount Point & NavBar
+
+**Files**: `frontend/app/layout-shell.tsx`, `frontend/components/features/navigation/nav-bar.tsx`
+
+1. `layout-shell.tsx`: swap `<TutorialModal />` → `<TutorialOverlay />`
+2. `nav-bar.tsx`: add `id="tutorial-target-articles"`, `id="tutorial-target-graph"` on the respective `Link`s; add `id="tutorial-target-login"` on the login `Button`/`Link`
+3. HelpCircle button: `onClick={() => openTutorial()}` from `useTutorial()` (was `useGuestMode()`)
 
 ---
 
@@ -167,38 +170,29 @@ frontend/
 
 **Files**: `frontend/lib/providers/locales/en.json`, `zh-TW.json`
 
-Add `tutorial` namespace (see `data-model.md` for full values). Both files must be updated atomically.
+No content changes vs. current `tutorial.*` keys — same keys, same copy (they were written generically enough to still apply). Verify keys survive the `tutorial-steps.ts` → `tutorial-registry.ts` rename with no orphaned/missing keys.
 
 ---
 
 ### Phase G — Tests
 
-**Unit** (`frontend/tests/unit/tutorial-modal.test.tsx`):
-- `enterGuestMode()` sets `isTutorialOpen=true` when `guest_tutorial_seen` absent
-- `enterGuestMode()` does NOT set `isTutorialOpen=true` when `guest_tutorial_seen='true'`
-- `closeTutorial()` sets `isTutorialOpen=false` and writes `guest_tutorial_seen`
-- `nextTutorialStep()` increments step, bounded by array length
-- `prevTutorialStep()` decrements step, floored at 0
-- `openTutorial()` is no-op when not in guest mode
-- TutorialModal renders `null` when `isTutorialOpen=false`
-- TutorialModal shows correct step content when open
+**Unit**:
+- `tutorial-provider.test.tsx`: guest-onboarding unconditional trigger; spotlight trigger gated by route + seen-list + role; `tutorial_seen_tours` write on close; paywall users see neither tour; only one tour open at a time
+- `use-tutorial-target.test.ts`: returns rect once element found; polls up to 3s then returns `null`; recalculates on resize/scroll/ResizeObserver
+- `tutorial-overlay.test.tsx`: spotlight rendering with mocked `getBoundingClientRect`; centered-card fallback (no target / mobile / timeout); route push on step change; highlighted element not clickable
+- `nav-bar.test.tsx`: `id="tutorial-target-*"` attributes present; HelpCircle calls `useTutorial().openTutorial()`
 
-**E2E** (`frontend/tests/integration/guest-tutorial.spec.ts`):
-- Tutorial Modal auto-appears after clicking "Continue as Guest"
-- "Next" button advances steps, dot indicator updates
-- "Skip" closes modal
-- Refreshing page in guest mode does NOT reopen tutorial
-- Clicking `HelpCircle` in NavBar reopens tutorial
-- Last step has "Sign In" and "Register" buttons
-- Non-guest users do NOT see the HelpCircle icon
-- Existing guest mode E2E tests still pass (regression)
+**E2E** (`guest-tutorial.spec.ts`):
+- Guest Onboarding: overlay + highlight box appear; "Next" navigates to `/articles`/`/graph` and highlight follows; "Back" navigates back; "Skip" closes; last step highlights login button with working Sign In/Register
+- Mobile viewport (< 768px): all steps render as centered card, no highlight box
+- Regression: existing guest mode E2E specs still pass
 
 ## Complexity Tracking
 
-> No constitution violations.
+> No constitution violations. Provider split (Phase A) is a scope correction, not added complexity — tutorial state was only ever in `GuestModeProvider` because the original spec was guest-only.
 
 ## Notes
 
-- `useI18n()` hook — verify exact hook name in `lib/providers/i18n-provider.tsx` before implementing Phase C (could be `useTranslation()` or similar)
-- `layout.tsx` mounting location — confirm TutorialModal is inside `GuestModeProvider` by checking the provider hierarchy in `lib/providers/index.tsx`
-- `Dialog` backdrop click behavior — Radix UI's default is to close on outside click; this maps to `closeTutorial()` via `onOpenChange`
+- `useI18n()` hook contract unchanged from the original 015 implementation
+- Radix's `@radix-ui/react-popper` `Anchor` component supports a `virtualRef: RefObject<{ getBoundingClientRect(): DOMRect }>` prop — verified present in the installed `@radix-ui/react-popover` version; this is what makes the anchored-to-a-rect description card possible without a new dependency
+- `Dialog` backdrop click behavior from the original design is dropped — the spotlight overlay's click-blocking layer is a plain div, not a `Dialog`, so closing now happens only via X/Skip/Escape, not backdrop click (there is no dismissable backdrop click target once the overlay covers the whole screen including the highlight)

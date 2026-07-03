@@ -1,72 +1,108 @@
-# UI Contract: Guest Tutorial Mode
+# UI Contract: Guest Tutorial Mode & Feature Spotlight
 
-**Feature**: 015-guest-tutorial-mode  
+**Feature**: 015-guest-tutorial-mode
 **Date**: 2026-06-29
+**Updated**: 2026-07-04
 
 ---
 
-## TutorialModal Component
+## TutorialOverlay Component
 
-**File**: `frontend/components/features/tutorial/tutorial-modal.tsx`
+**File**: `frontend/components/features/tutorial/tutorial-overlay.tsx`
 
 ### Props
 
 ```typescript
-// No external props — reads all state from useGuestMode() context
-// Component is self-contained; mount it once at layout level (or in providers)
+// No external props — reads all state from useTutorial() context.
+// Component is self-contained; mount it once at layout level.
 ```
 
-### Consumed Context (from `useGuestMode()`)
+### Consumed Context (from `useTutorial()`)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `isTutorialOpen` | `boolean` | Whether the modal is visible |
-| `tutorialStep` | `number` | Current step index (0-based) |
-| `closeTutorial` | `() => void` | Close and mark as seen |
+| `isTutorialOpen` | `boolean` | Whether the overlay/card is visible |
+| `activeTourId` | `string \| null` | Which `TutorialTour` (from the registry) is active |
+| `tutorialStep` | `number` | Current step index within the active tour (0-based) |
+| `closeTutorial` | `() => void` | Close; marks spotlight tours as seen |
 | `nextTutorialStep` | `() => void` | Advance to next step |
 | `prevTutorialStep` | `() => void` | Go back one step |
 
 ### Rendering Contract
 
 - **Hidden state**: When `isTutorialOpen === false`, component renders nothing (`null`)
-- **Overlay**: Renders a `Dialog` with backdrop blur; clicking backdrop closes the tutorial
-- **Step indicator**: Row of `N` dots (N = `TUTORIAL_STEPS.length`); active dot is filled/highlighted
-- **Icon area**: Displays `TutorialStep.icon` if defined; 48×48px; centered
-- **Title**: `t(TUTORIAL_STEPS[tutorialStep].titleKey)` — heading-level text
-- **Description**: `t(TUTORIAL_STEPS[tutorialStep].descriptionKey)` — body text, max 2-3 lines
-- **Navigation row**:
-  - Left: "Back" button (`variant="ghost"`) — hidden on step 0, visible on steps 1+
+- **Route sync**: On `[tutorialStep, activeTourId]` change, if the resolved step's `route` differs from the current pathname, `router.push(route)`
+- **Target resolution**: `rect = useTutorialTarget(isMobile ? undefined : step.targetId)`
+- **Spotlight mode** (`rect !== null`, desktop only):
+  - Full-screen `fixed inset-0` transparent div, `pointer-events: auto` — blocks all clicks across the viewport, including over the highlighted target (highlight is visual-only, not interactive; FR-013)
+  - A div positioned to match `rect` (`top/left/width/height` from `getBoundingClientRect()`), `box-shadow: 0 0 0 9999px rgba(0,0,0,0.6)`, rounded corners — creates the dimmed backdrop with a transparent cutout over the target
+  - Description card anchored via `PopoverAnchor` with `virtualRef` pointing at `rect`, rendered through `PopoverContent` (title/description/icon/step dots/nav buttons) — Radix Popper handles collision/flip so the card stays on-screen
+  - No `Dialog` wrapper; Escape-to-close implemented via a manual `keydown` listener while `isTutorialOpen`
+- **Centered-card mode** (`rect === null` — no `targetId` (Welcome/CTA-without-target), mobile viewport, or 3s target-not-found timeout):
+  - Renders the existing `Dialog`/`DialogContent` centered layout (same visual content as the pre-redesign `TutorialModal`)
+  - Backdrop click, Escape, and focus trap come for free from Radix `Dialog`
+- **Step indicator**: Row of `N` dots (N = active tour's `steps.length`); active dot is filled/highlighted — present in both modes
+- **Icon area**: Displays `TutorialStep.icon` if defined; 48×48px — centered-card mode only (omitted in spotlight mode, where the highlight itself is the visual anchor)
+- **Title / Description**: `t(step.titleKey)` / `t(step.descriptionKey)`
+- **Navigation row** (both modes):
+  - Left: "Back" button (`variant="ghost"`) — hidden on step 0
   - Right: "Next" button (`variant="default"`) — visible on steps 0 to N-2
-  - Right (last step only): "Sign In" button (`variant="default"`) + "Register" button (`variant="outline"`)
+  - Right (last step only): "Sign In" (`variant="default"`) + "Register" (`variant="outline"`)
   - Top-right: "X" close button (always visible)
   - Bottom-left: "Skip" text button (`variant="link"`) — visible on all steps except last
 
 ### Accessibility
 
-- `Dialog` ARIA pattern: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing to title
-- Focus trap: Radix UI `Dialog` handles this automatically
-- `Escape` key: Closes modal (calls `closeTutorial()`)
-- Tab order: Step indicator (non-interactive) → Content → Navigation buttons
+- Centered-card mode: Radix `Dialog` ARIA pattern (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`), focus trap automatic
+- Spotlight mode: description card gets `role="dialog"` + `aria-labelledby`/`aria-describedby` manually; initial focus moves to the card on open; `Escape` closes via manual listener
+- Tab order: description card content → navigation buttons (highlighted target itself is not part of the tab order while a tour is open, since it's non-interactive)
 
 ---
 
-## GuestModeContext Additions
+## `useTutorialTarget` Hook
 
-**File**: `frontend/lib/providers/guest-mode-provider.tsx`
-
-### Extended Interface
+**File**: `frontend/components/features/tutorial/use-tutorial-target.ts`
 
 ```typescript
-interface GuestModeContextType {
-  // Existing (unchanged)
-  isGuestMode: boolean
-  enterGuestMode: () => void
-  exitGuestMode: () => void
+function useTutorialTarget(targetId: string | undefined): DOMRect | null
+```
 
-  // New: Tutorial
+| Input | Output | Behavior |
+|-------|--------|----------|
+| `undefined` | `null` | No-op — caller renders centered-card mode |
+| `string`, element exists immediately | `DOMRect` | Returned on first effect run |
+| `string`, element mounts async (e.g. post-navigation) | `DOMRect` (once found) | Polls via `requestAnimationFrame` up to 3s |
+| `string`, element never found within 3s | `null` | Caller falls back to centered-card mode |
+
+Once a rect is found, it is recalculated on:
+- `window resize`
+- `scroll` (capture phase, so non-window scroll containers are also caught)
+- `ResizeObserver` on the target element itself (covers content-driven size changes, e.g. a skeleton resolving to real content)
+
+---
+
+## `useIsMobile` Hook
+
+**File**: `frontend/components/features/tutorial/use-is-mobile.ts`
+
+```typescript
+function useIsMobile(): boolean // true when window.innerWidth < 768, updates on resize
+```
+
+---
+
+## TutorialProvider
+
+**File**: `frontend/lib/providers/tutorial-provider.tsx`
+
+### Interface
+
+```typescript
+interface TutorialContextType {
   isTutorialOpen: boolean
+  activeTourId: string | null
   tutorialStep: number
-  openTutorial: () => void
+  openTutorial: (tourId?: string) => void  // default: "guest-onboarding"
   closeTutorial: () => void
   nextTutorialStep: () => void
   prevTutorialStep: () => void
@@ -77,72 +113,72 @@ interface GuestModeContextType {
 
 | Action | Pre-condition | State change | Side effect |
 |--------|--------------|--------------|-------------|
-| `enterGuestMode()` | — | `isGuestMode=true`, `isTutorialOpen=true`, `tutorialStep=0` (unconditional) | Sets `sessionStorage 'guest_mode'='true'` |
-| `exitGuestMode()` | — | `isGuestMode=false`, `isTutorialOpen=false`, `tutorialStep=0` | Removes `sessionStorage 'guest_mode'` |
-| `openTutorial()` | `isGuestMode=true` OR `status==='authenticated'` | `isTutorialOpen=true`, `tutorialStep=0` | — |
-| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | No localStorage write (guest tutorial is stateless) |
-| `nextTutorialStep()` | `tutorialStep < TUTORIAL_STEPS.length - 1` | `tutorialStep++` | — |
+| (internal) `isGuestMode` becomes `true` | — | `openTutorial("guest-onboarding")` | — |
+| (internal) pathname changes | some `kind:"spotlight"` tour matches route + unseen + role + `!isTutorialOpen` | `openTutorial(tour.id)` | — |
+| `openTutorial(tourId?)` | `isGuestMode=true` OR `status==='authenticated'` | `isTutorialOpen=true`, `activeTourId=tourId ?? "guest-onboarding"`, `tutorialStep=0` | — |
+| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | If active tour `kind==="spotlight"`, append its id to `localStorage['tutorial_seen_tours']` |
+| `nextTutorialStep()` | `tutorialStep < activeTour.steps.length - 1` | `tutorialStep++` | — (route sync happens in `TutorialOverlay`, not here) |
 | `prevTutorialStep()` | `tutorialStep > 0` | `tutorialStep--` | — |
 
-**Auto-trigger policy**:
-- **Guest**: `enterGuestMode()` always sets `isTutorialOpen=true` — no storage check, unconditional
-- **Member**: tutorial never auto-opens; HelpCircle is the only entry point
+**Guard**: `openTutorial()` is a no-op if `status === 'unauthenticated' && !isGuestMode` (paywall state) — applies to both tour kinds.
 
-**Guard**: `openTutorial()` is a no-op if `status === 'unauthenticated' && !isGuestMode` (paywall state).
+**Mutual exclusion**: the spotlight auto-trigger effect checks `!isTutorialOpen` before firing, so a Guest Onboarding Tour in progress is never interrupted by a Feature Spotlight tour, and vice versa (FR-019).
+
+**Decoupled from `next/navigation`**: `TutorialProvider` reads `usePathname()` (to decide *whether* to trigger) but never calls `router.push` itself — imperative navigation lives entirely in `TutorialOverlay`, keeping the provider trivially testable without mocking `next/navigation`'s router.
 
 ---
 
-## NavBar HelpCircle Icon
+## NavBar Changes
 
 **File**: `frontend/components/features/navigation/nav-bar.tsx`
 
-### Rendering Contract
-
 ```typescript
-// Conditionally render in NavBar right-side icon group:
-{(isGuestMode || status === 'authenticated') && (
-  <button
-    onClick={openTutorial}
-    aria-label={t('tutorial.reopenLabel')}  // i18n key: "Reopen tutorial"
-    className="..."
-  >
+<Link href={`/articles${topicParam}`} id="tutorial-target-articles" ...>{t("nav.articles")}</Link>
+<Link href={`/graph${topicParam}`} id="tutorial-target-graph" ...>{t("nav.knowledgeGraph")}</Link>
+// ... in the unauthenticated branch:
+<Button asChild id="tutorial-target-login" ...><Link href="/login">{t("nav.login")}</Link></Button>
+
+// HelpCircle, unchanged visibility rule, now sourced from useTutorial():
+{(isGuestMode || !!session) && (
+  <button onClick={() => openTutorial()} aria-label={t('tutorial.reopenLabel')}>
     <HelpCircle className="h-5 w-5" />
   </button>
 )}
 ```
 
 - **Visible to**: guest mode users AND authenticated members
-- **Hidden from**: pure unauthenticated users (paywall state — `status === 'unauthenticated' && !isGuestMode`)
-- Position: In the right-side icon group, before the language/theme toggles (or after settings icon slot)
-- Size: `h-5 w-5` (matching existing NavBar icons)
-- Tooltip: Uses existing `Tooltip` primitive with `t('tutorial.reopenLabel')` text
+- **Hidden from**: pure unauthenticated users (paywall state)
 
 ---
 
-## TUTORIAL_STEPS Config
+## TUTORIAL_TOURS Config
 
-**File**: `frontend/components/features/tutorial/tutorial-steps.ts`
+**File**: `frontend/components/features/tutorial/tutorial-registry.ts`
 
 ```typescript
-export const TUTORIAL_STEPS: TutorialStep[] = [
-  { id: 'welcome',  titleKey: 'tutorial.step1.title', descriptionKey: 'tutorial.step1.description', icon: Sparkles  },
-  { id: 'articles', titleKey: 'tutorial.step2.title', descriptionKey: 'tutorial.step2.description', icon: Newspaper },
-  { id: 'graph',    titleKey: 'tutorial.step3.title', descriptionKey: 'tutorial.step3.description', icon: GitBranch },
-  { id: 'cta',      titleKey: 'tutorial.step4.title', descriptionKey: 'tutorial.step4.description', icon: LogIn     },
+export const TUTORIAL_TOURS: TutorialTour[] = [
+  {
+    id: "guest-onboarding",
+    kind: "onboarding",
+    steps: [
+      { id: "welcome",  route: "/",         titleKey: "tutorial.step1.title", descriptionKey: "tutorial.step1.description", icon: Sparkles },
+      { id: "articles", route: "/articles", titleKey: "tutorial.step2.title", descriptionKey: "tutorial.step2.description", icon: Newspaper, targetId: "tutorial-target-articles" },
+      { id: "graph",    route: "/graph",    titleKey: "tutorial.step3.title", descriptionKey: "tutorial.step3.description", icon: GitBranch, targetId: "tutorial-target-graph" },
+      { id: "cta",      route: "/",         titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", icon: LogIn, targetId: "tutorial-target-login" },
+    ],
+  },
 ]
-
-export type TutorialStepId = typeof TUTORIAL_STEPS[number]['id']
 ```
 
-- Adding or removing a step requires only editing this array — all consuming components derive step count from `TUTORIAL_STEPS.length`
+- Adding a step to an existing tour, or adding a new `kind: "spotlight"` tour, only requires editing this array — all consuming components derive step count / target / route from it
+- Invariant enforced by convention (not type-checked): every step in a `kind: "spotlight"` tour must share the same `route`
 
 ---
 
 ## i18n Contract
 
-All keys must exist in both `en.json` and `zh-TW.json`. Missing keys fall back to English (existing I18nProvider behavior).
+All keys must exist in both `en.json` and `zh-TW.json`. Missing keys fall back to English (existing I18nProvider behavior). Unchanged from the original 015 implementation:
 
-**Required new keys** (see `data-model.md` for full values):
 ```
 tutorial.stepOf
 tutorial.skip
@@ -152,12 +188,8 @@ tutorial.getStarted
 tutorial.signIn
 tutorial.register
 tutorial.reopenLabel
-tutorial.step1.title
-tutorial.step1.description
-tutorial.step2.title
-tutorial.step2.description
-tutorial.step3.title
-tutorial.step3.description
-tutorial.step4.title
-tutorial.step4.description
+tutorial.step1.title / .description
+tutorial.step2.title / .description
+tutorial.step3.title / .description
+tutorial.step4.title / .description
 ```

@@ -1,7 +1,8 @@
-# Data Model: Guest Tutorial Mode
+# Data Model: Guest Tutorial Mode & Feature Spotlight
 
-**Feature**: 015-guest-tutorial-mode  
+**Feature**: 015-guest-tutorial-mode
 **Date**: 2026-06-29
+**Updated**: 2026-07-04
 
 ---
 
@@ -9,56 +10,57 @@
 
 ### TutorialStep (Static Config — not persisted to DB)
 
-純前端靜態設定，定義 tutorial 的每個步驟。
-
 ```typescript
-// frontend/components/features/tutorial/tutorial-steps.ts
+// frontend/components/features/tutorial/tutorial-registry.ts
 
 interface TutorialStep {
-  id: string               // Unique step ID (e.g., "welcome", "articles", "graph", "cta")
+  id: string               // Unique step ID within its tour (e.g., "welcome", "articles")
   titleKey: string         // i18n key for step title
   descriptionKey: string   // i18n key for step description
-  icon?: LucideIcon        // Optional Lucide icon component
+  icon?: LucideIcon        // Optional Lucide icon component (used in centered-card mode)
+  targetId?: string        // DOM id of the element to highlight; undefined = centered card, no highlight
+  route: string            // Page path this step belongs to; navigated to on step activation if not already there
+}
+```
+
+### TutorialTour (Static Config — not persisted to DB)
+
+```typescript
+interface TutorialTour {
+  id: string                        // Unique tour id (e.g., "guest-onboarding", "feature-chat-2026-07")
+  kind: "onboarding" | "spotlight"
+  steps: TutorialStep[]             // "spotlight" tours: all steps MUST share the same route
 }
 
-const TUTORIAL_STEPS: TutorialStep[] = [
+const TUTORIAL_TOURS: TutorialTour[] = [
   {
-    id: 'welcome',
-    titleKey: 'tutorial.step1.title',
-    descriptionKey: 'tutorial.step1.description',
-    icon: Sparkles,
+    id: "guest-onboarding",
+    kind: "onboarding",
+    steps: [
+      { id: "welcome",  route: "/",         titleKey: "tutorial.step1.title", descriptionKey: "tutorial.step1.description", icon: Sparkles },
+      { id: "articles", route: "/articles", titleKey: "tutorial.step2.title", descriptionKey: "tutorial.step2.description", icon: Newspaper, targetId: "tutorial-target-articles" },
+      { id: "graph",    route: "/graph",    titleKey: "tutorial.step3.title", descriptionKey: "tutorial.step3.description", icon: GitBranch, targetId: "tutorial-target-graph" },
+      { id: "cta",      route: "/",         titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", icon: LogIn, targetId: "tutorial-target-login" },
+    ],
   },
-  {
-    id: 'articles',
-    titleKey: 'tutorial.step2.title',
-    descriptionKey: 'tutorial.step2.description',
-    icon: Newspaper,
-  },
-  {
-    id: 'graph',
-    titleKey: 'tutorial.step3.title',
-    descriptionKey: 'tutorial.step3.description',
-    icon: GitBranch,
-  },
-  {
-    id: 'cta',
-    titleKey: 'tutorial.step4.title',
-    descriptionKey: 'tutorial.step4.description',
-    icon: LogIn,
-  },
+  // Future Feature Spotlight tours are appended here, e.g.:
+  // { id: "feature-chat-2026-07", kind: "spotlight", steps: [{ id: "chat", route: "/articles", targetId: "tutorial-target-chat", titleKey: "...", descriptionKey: "..." }] }
 ]
 ```
 
-### TutorialState (Runtime — in GuestModeContext)
+### TutorialState (Runtime — in `TutorialProvider`, NOT `GuestModeProvider`)
 
 ```typescript
-// Additions to GuestModeContext (lib/providers/guest-mode-provider.tsx)
+// frontend/lib/providers/tutorial-provider.tsx
 
 interface TutorialState {
-  isTutorialOpen: boolean   // Whether Modal is currently visible
-  tutorialStep: number      // Current step index (0-based); total = TUTORIAL_STEPS.length
+  isTutorialOpen: boolean     // Whether the overlay/card is currently visible
+  activeTourId: string | null // Which TutorialTour is currently active
+  tutorialStep: number        // Current step index within the active tour's steps (0-based)
 }
 ```
+
+`GuestModeProvider` no longer holds any tutorial fields — it returns to `{ isGuestMode, enterGuestMode, exitGuestMode }` only, matching its pre-015 scope.
 
 ---
 
@@ -70,96 +72,37 @@ interface TutorialState {
 |-----|------|-------|----------|
 | `guest_mode` | string | `"true"` | Session (tab) — existing key, not modified |
 
-### LocalStorage (new for this feature)
+### LocalStorage
 
 | Key | Type | Value | Lifetime | Used by |
 |-----|------|-------|----------|---------|
-| `tutorial_seen_pages` | string | JSON `string[]` e.g. `'["home","graph"]'` | Persistent | Future per-page tutorials |
+| `tutorial_seen_tours` | string | JSON `string[]` e.g. `'["feature-chat-2026-07"]'` | Persistent | Feature Spotlight "seen" tracking |
 
-**Auto-trigger rules (by role)**:
+**Why this key replaces the previously-planned `tutorial_seen_pages`**: the original 015 design reserved `tutorial_seen_pages` for a hypothetical future per-page tutorial. That future arrived as Feature Spotlight tours (per-tour, not strictly per-page — a page could host multiple spotlight tours over time), so the key is renamed/repurposed to store tour ids rather than page ids.
 
-| Role | Auto-show tutorial? | localStorage check? |
-|------|--------------------|--------------------|
-| 純未登入（paywall） | ❌ Never | ❌ N/A |
-| Guest mode | ✅ **Always** (每次進入 guest mode 都顯示) | ❌ No check — unconditional |
-| Member (authenticated) | ❌ Never auto-shows | ❌ N/A |
+**Auto-trigger rules**:
+
+| Role | Guest Onboarding Tour | Feature Spotlight Tour |
+|------|------------------------|--------------------------|
+| 純未登入（paywall） | ❌ Never | ❌ Never |
+| Guest mode | ✅ **Always**, unconditional, on every `enterGuestMode()` | ✅ On first visit to the tour's `route`, if tour id not in `tutorial_seen_tours` |
+| Member (authenticated) | ❌ Never auto-shows (HelpCircle only) | ✅ On first visit to the tour's `route`, if tour id not in `tutorial_seen_tours` |
 
 **Write conditions**:
-- `tutorial_seen_pages` is appended with a page id (e.g. `"graph"`) when a future page-specific tutorial is completed (MVP: not yet used — reserved for page-level tutorials)
+- `tutorial_seen_tours` gets the active tour's id appended when a **spotlight**-kind tour is closed (via completing all steps, Skip, or X) — see FR-018
+- Guest Onboarding Tour (`kind: "onboarding"`) never writes to this key — it is intentionally stateless/repeatable per FR-001
 
-**Read conditions** (future page-specific tutorials):
-- A page component reads `tutorial_seen_pages` to decide whether to show its local tutorial step
-- The global tutorial modal does NOT check any localStorage key before showing for guests
-
-**Why localStorage (not sessionStorage) for seen_pages**:
-- Page-specific tutorial preferences should persist across sessions (e.g. "don't show me the graph tutorial again")
-- Members may want to reset: clearing `tutorial_seen_pages` from localStorage re-enables page tutorials
+**Read conditions**:
+- `TutorialProvider`'s route-watching effect reads `tutorial_seen_tours` to decide whether an unvisited spotlight tour should auto-open
+- Only one tour may be open at a time (FR-019): the effect is a no-op if `isTutorialOpen` is already `true`
 
 ---
 
 ## i18n Keys
 
-### New keys to add in `frontend/lib/providers/locales/en.json` and `zh-TW.json`
+Unchanged from the original 015 implementation — same `tutorial.*` namespace, same English/zh-TW copy. See `frontend/lib/providers/locales/en.json` / `zh-TW.json` for current values; verify no keys were dropped when `tutorial-steps.ts` is replaced by `tutorial-registry.ts`.
 
-```json
-{
-  "tutorial": {
-    "stepOf": "Step {{current}} of {{total}}",
-    "skip": "Skip",
-    "back": "Back",
-    "next": "Next",
-    "getStarted": "Get Started",
-    "signIn": "Sign In",
-    "register": "Register",
-    "step1": {
-      "title": "Welcome to Guest Mode",
-      "description": "You're browsing as a guest. Explore our curated AI research articles and knowledge graph — no account needed for this preview."
-    },
-    "step2": {
-      "title": "Browse Articles",
-      "description": "The home page shows the latest AI research articles. Use the topic filter to focus on what interests you. As a guest, you can view the first page."
-    },
-    "step3": {
-      "title": "Explore the Knowledge Graph",
-      "description": "The Graph page visualizes connections between articles and topics. As a guest, you'll see a preview with the first page of articles."
-    },
-    "step4": {
-      "title": "Get Full Access",
-      "description": "Sign in or create a free account to unlock full pagination, personalized settings, and the complete knowledge graph."
-    }
-  }
-}
-```
-
-```json
-{
-  "tutorial": {
-    "stepOf": "第 {{current}} 步，共 {{total}} 步",
-    "skip": "略過",
-    "back": "上一步",
-    "next": "下一步",
-    "getStarted": "開始探索",
-    "signIn": "登入",
-    "register": "註冊",
-    "step1": {
-      "title": "歡迎使用訪客模式",
-      "description": "您正以訪客身份瀏覽。探索精選 AI 研究文章與知識圖譜，無需帳號即可預覽。"
-    },
-    "step2": {
-      "title": "瀏覽文章",
-      "description": "首頁顯示最新 AI 研究文章。使用主題篩選器聚焦感興趣的領域。訪客可查看第一頁內容。"
-    },
-    "step3": {
-      "title": "探索知識圖譜",
-      "description": "圖譜頁面以視覺化方式呈現文章與主題之間的關聯。訪客可預覽第一頁文章的圖譜範圍。"
-    },
-    "step4": {
-      "title": "取得完整存取權限",
-      "description": "登入或建立免費帳號，解鎖完整分頁功能、個人化設定，以及完整知識圖譜。"
-    }
-  }
-}
-```
+New key to add: `tutorial.reopenLabel` (already present from the original implementation — no change needed).
 
 ---
 
@@ -169,31 +112,46 @@ interface TutorialState {
 [User clicks "Continue as Guest"]
         │
         ▼
-enterGuestMode()
+enterGuestMode()  (GuestModeProvider)
         │
-        └─ ALWAYS → isTutorialOpen=true, tutorialStep=0  (no storage check)
+        └─ isGuestMode: false → true
+                │
+                ▼ (TutorialProvider effect watching isGuestMode)
+        openTutorial("guest-onboarding")
+                │
+                └─ ALWAYS → isTutorialOpen=true, activeTourId="guest-onboarding", tutorialStep=0
+                            (no tutorial_seen_tours check)
 
-[User logs in (member)]
+[User navigates to any page]
         │
-        └─ tutorial stays closed (isTutorialOpen remains false)
-           Member can open manually via HelpCircle
+        ▼ (TutorialProvider effect watching pathname)
+   for each kind:"spotlight" tour:
+     if tour.steps[0].route === pathname
+        && tour.id not in tutorial_seen_tours
+        && (isGuestMode || authenticated)
+        && !isTutorialOpen
+     → openTutorial(tour.id)   (does NOT force-navigate; only fires when already on the route)
 
-        ▼
-[Tutorial Modal Open — Step 0]
+[Tour Open — Step N]
         │
         ├─ User clicks "Next" → tutorialStep++
+        │       └─ if new step's route !== current pathname → router.push(route)
         ├─ User clicks "Back" → tutorialStep--
-        ├─ User clicks "Skip" or "X"
+        │       └─ same route sync
+        ├─ User clicks "Skip", "X", or Escape (spotlight mode)
         │       → isTutorialOpen=false
-        ├─ User reaches last step, clicks "Get Started"
-        │       → isTutorialOpen=false
+        │       └─ if activeTour.kind === "spotlight" → tutorial_seen_tours += activeTourId
+        ├─ User reaches last step, clicks "Sign In" / "Register"
+        │       → isTutorialOpen=false, router.push('/login' | '/register')
         └─ Guest mode exits (user logs in)
-                → exitGuestMode() → isTutorialOpen=false (reset)
+                → exitGuestMode() → isTutorialOpen=false (reset), no tutorial_seen_tours write
 
-[Tutorial Closed — NavBar HelpCircle icon visible for guest OR member]
+[Tour Closed — NavBar HelpCircle icon visible for guest OR member]
         │
         └─ User clicks HelpCircle
-                → openTutorial() → isTutorialOpen=true, tutorialStep=0
+                → openTutorial()  (defaults to "guest-onboarding")
+                → isTutorialOpen=true, activeTourId="guest-onboarding", tutorialStep=0
+                → router.push('/') if not already there
 ```
 
 ---
@@ -201,15 +159,22 @@ enterGuestMode()
 ## Component Tree
 
 ```
-GuestModeProvider (lib/providers/guest-mode-provider.tsx)  ← state lives here
-└─ [existing provider chain ...]
-   └─ NavBar (components/features/navigation/nav-bar.tsx)
-      └─ HelpCircle icon (guest-only)  ← calls openTutorial()
-   └─ TutorialModal (components/features/tutorial/tutorial-modal.tsx)
-      └─ Dialog (components/ui/dialog.tsx)
-         ├─ TutorialStepDots (inline, dot progress indicator)
-         ├─ TutorialStepContent (title + description + icon)
-         └─ TutorialNavigation (Back / Next / Skip / CTA buttons)
+GuestModeProvider (lib/providers/guest-mode-provider.tsx)  ← isGuestMode only
+└─ TutorialProvider (lib/providers/tutorial-provider.tsx)  ← tutorial state + auto-trigger lives here
+   └─ [rest of provider chain / app]
+      └─ NavBar (components/features/navigation/nav-bar.tsx)
+      │  ├─ id="tutorial-target-articles" on the Articles Link
+      │  ├─ id="tutorial-target-graph" on the Graph Link
+      │  ├─ id="tutorial-target-login" on the login Button/Link
+      │  └─ HelpCircle icon (guest+member)  ← calls useTutorial().openTutorial()
+      └─ TutorialOverlay (components/features/tutorial/tutorial-overlay.tsx)
+         ├─ useTutorialTarget(step.targetId)  ← rect or null
+         ├─ Spotlight mode (rect !== null):
+         │    ├─ full-screen click-blocking div
+         │    ├─ box-shadow "hole" div positioned at rect
+         │    └─ PopoverAnchor(virtualRef=rect) + PopoverContent (title/description/dots/nav buttons)
+         └─ Centered-card mode (rect === null):
+              └─ Dialog / DialogContent (same content, no highlight)
 ```
 
 ---
@@ -219,19 +184,32 @@ GuestModeProvider (lib/providers/guest-mode-provider.tsx)  ← state lives here
 ### New Files
 | File | Purpose |
 |------|---------|
-| `frontend/components/features/tutorial/tutorial-modal.tsx` | Main Tutorial Modal component |
-| `frontend/components/features/tutorial/tutorial-steps.ts` | Static step definitions |
+| `frontend/components/features/tutorial/tutorial-registry.ts` | `TutorialStep`/`TutorialTour` types + `TUTORIAL_TOURS` |
+| `frontend/components/features/tutorial/tutorial-overlay.tsx` | Spotlight + centered-card dual-mode renderer |
+| `frontend/components/features/tutorial/use-tutorial-target.ts` | Generic highlight positioning hook |
+| `frontend/components/features/tutorial/use-is-mobile.ts` | `<768px` breakpoint hook |
+| `frontend/lib/providers/tutorial-provider.tsx` | Tutorial state machine + auto-trigger logic |
+
+### Removed Files
+| File | Reason |
+|------|--------|
+| `frontend/components/features/tutorial/tutorial-modal.tsx` | Replaced by `tutorial-overlay.tsx` |
+| `frontend/components/features/tutorial/tutorial-steps.ts` | Replaced by `tutorial-registry.ts` |
 
 ### Modified Files
 | File | Change |
 |------|--------|
-| `frontend/lib/providers/guest-mode-provider.tsx` | Add tutorial state + actions |
-| `frontend/components/features/navigation/nav-bar.tsx` | Add HelpCircle icon (guest-only) |
-| `frontend/lib/providers/locales/en.json` | Add `tutorial.*` keys |
-| `frontend/lib/providers/locales/zh-TW.json` | Add `tutorial.*` keys (zh-TW) |
+| `frontend/lib/providers/guest-mode-provider.tsx` | Remove tutorial state; back to `isGuestMode`/enter/exit only |
+| `frontend/lib/providers/index.tsx` | Mount `TutorialProvider`; export `useTutorial` |
+| `frontend/components/features/navigation/nav-bar.tsx` | Add 3 `id="tutorial-target-*"` attributes; HelpCircle uses `useTutorial()` |
+| `frontend/app/layout-shell.tsx` | Mount `<TutorialOverlay />` instead of `<TutorialModal />` |
+| `frontend/lib/providers/locales/en.json` / `zh-TW.json` | No content change; keys carried over from `tutorial-steps.ts` |
+| `frontend/vitest.setup.ts` | Add `ResizeObserver` polyfill |
 
-### New Test Files
+### Test Files
 | File | Purpose |
 |------|---------|
-| `frontend/tests/unit/tutorial-modal.test.tsx` | Unit tests for TutorialModal + state |
-| `frontend/tests/integration/guest-tutorial.spec.ts` | Playwright E2E for tutorial flow |
+| `frontend/tests/unit/tutorial-overlay.test.tsx` | Replaces `tutorial-modal.test.tsx` |
+| `frontend/tests/unit/tutorial-provider.test.tsx` | Replaces tutorial assertions previously in `guest-mode-context.test.tsx` |
+| `frontend/tests/unit/use-tutorial-target.test.ts` | New |
+| `frontend/tests/integration/guest-tutorial.spec.ts` | Rewritten for spotlight/navigation/mobile assertions |
