@@ -525,5 +525,31 @@
     "addToChat": "Ask AI about this article",
     "removeFromChat": "Remove from AI chat",
     "removeArticleRef": "Remove article reference"
+  },
+  "tutorial": {
+    "stepOf": "Step {current} of {total}",
+    "skip": "Skip",
+    "back": "Back",
+    "next": "Next",
+    "getStarted": "Get Started",
+    "signIn": "Sign In",
+    "register": "Register",
+    "reopenLabel": "Reopen tutorial",
+    "step1": {
+      "title": "Welcome to Guest Mode",
+      "description": "You're browsing as a guest. Explore our curated AI research articles and knowledge graph — no account needed for this preview."
+    },
+    "step2": {
+      "title": "Browse Articles",
+      "description": "The home page shows the latest AI research articles. Use the topic filter to focus on what interests you. As a guest, you can view the first page."
+    },
+    "step3": {
+      "title": "Explore the Knowledge Graph",
+      "description": "The Graph page visualizes connections between articles and topics. As a guest, you'll see a preview with the first page of articles."
+    },
+    "step4": {
+      "title": "Get Full Access",
+      "description": "Sign in or create a free account to unlock full pagination, personalized settings, and the complete knowledge graph."
+    }
   }
 }

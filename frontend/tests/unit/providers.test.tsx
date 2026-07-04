@@ -20,6 +20,11 @@ vi.mock('@/lib/providers/guest-mode-provider', () => ({
   useGuestMode: vi.fn().mockReturnValue({ isGuestMode: false }),
 }))
 
+vi.mock('@/lib/providers/tutorial-provider', () => ({
+  TutorialProvider: ({ children }: any) => <>{children}</>,
+  useTutorial: vi.fn().mockReturnValue({ isTutorialOpen: false, openTutorial: vi.fn() }),
+}))
+
 vi.mock('@/lib/providers/chat-quota-provider', () => ({
   ChatQuotaProvider: ({ children }: any) => <>{children}</>,
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
@@ -69,6 +74,11 @@ describe('providers re-exports', () => {
   it('exports useGuestMode hook', async () => {
     const { useGuestMode } = await import('@/lib/providers')
     expect(typeof useGuestMode).toBe('function')
+  })
+
+  it('exports useTutorial hook', async () => {
+    const { useTutorial } = await import('@/lib/providers')
+    expect(typeof useTutorial).toBe('function')
   })
 
   it('exports useTheme hook', async () => {

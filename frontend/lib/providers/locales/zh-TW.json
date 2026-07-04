@@ -525,5 +525,31 @@
     "addToChat": "向 AI 詢問這篇文章",
     "removeFromChat": "移除 AI 文章參考",
     "removeArticleRef": "移除文章參考"
+  },
+  "tutorial": {
+    "stepOf": "第 {current} 步，共 {total} 步",
+    "skip": "略過",
+    "back": "上一步",
+    "next": "下一步",
+    "getStarted": "開始探索",
+    "signIn": "登入",
+    "register": "註冊",
+    "reopenLabel": "重新開啟教學",
+    "step1": {
+      "title": "歡迎使用訪客模式",
+      "description": "您正以訪客身份瀏覽。探索精選 AI 研究文章與知識圖譜，無需帳號即可預覽。"
+    },
+    "step2": {
+      "title": "瀏覽文章",
+      "description": "首頁顯示最新 AI 研究文章。使用主題篩選器聚焦感興趣的領域。訪客可查看第一頁內容。"
+    },
+    "step3": {
+      "title": "探索知識圖譜",
+      "description": "圖譜頁面以視覺化方式呈現文章與主題之間的關聯。訪客可預覽第一頁文章的圖譜範圍。"
+    },
+    "step4": {
+      "title": "取得完整存取權限",
+      "description": "登入或建立免費帳號，解鎖完整分頁功能、個人化設定，以及完整知識圖譜。"
+    }
   }
 }
