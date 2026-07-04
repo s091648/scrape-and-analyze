@@ -534,6 +534,7 @@
     "getStarted": "Get Started",
     "signIn": "Sign In",
     "register": "Register",
+    "done": "Done",
     "reopenLabel": "Reopen tutorial",
     "step1": {
       "title": "Welcome to Guest Mode",
@@ -548,8 +549,40 @@
       "description": "The Graph page visualizes connections between articles and topics. As a guest, you'll see a preview with the first page of articles."
     },
     "step4": {
+      "title": "Browse Tags",
+      "description": "The Tags page shows how articles are categorized. Explore tags to discover related topics and narrow down what you're reading."
+    },
+    "step5": {
+      "title": "Switch Languages",
+      "description": "Use this menu to switch the app's display language — English and Traditional Chinese are supported."
+    },
+    "step6": {
+      "title": "Light or Dark Mode",
+      "description": "Click to cycle between light, dark, and auto theme so the app matches your preference."
+    },
+    "step7": {
+      "title": "Explore the Source Code",
+      "description": "This project is open source. Check out the GitHub repository to see how it's built or contribute."
+    },
+    "step8": {
+      "title": "Read the Specs",
+      "description": "Browse the technical specifications and documentation behind this project's features."
+    },
+    "step9": {
+      "title": "Stay Updated",
+      "description": "Check the release notes to see what's new — a red dot appears when there are unread updates."
+    },
+    "step10": {
       "title": "Get Full Access",
       "description": "Sign in or create a free account to unlock full pagination, personalized settings, and the complete knowledge graph."
+    },
+    "chatPin": {
+      "title": "Pin Articles for Context",
+      "description": "Click the sparkles icon on an article to pin it as context for the AI chat, so your questions are answered using that article's content."
+    },
+    "chatToggle": {
+      "title": "Ask the AI Assistant",
+      "description": "Open the chat to ask questions about pinned articles or the topics you're browsing."
     }
   }
 }

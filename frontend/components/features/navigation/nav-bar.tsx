@@ -156,6 +156,7 @@ export function NavBar() {
             {t("nav.knowledgeGraph")}
           </Link>
           <Link
+            id="tutorial-target-tags"
             href={`/tags${topicParam}`}
             className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors duration-200 ${
               pathname === "/tags"
@@ -179,6 +180,7 @@ export function NavBar() {
           {/* Language dropdown */}
           <div className="relative" ref={langDropdownRef}>
             <button
+              id="tutorial-target-language"
               type="button"
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
               className="flex items-center gap-1.5 text-sm font-medium px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
@@ -228,6 +230,7 @@ export function NavBar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  id="tutorial-target-theme"
                   type="button"
                   onClick={cycleMode}
                   className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-200"
@@ -242,6 +245,7 @@ export function NavBar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <a
+                  id="tutorial-target-github"
                   href="https://github.com/s091648/scrape-and-analyze"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -256,6 +260,7 @@ export function NavBar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <a
+                  id="tutorial-target-docs"
                   href="https://s091648.github.io/scrape-and-analyze"
                   target="_blank"
                   rel="noopener noreferrer"

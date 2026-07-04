@@ -39,6 +39,10 @@ export default function HomePageContent() {
     activeFilterCount,
   } = usePagination()
   const [articles, setArticles] = useState<Article[]>([])
+  const firstVectorArticleId = useMemo(
+    () => articles.find(a => a.has_vectors)?.id,
+    [articles]
+  )
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const { selectedTopicId } = useTopic()
@@ -132,6 +136,7 @@ export default function HomePageContent() {
                     {...a}
                     open={openArticleId === a.id}
                     onOpenChange={(v) => handleArticleOpenChange(a.id, v)}
+                    isFirstTutorialTarget={a.id === firstVectorArticleId}
                   />
                 ))
           }

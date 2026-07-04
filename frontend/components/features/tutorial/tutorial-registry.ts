@@ -1,4 +1,17 @@
-import { Sparkles, Newspaper, GitBranch, LogIn, type LucideIcon } from "lucide-react";
+import {
+  Sparkles,
+  Newspaper,
+  GitBranch,
+  Tags,
+  Globe,
+  SunMoon,
+  Github,
+  BookOpen,
+  ScrollText,
+  LogIn,
+  MessageSquare,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface TutorialStep {
   id: string;
@@ -9,6 +22,13 @@ export interface TutorialStep {
   targetId?: string;
   /** Page path this step belongs to; navigated to on step activation if not already there. */
   route: string;
+  /**
+   * Marks this as the sign-up call-to-action step: renders Sign In/Register
+   * buttons instead of Next, regardless of whether it's the tour's last
+   * step. Only the guest onboarding tour's final step should set this —
+   * a Feature Spotlight tour's last step should just close normally.
+   */
+  isCta?: boolean;
 }
 
 export interface TutorialTour {
@@ -47,21 +67,86 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
         targetId: "tutorial-target-graph",
       },
       {
-        id: "cta",
-        route: "/",
+        id: "tags",
+        route: "/tags",
         titleKey: "tutorial.step4.title",
         descriptionKey: "tutorial.step4.description",
+        icon: Tags,
+        targetId: "tutorial-target-tags",
+      },
+      {
+        id: "language",
+        route: "/",
+        titleKey: "tutorial.step5.title",
+        descriptionKey: "tutorial.step5.description",
+        icon: Globe,
+        targetId: "tutorial-target-language",
+      },
+      {
+        id: "theme",
+        route: "/",
+        titleKey: "tutorial.step6.title",
+        descriptionKey: "tutorial.step6.description",
+        icon: SunMoon,
+        targetId: "tutorial-target-theme",
+      },
+      {
+        id: "github",
+        route: "/",
+        titleKey: "tutorial.step7.title",
+        descriptionKey: "tutorial.step7.description",
+        icon: Github,
+        targetId: "tutorial-target-github",
+      },
+      {
+        id: "docs",
+        route: "/",
+        titleKey: "tutorial.step8.title",
+        descriptionKey: "tutorial.step8.description",
+        icon: BookOpen,
+        targetId: "tutorial-target-docs",
+      },
+      {
+        id: "release-notes",
+        route: "/",
+        titleKey: "tutorial.step9.title",
+        descriptionKey: "tutorial.step9.description",
+        icon: ScrollText,
+        targetId: "tutorial-target-release-notes",
+      },
+      {
+        id: "cta",
+        route: "/",
+        titleKey: "tutorial.step10.title",
+        descriptionKey: "tutorial.step10.description",
         icon: LogIn,
         targetId: "tutorial-target-login",
+        isCta: true,
       },
     ],
   },
-  // Future Feature Spotlight tours are appended here, e.g.:
-  // {
-  //   id: "feature-chat-2026-07",
-  //   kind: "spotlight",
-  //   steps: [{ id: "chat", route: "/articles", targetId: "tutorial-target-chat", titleKey: "...", descriptionKey: "..." }],
-  // },
+  {
+    id: "feature-chat-2026-07",
+    kind: "spotlight",
+    steps: [
+      {
+        id: "chat-pin",
+        route: "/articles",
+        titleKey: "tutorial.chatPin.title",
+        descriptionKey: "tutorial.chatPin.description",
+        icon: Sparkles,
+        targetId: "tutorial-target-chat-pin",
+      },
+      {
+        id: "chat-toggle",
+        route: "/articles",
+        titleKey: "tutorial.chatToggle.title",
+        descriptionKey: "tutorial.chatToggle.description",
+        icon: MessageSquare,
+        targetId: "tutorial-target-chat-toggle",
+      },
+    ],
+  },
 ];
 
 export function getTour(tourId: string): TutorialTour | undefined {

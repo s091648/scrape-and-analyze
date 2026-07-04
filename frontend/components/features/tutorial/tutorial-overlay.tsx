@@ -60,6 +60,7 @@ export function TutorialOverlay() {
   if (!isTutorialOpen || !tour || !step) return null;
 
   const isLastStep = tutorialStep === tour.steps.length - 1;
+  const isCtaStep = isLastStep && step.isCta === true;
   const Icon = step.icon;
   const spotlightMode = rect !== null && !isMobile;
   const titleText = t(step.titleKey);
@@ -119,7 +120,7 @@ export function TutorialOverlay() {
           <Button size="sm" onClick={nextTutorialStep}>
             {t("tutorial.next")}
           </Button>
-        ) : (
+        ) : isCtaStep ? (
           <>
             <Button variant="outline" size="sm" onClick={goToRegister}>
               {t("tutorial.register")}
@@ -128,29 +129,66 @@ export function TutorialOverlay() {
               {t("tutorial.signIn")}
             </Button>
           </>
+        ) : (
+          <Button size="sm" onClick={closeTutorial}>
+            {t("tutorial.done")}
+          </Button>
         )}
       </div>
     </div>
   );
 
   if (spotlightMode && rect) {
-    const highlightStyle: CSSProperties = {
-      top: rect.top - HIGHLIGHT_PADDING,
-      left: rect.left - HIGHLIGHT_PADDING,
-      width: rect.width + HIGHLIGHT_PADDING * 2,
-      height: rect.height + HIGHLIGHT_PADDING * 2,
-      boxShadow: "0 0 0 9999px rgba(0,0,0,0.6)",
+    const holeX = rect.left - HIGHLIGHT_PADDING;
+    const holeY = rect.top - HIGHLIGHT_PADDING;
+    const holeWidth = rect.width + HIGHLIGHT_PADDING * 2;
+    const holeHeight = rect.height + HIGHLIGHT_PADDING * 2;
+    const ringStyle: CSSProperties = {
+      top: holeY,
+      left: holeX,
+      width: holeWidth,
+      height: holeHeight,
     };
 
     return (
       <>
-        {/* Blocks all interaction with the page while a tour is open; the
-            highlight itself is visual-only and intentionally not clickable. */}
-        <div data-testid="tutorial-backdrop" className="fixed inset-0 z-[100]" />
+        {/* Dims the whole viewport with a genuine cutout over the target via
+            an SVG mask — a single element, so it isn't subject to the
+            unreliable cross-element compositing seen with a `box-shadow:
+            0 0 0 9999px` spread next to other `position: fixed` elements
+            (e.g. the sticky NavBar) in some browsers. Also blocks all
+            interaction while a tour is open; the highlighted target is
+            visual-only and intentionally not clickable. */}
+        <svg
+          data-testid="tutorial-backdrop"
+          className="fixed inset-0 z-[100] h-full w-full"
+        >
+          <defs>
+            <mask id="tutorial-spotlight-mask">
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              <rect
+                x={holeX}
+                y={holeY}
+                width={holeWidth}
+                height={holeHeight}
+                rx="8"
+                fill="black"
+              />
+            </mask>
+          </defs>
+          <rect
+            x="0"
+            y="0"
+            width="100%"
+            height="100%"
+            fill="rgba(0,0,0,0.6)"
+            mask="url(#tutorial-spotlight-mask)"
+          />
+        </svg>
         <div
           data-testid="tutorial-highlight"
-          className="fixed z-[101] rounded-lg transition-all duration-200 pointer-events-none"
-          style={highlightStyle}
+          className="fixed z-[101] rounded-lg ring-2 ring-white/70 transition-all duration-200 pointer-events-none"
+          style={ringStyle}
         />
         <Popover open onOpenChange={handleOpenChange}>
           <PopoverAnchor virtualRef={virtualAnchorRef} />

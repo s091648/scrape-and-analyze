@@ -46,7 +46,14 @@ vi.mock("@/components/features/tutorial/tutorial-registry", () => {
         { id: "welcome", route: "/", titleKey: "tutorial.step1.title", descriptionKey: "tutorial.step1.description" },
         { id: "articles", route: "/articles", titleKey: "tutorial.step2.title", descriptionKey: "tutorial.step2.description", targetId: "tutorial-target-articles" },
         { id: "graph", route: "/graph", titleKey: "tutorial.step3.title", descriptionKey: "tutorial.step3.description", targetId: "tutorial-target-graph" },
-        { id: "cta", route: "/", titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", targetId: "tutorial-target-login" },
+        { id: "cta", route: "/", titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", targetId: "tutorial-target-login", isCta: true },
+      ],
+    },
+    {
+      id: "feature-test-spotlight",
+      kind: "spotlight",
+      steps: [
+        { id: "spot", route: "/articles", titleKey: "tutorial.chatPin.title", descriptionKey: "tutorial.chatPin.description", targetId: "tutorial-target-chat-pin" },
       ],
     },
   ];
@@ -60,6 +67,9 @@ const en: Record<string, any> = {
   "tutorial.next": "Next",
   "tutorial.signIn": "Sign In",
   "tutorial.register": "Register",
+  "tutorial.done": "Done",
+  "tutorial.chatPin.title": "Pin Articles for Context",
+  "tutorial.chatPin.description": "Click the sparkles icon to pin an article.",
   "tutorial.step1.title": "Welcome to Guest Mode",
   "tutorial.step1.description": "You're browsing as a guest.",
   "tutorial.step2.title": "Browse Articles",
@@ -245,13 +255,35 @@ describe("TutorialOverlay", () => {
     });
   });
 
-  it("shows Sign In and Register CTAs (not Skip/Next) on the last step", () => {
+  it("shows Sign In and Register CTAs (not Skip/Next) on the guest-onboarding last step (isCta)", () => {
     mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 3 }));
     render(<TutorialOverlay />);
     expect(screen.getByText("Sign In")).toBeInTheDocument();
     expect(screen.getByText("Register")).toBeInTheDocument();
     expect(screen.queryByText("Skip")).not.toBeInTheDocument();
     expect(screen.queryByText("Next")).not.toBeInTheDocument();
+  });
+
+  it("shows a Done button (not Sign In/Register) on a non-CTA tour's last step", async () => {
+    const closeTutorial = vi.fn();
+    mockUseTutorial.mockReturnValue(
+      baseTutorialCtx({ activeTourId: "feature-test-spotlight", tutorialStep: 0, closeTutorial }),
+    );
+    mockUsePathname.mockReturnValue("/articles");
+    mockUseTutorialTarget.mockReturnValue({
+      top: 10,
+      left: 20,
+      width: 40,
+      height: 20,
+      bottom: 30,
+      right: 60,
+    } as DOMRect);
+    render(<TutorialOverlay />);
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("Sign In")).not.toBeInTheDocument();
+    expect(screen.queryByText("Register")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("Done"));
+    expect(closeTutorial).toHaveBeenCalledOnce();
   });
 
   it("navigates to /login and closes the tutorial when Sign In is clicked", async () => {

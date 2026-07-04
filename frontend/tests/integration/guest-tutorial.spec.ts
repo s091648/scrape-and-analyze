@@ -19,6 +19,28 @@ async function enterGuestMode(page: import("@playwright/test").Page) {
   await page.waitForURL("/");
 }
 
+// The highlight box's position is derived from a value that settles shortly
+// after the target element mounts (e.g. once an async-loaded article list
+// finishes rendering), so a single boundingBox() snapshot can catch it
+// mid-settle. Poll until it converges with the actual target instead of
+// asserting on one immediate reading.
+async function expectHighlightAligned(
+  page: import("@playwright/test").Page,
+  targetSelector: string,
+) {
+  await expect
+    .poll(
+      async () => {
+        const highlightBox = await page.getByTestId("tutorial-highlight").boundingBox();
+        const targetBox = await page.locator(targetSelector).boundingBox();
+        if (!highlightBox || !targetBox) return null;
+        return Math.abs(highlightBox.x - targetBox.x);
+      },
+      { timeout: 5000 },
+    )
+    .toBeLessThan(20);
+}
+
 test.describe("Guest Onboarding Tour", () => {
   test.describe("as guest", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
@@ -42,12 +64,7 @@ test.describe("Guest Onboarding Tour", () => {
       await expect(page.getByText(/browse articles|瀏覽文章/i)).toBeVisible();
       await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
 
-      const highlightBox = await page.getByTestId("tutorial-highlight").boundingBox();
-      const linkBox = await page.locator("#tutorial-target-articles").boundingBox();
-      expect(highlightBox).not.toBeNull();
-      expect(linkBox).not.toBeNull();
-      // Highlight should roughly overlap the highlighted nav link (padding tolerance).
-      expect(Math.abs((highlightBox!.x) - (linkBox!.x))).toBeLessThan(20);
+      await expectHighlightAligned(page, "#tutorial-target-articles");
     });
 
     test('"Back" from the Graph step navigates back to /articles', async ({ page }) => {
@@ -60,6 +77,50 @@ test.describe("Guest Onboarding Tour", () => {
       await page.getByRole("button", { name: /^back|上一步$/i }).click();
       await page.waitForURL("/articles");
       await expect(page.getByText(/browse articles|瀏覽文章/i)).toBeVisible();
+    });
+
+    test('"Next" from the Graph step navigates to /tags and highlights the Tags nav link', async ({
+      page,
+    }) => {
+      await enterGuestMode(page);
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await page.waitForURL("/articles");
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await page.waitForURL("/graph");
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+
+      await page.waitForURL("/tags");
+      await expect(page.getByText(/browse tags|瀏覽標籤/i)).toBeVisible();
+      await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
+    });
+
+    test("the language, theme, GitHub, Spec Docs, and Release Notes steps highlight their respective NavBar icons", async ({
+      page,
+    }) => {
+      await enterGuestMode(page);
+      for (const route of ["/articles", "/graph", "/tags", "/"]) {
+        await page.getByRole("button", { name: /^next|下一步$/i }).click();
+        await page.waitForURL(route);
+      }
+
+      await expect(page.getByText(/switch languages|切換語言/i)).toBeVisible();
+      await expectHighlightAligned(page, "#tutorial-target-language");
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/light or dark mode|淺色／深色模式/i)).toBeVisible();
+      await expectHighlightAligned(page, "#tutorial-target-theme");
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/explore the source code|探索原始碼/i)).toBeVisible();
+      await expectHighlightAligned(page, "#tutorial-target-github");
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/read the specs|閱讀規格文件/i)).toBeVisible();
+      await expectHighlightAligned(page, "#tutorial-target-docs");
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/stay updated|掌握最新動態/i)).toBeVisible();
+      await expectHighlightAligned(page, "#tutorial-target-release-notes");
     });
 
     test('"Skip" closes the tour', async ({ page }) => {
@@ -81,7 +142,7 @@ test.describe("Guest Onboarding Tour", () => {
       await expect(page.getByText(/welcome to guest mode|歡迎使用訪客模式/i)).toBeVisible();
     });
 
-    test("all 4 steps appear in order with correct titles, and the last step highlights the login button", async ({
+    test("all 10 steps appear in order with correct titles, and the last step highlights the login button", async ({
       page,
     }) => {
       await enterGuestMode(page);
@@ -90,6 +151,12 @@ test.describe("Guest Onboarding Tour", () => {
         /welcome to guest mode|歡迎使用訪客模式/i,
         /browse articles|瀏覽文章/i,
         /explore the knowledge graph|探索知識圖譜/i,
+        /browse tags|瀏覽標籤/i,
+        /switch languages|切換語言/i,
+        /light or dark mode|淺色／深色模式/i,
+        /explore the source code|探索原始碼/i,
+        /read the specs|閱讀規格文件/i,
+        /stay updated|掌握最新動態/i,
         /get full access|取得完整存取權限/i,
       ];
 
@@ -109,9 +176,26 @@ test.describe("Guest Onboarding Tour", () => {
       page,
     }) => {
       await enterGuestMode(page);
-      for (let i = 0; i < 3; i++) {
+      // Articles/Graph/Tags each navigate to a new route; Language/Theme/
+      // GitHub/Docs/Release Notes/CTA all stay on "/" since they highlight
+      // persistent NavBar icons.
+      const routeChangesInOrder = ["/articles", "/graph", "/tags", "/"];
+      for (const route of routeChangesInOrder) {
         await page.getByRole("button", { name: /^next|下一步$/i }).click();
+        await page.waitForURL(route);
       }
+      await expect(page.getByText(/switch languages|切換語言/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/light or dark mode|淺色／深色模式/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/explore the source code|探索原始碼/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/read the specs|閱讀規格文件/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/stay updated|掌握最新動態/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/get full access|取得完整存取權限/i)).toBeVisible();
+
       await page.getByRole("button", { name: /sign in|登入/i }).click();
       await page.waitForURL("/login");
       await expect(page.getByTestId("tutorial-highlight")).not.toBeVisible();
@@ -182,6 +266,94 @@ test.describe("Guest Onboarding Tour", () => {
       await page.waitForURL("/");
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByText(/welcome to guest mode|歡迎使用訪客模式/i)).toBeVisible();
+    });
+  });
+});
+
+test.describe("Feature Chat Spotlight Tour", () => {
+  // Overrides the shared articleListFixture with an article that has
+  // has_vectors: true, so the "pin to chat" sparkles button (and therefore
+  // its tutorial-target-chat-pin id) actually renders.
+  async function mockArticlesWithVectors(page: import("@playwright/test").Page) {
+    await page.route(
+      (url) => url.pathname.startsWith("/api/proxy/articles") && !url.pathname.includes("/articles/"),
+      (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: "art-vec-001",
+                title: "Digital Twin Innovation",
+                source: "rss",
+                content: "Digital twins are revolutionizing manufacturing.",
+                published_at: "2026-01-15T10:00:00Z",
+                scraped_at: "2026-01-16T00:00:00Z",
+                url: "https://example.com/digital-twins",
+                has_vectors: true,
+              },
+            ],
+            total: 1,
+            page: 1,
+            size: 20,
+          },
+        }),
+    );
+  }
+
+  test.describe("as authenticated member", () => {
+    test.beforeEach(async ({ page }) => {
+      await mockApiRoutes(page);
+      await mockArticlesWithVectors(page);
+      await mockLanguages(page);
+    });
+
+    test("auto-opens on first visit to /articles, highlighting the pin-to-chat sparkles icon", async ({
+      page,
+    }) => {
+      await page.goto("/articles");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByText(/pin articles for context|釘選文章作為上下文/i)).toBeVisible();
+      await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
+
+      await expectHighlightAligned(page, "#tutorial-target-chat-pin");
+    });
+
+    test('"Next" advances to the chat-toggle step, highlighting the floating chat button, and "Done" closes and persists it as seen', async ({
+      page,
+    }) => {
+      await page.goto("/articles");
+      await expect(page.getByText(/pin articles for context|釘選文章作為上下文/i)).toBeVisible();
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
+      await expect(page.getByText(/ask the ai assistant|詢問 AI 助理/i)).toBeVisible();
+
+      await expectHighlightAligned(page, "#tutorial-target-chat-toggle");
+
+      // Last step of a non-onboarding tour shows "Done", not Sign In/Register.
+      await expect(page.getByRole("button", { name: /^done|完成$/i })).toBeVisible();
+      await page.getByRole("button", { name: /^done|完成$/i }).click();
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+
+      const seenTours = await page.evaluate(() => localStorage.getItem("tutorial_seen_tours"));
+      expect(seenTours).toContain("feature-chat-2026-07");
+
+      await page.reload();
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+    });
+  });
+
+  test.describe("as pure unauthenticated (paywall)", () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test.beforeEach(async ({ page }) => {
+      await mockApiRoutes(page);
+      await mockArticlesWithVectors(page);
+      await mockLanguages(page);
+    });
+
+    test("does not auto-open for paywall users", async ({ page }) => {
+      await page.goto("/articles");
+      await expect(page.getByRole("dialog")).not.toBeVisible();
     });
   });
 });

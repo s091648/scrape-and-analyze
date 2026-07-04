@@ -304,12 +304,17 @@ describe("NavBar — tutorial reopen icon", () => {
     expect(screen.getByLabelText("tutorial.reopenLabel")).toBeInTheDocument();
   });
 
-  it("exposes id attributes on the Articles, Graph, and login nav targets for tutorial highlighting", () => {
+  it("exposes id attributes on the Articles, Graph, Tags, language, theme, GitHub, docs, and login nav targets for tutorial highlighting", () => {
     mockUseSession.mockReturnValue({ data: null });
     mockUseGuestMode.mockReturnValue({ isGuestMode: false });
     render(<NavBar />);
     expect(document.getElementById("tutorial-target-articles")).toBeTruthy();
     expect(document.getElementById("tutorial-target-graph")).toBeTruthy();
+    expect(document.getElementById("tutorial-target-tags")).toBeTruthy();
+    expect(document.getElementById("tutorial-target-language")).toBeTruthy();
+    expect(document.getElementById("tutorial-target-theme")).toBeTruthy();
+    expect(document.getElementById("tutorial-target-github")).toBeTruthy();
+    expect(document.getElementById("tutorial-target-docs")).toBeTruthy();
     expect(document.getElementById("tutorial-target-login")).toBeTruthy();
   });
 });
