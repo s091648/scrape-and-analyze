@@ -128,7 +128,7 @@ ${items}
   return `import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Scrape Analyzer',
+  title: 'Article Analyzer',
   description: 'Speckit SDD specification documentation',
   base: process.env.VITEPRESS_BASE || '/',
   ignoreDeadLinks: [/localhost/, /^\\.?\\/?research\\/?$/],
@@ -190,7 +190,7 @@ function renderIndexMd(specs) {
 layout: home
 
 hero:
-  name: Scrape Analyzer
+  name: Article Analyzer
   text: Specification Documentation
   tagline: SDD artifacts — specs, plans, data models, and interface contracts for all ${specs.length} features
   actions:

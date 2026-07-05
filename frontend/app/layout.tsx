@@ -8,7 +8,7 @@ import { Toaster } from 'sonner'
 
 const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink' })
 
-export const metadata: Metadata = { title: 'Scrape Analyzer' }
+export const metadata: Metadata = { title: 'Article Analyzer' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -86,7 +86,7 @@ test.describe('Article Sharing — standalone page', () => {
 
   test('standalone page shows a link back to home', async ({ page }) => {
     await page.goto('/articles/art-001')
-    await expect(page.getByText('Scrape Analyzer')).toBeVisible()
+    await expect(page.getByText('Article Analyzer')).toBeVisible()
   })
 
   test('standalone page shows Open in App link for authenticated user', async ({ page }) => {

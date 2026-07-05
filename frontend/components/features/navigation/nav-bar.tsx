@@ -101,7 +101,7 @@ export function NavBar() {
       <nav className="container mx-auto px-6 h-16 flex items-center gap-4 md:gap-12 relative">
         <Link href="/" className="flex items-center gap-2 font-bold text-base shrink-0">
           <Rss className="h-4 w-4 text-primary" />
-          Scrape Analyzer
+          Article Analyzer
         </Link>
 
         {/* Topic dropdown — desktop only */}

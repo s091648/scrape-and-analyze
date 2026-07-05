@@ -95,7 +95,7 @@ describe("NavBar", () => {
   it("renders the brand link", () => {
     mockUseSession.mockReturnValue({ data: null });
     render(<NavBar />);
-    expect(screen.getByText("Scrape Analyzer")).toBeInTheDocument();
+    expect(screen.getByText("Article Analyzer")).toBeInTheDocument();
   });
 
   it("shows login button when not authenticated", () => {
