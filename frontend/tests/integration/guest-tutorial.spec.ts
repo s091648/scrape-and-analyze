@@ -270,7 +270,9 @@ test.describe("Guest Onboarding Tour", () => {
       await page.getByLabel(/reopen tutorial|重新開啟教學/i).click();
       await page.waitForURL("/");
       await expect(page.getByRole("dialog")).toBeVisible();
-      await expect(page.getByText(/welcome to guest mode|歡迎使用訪客模式/i)).toBeVisible();
+      // Authenticated members see the member-variant welcome copy, not the
+      // guest-facing "Welcome to Guest Mode" text (they're not a guest).
+      await expect(page.getByText(/welcome back|歡迎回來/i)).toBeVisible();
     });
   });
 });
