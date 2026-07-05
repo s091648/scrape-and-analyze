@@ -173,6 +173,17 @@ export default defineConfig({
           { text: 'Tasks', link: '/specs/013-dark-mode-toggle/tasks' },
         ],
       },
+      {
+        text: '015 · Guest Tutorial Mode',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/015-guest-tutorial-mode/spec' },
+          { text: 'Plan', link: '/specs/015-guest-tutorial-mode/plan' },
+          { text: 'Data Model', link: '/specs/015-guest-tutorial-mode/data-model' },
+          { text: 'Tasks', link: '/specs/015-guest-tutorial-mode/tasks' },
+          { text: 'Contract: Ui', link: '/specs/015-guest-tutorial-mode/contracts/ui-contract' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },
