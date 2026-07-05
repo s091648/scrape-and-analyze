@@ -47,6 +47,13 @@ vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ locale: 'en', t: (key: string) => key }),
   useTopic: () => ({ selectedTopicId: 'topic-1', topics: [], selectedTopic: null }),
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
+  usePinnedArticle: () => ({
+    pinnedArticles: [],
+    togglePinnedArticle: vi.fn(),
+    removePinnedArticle: vi.fn(),
+    clearPinnedArticles: vi.fn(),
+    isPinned: () => false,
+  }),
 }))
 
 describe('ArticleCard', () => {

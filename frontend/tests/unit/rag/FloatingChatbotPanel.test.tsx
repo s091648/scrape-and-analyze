@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useState, cloneElement, type ReactElement } from 'react'
 
 // jsdom does not implement scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
@@ -23,6 +24,14 @@ const makeMessage = (id: string, role: 'user' | 'assistant', content: string) =>
   content,
   timestamp: new Date('2024-01-01T10:00:00'),
 })
+
+// FloatingChatbotPanel is a fully controlled component (open/onOpenChange are
+// owned by the parent). This wrapper keeps that state locally so tests can
+// still click the toggle button and see the panel actually open/close.
+function ControlledPanel({ children }: { children: ReactElement }) {
+  const [open, setOpen] = useState(false)
+  return cloneElement(children, { open, onOpenChange: setOpen } as any)
+}
 
 describe('FloatingChatbotPanel', () => {
   const defaultProps = {
@@ -50,20 +59,32 @@ describe('FloatingChatbotPanel', () => {
 
   it('renders toggle button initially', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} />
+      </ControlledPanel>
+    )
     expect(screen.getByRole('button', { name: 'rag.openChat' })).toBeInTheDocument()
   })
 
   it('opens panel when toggle button clicked', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} title="My Bot" />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} title="My Bot" />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.getByTestId('title')).toHaveTextContent('My Bot')
   })
 
   it('closes panel when header close button clicked', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} />
+      </ControlledPanel>
+    )
     openPanel()
     // Two "Close chat" buttons exist when panel is open: header X and the toggle.
     // The header X button (no aria-expanded) is the first in DOM order.
@@ -74,7 +95,11 @@ describe('FloatingChatbotPanel', () => {
 
   it('shows empty state when panel is open with no messages', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.getByText('rag.emptyState')).toBeInTheDocument()
   })
@@ -82,13 +107,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders user and assistant messages', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[
-          makeMessage('1', 'user', 'Hello'),
-          makeMessage('2', 'assistant', 'Hi there!'),
-        ]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[
+            makeMessage('1', 'user', 'Hello'),
+            makeMessage('2', 'assistant', 'Hi there!'),
+          ]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.getByText('Hello')).toBeInTheDocument()
@@ -98,7 +125,11 @@ describe('FloatingChatbotPanel', () => {
   it('calls onSend with trimmed input when send button clicked', async () => {
     const onSend = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onSend={onSend} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'My question' } })
     fireEvent.click(screen.getByTestId('send-btn'))
@@ -107,7 +138,11 @@ describe('FloatingChatbotPanel', () => {
 
   it('clears input after send', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} />
+      </ControlledPanel>
+    )
     openPanel()
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'A question' } })
@@ -118,7 +153,11 @@ describe('FloatingChatbotPanel', () => {
   it('does not call onSend when input is empty', async () => {
     const onSend = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onSend={onSend} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.click(screen.getByTestId('send-btn'))
     expect(onSend).not.toHaveBeenCalled()
@@ -127,7 +166,11 @@ describe('FloatingChatbotPanel', () => {
   it('does not call onSend when input is whitespace only', async () => {
     const onSend = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onSend={onSend} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '   ' } })
     fireEvent.click(screen.getByTestId('send-btn'))
@@ -137,7 +180,11 @@ describe('FloatingChatbotPanel', () => {
   it('submits on Enter key press', async () => {
     const onSend = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onSend={onSend} />
+      </ControlledPanel>
+    )
     openPanel()
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'Enter submit' } })
@@ -148,7 +195,11 @@ describe('FloatingChatbotPanel', () => {
   it('does not submit on Shift+Enter', async () => {
     const onSend = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onSend={onSend} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onSend={onSend} />
+      </ControlledPanel>
+    )
     openPanel()
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'Shift enter' } })
@@ -158,14 +209,22 @@ describe('FloatingChatbotPanel', () => {
 
   it('shows typing indicator when isLoading', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} isLoading />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} isLoading />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.getByLabelText('rag.typingAriaLabel')).toBeInTheDocument()
   })
 
   it('disables send button and input when isLoading', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} isLoading />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} isLoading />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.getByTestId('send-btn')).toBeDisabled()
     expect(screen.getByRole('textbox')).toBeDisabled()
@@ -174,7 +233,11 @@ describe('FloatingChatbotPanel', () => {
   it('calls onNewChat when new chat button clicked', async () => {
     const onNewChat = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} onNewChat={onNewChat} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} onNewChat={onNewChat} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.click(screen.getByTestId('new-chat-btn'))
     expect(onNewChat).toHaveBeenCalled()
@@ -182,7 +245,11 @@ describe('FloatingChatbotPanel', () => {
 
   it('does not render new chat button when onNewChat not provided', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.queryByTestId('new-chat-btn')).not.toBeInTheDocument()
   })
@@ -190,13 +257,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders external link for source without public_article_id', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'An answer')]}
-        messageSources={{
-          msg1: [{ id: 's1', title: 'Source A', url: 'https://example.com', public_article_id: null }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'An answer')]}
+          messageSources={{
+            msg1: [{ id: 's1', title: 'Source A', url: 'https://example.com', public_article_id: null }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const link = screen.getByRole('link', { name: /Source A/ })
@@ -207,13 +276,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders internal article button for source with public_article_id', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'An answer')]}
-        messageSources={{
-          msg1: [{ id: 's2', title: 'Internal Article', url: 'https://example.com', public_article_id: 'pub-123' }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'An answer')]}
+          messageSources={{
+            msg1: [{ id: 's2', title: 'Internal Article', url: 'https://example.com', public_article_id: 'pub-123' }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.getByRole('button', { name: /Internal Article/ })).toBeInTheDocument()
@@ -222,13 +293,15 @@ describe('FloatingChatbotPanel', () => {
   it('calls fetchArticleById when internal source button clicked', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'An answer')]}
-        messageSources={{
-          msg1: [{ id: 's2', title: 'Internal Article', url: 'https://example.com', public_article_id: 'pub-123' }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'An answer')]}
+          messageSources={{
+            msg1: [{ id: 's2', title: 'Internal Article', url: 'https://example.com', public_article_id: 'pub-123' }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     fireEvent.click(screen.getByRole('button', { name: /Internal Article/ }))
@@ -240,13 +313,15 @@ describe('FloatingChatbotPanel', () => {
   it('uses url as display text when source title is null', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'An answer')]}
-        messageSources={{
-          msg1: [{ id: 's3', title: null, url: 'https://example.com/article', public_article_id: null }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'An answer')]}
+          messageSources={{
+            msg1: [{ id: 's3', title: null, url: 'https://example.com/article', public_article_id: null }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.getByRole('link', { name: /https:\/\/example.com\/article/ })).toBeInTheDocument()
@@ -255,10 +330,12 @@ describe('FloatingChatbotPanel', () => {
   it('renders bold markdown inside assistant message', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'assistant', 'This is **bold** text')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'assistant', 'This is **bold** text')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const bold = screen.getByText('bold')
@@ -267,7 +344,11 @@ describe('FloatingChatbotPanel', () => {
 
   it('applies custom placeholder to input', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} placeholder="Ask anything…" />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} placeholder="Ask anything…" />
+      </ControlledPanel>
+    )
     openPanel()
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument()
   })
@@ -275,7 +356,11 @@ describe('FloatingChatbotPanel', () => {
   it('calls onAbort when Escape pressed while open and loading', async () => {
     const onAbort = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onAbort).toHaveBeenCalled()
@@ -284,7 +369,11 @@ describe('FloatingChatbotPanel', () => {
   it('does not call onAbort when panel is closed', async () => {
     const onAbort = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} isLoading onAbort={onAbort} />
+      </ControlledPanel>
+    )
     // Do not open panel — Escape should not trigger abort
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onAbort).not.toHaveBeenCalled()
@@ -293,7 +382,11 @@ describe('FloatingChatbotPanel', () => {
   it('does not call onAbort when not loading', async () => {
     const onAbort = vi.fn()
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
-    render(<FloatingChatbotPanel {...defaultProps} isLoading={false} onAbort={onAbort} />)
+    render(
+      <ControlledPanel>
+        <FloatingChatbotPanel {...defaultProps} isLoading={false} onAbort={onAbort} />
+      </ControlledPanel>
+    )
     openPanel()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onAbort).not.toHaveBeenCalled()
@@ -302,10 +395,12 @@ describe('FloatingChatbotPanel', () => {
   it('renders list items from markdown bullet points in assistant message', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'assistant', '- First item\n- Second item')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'assistant', '- First item\n- Second item')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.getByText('First item')).toBeInTheDocument()
@@ -316,13 +411,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders [N] citation button inline in assistant message', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
-        messageSources={{
-          msg1: [{ id: 's1', title: 'Cited Paper', url: 'https://example.com', public_article_id: null }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
+          messageSources={{
+            msg1: [{ id: 's1', title: 'Cited Paper', url: 'https://example.com', public_article_id: null }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     // citation button renders the reference number
@@ -332,13 +429,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders [Title] citation as button for source with public_article_id', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', '[Cited Paper] was relevant')]}
-        messageSources={{
-          msg1: [{ id: 's2', title: 'Cited Paper', url: 'https://example.com', public_article_id: 'pub-abc' }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', '[Cited Paper] was relevant')]}
+          messageSources={{
+            msg1: [{ id: 's2', title: 'Cited Paper', url: 'https://example.com', public_article_id: 'pub-abc' }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     // inline citation should render as a clickable button (has public_article_id)
@@ -349,13 +448,15 @@ describe('FloatingChatbotPanel', () => {
   it('renders [Title] citation as link for source without public_article_id', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', '[External Paper] was cited')]}
-        messageSources={{
-          msg1: [{ id: 's3', title: 'External Paper', url: 'https://external.com', public_article_id: null }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', '[External Paper] was cited')]}
+          messageSources={{
+            msg1: [{ id: 's3', title: 'External Paper', url: 'https://external.com', public_article_id: null }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const citationLink = screen.getByRole('link', { name: 'External Paper' })
@@ -365,13 +466,15 @@ describe('FloatingChatbotPanel', () => {
   it('highlights source chip and scrolls to it when [N] citation clicked', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
-        messageSources={{
-          msg1: [{ id: 's1', title: 'Paper A', url: 'https://example.com', public_article_id: null }],
-        }}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('msg1', 'assistant', 'See [1] for details')]}
+          messageSources={{
+            msg1: [{ id: 's1', title: 'Paper A', url: 'https://example.com', public_article_id: null }],
+          }}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const citationBtn = screen.getByTitle('Paper A')
@@ -386,10 +489,12 @@ describe('FloatingChatbotPanel', () => {
   it('renders markdown link [text](url) as anchor', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'assistant', 'Visit [Google](https://google.com) for more')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'assistant', 'Visit [Google](https://google.com) for more')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const link = screen.getByRole('link', { name: 'Google' })
@@ -400,10 +505,12 @@ describe('FloatingChatbotPanel', () => {
   it('shows timestamp below user messages', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'user', 'Hello')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'user', 'Hello')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     // toLocaleTimeString format varies but time should be present
@@ -413,10 +520,12 @@ describe('FloatingChatbotPanel', () => {
   it('shows empty placeholder (…) when assistant message content is empty', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'assistant', '')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'assistant', '')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     // Empty assistant content renders the placeholder ellipsis
@@ -426,16 +535,18 @@ describe('FloatingChatbotPanel', () => {
   it('shows thinking toggle button for assistant message with thinking content', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[{
-          id: '1',
-          role: 'assistant',
-          content: 'Here is my answer.',
-          thinking: 'Let me think about this carefully...',
-          timestamp: new Date('2024-01-01T10:00:00'),
-        }]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[{
+            id: '1',
+            role: 'assistant',
+            content: 'Here is my answer.',
+            thinking: 'Let me think about this carefully...',
+            timestamp: new Date('2024-01-01T10:00:00'),
+          }]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     // t('rag.thinkingToggle') returns the key itself in this mock
@@ -445,16 +556,18 @@ describe('FloatingChatbotPanel', () => {
   it('hides thinking content by default (collapsed state)', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[{
-          id: '1',
-          role: 'assistant',
-          content: 'Answer',
-          thinking: 'My inner thoughts',
-          timestamp: new Date('2024-01-01T10:00:00'),
-        }]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[{
+            id: '1',
+            role: 'assistant',
+            content: 'Answer',
+            thinking: 'My inner thoughts',
+            timestamp: new Date('2024-01-01T10:00:00'),
+          }]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.queryByText('My inner thoughts')).not.toBeInTheDocument()
@@ -463,16 +576,18 @@ describe('FloatingChatbotPanel', () => {
   it('shows thinking content when thinking toggle is clicked', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[{
-          id: '1',
-          role: 'assistant',
-          content: 'Answer',
-          thinking: 'My inner thoughts',
-          timestamp: new Date('2024-01-01T10:00:00'),
-        }]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[{
+            id: '1',
+            role: 'assistant',
+            content: 'Answer',
+            thinking: 'My inner thoughts',
+            timestamp: new Date('2024-01-01T10:00:00'),
+          }]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     fireEvent.click(screen.getByRole('button', { name: /rag\.thinkingToggle/ }))
@@ -482,16 +597,18 @@ describe('FloatingChatbotPanel', () => {
   it('collapses thinking content when toggle clicked twice', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[{
-          id: '1',
-          role: 'assistant',
-          content: 'Answer',
-          thinking: 'Hidden thoughts',
-          timestamp: new Date('2024-01-01T10:00:00'),
-        }]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[{
+            id: '1',
+            role: 'assistant',
+            content: 'Answer',
+            thinking: 'Hidden thoughts',
+            timestamp: new Date('2024-01-01T10:00:00'),
+          }]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     const toggle = screen.getByRole('button', { name: /rag\.thinkingToggle/ })
@@ -504,10 +621,12 @@ describe('FloatingChatbotPanel', () => {
   it('does not show thinking block for assistant messages without thinking', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[makeMessage('1', 'assistant', 'Normal answer')]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[makeMessage('1', 'assistant', 'Normal answer')]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.queryByRole('button', { name: /rag\.thinkingToggle/ })).not.toBeInTheDocument()
@@ -516,16 +635,18 @@ describe('FloatingChatbotPanel', () => {
   it('does not show thinking block for user messages', async () => {
     const { FloatingChatbotPanel } = await import('@/components/features/chat/FloatingChatbotPanel')
     render(
-      <FloatingChatbotPanel
-        {...defaultProps}
-        messages={[{
-          id: '1',
-          role: 'user',
-          content: 'User question',
-          thinking: 'Should not show',
-          timestamp: new Date('2024-01-01T10:00:00'),
-        }]}
-      />
+      <ControlledPanel>
+        <FloatingChatbotPanel
+          {...defaultProps}
+          messages={[{
+            id: '1',
+            role: 'user',
+            content: 'User question',
+            thinking: 'Should not show',
+            timestamp: new Date('2024-01-01T10:00:00'),
+          }]}
+        />
+      </ControlledPanel>
     )
     openPanel()
     expect(screen.queryByRole('button', { name: /rag\.thinkingToggle/ })).not.toBeInTheDocument()
