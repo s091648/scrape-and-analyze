@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Scrape Analyzer
+  name: Article Analyzer
   text: Specification Documentation
   tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 14 features
   actions:
