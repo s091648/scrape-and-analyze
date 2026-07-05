@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { mockApiRoutes, articleDetailFixture } from './fixtures/api-handlers'
+import { mockApiRoutes, articleDetailFixture, dismissFeatureSpotlights } from './fixtures/api-handlers'
 
 test.describe('Article Sharing — URL sync', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await mockApiRoutes(page)
   })
 
@@ -39,6 +40,7 @@ test.describe('Article Sharing — URL sync', () => {
 
 test.describe('Article Sharing — share icon clipboard', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await page.addInitScript(() => {
       const captured: string[] = []
       Object.defineProperty(navigator, 'clipboard', {

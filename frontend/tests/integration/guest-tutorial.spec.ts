@@ -259,6 +259,11 @@ test.describe("Guest Onboarding Tour", () => {
     });
 
     test("the guest onboarding tour does not auto-open, but HelpCircle reopens it", async ({ page }) => {
+      // Mark the unrelated feature-chat spotlight tour as already seen so its
+      // dialog doesn't interfere with this guest-onboarding-specific assertion.
+      await page.addInitScript(() => {
+        localStorage.setItem("tutorial_seen_tours", JSON.stringify(["feature-chat-2026-07"]));
+      });
       await page.goto("/articles");
       await expect(page.getByRole("dialog")).not.toBeVisible();
 

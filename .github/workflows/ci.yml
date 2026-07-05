@@ -52,25 +52,27 @@ jobs:
           # Recursively search the CLI's JSON output for the service's status,
           # since the exact shape of `railway status`/`deployment list --json`
           # isn't officially documented — this is resilient to minor schema
-          # differences as long as {..., id|serviceId: X, status: Y, ...}
-          # appears somewhere in the tree.
+          # differences: `railway deployment list --service X` is already
+          # scoped to one service, so a deployment's own `id` field is a
+          # *deployment* ID, not the service ID — there's nothing to match
+          # against. Just take the first (most recent) `status` string found
+          # anywhere in the tree.
           find_status() {
             node -e "
               let data;
               try { data = JSON.parse(process.argv[1]); } catch { console.log('UNKNOWN'); process.exit(0); }
-              const targetId = process.argv[2];
               function find(obj) {
                 if (!obj || typeof obj !== 'object') return null;
                 if (Array.isArray(obj)) {
                   for (const item of obj) { const r = find(item); if (r) return r; }
                   return null;
                 }
-                if ((obj.id === targetId || obj.serviceId === targetId) && obj.status) return obj.status;
+                if (typeof obj.status === 'string') return obj.status;
                 for (const key of Object.keys(obj)) { const r = find(obj[key]); if (r) return r; }
                 return null;
               }
               console.log(find(data) || 'UNKNOWN');
-            " "$1" "$2"
+            " "$1"
           }
 
           for name in "${!SERVICES[@]}"; do
@@ -78,10 +80,10 @@ jobs:
             echo "::group::Checking $name ($id)"
 
             JSON=$(railway deployment list --service "$id" --environment staging --json 2>/dev/null || echo '{}')
-            STATUS=$(find_status "$JSON" "$id")
+            STATUS=$(find_status "$JSON")
             if [ "$STATUS" = "UNKNOWN" ]; then
               JSON=$(railway status --service "$id" --environment staging --json 2>/dev/null || echo '{}')
-              STATUS=$(find_status "$JSON" "$id")
+              STATUS=$(find_status "$JSON")
             fi
             echo "Latest deployment status for $name: $STATUS"
 
