@@ -77,6 +77,7 @@ const en: Record<string, any> = {
   "tutorial.next": "Next",
   "tutorial.signIn": "Sign In",
   "tutorial.register": "Register",
+  "tutorial.stayGuest": "Stay in Guest Mode",
   "tutorial.done": "Done",
   "tutorial.chatPin.title": "Pin Articles for Context",
   "tutorial.chatPin.description": "Click the sparkles icon to pin an article.",
@@ -268,13 +269,23 @@ describe("TutorialOverlay", () => {
     });
   });
 
-  it("shows Sign In and Register CTAs (not Skip/Next) on the guest-onboarding last step (isCta)", () => {
+  it("shows Sign In, Register, and Stay in Guest Mode CTAs (not Skip/Next) on the guest-onboarding last step (isCta)", () => {
     mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 3 }));
     render(<TutorialOverlay />);
     expect(screen.getByText("Sign In")).toBeInTheDocument();
     expect(screen.getByText("Register")).toBeInTheDocument();
+    expect(screen.getByText("Stay in Guest Mode")).toBeInTheDocument();
     expect(screen.queryByText("Skip")).not.toBeInTheDocument();
     expect(screen.queryByText("Next")).not.toBeInTheDocument();
+  });
+
+  it("closes the tutorial without navigating when Stay in Guest Mode is clicked on the CTA step", async () => {
+    const closeTutorial = vi.fn();
+    mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 3, closeTutorial }));
+    render(<TutorialOverlay />);
+    await userEvent.click(screen.getByText("Stay in Guest Mode"));
+    expect(closeTutorial).toHaveBeenCalledOnce();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("shows a Done button (not Sign In/Register) on a non-CTA tour's last step", async () => {
@@ -347,5 +358,6 @@ describe("TutorialOverlay", () => {
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.queryByText("Sign In")).not.toBeInTheDocument();
     expect(screen.queryByText("Register")).not.toBeInTheDocument();
+    expect(screen.queryByText("Stay in Guest Mode")).not.toBeInTheDocument();
   });
 });

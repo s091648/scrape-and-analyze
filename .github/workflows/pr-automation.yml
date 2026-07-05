@@ -70,17 +70,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0  # full history needed for git log since last tag
 
-      - name: Check if release-notes.json was manually edited
-        id: check_manual
-        run: |
-          LAST_AUTHOR=$(git log -1 --format="%an" -- frontend/public/release-notes.json)
-          if [ -n "$LAST_AUTHOR" ] && [ "$LAST_AUTHOR" != "github-actions[bot]" ]; then
-            echo "Manual edit detected (last author: $LAST_AUTHOR), skipping generation."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - uses: actions/setup-python@v5
         if: steps.check_manual.outputs.skip != 'true'
         with:

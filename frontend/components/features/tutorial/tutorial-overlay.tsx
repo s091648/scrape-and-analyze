@@ -125,6 +125,9 @@ export function TutorialOverlay() {
           </Button>
         ) : isCtaStep ? (
           <>
+            <Button variant="ghost" size="sm" onClick={closeTutorial}>
+              {t("tutorial.stayGuest")}
+            </Button>
             <Button variant="outline" size="sm" onClick={goToRegister}>
               {t("tutorial.register")}
             </Button>
