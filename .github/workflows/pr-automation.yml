@@ -47,8 +47,22 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add site/.vitepress/config.js site/index.md
-          git diff --cached --quiet || \
-            (git commit -m "🤖 [CHORE] auto-update vitepress config from specs" && git push)
+          if git diff --cached --quiet; then
+            echo "No vitepress config changes to commit"
+            exit 0
+          fi
+          git commit -m "🤖 [CHORE] auto-update vitepress config from specs"
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$BRANCH"; then
+              exit 0
+            fi
+            echo "Push rejected (branch moved since checkout) — rebasing and retrying (attempt $attempt)"
+            git fetch origin "$BRANCH"
+            git rebase "origin/$BRANCH"
+          done
+          echo "::error::Failed to push vitepress config commit after retries"
+          exit 1
 
   # ---------------------------------------------------------------------------
   # Job 2: Generate release notes via LLM (runs after Job 1 to avoid push races)
@@ -71,13 +85,11 @@ jobs:
           fetch-depth: 0  # full history needed for git log since last tag
 
       - uses: actions/setup-python@v5
-        if: steps.check_manual.outputs.skip != 'true'
         with:
           python-version: "3.11"
           cache: pip
 
       - name: Install dependencies
-        if: steps.check_manual.outputs.skip != 'true'
         run: |
           pip install uv
           uv sync --frozen --all-groups
@@ -85,7 +97,6 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       - name: Generate release notes
-        if: steps.check_manual.outputs.skip != 'true'
         run: uv run python scripts/release/generate_release_notes.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -95,10 +106,23 @@ jobs:
           PYTHONPATH: .
 
       - name: Commit release notes to PR branch
-        if: steps.check_manual.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add frontend/public/release-notes.json
-          git diff --cached --quiet || \
-            (git commit -m "🤖 [CHORE] auto-generate release notes" && git push)
+          if git diff --cached --quiet; then
+            echo "No release notes changes to commit"
+            exit 0
+          fi
+          git commit -m "🤖 [CHORE] auto-generate release notes"
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:$BRANCH"; then
+              exit 0
+            fi
+            echo "Push rejected (branch moved since checkout) — rebasing and retrying (attempt $attempt)"
+            git fetch origin "$BRANCH"
+            git rebase "origin/$BRANCH"
+          done
+          echo "::error::Failed to push release notes commit after retries"
+          exit 1
