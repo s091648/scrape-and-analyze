@@ -2,7 +2,7 @@
 
 **Feature**: 015-guest-tutorial-mode
 **Date**: 2026-06-29
-**Updated**: 2026-07-04
+**Updated**: 2026-07-05 (synced nav-row CTA behavior, TUTORIAL_TOURS config, i18n key list, and NavBar mobile-menu note with the shipped implementation)
 
 ---
 
@@ -47,7 +47,10 @@
 - **Navigation row** (both modes):
   - Left: "Back" button (`variant="ghost"`) — hidden on step 0
   - Right: "Next" button (`variant="default"`) — visible on steps 0 to N-2
-  - Right (last step only): "Sign In" (`variant="default"`) + "Register" (`variant="outline"`)
+  - Right (last step only, `step.isCta === true`), branches on `isGuestMode`:
+    - **Guest** (`isGuestMode === true`): "Stay in Guest Mode" (`variant="ghost"`, closes without navigating) + "Register" (`variant="outline"`) + "Sign In" (`variant="default"`)
+    - **Member** (`isGuestMode === false`, e.g. reopened via HelpCircle): none of the above render — falls through to the plain "Done" button below instead, and `titleKey`/`descriptionKey` are swapped for `titleKeyMember`/`descriptionKeyMember` when present
+  - Right (last step, non-CTA tours, or CTA step viewed by a member): "Done" button (`variant="default"`), closes the tour
   - Top-right: "X" close button (always visible)
   - Bottom-left: "Skip" text button (`variant="link"`) — visible on all steps except last
 
@@ -149,6 +152,8 @@ interface TutorialContextType {
 - **Visible to**: guest mode users AND authenticated members
 - **Hidden from**: pure unauthenticated users (paywall state)
 
+**Mobile menu note**: below `768px`, NavBar renders a hamburger-triggered mobile panel that duplicates every desktop nav item (Articles/Graph/Tags links, language, theme, GitHub, docs, release notes, HelpCircle, login/logout) so they're reachable on small screens. The desktop versions are only CSS-hidden (`hidden md:flex`), not unmounted, so when the mobile menu is open both instances exist in the DOM at once. `ReleaseNotesPopover`'s mobile instance is rendered with `disableTutorialTargetId` to avoid a duplicate `id="tutorial-target-release-notes"`.
+
 ---
 
 ## TUTORIAL_TOURS Config
@@ -161,10 +166,24 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
     id: "guest-onboarding",
     kind: "onboarding",
     steps: [
-      { id: "welcome",  route: "/",         titleKey: "tutorial.step1.title", descriptionKey: "tutorial.step1.description", icon: Sparkles },
-      { id: "articles", route: "/articles", titleKey: "tutorial.step2.title", descriptionKey: "tutorial.step2.description", icon: Newspaper, targetId: "tutorial-target-articles" },
-      { id: "graph",    route: "/graph",    titleKey: "tutorial.step3.title", descriptionKey: "tutorial.step3.description", icon: GitBranch, targetId: "tutorial-target-graph" },
-      { id: "cta",      route: "/",         titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", icon: LogIn, targetId: "tutorial-target-login" },
+      { id: "welcome",       route: "/",         titleKey: "tutorial.step1.title",  descriptionKey: "tutorial.step1.description",  titleKeyMember: "tutorial.step1Member.title", descriptionKeyMember: "tutorial.step1Member.description", icon: Sparkles },
+      { id: "articles",      route: "/articles", titleKey: "tutorial.step2.title",  descriptionKey: "tutorial.step2.description",  icon: Newspaper, targetId: "tutorial-target-articles" },
+      { id: "graph",         route: "/graph",    titleKey: "tutorial.step3.title",  descriptionKey: "tutorial.step3.description",  icon: GitBranch, targetId: "tutorial-target-graph" },
+      { id: "tags",          route: "/tags",     titleKey: "tutorial.step4.title",  descriptionKey: "tutorial.step4.description",  icon: Tags,      targetId: "tutorial-target-tags" },
+      { id: "language",      route: "/",         titleKey: "tutorial.step5.title",  descriptionKey: "tutorial.step5.description",  icon: Globe,     targetId: "tutorial-target-language" },
+      { id: "theme",         route: "/",         titleKey: "tutorial.step6.title",  descriptionKey: "tutorial.step6.description",  icon: SunMoon,   targetId: "tutorial-target-theme" },
+      { id: "github",        route: "/",         titleKey: "tutorial.step7.title",  descriptionKey: "tutorial.step7.description",  icon: Github,    targetId: "tutorial-target-github" },
+      { id: "docs",          route: "/",         titleKey: "tutorial.step8.title",  descriptionKey: "tutorial.step8.description",  icon: BookOpen,  targetId: "tutorial-target-docs" },
+      { id: "release-notes", route: "/",         titleKey: "tutorial.step9.title",  descriptionKey: "tutorial.step9.description",  icon: ScrollText, targetId: "tutorial-target-release-notes" },
+      { id: "cta",           route: "/",         titleKey: "tutorial.step10.title", descriptionKey: "tutorial.step10.description", titleKeyMember: "tutorial.step10Member.title", descriptionKeyMember: "tutorial.step10Member.description", icon: LogIn, targetId: "tutorial-target-login", isCta: true },
+    ],
+  },
+  {
+    id: "feature-chat-2026-07",
+    kind: "spotlight",
+    steps: [
+      { id: "chat-pin",    route: "/articles", titleKey: "tutorial.chatPin.title",    descriptionKey: "tutorial.chatPin.description",    icon: Sparkles,      targetId: "tutorial-target-chat-pin" },
+      { id: "chat-toggle", route: "/articles", titleKey: "tutorial.chatToggle.title", descriptionKey: "tutorial.chatToggle.description", icon: MessageSquare, targetId: "tutorial-target-chat-toggle" },
     ],
   },
 ]
@@ -172,12 +191,13 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
 
 - Adding a step to an existing tour, or adding a new `kind: "spotlight"` tour, only requires editing this array — all consuming components derive step count / target / route from it
 - Invariant enforced by convention (not type-checked): every step in a `kind: "spotlight"` tour must share the same `route`
+- `titleKeyMember`/`descriptionKeyMember` and `isCta` are optional per-step overrides — only the onboarding tour's `welcome` and `cta` steps currently set them
 
 ---
 
 ## i18n Contract
 
-All keys must exist in both `en.json` and `zh-TW.json`. Missing keys fall back to English (existing I18nProvider behavior). Unchanged from the original 015 implementation:
+All keys must exist in both `en.json` and `zh-TW.json`. Missing keys fall back to English (existing I18nProvider behavior).
 
 ```
 tutorial.stepOf
@@ -187,9 +207,21 @@ tutorial.next
 tutorial.getStarted
 tutorial.signIn
 tutorial.register
+tutorial.stayGuest
+tutorial.done
 tutorial.reopenLabel
-tutorial.step1.title / .description
-tutorial.step2.title / .description
-tutorial.step3.title / .description
-tutorial.step4.title / .description
+tutorial.step1.title / .description         (welcome)
+tutorial.step1Member.title / .description   (welcome, member-variant)
+tutorial.step2.title / .description         (articles)
+tutorial.step3.title / .description         (graph)
+tutorial.step4.title / .description         (tags)
+tutorial.step5.title / .description         (language)
+tutorial.step6.title / .description         (theme)
+tutorial.step7.title / .description         (github)
+tutorial.step8.title / .description         (docs)
+tutorial.step9.title / .description         (release notes)
+tutorial.step10.title / .description        (cta)
+tutorial.step10Member.title / .description  (cta, member-variant)
+tutorial.chatPin.title / .description       (feature-chat-2026-07)
+tutorial.chatToggle.title / .description    (feature-chat-2026-07)
 ```

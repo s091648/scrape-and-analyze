@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-29
 
-**Updated**: 2026-07-04 (redesigned from centered-modal stepper to spotlight/highlight tour; scope expanded to cover feature-announcement tours for all users)
+**Updated**: 2026-07-05 (aligned spec with shipped implementation: 10-step Guest Onboarding Tour, real `feature-chat-2026-07` Feature Spotlight Tour, member-variant CTA-step copy, and the guest-only "Stay in Guest Mode" button)
 
 **Status**: Draft
 
@@ -71,8 +71,9 @@ Guest Onboarding Tour 的步驟清楚說明 Welcome、Articles、Graph、以及�
 
 **Acceptance Scenarios**:
 
-1. **Given** 導覽開啟，**When** 使用者瀏覽所有步驟，**Then** 步驟依序為：(1) Welcome/概覽（無 highlight）、(2) Articles（highlight NavBar Articles 連結）、(3) Graph（highlight NavBar Graph 連結）、(4) 登入 CTA（highlight NavBar 登入按鈕）
-2. **Given** 導覽的最後一步，**When** 顯示，**Then** 提供明確的「Sign In」與「Register」按鈕，點擊後導向對應頁面並關閉導覽
+1. **Given** 導覽開啟，**When** 使用者瀏覽所有步驟，**Then** 步驟依序為：(1) Welcome/概覽（無 highlight）、(2) Articles（highlight NavBar Articles 連結）、(3) Graph（highlight NavBar Graph 連結）、(4) Tags（highlight NavBar Tags 連結）、(5) 語言切換（highlight NavBar 語言選單）、(6) 淺色/深色模式（highlight NavBar 主題按鈕）、(7) GitHub 原始碼（highlight NavBar GitHub 連結）、(8) 規格文件（highlight NavBar Docs 連結）、(9) Release Notes（highlight NavBar Release Notes 按鈕）、(10) 登入 CTA（highlight NavBar 登入按鈕）
+2. **Given** 導覽的最後一步且使用者為 guest，**When** 顯示，**Then** 提供「維持訪客模式」、「Sign In」與「Register」按鈕；點擊「Sign In」/「Register」導向對應頁面並關閉導覽，點擊「維持訪客模式」僅關閉導覽、不導向任何頁面
+2a. **Given** 導覽的最後一步且使用者為已登入 member（透過 HelpCircle 重新開啟），**When** 顯示，**Then** 改為顯示單一「Done」按鈕（不顯示 Sign In/Register/維持訪客模式），且該步驟文案為 member 專用版本
 3. **Given** 導覽中的任一步驟，**When** 使用者點擊「Back」，**Then** 回到前一步並同步導覽回對應頁面（第一步的 Back 不顯示或 disabled）
 4. **Given** 導覽所有步驟，**When** 任意步驟顯示時，**Then** 步驟進度（如 "Step 2 of 4"）可視
 5. **Given** highlight 目標元素因故（例如尚未渲染完成）在 3 秒內找不到，**When** 逾時，**Then** 該步驟自動退回置中卡片顯示（不卡住導覽流程）
@@ -128,12 +129,14 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 
 - **FR-001**: 系統 MUST 在使用者每次進入 guest mode 時**無條件**自動開始 Guest Onboarding Tour（不做任何 storage 檢查）
 - **FR-002**: 系統 MUST NOT 在 member（已登入）的任何頁面載入時自動顯示 Guest Onboarding Tour；member 只能透過 HelpCircle 手動開啟
-- **FR-003**: Guest Onboarding Tour MUST 包含至少 4 個步驟：Welcome（無 highlight）、Articles（highlight NavBar 連結）、Graph（highlight NavBar 連結）、Sign Up CTA（highlight 登入按鈕）
+- **FR-003**: Guest Onboarding Tour MUST 包含至少 4 個步驟：Welcome（無 highlight）、Articles（highlight NavBar 連結）、Graph（highlight NavBar 連結）、Sign Up CTA（highlight 登入按鈕）。目前實作共 10 個步驟，額外涵蓋 Tags、語言切換、淺色/深色模式、GitHub 原始碼、規格文件、Release Notes，皆 highlight 對應的 NavBar 元素
 - **FR-004**: 使用者 MUST 能夠透過「X」或「Skip」在任意步驟關閉導覽
 - **FR-005**: 導覽 MUST 顯示當前步驟指示（如進度條或 dot indicators）
 - **FR-006**: 導覽 MUST 提供「Back」（第一步除外）與「Next」導航按鈕；切換步驟時若該步驟綁定的 `route` 與目前頁面不同，系統 MUST 自動導覽過去
 - **FR-007**: 最後一步 MUST 提供「Sign In」與「Register」CTA 按鈕
+- **FR-007a**: 當使用者以 guest mode 身份瀏覽最後一步時，系統 MUST 額外提供「維持訪客模式」(Stay in Guest Mode) 按鈕；點擊後僅關閉導覽，不導向登入/註冊頁面、不強制登出 guest mode
 - **FR-008**: guest mode 及已登入 member 下 NavBar MUST 提供可手動重開 Guest Onboarding Tour 的入口（HelpCircle icon）
+- **FR-008a**: 已登入 member 透過 HelpCircle 重新開啟 Guest Onboarding Tour 時，Welcome 步驟與最後一步 MUST 顯示 member 專用文案（`titleKeyMember`/`descriptionKeyMember`），且最後一步 MUST NOT 顯示「Sign In」/「Register」/「維持訪客模式」CTA，改為顯示單一「Done」按鈕
 - **FR-009**: 純未登入使用者（paywall 狀態）MUST NOT 看到任何 Tour（Guest Onboarding 或 Feature Spotlight）的入口或內容
 - **FR-010**: Tutorial 所有文字內容 MUST 支援 i18n（en + zh-TW）
 - **FR-011**: 導覽 MUST 在 guest mode 被清除（如登入完成）時自動關閉
@@ -149,7 +152,7 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 
 ### Key Entities
 
-- **TutorialStep**: 單一步驟，含 `id`、`titleKey`/`descriptionKey`（i18n key）、`icon`（可選）、`targetId`（可選，DOM id，未提供則置中顯示）、`route`（該步驟對應頁面路徑）
+- **TutorialStep**: 單一步驟，含 `id`、`titleKey`/`descriptionKey`（i18n key）、`icon`（可選）、`targetId`（可選，DOM id，未提供則置中顯示）、`route`（該步驟對應頁面路徑）、`isCta`（可選，標記為登入/註冊 CTA 步驟）、`titleKeyMember`/`descriptionKeyMember`（可選，member 重新開啟導覽時取代 `titleKey`/`descriptionKey` 的專用文案）
 - **TutorialTour**: 一組 Tour，含 `id`（唯一識別）、`kind`（`"onboarding"` 或 `"spotlight"`）、`steps: TutorialStep[]`；`spotlight` 類型的所有 step 必須共用同一個 `route`
 - **TutorialState**: 執行期狀態 `{ isTutorialOpen: boolean; activeTourId: string | null; tutorialStep: number }`
 
@@ -171,4 +174,4 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 - 現有 Shadcn/UI `Popover`（`PopoverAnchor` + `virtualRef`）與 Tailwind box-shadow 技巧足以實作 highlight + 定位；不引入第三方 onboarding library（如 react-joyride、driver.js）
 - Mobile（< 768px）一律退回置中卡片顯示，不做響應式 spotlight 定位
 - 本 feature 不改動 guest mode 的 `sessionStorage` key（`guest_mode`）
-- 首個 Feature Spotlight Tour 的實際內容（例如 chat 功能導覽）不在本次範圍內實作，僅需完成可擴充的 registry 機制；日後新增時只需增加一筆設定
+- 首個 Feature Spotlight Tour 的實際內容已於本次範圍內一併完成：`feature-chat-2026-07`（pin-to-chat 與開啟 AI 對話面板，2 個步驟，皆位於 `/articles`）作為 registry 機制的第一個真實案例；後續新增 Feature Spotlight Tour 仍只需在 registry 新增一筆設定，不需修改 Tour 呈現邏輯

@@ -1,6 +1,6 @@
 # Implementation Plan: Guest Tutorial Mode & Feature Spotlight
 
-**Branch**: `015-guest-tutorial-mode` | **Date**: 2026-06-29 | **Updated**: 2026-07-04 | **Spec**: [spec.md](./spec.md)
+**Branch**: `015-guest-tutorial-mode` | **Date**: 2026-06-29 | **Updated**: 2026-07-05 (registry grew to 10 onboarding steps + real `feature-chat-2026-07` spotlight tour; added member-variant CTA copy and "Stay in Guest Mode") | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 
@@ -78,9 +78,12 @@ frontend/
 ├── components/
 │   └── features/
 │       ├── navigation/
-│       │   └── nav-bar.tsx                 # MODIFY: HelpCircle calls useTutorial(); add id="tutorial-target-*" on Articles/Graph links + login button
+│       │   ├── nav-bar.tsx                 # MODIFY: HelpCircle calls useTutorial(); add id="tutorial-target-*" on all 10 onboarding targets; mobile hamburger menu duplicates them for <768px
+│       │   └── release-notes-popover.tsx   # MODIFY: add disableTutorialTargetId? prop (avoids duplicate id when NavBar's mobile menu duplicates it)
+│       ├── articles/
+│       │   └── article-card.tsx            # MODIFY: add isFirstTutorialTarget? prop → id="tutorial-target-chat-pin" for feature-chat-2026-07
 │       └── tutorial/
-│           ├── tutorial-registry.ts        # NEW (replaces tutorial-steps.ts): TutorialStep + TutorialTour types, TUTORIAL_TOURS[]
+│           ├── tutorial-registry.ts        # NEW (replaces tutorial-steps.ts): TutorialStep + TutorialTour types, TUTORIAL_TOURS[] (10-step onboarding + feature-chat-2026-07 spotlight)
 │           ├── tutorial-overlay.tsx        # NEW (replaces tutorial-modal.tsx): spotlight + centered-card dual-mode renderer
 │           ├── use-tutorial-target.ts      # NEW: generic highlight positioning hook
 │           └── use-is-mobile.ts            # NEW: <768px breakpoint hook
@@ -90,13 +93,14 @@ frontend/
 │       ├── tutorial-provider.tsx           # NEW: tutorial state machine + auto-trigger logic for both tour kinds
 │       ├── index.tsx                       # MODIFY: mount TutorialProvider inside GuestModeProvider; export useTutorial
 │       └── locales/
-│           ├── en.json                     # MODIFY: tutorial.* keys (unchanged content, same keys)
+│           ├── en.json                     # MODIFY: tutorial.* keys (grew to 10 steps + member-variant + stayGuest + chat spotlight)
 │           └── zh-TW.json                  # MODIFY: tutorial.* keys (zh-TW)
 └── tests/
     ├── unit/
     │   ├── tutorial-overlay.test.tsx       # NEW (replaces tutorial-modal.test.tsx)
     │   ├── tutorial-provider.test.tsx      # NEW (replaces tutorial assertions in guest-mode-context.test.tsx)
-    │   └── use-tutorial-target.test.ts     # NEW
+    │   ├── use-tutorial-target.test.ts     # NEW
+    │   └── use-is-mobile.test.ts           # NEW
     └── integration/
         └── guest-tutorial.spec.ts          # MODIFY: spotlight-aware assertions, mobile fallback, route navigation
 ```
@@ -123,10 +127,10 @@ frontend/
 
 **Files**: `frontend/components/features/tutorial/tutorial-registry.ts`
 
-1. `TutorialStep`: `{ id, titleKey, descriptionKey, icon?, targetId?, route }`
+1. `TutorialStep`: `{ id, titleKey, descriptionKey, icon?, targetId?, route, isCta?, titleKeyMember?, descriptionKeyMember? }`
 2. `TutorialTour`: `{ id, kind: "onboarding" | "spotlight", steps: TutorialStep[] }`
-3. `TUTORIAL_TOURS`: one entry, `"guest-onboarding"` — welcome (`route: "/"`, no `targetId`), articles (`route: "/articles"`, `targetId: "tutorial-target-articles"`), graph (`route: "/graph"`, `targetId: "tutorial-target-graph"`), cta (`route: "/"`, `targetId: "tutorial-target-login"`)
-4. Import Lucide icons: `Sparkles`, `Newspaper`, `GitBranch`, `LogIn`
+3. `TUTORIAL_TOURS`: `"guest-onboarding"` — 10 steps: welcome (`route: "/"`, no `targetId`, member-variant copy), articles (`/articles`), graph (`/graph`), tags (`/tags`), language/theme/github/docs/release-notes (all `route: "/"`, each highlighting its own NavBar element), cta (`route: "/"`, `targetId: "tutorial-target-login"`, `isCta: true`, member-variant copy) — plus `"feature-chat-2026-07"`, a real `kind: "spotlight"` tour (2 steps, both `route: "/articles"`) as the first live example of the mechanism
+4. Import Lucide icons: `Sparkles`, `Newspaper`, `GitBranch`, `Tags`, `Globe`, `SunMoon`, `Github`, `BookOpen`, `ScrollText`, `LogIn`, `MessageSquare`
 5. Adding a future Feature Spotlight tour = appending one `TutorialTour` entry with `kind: "spotlight"` and all steps sharing one `route`
 
 ---
@@ -149,7 +153,7 @@ frontend/
 2. Resolve active `TutorialTour` + current `TutorialStep` from `TUTORIAL_TOURS`
 3. `useEffect` on `[tutorialStep, activeTourId]`: if `step.route !== pathname`, `router.push(step.route)`
 4. `rect = useTutorialTarget(useIsMobile() ? undefined : step.targetId)`
-5. **Spotlight mode** (`rect !== null`): full-screen transparent click-blocking div (`pointer-events: auto`) + a div positioned at `rect` with `box-shadow: 0 0 0 9999px rgba(0,0,0,0.6)` for the dimmed-with-cutout effect + `PopoverAnchor virtualRef` anchored description card (title/description/step dots/Back/Next/Skip/X, or Sign In/Register on the last step)
+5. **Spotlight mode** (`rect !== null`): full-screen transparent click-blocking div (`pointer-events: auto`) + a div positioned at `rect` with `box-shadow: 0 0 0 9999px rgba(0,0,0,0.6)` for the dimmed-with-cutout effect + `PopoverAnchor virtualRef` anchored description card (title/description/step dots/Back/Next/Skip/X; on the CTA step, "Stay in Guest Mode"/Register/Sign In as a guest, or a plain "Done" with member-variant copy when reopened by an authenticated member)
 6. **Centered-card mode** (`rect === null` — Welcome step, mobile, or target-not-found timeout): reuses the actual `Dialog`/`DialogContent` primitive (same markup as the pre-redesign `TutorialModal`), which gives Escape-to-close, focus trap, and backdrop-click-to-close for free
 7. **Spotlight mode** has no `Dialog` wrapper (custom overlay div, not Radix `Dialog`), so it manually replicates Escape-to-close via a `keydown` listener (`useEffect` while `isTutorialOpen`) and manages initial focus on the description card for keyboard nav (SC-003); there is no backdrop-click-to-close since the click-blocking layer intentionally swallows all clicks
 8. All copy via `useI18n()`'s `t()`
@@ -170,7 +174,7 @@ frontend/
 
 **Files**: `frontend/lib/providers/locales/en.json`, `zh-TW.json`
 
-No content changes vs. current `tutorial.*` keys — same keys, same copy (they were written generically enough to still apply). Verify keys survive the `tutorial-steps.ts` → `tutorial-registry.ts` rename with no orphaned/missing keys.
+`tutorial.*` keys grew from the original 4-step set to 10 onboarding steps (`step1`-`step10`), plus `step1Member`/`step10Member` (member-variant copy), `stayGuest`, and `chatPin`/`chatToggle` (the `feature-chat-2026-07` spotlight tour). See `contracts/ui-contract.md`'s i18n Contract section for the authoritative key list.
 
 ---
 
