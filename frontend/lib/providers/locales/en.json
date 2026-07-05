@@ -5,7 +5,15 @@
     "login": "Login",
     "logout": "Logout",
     "settings": "Settings",
-    "selectTopic": "Select topic"
+    "selectTopic": "Select topic",
+    "github": "GitHub",
+    "specDocs": "Spec Docs",
+    "releaseNotes": "Release Notes"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto"
   },
   "home": {
     "latestArticles": "Latest Articles",

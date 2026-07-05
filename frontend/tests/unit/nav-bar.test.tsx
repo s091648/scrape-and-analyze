@@ -215,11 +215,11 @@ describe("NavBar", () => {
     expect(mockSetSelectedTopicId).toHaveBeenCalledWith("t2");
   });
 
-  it('shows "Select topic" when no topic is selected', () => {
+  it('shows the nav.selectTopic fallback when no topic is selected', () => {
     mockUseTopic.mockReturnValue({ ...defaultTopicCtx, selectedTopic: null });
     mockUseSession.mockReturnValue({ data: null });
     render(<NavBar />);
-    expect(screen.getByText("Select topic")).toBeInTheDocument();
+    expect(screen.getByText("nav.selectTopic")).toBeInTheDocument();
   });
 });
 
@@ -228,7 +228,7 @@ describe("NavBar — theme toggle", () => {
     mockUseSession.mockReturnValue({ data: null });
   });
 
-  it("renders theme toggle button with aria-label matching current mode", () => {
+  it("renders theme toggle button with aria-label matching current mode (localized via theme.* keys)", () => {
     mockUseTheme.mockReturnValue({
       mode: "auto",
       theme: "light",
@@ -236,10 +236,10 @@ describe("NavBar — theme toggle", () => {
       setMode: vi.fn(),
     });
     render(<NavBar />);
-    expect(screen.getByRole("button", { name: "Theme: Auto" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Theme: theme.auto" })).toBeInTheDocument();
   });
 
-  it('aria-label is "Theme: Light" when mode is light', () => {
+  it('aria-label uses the localized "theme.light" key when mode is light', () => {
     mockUseTheme.mockReturnValue({
       mode: "light",
       theme: "light",
@@ -247,10 +247,10 @@ describe("NavBar — theme toggle", () => {
       setMode: vi.fn(),
     });
     render(<NavBar />);
-    expect(screen.getByRole("button", { name: "Theme: Light" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Theme: theme.light" })).toBeInTheDocument();
   });
 
-  it('aria-label is "Theme: Dark" when mode is dark', () => {
+  it('aria-label uses the localized "theme.dark" key when mode is dark', () => {
     mockUseTheme.mockReturnValue({
       mode: "dark",
       theme: "dark",
@@ -258,7 +258,7 @@ describe("NavBar — theme toggle", () => {
       setMode: vi.fn(),
     });
     render(<NavBar />);
-    expect(screen.getByRole("button", { name: "Theme: Dark" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Theme: theme.dark" })).toBeInTheDocument();
   });
 
   it("calls cycleMode when theme toggle is clicked", () => {
@@ -269,7 +269,7 @@ describe("NavBar — theme toggle", () => {
       setMode: vi.fn(),
     });
     render(<NavBar />);
-    fireEvent.click(screen.getByRole("button", { name: "Theme: Auto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Theme: theme.auto" }));
     expect(mockCycleMode).toHaveBeenCalledOnce();
   });
 });
@@ -316,5 +316,50 @@ describe("NavBar — tutorial reopen icon", () => {
     expect(document.getElementById("tutorial-target-github")).toBeTruthy();
     expect(document.getElementById("tutorial-target-docs")).toBeTruthy();
     expect(document.getElementById("tutorial-target-login")).toBeTruthy();
+  });
+});
+
+describe("NavBar — mobile menu (RWD)", () => {
+  beforeEach(() => {
+    mockUseSession.mockReturnValue({ data: null });
+    mockUseGuestMode.mockReturnValue({ isGuestMode: false });
+    mockUseTutorial.mockReturnValue({ openTutorial: mockOpenTutorial });
+  });
+
+  it("hides the mobile menu panel by default", () => {
+    render(<NavBar />);
+    // "nav.articles" appears once (desktop nav) when the mobile panel is closed.
+    expect(screen.getAllByText("nav.articles")).toHaveLength(1);
+  });
+
+  it("opens the mobile menu panel when the hamburger button is clicked", () => {
+    render(<NavBar />);
+    const toggle = screen.getByLabelText("Open menu");
+    fireEvent.click(toggle);
+    // Now both the (CSS-hidden-on-mobile) desktop nav and the mobile panel render it.
+    expect(screen.getAllByText("nav.articles").length).toBeGreaterThan(1);
+    expect(screen.getByLabelText("Close menu")).toBeInTheDocument();
+  });
+
+  it("closes the mobile menu panel when the hamburger button is clicked again", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    fireEvent.click(screen.getByLabelText("Close menu"));
+    expect(screen.getAllByText("nav.articles")).toHaveLength(1);
+  });
+
+  it("shows language options, theme toggle, and login inside the mobile menu", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    expect(screen.getAllByText("English").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("nav.login").length).toBeGreaterThan(0);
+  });
+
+  it("closes the mobile menu when clicking outside it", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    expect(screen.getByLabelText("Close menu")).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    expect(screen.getByLabelText("Open menu")).toBeInTheDocument();
   });
 });

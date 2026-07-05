@@ -5,7 +5,15 @@
     "login": "登入",
     "logout": "登出",
     "settings": "設定",
-    "selectTopic": "選擇主題"
+    "selectTopic": "選擇主題",
+    "github": "GitHub",
+    "specDocs": "規格文件",
+    "releaseNotes": "更新日誌"
+  },
+  "theme": {
+    "light": "淺色",
+    "dark": "深色",
+    "auto": "自動"
   },
   "home": {
     "latestArticles": "最新文章",
