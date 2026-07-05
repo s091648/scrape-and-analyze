@@ -15,11 +15,109 @@ env:
 
 jobs:
   # -----------------------------------------------
+  # Stage -1: Check & revive staging deployments
+  # (staging deployments get manually removed after a PR closes;
+  # bring back anything that's REMOVED before migrate/tests run against it)
+  # -----------------------------------------------
+  check-staging-deployments:
+    name: Check & Revive Staging Deployments
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          submodules: recursive
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Check each staging service and redeploy REMOVED ones from master
+        run: |
+          set -uo pipefail
+          FAILED=0
+
+          # name -> service ID (must match the deploy-staging-* jobs below)
+          declare -A SERVICES=(
+            [dashboard-backend]="d20f24b5-6c3f-4732-a9b8-de13486db754"
+            [dashboard-frontend]="54f665be-c49e-407e-bf23-e414587b9984"
+            [storybook]="3880b0e2-2c02-429f-892c-814a02379e35"
+            [scrape-and-analyze]="84433f38-f9e9-4082-bd2e-2af327e3ba69"
+            [chatbot-plugin]="e3a28eae-2765-456e-822c-841598fcf1c2"
+            [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
+          )
+
+          # Recursively search the CLI's JSON output for the service's status,
+          # since the exact shape of `railway status`/`deployment list --json`
+          # isn't officially documented — this is resilient to minor schema
+          # differences as long as {..., id|serviceId: X, status: Y, ...}
+          # appears somewhere in the tree.
+          find_status() {
+            node -e "
+              let data;
+              try { data = JSON.parse(process.argv[1]); } catch { console.log('UNKNOWN'); process.exit(0); }
+              const targetId = process.argv[2];
+              function find(obj) {
+                if (!obj || typeof obj !== 'object') return null;
+                if (Array.isArray(obj)) {
+                  for (const item of obj) { const r = find(item); if (r) return r; }
+                  return null;
+                }
+                if ((obj.id === targetId || obj.serviceId === targetId) && obj.status) return obj.status;
+                for (const key of Object.keys(obj)) { const r = find(obj[key]); if (r) return r; }
+                return null;
+              }
+              console.log(find(data) || 'UNKNOWN');
+            " "$1" "$2"
+          }
+
+          for name in "${!SERVICES[@]}"; do
+            id="${SERVICES[$name]}"
+            echo "::group::Checking $name ($id)"
+
+            JSON=$(railway deployment list --service "$id" --environment staging --json 2>/dev/null || echo '{}')
+            STATUS=$(find_status "$JSON" "$id")
+            if [ "$STATUS" = "UNKNOWN" ]; then
+              JSON=$(railway status --service "$id" --environment staging --json 2>/dev/null || echo '{}')
+              STATUS=$(find_status "$JSON" "$id")
+            fi
+            echo "Latest deployment status for $name: $STATUS"
+
+            if [ "$STATUS" = "REMOVED" ]; then
+              echo "$name is REMOVED — redeploying from master"
+              if [ "$name" = "chatbot-plugin" ]; then
+                if ! (cd chatbot-plugin && railway up --detach --service "$id" --environment staging); then
+                  echo "::error::Failed to redeploy $name"
+                  FAILED=1
+                fi
+              else
+                if ! railway up --detach --service "$id" --environment staging; then
+                  echo "::error::Failed to redeploy $name"
+                  FAILED=1
+                fi
+              fi
+            elif [ "$STATUS" = "UNKNOWN" ]; then
+              echo "::warning::Could not determine deployment status for $name — skipping redeploy (assumed healthy)."
+            else
+              echo "$name is healthy ($STATUS) — no action needed"
+            fi
+            echo "::endgroup::"
+          done
+
+          exit $FAILED
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
   # Stage 0: DB Migration (push to master AND PR)
   # -----------------------------------------------
   migrate:
     name: DB Migration
     runs-on: ubuntu-latest
+    needs: [check-staging-deployments]
+    if: needs.check-staging-deployments.result == 'success'
     timeout-minutes: 10
     environment: scraper / staging
 
