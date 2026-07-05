@@ -158,4 +158,16 @@ describe('ArticleCard', () => {
     render(<ArticleCard {...fixture} />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('sets tutorial target id on the pin button when isFirstTutorialTarget and has_vectors', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} has_vectors isFirstTutorialTarget />)
+    expect(container.querySelector('#tutorial-target-chat-pin')).toBeInTheDocument()
+  })
+
+  it('does not set tutorial target id on the pin button when isFirstTutorialTarget is false', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} has_vectors />)
+    expect(container.querySelector('#tutorial-target-chat-pin')).not.toBeInTheDocument()
+  })
 })

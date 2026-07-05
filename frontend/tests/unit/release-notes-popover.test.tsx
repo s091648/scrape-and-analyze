@@ -137,4 +137,16 @@ describe('ReleaseNotesPopover', () => {
     fireEvent.click(screen.getByRole('button', { name: /release notes/i }))
     await waitFor(() => expect(screen.getByText('No releases yet.')).toBeInTheDocument())
   })
+
+  it('omits the tutorial target id on the trigger button when disableTutorialTargetId is set', () => {
+    mockFetchOk([])
+    render(<ReleaseNotesPopover disableTutorialTargetId />)
+    expect(document.querySelector('#tutorial-target-release-notes')).not.toBeInTheDocument()
+  })
+
+  it('sets the tutorial target id on the trigger button by default', () => {
+    mockFetchOk([])
+    render(<ReleaseNotesPopover />)
+    expect(document.querySelector('#tutorial-target-release-notes')).toBeInTheDocument()
+  })
 })

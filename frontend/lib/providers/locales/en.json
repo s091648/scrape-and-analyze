@@ -548,6 +548,10 @@
       "title": "Welcome to Guest Mode",
       "description": "You're browsing as a guest. Explore our curated AI research articles and knowledge graph — no account needed for this preview."
     },
+    "step1Member": {
+      "title": "Welcome Back",
+      "description": "Here's a quick refresher on what you can do — feel free to skip ahead at any time."
+    },
     "step2": {
       "title": "Browse Articles",
       "description": "The home page shows the latest AI research articles. Use the topic filter to focus on what interests you. As a guest, you can view the first page."
@@ -583,6 +587,10 @@
     "step10": {
       "title": "Get Full Access",
       "description": "Sign in or create a free account to unlock full pagination, personalized settings, and the complete knowledge graph."
+    },
+    "step10Member": {
+      "title": "You're All Set",
+      "description": "You can reopen this tour anytime from the help icon in the navigation bar."
     },
     "chatPin": {
       "title": "Pin Articles for Context",

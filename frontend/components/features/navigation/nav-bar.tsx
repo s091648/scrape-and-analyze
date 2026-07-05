@@ -485,7 +485,7 @@ export function NavBar() {
             </a>
 
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ReleaseNotesPopover />
+              <ReleaseNotesPopover disableTutorialTargetId />
               {t("nav.releaseNotes")}
             </div>
 

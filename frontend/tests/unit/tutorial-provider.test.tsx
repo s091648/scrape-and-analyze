@@ -254,4 +254,26 @@ describe("TutorialProvider — Feature Spotlight auto-trigger", () => {
     await userEvent.click(screen.getByText("next-step"));
     expect(screen.getByTestId("active-tour").textContent).toBe("guest-onboarding");
   });
+
+  it("marks an in-progress spotlight tour as seen when guest mode is exited mid-tour", async () => {
+    sessionStorage.setItem("guest_mode", "true");
+    mockUsePathname.mockReturnValue("/");
+    const { rerender } = renderWithProviders();
+    await userEvent.click(screen.getByText("close-tutorial"));
+
+    mockUsePathname.mockReturnValue("/articles");
+    rerender(
+      <GuestModeProvider>
+        <TutorialProvider>
+          <TestConsumer />
+        </TutorialProvider>
+      </GuestModeProvider>,
+    );
+    expect(screen.getByTestId("active-tour").textContent).toBe("feature-test-spotlight");
+
+    await userEvent.click(screen.getByText("exit"));
+
+    expect(screen.getByTestId("tutorial-status").textContent).toBe("closed");
+    expect(localStorage.getItem("tutorial_seen_tours")).toContain("feature-test-spotlight");
+  });
 });

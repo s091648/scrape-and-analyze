@@ -33,7 +33,7 @@ test.describe('Guest Mode', () => {
 
     // Entering guest mode auto-opens the onboarding tour, whose own "Next"
     // button would otherwise match the /next/i pagination locator below.
-    await page.getByRole('button', { name: /^skip|略過$/i }).click()
+    await page.getByRole('button', { name: /^skip$|^略過$/i }).click()
 
     // Pagination buttons should not be rendered for guests. Anchored regex
     // (exact accessible name) so this doesn't also match Next.js's own
@@ -67,7 +67,7 @@ test.describe('Guest Mode', () => {
     // The onboarding tour reopens unconditionally on any fresh page load while
     // guest mode is active (FR-011), which hides page content behind an
     // aria-hidden boundary until dismissed.
-    await page.getByRole('button', { name: /^skip|略過$/i }).click()
+    await page.getByRole('button', { name: /^skip$|^略過$/i }).click()
 
     await expect(
       page.getByRole('heading', { name: /account required|需要帳號/i })

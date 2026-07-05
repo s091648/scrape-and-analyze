@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { useTutorial, useI18n } from "@/lib/providers";
+import { useTutorial, useI18n, useGuestMode } from "@/lib/providers";
 import { getTour } from "@/components/features/tutorial/tutorial-registry";
 import { useTutorialTarget } from "@/components/features/tutorial/use-tutorial-target";
 import { useIsMobile } from "@/components/features/tutorial/use-is-mobile";
@@ -15,6 +15,7 @@ export function TutorialOverlay() {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useI18n();
+  const { isGuestMode } = useGuestMode();
   const {
     isTutorialOpen,
     activeTourId,
@@ -60,11 +61,13 @@ export function TutorialOverlay() {
   if (!isTutorialOpen || !tour || !step) return null;
 
   const isLastStep = tutorialStep === tour.steps.length - 1;
-  const isCtaStep = isLastStep && step.isCta === true;
+  const isCtaStep = isLastStep && step.isCta === true && isGuestMode;
   const Icon = step.icon;
   const spotlightMode = rect !== null && !isMobile;
-  const titleText = t(step.titleKey);
-  const descriptionText = t(step.descriptionKey);
+  const titleText = t(!isGuestMode && step.titleKeyMember ? step.titleKeyMember : step.titleKey);
+  const descriptionText = t(
+    !isGuestMode && step.descriptionKeyMember ? step.descriptionKeyMember : step.descriptionKey,
+  );
 
   function goToLogin() {
     closeTutorial();

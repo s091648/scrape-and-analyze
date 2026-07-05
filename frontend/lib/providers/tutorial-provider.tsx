@@ -101,6 +101,9 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       setTutorialStep(0);
       effectiveIsTutorialOpen = true;
     } else {
+      if (activeTourId && getTour(activeTourId)?.kind === "spotlight") {
+        markTourSeen(activeTourId);
+      }
       setIsTutorialOpen(false);
       setActiveTourId(null);
       setTutorialStep(0);

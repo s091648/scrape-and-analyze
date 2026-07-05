@@ -30,6 +30,7 @@ jobs:
         with:
           ref: master
           submodules: recursive
+          persist-credentials: false
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
@@ -79,15 +80,23 @@ jobs:
             id="${SERVICES[$name]}"
             echo "::group::Checking $name ($id)"
 
-            JSON=$(railway deployment list --service "$id" --environment staging --json 2>/dev/null || echo '{}')
+            CLI_OK=1
+            if ! JSON=$(railway deployment list --service "$id" --environment staging --json 2>&1); then
+              CLI_OK=0
+            fi
             STATUS=$(find_status "$JSON")
-            if [ "$STATUS" = "UNKNOWN" ]; then
-              JSON=$(railway status --service "$id" --environment staging --json 2>/dev/null || echo '{}')
+            if [ "$STATUS" = "UNKNOWN" ] && [ "$CLI_OK" = "1" ]; then
+              if ! JSON=$(railway status --service "$id" --environment staging --json 2>&1); then
+                CLI_OK=0
+              fi
               STATUS=$(find_status "$JSON")
             fi
             echo "Latest deployment status for $name: $STATUS"
 
-            if [ "$STATUS" = "REMOVED" ]; then
+            if [ "$CLI_OK" = "0" ]; then
+              echo "::error::Railway CLI call failed for $name — treating as a failure rather than assuming healthy"
+              FAILED=1
+            elif [ "$STATUS" = "REMOVED" ]; then
               echo "$name is REMOVED — redeploying from master"
               if [ "$name" = "chatbot-plugin" ]; then
                 if ! (cd chatbot-plugin && railway up --detach --service "$id" --environment staging); then

@@ -26,9 +26,18 @@ export interface TutorialStep {
    * Marks this as the sign-up call-to-action step: renders Sign In/Register
    * buttons instead of Next, regardless of whether it's the tour's last
    * step. Only the guest onboarding tour's final step should set this —
-   * a Feature Spotlight tour's last step should just close normally.
+   * a Feature Spotlight tour's last step should just close normally. Never
+   * applies when the tour is reopened by an already-authenticated member
+   * (see `titleKeyMember`/`descriptionKeyMember`).
    */
   isCta?: boolean;
+  /**
+   * Overrides `titleKey`/`descriptionKey` when the tour is viewed by an
+   * already-authenticated member rather than a guest (e.g. reopened via
+   * NavBar's HelpCircle). Falls back to `titleKey`/`descriptionKey` when unset.
+   */
+  titleKeyMember?: string;
+  descriptionKeyMember?: string;
 }
 
 export interface TutorialTour {
@@ -48,6 +57,8 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
         route: "/",
         titleKey: "tutorial.step1.title",
         descriptionKey: "tutorial.step1.description",
+        titleKeyMember: "tutorial.step1Member.title",
+        descriptionKeyMember: "tutorial.step1Member.description",
         icon: Sparkles,
       },
       {
@@ -119,6 +130,8 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
         route: "/",
         titleKey: "tutorial.step10.title",
         descriptionKey: "tutorial.step10.description",
+        titleKeyMember: "tutorial.step10Member.title",
+        descriptionKeyMember: "tutorial.step10Member.description",
         icon: LogIn,
         targetId: "tutorial-target-login",
         isCta: true,

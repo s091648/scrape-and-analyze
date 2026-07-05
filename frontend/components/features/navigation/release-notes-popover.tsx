@@ -67,7 +67,7 @@ function injectStyle() {
   styleInjected = true
 }
 
-export function ReleaseNotesPopover() {
+export function ReleaseNotesPopover({ disableTutorialTargetId = false }: { disableTutorialTargetId?: boolean }) {
   const [entries, setEntries] = useState<ReleaseEntry[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [lastSeen, setLastSeen] = useState<string | null>(null)
@@ -108,7 +108,7 @@ export function ReleaseNotesPopover() {
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
               <button
-                id="tutorial-target-release-notes"
+                id={disableTutorialTargetId ? undefined : 'tutorial-target-release-notes'}
                 type="button"
                 className="relative text-muted-foreground hover:text-foreground transition-colors duration-200 cursor-pointer"
                 aria-label="Release notes"

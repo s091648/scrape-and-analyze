@@ -10,6 +10,7 @@ const {
   mockUseI18n,
   mockUseTutorialTarget,
   mockUseIsMobile,
+  mockUseGuestMode,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockUsePathname: vi.fn(() => "/"),
@@ -17,6 +18,7 @@ const {
   mockUseI18n: vi.fn(),
   mockUseTutorialTarget: vi.fn(),
   mockUseIsMobile: vi.fn(() => false),
+  mockUseGuestMode: vi.fn(() => ({ isGuestMode: true })),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -27,6 +29,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/providers", () => ({
   useTutorial: () => mockUseTutorial(),
   useI18n: () => mockUseI18n(),
+  useGuestMode: () => mockUseGuestMode(),
 }));
 
 vi.mock("@/components/features/tutorial/use-tutorial-target", () => ({
@@ -43,7 +46,14 @@ vi.mock("@/components/features/tutorial/tutorial-registry", () => {
       id: "guest-onboarding",
       kind: "onboarding",
       steps: [
-        { id: "welcome", route: "/", titleKey: "tutorial.step1.title", descriptionKey: "tutorial.step1.description" },
+        {
+          id: "welcome",
+          route: "/",
+          titleKey: "tutorial.step1.title",
+          descriptionKey: "tutorial.step1.description",
+          titleKeyMember: "tutorial.step1Member.title",
+          descriptionKeyMember: "tutorial.step1Member.description",
+        },
         { id: "articles", route: "/articles", titleKey: "tutorial.step2.title", descriptionKey: "tutorial.step2.description", targetId: "tutorial-target-articles" },
         { id: "graph", route: "/graph", titleKey: "tutorial.step3.title", descriptionKey: "tutorial.step3.description", targetId: "tutorial-target-graph" },
         { id: "cta", route: "/", titleKey: "tutorial.step4.title", descriptionKey: "tutorial.step4.description", targetId: "tutorial-target-login", isCta: true },
@@ -72,6 +82,8 @@ const en: Record<string, any> = {
   "tutorial.chatPin.description": "Click the sparkles icon to pin an article.",
   "tutorial.step1.title": "Welcome to Guest Mode",
   "tutorial.step1.description": "You're browsing as a guest.",
+  "tutorial.step1Member.title": "Welcome Back",
+  "tutorial.step1Member.description": "Here's a quick refresher.",
   "tutorial.step2.title": "Browse Articles",
   "tutorial.step2.description": "The home page shows the latest AI research articles.",
   "tutorial.step3.title": "Explore the Knowledge Graph",
@@ -115,6 +127,7 @@ beforeEach(() => {
   mockUsePathname.mockReturnValue("/");
   mockUseIsMobile.mockReturnValue(false);
   mockUseTutorialTarget.mockReturnValue(null);
+  mockUseGuestMode.mockReturnValue({ isGuestMode: true });
 });
 
 describe("TutorialOverlay", () => {
@@ -317,5 +330,22 @@ describe("TutorialOverlay", () => {
     mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 0 }));
     render(<TutorialOverlay />);
     expect(screen.getByText("Welcome to Guest Mode")).toBeInTheDocument();
+  });
+
+  it("shows the member-variant welcome copy when reopened by an authenticated (non-guest) member", () => {
+    mockUseGuestMode.mockReturnValue({ isGuestMode: false });
+    mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 0 }));
+    render(<TutorialOverlay />);
+    expect(screen.getByText("Welcome Back")).toBeInTheDocument();
+    expect(screen.queryByText("Welcome to Guest Mode")).not.toBeInTheDocument();
+  });
+
+  it("shows a Done button instead of Sign In/Register on the CTA step when reopened by a member", () => {
+    mockUseGuestMode.mockReturnValue({ isGuestMode: false });
+    mockUseTutorial.mockReturnValue(baseTutorialCtx({ tutorialStep: 3 }));
+    render(<TutorialOverlay />);
+    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.queryByText("Sign In")).not.toBeInTheDocument();
+    expect(screen.queryByText("Register")).not.toBeInTheDocument();
   });
 });

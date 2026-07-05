@@ -48,7 +48,7 @@ export function useTutorialTarget(targetId: string | undefined): DOMRect | null 
     let rafId: number | undefined;
     let cleanupTracking: (() => void) | undefined;
     let cancelled = false;
-    const start = Date.now();
+    let start = Date.now();
 
     function trackElement(el: Element) {
       const update = () => setRect(el.getBoundingClientRect());
@@ -85,6 +85,7 @@ export function useTutorialTarget(targetId: string | undefined): DOMRect | null 
         if (!el.isConnected) {
           cleanupTracking?.();
           cleanupTracking = undefined;
+          start = Date.now();
           tryFind();
         }
       });

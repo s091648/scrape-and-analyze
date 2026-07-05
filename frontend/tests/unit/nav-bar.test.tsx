@@ -362,4 +362,58 @@ describe("NavBar — mobile menu (RWD)", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.getByLabelText("Open menu")).toBeInTheDocument();
   });
+
+  it("does not close the mobile menu when clicking inside the panel", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    const articleLinks = screen.getAllByText("nav.articles");
+    fireEvent.mouseDown(articleLinks[articleLinks.length - 1]);
+    expect(screen.getByLabelText("Close menu")).toBeInTheDocument();
+  });
+
+  it("cycles theme from the mobile menu's theme button", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    const themeButtons = screen.getAllByText("theme.auto");
+    fireEvent.click(themeButtons[themeButtons.length - 1]);
+    expect(mockCycleMode).toHaveBeenCalledOnce();
+  });
+
+  it("renders topics in the mobile menu and selects one on click", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    const mlButtons = screen.getAllByText("ML");
+    fireEvent.click(mlButtons[mlButtons.length - 1]);
+    expect(mockSetSelectedTopicId).toHaveBeenCalledWith("t2");
+  });
+
+  it("renders GitHub and docs links in the mobile menu", () => {
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    expect(screen.getAllByText("nav.github").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("nav.specDocs").length).toBeGreaterThan(0);
+  });
+
+  it("shows the reopen-tutorial entry in the mobile menu for guests, and closes the menu when clicked", () => {
+    mockUseGuestMode.mockReturnValue({ isGuestMode: true });
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    const reopenButtons = screen.getAllByText("tutorial.reopenLabel");
+    fireEvent.click(reopenButtons[reopenButtons.length - 1]);
+    expect(mockOpenTutorial).toHaveBeenCalledOnce();
+    expect(mockPush).toHaveBeenCalledWith("/");
+    expect(screen.getByLabelText("Open menu")).toBeInTheDocument();
+  });
+
+  it("shows settings link and logout button in the mobile menu when authenticated", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "Alice" }, accessToken: "tok" },
+    });
+    render(<NavBar />);
+    fireEvent.click(screen.getByLabelText("Open menu"));
+    expect(screen.getAllByText("nav.settings").length).toBeGreaterThan(0);
+    const logoutButtons = screen.getAllByText("nav.logout");
+    fireEvent.click(logoutButtons[logoutButtons.length - 1]);
+    expect(mockSignOut).toHaveBeenCalled();
+  });
 });
