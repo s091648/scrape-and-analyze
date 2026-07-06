@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { mockApiRoutes } from './fixtures/api-handlers'
+import { mockApiRoutes, dismissFeatureSpotlights } from './fixtures/api-handlers'
 
 test.describe('Article detail dialog', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await mockApiRoutes(page)
   })
 

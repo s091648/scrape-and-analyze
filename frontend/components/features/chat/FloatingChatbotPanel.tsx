@@ -455,6 +455,7 @@ export function FloatingChatbotPanel({
       )}
 
       <button
+        id="tutorial-target-chat-toggle"
         onClick={() => onOpenChange(!open)}
         className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors cursor-pointer"
         aria-label={open ? t('rag.closeChat') : t('rag.openChat')}

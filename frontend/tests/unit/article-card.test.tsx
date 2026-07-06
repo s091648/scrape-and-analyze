@@ -47,6 +47,13 @@ vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ locale: 'en', t: (key: string) => key }),
   useTopic: () => ({ selectedTopicId: 'topic-1', topics: [], selectedTopic: null }),
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
+  usePinnedArticle: () => ({
+    pinnedArticles: [],
+    togglePinnedArticle: vi.fn(),
+    removePinnedArticle: vi.fn(),
+    clearPinnedArticles: vi.fn(),
+    isPinned: () => false,
+  }),
 }))
 
 describe('ArticleCard', () => {
@@ -150,5 +157,17 @@ describe('ArticleCard', () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
     render(<ArticleCard {...fixture} />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('sets tutorial target id on the pin button when isFirstTutorialTarget and has_vectors', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} has_vectors isFirstTutorialTarget />)
+    expect(container.querySelector('#tutorial-target-chat-pin')).toBeInTheDocument()
+  })
+
+  it('does not set tutorial target id on the pin button when isFirstTutorialTarget is false', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} has_vectors />)
+    expect(container.querySelector('#tutorial-target-chat-pin')).not.toBeInTheDocument()
   })
 })

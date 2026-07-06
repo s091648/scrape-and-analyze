@@ -48,7 +48,7 @@ export default function ArticleSharePage() {
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <Rss className="h-4 w-4" />
-          Scrape Analyzer
+          Article Analyzer
         </Link>
         {showPrompt && (
           <Link

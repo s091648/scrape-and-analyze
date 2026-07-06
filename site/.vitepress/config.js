@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Scrape Analyzer',
+  title: 'Article Analyzer',
   description: 'Speckit SDD specification documentation',
   base: process.env.VITEPRESS_BASE || '/',
   ignoreDeadLinks: [/localhost/, /^\.?\/?research\/?$/],
@@ -175,6 +175,17 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/013-dark-mode-toggle/spec' },
           { text: 'Plan', link: '/specs/013-dark-mode-toggle/plan' },
           { text: 'Tasks', link: '/specs/013-dark-mode-toggle/tasks' },
+        ],
+      },
+      {
+        text: '015 · Guest Tutorial Mode',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/015-guest-tutorial-mode/spec' },
+          { text: 'Plan', link: '/specs/015-guest-tutorial-mode/plan' },
+          { text: 'Data Model', link: '/specs/015-guest-tutorial-mode/data-model' },
+          { text: 'Tasks', link: '/specs/015-guest-tutorial-mode/tasks' },
+          { text: 'Contract: Ui', link: '/specs/015-guest-tutorial-mode/contracts/ui-contract' },
         ],
       },
     ],

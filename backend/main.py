@@ -22,7 +22,7 @@ from backend.routers.chat import router as chat_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 
-app = FastAPI(title="Scrape Analyzer API", version="1.0.0")
+app = FastAPI(title="Article Analyzer API", version="1.0.0")
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
