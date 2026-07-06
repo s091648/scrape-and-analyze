@@ -1,12 +1,9 @@
 import re
-import requests
 from datetime import datetime, timezone
 
 from src.modules.collection.application.events import PipelineCompletedEvent
 from .base_notifier import BaseNotifier
-from src.shared.logging import get_logger
-
-logger = get_logger(__name__)
+from .telegram_client import send_telegram_message
 
 
 def _esc(s: str) -> str:
@@ -23,18 +20,7 @@ class TelegramNotifier(BaseNotifier):
     def notify(self, event: PipelineCompletedEvent) -> None:
         """Format and send the pipeline result as a MarkdownV2 Telegram message."""
         text = self._format_message(event)
-        response = requests.post(
-            f"https://api.telegram.org/bot{self._token}/sendMessage",
-            json={"chat_id": self._chat_id, "text": text, "parse_mode": "MarkdownV2"},
-            timeout=10,
-        )
-        if not response.ok:
-            logger.error(
-                "telegram_send_failed",
-                status_code=response.status_code,
-                response_body=response.text[:500],
-            )
-        response.raise_for_status()
+        send_telegram_message(self._token, self._chat_id, text, parse_mode="MarkdownV2")
 
     def _format_message(self, event: PipelineCompletedEvent) -> str:
         """Build a MarkdownV2-formatted summary table from pipeline completion stats."""

@@ -8,7 +8,7 @@
 	backfill-suggestions backfill-suggestions-dry-run \
 	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
 	data-migrate data-migrate-list data-migrate-down \
-	create-admin scrape translate translate-remote run retry-failed retry-failed-remote \
+	create-admin scrape translate translate-remote run weekly-report retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
@@ -169,6 +169,18 @@ translate-remote:
 
 run:
 	docker compose run --rm app python -m src.entrypoints.cli.main
+
+# Generate weekly article summary report(s).
+# Usage:
+#   make weekly-report
+#   make weekly-report TOPIC_ID=<uuid>
+#   make weekly-report TOPIC_ID=<uuid> WEEK_START=2025-01-06
+TOPIC_ID ?=
+WEEK_START ?=
+_WEEKLY_ARGS := $(if $(TOPIC_ID),--topic-id $(TOPIC_ID),) $(if $(WEEK_START),--week-start $(WEEK_START),)
+
+weekly-report:
+	docker compose run --rm job_service python -m src.entrypoints.cli.weekly_report $(_WEEKLY_ARGS)
 
 # optional: override with HOURS=48 LIMIT=20
 _RETRY_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(HOURS),--hours $(HOURS),)

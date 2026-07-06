@@ -12,7 +12,7 @@ def test_notify_posts_to_telegram():
     from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event()
 
-    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+    with patch("src.infrastructure.shared.notifications.telegram_client.requests.post") as mock_post:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_post.return_value = mock_response
@@ -30,7 +30,7 @@ def test_notify_message_contains_source_name():
     from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event(source="my_rss_feed")
 
-    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+    with patch("src.infrastructure.shared.notifications.telegram_client.requests.post") as mock_post:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_post.return_value = mock_response
@@ -46,7 +46,7 @@ def test_notify_with_empty_stats_sends_message():
     from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = PipelineCompletedEvent(stats=[], duration_seconds=0.5)
 
-    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+    with patch("src.infrastructure.shared.notifications.telegram_client.requests.post") as mock_post:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_post.return_value = mock_response
@@ -61,7 +61,7 @@ def test_notify_posts_to_correct_url():
     """POST URL must match https://api.telegram.org/bot{token}/sendMessage."""
     from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event()
-    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+    with patch("src.infrastructure.shared.notifications.telegram_client.requests.post") as mock_post:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_post.return_value = mock_response
@@ -75,7 +75,7 @@ def test_notify_sends_markdownv2():
     """POST payload must include parse_mode='MarkdownV2'."""
     from src.infrastructure.shared.notifications.telegram import TelegramNotifier
     event = _make_event()
-    with patch("src.infrastructure.shared.notifications.telegram.requests.post") as mock_post:
+    with patch("src.infrastructure.shared.notifications.telegram_client.requests.post") as mock_post:
         mock_response = MagicMock()
         mock_response.ok = True
         mock_post.return_value = mock_response

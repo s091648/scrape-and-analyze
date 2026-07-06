@@ -1,12 +1,19 @@
 # Worker service (scraper/analyzer cron jobs)
 # Railway Root Directory: / (repo root)
 # Railway Dashboard must set per-service overrides:
-#   worker  → Dockerfile Path: src/Dockerfile
-#             Start Command:   (empty — use Dockerfile CMD: python -m src.main)
-#             Restart Policy:  never
-#   backend → Dockerfile Path: backend/Dockerfile
-#             Start Command:   (empty — use Dockerfile CMD)
-#             Restart Policy:  on_failure
+#   worker         → Dockerfile Path: src/Dockerfile
+#                    Start Command:   (empty — use Dockerfile CMD: python -m src.main)
+#                    Restart Policy:  never
+#   weekly-report  → Config File Path: src/railway.toml (reuses this same build)
+#                    Start Command:   python -m src.entrypoints.cli.weekly_report
+#                    Cron Schedule:   0 8 * * 1  (every Monday, 08:00 UTC)
+#                    Restart Policy:  never
+#                    No arguments needed — --topic-id / --week-start are for manual
+#                    local runs only; the cron invocation defaults to all active
+#                    topics and last week's Monday.
+#   backend        → Dockerfile Path: backend/Dockerfile
+#                    Start Command:   (empty — use Dockerfile CMD)
+#                    Restart Policy:  on_failure
 
 [build]
 builder = "dockerfile"

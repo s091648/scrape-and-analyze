@@ -1,9 +1,12 @@
 import os
-import requests
 from typing import Optional
 from uuid import UUID
 
+from src.infrastructure.shared.notifications.telegram_client import send_telegram_message
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
+from src.modules.intelligence.domain.value_objects.weekly_report_notification_content import (
+    build_weekly_report_notification_content,
+)
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,20 +36,17 @@ class WeeklyReportTelegramNotifier:
         )
 
         for sub, settings in subs:
-            chat_id = settings.telegram_chat_id
+            content = build_weekly_report_notification_content(
+                report, locale=settings.locale or "en", site_url=self._site_url
+            )
             message = (
                 f"📊 *Weekly Report Ready*\n\n"
-                f"*{report.title}*\n\n"
-                f"{report.summary_text[:300]}...\n\n"
-                f"[{('查看完整報告' if settings.locale == 'zh-TW' else 'View Full Report')}]({self._site_url})"
+                f"*{content.title}*\n\n"
+                f"{content.summary_excerpt}...\n\n"
+                f"[{content.cta_label}]({content.cta_url})"
             )
             try:
-                response = requests.post(
-                    f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
-                    json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
-                    timeout=10,
-                )
-                response.raise_for_status()
+                send_telegram_message(self._bot_token, settings.telegram_chat_id, message, parse_mode="Markdown")
                 logger.info("weekly_report_telegram_sent", user_id=str(sub.user_id))
             except Exception as e:
                 logger.warning("weekly_report_telegram_send_failed", user_id=str(sub.user_id), error=str(e))
