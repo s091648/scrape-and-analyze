@@ -381,7 +381,12 @@ class ScrapeExecutor:
                 claimed_idx = self._try_claim(host_queue_map)
 
                 if claimed_idx is None:
-                    if done_flag[0] and all(q.empty() for q in host_queue_map.queues):
+                    if done_flag[0]:
+                        final_idx = self._try_claim(host_queue_map)
+                        if final_idx is not None:
+                            host_queue_map.semaphores[final_idx].release()
+                            time.sleep(0.01)
+                            continue
                         break
                     time.sleep(0.05)
                     continue
@@ -447,10 +452,14 @@ class ScrapeExecutor:
 
             if claimed_idx is None:
                 with pending_lock:
-                    if pending_discovers[0] <= 0 and all(
-                        q.empty() for q in host_queue_map.queues
-                    ):
-                        break
+                    all_done = pending_discovers[0] <= 0
+                if all_done:
+                    final_idx = self._try_claim(host_queue_map)
+                    if final_idx is not None:
+                        host_queue_map.semaphores[final_idx].release()
+                        time.sleep(0.01)
+                        continue
+                    break
                 time.sleep(0.05)
                 continue
 
@@ -555,10 +564,14 @@ class ScrapeExecutor:
 
             if claimed_idx is None:
                 with pending_lock:
-                    if pending_discovers[0] <= 0 and all(
-                        q.empty() for q in host_queue_map.queues
-                    ):
-                        break
+                    all_done = pending_discovers[0] <= 0
+                if all_done:
+                    final_idx = self._try_claim(host_queue_map)
+                    if final_idx is not None:
+                        host_queue_map.semaphores[final_idx].release()
+                        time.sleep(0.01)
+                        continue
+                    break
                 time.sleep(0.05)
                 continue
 

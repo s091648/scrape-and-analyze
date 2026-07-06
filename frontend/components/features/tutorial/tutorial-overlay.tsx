@@ -200,6 +200,7 @@ export function TutorialOverlay() {
           <PopoverAnchor virtualRef={virtualAnchorRef} />
           <PopoverContent
             className="z-[110] w-80"
+            align={isCtaStep ? "end" : "center"}
             aria-labelledby="tutorial-card-title"
             aria-describedby="tutorial-card-description"
             onInteractOutside={(e) => e.preventDefault()}
