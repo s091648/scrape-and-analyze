@@ -104,8 +104,9 @@ def upgrade():
     op.create_index('idx_user_article_favs_user_id', 'user_article_favorites', ['user_id'])
     op.create_index('idx_user_article_favs_article_id', 'user_article_favorites', ['article_id'])
 
-    # --- llm_providers: add type column + CheckConstraint ---
-    op.add_column('llm_providers', sa.Column('type', sa.String(20), nullable=False, server_default=sa.text("'llm'")))
+    # --- llm_providers: widen type CheckConstraint to include 'multimodal' ---
+    # NOTE: the `type` column itself was already added in migration 17
+    # (17_add_vector_failed_task_and_auto_tag.py) — do not re-add it here.
     op.create_check_constraint(
         'ck_llm_provider_type',
         'llm_providers',
@@ -114,9 +115,8 @@ def upgrade():
 
 
 def downgrade():
-    # Reverse llm_providers changes
+    # Reverse llm_providers changes (column itself belongs to migration 17, not touched here)
     op.drop_constraint('ck_llm_provider_type', 'llm_providers', type_='check')
-    op.drop_column('llm_providers', 'type')
 
     # Drop user_article_favorites
     op.drop_index('idx_user_article_favs_article_id', table_name='user_article_favorites')

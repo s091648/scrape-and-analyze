@@ -19,7 +19,7 @@ ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
 
 ARG RAG_DENSE_PROVIDER=gemini
 ARG RAG_DENSE_MODEL=gemini-embedding-001
-ARG RAG_SPARSE_PROVIDER=local
+ARG RAG_SPARSE_PROVIDER=endpoint
 ARG RAG_SPARSE_MODEL=prithivida/Splade_PP_en_v1
 
 RUN set -eu; \

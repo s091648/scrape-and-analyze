@@ -25,5 +25,5 @@ class LlmProvider(Base):
 
     __table_args__ = (
         CheckConstraint("type IN ('llm', 'embedding', 'multimodal')", name='ck_llm_provider_type'),
-        UniqueConstraint('priority', name='uq_llm_providers_priority', deferrable=True, initially='deferred'),
+        UniqueConstraint('priority', 'type', name='uq_llm_providers_priority_type', deferrable=True, initially='deferred'),
     )

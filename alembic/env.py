@@ -4,13 +4,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
+import models  # noqa: F401 — imports every model so Base.metadata is complete for autogenerate/check
 from models.base import Base
-from models.article import Article  # noqa: F401 — registers Article
-from models.analysis import Analysis  # noqa: F401 — registers Analysis
-from models.analyses_translation import AnalysesTranslation  # noqa: F401 — registers AnalysesTranslation
-from models.tag_translation import TagsTranslation  # noqa: F401 — registers TagsTranslation
-from models.tag_group_translation import TagGroupDefinitionsTranslation  # noqa: F401 — registers TagGroupDefinitionsTranslation
-from models.failed_task import FailedTask  # noqa: F401 — registers FailedTask
 
 config = context.config
 if config.config_file_name is not None:

@@ -34,6 +34,7 @@ jobs:
           ref: master
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT }}
+          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
