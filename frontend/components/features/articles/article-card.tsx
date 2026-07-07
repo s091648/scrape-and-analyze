@@ -27,8 +27,9 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const isAuthenticated = status === 'authenticated'
+  const token = (session as any)?.accessToken
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen! : internalOpen
@@ -46,8 +47,8 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
     const next = !favorited
     setFavorited(next)
     try {
-      if (next) await addFavorite(id)
-      else await removeFavorite(id)
+      if (next) await addFavorite(id, token)
+      else await removeFavorite(id, token)
     } catch {
       setFavorited(!next)
     }

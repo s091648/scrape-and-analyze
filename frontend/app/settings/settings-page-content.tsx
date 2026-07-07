@@ -114,8 +114,8 @@ export default function SettingsPageContent() {
     if (!token) return
     void Promise.allSettled([
       fetchTopics().then(setTopics),
-      fetchSubscriptions().then(d => setSubscribedTopicIds(new Set(d.topic_ids))),
-      fetchNotificationSettings().then(setNotifSettings),
+      fetchSubscriptions(token).then(d => setSubscribedTopicIds(new Set(d.topic_ids))),
+      fetchNotificationSettings(token).then(setNotifSettings),
     ])
   }, [token])
 
@@ -123,10 +123,10 @@ export default function SettingsPageContent() {
     setSubLoading(topicId)
     try {
       if (subscribedTopicIds.has(topicId)) {
-        await unsubscribeTopic(topicId)
+        await unsubscribeTopic(topicId, token)
         setSubscribedTopicIds(prev => { const s = new Set(prev); s.delete(topicId); return s })
       } else {
-        await subscribeToTopic(topicId)
+        await subscribeToTopic(topicId, token)
         setSubscribedTopicIds(prev => new Set([...prev, topicId]))
       }
     } finally {
@@ -138,7 +138,7 @@ export default function SettingsPageContent() {
     setNotifSaving(true)
     setNotifMsg(null)
     try {
-      const updated = await updateNotificationSettings(notifSettings)
+      const updated = await updateNotificationSettings(notifSettings, token)
       setNotifSettings(updated)
       setNotifMsg('Saved')
     } catch {
