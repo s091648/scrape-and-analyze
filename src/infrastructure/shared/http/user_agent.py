@@ -10,11 +10,12 @@ Usage:
 For APIs that require a descriptive bot UA (e.g. arXiv API TOS), use:
     ua = get_api_bot_ua()
 """
-import os
 import random
 import threading
 
-_CONTACT_EMAIL: str = os.environ.get("CONTACT_EMAIL", "contact@example.com")
+from src.config.settings import CONTACT_EMAIL
+
+_CONTACT_EMAIL: str = CONTACT_EMAIL
 
 # Descriptive bot UA for APIs that require/recommend identified crawlers.
 # arXiv API TOS: https://info.arxiv.org/help/api/tou.html

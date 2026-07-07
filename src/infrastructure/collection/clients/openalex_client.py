@@ -5,6 +5,7 @@ from typing import List, Optional
 
 import requests
 
+from src.config.settings import OPENALEX_MAILTO
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -140,7 +141,7 @@ class OpenAlexClient:
     """
 
     def __init__(self, mailto: Optional[str] = None, http_client=None) -> None:
-        self._mailto = mailto or os.environ.get("OPENALEX_MAILTO", "")
+        self._mailto = mailto or OPENALEX_MAILTO
         if http_client is None:
             from src.infrastructure.shared.http import get_default_client
             http_client = get_default_client()

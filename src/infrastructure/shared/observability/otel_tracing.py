@@ -9,14 +9,20 @@ To swap backends (e.g. Jaeger, Zipkin):
   2. No other file needs to change.
 """
 import base64
-import os
+
+from src.config.settings import (
+    APP_ENV,
+    GRAFANA_API_KEY,
+    GRAFANA_OTLP_ENDPOINT,
+    GRAFANA_OTLP_USER,
+)
 
 
 def _setup_tracing():
     """Initialize OTel tracing with Grafana Cloud OTLP exporter if env vars are present."""
-    user = os.environ.get("GRAFANA_OTLP_USER", "").strip()
-    api_key = os.environ.get("GRAFANA_API_KEY", "").strip()
-    endpoint = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()
+    user = GRAFANA_OTLP_USER
+    api_key = GRAFANA_API_KEY
+    endpoint = GRAFANA_OTLP_ENDPOINT
 
     if not all([user, api_key, endpoint]):
         missing = [
@@ -42,7 +48,7 @@ def _setup_tracing():
         encoded_auth = base64.b64encode(auth_str.encode()).decode()
 
         from shared.enums.observability import SERVICE_NAME, ResourceLabel
-        app_env = os.environ.get("APP_ENV", "local").strip()
+        app_env = APP_ENV.strip()
         resource = Resource.create({
             ResourceLabel.SERVICE_NAME: SERVICE_NAME,
             ResourceLabel.DEPLOYMENT_ENVIRONMENT: app_env,

@@ -11,10 +11,9 @@ All domain/application logic lives in src/app/ and src/ingestion/.
 """
 import time
 import signal
-import os
 import random
 
-from src.config.settings import SENTRY_DSN, validate_config
+from src.config.settings import APP_ENV, RUN_IMMEDIATELY, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
@@ -59,8 +58,8 @@ def main() -> None:
     configure_logging()
 
     # Randomise start time to avoid hitting arXiv at the top of the hour
-    # alongside other cron jobs. Skipped when RUN_IMMEDIATELY=1 (manual triggers).
-    if not os.environ.get("RUN_IMMEDIATELY"):
+    # alongside other cron jobs. Skipped when RUN_IMMEDIATELY is set (manual triggers).
+    if not RUN_IMMEDIATELY:
         _jitter = random.uniform(0, 180)  # 0–3 minutes
         logger.info("startup_jitter_sleep", seconds=round(_jitter))
         time.sleep(_jitter)
@@ -73,7 +72,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    env = os.environ.get("APP_ENV", "local")
+    env = APP_ENV
     logger.info("execution_started", run_id=run_id, correlation_id=correlation_id, env=env)
 
     start_time = time.time()

@@ -1,7 +1,7 @@
-import os
 from typing import Optional
 from uuid import UUID
 
+from src.config.settings import FRONTEND_ORIGIN
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.shared.logging import get_logger
 
@@ -41,7 +41,7 @@ class WeeklyReportEmailNotifier:
         self._session = session
         self._api_key = api_key
         self._from_email = from_email
-        self._site_url = site_url or os.environ.get("FRONTEND_ORIGIN", "https://example.com")
+        self._site_url = site_url or FRONTEND_ORIGIN
 
     def notify(self, report: WeeklyReport, topic_id: Optional[UUID] = None) -> None:
         import resend

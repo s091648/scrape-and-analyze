@@ -9,7 +9,7 @@ from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.modules.intelligence.domain.repositories.weekly_report_repository import WeeklyReportRepository
 from src.modules.intelligence.domain.services.llm_service import LLMService
 from src.modules.intelligence.domain.services.image_generation_service import ImageGenerationService
-from src.modules.intelligence.domain.services.blob_storage_service import BlobStorageService
+from src.shared.domain.services.blob_storage_service import BlobStorageService
 from src.modules.intelligence.domain.value_objects.weekly_report_prompt import WeeklyReportPrompt
 from src.modules.intelligence.domain.value_objects.image_generation_prompt import ImageGenerationPrompt
 from src.shared.logging import get_logger

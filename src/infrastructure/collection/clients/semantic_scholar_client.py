@@ -8,13 +8,13 @@ Those decisions stay in SemanticScholarScraper (ingestion bounded context).
 Accepts an HttpClient so rate limiting, retry, and single-connection
 semaphore are handled transparently by the shared infrastructure.
 """
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import requests
 
+from src.config.settings import SEMANTIC_SCHOLAR_API_KEY
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +57,7 @@ class SemanticScholarClient:
     """
 
     def __init__(self, api_key: Optional[str] = None, http_client=None) -> None:
-        self._api_key = api_key or os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
+        self._api_key = api_key or SEMANTIC_SCHOLAR_API_KEY
         if http_client is None:
             from src.infrastructure.shared.http import get_default_client
             http_client = get_default_client()

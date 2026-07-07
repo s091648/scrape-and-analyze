@@ -1,7 +1,8 @@
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
+
+from src.config.settings import DATABASE_URL
 
 _engine = None
 _SessionLocal = None
@@ -9,10 +10,9 @@ _SessionLocal = None
 
 def create_engine_with_nullpool():
     """Create SQLAlchemy engine with NullPool"""
-    database_url = os.environ.get('DATABASE_URL')
-    if not database_url:
+    if not DATABASE_URL:
         raise ValueError("DATABASE_URL environment variable is required")
-    return create_engine(database_url, poolclass=NullPool)
+    return create_engine(DATABASE_URL, poolclass=NullPool)
 
 
 def get_engine():

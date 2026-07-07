@@ -72,15 +72,28 @@ def test_upload_propagates_s3_error():
             svc.upload(b"data", "key", "image/png")
 
 
-def test_from_env_reads_env_vars(monkeypatch):
-    monkeypatch.setenv("R2_ACCOUNT_ID", "env-id")
-    monkeypatch.setenv("R2_ACCESS_KEY_ID", "env-key")
-    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "env-secret")
-    monkeypatch.setenv("R2_BUCKET_NAME", "env-bucket")
-    monkeypatch.setenv("R2_PUBLIC_URL", "https://env.cdn.example.com")
+def test_from_env_reads_settings(monkeypatch):
+    """from_env() builds the client from settings.R2_* constants."""
+    monkeypatch.setattr("src.config.settings.R2_ACCOUNT_ID", "env-id")
+    monkeypatch.setattr("src.config.settings.R2_ACCESS_KEY_ID", "env-key")
+    monkeypatch.setattr("src.config.settings.R2_SECRET_ACCESS_KEY", "env-secret")
+    monkeypatch.setattr("src.config.settings.R2_BUCKET_NAME", "env-bucket")
+    monkeypatch.setattr("src.config.settings.R2_PUBLIC_URL", "https://env.cdn.example.com")
 
     with patch("boto3.client"):
         svc = R2BlobStorageService.from_env()
 
     assert svc._bucket == "env-bucket"
     assert svc._public_url == "https://env.cdn.example.com"
+
+
+def test_from_env_raises_when_settings_incomplete(monkeypatch):
+    """from_env() raises ValueError listing missing settings when any R2_* is empty."""
+    monkeypatch.setattr("src.config.settings.R2_ACCOUNT_ID", "")
+    monkeypatch.setattr("src.config.settings.R2_ACCESS_KEY_ID", "k")
+    monkeypatch.setattr("src.config.settings.R2_SECRET_ACCESS_KEY", "s")
+    monkeypatch.setattr("src.config.settings.R2_BUCKET_NAME", "b")
+    monkeypatch.setattr("src.config.settings.R2_PUBLIC_URL", "https://x")
+
+    with pytest.raises(ValueError, match="R2_ACCOUNT_ID"):
+        R2BlobStorageService.from_env()

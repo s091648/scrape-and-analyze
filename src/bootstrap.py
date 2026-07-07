@@ -493,12 +493,17 @@ def build_weekly_pipeline():
 
     blob_storage = R2BlobStorageService.from_env()
 
-    resend_key = os.environ.get("RESEND_API_KEY", "")
-    from_email = os.environ.get("RESEND_FROM_EMAIL", "")
+    from src.config.settings import RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN
+    from src.shared.infrastructure.notifications import TelegramNotifierClient
+
+    resend_key = RESEND_API_KEY
+    from_email = RESEND_FROM_EMAIL
     email_notifier = WeeklyReportEmailNotifier(session=session, api_key=resend_key, from_email=from_email) if resend_key else None
 
-    telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    telegram_notifier = WeeklyReportTelegramNotifier(session=session, bot_token=telegram_token) if telegram_token else None
+    telegram_notifier = None
+    if TELEGRAM_BOT_TOKEN:
+        telegram_client = TelegramNotifierClient(bot_token=TELEGRAM_BOT_TOKEN)
+        telegram_notifier = WeeklyReportTelegramNotifier(session=session, notifier=telegram_client)
 
     generate_use_case = GenerateWeeklyReportUseCase(
         report_repo=report_repo,

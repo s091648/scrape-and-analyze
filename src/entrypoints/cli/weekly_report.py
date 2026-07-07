@@ -12,13 +12,12 @@ Architecture:
     - Bootstrap: build_weekly_pipeline() assembles dependencies
 """
 import argparse
-import os
 import signal
 import time
 from datetime import date, timedelta
 from uuid import UUID
 
-from src.config.settings import SENTRY_DSN, validate_config
+from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.observability import init_run_context, get_run_id
@@ -71,7 +70,7 @@ def main() -> None:
     )
     topic_id = UUID(args.topic_id) if args.topic_id else None
 
-    env = os.environ.get("APP_ENV", "local")
+    env = APP_ENV
     logger.info(
         "execution_started",
         run_id=run_id,

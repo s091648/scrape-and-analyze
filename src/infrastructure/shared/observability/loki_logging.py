@@ -18,9 +18,15 @@ In Grafana / Loki, filter SDK records with:
 """
 import json
 import logging
-import os
 import sys
 from datetime import datetime, timezone
+
+from src.config.settings import (
+    APP_ENV,
+    GRAFANA_API_KEY,
+    GRAFANA_LOKI_URL,
+    GRAFANA_LOKI_USER,
+)
 
 
 # --- SDK JSON formatter (reads correlation_id from the ContextVar) ------------------
@@ -76,9 +82,9 @@ def _configure_sdk_logging(loki_handler: logging.Handler | None = None) -> None:
 def configure_loki() -> None:
     """Set up stdout handler and optional Loki handler for the root logger,
     then configure SDK logging separately."""
-    url = os.environ.get("GRAFANA_LOKI_URL")
-    user = os.environ.get("GRAFANA_LOKI_USER")
-    key = os.environ.get("GRAFANA_API_KEY")
+    url = GRAFANA_LOKI_URL
+    user = GRAFANA_LOKI_USER
+    key = GRAFANA_API_KEY
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
@@ -93,7 +99,7 @@ def configure_loki() -> None:
         try:
             from logging_loki import LokiHandler
             from shared.enums.observability import LokiLabel, LokiAppValue
-            app_env = os.environ.get("APP_ENV", "local").strip()
+            app_env = APP_ENV.strip()
             loki_handler = LokiHandler(
                 url=f"{url.rstrip('/')}/push",
                 auth=(user, key),
