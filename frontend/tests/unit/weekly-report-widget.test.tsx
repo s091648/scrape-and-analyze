@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
 const mockReport = {
   id: 'report-1',
@@ -16,10 +16,6 @@ const mockReport = {
 vi.mock('@/lib/api/weekly-reports', () => ({
   fetchLatestWeeklyReport: vi.fn(),
   fetchWeeklyReports: vi.fn(),
-}))
-
-vi.mock('@/components/ui/native-select', () => ({
-  NativeSelect: ({ children, ...props }: any) => <select {...props}>{children}</select>,
 }))
 
 import { fetchLatestWeeklyReport, fetchWeeklyReports } from '@/lib/api/weekly-reports'
@@ -71,7 +67,7 @@ describe('WeeklyReportWidget', () => {
     })
   })
 
-  it('renders week navigation dropdown when multiple reports exist', async () => {
+  it('renders week stepper when multiple reports exist', async () => {
     const report2 = { ...mockReport, id: 'report-2', week_start_date: '2026-06-09', title: 'Previous Week' }
     vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
@@ -80,11 +76,12 @@ describe('WeeklyReportWidget', () => {
     render(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox')).toBeInTheDocument()
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
+      expect(screen.getAllByRole('option')).toHaveLength(2)
     })
   })
 
-  it('does not render dropdown when only one report', async () => {
+  it('does not render stepper when only one report', async () => {
     vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
@@ -92,7 +89,27 @@ describe('WeeklyReportWidget', () => {
     render(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
-      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
+  })
+
+  it('selecting a different week option updates the displayed report', async () => {
+    const report2 = { ...mockReport, id: 'report-2', week_start_date: '2026-06-09', title: 'Previous Week' }
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+    })
+
+    const options = screen.getAllByRole('option')
+    fireEvent.click(options[1])
+
+    await waitFor(() => {
+      expect(screen.getByText('Previous Week')).toBeInTheDocument()
     })
   })
 })

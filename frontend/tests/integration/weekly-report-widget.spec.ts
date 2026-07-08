@@ -66,14 +66,13 @@ test.describe('WeeklyReportWidget', () => {
     await expect(page.getByText(/no report for this week yet/i)).toBeVisible({ timeout: 10000 })
   })
 
-  test('week navigation dropdown appears when multiple reports exist', async ({ page }) => {
+  test('week stepper appears when multiple reports exist', async ({ page }) => {
     await mockBaseRoutes(page)
     await mockWeeklyReportRoutes(page, [mockReport1, mockReport2])
 
     await page.goto('/')
-    // The week select dropdown should appear
-    const select = page.locator('select').filter({ hasText: /jun/i })
-    await expect(select).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('listbox', { name: /select report week/i })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('option')).toHaveCount(2)
   })
 
   test('selecting a different week updates the displayed report', async ({ page }) => {
@@ -83,9 +82,20 @@ test.describe('WeeklyReportWidget', () => {
     await page.goto('/')
     await expect(page.getByText('AI Weekly: Multimodal Breakthroughs')).toBeVisible({ timeout: 10000 })
 
-    // Select the second report from dropdown
-    const select = page.getByRole('combobox').last()
-    await select.selectOption('report-002')
+    // Select the second report from the week stepper
+    await page.getByRole('option').last().click()
     await expect(page.getByText('AI Weekly: LLM Efficiency')).toBeVisible()
+  })
+
+  test('clicking the report panel opens the detail dialog', async ({ page }) => {
+    await mockBaseRoutes(page)
+    await mockWeeklyReportRoutes(page, [mockReport1])
+
+    await page.goto('/')
+    await expect(page.getByText('AI Weekly: Multimodal Breakthroughs')).toBeVisible({ timeout: 10000 })
+
+    await page.getByText('AI Weekly: Multimodal Breakthroughs').click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('Major advances in multimodal AI this week.')).toBeVisible()
   })
 })

@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
-import { NativeSelect } from '@/components/ui/native-select'
+import { AnimatePresence, motion } from 'framer-motion'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
+import { WeeklyReportStepper } from './weekly-report-stepper'
+import { WeeklyReportDetailDialog } from './weekly-report-detail-dialog'
 import { fetchLatestWeeklyReport, fetchWeeklyReports, type WeeklyReport } from '@/lib/api/weekly-reports'
 
 interface WeeklyReportWidgetProps {
@@ -13,6 +15,7 @@ export function WeeklyReportWidget({ topicId, children }: WeeklyReportWidgetProp
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!topicId) return
@@ -60,47 +63,57 @@ export function WeeklyReportWidget({ topicId, children }: WeeklyReportWidgetProp
         />
       )}
 
-      <div className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-6 px-4 py-8">
+      <div className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6">
         {children && (
-          <div className="w-full max-w-2xl rounded-2xl bg-white/40 backdrop-blur-sm p-3">{children}</div>
+          <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">{children}</div>
         )}
 
-        <div className="w-full max-w-2xl">
+        <div className="w-[80%] max-w-6xl h-[78%]">
           {loading ? (
             <WeeklyReportSkeleton />
           ) : selected ? (
-            <div className="rounded-xl bg-white/70 backdrop-blur-md shadow-sm p-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600">
-                  {new Date(selected.week_start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                </p>
-                {reports.length > 1 && (
-                  <NativeSelect
-                    size="sm"
-                    value={selectedId ?? ''}
-                    onChange={e => setSelectedId(e.target.value)}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setDialogOpen(true)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setDialogOpen(true) }}
+              className="flex h-full rounded-2xl bg-white/70 backdrop-blur-md shadow-sm p-4 cursor-pointer overflow-hidden"
+              style={{ perspective: 1200 }}
+            >
+              <WeeklyReportStepper reports={reports} selectedId={selectedId} onSelect={setSelectedId} />
+
+              <div className="flex-1 min-w-0 pl-4 overflow-hidden relative">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={selected.id}
+                    initial={{ rotateY: -90, opacity: 0 }}
+                    animate={{ rotateY: 0, opacity: 1 }}
+                    exit={{ rotateY: 90, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: 'easeInOut' }}
+                    style={{ transformOrigin: 'left center', backfaceVisibility: 'hidden' }}
+                    className="h-full overflow-y-auto"
                   >
-                    {reports.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {new Date(r.week_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                )}
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600 mb-1">
+                      {new Date(selected.week_start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    <h3 className="text-lg font-bold leading-snug mb-2 text-neutral-900">{selected.title}</h3>
+                    <p className="text-sm text-neutral-700 leading-relaxed">
+                      {selected.summary_text}
+                    </p>
+                    <p className="text-xs text-neutral-600 mt-3">{selected.article_count} articles</p>
+                  </motion.div>
+                </AnimatePresence>
               </div>
-              <h3 className="text-base font-bold leading-snug mb-2 text-neutral-900">{selected.title}</h3>
-              <p className="text-xs text-neutral-700 leading-relaxed line-clamp-3">
-                {selected.summary_text}
-              </p>
-              <p className="text-xs text-neutral-600 mt-2">{selected.article_count} articles</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-white/60 p-6 text-center bg-white/70 backdrop-blur-md">
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/60 text-center bg-white/70 backdrop-blur-md">
               <p className="text-sm text-neutral-700">No report for this week yet.</p>
             </div>
           )}
         </div>
       </div>
+
+      <WeeklyReportDetailDialog open={dialogOpen} onOpenChange={setDialogOpen} report={selected} />
     </section>
   )
 }
