@@ -8,9 +8,10 @@ import { useTopic } from '@/lib/providers'
 function HomeContent() {
   const { selectedTopicId } = useTopic()
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 w-full max-w-2xl mx-auto">
-      <WeeklyReportWidget topicId={selectedTopicId} />
-      <InlineQABarWrapper className="w-full" />
+    <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-2xl mx-auto">
+      <WeeklyReportWidget topicId={selectedTopicId}>
+        <InlineQABarWrapper className="w-full" />
+      </WeeklyReportWidget>
     </div>
   )
 }

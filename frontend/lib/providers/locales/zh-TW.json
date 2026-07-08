@@ -301,6 +301,7 @@
     "providerType": "類型",
     "type_llm": "LLM",
     "type_embedding": "Embedding",
+    "type_multimodal": "多模態",
     "logColumnTime": "時間",
     "logColumnLevel": "等級",
     "logColumnEnvironment": "環境",
