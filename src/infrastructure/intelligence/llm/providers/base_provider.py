@@ -7,7 +7,7 @@ import tenacity
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.intelligence.domain.value_objects.analysis_tag_group import AnalysisTagGroup
-from src.modules.intelligence.domain.services import LLMService
+from src.modules.intelligence.domain.services import LLMService, TextGenerationService
 from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
 
 logger = get_logger(__name__)
@@ -46,7 +46,7 @@ def _is_translate_retryable(exc: BaseException) -> bool:
     return not isinstance(exc, _TRANSLATE_NON_RETRYABLE)
 
 
-class BaseProvider(LLMService, ABC):
+class BaseProvider(LLMService, TextGenerationService, ABC):
     """
     Infrastructure base for all LLM providers.
 
@@ -159,6 +159,27 @@ class BaseProvider(LLMService, ABC):
 
         if not text.strip():
             logger.warning("provider_translate_empty", model=self._model)
+            return None
+
+        return text
+
+    def generate(
+        self,
+        prompt: str,
+    ) -> Optional[str]:
+        """Run a one-shot generation task via the LLM raw-text endpoint with retry and empty-check."""
+        try:
+            for attempt in self._translate_retry:
+                with attempt:
+                    text = self._call_api_raw("", prompt)
+        except RateLimitExhausted:
+            raise
+        except Exception as e:
+            logger.warning("provider_generate_failed", model=self._model, error=str(e))
+            return None
+
+        if not text.strip():
+            logger.warning("provider_generate_empty", model=self._model)
             return None
 
         return text

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.modules.intelligence.domain.repositories.weekly_report_repository import WeeklyReportRepository
-from src.modules.intelligence.domain.services.llm_service import LLMService
+from src.modules.intelligence.domain.services.text_generation_service import TextGenerationService
 from src.modules.intelligence.domain.services.image_generation_service import ImageGenerationService
 from src.shared.domain.services.blob_storage_service import BlobStorageService
 from src.modules.intelligence.domain.value_objects.weekly_report_prompt import WeeklyReportPrompt
@@ -21,7 +21,7 @@ class GenerateWeeklyReportUseCase:
     def __init__(
         self,
         report_repo: WeeklyReportRepository,
-        llm_service: LLMService,
+        llm_service: TextGenerationService,
         image_service: ImageGenerationService,
         blob_storage: BlobStorageService,
         email_notifier=None,
@@ -63,7 +63,7 @@ class GenerateWeeklyReportUseCase:
         )
 
         try:
-            llm_response = self._llm.analyze(prompt.content)
+            llm_response = self._llm.generate(prompt.content)
             parsed = json.loads(llm_response)
             title = parsed.get("title", f"{topic_name} Weekly Report")
             summary_text = parsed.get("summary_text", "")

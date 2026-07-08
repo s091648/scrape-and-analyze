@@ -15,10 +15,28 @@ class GeminiImagenProvider(ImageGenerationService, BaseImageProvider):
         from google.genai import types as genai_types
 
         client = genai.Client(api_key=self._api_key)
-        response = client.models.generate_images(
-            model=self._model,
-            prompt=prompt,
-            config=genai_types.GenerateImagesConfig(number_of_images=1),
-        )
-        image = response.generated_images[0]
-        return image.image.image_bytes
+
+        try:
+            # 修正：不用移除 "-image"！直接使用完整的 gemini-3.1-flash-image
+            # 因為它本身就是改走 :generateContent 管道
+            response = client.models.generate_content(
+                model=self._model, 
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
+                        disable=True,
+                    ),
+                ),
+            )
+
+            # 從多模態 Parts 中提取原始的圖片 bytes
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if getattr(part, "inline_data", None) and part.inline_data.data:
+                        return part.inline_data.data
+
+            raise RuntimeError("Gemini API 成功回應，但未包含任何圖片數據。")
+
+        except Exception as e:
+            raise e

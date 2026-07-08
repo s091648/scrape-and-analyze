@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from src.shared.logging import get_logger
-from src.modules.intelligence.domain.services import LLMService, EmbeddingService
+from src.modules.intelligence.domain.services import LLMService, EmbeddingService, TextGenerationService
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.infrastructure.intelligence.llm.embedding import BaseEmbeddingProvider
 from src.infrastructure.intelligence.llm.providers import BaseProvider
@@ -44,12 +44,23 @@ class ProviderHandler:
             self.strategy.record_usage(len(content) // 4 + len(result) // 4)
         return result
 
+    def generate(
+        self,
+        prompt: str,
+    ) -> Optional[str]:
+        """Acquire quota, delegate to the provider's generate, and record estimated token usage."""
+        self.strategy.acquire(estimated_tokens=len(prompt) // 4)
+        result = self.provider.generate(prompt)
+        if result is not None:
+            self.strategy.record_usage(len(prompt) // 4 + len(result) // 4)
+        return result
+
 ###
 ### Single-thread for-now.
 ### Would need to add locking in handlers when moving rate-limited providers
 ### to the end of the list to avoid race conditions.
 ###
-class ResilientLLMService(LLMService):
+class ResilientLLMService(LLMService, TextGenerationService):
     """
     Composite LLMService that walks an ordered list of ProviderHandlers.
     Falls back to the next provider on rate limit or failure.
@@ -146,6 +157,50 @@ class ResilientLLMService(LLMService):
                 )
 
         logger.error("all_providers_exhausted_translate")
+        return None
+
+    def generate(
+        self,
+        prompt: str,
+    ) -> Optional[str]:
+        """Try each provider handler in priority order for one-shot generation, falling back on failure."""
+
+        handlers_snapshot = list(self._handlers)
+
+        for handler in handlers_snapshot:
+            try:
+                result = handler.generate(prompt)
+
+                if result is not None:
+                    return result
+
+                logger.warning(
+                    "provider_generate_returned_none",
+                    provider=handler.name,
+                )
+
+            except RateLimitExhausted:
+                logger.warning(
+                    "provider_daily_limit_reached",
+                    provider=handler.name,
+                )
+
+                self._handlers.remove(handler)
+                self._handlers.append(handler)
+
+                logger.warning(
+                    "provider_moved_to_end",
+                    provider=handler.name,
+                )
+
+            except Exception as e:
+                logger.error(
+                    "provider_generate_failed",
+                    provider=handler.name,
+                    error=str(e),
+                )
+
+        logger.error("all_providers_exhausted_generate")
         return None
 
 

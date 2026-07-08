@@ -1,10 +1,9 @@
 import uuid
-from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
@@ -17,71 +16,45 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
         self._session = session
 
     def fetch_top_articles(self, topic_id: UUID, week_start: date, limit: int = 20) -> List[ArticleSummaryForReport]:
-        week_end = date(week_start.year, week_start.month, week_start.day)
-        sql = text("""
-            SELECT
-                a.title,
-                at2.pain_points,
-                at2.insights,
-                at2.innovations,
-                at2.summary,
-                am.citation_count,
-                am.view_count,
-                a.published_at,
-                COALESCE(am.citation_count, 0) AS sort_citations,
-                COALESCE(am.view_count, 0) AS sort_views
-            FROM articles a
-            LEFT JOIN article_metrics am ON am.article_id = a.id
-            LEFT JOIN (
-                SELECT DISTINCT ON (an.article_id) an.article_id, ant.pain_points, ant.insights, ant.innovations, ant.summary
-                FROM analyses an
-                LEFT JOIN analyses_translation ant ON ant.analysis_id = an.id AND ant.language = 'en'
-                ORDER BY an.article_id, an.created_at DESC
-            ) at2 ON at2.article_id = a.id
-            WHERE a.topic_id = :topic_id
-              AND a.scraped_at >= :week_start
-            ORDER BY sort_citations DESC, sort_views DESC, a.published_at DESC NULLS LAST
-            LIMIT :limit
-        """)
-        rows = self._session.execute(sql, {
-            "topic_id": str(topic_id),
-            "week_start": week_start,
-            "limit": limit,
-        }).fetchall()
-
-        article_ids_for_tags = []
         from models.article import Article
-        tag_sql = text("""
-            SELECT at2.article_id, t.name
-            FROM article_tags at2
-            JOIN tags t ON t.id = at2.tag_id
-            WHERE at2.article_id IN (
-                SELECT a.id FROM articles a
-                WHERE a.topic_id = :topic_id AND a.scraped_at >= :week_start
-                ORDER BY (COALESCE((SELECT am.citation_count FROM article_metrics am WHERE am.article_id = a.id), 0)) DESC
-                LIMIT :limit
+        from models.article_metrics import ArticleMetrics
+        from models.analysis import Analysis
+        from models.analyses_translation import AnalysesTranslation
+
+        week_end = week_start + timedelta(days=7)
+        sort_citations = func.coalesce(ArticleMetrics.citation_count, 0)
+        sort_views = func.coalesce(ArticleMetrics.view_count, 0)
+
+        rows = (
+            self._session.query(Article, AnalysesTranslation, ArticleMetrics)
+            .outerjoin(ArticleMetrics, ArticleMetrics.article_id == Article.id)
+            .outerjoin(Analysis, Analysis.article_id == Article.id)
+            .outerjoin(
+                AnalysesTranslation,
+                (AnalysesTranslation.analysis_id == Analysis.id) & (AnalysesTranslation.language == 'en'),
             )
-        """)
-        tag_rows = self._session.execute(tag_sql, {
-            "topic_id": str(topic_id),
-            "week_start": week_start,
-            "limit": limit,
-        }).fetchall()
-        tags_by_title: dict = {}
-        for row in tag_rows:
-            tags_by_title.setdefault(str(row[0]), []).append(row[1])
+            .filter(
+                Article.topic_id == topic_id,
+                Article.scraped_at >= week_start,
+                Article.scraped_at < week_end,
+            )
+            .order_by(sort_citations.desc(), sort_views.desc(), Article.published_at.desc().nulls_last())
+            .limit(limit)
+            .all()
+        )
 
         results = []
-        for row in rows:
+        for article, translation, metrics in rows:
             results.append(ArticleSummaryForReport(
-                title=row[0] or "",
-                summary=row[4],
-                pain_points=row[1],
-                insights=row[2],
-                innovations=row[3],
-                citation_count=row[5],
-                view_count=row[6] or 0,
-                published_at=row[7],
+                title=article.title or "",
+                summary=translation.summary if translation else None,
+                pain_points=translation.pain_points if translation else None,
+                insights=translation.insights if translation else None,
+                innovations=translation.innovations if translation else None,
+                tags=[tag.name for tag in article.tags],
+                citation_count=metrics.citation_count if metrics else None,
+                view_count=(metrics.view_count if metrics else 0) or 0,
+                published_at=article.published_at,
             ))
         return results
 

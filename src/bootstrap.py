@@ -469,7 +469,7 @@ def build_weekly_pipeline():
     from src.infrastructure.persistence.intelligence.weekly_report_repo_impl import WeeklyReportRepoImpl
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.storage.r2_blob_storage import R2BlobStorageService
-    from src.infrastructure.notifications.weekly_report_email_notifier import WeeklyReportEmailNotifier
+    from src.infrastructure.intelligence.notifications.weekly_report_email_notifier import WeeklyReportEmailNotifier
     from src.infrastructure.intelligence.notifications.weekly_report_telegram_notifier import WeeklyReportTelegramNotifier
     from src.infrastructure.intelligence.weekly_report_pipeline import WeeklyReportPipeline
     from src.modules.intelligence.application.use_cases.generate_weekly_report import GenerateWeeklyReportUseCase

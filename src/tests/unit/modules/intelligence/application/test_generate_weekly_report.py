@@ -43,7 +43,7 @@ def _make_uc(
     repo.save.side_effect = lambda r: r
 
     llm = MagicMock()
-    llm.analyze.return_value = llm_response or json.dumps({"title": "AI Week", "summary_text": "Great week."})
+    llm.generate.return_value = llm_response or json.dumps({"title": "AI Week", "summary_text": "Great week."})
 
     image = MagicMock()
     image.generate_image.return_value = image_bytes
@@ -108,13 +108,13 @@ def test_execute_handles_empty_articles():
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
     assert result.article_count == 0
-    llm.analyze.assert_not_called()
+    llm.generate.assert_not_called()
     image.generate_image.assert_not_called()
 
 
 def test_execute_gracefully_handles_llm_failure():
     uc, _, llm, _, _ = _make_uc()
-    llm.analyze.side_effect = Exception("LLM timeout")
+    llm.generate.side_effect = Exception("LLM timeout")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
     assert TOPIC_NAME in result.title
