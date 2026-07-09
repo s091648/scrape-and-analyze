@@ -28,6 +28,7 @@ scraper = [
     "pymupdf>=1.24",
     "chatbot-plugin-sdk",
     "fastembed>=0.3",
+    "huggingface-hub>=0.24",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [

@@ -1,16 +1,12 @@
-from src.infrastructure.intelligence.image.base_image_provider import BaseImageProvider
 from src.modules.intelligence.domain.services.image_generation_service import ImageGenerationService
 
 
-class GeminiImagenProvider(ImageGenerationService, BaseImageProvider):
+class GeminiImagenProvider(ImageGenerationService):
     def __init__(self, model: str, api_key: str) -> None:
         self._model = model
         self._api_key = api_key
 
     def generate_image(self, prompt: str) -> bytes:
-        return self.generate(prompt)
-
-    def generate(self, prompt: str) -> bytes:
         from google import genai
         from google.genai import types as genai_types
 
@@ -20,7 +16,7 @@ class GeminiImagenProvider(ImageGenerationService, BaseImageProvider):
             # 修正：不用移除 "-image"！直接使用完整的 gemini-3.1-flash-image
             # 因為它本身就是改走 :generateContent 管道
             response = client.models.generate_content(
-                model=self._model, 
+                model=self._model,
                 contents=prompt,
                 config=genai_types.GenerateContentConfig(
                     response_modalities=["IMAGE"],

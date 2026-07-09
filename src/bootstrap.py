@@ -467,11 +467,13 @@ def build_weekly_pipeline():
     """Assemble WeeklyReportPipeline (topic resolution + GenerateWeeklyReportUseCase) from env vars and DB."""
     from src.infrastructure.persistence.database import get_session, init_db
     from src.infrastructure.persistence.intelligence.weekly_report_repo_impl import WeeklyReportRepoImpl
+    from src.infrastructure.persistence.intelligence.weekly_report_translation_repo_impl import SqlAlchemyWeeklyReportTranslationRepository
     from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
     from src.infrastructure.storage.r2_blob_storage import R2BlobStorageService
     from src.infrastructure.intelligence.notifications.weekly_report_email_notifier import WeeklyReportEmailNotifier
     from src.infrastructure.intelligence.notifications.weekly_report_telegram_notifier import WeeklyReportTelegramNotifier
     from src.infrastructure.intelligence.weekly_report_pipeline import WeeklyReportPipeline
+    from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
     from src.modules.intelligence.application.use_cases.generate_weekly_report import GenerateWeeklyReportUseCase
 
     init_db()
@@ -480,20 +482,27 @@ def build_weekly_pipeline():
     llm_service, _, _ = build_llm_service(session)
 
     report_repo = WeeklyReportRepoImpl(session=session)
+    weekly_report_translation_repo = SqlAlchemyWeeklyReportTranslationRepository(session=session)
 
-    # Imagen provider: requires an active 'multimodal' LlmProvider in DB
+    # Multimodal provider: requires an active 'multimodal' LlmProvider in DB.
+    # Provider name selects between Gemini Imagen and HuggingFace (free-tier alternative).
     from shared.llm_provider import load_active_multimodal_provider
     multimodal_cfg = load_active_multimodal_provider(session)
     if not multimodal_cfg:
         raise ValueError("No active multimodal provider found in DB — add one via the admin UI")
 
-    from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
+    provider_name = multimodal_cfg["name"]
     api_key = os.environ.get(multimodal_cfg["api_key_env"], "")
-    image_service = GeminiImagenProvider(model=multimodal_cfg["model"], api_key=api_key)
+    if provider_name == "huggingface":
+        from src.infrastructure.intelligence.image.huggingface_image_provider import HuggingFaceImageProvider
+        image_service = HuggingFaceImageProvider(model=multimodal_cfg["model"], api_key=api_key)
+    else:
+        from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
+        image_service = GeminiImagenProvider(model=multimodal_cfg["model"], api_key=api_key)
 
     blob_storage = R2BlobStorageService.from_env()
 
-    from src.config.settings import RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN
+    from src.config.settings import RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN, TRANSLATION_LANGUAGES
     from src.shared.infrastructure.notifications import TelegramNotifierClient
 
     resend_key = RESEND_API_KEY
@@ -505,13 +514,21 @@ def build_weekly_pipeline():
         telegram_client = TelegramNotifierClient(bot_token=TELEGRAM_BOT_TOKEN)
         telegram_notifier = WeeklyReportTelegramNotifier(session=session, notifier=telegram_client)
 
+    # Weekly report i18n: title + summary_text are produced in English, then
+    # translated into each language in TRANSLATION_LANGUAGES via the same
+    # prompt factory path used by every other translation use case.
+    prompt_factory = ConcretePromptFactory()
+
     generate_use_case = GenerateWeeklyReportUseCase(
         report_repo=report_repo,
         llm_service=llm_service,
         image_service=image_service,
         blob_storage=blob_storage,
+        translation_repository=weekly_report_translation_repo,
+        translation_prompt=prompt_factory.weekly_report_translation_prompt(),
         email_notifier=email_notifier,
         telegram_notifier=telegram_notifier,
+        translation_languages=TRANSLATION_LANGUAGES,
     )
     topic_repository = SqlAlchemyTopicRepository(session=session)
 

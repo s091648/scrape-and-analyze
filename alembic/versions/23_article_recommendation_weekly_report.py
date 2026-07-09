@@ -65,6 +65,25 @@ def upgrade():
     )
     op.create_index('idx_weekly_reports_status', 'weekly_reports', ['status'])
 
+    # --- weekly_reports_translation ---
+    op.create_table(
+        'weekly_reports_translation',
+        sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
+        sa.Column('weekly_report_id', UUID(as_uuid=True), sa.ForeignKey('weekly_reports.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('language', sa.String(10), nullable=False),
+        sa.Column('title', sa.Text(), nullable=False),
+        sa.Column('summary_text', sa.Text(), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
+    )
+    op.create_unique_constraint(
+        'uq_weekly_reports_translation_report_language',
+        'weekly_reports_translation',
+        ['weekly_report_id', 'language'],
+    )
+    op.create_index('idx_weekly_reports_translation_report_id', 'weekly_reports_translation', ['weekly_report_id'])
+    op.create_index('idx_weekly_reports_translation_language', 'weekly_reports_translation', ['language'])
+
     # --- user_topic_subscriptions ---
     op.create_table(
         'user_topic_subscriptions',
@@ -141,6 +160,12 @@ def downgrade():
     op.drop_index('idx_weekly_reports_topic_id', table_name='weekly_reports')
     op.drop_constraint('uq_weekly_reports_topic_week', 'weekly_reports', type_='unique')
     op.drop_table('weekly_reports')
+
+    # Drop weekly_reports_translation
+    op.drop_index('idx_weekly_reports_translation_language', table_name='weekly_reports_translation')
+    op.drop_index('idx_weekly_reports_translation_report_id', table_name='weekly_reports_translation')
+    op.drop_constraint('uq_weekly_reports_translation_report_language', 'weekly_reports_translation', type_='unique')
+    op.drop_table('weekly_reports_translation')
 
     # Drop article_metrics
     op.drop_index('idx_article_metrics_view_count', table_name='article_metrics')

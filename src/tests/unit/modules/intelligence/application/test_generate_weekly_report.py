@@ -9,6 +9,7 @@ import pytest
 from src.modules.intelligence.application.use_cases.generate_weekly_report import GenerateWeeklyReportUseCase
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.modules.intelligence.domain.value_objects.article_summary_for_report import ArticleSummaryForReport
+from src.modules.intelligence.domain.value_objects.translation_prompt import WeeklyReportTranslationPrompt
 
 
 TOPIC_ID = uuid.uuid4()
@@ -37,6 +38,7 @@ def _make_uc(
     blob_url="https://r2.example.com/img.png",
     email_notifier=None,
     telegram_notifier=None,
+    translation_languages=(),
 ):
     repo = MagicMock()
     repo.fetch_top_articles.return_value = articles if articles is not None else [_summary()]
@@ -51,38 +53,44 @@ def _make_uc(
     blob = MagicMock()
     blob.upload.return_value = blob_url
 
+    translation_repo = MagicMock()
+    translation_prompt = WeeklyReportTranslationPrompt()
+
     uc = GenerateWeeklyReportUseCase(
         report_repo=repo,
         llm_service=llm,
         image_service=image,
         blob_storage=blob,
+        translation_repository=translation_repo,
+        translation_prompt=translation_prompt,
         email_notifier=email_notifier,
         telegram_notifier=telegram_notifier,
+        translation_languages=translation_languages,
     )
-    return uc, repo, llm, image, blob
+    return uc, repo, llm, image, blob, translation_repo
 
 
 def test_execute_returns_weekly_report():
-    uc, _, _, _, _ = _make_uc()
+    uc, _, _, _, _, _ = _make_uc()
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert isinstance(result, WeeklyReport)
 
 
 def test_execute_uses_llm_title_and_summary():
-    uc, _, _, _, _ = _make_uc(llm_response=json.dumps({"title": "LLM Title", "summary_text": "LLM Summary"}))
+    uc, _, _, _, _, _ = _make_uc(llm_response=json.dumps({"title": "LLM Title", "summary_text": "LLM Summary"}))
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.title == "LLM Title"
     assert result.summary_text == "LLM Summary"
 
 
 def test_execute_calls_image_generation():
-    uc, _, _, image, _ = _make_uc()
+    uc, _, _, image, _, _ = _make_uc()
     uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     image.generate_image.assert_called_once()
 
 
 def test_execute_uploads_image_to_blob_storage():
-    uc, _, _, _, blob = _make_uc(image_bytes=b"png-data")
+    uc, _, _, _, blob, _ = _make_uc(image_bytes=b"png-data")
     uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     blob.upload.assert_called_once()
     args = blob.upload.call_args[0]
@@ -91,20 +99,20 @@ def test_execute_uploads_image_to_blob_storage():
 
 
 def test_execute_sets_cover_image_url():
-    uc, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.png")
+    uc, _, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.png")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.cover_image_url == "https://r2.example.com/cover.png"
 
 
 def test_execute_saves_report_with_correct_article_count():
     articles = [_summary(f"Paper {i}") for i in range(3)]
-    uc, repo, _, _, _ = _make_uc(articles=articles)
+    uc, repo, _, _, _, _ = _make_uc(articles=articles)
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.article_count == 3
 
 
 def test_execute_handles_empty_articles():
-    uc, repo, llm, image, _ = _make_uc(articles=[])
+    uc, repo, llm, image, _, _ = _make_uc(articles=[])
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
     assert result.article_count == 0
@@ -113,7 +121,7 @@ def test_execute_handles_empty_articles():
 
 
 def test_execute_gracefully_handles_llm_failure():
-    uc, _, llm, _, _ = _make_uc()
+    uc, _, llm, _, _, _ = _make_uc()
     llm.generate.side_effect = Exception("LLM timeout")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
@@ -121,7 +129,7 @@ def test_execute_gracefully_handles_llm_failure():
 
 
 def test_execute_gracefully_handles_image_failure():
-    uc, _, _, image, _ = _make_uc()
+    uc, _, _, image, _, _ = _make_uc()
     image.generate_image.side_effect = Exception("API error")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
@@ -130,14 +138,14 @@ def test_execute_gracefully_handles_image_failure():
 
 def test_execute_notifies_email_when_provided():
     email = MagicMock()
-    uc, _, _, _, _ = _make_uc(email_notifier=email)
+    uc, _, _, _, _, _ = _make_uc(email_notifier=email)
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     email.notify.assert_called_once()
 
 
 def test_execute_notifies_telegram_when_provided():
     telegram = MagicMock()
-    uc, _, _, _, _ = _make_uc(telegram_notifier=telegram)
+    uc, _, _, _, _, _ = _make_uc(telegram_notifier=telegram)
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     telegram.notify.assert_called_once()
 
@@ -145,6 +153,6 @@ def test_execute_notifies_telegram_when_provided():
 def test_execute_does_not_fail_when_email_notifier_raises():
     email = MagicMock()
     email.notify.side_effect = Exception("SMTP error")
-    uc, _, _, _, _ = _make_uc(email_notifier=email)
+    uc, _, _, _, _, _ = _make_uc(email_notifier=email)
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"

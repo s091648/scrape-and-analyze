@@ -7,11 +7,12 @@ from .translation_prompt import (
     ArticleTranslationPrompt,
     TagTranslationPrompt,
     GroupTranslationPrompt,
+    ArticleBodyTranslationPrompt,
+    WeeklyReportTranslationPrompt,
     LANGUAGE_NAMES,
 )
 from .analyses_translation_content import AnalysesTranslationContent, AnalysesTranslationResult
 from .analyses_translation_content import ArticleBodyTranslationContent, ArticleBodyTranslationResult
-from .translation_prompt import ArticleBodyTranslationPrompt
 
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "TagTranslationPrompt",
     "GroupTranslationPrompt",
     "ArticleBodyTranslationPrompt",
+    "WeeklyReportTranslationPrompt",
     "LANGUAGE_NAMES",
     "AnalysesTranslationContent",
     "AnalysesTranslationResult",

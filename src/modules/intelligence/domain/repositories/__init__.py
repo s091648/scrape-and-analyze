@@ -4,6 +4,8 @@ from .tag_translation_repository import TagTranslationRepository
 from .tag_repository import TagRepository, TagData
 from .tag_group_definition_repository import TagGroupDefinitionRepository, TagGroupDefinitionData
 from .article_translation_repository import ArticleTranslationRepository
+from .weekly_report_repository import WeeklyReportRepository
+from .weekly_report_translation_repository import WeeklyReportTranslationRepository
 
 
 __all__ = [
@@ -15,4 +17,6 @@ __all__ = [
     "TagGroupDefinitionRepository",
     "TagGroupDefinitionData",
     "ArticleTranslationRepository",
+    "WeeklyReportRepository",
+    "WeeklyReportTranslationRepository",
 ]

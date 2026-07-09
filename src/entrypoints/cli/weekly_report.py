@@ -6,10 +6,21 @@ Usage:
     uv run python -m src.entrypoints.cli.weekly_report --topic-id <uuid> --week-start 2025-01-06
 
 Architecture:
-    - Domain: WeeklyReport entity, WeeklyReportRepository interface
-    - Application: GenerateWeeklyReportUseCase (LLM summary + image + notifications)
-    - Infrastructure: WeeklyReportPipeline (topic resolution + per-topic orchestration)
-    - Bootstrap: build_weekly_pipeline() assembles dependencies
+    - Domain: WeeklyReport entity, WeeklyReportTranslation entity,
+      WeeklyReportRepository + WeeklyReportTranslationRepository interfaces,
+      ImageGenerationService + TranslationService ports.
+    - Application: GenerateWeeklyReportUseCase (LLM summary + image + i18n +
+      notifications), TranslateWeeklyReportUseCase.
+    - Infrastructure: WeeklyReportPipeline (topic resolution + per-topic
+      orchestration), image provider factory (Gemini Imagen | HuggingFace).
+    - Bootstrap: build_weekly_pipeline() assembles dependencies and uses
+      TRANSLATION_LANGUAGES to drive per-language translation of title +
+      summary_text into weekly_reports_translation.
+
+i18n: title + summary_text are produced in English, then translated into each
+language configured via TRANSLATION_LANGUAGES. Notifications continue to use
+the English fields; per-user locale rendering is handled in the notification
+content builders.
 """
 import argparse
 import signal

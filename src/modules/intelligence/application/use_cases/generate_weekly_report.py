@@ -2,16 +2,19 @@ import json
 import uuid
 from collections import Counter
 from datetime import date, datetime, timezone
-from typing import List, Optional
+from typing import Iterable, List, Optional
 from uuid import UUID
 
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
+from src.modules.intelligence.domain.entities.weekly_report_translation import WeeklyReportTranslation
 from src.modules.intelligence.domain.repositories.weekly_report_repository import WeeklyReportRepository
+from src.modules.intelligence.domain.repositories.weekly_report_translation_repository import WeeklyReportTranslationRepository
 from src.modules.intelligence.domain.services.text_generation_service import TextGenerationService
 from src.modules.intelligence.domain.services.image_generation_service import ImageGenerationService
-from src.shared.domain.services.blob_storage_service import BlobStorageService
-from src.modules.intelligence.domain.value_objects.weekly_report_prompt import WeeklyReportPrompt
+from src.modules.intelligence.domain.value_objects import WeeklyReportTranslationPrompt
 from src.modules.intelligence.domain.value_objects.image_generation_prompt import ImageGenerationPrompt
+from src.modules.intelligence.domain.value_objects.weekly_report_prompt import WeeklyReportPrompt
+from src.shared.domain.services.blob_storage_service import BlobStorageService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,15 +27,21 @@ class GenerateWeeklyReportUseCase:
         llm_service: TextGenerationService,
         image_service: ImageGenerationService,
         blob_storage: BlobStorageService,
+        translation_repository: WeeklyReportTranslationRepository,
+        translation_prompt: WeeklyReportTranslationPrompt,
         email_notifier=None,
         telegram_notifier=None,
+        translation_languages: Iterable[str] = (),
     ) -> None:
         self._repo = report_repo
         self._llm = llm_service
         self._image = image_service
         self._blob = blob_storage
+        self._translation_repo = translation_repository
+        self._translation_prompt = translation_prompt
         self._email = email_notifier
         self._telegram = telegram_notifier
+        self._translation_languages = list(translation_languages)
 
     def execute(self, topic_id: UUID, topic_name: str, week_start: date) -> WeeklyReport:
         logger.info("weekly_report_generation_started", topic_id=str(topic_id), week_start=str(week_start))
@@ -101,6 +110,9 @@ class GenerateWeeklyReportUseCase:
         )
         saved = self._repo.save(report)
 
+        for language in self._translation_languages:
+            self._translate_report(saved, language)
+
         if self._email:
             try:
                 self._email.notify(saved, topic_id=topic_id)
@@ -115,3 +127,71 @@ class GenerateWeeklyReportUseCase:
 
         logger.info("weekly_report_generation_complete", report_id=str(saved.id))
         return saved
+
+    def _translate_report(self, report: WeeklyReport, language: str) -> None:
+        """Translate title + summary_text into *language* and persist. Failures are logged, never raised."""
+        if report.id is None:
+            return
+        try:
+            rendered = self._translation_prompt.render(
+                target_language=language,
+                title=report.title,
+                summary=report.summary_text,
+            )
+            translated = self._llm.translate("", rendered.content)
+        except Exception as e:
+            logger.warning(
+                "weekly_report_translation_llm_failed",
+                report_id=str(report.id),
+                language=language,
+                error=str(e),
+            )
+            return
+
+        if not translated:
+            logger.warning(
+                "weekly_report_translation_empty_response",
+                report_id=str(report.id),
+                language=language,
+            )
+            return
+
+        title, summary = self._parse_translation_response(translated)
+        if not title or not summary:
+            logger.warning(
+                "weekly_report_translation_parse_failed",
+                report_id=str(report.id),
+                language=language,
+            )
+            return
+
+        try:
+            self._translation_repo.save(WeeklyReportTranslation(
+                weekly_report_id=report.id,
+                language=language,
+                title=title,
+                summary_text=summary,
+            ))
+            logger.info(
+                "weekly_report_translated",
+                report_id=str(report.id),
+                language=language,
+            )
+        except Exception as e:
+            logger.warning(
+                "weekly_report_translation_save_failed",
+                report_id=str(report.id),
+                language=language,
+                error=str(e),
+            )
+
+    @staticmethod
+    def _parse_translation_response(text: str) -> tuple[Optional[str], Optional[str]]:
+        """Try JSON first, fall back to section-header parsing."""
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return parsed.get("title"), parsed.get("summary_text")
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return WeeklyReportTranslationPrompt.parse_response(text)

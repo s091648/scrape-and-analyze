@@ -181,3 +181,50 @@ class GroupTranslationPrompt(BasePrompt):
         """Format a group for the prompt: 'display_name | description'."""
         desc = description or ""
         return f"{display_name} | {desc}"
+
+
+_WEEKLY_REPORT_TEMPLATE = """You are a professional translator. Translate the following weekly report from English to __TARGET_LANGUAGE__.
+
+Only translate the content, do not add any explanations or additional text.
+Keep the same structure: respond with exactly the two sections below.
+If a field is not applicable, keep it empty.
+
+Title:
+__TITLE__
+
+Summary:
+__SUMMARY__
+
+Translation (use the exact section headers: Title, Summary):"""
+
+
+@dataclass(frozen=True)
+class WeeklyReportTranslationPrompt(BasePrompt):
+    """Prompt value object for weekly report (title + summary) translation."""
+
+    _content: str = _WEEKLY_REPORT_TEMPLATE
+
+    @property
+    def content(self) -> str:
+        return self._content
+
+    def render(self, target_language: str, title: str, summary: str) -> "WeeklyReportTranslationPrompt":
+        lang_name = _LANGUAGE_NAMES.get(target_language, target_language)
+        filled = self._content
+        filled = filled.replace("__TARGET_LANGUAGE__", lang_name)
+        filled = filled.replace("__TITLE__", title)
+        filled = filled.replace("__SUMMARY__", summary)
+        return WeeklyReportTranslationPrompt(_content=filled)
+
+    @staticmethod
+    def parse_response(text: str) -> tuple[Optional[str], Optional[str]]:
+        """Parse LLM response into (title, summary) by section headers."""
+        import re
+        parts = re.split(r'\n(?=(?:Title|Summary)\s*[:：]\s*)', text, flags=re.IGNORECASE)
+        fields: dict[str, Optional[str]] = {"title": None, "summary": None}
+        for part in parts:
+            for header in ("title", "summary"):
+                if re.match(rf'^{header}\s*[:：]', part, re.IGNORECASE):
+                    fields[header] = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip() or None
+                    break
+        return fields["title"], fields["summary"]
