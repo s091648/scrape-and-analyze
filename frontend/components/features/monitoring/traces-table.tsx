@@ -79,6 +79,7 @@ function ArticlePreviewWrapper({ articleId, onClose }: { articleId: string | nul
     <ArticleDetailDialog
       open={!!articleId}
       onOpenChange={v => { if (!v) onClose() }}
+      id={articleId ?? ''}
       title={detail?.title ?? ''}
       source={detail?.source ?? ''}
       url={detail?.url ?? ''}

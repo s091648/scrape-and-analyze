@@ -59,13 +59,17 @@ test.describe('RAG chatbot — FloatingChatbot FAB visibility', () => {
 
     test('clicking the FAB opens the panel, and clicking again closes it', async ({ page }) => {
       await page.goto('/articles')
-      const fab = page.getByRole('button', { name: /open chat/i })
-      await fab.click()
-      await expect(page.getByRole('button', { name: /close chat/i })).toBeVisible()
+      // The FAB toggle button (#tutorial-target-chat-toggle) and the panel header's
+      // own close button both render an accessible name of "Close chat" while open —
+      // target the FAB specifically to avoid ambiguity.
+      const fabToggle = page.locator('#tutorial-target-chat-toggle')
+      await expect(fabToggle).toHaveAccessibleName(/open chat/i)
+      await fabToggle.click()
+      await expect(fabToggle).toHaveAccessibleName(/close chat/i)
       await expect(page.getByRole('log')).toBeVisible()
 
-      await page.getByRole('button', { name: /close chat/i }).click()
-      await expect(page.getByRole('button', { name: /open chat/i })).toBeVisible()
+      await fabToggle.click()
+      await expect(fabToggle).toHaveAccessibleName(/open chat/i)
     })
   })
 
@@ -149,6 +153,7 @@ test.describe('RAG chatbot — InlineQABar on the homepage', () => {
     await page.getByLabel('Agent input').fill('Anything?')
     await page.getByRole('button', { name: 'Send' }).click()
 
-    await expect(page.getByText(/temporarily unavailable/i)).toBeVisible()
+    // The message renders both inline (AnswerDisplay) and as a toast — assert the first match.
+    await expect(page.getByText(/temporarily unavailable/i).first()).toBeVisible()
   })
 })

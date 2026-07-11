@@ -259,10 +259,13 @@ test.describe("Guest Onboarding Tour", () => {
     });
 
     test("the guest onboarding tour does not auto-open, but HelpCircle reopens it", async ({ page }) => {
-      // Mark the unrelated feature-chat spotlight tour as already seen so its
-      // dialog doesn't interfere with this guest-onboarding-specific assertion.
+      // Mark the unrelated feature spotlight tours as already seen so their
+      // dialogs don't interfere with this guest-onboarding-specific assertion.
       await page.addInitScript(() => {
-        localStorage.setItem("tutorial_seen_tours", JSON.stringify(["feature-chat-2026-07"]));
+        localStorage.setItem(
+          "tutorial_seen_tours",
+          JSON.stringify(["feature-chat-2026-07", "feature-weekly-report-2026-07", "feature-articles-stats-2026-07"]),
+        );
       });
       await page.goto("/articles");
       await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -312,23 +315,36 @@ test.describe("Feature Chat Spotlight Tour", () => {
       await mockApiRoutes(page);
       await mockArticlesWithVectors(page);
       await mockLanguages(page);
+      // Isolate the chat spotlight tour from the other, unrelated spotlights
+      // that also target "/" or "/articles".
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "tutorial_seen_tours",
+          JSON.stringify(["feature-weekly-report-2026-07", "feature-articles-stats-2026-07"]),
+        );
+      });
     });
 
-    test("auto-opens on first visit to /articles, highlighting the pin-to-chat sparkles icon", async ({
+    test("auto-opens on first visit to /articles, showing the intro step then highlighting the pin-to-chat sparkles icon", async ({
       page,
     }) => {
       await page.goto("/articles");
       await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByText(/new: ai chat assistant/i)).toBeVisible();
+
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
       await expect(page.getByText(/pin articles for context|釘選文章作為上下文/i)).toBeVisible();
       await expect(page.getByTestId("tutorial-highlight")).toBeVisible();
 
       await expectHighlightAligned(page, "#tutorial-target-chat-pin");
     });
 
-    test('"Next" advances to the chat-toggle step, highlighting the floating chat button, and "Done" closes and persists it as seen', async ({
+    test('"Next" advances through the intro and pin steps to the chat-toggle step, highlighting the floating chat button, and "Done" closes and persists it as seen', async ({
       page,
     }) => {
       await page.goto("/articles");
+      await expect(page.getByText(/new: ai chat assistant/i)).toBeVisible();
+      await page.getByRole("button", { name: /^next|下一步$/i }).click();
       await expect(page.getByText(/pin articles for context|釘選文章作為上下文/i)).toBeVisible();
 
       await page.getByRole("button", { name: /^next|下一步$/i }).click();

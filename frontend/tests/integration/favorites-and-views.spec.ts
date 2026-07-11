@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mockApiRoutes, dismissFeatureSpotlights, articleDetailFixture } from './fixtures/api-handlers'
 
 const unfavoritedArticle = {
-  id: 'art-fav-1', title: 'Unfavorited Paper', source: 'rss',
+  id: 'art-fav-1', title: 'Plain Paper', source: 'rss',
   content: 'x', published_at: null, scraped_at: null, url: 'https://x.com/1',
   is_favorited: false,
 }
@@ -33,7 +33,7 @@ test.describe('Favorites — authenticated member', () => {
     )
 
     await page.goto('/articles')
-    await expect(page.getByText('Unfavorited Paper')).toBeVisible()
+    await expect(page.getByText('Plain Paper')).toBeVisible()
     await page.getByRole('button', { name: 'Add to favorites' }).click({ force: true })
     await favPromise
     await expect(page.getByRole('button', { name: 'Remove from favorites' })).toBeVisible()
@@ -55,14 +55,14 @@ test.describe('Favorites — authenticated member', () => {
   test('enabling the Favorites filter shows only favorited articles', async ({ page }) => {
     await mockArticleList(page, [unfavoritedArticle, favoritedArticle])
     await page.goto('/articles')
-    await expect(page.getByText('Unfavorited Paper')).toBeVisible()
+    await expect(page.getByText('Plain Paper')).toBeVisible()
     await expect(page.getByText('Favorited Paper')).toBeVisible()
 
     await page.getByRole('button', { name: /filters/i }).click()
     await page.getByRole('button', { name: /favorites only/i }).click()
 
     await expect(page.getByText('Favorited Paper')).toBeVisible()
-    await expect(page.getByText('Unfavorited Paper')).not.toBeVisible()
+    await expect(page.getByText('Plain Paper')).not.toBeVisible()
     await expect(page).toHaveURL(/favorites_only=true/)
   })
 })
@@ -85,7 +85,7 @@ test.describe('Favorites — guest mode (not authenticated)', () => {
     const skipBtn = page.getByRole('button', { name: /^skip$|^略過$/i })
     if (await skipBtn.count() > 0) await skipBtn.click()
 
-    await expect(page.getByText('Unfavorited Paper')).toBeVisible()
+    await expect(page.getByText('Plain Paper')).toBeVisible()
     await expect(page.getByRole('button', { name: /add to favorites|remove from favorites/i })).not.toBeVisible()
 
     await page.getByRole('button', { name: /filters/i }).click()

@@ -54,14 +54,14 @@ test.describe('Article list page', () => {
   })
 
   test('sort change resets to page 1', async ({ page }) => {
+    await page.route('/api/proxy/articles**', route => route.fulfill({
+      json: { items: [{ id: 'art-001', title: 'Article 1', source: 'rss', content: 'x', published_at: null, scraped_at: null, url: 'https://x.com' }], total: 30, page: 3, size: 20 }
+    }))
     await page.goto('/articles?page=3&sort=scraped_at')
-    // Find sort dropdown and change it
-    const sortSelect = page.getByRole('combobox').or(page.locator('select[name="sort"]'))
-    if (await sortSelect.count() > 0) {
-      await sortSelect.first().selectOption('published_at')
-      await expect(page).toHaveURL(/page=1/)
-      await expect(page).toHaveURL(/sort=published_at/)
-    }
+    await page.getByRole('button', { name: /sort by:/i }).click()
+    await page.getByRole('option', { name: 'Published At', exact: true }).click()
+    await expect(page).toHaveURL(/page=1/)
+    await expect(page).toHaveURL(/sort=published_at/)
   })
 })
 

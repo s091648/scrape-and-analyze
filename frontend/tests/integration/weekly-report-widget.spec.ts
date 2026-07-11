@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { dismissFeatureSpotlights } from './fixtures/api-handlers'
 
 const mockReport1 = {
   id: 'report-001',
@@ -35,16 +36,22 @@ async function mockWeeklyReportRoutes(page: any, reports: any[] = [mockReport1])
 
 async function mockBaseRoutes(page: any) {
   await page.route((url: URL) => url.pathname.startsWith('/api/proxy/'), route => {
-    const p = url.pathname
+    const p = new URL(route.request().url()).pathname
     if (p === '/api/proxy/topics') return route.fulfill({ json: [{ id: 'topic-001', name: 'ai', display_name: 'AI Research', color_hex: null, sort_order: 1 }] })
     if (p.includes('articles') && !p.includes('weekly')) return route.fulfill({ json: { items: [], total: 0, page: 1, size: 20 } })
     if (p.includes('filters')) return route.fulfill({ json: [] })
     if (p.includes('source-categories')) return route.fulfill({ json: { aggregator: [], scraper: [] } })
+    if (p.includes('tag-groups')) return route.fulfill({ json: [] })
+    if (p.includes('chat/quota')) return route.fulfill({ json: { tier: 'admin', remaining: -1, limit: -1 } })
     route.fulfill({ status: 404, json: {} })
   })
 }
 
 test.describe('WeeklyReportWidget', () => {
+  test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
+  })
+
   test('displays weekly report title on homepage when topic selected', async ({ page }) => {
     await mockBaseRoutes(page)
     await mockWeeklyReportRoutes(page, [mockReport1])
@@ -87,15 +94,12 @@ test.describe('WeeklyReportWidget', () => {
     await expect(page.getByText('AI Weekly: LLM Efficiency')).toBeVisible()
   })
 
-  test('clicking the report panel opens the detail dialog', async ({ page }) => {
+  test('report panel renders the full title and summary inline (no separate detail dialog)', async ({ page }) => {
     await mockBaseRoutes(page)
     await mockWeeklyReportRoutes(page, [mockReport1])
 
     await page.goto('/')
     await expect(page.getByText('AI Weekly: Multimodal Breakthroughs')).toBeVisible({ timeout: 10000 })
-
-    await page.getByText('AI Weekly: Multimodal Breakthroughs').click()
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('dialog').getByText('Major advances in multimodal AI this week.')).toBeVisible()
+    await expect(page.getByText('Major advances in multimodal AI this week.')).toBeVisible()
   })
 })

@@ -48,7 +48,10 @@ test.describe('Dark mode toggle', () => {
   test('hovering the theme icon shows a tooltip with the current mode name', async ({ page }) => {
     await page.goto('/articles')
     const themeButton = page.getByRole('button', { name: /^theme: auto$/i })
+    // Move away first so the hover is a genuine pointer transition onto the
+    // trigger (Radix Tooltip's delayDuration timer starts on pointer enter).
+    await page.mouse.move(0, 0)
     await themeButton.hover()
-    await expect(page.getByText('Auto', { exact: true })).toBeVisible()
+    await expect(page.locator('[data-slot="tooltip-content"]', { hasText: 'Auto' })).toBeVisible({ timeout: 10000 })
   })
 })

@@ -250,6 +250,7 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
       <ArticleDetailDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        id={dialogArticle?.id ?? ''}
         title={dialogArticle?.title ?? ''}
         source={dialogArticle?.source ?? ''}
         url={dialogArticle?.url ?? ''}
