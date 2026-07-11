@@ -382,6 +382,8 @@ export function TagGroupCard({
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
               onClick={async () => { await deleteTagGroup(group.id!, token); onDeleted(group.id!) }}
+              aria-label="Delete group"
+              title="Delete group"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>

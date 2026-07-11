@@ -39,17 +39,18 @@ test.describe('Article list page', () => {
     await expect(page).toHaveURL(/page=2/)
   })
 
-  test('aggregator filter updates URL', async ({ page }) => {
+  test('aggregator filter updates URL and re-fetches with the aggregator param', async ({ page }) => {
     await page.goto('/articles')
     await page.getByRole('button', { name: /filters/i }).click()
-    // The aggregator popover button label comes from the filter bar
-    const aggregatorBtn = page.getByRole('button', { name: /aggregator/i })
-    if (await aggregatorBtn.count() > 0) {
-      await aggregatorBtn.click()
-      await page.getByRole('option', { name: /semantic scholar/i }).click()
-      await page.getByRole('button', { name: /apply/i }).click()
-      await expect(page).toHaveURL(/aggregator=semantic_scholar/)
-    }
+    await page.getByRole('button', { name: /aggregator/i }).click()
+    await page.getByRole('option', { name: /semantic scholar/i }).click()
+
+    const fetchPromise = page.waitForRequest(req =>
+      req.url().includes('/api/proxy/articles') && req.url().includes('aggregator=semantic_scholar')
+    )
+    await page.getByRole('button', { name: /apply/i }).click()
+    await fetchPromise
+    await expect(page).toHaveURL(/aggregator=semantic_scholar/)
   })
 
   test('sort change resets to page 1', async ({ page }) => {
@@ -61,5 +62,63 @@ test.describe('Article list page', () => {
       await expect(page).toHaveURL(/page=1/)
       await expect(page).toHaveURL(/sort=published_at/)
     }
+  })
+})
+
+test.describe('Article list page — source attribution badges', () => {
+  test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
+    await mockApiRoutes(page)
+  })
+
+  async function mockSingleArticle(page: import('@playwright/test').Page, article: Record<string, unknown>) {
+    await page.route(
+      (url: URL) => url.pathname.startsWith('/api/proxy/articles') && !url.pathname.includes('/articles/'),
+      route => route.fulfill({ json: { items: [article], total: 1, page: 1, size: 20 } })
+    )
+  }
+
+  test('OpenAlex article with an arXiv ID shows "arxiv" + "via OpenAlex"', async ({ page }) => {
+    await mockSingleArticle(page, {
+      id: 'art-oa-1', title: 'OpenAlex ArXiv Paper', source: 'openalex', via_source: 'openalex',
+      original_source: 'arxiv', content: 'x', published_at: null, scraped_at: null,
+      url: 'https://openalex.org/W123',
+    })
+    await page.goto('/articles')
+    await expect(page.getByText('arxiv', { exact: true })).toBeVisible()
+    await expect(page.getByText('via OpenAlex')).toBeVisible()
+  })
+
+  test('OpenAlex article without an arXiv ID shows the journal name + "via OpenAlex"', async ({ page }) => {
+    await mockSingleArticle(page, {
+      id: 'art-oa-2', title: 'Journal Paper', source: 'openalex', via_source: 'openalex',
+      original_source: 'Nature Neuroscience', content: 'x', published_at: null, scraped_at: null,
+      url: 'https://openalex.org/W456',
+    })
+    await page.goto('/articles')
+    await expect(page.getByText('Nature Neuroscience')).toBeVisible()
+    await expect(page.getByText('via OpenAlex')).toBeVisible()
+  })
+
+  test('Semantic Scholar article with an arXiv ID shows "arxiv" + "via Semantic Scholar"', async ({ page }) => {
+    await mockSingleArticle(page, {
+      id: 'art-ss-1', title: 'Semantic Scholar Paper', source: 'semantic_scholar', via_source: 'semantic_scholar',
+      original_source: 'arxiv', content: 'x', published_at: null, scraped_at: null,
+      url: 'https://semanticscholar.org/p/789',
+    })
+    await page.goto('/articles')
+    await expect(page.getByText('arxiv', { exact: true })).toBeVisible()
+    await expect(page.getByText('via Semantic Scholar')).toBeVisible()
+  })
+
+  test('directly-scraped arXiv article shows "arxiv" with no "via" tag', async ({ page }) => {
+    await mockSingleArticle(page, {
+      id: 'art-direct-1', title: 'Direct ArXiv Paper', source: 'arxiv', via_source: null,
+      original_source: null, content: 'x', published_at: null, scraped_at: null,
+      url: 'https://arxiv.org/abs/1234',
+    })
+    await page.goto('/articles')
+    await expect(page.getByText('arxiv', { exact: true })).toBeVisible()
+    await expect(page.getByText(/via /)).not.toBeVisible()
   })
 })
