@@ -601,3 +601,27 @@ def build_translation_pipeline():
         "tag_translation_repository": tag_translation_repo,
         "article_translation_repository": article_translation_repo,
     }
+
+
+# ---------------------------------------------------------------------------
+# Metrics Refresh Pipeline：定期重抓 citation_count 等 catalog-defined metrics
+# ---------------------------------------------------------------------------
+
+def build_metrics_refresh_pipeline():
+    """Assemble (ResilientMetricsService, ArticleMetricsRepository, session) from
+    the DB-configured metric_definitions catalog. Independent of build_llm_service
+    and build_weekly_pipeline — no shared code path with the backend's view_count
+    flush (research.md §9b)."""
+    from shared.metric_definition import load_enabled_metric_definitions
+    from src.infrastructure.collection.metrics.resilient_metrics_service import build_resilient_metrics_service
+    from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
+
+    init_db()
+    session = get_session()
+
+    metric_definitions = load_enabled_metric_definitions(session)
+    metrics_service = build_resilient_metrics_service(metric_definitions)
+    metrics_repo = SqlAlchemyArticleMetricsRepository(session=session)
+
+    logger.info("metrics_refresh_bootstrap_complete", metric_definitions_count=len(metric_definitions))
+    return metrics_service, metrics_repo, session

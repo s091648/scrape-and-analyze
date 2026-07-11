@@ -174,6 +174,34 @@ class OpenAlexClient:
             logger.info("crossref_publisher_resolved", doi_prefix=prefix, publisher=publisher)
         return publisher
 
+    def fetch_by_doi(self, doi: str) -> Optional[dict]:
+        """Fetch a single work by DOI. Returns the raw parsed JSON dict (not an
+        OpenAlexEntry) so metric extractors can evaluate JMESPath expressions
+        against OpenAlex's actual field names (e.g. 'cited_by_count')."""
+        ua_suffix = f" (mailto:{self._mailto})" if self._mailto else ""
+        headers = {"User-Agent": f"scrape-analyzer/1.0{ua_suffix}"}
+        try:
+            response = self._http.get(
+                f"{OPENALEX_API_URL}/doi:{doi}",
+                headers=headers,
+                timeout=30,
+            )
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                logger.warning("openalex_rate_limited", url=OPENALEX_API_URL)
+                raise OpenAlexRateLimitedError(str(exc)) from exc
+            logger.error("openalex_fetch_by_doi_failed", doi=doi, error=str(exc))
+            return None
+        except Exception as e:
+            logger.error("openalex_fetch_by_doi_failed", doi=doi, error=str(e))
+            return None
+
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error("openalex_fetch_by_doi_failed", doi=doi, error=str(e))
+            return None
+
     def fetch_papers(
         self,
         query: str,

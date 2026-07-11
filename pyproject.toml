@@ -29,6 +29,7 @@ scraper = [
     "chatbot-plugin-sdk",
     "fastembed>=0.3",
     "huggingface-hub>=0.24",
+    "jmespath>=1.0",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [

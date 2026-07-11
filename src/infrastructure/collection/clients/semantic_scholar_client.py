@@ -63,6 +63,34 @@ class SemanticScholarClient:
             http_client = get_default_client()
         self._http = http_client
 
+    def fetch_by_doi(self, doi: str) -> Optional[dict]:
+        """Fetch a single paper by DOI. Returns the raw parsed JSON dict (not a
+        SemanticScholarEntry) so metric extractors can evaluate JMESPath
+        expressions against Semantic Scholar's actual field names (e.g. 'citationCount')."""
+        headers = {"x-api-key": self._api_key} if self._api_key else {}
+        try:
+            response = self._http.get(
+                f"https://api.semanticscholar.org/graph/v1/paper/DOI:{doi}",
+                params={"fields": SEMANTIC_SCHOLAR_FIELDS},
+                headers=headers,
+                timeout=30,
+            )
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                logger.warning("semantic_scholar_rate_limited", url="paper/DOI:" + doi)
+                raise SemanticScholarRateLimitedError(str(exc)) from exc
+            logger.error("semantic_scholar_fetch_by_doi_failed", doi=doi, error=str(exc))
+            return None
+        except Exception as e:
+            logger.error("semantic_scholar_fetch_by_doi_failed", doi=doi, error=str(e))
+            return None
+
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error("semantic_scholar_fetch_by_doi_failed", doi=doi, error=str(e))
+            return None
+
     def fetch_papers(
         self,
         query: str,
