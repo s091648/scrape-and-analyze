@@ -203,7 +203,7 @@ async def record_article_view(article_id: UUID, request: Request):
         already_viewed = await r.get(dedup_key)
         if not already_viewed:
             await r.incr(view_key)
-            await r.expire(dedup_key, 86400)
+            await r.set(dedup_key, "1", ex=86400)
     finally:
         await r.aclose()
     return Response(status_code=204)

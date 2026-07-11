@@ -384,6 +384,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -411,6 +420,7 @@ jobs:
         run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+          REDIS_URL: redis://localhost:6379/0
 
       - name: Upload backend-integration coverage to Codecov
         uses: codecov/codecov-action@v4

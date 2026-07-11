@@ -148,6 +148,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     # no command; `docker compose run` will supply the test command
 
   # Chatbot Plugin — OpenAI-compatible RAG chat service
