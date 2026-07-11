@@ -100,12 +100,18 @@ cd frontend && npm run test
 cd frontend && npm run test:e2e
 ```
 
-## Railway Deployment (Cron Service)
+## Railway Deployment (Cron Services)
 
-In Railway dashboard, create a new Cron Service:
-- **Command**: `uv run python -m src.entrypoints.cli.weekly_main`
-- **Schedule**: `0 8 * * 1` (Every Monday at 08:00 UTC)
+In Railway dashboard, create two Cron Services (independent of each other and of the `app`/backend services — see research.md §9b, §9f):
+- **Weekly report**: Command `uv run python -m src.entrypoints.cli.weekly_main`, schedule `0 8 * * 1` (Every Monday at 08:00 UTC)
+- **Metric refresh** (new, 2026-07-12): Command `uv run python -m src.entrypoints.cli.refresh_metrics`, schedule `0 3 * * *` (daily at 03:00 UTC — off-peak, ahead of the weekly report's Monday run so citation counts used in Monday's report are fresh)
 - **Environment**: Same `.env` variables as `app` service
+
+## Testing Metric Refresh (Manual)
+
+```bash
+docker compose run --rm job_service uv run python -m src.entrypoints.cli.refresh_metrics
+```
 
 ## Architecture Diagram
 

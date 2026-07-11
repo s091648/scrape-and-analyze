@@ -17,6 +17,7 @@
 
 - [X] T001 Add `boto3>=1.34` and `resend>=2.0` to `pyproject.toml` core dependencies group (`google-genai` already present)
 - [X] T002 Add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `VIEW_COUNT_FLUSH_INTERVAL` to `.env.example` with comments
+- [X] T003 Add `jmespath>=1.0` to `pyproject.toml` `scraper` dependency group (research.md §9c)
 
 ---
 
@@ -26,11 +27,14 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Create single Alembic migration `alembic/versions/23_article_recommendation_weekly_report.py` (revises `22_add_correlation_id_and_rag_providers`) containing all DDL per data-model.md: `article_metrics`, `weekly_reports`, `user_topic_subscriptions`, `user_notification_settings`, `user_article_favorites` tables + `op.add_column` for `llm_providers.type` (String(20), default='llm') + `op.create_check_constraint('ck_llm_provider_type', 'llm_providers', "type IN ('llm', 'embedding', 'multimodal')")` with all indexes and UNIQUE constraints
-- [X] T005 [P] Create ORM model `models/article_metrics.py` with `ArticleMetrics` class (UUID PK, article_id FK → articles, citation_count nullable int, view_count int default 0, last_flushed_at, UNIQUE on article_id)
+- [X] T004 **REWORK (2026-07-12)** Edit Alembic migration `alembic/versions/23_article_recommendation_weekly_report.py` (revises `22_add_correlation_id_and_rag_providers`, still unshipped — edit in place, do not add a follow-up revision): remove `citation_count` column from the `article_metrics` table def + drop its old index; add `metric_definitions` table (id, metric_key, provider_name, priority, extractor_type, extractor_spec JSONB, enabled, label_i18n_key, format_hint, unit, timestamps; UNIQUE(metric_key, provider_name); partial index on metric_key WHERE enabled) with seed-data `INSERT` for `citation_count`/`openalex` (priority 1) and `citation_count`/`semantic_scholar` (priority 2) per data-model.md; add `article_metric_values` table (id, article_id FK CASCADE, metric_key, value NUMERIC, last_flushed_at, timestamps; UNIQUE(article_id, metric_key); index on (metric_key, value DESC NULLS LAST); index on last_flushed_at WHERE NOT NULL); add two partial expression indexes on `articles`: `((metadata->>'doi'))` and `((metadata->>'arxiv_id'))`, both `WHERE ... IS NOT NULL`; keep `weekly_reports`/`user_topic_subscriptions`/`user_notification_settings`/`user_article_favorites`/`llm_providers.type` DDL unchanged; update `downgrade()` to match
+- [X] T005 [P] **REWORK (2026-07-12)** Edit ORM model `models/article_metrics.py`: remove `citation_count` column, keep `id`, `article_id` FK, `view_count` int default 0, `last_flushed_at`, UNIQUE on article_id
 - [X] T006 [P] Create ORM model `models/weekly_report.py` with `WeeklyReport` class (UUID PK, topic_id FK → topics ON DELETE SET NULL, week_start_date, title, summary_text, cover_image_url, article_ids JSONB, article_count, status, error_message)
 - [X] T007 [P] Create ORM model `models/user_subscription.py` with three classes: `UserTopicSubscription` (user_id+topic_id UNIQUE), `UserNotificationSettings` (user_id UNIQUE, email_enabled, telegram_chat_id, telegram_enabled, locale String(10) default='en'), `UserArticleFavorite` (user_id+article_id UNIQUE)
 - [X] T008 [P] Fix `models/llm_provider.py`: remove duplicate `type` column definition (lines 16–17 currently have two identical `type =` assignments); add `CheckConstraint("type IN ('llm', 'embedding', 'multimodal')", name='ck_llm_provider_type')` to `__table_args__`
+- [X] T009 [P] Create ORM model `models/metric_definition.py` with `MetricDefinition` class per data-model.md `metric_definitions` table (id, metric_key, provider_name, priority, extractor_type, extractor_spec JSONB, enabled, label_i18n_key, format_hint, unit, timestamps, UNIQUE(metric_key, provider_name))
+- [X] T010 [P] Create ORM model `models/article_metric_value.py` with `ArticleMetricValue` class per data-model.md `article_metric_values` table (id, article_id FK CASCADE, metric_key, value Numeric nullable, last_flushed_at, timestamps, UNIQUE(article_id, metric_key))
+- [X] T011 [P] Create `shared/metric_definition.py::load_enabled_metric_definitions(session) -> List[Dict[str, Any]]`, mirroring `shared/llm_provider.py::load_active_providers` (returns metric_key/provider_name/priority/extractor_type/extractor_spec grouped for `ResilientMetricsService` to consume), `enabled=True` rows only, ordered by `(metric_key, priority)`
 
 **Checkpoint**: Migration and ORM models complete — user story implementation can begin
 
@@ -44,24 +48,39 @@
 
 ### Implementation
 
-- [X] T012 [P] [US1] Extend `src/modules/collection/domain/value_objects/scraped_article.py` with `citation_count: Optional[int] = None` field
-- [X] T013 [P] [US1] Extend `src/infrastructure/collection/scrapers/openalex_scraper.py` to extract and pass `citation_count` into `ScrapedArticle`
-- [X] T014 [P] [US1] Extend `src/infrastructure/collection/scrapers/semantic_scholar_scraper.py` to extract and pass `citation_count` into `ScrapedArticle`
-- [X] T015 [US1] Extend `ProcessScrapedArticleUseCase` in `src/modules/collection/application/use_cases/process_scraped_article_use_case.py` to upsert `article_metrics` row (citation_count from ScrapedArticle, view_count=0) after article save; depends on T012, T005
-- [X] T016 [P] [US1] Extend `backend/schemas/article.py` `ArticleOut` and `ArticleDetailOut` with `citation_count: Optional[int] = None` and `view_count: int = 0`
-- [X] T017 [US1] Extend `backend/services/article_service.py` `get_articles_paginated` to `LEFT JOIN article_metrics` and include `citation_count`, `view_count` in output mapping; depends on T016, T005
+- [X] T012 [P] [US1] **REWORK (2026-07-12)** Edit `src/modules/collection/domain/value_objects/scraped_article.py`: replace `citation_count: Optional[int] = None` field with `metric_seeds: Dict[str, Any] = field(default_factory=dict)`
+- [X] T013 [P] [US1] **REWORK (2026-07-12)** Edit `src/infrastructure/collection/scrapers/openalex_scraper.py` to populate `metric_seeds={"citation_count": e.citation_count}` instead of setting the old dedicated field
+- [X] T014 [P] [US1] **REWORK (2026-07-12)** Edit `src/infrastructure/collection/scrapers/semantic_scholar_scraper.py` to populate `metric_seeds={"citation_count": e.citation_count}` instead of setting the old dedicated field
+- [X] T015 [US1] **REWORK (2026-07-12)** Edit `src/modules/collection/domain/repositories/article_metrics_repository.py`: change `upsert(self, article_id: UUID, citation_count: Optional[int]) -> None` to `upsert(self, article_id: UUID, metrics: dict[str, Any]) -> None`; edit `src/infrastructure/persistence/collection/article_metrics_repo_impl.py`'s `SqlAlchemyArticleMetricsRepository` to write one row per key into `article_metric_values` via `INSERT ... ON CONFLICT (article_id, metric_key) DO UPDATE SET value = EXCLUDED.value, last_flushed_at = now()` instead of updating the old `citation_count` column; edit `ProcessScrapedArticleUseCase` (`src/modules/collection/application/use_cases/process_scraped_article.py`) to forward `ScrapedArticle.metric_seeds` (filtered to known `metric_definitions.metric_key` values) to the generalized `upsert()`; depends on T012, T010, T011
+- [X] T016 [P] [US1] Extend `backend/schemas/article.py` `ArticleOut` and `ArticleDetailOut` with `citation_count: Optional[int] = None` and `view_count: int = 0` — **unaffected by 2026-07-12 rework**: response field shape is unchanged, only the backend query sourcing it changes (see T017)
+- [X] T017 [US1] **REWORK (2026-07-12)** Edit `backend/services/article_service.py` `get_articles_paginated`: keep `LEFT JOIN article_metrics` for `view_count`; add `LEFT JOIN article_metric_values ON article_metric_values.article_id = articles.id AND article_metric_values.metric_key = 'citation_count'` for `citation_count` (replaces the old direct column reference); depends on T016, T005, T010
 - [X] T018 [US1] Add `POST /articles/{id}/view` endpoint to `backend/routers/articles.py`: Redis `INCR view:{article_id}` with IP dedup key `viewed:{ip}:{article_id}` (24h TTL via `EXPIRE`); returns 204 regardless of duplicate
-- [X] T019 [US1] Add view count flush function to `backend/services/article_service.py` (scan `view:*` Redis keys, `GETDEL`, `UPDATE article_metrics SET view_count = view_count + :count`); add admin endpoint `POST /admin/articles/flush-view-counts` in `backend/routers/articles.py`; register background periodic flush on FastAPI startup using `VIEW_COUNT_FLUSH_INTERVAL` env var (default 900s)
+- [X] T019 [US1] Add view count flush function to `backend/services/article_service.py` (scan `view:*` Redis keys, `GETDEL`, `UPDATE article_metrics SET view_count = view_count + :count`); add admin endpoint `POST /admin/articles/flush-view-counts` in `backend/routers/articles.py`; register background periodic flush on FastAPI startup using `VIEW_COUNT_FLUSH_INTERVAL` env var (default 900s) — **unaffected by 2026-07-12 rework**: entirely separate from citation_count/metric_definitions per research.md §9b
 - [X] T020 [P] [US1] Extend `frontend/lib/api/articles.ts` with `recordArticleView(id: string)` fire-and-forget function (`POST /articles/{id}/view`); update `ArticleOut` TypeScript type with `citation_count: number | null` and `view_count: number`
 - [X] T021 [US1] Extend `frontend/components/features/articles/article-card.tsx` to show `citation_count` badge (when > 0) and `view_count` badge using the new fields from T020
 - [X] T022 [US1] Extend `frontend/components/features/articles/article-detail-dialog.tsx` to display `citation_count` and `view_count`, and call `recordArticleView(id)` on dialog open; depends on T020
 
+### Recurring Metric Refresh (new, 2026-07-12 — extends US1: keeps citation_count fresh after the initial scrape)
+
+- [X] T081 [P] [US1] Add `fetch_by_doi(doi: str) -> Optional[dict]` to `src/infrastructure/collection/clients/openalex_client.py`, returning the raw parsed JSON dict (not `OpenAlexEntry`) for a single paper lookup; `fetch_papers()` unchanged
+- [X] T082 [P] [US1] Add `fetch_by_doi(doi: str) -> Optional[dict]` to `src/infrastructure/collection/clients/semantic_scholar_client.py`, same contract as T081
+- [X] T083 [P] [US1] Create `src/modules/collection/domain/services/metric_extractor.py` — `MetricExtractor` ABC with `fetch(article_identifiers: dict[str, str]) -> Optional[dict]` and `extract(raw_response: dict, extractor_spec: dict) -> Optional[Any]`
+- [X] T084 [P] [US1] Create `src/infrastructure/collection/metrics/json_path_extractor.py` — `JsonPathMetricExtractor` implementing `MetricExtractor.extract()` via `jmespath.search(extractor_spec["path"], raw_response)`; `fetch()` delegates to a `provider_name`-keyed dict of fetcher callables (T081, T082); depends on T081, T082, T083, T003
+- [X] T085 [US1] Create `src/infrastructure/collection/metrics/resilient_metrics_service.py` — `ResilientMetricsService`, built from `load_enabled_metric_definitions()` (T011) grouped by `metric_key` ordered by `priority`; `fetch_all(article_identifiers: dict) -> dict[str, Any]` walks each metric_key's provider list in order, keeps first non-null result; depends on T011, T084
+- [X] T086 [US1] Add `build_metrics_refresh_pipeline()` to `src/bootstrap.py` wiring `ResilientMetricsService` + the generalized `ArticleMetricsRepository`; depends on T085, T015
+- [X] T087 [US1] Create `src/entrypoints/cli/refresh_metrics.py`: query articles (via the `articles.metadata` doi/arxiv_id expression indexes from T004) with a missing or stale (`last_flushed_at < now() - interval '1 day'`) `article_metric_values` row for any enabled `metric_key`; resolve `{"doi": ..., "arxiv_id": ...}` per article from `Article.metadata`; call `ResilientMetricsService.fetch_all()`; upsert results via `ArticleMetricsRepository.upsert()`; depends on T086
+- [X] T088 Add Railway Cron Service entry for `refresh_metrics.py` in `src/railway.toml` (daily, `0 3 * * *`), reusing `src/Dockerfile`; depends on T087
+
 ### Tests
 
-- [X] T023 [P] [US1] Write unit test for `ProcessScrapedArticleUseCase` article_metrics upsert behavior in `src/tests/unit/test_process_scraped_article.py`
+- [X] T023 [P] [US1] **REWORK (2026-07-12)** Update unit test for `ProcessScrapedArticleUseCase` in `src/tests/unit/test_process_scraped_article.py` to cover the generalized `upsert(article_id, metrics: dict)` call (multiple metric_seeds keys, filtered against known metric_definitions)
 - [X] T024 [P] [US1] Write backend integration test for `POST /articles/{id}/view` endpoint and Redis IP dedup (second call within 24h does not increment) in `backend/tests/test_article_view_count.py`
+- [X] T089 [P] [US1] Write unit test for `JsonPathMetricExtractor.extract()` against fixture OpenAlex/Semantic Scholar JSON responses in `src/tests/unit/test_json_path_metric_extractor.py`
+- [X] T090 [P] [US1] Write unit test for `ResilientMetricsService.fetch_all()` fallback ordering (first provider fails/returns null → falls back to next by priority) in `src/tests/unit/test_resilient_metrics_service.py`
+- [X] T091 [P] [US1] Write unit test for the generalized `SqlAlchemyArticleMetricsRepository.upsert()` (multiple metric_key rows, ON CONFLICT update) in `src/tests/unit/test_article_metrics_repo.py`
+- [X] T092 [P] [US1] Write unit test for `refresh_metrics.py`'s staleness query (missing row vs stale `last_flushed_at` vs fresh row correctly included/excluded) in `src/tests/unit/test_refresh_metrics.py`
 
-**Checkpoint**: Citation count and view count visible on article cards and detail dialog; POST /articles/{id}/view increments Redis counter correctly
+**Checkpoint**: Citation count and view count visible on article cards and detail dialog; POST /articles/{id}/view increments Redis counter correctly; `refresh_metrics.py` keeps citation_count fresh independent of scrape time
 
 ---
 
@@ -73,13 +92,13 @@
 
 ### Implementation
 
-- [X] T025 [US2] Extend `backend/services/article_service.py` sort logic in `get_articles_paginated` to handle `sort='citation_count'` and `sort='view_count'` via `ORDER BY` on the `article_metrics` columns from the JOIN established in T017
+- [X] T025 [US2] **REWORK (2026-07-12)** Edit `backend/services/article_service.py` sort logic in `get_articles_paginated`: `sort='view_count'` still orders on `article_metrics.view_count`; `sort='citation_count'` now orders on the `article_metric_values.value` column from the T017 JOIN (filtered to `metric_key='citation_count'`), using the new `idx_article_metric_values_metric_key_value` index
 - [X] T026 [P] [US2] Extend `frontend/components/features/articles/filter-bar.tsx` with sort `<Select>` dropdown (Shadcn UI) on the right side; options: Scraped At (default), Published At, Citation Count, View Count, Source, Title; immediate apply on change (no draft state)
 - [X] T027 [US2] Update articles page/hook to read `sort` and `order` state and pass as query params to `GET /articles` via `apiFetch()`; depends on T026
 
 ### Tests
 
-- [X] T028 [P] [US2] Write backend integration test for `GET /articles?sort=citation_count&order=desc` correct ordering in `backend/tests/test_article_sort.py`
+- [X] T028 [P] [US2] **RE-VERIFY (2026-07-12)** Re-run backend integration test for `GET /articles?sort=citation_count&order=desc` in `backend/tests/test_article_sort.py` against the reworked T025 query (fixture data now needs an `article_metric_values` row instead of a flat `article_metrics.citation_count` column); assertions on response ordering are unchanged
 - [X] T029 [P] [US2] Write frontend unit test for FilterBar sort dropdown rendering and `onChange` in `frontend/tests/unit/filter-bar.test.tsx`
 
 **Checkpoint**: Sort dropdown visible in filter bar; articles correctly reorder by citation_count and view_count without breaking topic filter
@@ -137,7 +156,7 @@
 - [X] T048 [P] [US3] Create `src/infrastructure/intelligence/image/base_image_provider.py` abstract base class for image generation providers
 - [X] T049 [P] [US3] Create `src/infrastructure/intelligence/image/gemini_imagen_provider.py` implementing `ImageGenerationService` using `google-genai` SDK; constructor accepts `model: str` (read from the active multimodal `LlmProvider` DB record at runtime — never hardcoded) and `api_key: str` (resolved from `api_key_env`); calls `client.models.generate_images(model=self._model, prompt=prompt, ...)`; depends on T042, T048
 - [X] T050 [P] [US3] Create `src/infrastructure/storage/r2_blob_storage.py` `R2BlobStorageService` implementing `BlobStorageService` (T043) using `boto3` S3-compatible client with `R2_*` env vars; depends on T043
-- [X] T051 [US3] Create `src/infrastructure/intelligence/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl` implementing repository interface (T041): fetches articles+analyses+tags via JOIN with `COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC NULLS LAST`, assembles `ArticleSummaryForReport` list, upserts `WeeklyReport` ORM row; depends on T041, T044, T006
+- [X] T051 [US3] **REWORK (2026-07-12)** Edit `src/infrastructure/intelligence/repositories/weekly_report_repo_impl.py` `WeeklyReportRepoImpl`'s article-selection query: replace the `am.citation_count` reference with a `LEFT JOIN article_metric_values ON ... AND metric_key = 'citation_count'`, ordering `COALESCE(amv.value, 0) DESC, am.view_count DESC, published_at DESC NULLS LAST` per data-model.md; `ArticleSummaryForReport` field name/type unchanged; depends on T041, T044, T006, T010
 
 ### Implementation — Notifications
 
@@ -188,11 +207,11 @@
 
 - [X] T069 [P] [US4] Create `frontend/lib/api/weekly-reports.ts` with `fetchLatestWeeklyReport(topicId: string)` and `fetchWeeklyReports(topicId: string, limit?: number, offset?: number)` using `apiFetch()`
 - [X] T070 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-skeleton.tsx` loading skeleton component
-- [X] T071 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.tsx` displaying report title, summary_text (markdown rendered), and cover_image_url as CSS background-image
-- [X] T072 [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.tsx` with week navigation dropdown (Shadcn Select) and `WeeklyReportCard`; fetches via `fetchLatestWeeklyReport`/`fetchWeeklyReports`; shows "No report for this week yet" placeholder when null; uses `WeeklyReportSkeleton` while loading; depends on T069, T070, T071
+- [X] T071 [P] [US4] ~~Create `frontend/components/features/weekly-report/weekly-report-card.tsx` displaying report title, summary_text (markdown rendered), and cover_image_url as CSS background-image~~ — later removed; `weekly-report-widget.tsx` renders this content inline and never adopted the component
+- [X] T072 [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.tsx` with week navigation dropdown (Shadcn Select); fetches via `fetchLatestWeeklyReport`/`fetchWeeklyReports`; shows "No report for this week yet" placeholder when null; uses `WeeklyReportSkeleton` while loading; depends on T069, T070, T071
 - [X] T073 [US4] Extend `frontend/app/page.tsx` to render `<WeeklyReportWidget topicId={currentTopicId} />` above `<InlineQABarWrapper>`; depends on T072
 - [X] T074 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-widget.stories.tsx` Storybook story (required by Constitution §II) with no-report and with-report states
-- [X] T075 [P] [US4] Create `frontend/components/features/weekly-report/weekly-report-card.stories.tsx` Storybook story (required by Constitution §II) with and without cover image
+- [X] T075 [P] [US4] ~~Create `frontend/components/features/weekly-report/weekly-report-card.stories.tsx` Storybook story (required by Constitution §II) with and without cover image~~ — later removed along with T071
 
 ### Tests
 
@@ -209,7 +228,7 @@
 
 - [X] T078 [P] Write E2E test for sort by citation_count reordering the article list in `frontend/tests/integration/sort-articles.spec.ts`
 - [X] T079 [P] Write E2E test for weekly report widget display and week dropdown navigation in `frontend/tests/integration/weekly-report-widget.spec.ts`
-- [ ] T080 Run quickstart.md validation: apply migration 23 via `docker compose run --rm job_service make migrate`, manually trigger weekly report via `docker compose run --rm job_service uv run python -m src.entrypoints.cli.weekly_main --topic-id <id>`, verify citation count on scraped articles, and verify view count tracking and flush
+- [X] T080 Run quickstart.md validation: applied migration 23 against a fresh throwaway DB (full upgrade chain from base, then downgrade -1, then re-upgrade — round-trip verified clean; fixed a pre-existing FK-ordering bug in downgrade() found in the process: weekly_reports was dropped before weekly_reports_translation, which FKs into it); verified `metric_definitions` seed rows present; manually ran `uv run python -m src.entrypoints.cli.refresh_metrics` against live OpenAlex/Semantic Scholar APIs and confirmed a real `article_metric_values` row was written; full `src/tests/unit/` (672 passed), `backend/tests/` unit (304 passed), and `src/tests/integration/` (50 passed) suites all green. (Note: corrected from the earlier draft — the weekly report entrypoint is `src.entrypoints.cli.weekly_report`, not `weekly_main`; not exercised end-to-end here since it requires R2/multimodal provider credentials not configured in this dev environment, but its query change (T051) is covered by existing unit tests.)
 
 ---
 
@@ -219,10 +238,11 @@
 
 - **Setup (Phase 1)**: No dependencies — start immediately
 - **Foundational (Phase 2)**: Depends on Phase 1; BLOCKS all user stories
-- **US1 (Phase 3)**: Depends on Phase 2 (needs `ArticleMetrics` ORM T005)
-- **US2 (Phase 4)**: Depends on Phase 3 (needs `article_metrics` JOIN from T017)
+- **US1 (Phase 3)**: Depends on Phase 2 (needs `ArticleMetrics` ORM T005, `MetricDefinition`/`ArticleMetricValue` ORMs T009/T010, shared loader T011)
+- **US1 Recurring Metric Refresh (Phase 3, T081–T092)**: Depends on T015 (generalized `upsert()`), T011; independent of the rest of Phase 3's implementation tasks — can be built in parallel once T015 lands
+- **US2 (Phase 4)**: Depends on Phase 3 (needs `article_metrics`/`article_metric_values` JOIN from T017)
 - **US5 (Phase 5)**: Depends on Phase 2 (needs `UserArticleFavorite` ORM T007); can start in parallel with Phase 3/4
-- **US3 (Phase 6)**: Depends on Phase 2 (needs `WeeklyReport`, `UserTopicSubscription`, `UserNotificationSettings` ORMs T006, T007); largely independent of Phase 3–5
+- **US3 (Phase 6)**: Depends on Phase 2 (needs `WeeklyReport`, `UserTopicSubscription`, `UserNotificationSettings` ORMs T006, T007); T051 additionally depends on T010 (`ArticleMetricValue` ORM); otherwise largely independent of Phase 3–5
 - **US4 (Phase 7)**: Depends on Phase 6 (weekly reports must be generable for meaningful testing)
 - **Polish (Phase 8)**: Depends on all user story phases
 
@@ -230,11 +250,15 @@
 
 | Story | Depends On | Notes |
 |-------|------------|-------|
-| US1 (P1) | Phase 2 complete | No story-level dependencies |
-| US2 (P2) | US1 T017 | Extends existing `article_metrics` JOIN |
+| US1 (P1) | Phase 2 complete | No story-level dependencies. T081–T092 (recurring refresh) extend US1's "citation count visible" goal to "citation count stays fresh" |
+| US2 (P2) | US1 T017 | Extends existing `article_metrics`/`article_metric_values` JOIN |
 | US5 (P2) | Phase 2 complete | Shares `filter-bar.tsx` with US2; order: US2 → US5 |
-| US3 (P3) | Phase 2 complete | New DDD bounded context, largely independent |
+| US3 (P3) | Phase 2 complete | New DDD bounded context, largely independent; T051 depends on T010 |
 | US4 (P4) | US3 complete | Needs weekly reports to exist in DB |
+
+### 2026-07-12 Rework Note
+
+This tasks.md was regenerated after a metrics-catalog redesign (see plan.md, research.md §9b–§9f). Tasks marked **REWORK** correspond to code that was already implemented (all originally `[X]`) against the superseded single-column `article_metrics.citation_count` design and must be edited to match the new `metric_definitions`/`article_metric_values` schema — they are unchecked again because the underlying code needs real changes, not because no work was ever done. Tasks marked **RE-VERIFY** have logic/assertions that are still valid but need to be re-run against the reworked query beneath them. New tasks (T003, T009–T011, T081–T092) are net-new capability (the recurring refresh job and its supporting abstractions) that did not exist under the original design. Everything else retains its original `[X]` and needs no changes.
 
 ### Within Each User Story
 
@@ -250,13 +274,14 @@
 
 ### Phase 2 (after T004 migration is written)
 
-T005–T008 (ORM models) can all run in parallel with each other.
+T005–T011 (ORM models + shared loader) can all run in parallel with each other.
 
 ### Phase 3 (US1)
 
 T012, T013, T014 (ScrapedArticle + scraper extensions) run in parallel.
 T016, T020 (backend schema + frontend type) run in parallel.
-T023, T024 (tests) run in parallel after implementation.
+T081, T082 (client fetch_by_doi methods) run in parallel; T083 (domain interface) can run alongside them.
+T023, T024, T089, T090, T091, T092 (tests) run in parallel after their respective implementation tasks land.
 
 ### Phase 6 (US3)
 
@@ -324,3 +349,6 @@ After Phase 2 completes:
 - `WeeklyReportRepoImpl` lives in `src/infrastructure/intelligence/repositories/` (new subdirectory alongside existing `llm/`, `image/`, etc.)
 - `user_notification_settings.locale` controls email wrapper language; supported values `'en'` and `'zh-TW'` match the app's existing i18n locales
 - Multimodal provider is NOT seeded in migration 23 — admin must add via LLM provider admin UI; `weekly_main.py` validates on startup
+- `metric_definitions` (unlike `llm_providers`) IS seeded in migration 23 (T004) — it has no admin UI by design (FR-022), so declarative seeding in the migration is the only way it gets populated (research.md §9d)
+- `refresh_metrics.py` (T087) deploys as its own Railway Cron Service (T088): `0 3 * * *`, independent of `weekly_main.py`'s `0 8 * * 1` and independent of the backend's view_count flush — three separate schedules/processes, deliberately not sharing a runner (see plan.md Complexity Tracking)
+- `ResilientMetricsService`/`MetricExtractor`/`JsonPathMetricExtractor` (T083–T085) mirror the existing `LLMService`/`ResilientLLMService`/`ProviderHandler` pattern in `src/infrastructure/intelligence/llm/` — no new architectural convention introduced

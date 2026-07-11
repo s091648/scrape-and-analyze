@@ -29,6 +29,8 @@ Response `ArticleOut` gains:
 }
 ```
 
+**Sourcing note (2026-07-12)**: `citation_count` is sourced from a `LEFT JOIN article_metric_values ON ... AND metric_key = 'citation_count'`, not a flat column — see [data-model.md](../data-model.md#article_metric_values). Field name/shape in the response is unchanged; only the backend query changes. `citation_count` may be refreshed independently of scrape time by a daily background job (see [plan.md](../plan.md)), so it can update without a new scrape of the article.
+
 ### `GET /articles/{id}` (extended)
 
 Response `ArticleDetailOut` gains same `citation_count` and `view_count` fields.
@@ -191,7 +193,6 @@ New functions in `frontend/lib/api/`:
 
 ### New components
 - `components/features/weekly-report/WeeklyReportWidget.tsx` — report display with dropdown
-- `components/features/weekly-report/WeeklyReportCard.tsx` — report content card with cover image background
 - `components/features/weekly-report/WeeklyReportSkeleton.tsx` — loading state
 
 ### Modified components

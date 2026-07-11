@@ -212,6 +212,59 @@ The backend `GET /articles` already accepts `sort` and `order` params; adding `c
 
 ---
 
+## 9b. Metric Extensibility: Normalized Catalog vs JSONB Blob vs EAV (2026-07-12 revision)
+
+**Decision**: Two normalized tables — `metric_definitions` (maintainer-curated catalog: which metrics exist, which provider supplies each, how to extract the value) and `article_metric_values` (one row per `(article_id, metric_key)`, the actual current value). `article_metrics.citation_count` is removed; `article_metrics` narrows to `view_count` only.
+
+**Rationale**: The original single hardcoded `citation_count` column doesn't scale as more academic signals (impact factor, h-index, altmetric) get added — every new metric would require a new column plus scraper code changes per provider. A `metrics JSONB` blob column was considered first but rejected in favor of proper normalization (per project convention — DB normalization is preferred over denormalized blobs when the value set has stable shape and needs per-key indexing/sorting). An EAV table for *values* is reasonable here because the number of distinct `metric_key`s is small (single digits) and `article_metric_values` needs an index on `(metric_key, value DESC)` for sort/ranking queries (`GET /articles?sort=citation_count`, weekly report article selection) — a JSONB column can't be indexed per-key without a generated column per metric, which reintroduces the original scaling problem one layer down.
+
+**Alternatives considered**:
+- `article_metrics.metrics JSONB`: Simple, but un-indexable per key without generated columns (defeats the extensibility goal) and mixes usage signals (view_count, backend-owned) with academic signals (citation_count, src-owned) in one table/refresh-path, which was explicitly identified as undesirable — the two have unrelated data sources and change-frequency characteristics.
+- Fully dynamic EAV including the *definitions* (i.e. let admins define new metrics via a DB row containing executable extraction code, akin to pickling a callable): rejected — deserializing/executing stored code is a remote-code-execution risk if that data path is ever reachable by anything less than fully trusted input, and pickled callables are fragile across refactors (see FR-023). Extraction is instead either a data-only JMESPath expression (`extractor_type='json_path'`) or a reference to a fixed, code-reviewed, in-process registry entry (`extractor_type='code'`) — never arbitrary stored code.
+- Per-metric nullable columns on `article_metrics` (citation_count, impact_factor, h_index, ...): rejected outright — this is exactly the scaling problem being solved (FR-001).
+
+---
+
+## 9c. JMESPath for Declarative Field Extraction
+
+**Decision**: Use the `jmespath` PyPI package to evaluate `metric_definitions.extractor_spec.path` (e.g. `"cited_by_count"`) against a provider's raw JSON response.
+
+**Rationale**: JMESPath (also used by AWS CLI's `--query`) is a mature, pure-query language with no side effects and no code-execution surface — safe to store as a plain string in the database and evaluate at runtime. It supports simple field access plus light functions (numeric coercion, `min`/`max`, string ops) sufficient for "read this field" and trivial derivations, without opening an arbitrary-code execution path. Added to the `scraper` dependency group in `pyproject.toml`.
+
+**Alternatives considered**: Plain dotted-path strings (`"cited_by_count"` via manual `dict.get()` chaining) — simpler but can't express array indexing/filtering if a future provider's response nests the field inside a list; JMESPath costs one small dependency and covers that case for free. `jsonpath-ng` — less widely used, heavier grammar than needed.
+
+---
+
+## 9d. `metric_definitions` Seed Data Strategy
+
+**Decision**: Seed `metric_definitions` rows (initial `citation_count` → `openalex` priority 1, `citation_count` → `semantic_scholar` priority 2) directly inside the same `23_article_recommendation_weekly_report.py` migration that creates the table.
+
+**Rationale**: Unlike `llm_providers`, which has an admin UI for adding rows after deploy, `metric_definitions` is deliberately **not** dashboard-editable (FR-022) — there is no runtime path to populate it after migration. If it isn't seeded declaratively in the migration, the feature ships with an empty catalog and citation counts never populate. Seeding in the same migration keeps the "what metrics exist" decision in version control and code review, consistent with the catalog being a maintainer-owned artifact.
+
+**Alternatives considered**: Separate follow-up data migration — adds no value here since there's no reason to decouple table creation from its only population path; would just be an extra migration to keep in sync. Manual `psql` insert post-deploy — rejected, not reproducible across environments and leaves fresh deployments (a new Railway environment, a local dev DB) with an empty catalog silently.
+
+---
+
+## 9e. Resolving DOI / arxiv_id for the Refresh Job
+
+**Decision**: DOI and arxiv_id remain inside `articles.metadata` (JSONB) as they are today — no new columns on `articles`. Add two Postgres expression indexes: `CREATE INDEX ... ON articles ((metadata->>'doi'))` and `CREATE INDEX ... ON articles ((metadata->>'arxiv_id'))`, both `WHERE metadata->>'doi' IS NOT NULL` / `WHERE metadata->>'arxiv_id' IS NOT NULL` (partial index — most articles, e.g. RSS/Blog sources, have neither key).
+
+**Rationale**: `articles` is the hot-path table for the whole pipeline; research.md §1 already established the principle of not widening it for per-source signals. DOI/arxiv_id are already present in `metadata` (`openalex_scraper.py`, `semantic_scholar_scraper.py`, `arxiv_scraper.py` all copy them in) — the only gap was query performance for the refresh job's daily scan, which a targeted expression index solves without a schema change to `articles` itself or a data migration to backfill a new column.
+
+**Alternatives considered**: Promoting `doi`/`arxiv_id` to first-class nullable columns on `articles` — rejected per the above; also would sit NULL for the majority of non-academic sources (RSS, Blog), the same "confusing NULLs on a widened hot table" concern research.md §1 raised for signal columns.
+
+---
+
+## 9f. Single-Paper Lookup on `OpenAlexClient` / `SemanticScholarClient`
+
+**Decision**: Add `fetch_by_doi(doi: str) -> Optional[dict]` (and `fetch_by_arxiv_id` where the provider's API supports it) to both clients, returning the **raw parsed JSON dict** (not the existing `OpenAlexEntry`/`SemanticScholarEntry` dataclass) — the dataclass-returning `fetch_papers()` search method is unchanged and untouched.
+
+**Rationale**: Both clients currently only support keyword search (`fetch_papers`) and immediately discard the raw response after mapping it into a dataclass — there is no existing method to fetch a single already-known paper by identifier, which `refresh_metrics.py` fundamentally needs (it already knows the article; it needs today's citation count for that specific paper, not a search). The raw dict (rather than the dataclass) is what `extractor_type='json_path'` evaluates against, since `metric_definitions.extractor_spec.path` expressions are written against the provider's actual JSON field names (e.g. `cited_by_count`), not the internal dataclass's normalized field names.
+
+**Alternatives considered**: Reusing `fetch_papers()` with a DOI-as-query search — unreliable (search relevance ranking, not a guaranteed exact match) and wasteful (searches return multiple candidates when only one specific paper is wanted). Making the dataclasses retain the raw dict — considered, but conflates two different consumers (the existing discovery pipeline, which wants a stable typed shape; metric extraction, which wants raw provider field names) and would leak raw-JSON handling into `fetch_papers()` callers that don't need it.
+
+---
+
 ## 9. User Subscription Tables
 
 **Decision**: Two separate tables as suggested by the user.
