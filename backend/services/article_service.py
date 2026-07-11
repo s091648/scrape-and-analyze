@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.schemas.article import ArticleOut
 
 
-def build_article_out(article, translation=None, metrics=None, favorite=None) -> ArticleOut:
+def build_article_out(article, translation=None, metrics=None, citation_value=None, favorite=None) -> ArticleOut:
     meta = article.metadata_ or {}
     return ArticleOut(
         id=article.id,
@@ -22,7 +22,7 @@ def build_article_out(article, translation=None, metrics=None, favorite=None) ->
         translated_title=translation.title if translation else None,
         translated_content=translation.content if translation else None,
         has_vectors=article.has_vectors,
-        citation_count=metrics.citation_count if metrics else None,
+        citation_count=int(citation_value) if citation_value is not None else None,
         view_count=metrics.view_count if metrics else 0,
         is_favorited=favorite is not None,
     )
@@ -50,10 +50,14 @@ def get_articles_paginated(
 ):
     from models.article import Article
     from models.article_metrics import ArticleMetrics
+    from models.article_metric_value import ArticleMetricValue
     from models.user_subscription import UserArticleFavorite
 
-    query = db.query(Article, ArticleMetrics, UserArticleFavorite).outerjoin(
+    query = db.query(Article, ArticleMetrics, ArticleMetricValue, UserArticleFavorite).outerjoin(
         ArticleMetrics, ArticleMetrics.article_id == Article.id
+    ).outerjoin(
+        ArticleMetricValue,
+        (ArticleMetricValue.article_id == Article.id) & (ArticleMetricValue.metric_key == "citation_count"),
     ).outerjoin(
         UserArticleFavorite,
         (UserArticleFavorite.article_id == Article.id) & (UserArticleFavorite.user_id == user_id)
@@ -107,11 +111,13 @@ def get_articles_paginated(
         query = query.filter(Article.scraped_at <= scraped_before)
 
     if sort in ("citation_count", "view_count"):
-        col = getattr(ArticleMetrics, sort)
-        # nullslast() regardless of direction: articles are outer-joined to ArticleMetrics,
-        # so most have no row at all (NULL, not 0). Postgres defaults to NULLS FIRST on DESC,
-        # which would otherwise push every article with no metrics to the top of the "highest
-        # first" sort — always sink them to the bottom instead.
+        # citation_count now lives in article_metric_values (metric_key='citation_count'),
+        # view_count stays on article_metrics — see data-model.md 2026-07-12 revision.
+        col = ArticleMetricValue.value if sort == "citation_count" else ArticleMetrics.view_count
+        # nullslast() regardless of direction: articles are outer-joined, so most have no
+        # row at all (NULL, not 0). Postgres defaults to NULLS FIRST on DESC, which would
+        # otherwise push every article with no metrics to the top of the "highest first"
+        # sort — always sink them to the bottom instead.
         query = query.order_by(col.desc().nullslast() if order == "desc" else col.asc().nullslast())
     else:
         col = getattr(Article, sort, None)
@@ -120,7 +126,7 @@ def get_articles_paginated(
 
     total = query.count()
     rows = query.offset((page - 1) * size).limit(size).all()
-    return total, rows  # list of (Article, ArticleMetrics|None, UserArticleFavorite|None)
+    return total, rows  # list of (Article, ArticleMetrics|None, ArticleMetricValue|None, UserArticleFavorite|None)
 
 
 def get_article_by_id(db: Session, article_id: UUID):

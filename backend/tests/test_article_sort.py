@@ -6,11 +6,18 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 
-def _mock_metrics(citation_count=None, view_count=0):
+def _mock_metrics(view_count=0):
     m = MagicMock()
-    m.citation_count = citation_count
     m.view_count = view_count
     return m
+
+
+def _mock_citation_value(value=None):
+    if value is None:
+        return None
+    v = MagicMock()
+    v.value = value
+    return v
 
 
 def _mock_article(title="A"):
@@ -28,7 +35,7 @@ def _mock_article(title="A"):
 
 
 def _row(title="A", citation=None, views=0, favorited=None):
-    return (_mock_article(title), _mock_metrics(citation, views), favorited)
+    return (_mock_article(title), _mock_metrics(views), _mock_citation_value(citation), favorited)
 
 
 def _client():

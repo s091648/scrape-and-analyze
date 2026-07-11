@@ -76,7 +76,10 @@ def list_articles(
         ).all()
         trans_map = {t.article_id: t for t in translations}
     return PaginatedArticles(
-        items=[build_article_out(article, trans_map.get(article.id), metrics, favorite) for article, metrics, favorite in rows],
+        items=[
+            build_article_out(article, trans_map.get(article.id), metrics, citation_value.value if citation_value else None, favorite)
+            for article, metrics, citation_value, favorite in rows
+        ],
         total=total,
         page=page,
         size=size,
@@ -124,7 +127,12 @@ def get_article(
         raise HTTPException(status_code=404, detail="Article not found")
 
     from models.article_metrics import ArticleMetrics as ArticleMetricsModel
+    from models.article_metric_value import ArticleMetricValue
     metrics = db.query(ArticleMetricsModel).filter(ArticleMetricsModel.article_id == article_id).first()
+    citation_row = db.query(ArticleMetricValue).filter(
+        ArticleMetricValue.article_id == article_id,
+        ArticleMetricValue.metric_key == "citation_count",
+    ).first()
 
     analysis = article.analyses[0] if article.analyses else None
     pain_points = insights = innovations = None
@@ -179,7 +187,7 @@ def get_article(
         translated_title=translated_title,
         translated_content=translated_content,
         has_vectors=article.has_vectors,
-        citation_count=metrics.citation_count if metrics else None,
+        citation_count=int(citation_row.value) if citation_row and citation_row.value is not None else None,
         view_count=metrics.view_count if metrics else 0,
     )
 

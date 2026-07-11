@@ -23,7 +23,7 @@ def test_articles_returns_paginated_envelope():
     client = TestClient(app)
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
-               return_value=(1, [(mock_article, None, None)])):
+               return_value=(1, [(mock_article, None, None, None)])):
         response = client.get("/articles")
     assert response.status_code == 200
     data = response.json()
@@ -121,7 +121,7 @@ def test_articles_aggregator_filter_passed_to_query():
     client = TestClient(app)
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
-               return_value=(1, [(mock_article, None, None)])) as mock_query:
+               return_value=(1, [(mock_article, None, None, None)])) as mock_query:
         response = client.get("/articles?aggregator=semantic_scholar&aggregator=openalex")
     assert response.status_code == 200
     kwargs = mock_query.call_args.kwargs
@@ -133,7 +133,7 @@ def test_articles_original_source_filter_passed_to_query():
     client = TestClient(app)
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
-               return_value=(1, [(mock_article, None, None)])) as mock_query:
+               return_value=(1, [(mock_article, None, None, None)])) as mock_query:
         response = client.get("/articles?original_source=rss")
     assert response.status_code == 200
     kwargs = mock_query.call_args.kwargs
