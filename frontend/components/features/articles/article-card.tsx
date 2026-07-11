@@ -21,9 +21,11 @@ interface ArticleCardProps extends Article {
   citation_count?: number | null
   view_count?: number
   is_favorited?: boolean
+  /** Marks this card as the Feature Spotlight target for the "pin to chat" tour step. */
+  isFirstTutorialTarget?: boolean
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
@@ -198,6 +200,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
               )}
               {has_vectors && (
                 <button
+                  id={isFirstTutorialTarget ? "tutorial-target-chat-pin" : undefined}
                   type="button"
                   onClick={handleTogglePin}
                   aria-label={isPinned(id) ? t('rag.removeFromChat') : t('rag.addToChat')}

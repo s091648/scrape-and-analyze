@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { mockApiRoutes, articleDetailFixture } from './fixtures/api-handlers'
+import { mockApiRoutes, articleDetailFixture, dismissFeatureSpotlights } from './fixtures/api-handlers'
 
 test.describe('Article Sharing — URL sync', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await mockApiRoutes(page)
   })
 
@@ -39,6 +40,7 @@ test.describe('Article Sharing — URL sync', () => {
 
 test.describe('Article Sharing — share icon clipboard', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await page.addInitScript(() => {
       const captured: string[] = []
       Object.defineProperty(navigator, 'clipboard', {
@@ -84,7 +86,7 @@ test.describe('Article Sharing — standalone page', () => {
 
   test('standalone page shows a link back to home', async ({ page }) => {
     await page.goto('/articles/art-001')
-    await expect(page.getByText('Scrape Analyzer')).toBeVisible()
+    await expect(page.getByText('Article Analyzer')).toBeVisible()
   })
 
   test('standalone page shows Open in App link for authenticated user', async ({ page }) => {

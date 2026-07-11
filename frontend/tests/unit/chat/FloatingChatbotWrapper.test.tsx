@@ -24,6 +24,13 @@ vi.mock('@/lib/providers', () => ({
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
   useGuestMode: vi.fn().mockReturnValue({ isGuestMode: true }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
+  usePinnedArticle: vi.fn().mockReturnValue({
+    pinnedArticles: [],
+    togglePinnedArticle: vi.fn(),
+    removePinnedArticle: vi.fn(),
+    clearPinnedArticles: vi.fn(),
+    isPinned: () => false,
+  }),
 }))
 
 vi.mock('sonner', () => ({

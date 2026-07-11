@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="Scrape Analyzer API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Article Analyzer API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(

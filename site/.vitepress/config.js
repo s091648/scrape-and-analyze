@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Scrape Analyzer',
+  title: 'Article Analyzer',
   description: 'Speckit SDD specification documentation',
   base: process.env.VITEPRESS_BASE || '/',
   ignoreDeadLinks: [/localhost/, /^\.?\/?research\/?$/],
@@ -70,6 +70,7 @@ export default defineConfig({
           { text: 'Plan', link: '/specs/004-translation/plan' },
           { text: 'Data Model', link: '/specs/004-translation/data-model' },
           { text: 'Tasks', link: '/specs/004-translation/tasks' },
+          { text: 'Requirements', link: '/specs/004-translation/checklists/requirements' },
           { text: 'Contract: LLM Service Translate', link: '/specs/004-translation/contracts/llm-service-translate' },
           { text: 'Contract: Translation Repository', link: '/specs/004-translation/contracts/translation-repository' },
         ],
@@ -82,6 +83,7 @@ export default defineConfig({
           { text: 'Plan', link: '/specs/005-tag-management/plan' },
           { text: 'Data Model', link: '/specs/005-tag-management/data-model' },
           { text: 'Tasks', link: '/specs/005-tag-management/tasks' },
+          { text: 'Requirements', link: '/specs/005-tag-management/checklists/requirements' },
           { text: 'Contract: API', link: '/specs/005-tag-management/contracts/api' },
         ],
       },
@@ -93,6 +95,7 @@ export default defineConfig({
           { text: 'Plan', link: '/specs/006-observability/plan' },
           { text: 'Data Model', link: '/specs/006-observability/data-model' },
           { text: 'Tasks', link: '/specs/006-observability/tasks' },
+          { text: 'Requirements', link: '/specs/006-observability/checklists/requirements' },
           { text: 'Contract: Logging', link: '/specs/006-observability/contracts/logging-contract' },
         ],
       },
@@ -104,6 +107,7 @@ export default defineConfig({
           { text: 'Plan', link: '/specs/007-scheduler/plan' },
           { text: 'Data Model', link: '/specs/007-scheduler/data-model' },
           { text: 'Tasks', link: '/specs/007-scheduler/tasks' },
+          { text: 'Requirements', link: '/specs/007-scheduler/checklists/requirements' },
           { text: 'Contract: Entry Point', link: '/specs/007-scheduler/contracts/entry-point-contract' },
         ],
       },
@@ -171,6 +175,17 @@ export default defineConfig({
           { text: 'Spec', link: '/specs/013-dark-mode-toggle/spec' },
           { text: 'Plan', link: '/specs/013-dark-mode-toggle/plan' },
           { text: 'Tasks', link: '/specs/013-dark-mode-toggle/tasks' },
+        ],
+      },
+      {
+        text: '015 · Guest Tutorial Mode',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/015-guest-tutorial-mode/spec' },
+          { text: 'Plan', link: '/specs/015-guest-tutorial-mode/plan' },
+          { text: 'Data Model', link: '/specs/015-guest-tutorial-mode/data-model' },
+          { text: 'Tasks', link: '/specs/015-guest-tutorial-mode/tasks' },
+          { text: 'Contract: Ui', link: '/specs/015-guest-tutorial-mode/contracts/ui-contract' },
         ],
       },
     ],

@@ -1,7 +1,51 @@
 [
   {
-    "version": "{{NEWEST_VERSION}}",
-    "date": "{{RELEASE_DATE}}",
+    "version": "v1.2.3",
+    "date": "2026-07-11",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Corrected the timeout measurement units to improve network connection reliability and application responsiveness."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the application to version 1.2.2."
+      }
+    ]
+  },
+  {
+    "version": "v1.2.2",
+    "date": "2026-07-06",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Rebranded the application from Scrape Analyzer to Article Analyzer."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced an interactive guest tutorial featuring step-by-step highlights and localized content."
+      },
+      {
+        "type": "feat",
+        "description": "Added a button to the tutorial overlay that allows users to remain in Guest Mode."
+      },
+      {
+        "type": "feat",
+        "description": "Updated the navigation bar with a responsive design for better mobile device support."
+      },
+      {
+        "type": "feat",
+        "description": "Added a new tasks feature to the application."
+      },
+      {
+        "type": "feat",
+        "description": "Implemented role-based display logic to customize content visibility for different users."
+      }
+    ]
+  },
+  {
+    "version": "v1.2.1",
+    "date": "2026-06-28",
     "changes": [
       {
         "type": "feat",

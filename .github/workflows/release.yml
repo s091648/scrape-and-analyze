@@ -20,6 +20,7 @@ permissions:
 
 env:
   PYTHON_VERSION: '3.11'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   release:
@@ -102,12 +103,19 @@ jobs:
       - name: Commit release notes
         if: steps.check_stamped.outputs.already_stamped != 'true'
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/public/release-notes.json
-          git diff --staged --quiet || \
-            git commit -m "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]"
-          git push origin master
+          FILE="frontend/public/release-notes.json"
+          if git diff --quiet "$FILE"; then
+            echo "No changes to commit."
+          else
+            SHA=$(gh api "/repos/${{ github.repository }}/contents/$FILE" --jq '.sha')
+            gh api --method PUT "/repos/${{ github.repository }}/contents/$FILE" \
+              --field message="🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]" \
+              --field content="$(base64 -w 0 < "$FILE")" \
+              --field sha="$SHA" \
+              --field branch=master
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
 
       # -------------------------------------------------------------------
       # Migrate production DB before deploy

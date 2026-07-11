@@ -155,3 +155,14 @@ export async function mockApiRoutes(page: Page) {
   // Topics — needed by TopicContext on every page load (must be last = highest priority)
   await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))
 }
+
+// The "feature-chat-2026-07" spotlight tour auto-opens for any authenticated
+// or guest session visiting /articles that hasn't seen it yet (see
+// tutorial-provider.tsx). Specs that aren't testing the tutorial itself need
+// to mark it as already seen, otherwise its dialog covers the page and
+// intercepts clicks intended for the article list underneath.
+export async function dismissFeatureSpotlights(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('tutorial_seen_tours', JSON.stringify(['feature-chat-2026-07']))
+  })
+}

@@ -24,6 +24,13 @@ vi.mock('@/lib/api/articles', () => ({
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn(() => ({ selectedTopicId: 'topic-1' })),
   useI18n: vi.fn(() => ({ t: (key: string) => key, locale: 'en' })),
+  usePinnedArticle: vi.fn(() => ({
+    pinnedArticles: [],
+    togglePinnedArticle: vi.fn(),
+    removePinnedArticle: vi.fn(),
+    clearPinnedArticles: vi.fn(),
+    isPinned: () => false,
+  })),
 }))
 
 describe('Article Dashboard', () => {

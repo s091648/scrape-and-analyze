@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { mockApiRoutes } from './fixtures/api-handlers'
+import { mockApiRoutes, dismissFeatureSpotlights } from './fixtures/api-handlers'
 
 test.describe('Article list page', () => {
   test.beforeEach(async ({ page }) => {
+    await dismissFeatureSpotlights(page)
     await mockApiRoutes(page)
   })
 
@@ -30,8 +31,10 @@ test.describe('Article list page', () => {
       json: { items: [{ id: 'art-001', title: 'Article 1', source: 'rss', content: 'x', published_at: null, scraped_at: null, url: 'https://x.com' }], total: 30, page: 1, size: 20 }
     }))
     await page.goto('/articles')
-    // Find and click next page — look for page 2 button or next button
-    const page2 = page.getByRole('button', { name: '2' }).or(page.getByRole('button', { name: /next/i }))
+    // Find and click next page — look for page 2 button or next button.
+    // Anchored regex so this doesn't also match Next.js's own
+    // "Open Next.js Dev Tools" floating button in dev mode.
+    const page2 = page.getByRole('button', { name: '2' }).or(page.getByRole('button', { name: /^next$/i }))
     await page2.first().click()
     await expect(page).toHaveURL(/page=2/)
   })
