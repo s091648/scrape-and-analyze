@@ -108,7 +108,7 @@ export function NavBar() {
         <div className="relative group hidden md:block">
           <button
             type="button"
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors cursor-pointer"
           >
             {topicsLoading ? (
               <Skeleton className="h-4 w-20" />
@@ -134,7 +134,7 @@ export function NavBar() {
                   key={t.id}
                   type="button"
                   onClick={() => setSelectedTopicId(t.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg cursor-pointer ${
                     t.id === selectedTopic?.id ? "font-semibold" : ""
                   }`}
                 >
@@ -203,7 +203,7 @@ export function NavBar() {
               id="tutorial-target-language"
               type="button"
               onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1.5 text-sm font-medium px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors cursor-pointer"
             >
               <Globe className="h-4 w-4 text-muted-foreground" />
               <span>{i18nLoading ? "..." : currentLang?.native_name || locale}</span>
@@ -218,7 +218,7 @@ export function NavBar() {
                       setLocale(lang.code);
                       setLangDropdownOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg ${
+                    className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg cursor-pointer ${
                       lang.code === locale ? "font-semibold bg-muted/50" : ""
                     }`}
                   >

@@ -46,10 +46,14 @@ def db_engine():
     )
 
     # Exclude auth-schema tables (User) — those exist only in public.
-    # Use checkfirst=False so SQLAlchemy creates tables in the test schema
-    # even when identically-named tables exist in the public schema (which
-    # would otherwise cause has_table() to return True and skip creation).
-    non_auth = [t for t in Base.metadata.sorted_tables if t.schema != "auth"]
+    # Also exclude tables pinned to a fixed, migration-owned schema (eg.
+    # `vectors.article_chunks`) — those already exist in the real database
+    # via alembic and aren't isolated per-test like the default-schema tables.
+    # Use checkfirst=False for the per-test-schema tables so SQLAlchemy creates
+    # them even when identically-named tables exist in the public schema
+    # (which would otherwise cause has_table() to return True and skip creation).
+    FIXED_SCHEMAS = {"auth", "vectors"}
+    non_auth = [t for t in Base.metadata.sorted_tables if t.schema not in FIXED_SCHEMAS]
     Base.metadata.create_all(engine, tables=non_auth, checkfirst=False)
 
     yield engine

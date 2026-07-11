@@ -31,7 +31,9 @@
   "weeklyReport": {
     "noReportYet": "本週尚無報告。",
     "articleCount": "{count} 篇文章",
-    "selectWeek": "選擇報告週次"
+    "selectWeek": "選擇報告週次",
+    "collapse": "收合報告",
+    "expand": "顯示報告"
   },
   "analysis": {
     "summary": "摘要",
@@ -646,6 +648,10 @@
       "title": "導覽完成",
       "description": "您可以隨時點選導覽列上的說明圖示，重新開啟此導覽。"
     },
+    "chatIntro": {
+      "title": "新功能：AI 對話助理",
+      "description": "針對您正在瀏覽的文章提出問題，AI 會根據文章內容為您解答。"
+    },
     "chatPin": {
       "title": "釘選文章作為上下文",
       "description": "點擊文章上的 sparkles 圖示將其釘選為 AI 對話的上下文，讓您的提問能根據該文章內容回答。"
@@ -654,6 +660,10 @@
       "title": "詢問 AI 助理",
       "description": "開啟聊天視窗，針對已釘選的文章或您正在瀏覽的主題提出問題。"
     },
+    "weeklyReportIntro": {
+      "title": "新功能：週報摘要",
+      "description": "我們每週會將該主題最重要的文章整理成一份摘要，讓您幾分鐘內就能掌握重點。"
+    },
     "weeklyWeeks": {
       "title": "瀏覽其他週報",
       "description": "點擊圓點即可切換查看不同週的週報。"
@@ -661,6 +671,10 @@
     "weeklyDatepicker": {
       "title": "跳到更久以前的週",
       "description": "使用左下角的日期選擇器，可以跳到更久以前的週報。"
+    },
+    "articleStatsIntro": {
+      "title": "新功能：收藏與瀏覽次數",
+      "description": "收藏您感興趣的文章，並查看每篇文章有多少讀者瀏覽過。"
     },
     "articleFavorite": {
       "title": "收藏喜歡的文章",

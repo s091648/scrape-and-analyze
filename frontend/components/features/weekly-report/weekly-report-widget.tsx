@@ -1,10 +1,12 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
 import { useI18n } from '@/lib/providers'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 function splitParagraphs(text: string): string[] {
   return text.split(/\n+/).map(p => p.trim()).filter(Boolean)
@@ -36,6 +38,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
     if (!topicId) return
@@ -132,7 +135,29 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
         />
       )}
 
-      <div className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setCollapsed(v => !v)}
+              aria-label={t(collapsed ? 'weeklyReport.expand' : 'weeklyReport.collapse')}
+              aria-pressed={collapsed}
+              className="absolute right-3 top-1/2 z-20 -translate-y-1/2 flex size-8 cursor-pointer items-center justify-center rounded-full bg-white/70 text-neutral-800 shadow-sm backdrop-blur-md transition hover:bg-white/90"
+            >
+              {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t(collapsed ? 'weeklyReport.expand' : 'weeklyReport.collapse')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <motion.div
+        animate={collapsed ? { opacity: 0, x: 24 } : { opacity: 1, x: 0 }}
+        transition={{ duration: 0.25, ease: 'easeInOut' }}
+        style={{ pointerEvents: collapsed ? 'none' : 'auto' }}
+        className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
+      >
         {children && (
           <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">{children}</div>
         )}
@@ -142,7 +167,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
             <WeeklyReportSkeleton />
           ) : selected ? (
             <div
-              className="flex h-full rounded-2xl bg-white/70 backdrop-blur-md shadow-sm pl-3 pr-4 py-4 overflow-hidden"
+              className="flex h-full rounded-2xl bg-white/10 backdrop-blur-[2px] shadow-sm pl-3 pr-4 py-4 overflow-hidden"
               style={{ perspective: 1200 }}
             >
               <WeeklyReportStepper
@@ -153,7 +178,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                 isWeekAvailable={isWeekAvailable}
               />
 
-              <div className="flex-1 min-w-0 -my-4 -mr-4 py-4 pr-4 pl-4 rounded-r-2xl bg-white overflow-hidden relative">
+              <div className="flex-1 min-w-0 -my-4 -mr-4 py-4 pr-4 pl-4 rounded-r-2xl bg-white/55 backdrop-blur-md overflow-hidden relative">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={selected.id}
@@ -186,7 +211,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }

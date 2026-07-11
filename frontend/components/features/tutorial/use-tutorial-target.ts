@@ -51,6 +51,10 @@ export function useTutorialTarget(targetId: string | undefined): DOMRect | null 
     let start = Date.now();
 
     function trackElement(el: Element) {
+      // Bring off-screen targets into view (e.g. a long article list) before
+      // measuring, so the highlight lands on the visible position.
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+
       const update = () => setRect(el.getBoundingClientRect());
       update();
 

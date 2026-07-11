@@ -50,6 +50,32 @@ jobs:
           UV_SYSTEM_PYTHON: "1"
 
       # -------------------------------------------------------------------
+      # Stamp the tag version into pyproject.toml (currently stuck at 0.1.0).
+      # Idempotent: skipped if the file has no diff after the sed.
+      # -------------------------------------------------------------------
+      - name: Bump pyproject.toml version
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+
+      - name: Commit pyproject.toml version bump
+        run: |
+          FILE="pyproject.toml"
+          if git diff --quiet "$FILE"; then
+            echo "No changes to commit."
+          else
+            SHA=$(gh api "/repos/${{ github.repository }}/contents/$FILE" --jq '.sha')
+            gh api --method PUT "/repos/${{ github.repository }}/contents/$FILE" \
+              --field message="🔖 [CHORE] bump pyproject.toml version to ${{ github.ref_name }} [skip ci]" \
+              --field content="$(base64 -w 0 < "$FILE")" \
+              --field sha="$SHA" \
+              --field branch=master
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+
+      # -------------------------------------------------------------------
       # Guard: skip stamp phase if this tag is already in release-notes.json
       # Makes re-runs of a failed release job safe (idempotent).
       # -------------------------------------------------------------------

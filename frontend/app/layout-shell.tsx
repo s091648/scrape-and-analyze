@@ -22,23 +22,11 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       ? 'relative mt-16 h-[calc(100vh-4rem)]'
       : 'container mx-auto px-6 py-8 pt-24'
 
-  const mainClassName = isStandalone
-    ? 'min-h-screen flex items-center justify-center p-6'
-    : isFullBleed
-      ? 'relative mt-16 h-[calc(100vh-4rem)]'
-      : 'container mx-auto px-6 py-8 pt-24'
-
   return (
     <ErrorBoundary>
       {!isStandalone && <NavBar />}
       <TutorialOverlay />
-      <main
-        className={
-          isStandalone
-            ? "min-h-screen flex items-center justify-center p-6"
-            : "container mx-auto px-6 py-8 pt-24"
-        }
-      >
+      <main className={mainClassName}>
         {children}
       </main>
       {isChatPath && <FloatingChatbotWrapper key={chatKey} />}

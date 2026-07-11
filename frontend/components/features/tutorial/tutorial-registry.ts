@@ -147,6 +147,13 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
     kind: "spotlight",
     steps: [
       {
+        id: "chat-intro",
+        route: "/articles",
+        titleKey: "tutorial.chatIntro.title",
+        descriptionKey: "tutorial.chatIntro.description",
+        icon: Sparkles,
+      },
+      {
         id: "chat-pin",
         route: "/articles",
         titleKey: "tutorial.chatPin.title",
@@ -169,6 +176,13 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
     kind: "spotlight",
     steps: [
       {
+        id: "weekly-report-intro",
+        route: "/",
+        titleKey: "tutorial.weeklyReportIntro.title",
+        descriptionKey: "tutorial.weeklyReportIntro.description",
+        icon: Sparkles,
+      },
+      {
         id: "weekly-weeks",
         route: "/",
         titleKey: "tutorial.weeklyWeeks.title",
@@ -190,6 +204,13 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
     id: "feature-articles-stats-2026-07",
     kind: "spotlight",
     steps: [
+      {
+        id: "article-stats-intro",
+        route: "/articles",
+        titleKey: "tutorial.articleStatsIntro.title",
+        descriptionKey: "tutorial.articleStatsIntro.description",
+        icon: Sparkles,
+      },
       {
         id: "article-favorite",
         route: "/articles",

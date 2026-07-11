@@ -31,7 +31,9 @@
   "weeklyReport": {
     "noReportYet": "No report for this week yet.",
     "articleCount": "{count} articles",
-    "selectWeek": "Select report week"
+    "selectWeek": "Select report week",
+    "collapse": "Hide report",
+    "expand": "Show report"
   },
   "analysis": {
     "summary": "Summary",
@@ -646,6 +648,10 @@
       "title": "You're All Set",
       "description": "You can reopen this tour anytime from the help icon in the navigation bar."
     },
+    "chatIntro": {
+      "title": "New: AI Chat Assistant",
+      "description": "Ask questions about the articles you're browsing and get answers grounded in their content."
+    },
     "chatPin": {
       "title": "Pin Articles for Context",
       "description": "Click the sparkles icon on an article to pin it as context for the AI chat, so your questions are answered using that article's content."
@@ -654,6 +660,10 @@
       "title": "Ask the AI Assistant",
       "description": "Open the chat to ask questions about pinned articles or the topics you're browsing."
     },
+    "weeklyReportIntro": {
+      "title": "New: Weekly Reports",
+      "description": "Every week, we summarize the most important articles for your topic into a single digest so you can catch up in minutes."
+    },
     "weeklyWeeks": {
       "title": "Browse Other Weeks",
       "description": "Click a dot to switch between different weeks' reports."
@@ -661,6 +671,10 @@
     "weeklyDatepicker": {
       "title": "Jump to an Older Week",
       "description": "Use the date picker in the bottom-left corner to jump further back in time."
+    },
+    "articleStatsIntro": {
+      "title": "New: Favorites & View Counts",
+      "description": "Save articles you care about and see how popular each article is with other readers."
     },
     "articleFavorite": {
       "title": "Save Your Favorites",

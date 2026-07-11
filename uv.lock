@@ -552,8 +552,8 @@ wheels = [
 
 [[package]]
 name = "chatbot-plugin-sdk"
-version = "0.14.0"
-source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.15.0#a89f5894c76ac66028bc32c5c3911d52b18d7906" }
+version = "0.15.2"
+source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.15.2#dc58267d98c030fa5b4f0f80b2a3ea455eadb017" }
 dependencies = [
     { name = "asyncpg" },
     { name = "httpx" },
@@ -2942,6 +2942,7 @@ scraper = [
     { name = "chatbot-plugin-sdk" },
     { name = "fastembed" },
     { name = "feedparser" },
+    { name = "huggingface-hub" },
     { name = "lxml" },
     { name = "pymupdf" },
     { name = "requests" },
@@ -2994,9 +2995,10 @@ observability = [
 scraper = [
     { name = "anthropic" },
     { name = "beautifulsoup4" },
-    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.15.0" },
+    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.15.2" },
     { name = "fastembed", specifier = ">=0.3" },
     { name = "feedparser" },
+    { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "lxml" },
     { name = "pymupdf", specifier = ">=1.24" },
     { name = "requests" },
