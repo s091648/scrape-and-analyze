@@ -16,17 +16,17 @@ def _mock_response(ok=True, status_code=200, body="ok"):
 
 
 def test_constructor_requires_bot_token():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
 
     with pytest.raises(ValueError):
         TelegramNotifierClient(bot_token="")
 
 
 def test_send_posts_to_correct_url():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = _mock_response()
         notifier = TelegramNotifierClient(bot_token="mytoken")
@@ -37,11 +37,11 @@ def test_send_posts_to_correct_url():
 
 
 def test_send_payload_includes_chat_id_text_and_parse_mode():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
     from src.shared.domain.value_objects.telegram_message import TelegramMessage
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = _mock_response()
         notifier = TelegramNotifierClient(bot_token="tok")
@@ -54,11 +54,11 @@ def test_send_payload_includes_chat_id_text_and_parse_mode():
 
 
 def test_send_uses_send_photo_when_photo_url_set():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
     from src.shared.domain.value_objects.telegram_message import TelegramMessage
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = _mock_response()
         notifier = TelegramNotifierClient(bot_token="tok")
@@ -71,11 +71,11 @@ def test_send_uses_send_photo_when_photo_url_set():
 
 
 def test_send_truncates_long_caption_for_send_photo():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
     from src.shared.domain.value_objects.telegram_message import TelegramMessage
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = _mock_response()
         notifier = TelegramNotifierClient(bot_token="tok")
@@ -86,11 +86,11 @@ def test_send_truncates_long_caption_for_send_photo():
 
 
 def test_send_raises_on_non_ok_response():
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
     from src.shared.domain.value_objects.telegram_message import TelegramMessage
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = _mock_response(ok=False, status_code=400, body="bad request")
         notifier = TelegramNotifierClient(bot_token="tok")

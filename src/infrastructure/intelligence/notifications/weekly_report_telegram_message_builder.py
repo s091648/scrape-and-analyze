@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
-from src.modules.intelligence.domain.value_objects.weekly_report_notification_content import (
+from src.modules.intelligence.application.notifications import (
     build_weekly_report_notification_content,
 )
 from src.shared.domain.value_objects.telegram_message import TelegramMessage

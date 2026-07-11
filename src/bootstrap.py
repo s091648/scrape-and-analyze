@@ -503,7 +503,7 @@ def build_weekly_pipeline():
     blob_storage = R2BlobStorageService.from_env()
 
     from src.config.settings import FRONTEND_ORIGIN, RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN, TRANSLATION_LANGUAGES
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
 
     # Every notification CTA links back to FRONTEND_ORIGIN — without it (or with
     # the placeholder default), links go nowhere useful. Warn loudly at startup

@@ -1,44 +1,21 @@
+"""Weekly report email notifier — orchestrates DB query + content build + transport send.
+
+This module is intentionally thin: it does not format messages (that lives in
+WeeklyReportEmailMessageBuilder) and does not know Resend's API shape beyond
+the minimal send() call.
+"""
 from dataclasses import replace
 from typing import Dict, Optional
 from uuid import UUID
 
 from src.config.settings import FRONTEND_ORIGIN
-from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
-from src.modules.intelligence.domain.value_objects.weekly_report_notification_content import (
-    build_weekly_report_deep_link,
+from src.infrastructure.intelligence.notifications.weekly_report_email_message_builder import (
+    WeeklyReportEmailMessageBuilder,
 )
+from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
-
-_EN_SUBJECT = "Your Weekly Report is Ready"
-_ZH_SUBJECT = "您的每週報告已準備好"
-_EN_CTA = "View Full Report"
-_ZH_CTA = "查看完整報告"
-
-
-def _build_html(report: WeeklyReport, locale: str, site_url: str) -> str:
-    subject_cta = _ZH_CTA if locale == "zh-TW" else _EN_CTA
-    cta_url = build_weekly_report_deep_link(report, site_url)
-    cover_style = (
-        f'background-image: url("{report.cover_image_url}"); background-size: cover; background-position: center;'
-        if report.cover_image_url
-        else "background-color: #1a1a2e;"
-    )
-    return f"""<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;font-family:sans-serif;background:#f5f5f5;">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;">
-    <div style="{cover_style}min-height:200px;display:flex;align-items:flex-end;">
-      <div style="background:rgba(255,255,255,0.85);margin:16px;padding:16px;border-radius:6px;width:calc(100% - 64px);">
-        <h1 style="margin:0 0 8px;font-size:20px;color:#111;">{report.title}</h1>
-        <p style="margin:0;font-size:14px;color:#444;">{report.summary_text[:300]}...</p>
-        <a href="{cta_url}" style="display:inline-block;margin-top:12px;padding:8px 18px;background:#111;color:#fff;border-radius:4px;text-decoration:none;font-size:13px;">{subject_cta}</a>
-      </div>
-    </div>
-  </div>
-</body>
-</html>"""
 
 
 class WeeklyReportEmailNotifier:
@@ -95,14 +72,13 @@ class WeeklyReportEmailNotifier:
                 continue
             locale = settings.locale or "en"
             localized_report = self._localize(report, locale, translation_cache)
-            subject = _ZH_SUBJECT if locale == "zh-TW" else _EN_SUBJECT
-            html = _build_html(localized_report, locale, self._site_url)
+            message = WeeklyReportEmailMessageBuilder.build(localized_report, locale, self._site_url)
             try:
                 resend.Emails.send({
                     "from": self._from_email,
                     "to": user.email,
-                    "subject": subject,
-                    "html": html,
+                    "subject": message.subject,
+                    "html": message.html,
                 })
                 logger.info("weekly_report_email_sent", user_id=str(sub.user_id))
             except Exception as e:

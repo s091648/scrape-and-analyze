@@ -57,7 +57,7 @@ def test_registered_sender_dispatches_event(with_telegram):
     sender = handler._senders[0]
 
     with patch(
-        "src.shared.infrastructure.notifications.telegram_notifier_client.requests.post"
+        "src.infrastructure.shared.notifications.telegram_notifier_client.requests.post"
     ) as mock_post:
         mock_post.return_value = MagicMock(ok=True, status_code=200, text="ok")
         handler.handle(

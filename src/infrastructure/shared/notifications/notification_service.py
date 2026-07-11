@@ -40,7 +40,7 @@ def build_notification_handler() -> NotificationHandler:
     TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is unset.
     """
     from src.config.settings import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-    from src.shared.infrastructure.notifications import TelegramNotifierClient
+    from src.infrastructure.shared.notifications.telegram_notifier_client import TelegramNotifierClient
     from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
 
     senders: list[Callable[[PipelineCompletedEvent], None]] = []
