@@ -11,6 +11,13 @@ from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Opportunistic free-seed keys: metric values scrapers may already have parsed out
+# of a provider's discover() response, forwarded to article_metric_values at zero
+# extra cost. This is a best-effort optimization, not the metric catalog's source
+# of truth — the authoritative refresh path (ResilientMetricsService, driven by the
+# DB-configured metric_definitions catalog) is what keeps values current over time.
+OPPORTUNISTIC_SEED_METRIC_KEYS = {"citation_count"}
+
 
 class ProcessScrapedArticleUseCase:
     """
@@ -52,8 +59,14 @@ class ProcessScrapedArticleUseCase:
 
         if self._article_metrics_repo:
             try:
-                citation_count = event.metadata.get("citation_count")
-                self._article_metrics_repo.upsert(saved.id, citation_count)
+                # Always upsert (even with an empty dict) so every article gets an
+                # article_metrics row for view_count tracking, matching prior behavior.
+                metrics = {
+                    key: event.metadata[key]
+                    for key in OPPORTUNISTIC_SEED_METRIC_KEYS
+                    if event.metadata.get(key) is not None
+                }
+                self._article_metrics_repo.upsert(saved.id, metrics)
             except Exception as e:
                 logger.warning("article_metrics_upsert_failed", article_id=str(saved.id), error=str(e))
 

@@ -89,10 +89,10 @@ def test_article_metrics_upsert_called_with_citation_count():
     event = _make_event(metadata={"citation_count": 42})
     _make_uc(dedup, repo, metrics_repo).execute(event)
 
-    metrics_repo.upsert.assert_called_once_with(article.id, 42)
+    metrics_repo.upsert.assert_called_once_with(article.id, {"citation_count": 42})
 
 
-def test_article_metrics_upsert_called_with_none_when_missing():
+def test_article_metrics_upsert_called_with_empty_dict_when_missing():
     dedup = MagicMock()
     dedup.find_existing.return_value = None
     article = _make_article()
@@ -102,7 +102,21 @@ def test_article_metrics_upsert_called_with_none_when_missing():
 
     _make_uc(dedup, repo, metrics_repo).execute(_make_event())
 
-    metrics_repo.upsert.assert_called_once_with(article.id, None)
+    metrics_repo.upsert.assert_called_once_with(article.id, {})
+
+
+def test_article_metrics_upsert_ignores_unknown_metadata_keys():
+    dedup = MagicMock()
+    dedup.find_existing.return_value = None
+    article = _make_article()
+    repo = MagicMock()
+    repo.save.return_value = article
+    metrics_repo = MagicMock()
+
+    event = _make_event(metadata={"citation_count": 5, "some_other_field": "ignored"})
+    _make_uc(dedup, repo, metrics_repo).execute(event)
+
+    metrics_repo.upsert.assert_called_once_with(article.id, {"citation_count": 5})
 
 
 def test_article_metrics_not_called_when_repo_absent():

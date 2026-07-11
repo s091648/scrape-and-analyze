@@ -21,4 +21,3 @@ class ScrapedArticle:
     authors: List[str] = field(default_factory=list)
     extra: Dict[str, Any] = field(default_factory=dict)
     full_text: str = ""
-    citation_count: Optional[int] = None
