@@ -20,6 +20,11 @@
     "next": "下一頁",
     "pageOf": "第 {page} 頁，共 {total} 頁"
   },
+  "weeklyReport": {
+    "noReportYet": "本週尚無報告。",
+    "articleCount": "{count} 篇文章",
+    "selectWeek": "選擇報告週次"
+  },
   "analysis": {
     "summary": "摘要",
     "painPoints": "痛點",
@@ -106,7 +111,23 @@
     "googleAccountLinked": "Google 帳戶已成功連結",
     "failedToLinkGoogle": "連結 Google 帳戶失敗，可能已被使用",
     "googleAccountUnlinked": "Google 帳戶已取消連結",
-    "failedToUnlink": "取消連結失敗"
+    "failedToUnlink": "取消連結失敗",
+    "manageNotificationsDescription": "管理您的每週報告訂閱與通知偏好設定。",
+    "weeklyReportSubscriptions": "每週報告訂閱",
+    "weeklyReportSubscriptionsHelp": "訂閱主題以接收每週摘要報告。",
+    "subscribe": "訂閱",
+    "unsubscribe": "取消訂閱",
+    "notificationSettings": "通知設定",
+    "emailNotifications": "電子郵件通知",
+    "telegramChatId": "Telegram Chat ID",
+    "telegramChatIdPlaceholder": "例如：123456789",
+    "telegramNotifications": "Telegram 通知",
+    "notificationLanguage": "語言",
+    "languageEnglish": "English",
+    "languageZhTw": "繁體中文",
+    "saveNotificationSettings": "儲存通知設定",
+    "notifSettingsSaved": "已儲存",
+    "notifSettingsFailedToSave": "儲存失敗"
   },
   "filterBar": {
     "filters": "篩選",

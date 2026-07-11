@@ -41,7 +41,7 @@ import {
 } from '@/lib/api'
 import { useI18n } from '@/lib/providers'
 
-const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter'] as const
+const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter', 'huggingface'] as const
 const PROVIDER_TYPES = ['llm', 'embedding', 'multimodal'] as const
 
 // ── Sortable Provider Card ────────────────────────────────────────────────────

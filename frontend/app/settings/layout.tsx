@@ -8,6 +8,7 @@ import { useI18n, useGuestMode } from '@/lib/providers'
 
 const profileItems = [
   { href: '/settings', labelKey: 'settings.profile' },
+  { href: '/settings/notifications', labelKey: 'settings.notificationSettings' },
 ]
 
 const adminItems = [

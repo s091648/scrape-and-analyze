@@ -1,6 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
+vi.mock('@/lib/providers', () => ({
+  useI18n: () => ({
+    locale: 'en',
+    t: (key: string, params?: Record<string, any>) => {
+      const map: Record<string, string> = {
+        'weeklyReport.noReportYet': 'No report for this week yet.',
+        'weeklyReport.articleCount': `${params?.count ?? 0} articles`,
+        'weeklyReport.selectWeek': 'Select report week',
+      }
+      return map[key] ?? key
+    },
+  }),
+}))
+
 const mockReport = {
   id: 'report-1',
   topic_id: 'topic-1',
@@ -16,6 +30,8 @@ const mockReport = {
 vi.mock('@/lib/api/weekly-reports', () => ({
   fetchLatestWeeklyReport: vi.fn(),
   fetchWeeklyReports: vi.fn(),
+  fetchWeeklyReportByWeek: vi.fn(),
+  fetchWeeklyReportWeeks: vi.fn().mockResolvedValue([]),
 }))
 
 import { fetchLatestWeeklyReport, fetchWeeklyReports } from '@/lib/api/weekly-reports'

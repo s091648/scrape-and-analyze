@@ -20,6 +20,11 @@
     "next": "Next",
     "pageOf": "Page {page} of {total}"
   },
+  "weeklyReport": {
+    "noReportYet": "No report for this week yet.",
+    "articleCount": "{count} articles",
+    "selectWeek": "Select report week"
+  },
   "analysis": {
     "summary": "Summary",
     "painPoints": "Pain Points",
@@ -106,7 +111,23 @@
     "googleAccountLinked": "Google account linked successfully.",
     "failedToLinkGoogle": "Failed to link Google account. It may already be in use.",
     "googleAccountUnlinked": "Google account unlinked.",
-    "failedToUnlink": "Failed to unlink."
+    "failedToUnlink": "Failed to unlink.",
+    "manageNotificationsDescription": "Manage your weekly report subscriptions and notification preferences.",
+    "weeklyReportSubscriptions": "Weekly Report Subscriptions",
+    "weeklyReportSubscriptionsHelp": "Subscribe to topics to receive weekly summary reports.",
+    "subscribe": "Subscribe",
+    "unsubscribe": "Unsubscribe",
+    "notificationSettings": "Notification Settings",
+    "emailNotifications": "Email notifications",
+    "telegramChatId": "Telegram Chat ID",
+    "telegramChatIdPlaceholder": "e.g. 123456789",
+    "telegramNotifications": "Telegram notifications",
+    "notificationLanguage": "Language",
+    "languageEnglish": "English",
+    "languageZhTw": "繁體中文",
+    "saveNotificationSettings": "Save notification settings",
+    "notifSettingsSaved": "Saved",
+    "notifSettingsFailedToSave": "Failed to save"
   },
   "filterBar": {
     "filters": "Filters",
