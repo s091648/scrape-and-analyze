@@ -91,7 +91,7 @@ export interface OtlpSpan {
   startTimeUnixNano: string
   endTimeUnixNano: string
   attributes: OtlpAttribute[]
-  status?: { code: number; message?: string }
+  status?: { code: number | string; message?: string }
 }
 
 export interface OtlpResourceSpans {

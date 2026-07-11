@@ -6,14 +6,15 @@ import { queryTraces, queryTraceById, type TempoTrace, type TempoResponse, type 
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import {
-  flattenSpans, buildSpanTree, findArticlePipelineSpans,
-  findStageSpans, spanDurationMs, isErrorSpan, formatDuration,
+  flattenSpans, buildSpanTree, findArticlePipelineSpans, findWeeklyReportTopicSpans,
+  findStageSpans, spanDurationMs, isErrorSpan, formatDuration, getAttr,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
 import { ArticleDetailDialog } from '@/components/features/articles/article-detail-dialog'
 import { RunWaterfallDialog } from './run-waterfall-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
+import { WeeklyReportTopicDialog } from './weekly-report-topic-dialog'
 import { cn } from '@/lib/utils'
 
 // ── Environment extraction ─────────────────────────────────────────────────────
@@ -155,6 +156,59 @@ function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: A
   )
 }
 
+// ── Weekly report topic sub-row ────────────────────────────────────────────────
+
+interface TopicSubRowProps {
+  topicSpan: OtlpSpan
+  stageSpans: SpanNode[]
+  onView: (ts: OtlpSpan, ss: SpanNode[]) => void
+}
+
+// Columns: expand | traceId | root | service | env | dur | start  (7 total)
+function TopicSubRow({ topicSpan, stageSpans, onView }: TopicSubRowProps) {
+  const topicName     = getAttr(topicSpan, 'topic.name') as string | undefined
+  const articleCount  = getAttr(topicSpan, 'weekly_report.article_count') as number | undefined
+  const outcome       = getAttr(topicSpan, 'weekly_report.outcome') as string | undefined
+  const durationMs    = spanDurationMs(topicSpan)
+  // A topic span itself only turns ERROR if execute() raised; partial failures
+  // (image/summarize/notify) are swallowed there, so also check stage children.
+  const error         = isErrorSpan(topicSpan) || stageSpans.some(n => isErrorSpan(n.span))
+
+  return (
+    <tr className="bg-muted/10 border-b border-border/30 hover:bg-muted/20">
+      <td /> {/* expand col — empty indent */}
+      {/* cols 2-3 — topic name */}
+      <td colSpan={2} className={cn('px-2 py-1 text-xs truncate max-w-0', error && 'text-destructive')}>
+        {topicName ?? '—'}
+      </td>
+      {/* col 4 — outcome / article count */}
+      <td className="px-2 py-1 font-mono text-xs text-muted-foreground truncate max-w-0">
+        {outcome ?? '—'}{articleCount != null && ` · ${articleCount} articles`}
+      </td>
+      {/* col 5 (env) — status badge */}
+      <td className="px-2 py-1 text-xs text-center">
+        {error
+          ? <span className="text-destructive">✗</span>
+          : <span className="text-emerald-600">✓</span>
+        }
+      </td>
+      {/* col 6 (dur) — duration */}
+      <td className="px-2 py-1 text-xs text-right tabular-nums">
+        {formatDuration(durationMs)}
+      </td>
+      {/* col 7 (start) — view button */}
+      <td className="px-2 py-1 text-xs">
+        <button
+          onClick={() => onView(topicSpan, stageSpans)}
+          className="text-primary hover:underline"
+        >
+          view →
+        </button>
+      </td>
+    </tr>
+  )
+}
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface TracesTableProps {
@@ -202,6 +256,7 @@ export function TracesTable({
   // dialog state
   const [waterfallTarget, setWaterfallTarget] = useState<{ traceId: string; data: OtlpTraceResponse } | null>(null)
   const [workflowTarget, setWorkflowTarget] = useState<{ pipeline: OtlpSpan; stages: SpanNode[] } | null>(null)
+  const [topicWorkflowTarget, setTopicWorkflowTarget] = useState<{ topic: OtlpSpan; stages: SpanNode[] } | null>(null)
   const [previewArticleId, setPreviewArticleId] = useState<string | null>(null)
 
   // ── Data fetch ───────────────────────────────────────────────────────────────
@@ -276,6 +331,10 @@ export function TracesTable({
     setWorkflowTarget({ pipeline, stages })
   }
 
+  function openTopicWorkflow(topic: OtlpSpan, stages: SpanNode[]) {
+    setTopicWorkflowTarget({ topic, stages })
+  }
+
   // ── Derived state ─────────────────────────────────────────────────────────────
 
   const placeholder = notConfigured
@@ -320,8 +379,11 @@ export function TracesTable({
             const detail     = traceDetails.get(trace.traceID)
             const environment = extractEnvironment(trace)
 
-            // Build article rows from cached detail
+            // Build article/topic rows from cached detail. A run's root span name
+            // determines which shape applies — scraper.run has article.pipeline
+            // children, weekly_report.run has weekly_report.topic children.
             let articleRows: { pipeline: OtlpSpan; stages: SpanNode[] }[] = []
+            let topicRows: { topic: OtlpSpan; stages: SpanNode[] }[] = []
             if (detail) {
               const spans = flattenSpans(detail)
               const tree  = buildSpanTree(spans)
@@ -329,7 +391,12 @@ export function TracesTable({
                 pipeline: ps,
                 stages: findStageSpans(tree, ps.spanId),
               }))
+              topicRows = findWeeklyReportTopicSpans(spans).map(ts => ({
+                topic: ts,
+                stages: findStageSpans(tree, ts.spanId),
+              }))
             }
+            const isWeeklyReportRun = trace.rootTraceName === 'weekly_report.run'
 
             return (
               <Fragment key={trace.traceID}>
@@ -376,6 +443,35 @@ export function TracesTable({
                         <div className="px-8 py-2 text-xs text-muted-foreground">
                           {t('admin.loadingTrace')}
                         </div>
+                      ) : isWeeklyReportRun ? (
+                        topicRows.length === 0 ? (
+                          <div className="px-8 py-2 text-xs text-muted-foreground">
+                            {t('admin.noTopicsInRun')}
+                          </div>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-border/50 text-muted-foreground">
+                                <th className="w-6" /> {/* expand indent */}
+                                <th colSpan={2} className="px-2 py-1 text-left font-medium">{t('admin.topicColumnTitle')}</th>
+                                <th className="px-2 py-1 text-left font-medium">{t('admin.topicColumnArticleCount')}</th>
+                                <th className="px-2 py-1 text-center font-medium">{t('admin.articleColumnStatus')}</th>
+                                <th className="px-2 py-1 text-right font-medium">{t('admin.articleColumnDuration')}</th>
+                                <th className="px-2 py-1 text-left font-medium">{t('admin.articleColumnAction')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {topicRows.map(({ topic, stages }) => (
+                                <TopicSubRow
+                                  key={topic.spanId}
+                                  topicSpan={topic}
+                                  stageSpans={stages}
+                                  onView={openTopicWorkflow}
+                                />
+                              ))}
+                            </tbody>
+                          </table>
+                        )
                       ) : articleRows.length === 0 ? (
                         <div className="px-8 py-2 text-xs text-muted-foreground">
                           {t('admin.noArticlesInRun')}
@@ -429,6 +525,10 @@ export function TracesTable({
             setWaterfallTarget(null)
             openWorkflow(ps, ss)
           }}
+          onSelectTopic={(ts, ss) => {
+            setWaterfallTarget(null)
+            openTopicWorkflow(ts, ss)
+          }}
         />
       )}
       {workflowTarget && (
@@ -437,6 +537,14 @@ export function TracesTable({
           onClose={() => setWorkflowTarget(null)}
           pipelineSpan={workflowTarget.pipeline}
           stageSpans={workflowTarget.stages}
+        />
+      )}
+      {topicWorkflowTarget && (
+        <WeeklyReportTopicDialog
+          open
+          onClose={() => setTopicWorkflowTarget(null)}
+          topicSpan={topicWorkflowTarget.topic}
+          stageSpans={topicWorkflowTarget.stages}
         />
       )}
     </>

@@ -91,6 +91,11 @@ describe('isErrorSpan', () => {
     expect(isErrorSpan(makeSpan({ status: { code: 2 } }))).toBe(true)
   })
 
+  it('returns true for Tempo string-enum code STATUS_CODE_ERROR', () => {
+    // Tempo's OTLP-JSON export (protojson) serializes the enum by name, not by number.
+    expect(isErrorSpan(makeSpan({ status: { code: 'STATUS_CODE_ERROR' } }))).toBe(true)
+  })
+
   it('returns false for ok code 0', () => {
     expect(isErrorSpan(makeSpan({ status: { code: 0 } }))).toBe(false)
   })

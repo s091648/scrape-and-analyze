@@ -5,6 +5,10 @@ from datetime import date, datetime, timezone
 from typing import Iterable, List, Optional
 from uuid import UUID
 
+from opentelemetry import trace as _otel_trace
+from opentelemetry.trace import StatusCode
+
+from shared.enums.observability import SERVICE_NAME, SpanName
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
 from src.modules.intelligence.domain.entities.weekly_report_translation import WeeklyReportTranslation
 from src.modules.intelligence.domain.repositories.weekly_report_repository import WeeklyReportRepository
@@ -45,10 +49,13 @@ class GenerateWeeklyReportUseCase:
 
     def execute(self, topic_id: UUID, topic_name: str, week_start: date, force: bool = False) -> WeeklyReport:
         logger.info("weekly_report_generation_started", topic_id=str(topic_id), week_start=str(week_start))
+        # Attributes on the weekly_report.topic span opened by WeeklyReportPipeline.run().
+        span = _otel_trace.get_current_span()
 
         if not force:
             existing = self._repo.find_by_topic_and_week(topic_id, week_start)
             if existing and existing.status == "completed":
+                span.set_attribute("weekly_report.outcome", "skipped_existing")
                 logger.warning(
                     "weekly_report_already_exists_skipped",
                     topic_id=str(topic_id),
@@ -59,6 +66,7 @@ class GenerateWeeklyReportUseCase:
 
         articles = self._repo.fetch_top_articles(topic_id, week_start)
         if not articles:
+            span.set_attribute("weekly_report.outcome", "no_articles")
             logger.warning("no_articles_for_weekly_report", topic_id=str(topic_id))
             report = WeeklyReport(
                 id=uuid.uuid4(),
@@ -73,6 +81,8 @@ class GenerateWeeklyReportUseCase:
             )
             return self._repo.save(report)
 
+        span.set_attribute("weekly_report.article_count", len(articles))
+
         all_tags: List[str] = [tag for a in articles for tag in a.tags]
         top_tags = [tag for tag, _ in Counter(all_tags).most_common(8)]
 
@@ -82,30 +92,42 @@ class GenerateWeeklyReportUseCase:
             week_start=week_start,
         )
 
-        try:
-            llm_response = self._llm.generate(prompt.content)
-            parsed = json.loads(llm_response)
-            title = parsed.get("title", f"{topic_name} Weekly Report")
-            summary_text = parsed.get("summary_text", "")
-        except Exception as e:
-            logger.error("weekly_report_llm_failed", error=str(e))
-            title = f"{topic_name} Weekly Report"
-            summary_text = ""
+        tracer = _otel_trace.get_tracer(SERVICE_NAME)
+
+        with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_SUMMARIZE) as sub_span:
+            try:
+                llm_response = self._llm.generate(prompt.content)
+                parsed = json.loads(llm_response)
+                title = parsed.get("title", f"{topic_name} Weekly Report")
+                summary_text = parsed.get("summary_text", "")
+                sub_span.set_attribute("weekly_report.summarize.success", True)
+            except Exception as e:
+                sub_span.set_attribute("weekly_report.summarize.success", False)
+                sub_span.set_attribute("weekly_report.summarize.error_type", type(e).__name__)
+                sub_span.set_status(StatusCode.ERROR, str(e))
+                logger.error("weekly_report_llm_failed", error=str(e))
+                title = f"{topic_name} Weekly Report"
+                summary_text = ""
 
         cover_image_url: Optional[str] = None
-        try:
-            week_label = week_start.strftime("%B %d, %Y")
-            img_prompt = ImageGenerationPrompt().render(
-                topic_name=topic_name,
-                top_tags=top_tags,
-                week_label=week_label,
-                summary_text=summary_text,
-            )
-            img_bytes = self._image.generate_image(img_prompt.content)
-            key = f"weekly-reports/{topic_id}/{week_start.isoformat()}.png"
-            cover_image_url = self._blob.upload(img_bytes, key, "image/png")
-        except Exception as e:
-            logger.warning("weekly_report_image_failed", error=str(e))
+        with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_IMAGE) as sub_span:
+            try:
+                week_label = week_start.strftime("%B %d, %Y")
+                img_prompt = ImageGenerationPrompt().render(
+                    topic_name=topic_name,
+                    top_tags=top_tags,
+                    week_label=week_label,
+                    summary_text=summary_text,
+                )
+                img_bytes = self._image.generate_image(img_prompt.content)
+                key = f"weekly-reports/{topic_id}/{week_start.isoformat()}.png"
+                cover_image_url = self._blob.upload(img_bytes, key, "image/png")
+                sub_span.set_attribute("weekly_report.image.success", True)
+            except Exception as e:
+                sub_span.set_attribute("weekly_report.image.success", False)
+                sub_span.set_attribute("weekly_report.image.error_type", type(e).__name__)
+                sub_span.set_status(StatusCode.ERROR, str(e))
+                logger.warning("weekly_report_image_failed", error=str(e))
 
         article_ids = [str(a.title) for a in articles]
 
@@ -121,81 +143,109 @@ class GenerateWeeklyReportUseCase:
             status="completed",
         )
         saved = self._repo.save(report)
+        span.set_attribute("weekly_report.outcome", "generated")
 
         for language in self._translation_languages:
             self._translate_report(saved, language)
 
         if self._email:
-            try:
-                self._email.notify(saved, topic_id=topic_id)
-            except Exception as e:
-                logger.warning("weekly_report_email_failed", error=str(e))
+            with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_NOTIFY) as sub_span:
+                sub_span.set_attribute("notify.channel", "email")
+                try:
+                    self._email.notify(saved, topic_id=topic_id)
+                    sub_span.set_attribute("notify.success", True)
+                except Exception as e:
+                    sub_span.set_attribute("notify.success", False)
+                    sub_span.set_attribute("notify.error_type", type(e).__name__)
+                    sub_span.set_status(StatusCode.ERROR, str(e))
+                    logger.warning("weekly_report_email_failed", error=str(e))
 
         if self._telegram:
-            try:
-                self._telegram.notify(saved, topic_id=topic_id)
-            except Exception as e:
-                logger.warning("weekly_report_telegram_failed", error=str(e))
+            with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_NOTIFY) as sub_span:
+                sub_span.set_attribute("notify.channel", "telegram")
+                try:
+                    self._telegram.notify(saved, topic_id=topic_id)
+                    sub_span.set_attribute("notify.success", True)
+                except Exception as e:
+                    sub_span.set_attribute("notify.success", False)
+                    sub_span.set_attribute("notify.error_type", type(e).__name__)
+                    sub_span.set_status(StatusCode.ERROR, str(e))
+                    logger.warning("weekly_report_telegram_failed", error=str(e))
 
         logger.info("weekly_report_generation_complete", report_id=str(saved.id))
         return saved
 
     def _translate_report(self, report: WeeklyReport, language: str) -> None:
         """Translate title + summary_text into *language* and persist. Failures are logged, never raised."""
-        if report.id is None:
-            return
-        try:
-            rendered = self._translation_prompt.render(
-                target_language=language,
-                title=report.title,
-                summary=report.summary_text,
-            )
-            translated = self._llm.translate("", rendered.content)
-        except Exception as e:
-            logger.warning(
-                "weekly_report_translation_llm_failed",
-                report_id=str(report.id),
-                language=language,
-                error=str(e),
-            )
-            return
+        tracer = _otel_trace.get_tracer(SERVICE_NAME)
+        with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_TRANSLATE) as span:
+            span.set_attribute("translation.language", language)
 
-        if not translated:
-            logger.warning(
-                "weekly_report_translation_empty_response",
-                report_id=str(report.id),
-                language=language,
-            )
-            return
+            def _fail(error_type: str, message: str) -> None:
+                span.set_attribute("translation.success", False)
+                span.set_attribute("translation.error_type", error_type)
+                span.set_status(StatusCode.ERROR, message)
 
-        title, summary = self._parse_translation_response(translated)
-        if not title or not summary:
-            logger.warning(
-                "weekly_report_translation_parse_failed",
-                report_id=str(report.id),
-                language=language,
-            )
-            return
+            if report.id is None:
+                _fail("MissingReportId", "report has no id")
+                return
+            try:
+                rendered = self._translation_prompt.render(
+                    target_language=language,
+                    title=report.title,
+                    summary=report.summary_text,
+                )
+                translated = self._llm.translate("", rendered.content)
+            except Exception as e:
+                _fail(type(e).__name__, str(e))
+                logger.warning(
+                    "weekly_report_translation_llm_failed",
+                    report_id=str(report.id),
+                    language=language,
+                    error=str(e),
+                )
+                return
 
-        try:
-            self._translation_repo.save(WeeklyReportTranslation(
-                weekly_report_id=report.id,
-                language=language,
-                title=title,
-                summary_text=summary,
-            ))
-            logger.info(
-                "weekly_report_translated",
-                report_id=str(report.id),
-                language=language,
-            )
-        except Exception as e:
-            logger.warning(
-                "weekly_report_translation_save_failed",
-                report_id=str(report.id),
-                language=language,
-                error=str(e),
-            )
+            if not translated:
+                _fail("EmptyResponse", "translation LLM returned an empty response")
+                logger.warning(
+                    "weekly_report_translation_empty_response",
+                    report_id=str(report.id),
+                    language=language,
+                )
+                return
+
+            title, summary = self._parse_translation_response(translated)
+            if not title or not summary:
+                _fail("ParseFailed", "failed to parse translation response")
+                logger.warning(
+                    "weekly_report_translation_parse_failed",
+                    report_id=str(report.id),
+                    language=language,
+                )
+                return
+
+            try:
+                self._translation_repo.save(WeeklyReportTranslation(
+                    weekly_report_id=report.id,
+                    language=language,
+                    title=title,
+                    summary_text=summary,
+                ))
+                span.set_attribute("translation.success", True)
+                logger.info(
+                    "weekly_report_translated",
+                    report_id=str(report.id),
+                    language=language,
+                )
+            except Exception as e:
+                _fail(type(e).__name__, str(e))
+                logger.warning(
+                    "weekly_report_translation_save_failed",
+                    report_id=str(report.id),
+                    language=language,
+                    error=str(e),
+                )
 
     @staticmethod
     def _parse_translation_response(text: str) -> tuple[Optional[str], Optional[str]]:

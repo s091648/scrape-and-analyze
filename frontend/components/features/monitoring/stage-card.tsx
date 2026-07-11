@@ -23,6 +23,11 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'scraper.pipeline_completed.handle':      'admin.stageLabel_pipelineCompleted',
   'scraper.pipeline_completed.notify':      'admin.stageLabel_pipelineNotify',
   'article.rag_ingest':                    'admin.stageLabel_ragIngest',
+  'weekly_report.topic':                   'admin.stageLabel_weeklyReportTopic',
+  'weekly_report.summarize':               'admin.stageLabel_weeklyReportSummarize',
+  'weekly_report.image':                   'admin.stageLabel_weeklyReportImage',
+  'weekly_report.translate':                'admin.stageLabel_weeklyReportTranslate',
+  'weekly_report.notify':                  'admin.stageLabel_weeklyReportNotify',
 }
 
 const ATTR_I18N_KEYS: Record<string, string> = {
@@ -64,6 +69,15 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'rag_ingest.success':            'admin.stageAttr_ragIngestSuccess',
   'rag_ingest.duration_seconds':   'admin.stageAttr_ragIngestDuration',
   'rag_ingest.error_type':         'admin.stageAttr_ragIngestErrorType',
+  'weekly_report.article_count':          'admin.stageAttr_weeklyReportArticleCount',
+  'weekly_report.outcome':                'admin.stageAttr_weeklyReportOutcome',
+  'weekly_report.summarize.success':      'admin.stageAttr_weeklyReportSummarizeSuccess',
+  'weekly_report.summarize.error_type':   'admin.stageAttr_weeklyReportSummarizeErrorType',
+  'weekly_report.image.success':          'admin.stageAttr_weeklyReportImageSuccess',
+  'weekly_report.image.error_type':       'admin.stageAttr_weeklyReportImageErrorType',
+  'notify.channel':                       'admin.stageAttr_notifyChannel',
+  'notify.success':                       'admin.stageAttr_notifySuccess',
+  'notify.error_type':                    'admin.stageAttr_notifyErrorType',
 }
 
 function formatValue(v: OtlpAttributeValue): string {
