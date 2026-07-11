@@ -653,6 +653,22 @@
     "chatToggle": {
       "title": "Ask the AI Assistant",
       "description": "Open the chat to ask questions about pinned articles or the topics you're browsing."
+    },
+    "weeklyWeeks": {
+      "title": "Browse Other Weeks",
+      "description": "Click a dot to switch between different weeks' reports."
+    },
+    "weeklyDatepicker": {
+      "title": "Jump to an Older Week",
+      "description": "Use the date picker in the bottom-left corner to jump further back in time."
+    },
+    "articleFavorite": {
+      "title": "Save Your Favorites",
+      "description": "Click the heart icon to add an article to your favorites."
+    },
+    "articleViewCount": {
+      "title": "View Count",
+      "description": "This shows how many times the article has been viewed."
     }
   }
 }

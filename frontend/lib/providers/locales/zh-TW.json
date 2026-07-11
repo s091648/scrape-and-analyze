@@ -653,6 +653,22 @@
     "chatToggle": {
       "title": "詢問 AI 助理",
       "description": "開啟聊天視窗，針對已釘選的文章或您正在瀏覽的主題提出問題。"
+    },
+    "weeklyWeeks": {
+      "title": "瀏覽其他週報",
+      "description": "點擊圓點即可切換查看不同週的週報。"
+    },
+    "weeklyDatepicker": {
+      "title": "跳到更久以前的週",
+      "description": "使用左下角的日期選擇器，可以跳到更久以前的週報。"
+    },
+    "articleFavorite": {
+      "title": "收藏喜歡的文章",
+      "description": "點擊愛心圖示即可將文章加入收藏。"
+    },
+    "articleViewCount": {
+      "title": "瀏覽次數",
+      "description": "這裡顯示這篇文章目前累積的瀏覽次數。"
     }
   }
 }

@@ -21,7 +21,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
   return (
     <div className="flex h-full flex-col items-center shrink-0 pr-2">
       {showDots && (
-        <div role="listbox" aria-label={t('weeklyReport.selectWeek')} className="flex flex-col items-center gap-2">
+        <div id="tutorial-target-weekly-weeks" role="listbox" aria-label={t('weeklyReport.selectWeek')} className="flex flex-col items-center gap-2">
           {reports.map(r => {
             const isSelected = r.id === selectedId
             return (
@@ -68,6 +68,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
       {onJumpToWeek && (
         <div className="pb-1">
           <WeekPicker
+            triggerId="tutorial-target-weekly-datepicker"
             value={selected ? new Date(selected.week_start_date) : null}
             onSelectWeek={onJumpToWeek}
             maxDate={new Date()}

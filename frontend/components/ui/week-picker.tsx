@@ -58,6 +58,8 @@ interface WeekPickerProps {
   compact?: boolean
   /** When provided, weeks for which this returns false are disabled (e.g. no report exists for that week yet). */
   isWeekAvailable?: (monday: Date) => boolean
+  /** DOM id for the trigger button, e.g. for tutorial spotlight targeting. */
+  triggerId?: string
 }
 
 export function WeekPicker({
@@ -69,6 +71,7 @@ export function WeekPicker({
   className,
   compact = false,
   isWeekAvailable,
+  triggerId,
 }: WeekPickerProps) {
   const [open, setOpen] = useState(false)
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(value ?? new Date()))
@@ -99,6 +102,7 @@ export function WeekPicker({
       <PopoverTrigger asChild>
         {compact ? (
           <button
+            id={triggerId}
             type="button"
             aria-label={triggerLabel}
             title={triggerLabel}
@@ -111,6 +115,7 @@ export function WeekPicker({
           </button>
         ) : (
           <button
+            id={triggerId}
             type="button"
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-muted cursor-pointer',
@@ -181,7 +186,7 @@ export function WeekPicker({
                     key={i}
                     className={cn(
                       'py-1 text-center text-xs',
-                      disabled ? 'text-neutral-400' : 'text-neutral-800',
+                      disabled ? 'text-muted-foreground/70' : 'text-foreground',
                       isSelectedRow && !disabled && 'font-semibold text-primary'
                     )}
                   >

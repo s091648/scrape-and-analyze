@@ -10,6 +10,10 @@ import {
   ScrollText,
   LogIn,
   MessageSquare,
+  CalendarDays,
+  CalendarClock,
+  Heart,
+  Eye,
   type LucideIcon,
 } from "lucide-react";
 
@@ -157,6 +161,50 @@ export const TUTORIAL_TOURS: TutorialTour[] = [
         descriptionKey: "tutorial.chatToggle.description",
         icon: MessageSquare,
         targetId: "tutorial-target-chat-toggle",
+      },
+    ],
+  },
+  {
+    id: "feature-weekly-report-2026-07",
+    kind: "spotlight",
+    steps: [
+      {
+        id: "weekly-weeks",
+        route: "/",
+        titleKey: "tutorial.weeklyWeeks.title",
+        descriptionKey: "tutorial.weeklyWeeks.description",
+        icon: CalendarDays,
+        targetId: "tutorial-target-weekly-weeks",
+      },
+      {
+        id: "weekly-datepicker",
+        route: "/",
+        titleKey: "tutorial.weeklyDatepicker.title",
+        descriptionKey: "tutorial.weeklyDatepicker.description",
+        icon: CalendarClock,
+        targetId: "tutorial-target-weekly-datepicker",
+      },
+    ],
+  },
+  {
+    id: "feature-articles-stats-2026-07",
+    kind: "spotlight",
+    steps: [
+      {
+        id: "article-favorite",
+        route: "/articles",
+        titleKey: "tutorial.articleFavorite.title",
+        descriptionKey: "tutorial.articleFavorite.description",
+        icon: Heart,
+        targetId: "tutorial-target-article-favorite",
+      },
+      {
+        id: "article-view-count",
+        route: "/articles",
+        titleKey: "tutorial.articleViewCount.title",
+        descriptionKey: "tutorial.articleViewCount.description",
+        icon: Eye,
+        targetId: "tutorial-target-article-view-count",
       },
     ],
   },

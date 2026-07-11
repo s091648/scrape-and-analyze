@@ -23,9 +23,11 @@ interface ArticleCardProps extends Article {
   is_favorited?: boolean
   /** Marks this card as the Feature Spotlight target for the "pin to chat" tour step. */
   isFirstTutorialTarget?: boolean
+  /** Marks this card as the Feature Spotlight target for the favorite/view-count tour steps. */
+  isStatsTutorialTarget?: boolean
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
@@ -112,11 +114,12 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
             <div className="flex items-start gap-2">
               {isAuthenticated && (
                 <button
+                  id={isStatsTutorialTarget ? "tutorial-target-article-favorite" : undefined}
                   type="button"
                   onClick={handleToggleFavorite}
                   aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
                   className={`shrink-0 mt-0.5 cursor-pointer transition-opacity duration-200 ${
-                    favorited ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    favorited || isStatsTutorialTarget ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
                 >
                   <Heart className={`h-3.5 w-3.5 ${favorited ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
@@ -186,7 +189,10 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 </span>
               )}
               {view_count != null && view_count > 0 && (
-                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
+                <span
+                  id={isStatsTutorialTarget ? "tutorial-target-article-view-count" : undefined}
+                  className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground"
+                >
                   <Eye className="h-3 w-3" />
                   {view_count.toLocaleString()}
                 </span>

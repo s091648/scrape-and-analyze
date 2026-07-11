@@ -41,6 +41,10 @@ function ArticlesPageContent() {
     activeFilterCount,
   } = usePagination()
   const [articles, setArticles] = useState<Article[]>([])
+  const firstVectorArticleId = useMemo(
+    () => articles.find(a => a.has_vectors)?.id,
+    [articles]
+  )
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const { selectedTopicId } = useTopic()
@@ -139,12 +143,14 @@ function ArticlesPageContent() {
                     <ArticleCard {...a} />
                   </div>
                 ))
-              : displayedArticles.map(a => (
+              : displayedArticles.map((a, i) => (
                   <ArticleCard
                     key={a.id}
                     {...a}
                     open={openArticleId === a.id}
                     onOpenChange={(v) => handleArticleOpenChange(a.id, v)}
+                    isFirstTutorialTarget={a.id === firstVectorArticleId}
+                    isStatsTutorialTarget={i === 0}
                   />
                 ))
           }
