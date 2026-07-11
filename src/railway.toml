@@ -11,6 +11,14 @@
 #                    No arguments needed — --topic-id / --week-start are for manual
 #                    local runs only; the cron invocation defaults to all active
 #                    topics and last week's Monday.
+#   refresh-metrics → Config File Path: src/railway.toml (reuses this same build)
+#                    Start Command:   python -m src.entrypoints.cli.refresh_metrics
+#                    Cron Schedule:   0 3 * * *  (daily, 03:00 UTC)
+#                    Restart Policy:  never
+#                    Independent of weekly-report and of the backend's view_count
+#                    Redis flush — keeps citation_count (and future catalog metrics)
+#                    fresh for previously-scraped articles. See research.md §9b, §9f
+#                    in specs/014-article-recommendation-weekly-report/.
 #   backend        → Dockerfile Path: backend/Dockerfile
 #                    Start Command:   (empty — use Dockerfile CMD)
 #                    Restart Policy:  on_failure
