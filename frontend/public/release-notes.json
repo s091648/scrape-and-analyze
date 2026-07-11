@@ -1,5 +1,19 @@
 [
   {
+    "version": "v1.2.3",
+    "date": "2026-07-11",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Corrected the timeout measurement units to improve network connection reliability and application responsiveness."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the application to version 1.2.2."
+      }
+    ]
+  },
+  {
     "version": "v1.2.2",
     "date": "2026-07-06",
     "changes": [
