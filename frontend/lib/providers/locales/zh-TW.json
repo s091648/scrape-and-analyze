@@ -148,7 +148,18 @@
     "recent": "近期",
     "days": "天",
     "aggregator": "聚合器",
-    "originalSource": "原始來源"
+    "originalSource": "原始來源",
+    "sortBy": "排序方式",
+    "sortTooltip": "選擇文章列表的排序方式",
+    "sortScrapedAt": "抓取時間",
+    "sortPublishedAt": "發布時間",
+    "sortCitationCount": "引用數",
+    "sortViewCount": "瀏覽數",
+    "sortSource": "來源",
+    "sortTitle": "標題",
+    "sortAscending": "遞增",
+    "sortDescending": "遞減",
+    "favoritesOnly": "僅收藏"
   },
   "tags": {
     "title": "標籤",

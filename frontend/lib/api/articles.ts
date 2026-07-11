@@ -51,12 +51,12 @@ export interface ArticleListParams {
   scraped_before?: string
   sort?: string
   order?: string
-  favorites_only?: boolean
 }
 
 export async function fetchArticles(
   params: ArticleListParams,
   locale?: string,
+  token?: string,
 ): Promise<{ items: Article[]; total: number }> {
   const qs = new URLSearchParams()
   if (params.page) qs.set('page', String(params.page))
@@ -73,8 +73,9 @@ export async function fetchArticles(
   if (params.published_before) qs.set('published_before', params.published_before)
   if (params.scraped_after) qs.set('scraped_after', params.scraped_after)
   if (params.scraped_before) qs.set('scraped_before', params.scraped_before)
-  if (params.favorites_only) qs.set('favorites_only', 'true')
-  const res = await apiFetch(`/articles?${qs}`, {}, locale)
+  // Sent when logged in so the backend can annotate each article with is_favorited —
+  // without it, get_optional_user_id() always resolves to None (GET /articles is public).
+  const res = await apiFetch(`/articles?${qs}`, token ? { headers: { Authorization: `Bearer ${token}` } } : {}, locale)
   return res.json()
 }
 

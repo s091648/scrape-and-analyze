@@ -113,7 +113,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   type="button"
                   onClick={handleToggleFavorite}
                   aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
-                  className={`shrink-0 mt-0.5 transition-opacity duration-200 ${
+                  className={`shrink-0 mt-0.5 cursor-pointer transition-opacity duration-200 ${
                     favorited ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
                 >
@@ -160,7 +160,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 target="_blank"
                 rel="noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors cursor-pointer"
               >
                 <Globe className="h-3 w-3" />
                 {displaySource}

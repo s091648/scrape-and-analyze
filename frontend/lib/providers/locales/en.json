@@ -148,7 +148,18 @@
     "recent": "Recent",
     "days": "days",
     "aggregator": "Aggregator",
-    "originalSource": "Original Source"
+    "originalSource": "Original Source",
+    "sortBy": "Sort by",
+    "sortTooltip": "Choose how the article list is ordered",
+    "sortScrapedAt": "Scraped At",
+    "sortPublishedAt": "Published At",
+    "sortCitationCount": "Citation Count",
+    "sortViewCount": "View Count",
+    "sortSource": "Source",
+    "sortTitle": "Title",
+    "sortAscending": "Ascending",
+    "sortDescending": "Descending",
+    "favoritesOnly": "Favorites Only"
   },
   "tags": {
     "title": "Tags",

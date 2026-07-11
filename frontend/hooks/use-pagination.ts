@@ -34,6 +34,13 @@ export function usePagination() {
     router.push(`?${params.toString()}`)
   }
 
+  function setOrder(newOrder: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('order', newOrder)
+    params.set('page', '1')
+    router.push(`?${params.toString()}`)
+  }
+
   function setFavoritesOnly(value: boolean) {
     const params = new URLSearchParams(searchParams.toString())
     if (value) params.set('favorites_only', 'true')
@@ -93,7 +100,7 @@ export function usePagination() {
     page, sort, order, favoritesOnly,
     aggregators, originalSources, tags, tagGroups,
     publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
-    setPage, setSort, setFilters, setFavoritesOnly,
+    setPage, setSort, setOrder, setFilters, setFavoritesOnly,
     activeFilterCount,
   }
 }

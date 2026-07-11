@@ -17,6 +17,11 @@ vi.mock('@/lib/api/source-categories', () => ({
   fetchSourceCategories: vi.fn().mockResolvedValue({ aggregator: [], scraper: [] }),
 }))
 
+let mockSessionStatus = 'unauthenticated'
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({ status: mockSessionStatus }),
+}))
+
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
     locale: 'en',
@@ -39,6 +44,7 @@ vi.mock('@/lib/providers', () => ({
         'filterBar.clear': 'Clear',
         'filterBar.apply': 'Apply',
         'filterBar.noTagsFound': 'No tags found',
+        'filterBar.favoritesOnly': 'Favorites Only',
       }
       return map[key] ?? key
     },
@@ -84,6 +90,7 @@ beforeAll(async () => {
 describe('FilterBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSessionStatus = 'unauthenticated'
     setupApiMock()
   })
 
@@ -138,41 +145,40 @@ describe('FilterBar', () => {
       expect(fetchTagGroups).toHaveBeenCalledWith('topic-1')
     })
   })
+
+  it('renders sort slot content passed as children next to the Filters button', async () => {
+    render(<FilterBar {...defaultProps}><button>Sort slot</button></FilterBar>)
+    expect(screen.getByRole('button', { name: 'Sort slot' })).toBeInTheDocument()
+  })
 })
 
-describe('FilterBar — sort dropdown', () => {
+describe('FilterBar — Favorites Only', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setupApiMock()
   })
 
-  it('renders sort dropdown with current value', async () => {
-    render(<FilterBar {...defaultProps} sort="citation_count" onSortChange={vi.fn()} />)
-    await waitFor(() => {
-      const select = screen.getByRole('combobox')
-      expect(select).toHaveValue('citation_count')
-    })
+  it('is hidden for unauthenticated users', async () => {
+    mockSessionStatus = 'unauthenticated'
+    render(<FilterBar {...defaultProps} />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
   })
 
-  it('calls onSortChange when sort selection changes', async () => {
-    const onSortChange = vi.fn()
-    render(<FilterBar {...defaultProps} sort="scraped_at" onSortChange={onSortChange} />)
-    await waitFor(() => {
-      const select = screen.getByRole('combobox')
-      fireEvent.change(select, { target: { value: 'view_count' } })
-      expect(onSortChange).toHaveBeenCalledWith('view_count')
-    })
+  it('appears inside the filter panel (not the always-visible top row) for authenticated users', async () => {
+    mockSessionStatus = 'authenticated'
+    render(<FilterBar {...defaultProps} />)
+    expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.getByRole('button', { name: /favorites only/i })).toBeInTheDocument()
   })
 
-  it('renders all sort options', async () => {
-    render(<FilterBar {...defaultProps} sort="scraped_at" onSortChange={vi.fn()} />)
-    await waitFor(() => {
-      const select = screen.getByRole('combobox')
-      const options = Array.from(select.querySelectorAll('option')).map(o => (o as HTMLOptionElement).value)
-      expect(options).toContain('scraped_at')
-      expect(options).toContain('citation_count')
-      expect(options).toContain('view_count')
-      expect(options).toContain('published_at')
-    })
+  it('calls onFavoritesToggle with the flipped value when clicked', async () => {
+    mockSessionStatus = 'authenticated'
+    const onFavoritesToggle = vi.fn()
+    render(<FilterBar {...defaultProps} favoritesOnly={false} onFavoritesToggle={onFavoritesToggle} />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    fireEvent.click(screen.getByRole('button', { name: /favorites only/i }))
+    expect(onFavoritesToggle).toHaveBeenCalledWith(true)
   })
 })

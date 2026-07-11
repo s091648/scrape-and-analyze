@@ -1,8 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { NativeSelect } from '@/components/ui/native-select'
 import { SlidersHorizontal, X, Heart } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
@@ -12,15 +11,6 @@ import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-catego
 import { useI18n, useTopic } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
 import { GroupedTagSelect } from './grouped-tag-select'
-
-const SORT_OPTIONS = [
-  { value: 'scraped_at', label: 'Scraped At' },
-  { value: 'published_at', label: 'Published At' },
-  { value: 'citation_count', label: 'Citation Count' },
-  { value: 'view_count', label: 'View Count' },
-  { value: 'source', label: 'Source' },
-  { value: 'title', label: 'Title' },
-]
 
 interface FilterBarProps {
   aggregators: string[]
@@ -32,8 +22,6 @@ interface FilterBarProps {
   scrapedAfter: string
   scrapedBefore: string
   activeFilterCount: number
-  sort?: string
-  onSortChange?: (sort: string) => void
   favoritesOnly?: boolean
   onFavoritesToggle?: (v: boolean) => void
   onApply: (updates: {
@@ -46,6 +34,8 @@ interface FilterBarProps {
     scraped_after?: string
     scraped_before?: string
   }) => void
+  /** Rendered at the right edge of the top row — e.g. <SortSelect /> — kept as a sibling component since sorting and filtering are independent concerns. */
+  children?: ReactNode
 }
 
 export function FilterBar({
@@ -53,8 +43,9 @@ export function FilterBar({
   originalSources: activeOriginalSources,
   tags: activeTags, tagGroups: activeTagGroups,
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
-  activeFilterCount, sort = 'scraped_at', onSortChange,
+  activeFilterCount,
   favoritesOnly = false, onFavoritesToggle, onApply,
+  children,
 }: FilterBarProps) {
   const { t, locale } = useI18n()
   const { selectedTopicId } = useTopic()
@@ -130,7 +121,7 @@ export function FilterBar({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs"
+          className="h-8 gap-1.5 text-xs cursor-pointer"
           onClick={() => setOpen(o => !o)}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -139,32 +130,22 @@ export function FilterBar({
             <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
           )}
         </Button>
-        {isAuthenticated && (
-          <Button
-            variant={favoritesOnly ? 'default' : 'outline'}
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            onClick={() => onFavoritesToggle?.(!favoritesOnly)}
-          >
-            <Heart className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-current' : ''}`} />
-            Favorites
-          </Button>
-        )}
-        <div className="ml-auto">
-          <NativeSelect
-            size="sm"
-            value={sort}
-            onChange={e => onSortChange?.(e.target.value)}
-          >
-            {SORT_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </NativeSelect>
-        </div>
+        {children && <div className="ml-auto">{children}</div>}
       </div>
 
       {open && (
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
+          {isAuthenticated && (
+            <Button
+              variant={favoritesOnly ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 text-xs cursor-pointer"
+              onClick={() => onFavoritesToggle?.(!favoritesOnly)}
+            >
+              <Heart className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-current' : ''}`} />
+              {t('filterBar.favoritesOnly')}
+            </Button>
+          )}
           <MultiSelectPopover
             label={t('filterBar.aggregator')}
             options={aggregatorOptions}
@@ -207,11 +188,11 @@ export function FilterBar({
           />
           <div className="flex gap-2 ml-auto">
             {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={handleClear}>
+              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 cursor-pointer" onClick={handleClear}>
                 <X className="h-3 w-3" /> {t('filterBar.clear')}
               </Button>
             )}
-            <Button size="sm" className="h-8 text-xs" onClick={handleApply}>{t('filterBar.apply')}</Button>
+            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={handleApply}>{t('filterBar.apply')}</Button>
           </div>
         </div>
       )}

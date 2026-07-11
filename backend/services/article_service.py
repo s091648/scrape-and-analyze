@@ -108,7 +108,11 @@ def get_articles_paginated(
 
     if sort in ("citation_count", "view_count"):
         col = getattr(ArticleMetrics, sort)
-        query = query.order_by(col.desc() if order == "desc" else col.asc())
+        # nullslast() regardless of direction: articles are outer-joined to ArticleMetrics,
+        # so most have no row at all (NULL, not 0). Postgres defaults to NULLS FIRST on DESC,
+        # which would otherwise push every article with no metrics to the top of the "highest
+        # first" sort — always sink them to the bottom instead.
+        query = query.order_by(col.desc().nullslast() if order == "desc" else col.asc().nullslast())
     else:
         col = getattr(Article, sort, None)
         if col is not None:
