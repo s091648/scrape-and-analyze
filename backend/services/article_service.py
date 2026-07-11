@@ -53,6 +53,9 @@ def get_articles_paginated(
     from models.article_metric_value import ArticleMetricValue
     from models.user_subscription import UserArticleFavorite
 
+    if favorites_only and not user_id:
+        return 0, []  # unauthenticated users have no favorites to filter by
+
     query = db.query(Article, ArticleMetrics, ArticleMetricValue, UserArticleFavorite).outerjoin(
         ArticleMetrics, ArticleMetrics.article_id == Article.id
     ).outerjoin(

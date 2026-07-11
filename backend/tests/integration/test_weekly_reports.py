@@ -66,7 +66,7 @@ def test_list_weekly_reports_returns_completed_reports(db_session, api_client):
 def test_list_weekly_reports_pagination(db_session, api_client):
     topic = _topic(db_session)
     for i in range(5):
-        db_session.add(_weekly_report(topic.id, date(2026, 1, 6 + i * 7)))
+        db_session.add(_weekly_report(topic.id, date(2026, 1, 6) + timedelta(weeks=i)))
     db_session.flush()
 
     r = api_client.get(f"/weekly-reports?topic_id={topic.id}&limit=2&offset=0")

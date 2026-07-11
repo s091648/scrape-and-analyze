@@ -177,12 +177,15 @@ def test_duplicate_url_from_second_discover_run_is_not_re_saved(db_session):
     event_first = ArticleScrapedEvent.from_scraped_article(scraped_first)
     use_case.execute(event_first)
 
-    # Same URL discovered again (e.g. re-run of the same scraper cycle)
+    # Same URL discovered again (e.g. re-run of the same scraper cycle). The
+    # first save has no analysis yet, so dedup reports DUPLICATE_NEEDS_ANALYSIS
+    # (not a plain DUPLICATE) and hands back the existing article — either way
+    # no second row is inserted.
     scraped_second = scraper.fetch(job)
     event_second = ArticleScrapedEvent.from_scraped_article(scraped_second)
-    outcome, saved = use_case.execute(event_second)
+    outcome, existing = use_case.execute(event_second)
 
     from src.modules.collection.application.use_cases import ArticleOutcome
-    assert outcome == ArticleOutcome.DUPLICATE
-    assert saved is None
+    assert outcome == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
+    assert existing is not None
     assert db_session.query(Article).filter_by(url=job.url).count() == 1

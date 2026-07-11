@@ -28,6 +28,17 @@ def _user_token(user_key: str) -> str:
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
 
 
+def _seed_user(db_session, user_key: str):
+    """Rows written under user_id FKs (favorites) require a real auth.users row.
+    Inserted via db_session so it rolls back with the rest of the test's transaction."""
+    from models.auth import User
+
+    user_id = uuid.UUID(_USER_IDS[user_key])
+    if db_session.get(User, user_id) is None:
+        db_session.add(User(id=user_id, role="user", email=f"{user_key}@example.com"))
+        db_session.flush()
+
+
 def _article(source="arxiv", title="Test"):
     from models.article import Article
     return Article(
@@ -61,7 +72,7 @@ def test_get_favorites_requires_auth(api_client):
 def test_add_favorite_returns_201(db_session, api_client):
     article = _article()
     db_session.add(article)
-    db_session.flush()
+    _seed_user(db_session, "fav001")
 
     token = _user_token("fav001")
     r = api_client.post(f"/user/favorites/{article.id}", headers={"Authorization": f"Bearer {token}"})
@@ -71,7 +82,7 @@ def test_add_favorite_returns_201(db_session, api_client):
 def test_add_favorite_appears_in_get(db_session, api_client):
     article = _article()
     db_session.add(article)
-    db_session.flush()
+    _seed_user(db_session, "fav002")
 
     token = _user_token("fav002")
     headers = {"Authorization": f"Bearer {token}"}
@@ -84,7 +95,7 @@ def test_add_favorite_appears_in_get(db_session, api_client):
 def test_add_favorite_is_idempotent(db_session, api_client):
     article = _article()
     db_session.add(article)
-    db_session.flush()
+    _seed_user(db_session, "fav003")
 
     token = _user_token("fav003")
     headers = {"Authorization": f"Bearer {token}"}
@@ -101,7 +112,7 @@ def test_add_favorite_is_idempotent(db_session, api_client):
 def test_remove_favorite_returns_204(db_session, api_client):
     article = _article()
     db_session.add(article)
-    db_session.flush()
+    _seed_user(db_session, "fav004")
 
     token = _user_token("fav004")
     headers = {"Authorization": f"Bearer {token}"}
@@ -114,7 +125,7 @@ def test_remove_favorite_returns_204(db_session, api_client):
 def test_remove_favorite_disappears_from_list(db_session, api_client):
     article = _article()
     db_session.add(article)
-    db_session.flush()
+    _seed_user(db_session, "fav005")
 
     token = _user_token("fav005")
     headers = {"Authorization": f"Bearer {token}"}
@@ -132,7 +143,7 @@ def test_favorites_only_filter_returns_only_favorited_articles(db_session, api_c
     other_article = _article(title="Other")
     db_session.add(fav_article)
     db_session.add(other_article)
-    db_session.flush()
+    _seed_user(db_session, "fav006")
 
     token = _user_token("fav006")
     headers = {"Authorization": f"Bearer {token}"}

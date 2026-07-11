@@ -9,7 +9,7 @@ def _make_redis_mock(already_viewed=False):
     r = AsyncMock()
     r.get.return_value = b"1" if already_viewed else None
     r.incr = AsyncMock()
-    r.expire = AsyncMock()
+    r.set = AsyncMock()
     r.aclose = AsyncMock()
     return r
 
@@ -41,9 +41,9 @@ def test_view_sets_dedup_ttl_on_first_view(client):
     mock_redis = _make_redis_mock(already_viewed=False)
     with patch("backend.routers.articles._get_redis", return_value=mock_redis):
         client.post(f"/articles/{article_id}/view")
-    mock_redis.expire.assert_awaited_once()
-    args = mock_redis.expire.call_args[0]
-    assert args[1] == 86400
+    mock_redis.set.assert_awaited_once()
+    _, kwargs = mock_redis.set.call_args
+    assert kwargs["ex"] == 86400
 
 
 def test_view_does_not_increment_on_second_view_same_ip(client):

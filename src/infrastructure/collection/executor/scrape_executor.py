@@ -459,7 +459,13 @@ class ScrapeExecutor:
                         host_queue_map.semaphores[final_idx].release()
                         time.sleep(0.01)
                         continue
-                    break
+                    # A failed claim here can mean "nothing left" OR "another
+                    # thread is mid-release of a queue that still has work" —
+                    # only stop once every queue is actually empty.
+                    if all(q.empty() for q in host_queue_map.queues):
+                        break
+                    time.sleep(0.01)
+                    continue
                 time.sleep(0.05)
                 continue
 
@@ -571,7 +577,13 @@ class ScrapeExecutor:
                         host_queue_map.semaphores[final_idx].release()
                         time.sleep(0.01)
                         continue
-                    break
+                    # A failed claim here can mean "nothing left" OR "another
+                    # thread is mid-release of a queue that still has work" —
+                    # only stop once every queue is actually empty.
+                    if all(q.empty() for q in host_queue_map.queues):
+                        break
+                    time.sleep(0.01)
+                    continue
                 time.sleep(0.05)
                 continue
 

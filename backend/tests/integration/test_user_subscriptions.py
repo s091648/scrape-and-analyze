@@ -27,6 +27,18 @@ def _user_token(user_key: str) -> str:
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
 
 
+def _seed_user(db_session, user_key: str):
+    """Rows written under user_id FKs (subscriptions/notification settings) require
+    a real auth.users row. Inserted via db_session so it rolls back with the rest
+    of the test's transaction."""
+    from models.auth import User
+
+    user_id = uuid.UUID(_USER_IDS[user_key])
+    if db_session.get(User, user_id) is None:
+        db_session.add(User(id=user_id, role="user", email=f"{user_key}@example.com"))
+        db_session.flush()
+
+
 def _topic(db_session):
     from models.topic import Topic
     topic = Topic(
@@ -57,6 +69,7 @@ def test_get_subscriptions_requires_auth(api_client):
 
 def test_post_subscription_creates_row(db_session, api_client):
     topic = _topic(db_session)
+    _seed_user(db_session, "sub002")
     token = _user_token("sub002")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -73,6 +86,7 @@ def test_post_subscription_creates_row(db_session, api_client):
 
 def test_post_subscription_is_idempotent(db_session, api_client):
     topic = _topic(db_session)
+    _seed_user(db_session, "sub003")
     token = _user_token("sub003")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -86,6 +100,7 @@ def test_post_subscription_is_idempotent(db_session, api_client):
 
 def test_delete_subscription_removes_row(db_session, api_client):
     topic = _topic(db_session)
+    _seed_user(db_session, "sub004")
     token = _user_token("sub004")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -110,7 +125,8 @@ def test_get_notification_settings_returns_defaults(api_client):
     assert data["locale"] == "en"
 
 
-def test_put_notification_settings_upserts(api_client):
+def test_put_notification_settings_upserts(db_session, api_client):
+    _seed_user(db_session, "notif002")
     token = _user_token("notif002")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -125,7 +141,8 @@ def test_put_notification_settings_upserts(api_client):
     assert data["locale"] == "zh-TW"
 
 
-def test_put_notification_settings_is_idempotent(api_client):
+def test_put_notification_settings_is_idempotent(db_session, api_client):
+    _seed_user(db_session, "notif003")
     token = _user_token("notif003")
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"telegram_enabled": True, "telegram_chat_id": "12345"}
