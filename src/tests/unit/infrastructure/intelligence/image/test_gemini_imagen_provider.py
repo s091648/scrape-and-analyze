@@ -6,16 +6,22 @@ import pytest
 from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
 
 
-def _make_provider(model="imagen-3.0-generate-001", api_key="test-key"):
+def _make_provider(model="gemini-3.1-flash-image", api_key="test-key"):
     return GeminiImagenProvider(model=model, api_key=api_key)
 
 
 def _make_genai_response(image_bytes=b"fake-png"):
-    mock_image = MagicMock()
-    mock_image.image.image_bytes = image_bytes
+    part = MagicMock()
+    part.inline_data.data = image_bytes
+
+    content = MagicMock()
+    content.parts = [part]
+
+    candidate = MagicMock()
+    candidate.content = content
 
     response = MagicMock()
-    response.generated_images = [mock_image]
+    response.candidates = [candidate]
     return response
 
 
@@ -25,7 +31,7 @@ def test_generate_image_returns_bytes():
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
-        mock_client.models.generate_images.return_value = fake_response
+        mock_client.models.generate_content.return_value = fake_response
 
         result = provider.generate_image("a futuristic visualization")
 
@@ -38,12 +44,12 @@ def test_generate_image_passes_prompt_to_api():
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
-        mock_client.models.generate_images.return_value = fake_response
+        mock_client.models.generate_content.return_value = fake_response
 
         provider.generate_image("test prompt")
 
-    call_kwargs = mock_client.models.generate_images.call_args
-    assert call_kwargs[1]["prompt"] == "test prompt"
+    call_kwargs = mock_client.models.generate_content.call_args
+    assert call_kwargs[1]["contents"] == "test prompt"
 
 
 def test_generate_image_uses_configured_model():
@@ -52,11 +58,11 @@ def test_generate_image_uses_configured_model():
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
-        mock_client.models.generate_images.return_value = fake_response
+        mock_client.models.generate_content.return_value = fake_response
 
         provider.generate_image("prompt")
 
-    call_kwargs = mock_client.models.generate_images.call_args
+    call_kwargs = mock_client.models.generate_content.call_args
     assert call_kwargs[1]["model"] == "my-model-v2"
 
 
@@ -66,11 +72,24 @@ def test_generate_image_initializes_client_with_api_key():
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
-        mock_client.models.generate_images.return_value = fake_response
+        mock_client.models.generate_content.return_value = fake_response
 
         provider.generate_image("prompt")
 
     MockClient.assert_called_once_with(api_key="my-secret-key")
+
+
+def test_generate_image_raises_when_no_image_in_response():
+    provider = _make_provider()
+
+    with patch("google.genai.Client") as MockClient:
+        mock_client = MockClient.return_value
+        response = MagicMock()
+        response.candidates = []
+        mock_client.models.generate_content.return_value = response
+
+        with pytest.raises(RuntimeError, match="未包含任何圖片數據"):
+            provider.generate_image("prompt")
 
 
 def test_generate_image_propagates_api_error():
@@ -78,7 +97,7 @@ def test_generate_image_propagates_api_error():
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
-        mock_client.models.generate_images.side_effect = Exception("API quota exceeded")
+        mock_client.models.generate_content.side_effect = Exception("API quota exceeded")
 
         with pytest.raises(Exception, match="API quota exceeded"):
             provider.generate_image("prompt")

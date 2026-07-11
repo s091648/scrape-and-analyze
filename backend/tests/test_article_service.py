@@ -116,6 +116,7 @@ def test_get_articles_paginated_with_sources_filter():
     db = MagicMock()
     query_chain = MagicMock()
     db.query.return_value = query_chain
+    query_chain.outerjoin.return_value = query_chain
     query_chain.filter.return_value = query_chain
     query_chain.order_by.return_value = query_chain
     query_chain.offset.return_value.limit.return_value.all.return_value = []
@@ -146,6 +147,7 @@ def test_get_articles_paginated_with_date_filters():
     db = MagicMock()
     q = MagicMock()
     db.query.return_value = q
+    q.outerjoin.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
     q.offset.return_value.limit.return_value.all.return_value = []

@@ -1,12 +1,6 @@
 import boto3
 
-from src.config.settings import (
-    R2_ACCOUNT_ID,
-    R2_ACCESS_KEY_ID,
-    R2_SECRET_ACCESS_KEY,
-    R2_BUCKET_NAME,
-    R2_PUBLIC_URL,
-)
+from src.config import settings
 from src.shared.domain.services.blob_storage_service import BlobStorageService
 
 
@@ -43,20 +37,20 @@ class R2BlobStorageService(BlobStorageService):
         missing = [
             name
             for name, val in {
-                "R2_ACCOUNT_ID": R2_ACCOUNT_ID,
-                "R2_ACCESS_KEY_ID": R2_ACCESS_KEY_ID,
-                "R2_SECRET_ACCESS_KEY": R2_SECRET_ACCESS_KEY,
-                "R2_BUCKET_NAME": R2_BUCKET_NAME,
-                "R2_PUBLIC_URL": R2_PUBLIC_URL,
+                "R2_ACCOUNT_ID": settings.R2_ACCOUNT_ID,
+                "R2_ACCESS_KEY_ID": settings.R2_ACCESS_KEY_ID,
+                "R2_SECRET_ACCESS_KEY": settings.R2_SECRET_ACCESS_KEY,
+                "R2_BUCKET_NAME": settings.R2_BUCKET_NAME,
+                "R2_PUBLIC_URL": settings.R2_PUBLIC_URL,
             }.items()
             if not val
         ]
         if missing:
             raise ValueError(f"R2 blob storage config incomplete: missing {missing}")
         return cls(
-            account_id=R2_ACCOUNT_ID,
-            access_key_id=R2_ACCESS_KEY_ID,
-            secret_access_key=R2_SECRET_ACCESS_KEY,
-            bucket_name=R2_BUCKET_NAME,
-            public_url=R2_PUBLIC_URL,
+            account_id=settings.R2_ACCOUNT_ID,
+            access_key_id=settings.R2_ACCESS_KEY_ID,
+            secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+            bucket_name=settings.R2_BUCKET_NAME,
+            public_url=settings.R2_PUBLIC_URL,
         )
