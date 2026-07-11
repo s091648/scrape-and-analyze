@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -7,3 +8,4 @@ class TelegramMessage:
 
     text: str
     parse_mode: str = "Markdown"
+    photo_url: Optional[str] = None

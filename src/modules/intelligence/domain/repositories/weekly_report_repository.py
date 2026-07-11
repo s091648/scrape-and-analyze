@@ -19,3 +19,7 @@ class WeeklyReportRepository(ABC):
     @abstractmethod
     def get_latest(self, topic_id: UUID) -> Optional[WeeklyReport]:
         """Return the most recent completed report for a topic, or None."""
+
+    @abstractmethod
+    def find_by_topic_and_week(self, topic_id: UUID, week_start: date) -> Optional[WeeklyReport]:
+        """Return the report for this exact topic + week_start, or None."""

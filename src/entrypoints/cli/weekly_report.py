@@ -4,6 +4,12 @@ Weekly report CLI entrypoint.
 Usage:
     uv run python -m src.entrypoints.cli.weekly_report
     uv run python -m src.entrypoints.cli.weekly_report --topic-id <uuid> --week-start 2025-01-06
+    uv run python -m src.entrypoints.cli.weekly_report --week-start 2025-01-06 --force
+
+Dedup: week_start is always normalized to that week's Monday, and
+GenerateWeeklyReportUseCase skips regeneration (returning the existing row)
+when a completed report already exists for the same (topic_id, week_start),
+unless --force is passed.
 
 Architecture:
     - Domain: WeeklyReport entity, WeeklyReportTranslation entity,
@@ -62,7 +68,14 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Generate weekly article summary reports")
     parser.add_argument("--topic-id", type=str, default=None, help="Generate report only for this topic UUID")
-    parser.add_argument("--week-start", type=str, default=None, help="Week start date (YYYY-MM-DD, must be Monday)")
+    parser.add_argument(
+        "--week-start", type=str, default=None,
+        help="Any date within the target week (YYYY-MM-DD); normalized to that week's Monday",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Regenerate and overwrite even if a completed report already exists for this topic/week",
+    )
     args = parser.parse_args()
 
     validate_config()
@@ -75,7 +88,7 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
 
     week_start = (
-        date.fromisoformat(args.week_start)
+        _monday_of_week(date.fromisoformat(args.week_start))
         if args.week_start
         else _monday_of_week(date.today() - timedelta(days=7))
     )
@@ -102,7 +115,7 @@ def main() -> None:
             try:
                 from src.bootstrap import build_weekly_pipeline
                 pipeline, session = build_weekly_pipeline()
-                reports = pipeline.run(week_start=week_start, topic_id=topic_id)
+                reports = pipeline.run(week_start=week_start, topic_id=topic_id, force=args.force)
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))

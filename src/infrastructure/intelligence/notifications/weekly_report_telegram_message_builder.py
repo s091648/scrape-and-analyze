@@ -27,7 +27,7 @@ class WeeklyReportTelegramMessageBuilder:
             f"{content.summary_excerpt}...\n\n"
             f"[{content.cta_label}]({content.cta_url})"
         )
-        return TelegramMessage(text=text, parse_mode="Markdown")
+        return TelegramMessage(text=text, parse_mode="Markdown", photo_url=content.cover_image_url)
 
 
 __all__ = ["WeeklyReportTelegramMessageBuilder"]

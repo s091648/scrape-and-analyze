@@ -20,6 +20,14 @@ class WeeklyReportNotificationContent:
     cover_image_url: Optional[str]
 
 
+def build_weekly_report_deep_link(report: WeeklyReport, site_url: str) -> str:
+    """URL to the homepage pre-scrolled to *report*'s week, for notification CTAs."""
+    base = site_url.rstrip("/")
+    if not report.topic_id:
+        return base or site_url
+    return f"{base}/?topic={report.topic_id}&week={report.week_start_date.isoformat()}"
+
+
 def build_weekly_report_notification_content(
     report: WeeklyReport, locale: str, site_url: str
 ) -> WeeklyReportNotificationContent:
@@ -28,6 +36,6 @@ def build_weekly_report_notification_content(
         title=report.title,
         summary_excerpt=report.summary_text[:_SUMMARY_EXCERPT_LENGTH],
         cta_label=cta_label,
-        cta_url=site_url,
+        cta_url=build_weekly_report_deep_link(report, site_url),
         cover_image_url=report.cover_image_url,
     )

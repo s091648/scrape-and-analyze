@@ -60,7 +60,6 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
 
     def save(self, report: WeeklyReport) -> WeeklyReport:
         from models.weekly_report import WeeklyReport as WeeklyReportModel
-        import json
 
         existing = (
             self._session.query(WeeklyReportModel)
@@ -109,8 +108,22 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
             .order_by(WeeklyReportModel.week_start_date.desc())
             .first()
         )
-        if not row:
-            return None
+        return self._to_domain(row) if row else None
+
+    def find_by_topic_and_week(self, topic_id: UUID, week_start: date) -> Optional[WeeklyReport]:
+        from models.weekly_report import WeeklyReport as WeeklyReportModel
+        row = (
+            self._session.query(WeeklyReportModel)
+            .filter(
+                WeeklyReportModel.topic_id == topic_id,
+                WeeklyReportModel.week_start_date == week_start,
+            )
+            .first()
+        )
+        return self._to_domain(row) if row else None
+
+    @staticmethod
+    def _to_domain(row) -> WeeklyReport:
         return WeeklyReport(
             id=row.id,
             topic_id=row.topic_id,

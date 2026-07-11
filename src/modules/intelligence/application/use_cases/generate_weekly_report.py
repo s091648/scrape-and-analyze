@@ -43,8 +43,19 @@ class GenerateWeeklyReportUseCase:
         self._telegram = telegram_notifier
         self._translation_languages = list(translation_languages)
 
-    def execute(self, topic_id: UUID, topic_name: str, week_start: date) -> WeeklyReport:
+    def execute(self, topic_id: UUID, topic_name: str, week_start: date, force: bool = False) -> WeeklyReport:
         logger.info("weekly_report_generation_started", topic_id=str(topic_id), week_start=str(week_start))
+
+        if not force:
+            existing = self._repo.find_by_topic_and_week(topic_id, week_start)
+            if existing and existing.status == "completed":
+                logger.warning(
+                    "weekly_report_already_exists_skipped",
+                    topic_id=str(topic_id),
+                    week_start=str(week_start),
+                    report_id=str(existing.id),
+                )
+                return existing
 
         articles = self._repo.fetch_top_articles(topic_id, week_start)
         if not articles:
@@ -88,6 +99,7 @@ class GenerateWeeklyReportUseCase:
                 topic_name=topic_name,
                 top_tags=top_tags,
                 week_label=week_label,
+                summary_text=summary_text,
             )
             img_bytes = self._image.generate_image(img_prompt.content)
             key = f"weekly-reports/{topic_id}/{week_start.isoformat()}.png"

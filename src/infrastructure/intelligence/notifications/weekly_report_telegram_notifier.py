@@ -4,7 +4,8 @@ This module is intentionally thin: it does not format messages (that lives in
 WeeklyReportTelegramMessageBuilder) and does not talk to the Telegram API
 directly (that lives in the shared TelegramNotifierService / TelegramNotifierClient).
 """
-from typing import Optional
+from dataclasses import replace
+from typing import Dict, Optional
 from uuid import UUID
 
 from src.config.settings import FRONTEND_ORIGIN
@@ -31,6 +32,30 @@ class WeeklyReportTelegramNotifier:
         self._notifier = notifier
         self._site_url = site_url or FRONTEND_ORIGIN
 
+    def _localize(self, report: WeeklyReport, language: str, cache: Dict[str, WeeklyReport]) -> WeeklyReport:
+        """Return *report* with title/summary_text swapped for the translated copy in *language*.
+
+        Falls back to the original (English) report when no translation row exists yet,
+        or when the target language is English.
+        """
+        if language == "en" or report.id is None:
+            return report
+        if language not in cache:
+            from models.weekly_report_translation import WeeklyReportTranslation
+
+            row = (
+                self._session.query(WeeklyReportTranslation)
+                .filter(
+                    WeeklyReportTranslation.weekly_report_id == report.id,
+                    WeeklyReportTranslation.language == language,
+                )
+                .first()
+            )
+            cache[language] = (
+                replace(report, title=row.title, summary_text=row.summary_text) if row else report
+            )
+        return cache[language]
+
     def notify(self, report: WeeklyReport, topic_id: Optional[UUID] = None) -> None:
         """Send the weekly report to every telegram-enabled subscriber of *topic_id*."""
         from models.user_subscription import UserTopicSubscription, UserNotificationSettings
@@ -49,9 +74,13 @@ class WeeklyReportTelegramNotifier:
             .all()
         )
 
+        translation_cache: Dict[str, WeeklyReport] = {}
+
         for sub, settings in subs:
+            locale = settings.locale or "en"
+            localized_report = self._localize(report, locale, translation_cache)
             message = WeeklyReportTelegramMessageBuilder.build(
-                report, locale=settings.locale or "en", site_url=self._site_url
+                localized_report, locale=locale, site_url=self._site_url
             )
             try:
                 self._notifier.send(settings.telegram_chat_id, message)

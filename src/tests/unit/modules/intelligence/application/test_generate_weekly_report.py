@@ -42,6 +42,7 @@ def _make_uc(
 ):
     repo = MagicMock()
     repo.fetch_top_articles.return_value = articles if articles is not None else [_summary()]
+    repo.find_by_topic_and_week.return_value = None
     repo.save.side_effect = lambda r: r
 
     llm = MagicMock()
@@ -156,3 +157,48 @@ def test_execute_does_not_fail_when_email_notifier_raises():
     uc, _, _, _, _, _ = _make_uc(email_notifier=email)
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
+
+
+def test_execute_skips_regeneration_when_completed_report_exists():
+    uc, repo, llm, image, _, _ = _make_uc()
+    existing = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="Existing Title",
+        summary_text="Existing Summary",
+        cover_image_url=None,
+        article_ids=[],
+        article_count=1,
+        status="completed",
+    )
+    repo.find_by_topic_and_week.return_value = existing
+
+    result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+    assert result is existing
+    llm.generate.assert_not_called()
+    image.generate_image.assert_not_called()
+    repo.save.assert_not_called()
+
+
+def test_execute_force_regenerates_even_when_completed_report_exists():
+    uc, repo, llm, image, _, _ = _make_uc(llm_response=json.dumps({"title": "New Title", "summary_text": "New Summary"}))
+    existing = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="Existing Title",
+        summary_text="Existing Summary",
+        cover_image_url=None,
+        article_ids=[],
+        article_count=1,
+        status="completed",
+    )
+    repo.find_by_topic_and_week.return_value = existing
+
+    result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START, force=True)
+
+    assert result.title == "New Title"
+    llm.generate.assert_called_once()
+    repo.save.assert_called_once()

@@ -24,3 +24,7 @@ class PaginatedWeeklyReports(BaseModel):
     total: int
     page: int
     size: int
+
+
+class WeeklyReportWeeksOut(BaseModel):
+    weeks: List[date]

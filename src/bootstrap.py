@@ -502,17 +502,23 @@ def build_weekly_pipeline():
 
     blob_storage = R2BlobStorageService.from_env()
 
-    from src.config.settings import RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN, TRANSLATION_LANGUAGES
+    from src.config.settings import FRONTEND_ORIGIN, RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN, TRANSLATION_LANGUAGES
     from src.shared.infrastructure.notifications import TelegramNotifierClient
+
+    # Every notification CTA links back to FRONTEND_ORIGIN — without it (or with
+    # the placeholder default), links go nowhere useful. Warn loudly at startup
+    # rather than letting it fail silently in a sent message.
+    if not FRONTEND_ORIGIN or FRONTEND_ORIGIN == "https://example.com":
+        logger.warning("frontend_origin_not_configured", frontend_origin=FRONTEND_ORIGIN)
 
     resend_key = RESEND_API_KEY
     from_email = RESEND_FROM_EMAIL
-    email_notifier = WeeklyReportEmailNotifier(session=session, api_key=resend_key, from_email=from_email) if resend_key else None
+    email_notifier = WeeklyReportEmailNotifier(session=session, api_key=resend_key, from_email=from_email, site_url=FRONTEND_ORIGIN) if resend_key else None
 
     telegram_notifier = None
     if TELEGRAM_BOT_TOKEN:
         telegram_client = TelegramNotifierClient(bot_token=TELEGRAM_BOT_TOKEN)
-        telegram_notifier = WeeklyReportTelegramNotifier(session=session, notifier=telegram_client)
+        telegram_notifier = WeeklyReportTelegramNotifier(session=session, notifier=telegram_client, site_url=FRONTEND_ORIGIN)
 
     # Weekly report i18n: title + summary_text are produced in English, then
     # translated into each language in TRANSLATION_LANGUAGES via the same

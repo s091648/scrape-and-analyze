@@ -175,9 +175,11 @@ run:
 #   make weekly-report
 #   make weekly-report TOPIC_ID=<uuid>
 #   make weekly-report TOPIC_ID=<uuid> WEEK_START=2025-01-06
+#   make weekly-report WEEK_START=2025-01-06 FORCE=1   # regenerate even if this week's report already exists
 TOPIC_ID ?=
 WEEK_START ?=
-_WEEKLY_ARGS := $(if $(TOPIC_ID),--topic-id $(TOPIC_ID),) $(if $(WEEK_START),--week-start $(WEEK_START),)
+FORCE ?=
+_WEEKLY_ARGS := $(if $(TOPIC_ID),--topic-id $(TOPIC_ID),) $(if $(WEEK_START),--week-start $(WEEK_START),) $(if $(FORCE),--force,)
 
 weekly-report:
 	docker compose run --rm job_service python -m src.entrypoints.cli.weekly_report $(_WEEKLY_ARGS)

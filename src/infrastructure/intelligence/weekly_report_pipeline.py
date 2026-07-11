@@ -25,7 +25,7 @@ class WeeklyReportPipeline:
         self._topic_repository = topic_repository
         self._generate_use_case = generate_use_case
 
-    def run(self, week_start: date, topic_id: Optional[UUID] = None) -> List[WeeklyReport]:
+    def run(self, week_start: date, topic_id: Optional[UUID] = None, force: bool = False) -> List[WeeklyReport]:
         """Generate weekly reports for the given topic (or all active topics)."""
         if topic_id is not None:
             topic = self._topic_repository.find_by_id(topic_id)
@@ -51,6 +51,7 @@ class WeeklyReportPipeline:
                         topic_id=topic.id,
                         topic_name=topic.name,
                         week_start=week_start,
+                        force=force,
                     )
                     reports.append(report)
                     logger.info(

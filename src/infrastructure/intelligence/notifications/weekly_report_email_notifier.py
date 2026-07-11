@@ -1,8 +1,12 @@
-from typing import Optional
+from dataclasses import replace
+from typing import Dict, Optional
 from uuid import UUID
 
 from src.config.settings import FRONTEND_ORIGIN
 from src.modules.intelligence.domain.entities.weekly_report import WeeklyReport
+from src.modules.intelligence.domain.value_objects.weekly_report_notification_content import (
+    build_weekly_report_deep_link,
+)
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -15,6 +19,7 @@ _ZH_CTA = "查看完整報告"
 
 def _build_html(report: WeeklyReport, locale: str, site_url: str) -> str:
     subject_cta = _ZH_CTA if locale == "zh-TW" else _EN_CTA
+    cta_url = build_weekly_report_deep_link(report, site_url)
     cover_style = (
         f'background-image: url("{report.cover_image_url}"); background-size: cover; background-position: center;'
         if report.cover_image_url
@@ -28,7 +33,7 @@ def _build_html(report: WeeklyReport, locale: str, site_url: str) -> str:
       <div style="background:rgba(255,255,255,0.85);margin:16px;padding:16px;border-radius:6px;width:calc(100% - 64px);">
         <h1 style="margin:0 0 8px;font-size:20px;color:#111;">{report.title}</h1>
         <p style="margin:0;font-size:14px;color:#444;">{report.summary_text[:300]}...</p>
-        <a href="{site_url}" style="display:inline-block;margin-top:12px;padding:8px 18px;background:#111;color:#fff;border-radius:4px;text-decoration:none;font-size:13px;">{subject_cta}</a>
+        <a href="{cta_url}" style="display:inline-block;margin-top:12px;padding:8px 18px;background:#111;color:#fff;border-radius:4px;text-decoration:none;font-size:13px;">{subject_cta}</a>
       </div>
     </div>
   </div>
@@ -42,6 +47,26 @@ class WeeklyReportEmailNotifier:
         self._api_key = api_key
         self._from_email = from_email
         self._site_url = site_url or FRONTEND_ORIGIN
+
+    def _localize(self, report: WeeklyReport, language: str, cache: Dict[str, WeeklyReport]) -> WeeklyReport:
+        """Return *report* with title/summary_text swapped for the translated copy in *language*."""
+        if language == "en" or report.id is None:
+            return report
+        if language not in cache:
+            from models.weekly_report_translation import WeeklyReportTranslation
+
+            row = (
+                self._session.query(WeeklyReportTranslation)
+                .filter(
+                    WeeklyReportTranslation.weekly_report_id == report.id,
+                    WeeklyReportTranslation.language == language,
+                )
+                .first()
+            )
+            cache[language] = (
+                replace(report, title=row.title, summary_text=row.summary_text) if row else report
+            )
+        return cache[language]
 
     def notify(self, report: WeeklyReport, topic_id: Optional[UUID] = None) -> None:
         import resend
@@ -63,13 +88,15 @@ class WeeklyReportEmailNotifier:
         )
 
         from models.user import User
+        translation_cache: Dict[str, WeeklyReport] = {}
         for sub, settings in subs:
             user = self._session.query(User).filter(User.id == sub.user_id).first()
             if not user or not user.email:
                 continue
             locale = settings.locale or "en"
+            localized_report = self._localize(report, locale, translation_cache)
             subject = _ZH_SUBJECT if locale == "zh-TW" else _EN_SUBJECT
-            html = _build_html(report, locale, self._site_url)
+            html = _build_html(localized_report, locale, self._site_url)
             try:
                 resend.Emails.send({
                     "from": self._from_email,
