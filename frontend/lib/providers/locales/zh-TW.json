@@ -132,6 +132,25 @@
     "telegramChatId": "Telegram Chat ID",
     "telegramChatIdPlaceholder": "例如：123456789",
     "telegramNotifications": "Telegram 通知",
+    "telegramHelp": {
+      "openLabel": "如何取得我的 Telegram Chat ID？",
+      "step1": {
+        "title": "開啟與 @userinfobot 的對話",
+        "description": "在 Telegram App 中點擊搜尋圖示，搜尋「@userinfobot」— 一個免費的公開機器人，可以查詢你的帳號資訊。"
+      },
+      "step2": {
+        "title": "啟動機器人",
+        "description": "點擊「Start」（或傳送 /start）開始對話。"
+      },
+      "step3": {
+        "title": "複製你的 Id",
+        "description": "機器人會立即回覆你的帳號資訊，複製「Id」旁邊的數字 — 那就是你的 Chat ID。"
+      },
+      "step4": {
+        "title": "貼上並跟我們的機器人打聲招呼",
+        "description": "把這個數字貼到下方的 Telegram Chat ID 欄位。同時記得先跟我們的通知機器人開始對話 — Telegram 只允許機器人主動傳訊息給先聯絡過它的使用者。"
+      }
+    },
     "notificationLanguage": "語言",
     "languageEnglish": "English",
     "languageZhTw": "繁體中文",

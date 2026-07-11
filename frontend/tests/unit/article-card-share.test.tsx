@@ -27,6 +27,7 @@ vi.mock('@/lib/api/articles', () => ({
     innovations: null,
     model_used: 'test',
   }),
+  recordArticleView: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/providers', () => ({
@@ -47,6 +48,10 @@ vi.mock('sonner', () => ({
     success: vi.fn(),
     error: vi.fn(),
   },
+}))
+
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
 }))
 
 describe('ArticleCard — share button', () => {

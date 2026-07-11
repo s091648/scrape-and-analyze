@@ -8,6 +8,9 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 }
 
+// jsdom does not implement scrollIntoView; provide a no-op stub
+Element.prototype.scrollIntoView = vi.fn()
+
 // Global mock so components that call useI18n() don't require a real I18nProvider in tests.
 vi.mock('@/i18n', () => ({
   useI18n: () => ({

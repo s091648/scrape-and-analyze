@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleRow } from '@/components/ui/toggle-row'
+import { TelegramChatIdHelp } from '@/components/features/settings/telegram-chat-id-help'
 import { useI18n, useGuestMode } from '@/lib/providers'
 
 export default function NotificationsPageContent() {
@@ -158,21 +159,26 @@ export default function NotificationsPageContent() {
                 checked={notifSettings.email_enabled}
                 onCheckedChange={v => setNotifSettings(prev => ({ ...prev, email_enabled: v }))}
               />
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">{t('settings.telegramChatId')}</label>
-                <input
-                  type="text"
-                  value={notifSettings.telegram_chat_id ?? ''}
-                  onChange={e => setNotifSettings(prev => ({ ...prev, telegram_chat_id: e.target.value || null }))}
-                  placeholder={t('settings.telegramChatIdPlaceholder')}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
               <ToggleRow
                 label={t('settings.telegramNotifications')}
                 checked={notifSettings.telegram_enabled}
                 onCheckedChange={v => setNotifSettings(prev => ({ ...prev, telegram_enabled: v }))}
               />
+              {notifSettings.telegram_enabled && (
+                <div className="space-y-1.5 pl-4 border-l-2 border-border">
+                  <label className="flex items-center gap-1.5 text-sm font-medium">
+                    {t('settings.telegramChatId')}
+                    <TelegramChatIdHelp />
+                  </label>
+                  <input
+                    type="text"
+                    value={notifSettings.telegram_chat_id ?? ''}
+                    onChange={e => setNotifSettings(prev => ({ ...prev, telegram_chat_id: e.target.value || null }))}
+                    placeholder={t('settings.telegramChatIdPlaceholder')}
+                    className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">{t('settings.notificationLanguage')}</label>
                 <select

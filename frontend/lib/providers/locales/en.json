@@ -132,6 +132,25 @@
     "telegramChatId": "Telegram Chat ID",
     "telegramChatIdPlaceholder": "e.g. 123456789",
     "telegramNotifications": "Telegram notifications",
+    "telegramHelp": {
+      "openLabel": "How do I find my Telegram Chat ID?",
+      "step1": {
+        "title": "Open a chat with @userinfobot",
+        "description": "In the Telegram app, tap the search icon and search for \"@userinfobot\" — a free public bot that looks up your account info."
+      },
+      "step2": {
+        "title": "Start the bot",
+        "description": "Tap \"Start\" (or send /start) to begin the conversation."
+      },
+      "step3": {
+        "title": "Copy your Id",
+        "description": "The bot instantly replies with your account details. Copy the number next to \"Id\" — that's your Chat ID."
+      },
+      "step4": {
+        "title": "Paste it here and say hello to our bot",
+        "description": "Paste the number into the Telegram Chat ID field below. Also make sure you've started a chat with our notification bot — Telegram only allows bots to message users who contacted them first."
+      }
+    },
     "notificationLanguage": "Language",
     "languageEnglish": "English",
     "languageZhTw": "繁體中文",
