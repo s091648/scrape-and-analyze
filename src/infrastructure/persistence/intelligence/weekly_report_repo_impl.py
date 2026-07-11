@@ -18,16 +18,21 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
     def fetch_top_articles(self, topic_id: UUID, week_start: date, limit: int = 20) -> List[ArticleSummaryForReport]:
         from models.article import Article
         from models.article_metrics import ArticleMetrics
+        from models.article_metric_value import ArticleMetricValue
         from models.analysis import Analysis
         from models.analyses_translation import AnalysesTranslation
 
         week_end = week_start + timedelta(days=7)
-        sort_citations = func.coalesce(ArticleMetrics.citation_count, 0)
+        sort_citations = func.coalesce(ArticleMetricValue.value, 0)
         sort_views = func.coalesce(ArticleMetrics.view_count, 0)
 
         rows = (
-            self._session.query(Article, AnalysesTranslation, ArticleMetrics)
+            self._session.query(Article, AnalysesTranslation, ArticleMetrics, ArticleMetricValue)
             .outerjoin(ArticleMetrics, ArticleMetrics.article_id == Article.id)
+            .outerjoin(
+                ArticleMetricValue,
+                (ArticleMetricValue.article_id == Article.id) & (ArticleMetricValue.metric_key == "citation_count"),
+            )
             .outerjoin(Analysis, Analysis.article_id == Article.id)
             .outerjoin(
                 AnalysesTranslation,
@@ -44,7 +49,7 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
         )
 
         results = []
-        for article, translation, metrics in rows:
+        for article, translation, metrics, citation_value in rows:
             results.append(ArticleSummaryForReport(
                 title=article.title or "",
                 summary=translation.summary if translation else None,
@@ -52,7 +57,7 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
                 insights=translation.insights if translation else None,
                 innovations=translation.innovations if translation else None,
                 tags=[tag.name for tag in article.tags],
-                citation_count=metrics.citation_count if metrics else None,
+                citation_count=int(citation_value.value) if citation_value and citation_value.value is not None else None,
                 view_count=(metrics.view_count if metrics else 0) or 0,
                 published_at=article.published_at,
             ))
