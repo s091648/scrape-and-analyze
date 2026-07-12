@@ -24,7 +24,7 @@ const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) =
   published_at: new Date(Date.now() - i * 86400000).toISOString(),
   scraped_at: null,
   url: '#',
-  citation_count: null,
+  metrics: {},
   view_count: 0,
 }))
 

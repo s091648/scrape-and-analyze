@@ -9,7 +9,7 @@ const articleWithCitation = {
   published_at: '2026-01-10T00:00:00Z',
   scraped_at: '2026-01-11T00:00:00Z',
   url: 'https://openalex.org/high',
-  citation_count: 500,
+  metrics: { citation_count: 500 },
   view_count: 100,
 }
 
@@ -21,8 +21,16 @@ const articleLowCitation = {
   published_at: '2026-01-12T00:00:00Z',
   scraped_at: '2026-01-13T00:00:00Z',
   url: 'https://arxiv.org/low',
-  citation_count: 5,
+  metrics: { citation_count: 5 },
   view_count: 10,
+}
+
+const citationCountMetricDefinition = {
+  metric_key: 'citation_count',
+  label_i18n_key: 'metrics.citation_count',
+  icon_name: 'quote',
+  format_hint: 'integer',
+  unit: null,
 }
 
 async function mockArticlesSortedByCitation(page: any, order: 'asc' | 'desc' = 'desc') {
@@ -54,6 +62,7 @@ test.describe('Sort by citation count', () => {
       if (p.includes('tag-groups')) return route.fulfill({ json: [] })
       if (p.includes('chat/quota')) return route.fulfill({ json: { tier: 'admin', remaining: -1, limit: -1 } })
       if (p.includes('weekly-reports')) return route.fulfill({ json: null })
+      if (p === '/api/proxy/metric-definitions') return route.fulfill({ json: [citationCountMetricDefinition] })
       route.fulfill({ status: 404, json: {} })
     })
     await mockArticlesSortedByCitation(page, 'desc')

@@ -13,7 +13,7 @@ export interface Article {
   translated_title?: string | null
   translated_content?: string | null
   has_vectors?: boolean
-  citation_count?: number | null
+  metrics?: Record<string, number>
   view_count?: number
   is_favorited?: boolean
 }

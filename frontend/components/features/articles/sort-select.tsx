@@ -5,11 +5,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandItem, CommandList } from '@/components/ui/command'
 import { ArrowUpDown, ArrowUp, ArrowDown, Check, ChevronDown } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
+import { useMetricDefinitions } from './use-metric-definitions'
 
-const SORT_OPTIONS = [
+// 2026-07-12: citation_count is no longer hardcoded here — it (and any other enabled catalog
+// metric) is appended dynamically from GET /metric-definitions below (FR-040), so admin
+// enable/disable is reflected here without a code change. view_count stays fixed: it's not part
+// of the metric catalog, it's a backend-owned usage signal.
+const FIXED_SORT_OPTIONS = [
   { value: 'scraped_at', labelKey: 'filterBar.sortScrapedAt' },
   { value: 'published_at', labelKey: 'filterBar.sortPublishedAt' },
-  { value: 'citation_count', labelKey: 'filterBar.sortCitationCount' },
   { value: 'view_count', labelKey: 'filterBar.sortViewCount' },
   { value: 'source', labelKey: 'filterBar.sortSource' },
   { value: 'title', labelKey: 'filterBar.sortTitle' },
@@ -24,7 +28,12 @@ interface SortSelectProps {
 
 export function SortSelect({ sort, order, onSortChange, onOrderChange }: SortSelectProps) {
   const { t } = useI18n()
+  const metricDefs = useMetricDefinitions()
   const [sortOpen, setSortOpen] = useState(false)
+  const SORT_OPTIONS = [
+    ...FIXED_SORT_OPTIONS,
+    ...Object.values(metricDefs).map(def => ({ value: def.metric_key, labelKey: def.label_i18n_key })),
+  ]
   const selectedSortOption = SORT_OPTIONS.find(o => o.value === sort) ?? SORT_OPTIONS[0]
   const isDescending = order !== 'asc'
 
