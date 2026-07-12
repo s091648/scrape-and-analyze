@@ -47,7 +47,7 @@ export function StatCard({ title, value, unit, loading, error, className, toolti
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="ml-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            className="ml-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 cursor-pointer"
             aria-label="Refresh"
           >
             <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />

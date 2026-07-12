@@ -109,7 +109,7 @@ function AddGroupDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 cursor-pointer" onClick={onClose}>
       <form
         className="bg-card border border-border rounded-xl p-6 w-full max-w-sm space-y-4 shadow-lg"
         onClick={e => e.stopPropagation()}
@@ -117,7 +117,7 @@ function AddGroupDialog({
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">{t('tags.addGroup')}</h2>
-          <button type="button" onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
+          <button type="button" onClick={onClose} className="cursor-pointer"><X className="h-4 w-4 text-muted-foreground" /></button>
         </div>
 
         {[
@@ -389,7 +389,7 @@ function SimilarityLines({
                 {(hoveredLine.score * 100).toFixed(0)}% similarity
               </span>
               <button
-                className="flex items-center gap-1 text-primary hover:underline mt-0.5"
+                className="flex items-center gap-1 text-primary hover:underline mt-0.5 cursor-pointer"
                 onClick={() => onMergeRequested(hoveredLine.groupAId, hoveredLine.groupBId)}
               >
                 <GitMerge className="h-3 w-3" />
@@ -845,7 +845,7 @@ export default function TagsPage() {
               Viewing similarity: <strong>{groupA?.display_name}</strong> ↔ <strong>{groupB?.display_name}</strong>
             </span>
             <button
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
               onClick={() => setIsolatedPair(null)}
             >
               Show All (Esc)
@@ -862,7 +862,7 @@ export default function TagsPage() {
             Click another group to merge with <strong>{groups.find(g => g.id === mergingGroupId)?.display_name}</strong>
           </span>
           <button
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
             onClick={() => setMergingGroupId(null)}
           >
             Cancel (Esc)
@@ -878,7 +878,7 @@ export default function TagsPage() {
             {selectedTagIds.size} tag{selectedTagIds.size !== 1 ? 's' : ''} selected — drag any selected tag to move all
           </span>
           <button
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
             onClick={() => setSelectedTagIds(new Set())}
           >
             Clear (Esc)
@@ -898,7 +898,7 @@ export default function TagsPage() {
           />
           {searchQuery && (
             <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
               onClick={() => setSearchQuery('')}
             >
               <X className="h-3.5 w-3.5" />

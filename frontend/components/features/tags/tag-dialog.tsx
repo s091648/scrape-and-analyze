@@ -106,10 +106,10 @@ export function TagDialog({
                   }}
                   autoFocus
                 />
-                <button onClick={handleRename} disabled={saving} className="shrink-0 text-muted-foreground hover:text-green-600">
+                <button onClick={handleRename} disabled={saving} className="shrink-0 text-muted-foreground hover:text-green-600 cursor-pointer">
                   <Check className="h-4 w-4" />
                 </button>
-                <button onClick={cancelEdit} className="shrink-0 text-muted-foreground hover:text-foreground">
+                <button onClick={cancelEdit} className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
                   <X className="h-4 w-4" />
                 </button>
               </>
@@ -120,14 +120,14 @@ export function TagDialog({
                   <>
                     <button
                       onClick={() => setEditing(true)}
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
+                      className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                       aria-label={t('tags.renameTag')}
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      className="shrink-0 text-muted-foreground hover:text-destructive cursor-pointer"
                       aria-label={t('tags.deleteTag')}
                     >
                       <Trash2 className="h-4 w-4" />

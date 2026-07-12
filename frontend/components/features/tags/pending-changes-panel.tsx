@@ -31,7 +31,7 @@ export function PendingChangesPanel({ count, confirming, onConfirm, onDiscard }:
     <div className="fixed bottom-4 right-4 z-50 bg-card border border-border rounded-xl shadow-lg px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2">
       <button
         onClick={navigateNext}
-        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
+        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors whitespace-nowrap cursor-pointer"
       >
         {t('tags.pendingChanges', { count })}
         <ChevronRight className="h-3 w-3" />

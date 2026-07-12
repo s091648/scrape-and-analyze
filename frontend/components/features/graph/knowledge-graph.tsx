@@ -436,7 +436,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
                 {selectedArticle.title}
               </h3>
               <button
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 onClick={() => setSelectedArticle(null)}
                 aria-label="Close"
               >
@@ -477,7 +477,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
             </div>
             <div className="px-4 py-3 border-t border-border shrink-0">
               <button
-                className="w-full text-xs font-medium text-center py-2 px-3 rounded-lg border border-border hover:bg-muted/40 transition-colors"
+                className="w-full text-xs font-medium text-center py-2 px-3 rounded-lg border border-border hover:bg-muted/40 transition-colors cursor-pointer"
                 onClick={() => openArticleDialog(selectedArticle.articleId)}
               >
                 {t('graph.viewFullArticle')}
@@ -494,7 +494,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
             >
               <h3 className="text-sm font-semibold text-foreground">{expandedGroupLabel}</h3>
               <button
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 onClick={() => {
                   setExpandedGroup(null)
                   setGroupData([])

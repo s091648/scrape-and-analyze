@@ -348,7 +348,7 @@ export function TagGroupCard({
           </div>
         )}
         <button
-          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+          className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
         >
@@ -442,7 +442,7 @@ export function TagGroupCard({
               <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-card to-transparent flex items-end justify-center pb-2">
                 <button
                   onClick={() => setExpanded(true)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   {t('tags.expand')}
                 </button>
@@ -452,7 +452,7 @@ export function TagGroupCard({
           {expanded && (
             <button
               onClick={() => setExpanded(false)}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               {t('tags.collapse')}
             </button>

@@ -204,7 +204,7 @@ export function RunWaterfallDialog({
                         {hasChildren && (
                           <button
                             onClick={e => { e.stopPropagation(); toggle(span.spanId) }}
-                            className="text-muted-foreground hover:text-foreground transition-colors mr-0.5"
+                            className="text-muted-foreground hover:text-foreground transition-colors mr-0.5 cursor-pointer"
                             aria-label={isCollapsed ? 'Expand' : 'Collapse'}
                           >
                             {isCollapsed

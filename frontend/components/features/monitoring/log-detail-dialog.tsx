@@ -100,7 +100,7 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
           {traceId && onOpenTrace && (
             <button
               onClick={() => { onClose(); onOpenTrace(traceId, spanId) }}
-              className="flex items-center gap-1.5 text-primary hover:underline"
+              className="flex items-center gap-1.5 text-primary hover:underline cursor-pointer"
             >
               <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
               {t('admin.viewInTrace')}

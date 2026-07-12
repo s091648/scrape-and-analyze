@@ -85,7 +85,7 @@ export function DateFilter({
             <button
               key={m}
               onClick={() => handleModeChange(m)}
-              className={`flex-1 text-[10px] px-1 py-1 rounded border transition-colors ${
+              className={`flex-1 text-[10px] px-1 py-1 rounded border transition-colors cursor-pointer ${
                 mode === m
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border text-muted-foreground hover:border-foreground'

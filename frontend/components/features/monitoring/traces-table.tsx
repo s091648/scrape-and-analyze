@@ -121,7 +121,7 @@ function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: A
         {title && articleId ? (
           <button
             onClick={() => onPreviewArticle(articleId)}
-            className="hover:underline text-left truncate max-w-full text-primary"
+            className="hover:underline text-left truncate max-w-full text-primary cursor-pointer"
           >
             {title}
           </button>
@@ -148,7 +148,7 @@ function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: A
       <td className="px-2 py-1 text-xs">
         <button
           onClick={() => onView(pipelineSpan, stageSpans)}
-          className="text-primary hover:underline"
+          className="text-primary hover:underline cursor-pointer"
         >
           view →
         </button>
@@ -201,7 +201,7 @@ function TopicSubRow({ topicSpan, stageSpans, onView }: TopicSubRowProps) {
       <td className="px-2 py-1 text-xs">
         <button
           onClick={() => onView(topicSpan, stageSpans)}
-          className="text-primary hover:underline"
+          className="text-primary hover:underline cursor-pointer"
         >
           view →
         </button>
@@ -408,7 +408,7 @@ export function TracesTable({
                   <td className="px-1 py-1">
                     <button
                       onClick={() => toggleExpand(trace.traceID)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       aria-label={isExpanded ? 'Collapse' : 'Expand'}
                     >
                       {isExpanded
@@ -419,7 +419,7 @@ export function TracesTable({
                   </td>
                   <td className="px-2 py-1 font-mono text-primary">
                     <button
-                      className="hover:underline"
+                      className="hover:underline cursor-pointer"
                       onClick={() => openWaterfall(trace)}
                     >
                       {trace.traceID.slice(0, 8)}…
