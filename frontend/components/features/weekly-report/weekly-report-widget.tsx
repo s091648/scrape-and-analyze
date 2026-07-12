@@ -1,16 +1,13 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
-import { useI18n } from '@/lib/providers'
+import { useI18n, usePinnedArticle } from '@/lib/providers'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-
-function splitParagraphs(text: string): string[] {
-  return text.split(/\n+/).map(p => p.trim()).filter(Boolean)
-}
+import { CitedContent } from '@/components/features/chat/cited-content'
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear()
@@ -34,6 +31,7 @@ interface WeeklyReportWidgetProps {
 
 export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
+  const { pinArticles, removePinnedArticle, areAllPinned } = usePinnedArticle()
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -107,6 +105,16 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   }
 
   const selected = reports.find(r => r.id === selectedId) ?? null
+
+  function handleTogglePinReport() {
+    if (!selected || selected.sources.length === 0) return
+    const ids = selected.sources.map(s => s.id)
+    if (areAllPinned(ids)) {
+      ids.forEach(id => removePinnedArticle(id))
+    } else {
+      pinArticles(selected.sources.map(s => ({ id: s.id, title: s.title ?? s.url, tags: [] })))
+    }
+  }
 
   function isWeekAvailable(monday: Date): boolean {
     const key = toDateKey(monday)
@@ -192,13 +200,34 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600 mb-1">
                       {new Date(selected.week_start_date).toLocaleDateString(locale === 'zh-TW' ? 'zh-TW' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
-                    <h3 className="text-lg font-bold leading-snug mb-3 text-neutral-900">{selected.title}</h3>
-                    <div className="space-y-3">
-                      {splitParagraphs(selected.summary_text).map((paragraph, i) => (
-                        <p key={i} className="text-sm text-neutral-700 leading-relaxed">
-                          {paragraph}
-                        </p>
-                      ))}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 className="text-lg font-bold leading-snug text-neutral-900">{selected.title}</h3>
+                      {selected.sources.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={handleTogglePinReport}
+                                aria-label={t(areAllPinned(selected.sources.map(s => s.id)) ? 'weeklyReport.unpinReport' : 'weeklyReport.pinReport')}
+                                className={`shrink-0 mt-0.5 inline-flex items-center justify-center h-6 w-6 rounded-full cursor-pointer transition-colors ${
+                                  areAllPinned(selected.sources.map(s => s.id))
+                                    ? 'bg-purple-100 dark:bg-purple-900/40'
+                                    : 'hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                                }`}
+                              >
+                                <Sparkles className={`h-3.5 w-3.5 transition-colors ${
+                                  areAllPinned(selected.sources.map(s => s.id)) ? 'text-purple-600 dark:text-purple-400' : 'text-purple-400'
+                                }`} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t(areAllPinned(selected.sources.map(s => s.id)) ? 'weeklyReport.unpinReport' : 'weeklyReport.pinReport')}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                    <div className="text-sm text-neutral-700 leading-relaxed">
+                      <CitedContent text={selected.summary_text} sources={selected.sources} />
                     </div>
                     <p className="text-xs text-neutral-600 mt-4">{t('weeklyReport.articleCount', { count: selected.article_count })}</p>
                   </motion.div>

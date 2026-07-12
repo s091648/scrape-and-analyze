@@ -11,6 +11,7 @@ const mockReport1 = {
   article_count: 8,
   status: 'completed',
   created_at: '2026-06-23T00:00:00Z',
+  sources: [],
 }
 
 const mockReport2 = {
@@ -23,6 +24,7 @@ const mockReport2 = {
   article_count: 5,
   status: 'completed',
   created_at: '2026-06-16T00:00:00Z',
+  sources: [],
 }
 
 async function mockWeeklyReportRoutes(page: any, reports: any[] = [mockReport1]) {

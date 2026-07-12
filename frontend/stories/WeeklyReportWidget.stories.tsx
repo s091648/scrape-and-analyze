@@ -12,6 +12,7 @@ const mockReport = {
   article_count: 12,
   status: 'completed',
   created_at: '2026-06-23T00:00:00Z',
+  sources: [],
 }
 
 const mockReport2 = {

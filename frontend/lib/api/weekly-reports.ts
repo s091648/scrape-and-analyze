@@ -1,4 +1,5 @@
 import { apiFetch } from './client'
+import type { ArticleSource } from '@/components/features/chat/types'
 
 export interface WeeklyReport {
   id: string
@@ -10,6 +11,7 @@ export interface WeeklyReport {
   article_count: number
   status: string
   created_at: string | null
+  sources: ArticleSource[]
 }
 
 export interface PaginatedWeeklyReports {
