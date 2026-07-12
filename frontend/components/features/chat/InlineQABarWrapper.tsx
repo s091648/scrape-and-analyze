@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { AgentInput, openaiAdapter, useChat, type StreamAdapter, type StreamEvent } from '@s091648/chatbot-plugin-ui'
+import { X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useChatQuota } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle } from '@/lib/providers'
 import { AnswerDisplay } from './AnswerDisplay'
 import type { ArticleSource } from './types'
 
@@ -21,11 +22,13 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const { t } = useI18n()
   const { mode } = useTheme()
   const { quota, refreshQuota } = useChatQuota()
+  const { pinnedArticles, removePinnedArticle } = usePinnedArticle()
 
   const token = (session as any)?.accessToken as string | undefined
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
+  if (pinnedArticles.length > 0) headers['X-Pinned-Article-Ids'] = pinnedArticles.map(a => a.id).join(',')
 
   const pendingSourcesRef = useRef<ArticleSource[]>([])
   const prevIsLoadingRef = useRef(false)
@@ -97,6 +100,26 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
 
   return (
     <div className={className}>
+      {pinnedArticles.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
+          {pinnedArticles.map(article => (
+            <span
+              key={article.id}
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-[11px] text-purple-700 dark:text-purple-300"
+            >
+              <span className="truncate max-w-[160px]">{article.title}</span>
+              <button
+                type="button"
+                onClick={() => removePinnedArticle(article.id)}
+                aria-label={t('rag.removeArticleRef')}
+                className="cursor-pointer rounded-full hover:bg-purple-200 dark:hover:bg-purple-800/60 p-0.5"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <AgentInput
         theme={mode}
         onSend={handleSend}

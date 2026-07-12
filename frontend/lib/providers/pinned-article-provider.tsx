@@ -13,6 +13,10 @@ interface PinnedArticleContextValue {
   removePinnedArticle: (id: string) => void
   clearPinnedArticles: () => void
   isPinned: (id: string) => boolean
+  /** Adds every article not already pinned; leaves already-pinned ones as-is (no duplicates, no toggle-off). */
+  pinArticles: (articles: PinnedArticle[]) => void
+  /** True only when every given id is currently pinned. Empty input is vacuously false (nothing to pin). */
+  areAllPinned: (ids: string[]) => boolean
 }
 
 const PinnedArticleContext = createContext<PinnedArticleContextValue | null>(null)
@@ -39,6 +43,19 @@ export function PinnedArticleProvider({ children }: { children: React.ReactNode 
     [pinnedArticles]
   )
 
+  const pinArticles = useCallback((articles: PinnedArticle[]) => {
+    setPinnedArticles(prev => {
+      const existingIds = new Set(prev.map(a => a.id))
+      const toAdd = articles.filter(a => !existingIds.has(a.id))
+      return toAdd.length > 0 ? [...prev, ...toAdd] : prev
+    })
+  }, [])
+
+  const areAllPinned = useCallback(
+    (ids: string[]) => ids.length > 0 && ids.every(id => pinnedArticles.some(a => a.id === id)),
+    [pinnedArticles]
+  )
+
   return (
     <PinnedArticleContext.Provider value={{
       pinnedArticles,
@@ -46,6 +63,8 @@ export function PinnedArticleProvider({ children }: { children: React.ReactNode 
       removePinnedArticle,
       clearPinnedArticles,
       isPinned,
+      pinArticles,
+      areAllPinned,
     }}>
       {children}
     </PinnedArticleContext.Provider>

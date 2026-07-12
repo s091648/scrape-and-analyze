@@ -22,11 +22,13 @@ const zhTW: Record<string, string> = {
 }
 
 const mockCycleMode = vi.fn()
+const mockRemovePinnedArticle = vi.fn()
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
+  usePinnedArticle: vi.fn().mockReturnValue({ pinnedArticles: [], removePinnedArticle: mockRemovePinnedArticle }),
 }))
 
 vi.mock('sonner', () => ({
@@ -58,7 +60,7 @@ vi.mock('@s091648/chatbot-plugin-ui', () => ({
 }))
 
 describe('InlineQABarWrapper', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     vi.mocked(useChat).mockReturnValue({
       messages: [],
@@ -67,6 +69,11 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     })
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [],
+      removePinnedArticle: mockRemovePinnedArticle,
+    } as any)
     vi.mocked(AgentInput).mockImplementation(({ onSend, isLoading, placeholder }: any) => (
       <div>
         <input
@@ -377,5 +384,58 @@ describe('InlineQABarWrapper', () => {
       statusDone: '完成',
       statusError: '錯誤',
     })
+  })
+
+  // ── Pinning (2026-07-12, US7: pin weekly report into chat) ──────────────
+
+  it('omits X-Pinned-Article-Ids header when no articles are pinned', async () => {
+    let capturedHeaders: Record<string, string> | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedHeaders = opts.headers
+      return { messages: [], sendMessage: mockSendMessage, isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(capturedHeaders?.['X-Pinned-Article-Ids']).toBeUndefined()
+  })
+
+  it('includes X-Pinned-Article-Ids header built from pinned articles', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+    } as any)
+
+    let capturedHeaders: Record<string, string> | undefined
+    vi.mocked(useChat).mockImplementation((opts: any) => {
+      capturedHeaders = opts.headers
+      return { messages: [], sendMessage: mockSendMessage, isLoading: false, error: null, clearMessages: vi.fn() }
+    })
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(capturedHeaders?.['X-Pinned-Article-Ids']).toBe('a1,a2')
+  })
+
+  it('renders a chip for each pinned article and removes it on click', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(screen.getByText('Paper One')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('rag.removeArticleRef'))
+    expect(mockRemovePinnedArticle).toHaveBeenCalledWith('a1')
+  })
+
+  it('does not render a pinned chip row when no articles are pinned', async () => {
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(screen.queryByLabelText('rag.removeArticleRef')).not.toBeInTheDocument()
   })
 })
