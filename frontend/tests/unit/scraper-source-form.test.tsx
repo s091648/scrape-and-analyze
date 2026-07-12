@@ -14,14 +14,14 @@ describe('ScraperSourceForm', () => {
   it('default source_type is rss', async () => {
     const { ScraperSourceForm } = await import('@/components/features/scraper/scraper-source-form')
     render(<ScraperSourceForm onSubmit={vi.fn()} />)
-    const select = screen.getByLabelText(/source type/i) as HTMLSelectElement
-    expect(select.value).toBe('rss')
+    expect(screen.getByLabelText(/source type/i)).toHaveTextContent('RSS')
   })
 
   it('changing to blog reveals CSS selector fields', async () => {
     const { ScraperSourceForm } = await import('@/components/features/scraper/scraper-source-form')
     render(<ScraperSourceForm onSubmit={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText(/source type/i), { target: { value: 'blog' } })
+    fireEvent.click(screen.getByLabelText(/source type/i))
+    fireEvent.click(screen.getByText('Blog'))
     expect(screen.getByLabelText(/article link/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/content/i)).toBeInTheDocument()
@@ -30,8 +30,10 @@ describe('ScraperSourceForm', () => {
   it('changing back to rss hides selector fields', async () => {
     const { ScraperSourceForm } = await import('@/components/features/scraper/scraper-source-form')
     render(<ScraperSourceForm onSubmit={vi.fn()} />)
-    fireEvent.change(screen.getByLabelText(/source type/i), { target: { value: 'blog' } })
-    fireEvent.change(screen.getByLabelText(/source type/i), { target: { value: 'rss' } })
+    fireEvent.click(screen.getByLabelText(/source type/i))
+    fireEvent.click(screen.getByText('Blog'))
+    fireEvent.click(screen.getByLabelText(/source type/i))
+    fireEvent.click(screen.getByText('RSS'))
     expect(screen.queryByLabelText(/article link/i)).not.toBeInTheDocument()
   })
 
@@ -51,7 +53,8 @@ describe('ScraperSourceForm', () => {
     const onSubmit = vi.fn()
     const { ScraperSourceForm } = await import('@/components/features/scraper/scraper-source-form')
     render(<ScraperSourceForm onSubmit={onSubmit} />)
-    fireEvent.change(screen.getByLabelText(/source type/i), { target: { value: 'blog' } })
+    fireEvent.click(screen.getByLabelText(/source type/i))
+    fireEvent.click(screen.getByText('Blog'))
     fireEvent.change(screen.getByLabelText(/article link/i), { target: { value: 'a.post' } })
     fireEvent.submit(screen.getByRole('button', { name: /add source/i }).closest('form')!)
     const called = onSubmit.mock.calls[0][0]

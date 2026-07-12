@@ -4,11 +4,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Rss,
   Settings,
-  ChevronDown,
   Globe,
   BookOpen,
   Sun,
@@ -40,9 +40,7 @@ export function NavBar() {
     session?.user?.name ?? (session?.user as any)?.username ?? session?.user?.email ?? "";
   const [userIcon, setUserIcon] = useState<string | null>(null);
   const [iconLoading, setIconLoading] = useState(false);
-  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const langDropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const token = (session as any)?.accessToken;
   const { topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading } = useTopic();
@@ -57,9 +55,6 @@ export function NavBar() {
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target as Node)) {
-        setLangDropdownOpen(false);
-      }
       if (
         mobileMenuRef.current &&
         !mobileMenuRef.current.contains(event.target as Node) &&
@@ -105,49 +100,20 @@ export function NavBar() {
         </Link>
 
         {/* Topic dropdown — desktop only */}
-        <div className="relative group hidden md:block">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors cursor-pointer"
-          >
-            {topicsLoading ? (
-              <Skeleton className="h-4 w-20" />
-            ) : (
-              <>
-                {selectedTopic?.color_hex && (
-                  <span
-                    className="inline-block h-2 w-2 rounded-full shrink-0"
-                    style={{ backgroundColor: selectedTopic.color_hex }}
-                  />
-                )}
-                <span className="max-w-[120px] truncate">
-                  {selectedTopic?.display_name ?? t("nav.selectTopic")}
-                </span>
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
-              </>
-            )}
-          </button>
-          {!topicsLoading && topics.length > 0 && (
-            <div className="absolute left-0 top-full mt-1 w-48 rounded-lg border border-border bg-background shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              {topics.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSelectedTopicId(t.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg cursor-pointer ${
-                    t.id === selectedTopic?.id ? "font-semibold" : ""
-                  }`}
-                >
-                  {t.color_hex && (
-                    <span
-                      className="inline-block h-2 w-2 rounded-full shrink-0"
-                      style={{ backgroundColor: t.color_hex }}
-                    />
-                  )}
-                  {t.display_name}
-                </button>
-              ))}
-            </div>
+        <div className="hidden md:block">
+          {topicsLoading ? (
+            <Skeleton className="h-8 w-32" />
+          ) : (
+            <Dropdown
+              value={selectedTopic?.id}
+              onChange={setSelectedTopicId}
+              options={topics.map((topic) => ({
+                value: topic.id,
+                label: topic.display_name,
+                leadingDot: topic.color_hex ?? undefined,
+              }))}
+              placeholder={t("nav.selectTopic")}
+            />
           )}
         </div>
 
@@ -198,37 +164,14 @@ export function NavBar() {
         {/* Right nav — desktop only */}
         <div className="ml-auto hidden md:flex items-center gap-4 shrink-0">
           {/* Language dropdown */}
-          <div className="relative" ref={langDropdownRef}>
-            <button
-              id="tutorial-target-language"
-              type="button"
-              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1.5 text-sm font-medium px-2 py-1.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors cursor-pointer"
-            >
-              <Globe className="h-4 w-4 text-muted-foreground" />
-              <span>{i18nLoading ? "..." : currentLang?.native_name || locale}</span>
-            </button>
-            {langDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-border bg-background shadow-lg z-50">
-                {availableLanguages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    type="button"
-                    onClick={() => {
-                      setLocale(lang.code);
-                      setLangDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors first:rounded-t-lg last:rounded-b-lg cursor-pointer ${
-                      lang.code === locale ? "font-semibold bg-muted/50" : ""
-                    }`}
-                  >
-                    <span>{lang.native_name}</span>
-                    {lang.code === locale && <span>✓</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <Dropdown
+            triggerId="tutorial-target-language"
+            icon={<Globe className="h-4 w-4 text-muted-foreground" />}
+            value={locale}
+            onChange={setLocale}
+            options={availableLanguages.map((lang) => ({ value: lang.code, label: lang.native_name }))}
+            placeholder={i18nLoading ? "..." : locale}
+          />
 
           <TooltipProvider>
             {(isGuestMode || !!session) && (
@@ -348,7 +291,7 @@ export function NavBar() {
           type="button"
           data-mobile-menu-toggle
           onClick={() => setMobileMenuOpen((open) => !open)}
-          className="ml-auto md:hidden p-2 -mr-2 text-muted-foreground hover:text-foreground transition-colors duration-200"
+          className="ml-auto md:hidden p-2 -mr-2 text-muted-foreground hover:text-foreground transition-colors duration-200 cursor-pointer"
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
           aria-expanded={mobileMenuOpen}
         >
@@ -374,7 +317,7 @@ export function NavBar() {
                       key={topic.id}
                       type="button"
                       onClick={() => setSelectedTopicId(topic.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm transition-colors ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm transition-colors cursor-pointer ${
                         topic.id === selectedTopic?.id ? "bg-muted font-semibold" : "hover:bg-muted"
                       }`}
                     >
@@ -430,7 +373,7 @@ export function NavBar() {
                     key={lang.code}
                     type="button"
                     onClick={() => setLocale(lang.code)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-sm transition-colors ${
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-sm transition-colors cursor-pointer ${
                       lang.code === locale ? "bg-muted font-semibold" : "hover:bg-muted"
                     }`}
                   >
@@ -444,7 +387,7 @@ export function NavBar() {
             <button
               type="button"
               onClick={cycleMode}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <ThemeIcon className="h-4 w-4" />
               {themeLabel}
@@ -458,7 +401,7 @@ export function NavBar() {
                   router.push("/");
                   setMobileMenuOpen(false);
                 }}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 <HelpCircle className="h-4 w-4" />
                 {t("tutorial.reopenLabel")}

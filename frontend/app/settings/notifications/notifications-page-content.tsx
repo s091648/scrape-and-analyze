@@ -8,6 +8,7 @@ import {
   fetchNotificationSettings, updateNotificationSettings, type NotificationSettings,
 } from '@/lib/api/user'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleRow } from '@/components/ui/toggle-row'
 import { TelegramChatIdHelp } from '@/components/features/settings/telegram-chat-id-help'
@@ -181,14 +182,16 @@ export default function NotificationsPageContent() {
               )}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">{t('settings.notificationLanguage')}</label>
-                <select
+                <Dropdown
+                  aria-label={t('settings.notificationLanguage')}
                   value={notifSettings.locale}
-                  onChange={e => setNotifSettings(prev => ({ ...prev, locale: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="en">{t('settings.languageEnglish')}</option>
-                  <option value="zh-TW">{t('settings.languageZhTw')}</option>
-                </select>
+                  onChange={v => setNotifSettings(prev => ({ ...prev, locale: v }))}
+                  className="w-full h-10 px-3"
+                  options={[
+                    { value: 'en', label: t('settings.languageEnglish') },
+                    { value: 'zh-TW', label: t('settings.languageZhTw') },
+                  ]}
+                />
               </div>
             </div>
             <Button size="sm" onClick={handleSaveNotifSettings} disabled={notifSaving}>

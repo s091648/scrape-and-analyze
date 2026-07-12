@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/scraper-keywords'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import {
   Dialog,
   DialogContent,
@@ -318,7 +319,7 @@ function AddArxivCard({
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
       >
         <Plus className="h-4 w-4" />
         {t('admin.activateArxiv')}
@@ -571,7 +572,7 @@ function AddSemanticScholarCard({
 
   if (!expanded) {
     return (
-      <button onClick={() => setExpanded(true)} className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors">
+      <button onClick={() => setExpanded(true)} className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer">
         <Plus className="h-4 w-4" />{t('admin.activateSemanticScholar')}
       </button>
     )
@@ -798,7 +799,7 @@ function AddOpenAlexCard({
 
   if (!expanded) {
     return (
-      <button onClick={() => setExpanded(true)} className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors">
+      <button onClick={() => setExpanded(true)} className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer">
         <Plus className="h-4 w-4" />{t('admin.activateOpenAlex')}
       </button>
     )
@@ -899,7 +900,7 @@ function AddSourceCard({
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
       >
         <Plus className="h-4 w-4" />
         {t('admin.addSource')}
@@ -993,17 +994,13 @@ function AddSourceCard({
 
         <div className="space-y-1.5">
           <label className={labelCls}>{t('admin.topics')}</label>
-          <select
-            value={topicId}
-            onChange={e => setTopicId(e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            required
-          >
-            <option value="">{t('nav.selectTopic')}</option>
-            {topics.map(tp => (
-              <option key={tp.id} value={tp.id}>{tp.display_name}</option>
-            ))}
-          </select>
+          <Dropdown
+            value={topicId || undefined}
+            onChange={setTopicId}
+            className="w-full h-9"
+            placeholder={t('nav.selectTopic')}
+            options={topics.map(tp => ({ value: tp.id, label: tp.display_name }))}
+          />
         </div>
 
       <div className="flex gap-2">
@@ -1292,7 +1289,7 @@ export default function ScraperSettingsPage() {
               {!addingAggregatorType && (
                 <button
                   onClick={() => setShowAggregatorTypeDialog(true)}
-                  className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+                  className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   {t('admin.addAggregator')}
@@ -1307,15 +1304,12 @@ export default function ScraperSettingsPage() {
                   <p className="text-sm text-muted-foreground">{t('admin.aggregatorTypeDesc')}</p>
                   <div className="space-y-1.5">
                     <label className="block text-xs font-medium text-muted-foreground">{t('admin.aggregatorType')}</label>
-                    <select
+                    <Dropdown
                       value={pendingAggregatorType}
-                      onChange={e => setPendingAggregatorType(e.target.value as 'semantic_scholar' | 'openalex')}
-                      className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      {aggregatorTypeOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
+                      onChange={v => setPendingAggregatorType(v as 'semantic_scholar' | 'openalex')}
+                      className="w-full h-9"
+                      options={aggregatorTypeOptions}
+                    />
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setShowAggregatorTypeDialog(false)}>{t('admin.cancel')}</Button>

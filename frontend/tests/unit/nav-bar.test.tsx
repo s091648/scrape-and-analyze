@@ -157,8 +157,7 @@ describe("NavBar", () => {
   it("renders selected topic name in topic dropdown", () => {
     mockUseSession.mockReturnValue({ data: null });
     render(<NavBar />);
-    // 'AI' appears in both the trigger button and the dropdown list item
-    expect(screen.getAllByText("AI").length).toBeGreaterThan(0);
+    expect(screen.getByText("AI")).toBeInTheDocument();
   });
 
   it("renders current language in language selector", () => {
@@ -205,12 +204,14 @@ describe("NavBar", () => {
   it("renders topic dropdown buttons for all topics", () => {
     mockUseSession.mockReturnValue({ data: null });
     render(<NavBar />);
+    fireEvent.click(screen.getByRole("button", { name: "AI" }));
     expect(screen.getByText("ML")).toBeInTheDocument();
   });
 
   it("calls setSelectedTopicId when a topic is clicked", () => {
     mockUseSession.mockReturnValue({ data: null });
     render(<NavBar />);
+    fireEvent.click(screen.getByRole("button", { name: "AI" }));
     fireEvent.click(screen.getByText("ML"));
     expect(mockSetSelectedTopicId).toHaveBeenCalledWith("t2");
   });

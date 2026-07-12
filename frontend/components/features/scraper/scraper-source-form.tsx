@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import { Plus } from 'lucide-react'
 
 interface ScraperSourceFormData {
@@ -14,7 +15,6 @@ interface ScraperSourceFormData {
 
 const inputClass = "w-full h-14 px-5 rounded-lg border border-border bg-background text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring"
 const labelClass = "block text-sm font-medium mb-1.5"
-const selectClass = "w-full h-14 px-5 rounded-lg border border-border bg-background text-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
 
 export function ScraperSourceForm({ onSubmit }: { onSubmit: (data: ScraperSourceFormData) => void }) {
   const [form, setForm] = useState<ScraperSourceFormData>({
@@ -26,27 +26,29 @@ export function ScraperSourceForm({ onSubmit }: { onSubmit: (data: ScraperSource
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className={labelClass} htmlFor="source_type">Source Type</label>
-          <select
-            id="source_type"
-            className={selectClass}
+          <Dropdown
+            triggerId="source_type"
+            className="w-full h-14 px-5"
             value={form.source_type}
-            onChange={e => setForm(f => ({ ...f, source_type: e.target.value as 'rss' | 'blog' }))}
-          >
-            <option value="rss">RSS</option>
-            <option value="blog">Blog</option>
-          </select>
+            onChange={v => setForm(f => ({ ...f, source_type: v as 'rss' | 'blog' }))}
+            options={[
+              { value: 'rss', label: 'RSS' },
+              { value: 'blog', label: 'Blog' },
+            ]}
+          />
         </div>
         <div>
           <label className={labelClass} htmlFor="frequency">Frequency</label>
-          <select
-            id="frequency"
-            className={selectClass}
+          <Dropdown
+            triggerId="frequency"
+            className="w-full h-14 px-5"
             value={form.frequency}
-            onChange={e => setForm(f => ({ ...f, frequency: e.target.value as 'daily' | 'weekly' }))}
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
+            onChange={v => setForm(f => ({ ...f, frequency: v as 'daily' | 'weekly' }))}
+            options={[
+              { value: 'daily', label: 'Daily' },
+              { value: 'weekly', label: 'Weekly' },
+            ]}
+          />
         </div>
       </div>
       <div>

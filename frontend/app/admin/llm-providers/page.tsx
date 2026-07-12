@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Pencil, X, Check, Plus, HelpCircle, GripVertical } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -119,25 +120,21 @@ function SortableProviderCard({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>{t('admin.provider')}</label>
-                <select
+                <Dropdown
                   value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className={inputClass}
-                >
-                  {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                  onChange={v => setForm(f => ({ ...f, name: v }))}
+                  className="w-full h-9"
+                  options={PROVIDER_NAMES.map(n => ({ value: n, label: n }))}
+                />
               </div>
               <div>
                 <label className={labelClass}>{t('admin.providerType')}</label>
-                <select
+                <Dropdown
                   value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' | 'multimodal' }))}
-                  className={inputClass}
-                >
-                  {PROVIDER_TYPES.map(pt => (
-                    <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
-                  ))}
-                </select>
+                  onChange={v => setForm(f => ({ ...f, type: v as 'llm' | 'embedding' | 'multimodal' }))}
+                  className="w-full h-9"
+                  options={PROVIDER_TYPES.map(pt => ({ value: pt, label: t(`admin.type_${pt}`) }))}
+                />
               </div>
             </div>
             <div>
@@ -318,7 +315,7 @@ function AddProviderCard({ onAdd, nextPriority, defaultType }: {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
       >
         <Plus className="h-4 w-4" />
         {t('admin.addProvider')}
@@ -337,25 +334,21 @@ function AddProviderCard({ onAdd, nextPriority, defaultType }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>{t('admin.provider')}</label>
-          <select
+          <Dropdown
             value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            className={inputClass}
-          >
-            {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+            onChange={v => setForm(f => ({ ...f, name: v }))}
+            className="w-full h-9"
+            options={PROVIDER_NAMES.map(n => ({ value: n, label: n }))}
+          />
         </div>
         <div>
           <label className={labelClass}>{t('admin.providerType')}</label>
-          <select
+          <Dropdown
             value={form.type}
-            onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' | 'multimodal' }))}
-            className={inputClass}
-          >
-            {PROVIDER_TYPES.map(pt => (
-              <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
-            ))}
-          </select>
+            onChange={v => setForm(f => ({ ...f, type: v as 'llm' | 'embedding' | 'multimodal' }))}
+            className="w-full h-9"
+            options={PROVIDER_TYPES.map(pt => ({ value: pt, label: t(`admin.type_${pt}`) }))}
+          />
         </div>
       </div>
       <div>
