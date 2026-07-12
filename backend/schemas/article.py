@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
@@ -24,7 +24,7 @@ class ArticleOut(BaseModel):
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
     has_vectors: bool = False
-    citation_count: Optional[int] = None
+    metrics: Dict[str, float] = {}
     view_count: int = 0
     is_favorited: bool = False
 
@@ -58,7 +58,7 @@ class ArticleDetailOut(BaseModel):
     translated_title: Optional[str] = None
     translated_content: Optional[str] = None
     has_vectors: bool = False
-    citation_count: Optional[int] = None
+    metrics: Dict[str, float] = {}
     view_count: int = 0
 
     class Config:

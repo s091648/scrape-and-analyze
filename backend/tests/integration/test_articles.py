@@ -326,19 +326,36 @@ def test_articles_list_includes_citation_and_view_count(db_session, api_client):
     r = api_client.get("/articles")
     assert r.status_code == 200
     item = r.json()["items"][0]
-    assert item["citation_count"] == 17
+    assert item["metrics"]["citation_count"] == 17
     assert item["view_count"] == 42
 
 
-def test_articles_list_citation_count_null_and_view_count_zero_when_no_metrics_row(db_session, api_client):
+def test_articles_list_metrics_empty_and_view_count_zero_when_no_metrics_row(db_session, api_client):
     db_session.add(_article(title="No metrics"))
     db_session.flush()
 
     r = api_client.get("/articles")
     assert r.status_code == 200
     item = r.json()["items"][0]
-    assert item["citation_count"] is None
+    assert item["metrics"] == {}
     assert item["view_count"] == 0
+
+
+def test_articles_list_metrics_includes_every_catalog_metric_not_just_citation_count(db_session, api_client):
+    """2026-07-12: `metrics` is a generic map covering any tracked metric_key, not hardcoded."""
+    from models.article_metric_value import ArticleMetricValue
+
+    a = _article(title="Multi-metric")
+    db_session.add(a)
+    db_session.flush()
+    _seed_metrics(db_session, a, view_count=5, citation_count=10)
+    db_session.add(ArticleMetricValue(article_id=a.id, metric_key="impact_factor", value=3.5))
+    db_session.flush()
+
+    r = api_client.get("/articles")
+    assert r.status_code == 200
+    item = r.json()["items"][0]
+    assert item["metrics"] == {"citation_count": 10.0, "impact_factor": 3.5}
 
 
 def test_articles_sort_by_citation_count_desc(db_session, api_client):
@@ -382,11 +399,11 @@ def test_article_detail_includes_citation_and_view_count(db_session, api_client)
     r = api_client.get(f"/articles/{a.id}")
     assert r.status_code == 200
     data = r.json()
-    assert data["citation_count"] == 3
+    assert data["metrics"]["citation_count"] == 3
     assert data["view_count"] == 7
 
 
-def test_article_detail_citation_count_null_when_no_metric_value(db_session, api_client):
+def test_article_detail_metrics_empty_when_no_metric_value(db_session, api_client):
     a = _article(title="No citation row")
     db_session.add(a)
     db_session.flush()
@@ -395,5 +412,5 @@ def test_article_detail_citation_count_null_when_no_metric_value(db_session, api
     r = api_client.get(f"/articles/{a.id}")
     assert r.status_code == 200
     data = r.json()
-    assert data["citation_count"] is None
+    assert data["metrics"] == {}
     assert data["view_count"] == 0

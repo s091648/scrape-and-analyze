@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.schemas.article import ArticleOut
 
 
-def build_article_out(article, translation=None, metrics=None, citation_value=None, favorite=None) -> ArticleOut:
+def build_article_out(article, translation=None, metrics=None, metric_values: Optional[Dict[str, float]] = None, favorite=None) -> ArticleOut:
     meta = article.metadata_ or {}
     return ArticleOut(
         id=article.id,
@@ -22,7 +22,7 @@ def build_article_out(article, translation=None, metrics=None, citation_value=No
         translated_title=translation.title if translation else None,
         translated_content=translation.content if translation else None,
         has_vectors=article.has_vectors,
-        citation_count=int(citation_value) if citation_value is not None else None,
+        metrics=metric_values or {},
         view_count=metrics.view_count if metrics else 0,
         is_favorited=favorite is not None,
     )
@@ -52,15 +52,13 @@ def get_articles_paginated(
     from models.article_metrics import ArticleMetrics
     from models.article_metric_value import ArticleMetricValue
     from models.user_subscription import UserArticleFavorite
+    from sqlalchemy.orm import aliased
 
     if favorites_only and not user_id:
         return 0, []  # unauthenticated users have no favorites to filter by
 
-    query = db.query(Article, ArticleMetrics, ArticleMetricValue, UserArticleFavorite).outerjoin(
+    query = db.query(Article, ArticleMetrics, UserArticleFavorite).outerjoin(
         ArticleMetrics, ArticleMetrics.article_id == Article.id
-    ).outerjoin(
-        ArticleMetricValue,
-        (ArticleMetricValue.article_id == Article.id) & (ArticleMetricValue.metric_key == "citation_count"),
     ).outerjoin(
         UserArticleFavorite,
         (UserArticleFavorite.article_id == Article.id) & (UserArticleFavorite.user_id == user_id)
@@ -113,23 +111,50 @@ def get_articles_paginated(
     if scraped_before:
         query = query.filter(Article.scraped_at <= scraped_before)
 
-    if sort in ("citation_count", "view_count"):
-        # citation_count now lives in article_metric_values (metric_key='citation_count'),
-        # view_count stays on article_metrics — see data-model.md 2026-07-12 revision.
-        col = ArticleMetricValue.value if sort == "citation_count" else ArticleMetrics.view_count
+    _FIXED_SORT_COLUMNS = {"scraped_at", "published_at", "source", "title"}
+    if sort == "view_count":
+        col = ArticleMetrics.view_count
         # nullslast() regardless of direction: articles are outer-joined, so most have no
         # row at all (NULL, not 0). Postgres defaults to NULLS FIRST on DESC, which would
         # otherwise push every article with no metrics to the top of the "highest first"
         # sort — always sink them to the bottom instead.
         query = query.order_by(col.desc().nullslast() if order == "desc" else col.asc().nullslast())
+    elif sort in _FIXED_SORT_COLUMNS:
+        col = getattr(Article, sort)
+        query = query.order_by(col.desc() if order == "desc" else col.asc())
     else:
-        col = getattr(Article, sort, None)
-        if col is not None:
-            query = query.order_by(col.desc() if order == "desc" else col.asc())
+        # 2026-07-12: `sort` is no longer restricted to a hardcoded set of metric names —
+        # any deployment-defined catalog metric_key (citation_count, impact_factor, ...) is
+        # sortable this way. An unrecognized value simply joins to nothing and produces a
+        # no-op sort, the same graceful degradation as the old `getattr(Article, sort, None)`
+        # fallback below.
+        sort_metric = aliased(ArticleMetricValue)
+        query = query.outerjoin(
+            sort_metric,
+            (sort_metric.article_id == Article.id) & (sort_metric.metric_key == sort),
+        )
+        col = sort_metric.value
+        query = query.order_by(col.desc().nullslast() if order == "desc" else col.asc().nullslast())
 
     total = query.count()
-    rows = query.offset((page - 1) * size).limit(size).all()
-    return total, rows  # list of (Article, ArticleMetrics|None, ArticleMetricValue|None, UserArticleFavorite|None)
+    page_rows = query.offset((page - 1) * size).limit(size).all()
+
+    article_ids = [article.id for article, _, _ in page_rows]
+    metrics_by_article: dict[UUID, Dict[str, float]] = {}
+    if article_ids:
+        metric_rows = (
+            db.query(ArticleMetricValue)
+            .filter(ArticleMetricValue.article_id.in_(article_ids), ArticleMetricValue.value.isnot(None))
+            .all()
+        )
+        for mv in metric_rows:
+            metrics_by_article.setdefault(mv.article_id, {})[mv.metric_key] = float(mv.value)
+
+    rows = [
+        (article, metrics, metrics_by_article.get(article.id, {}), favorite)
+        for article, metrics, favorite in page_rows
+    ]
+    return total, rows  # list of (Article, ArticleMetrics|None, metrics: Dict[str, float], UserArticleFavorite|None)
 
 
 def get_article_by_id(db: Session, article_id: UUID):

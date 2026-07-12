@@ -32,7 +32,9 @@ def _get_redis():
 def list_articles(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    sort: Literal["scraped_at", "published_at", "source", "title", "citation_count", "view_count"] = "scraped_at",
+    # 2026-07-12: no longer a fixed Literal — any deployment-defined catalog metric_key is a
+    # valid sort value in addition to the fixed fields and view_count; see article_service.py.
+    sort: str = Query(default="scraped_at"),
     order: Literal["asc", "desc"] = "desc",
     source: List[str] = Query(default=[]),
     aggregator: List[str] = Query(default=[]),
@@ -77,8 +79,8 @@ def list_articles(
         trans_map = {t.article_id: t for t in translations}
     return PaginatedArticles(
         items=[
-            build_article_out(article, trans_map.get(article.id), metrics, citation_value.value if citation_value else None, favorite)
-            for article, metrics, citation_value, favorite in rows
+            build_article_out(article, trans_map.get(article.id), metrics, metric_values, favorite)
+            for article, metrics, metric_values, favorite in rows
         ],
         total=total,
         page=page,
@@ -129,10 +131,11 @@ def get_article(
     from models.article_metrics import ArticleMetrics as ArticleMetricsModel
     from models.article_metric_value import ArticleMetricValue
     metrics = db.query(ArticleMetricsModel).filter(ArticleMetricsModel.article_id == article_id).first()
-    citation_row = db.query(ArticleMetricValue).filter(
+    metric_rows = db.query(ArticleMetricValue).filter(
         ArticleMetricValue.article_id == article_id,
-        ArticleMetricValue.metric_key == "citation_count",
-    ).first()
+        ArticleMetricValue.value.isnot(None),
+    ).all()
+    metric_values = {mv.metric_key: float(mv.value) for mv in metric_rows}
 
     analysis = article.analyses[0] if article.analyses else None
     pain_points = insights = innovations = None
@@ -187,7 +190,7 @@ def get_article(
         translated_title=translated_title,
         translated_content=translated_content,
         has_vectors=article.has_vectors,
-        citation_count=int(citation_row.value) if citation_row and citation_row.value is not None else None,
+        metrics=metric_values,
         view_count=metrics.view_count if metrics else 0,
     )
 
