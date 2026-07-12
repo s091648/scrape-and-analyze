@@ -9,8 +9,8 @@ import { useTopic } from '@/lib/providers'
 function HomeContent() {
   const { selectedTopicId } = useTopic()
   const searchParams = useSearchParams()
-  // Captured once on mount: TopicProvider rewrites the URL down to just `?topic=`
-  // shortly after load, so `week` must be read before that happens.
+  // Captured once on mount: this is a one-time deep-link value (jump to a specific
+  // week's report), not meant to keep re-syncing as the URL changes afterwards.
   const [initialWeek] = useState(() => searchParams.get('week'))
   return (
     <WeeklyReportWidget topicId={selectedTopicId} initialWeek={initialWeek}>
