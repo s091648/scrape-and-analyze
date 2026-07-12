@@ -1,11 +1,11 @@
 from datetime import date
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.schemas.weekly_report import WeeklyReportOut, PaginatedWeeklyReports, WeeklyReportWeeksOut
+from backend.schemas.weekly_report import ArticleSourceOut, WeeklyReportOut, PaginatedWeeklyReports, WeeklyReportWeeksOut
 from backend.services.weekly_report_service import (
     get_weekly_reports,
     get_latest_weekly_report,
@@ -17,7 +17,37 @@ from backend.services.weekly_report_service import (
 router = APIRouter(prefix="/weekly-reports", tags=["weekly-reports"])
 
 
-def _to_out(report, translations: dict) -> WeeklyReportOut:
+def _resolve_sources(report, db: Session) -> List[ArticleSourceOut]:
+    """Resolve report.article_ids (ordered) to ArticleSourceOut entries, index-aligned with
+    the [N] citation markers in summary_text. Entries that aren't valid UUIDs (pre-existing
+    reports generated before article_ids stored real identifiers) are skipped silently."""
+    from models.article import Article
+
+    ids: List[UUID] = []
+    for raw in (report.article_ids or []):
+        try:
+            ids.append(UUID(str(raw)))
+        except (ValueError, AttributeError, TypeError):
+            continue
+    if not ids:
+        return []
+
+    articles_by_id = {a.id: a for a in db.query(Article).filter(Article.id.in_(ids)).all()}
+    sources = []
+    for article_id in ids:
+        article = articles_by_id.get(article_id)
+        if article is None:
+            continue
+        sources.append(ArticleSourceOut(
+            id=article.id,
+            title=article.title or "",
+            url=article.url,
+            public_article_id=article.id,
+        ))
+    return sources
+
+
+def _to_out(report, translations: dict, db: Session) -> WeeklyReportOut:
     """Build the response DTO, overriding title/summary_text with the requested-language
     translation when one exists. Falls back to the report's original (English) text otherwise."""
     out = WeeklyReportOut.model_validate(report)
@@ -25,6 +55,7 @@ def _to_out(report, translations: dict) -> WeeklyReportOut:
     if translation:
         out.title = translation.title
         out.summary_text = translation.summary_text
+    out.sources = _resolve_sources(report, db)
     return out
 
 
@@ -39,7 +70,7 @@ def list_weekly_reports(
     total, items = get_weekly_reports(db, topic_id, limit=limit, offset=offset)
     translations = get_weekly_report_translations(db, [r.id for r in items], lang)
     return PaginatedWeeklyReports(
-        items=[_to_out(r, translations) for r in items],
+        items=[_to_out(r, translations, db) for r in items],
         total=total,
         page=offset // limit + 1,
         size=limit,
@@ -56,7 +87,7 @@ def get_latest_report(
     if not report:
         return None
     translations = get_weekly_report_translations(db, [report.id], lang)
-    return _to_out(report, translations)
+    return _to_out(report, translations, db)
 
 
 @router.get("/weeks", response_model=WeeklyReportWeeksOut)
@@ -79,4 +110,4 @@ def get_report_by_week(
     if not report:
         return None
     translations = get_weekly_report_translations(db, [report.id], lang)
-    return _to_out(report, translations)
+    return _to_out(report, translations, db)

@@ -38,47 +38,89 @@ def upgrade():
     )
 
     # --- metric_definitions ---
-    # Maintainer-curated catalog of recommendation-signal metrics and how to obtain
-    # each one. Changed only via migration + code review — never via a runtime/admin
-    # API (FR-022). See research.md §9b-§9d.
+    # Maintainer-curated catalog of recommendation-signal metrics, one row per metric_key.
+    # Carries display/user-facing config: label, format hint, unit, icon, and whether it's
+    # active. `icon_name` + `enabled` are the only two fields an admin may edit at runtime
+    # (FR-041); everything else here — and all of `metric_providers` below — remains
+    # maintainer-only via migration + code review (FR-022). See research.md §9b-§9d and
+    # the 2026-07-12 revision notes for why extraction (provider/priority) was split out of
+    # this table into `metric_providers`: a metric_key can be resolved by more than one
+    # provider (e.g. citation_count via OpenAlex or Semantic Scholar), but "how to fetch it"
+    # is an implementation detail admins should never see or edit, while "should this be
+    # shown, and with what icon" is a per-metric_key, admin-facing concern — conflating both
+    # in one provider-keyed row forced the admin UI to leak provider/priority plumbing.
     op.create_table(
         'metric_definitions',
         sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
         sa.Column('metric_key', sa.String(50), nullable=False),
+        sa.Column('label_i18n_key', sa.String(100), nullable=False),
+        sa.Column('format_hint', sa.String(20), nullable=True),
+        sa.Column('unit', sa.String(20), nullable=True),
+        # Display icon identifier (lucide-react kebab-case name), resolved by the frontend
+        # against a small whitelist — see article-card.tsx / metric-icons.ts. Admin-editable
+        # (FR-041), but constrained server-side to that same whitelist — never an arbitrary
+        # string, since the frontend can only render icons it has statically imported.
+        sa.Column('icon_name', sa.String(50), nullable=True),
+        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
+    )
+    op.create_unique_constraint('uq_metric_definitions_metric_key', 'metric_definitions', ['metric_key'])
+    op.create_index('idx_metric_definitions_enabled', 'metric_definitions', ['enabled'])
+
+    # --- metric_providers ---
+    # Maintainer-only extraction config: which external source(s) can supply a value for a
+    # metric_key, and how. A metric_key MAY have more than one provider row — not for
+    # rate-limit fallback (providers aren't interchangeable — see 2026-07-12 discussion),
+    # but because (a) an article may carry only a DOI, only an arXiv ID, or both, and
+    # different providers/endpoints accept different identifier types, and (b) independent
+    # citation databases have overlapping-but-not-identical coverage of the same paper.
+    # `priority` orders which provider `ResilientMetricsService` tries first when more than
+    # one *could* apply to a given article's available identifiers.
+    op.create_table(
+        'metric_providers',
+        sa.Column('id', UUID(as_uuid=True), primary_key=True, server_default=sa.text('gen_random_uuid()')),
+        sa.Column('metric_definition_id', UUID(as_uuid=True), sa.ForeignKey('metric_definitions.id', ondelete='CASCADE'), nullable=False),
         sa.Column('provider_name', sa.String(50), nullable=False),
         sa.Column('priority', sa.Integer(), nullable=False),
         sa.Column('extractor_type', sa.String(20), nullable=False),
         sa.Column('extractor_spec', JSONB, nullable=False),
-        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('label_i18n_key', sa.String(100), nullable=False),
-        sa.Column('format_hint', sa.String(20), nullable=True),
-        sa.Column('unit', sa.String(20), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
     )
     op.create_unique_constraint(
-        'uq_metric_definitions_metric_key_provider_name',
-        'metric_definitions',
-        ['metric_key', 'provider_name'],
+        'uq_metric_providers_definition_provider',
+        'metric_providers',
+        ['metric_definition_id', 'provider_name'],
     )
     op.create_check_constraint(
-        'ck_metric_definitions_extractor_type',
-        'metric_definitions',
+        'ck_metric_providers_extractor_type',
+        'metric_providers',
         "extractor_type IN ('json_path', 'code')",
     )
-    op.create_index(
-        'idx_metric_definitions_metric_key',
-        'metric_definitions',
-        ['metric_key'],
-        postgresql_where=sa.text('enabled = true'),
+    op.create_index('idx_metric_providers_metric_definition_id', 'metric_providers', ['metric_definition_id'])
+
+    op.execute(
+        """
+        INSERT INTO metric_definitions (metric_key, label_i18n_key, format_hint, unit, icon_name, enabled)
+        VALUES ('citation_count', 'metrics.citation_count', 'integer', NULL, 'quote', true)
+        """
     )
     op.execute(
         """
-        INSERT INTO metric_definitions
-            (metric_key, provider_name, priority, extractor_type, extractor_spec, label_i18n_key, format_hint)
-        VALUES
-            ('citation_count', 'openalex', 1, 'json_path', '{"path": "cited_by_count"}', 'metrics.citation_count', 'integer'),
-            ('citation_count', 'semantic_scholar', 2, 'json_path', '{"path": "citationCount"}', 'metrics.citation_count', 'integer')
+        INSERT INTO metric_providers (metric_definition_id, provider_name, priority, extractor_type, extractor_spec)
+        SELECT id, 'openalex', 1, 'json_path', '{"path": "cited_by_count"}'::jsonb
+        FROM metric_definitions WHERE metric_key = 'citation_count'
+        UNION ALL
+        SELECT id, 'semantic_scholar', 2, 'json_path', '{"path": "citationCount"}'::jsonb
+        FROM metric_definitions WHERE metric_key = 'citation_count'
+        UNION ALL
+        -- OpenAlex has no arXiv-ID lookup (only DOI/PMID/PMCID/MAG ID); Semantic Scholar does
+        -- (paper/ARXIV:<id>) — this is the only provider that can resolve citation_count for
+        -- arXiv preprints that don't (yet) have a DOI. Same response shape as the DOI lookup
+        -- above, so it reuses the same extractor_spec path.
+        SELECT id, 'semantic_scholar_arxiv', 3, 'json_path', '{"path": "citationCount"}'::jsonb
+        FROM metric_definitions WHERE metric_key = 'citation_count'
         """
     )
 
@@ -267,10 +309,15 @@ def downgrade():
     op.drop_constraint('uq_article_metric_values_article_id_metric_key', 'article_metric_values', type_='unique')
     op.drop_table('article_metric_values')
 
+    # Drop metric_providers (before metric_definitions — FK dependency)
+    op.drop_index('idx_metric_providers_metric_definition_id', table_name='metric_providers')
+    op.drop_constraint('ck_metric_providers_extractor_type', 'metric_providers', type_='check')
+    op.drop_constraint('uq_metric_providers_definition_provider', 'metric_providers', type_='unique')
+    op.drop_table('metric_providers')
+
     # Drop metric_definitions
-    op.drop_index('idx_metric_definitions_metric_key', table_name='metric_definitions')
-    op.drop_constraint('ck_metric_definitions_extractor_type', 'metric_definitions', type_='check')
-    op.drop_constraint('uq_metric_definitions_metric_key_provider_name', 'metric_definitions', type_='unique')
+    op.drop_index('idx_metric_definitions_enabled', table_name='metric_definitions')
+    op.drop_constraint('uq_metric_definitions_metric_key', 'metric_definitions', type_='unique')
     op.drop_table('metric_definitions')
 
     # Drop article_metrics

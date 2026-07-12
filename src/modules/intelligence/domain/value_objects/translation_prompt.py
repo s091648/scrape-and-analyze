@@ -188,6 +188,9 @@ _WEEKLY_REPORT_TEMPLATE = """You are a professional translator. Translate the fo
 Only translate the content, do not add any explanations or additional text.
 Keep the same structure: respond with exactly the two sections below.
 If a field is not applicable, keep it empty.
+The summary may contain citation markers like [1], [2], etc. These MUST be preserved exactly as-is —
+same digits, same brackets, same position relative to the sentence they annotate. Do not translate,
+remove, renumber, or add citation markers.
 
 Title:
 __TITLE__

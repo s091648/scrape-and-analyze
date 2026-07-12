@@ -129,7 +129,7 @@ class GenerateWeeklyReportUseCase:
                 sub_span.set_status(StatusCode.ERROR, str(e))
                 logger.warning("weekly_report_image_failed", error=str(e))
 
-        article_ids = [str(a.title) for a in articles]
+        article_ids = [str(a.article_id) for a in articles]
 
         report = WeeklyReport(
             id=uuid.uuid4(),
@@ -225,6 +225,18 @@ class GenerateWeeklyReportUseCase:
                 )
                 return
 
+            original_citations = self._extract_citation_numbers(report.summary_text)
+            translated_citations = self._extract_citation_numbers(summary)
+            if translated_citations != original_citations:
+                logger.warning(
+                    "weekly_report_translation_citation_mismatch",
+                    report_id=str(report.id),
+                    language=language,
+                    original_citations=sorted(original_citations),
+                    translated_citations=sorted(translated_citations),
+                )
+                summary = report.summary_text
+
             try:
                 self._translation_repo.save(WeeklyReportTranslation(
                     weekly_report_id=report.id,
@@ -246,6 +258,12 @@ class GenerateWeeklyReportUseCase:
                     language=language,
                     error=str(e),
                 )
+
+    @staticmethod
+    def _extract_citation_numbers(text: str) -> set[int]:
+        """Return the set of [N] citation marker numbers present in *text*."""
+        import re
+        return {int(n) for n in re.findall(r'\[(\d+)\]', text)}
 
     @staticmethod
     def _parse_translation_response(text: str) -> tuple[Optional[str], Optional[str]]:

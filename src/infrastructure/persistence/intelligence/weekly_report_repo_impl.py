@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import func
@@ -23,11 +23,15 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
         from models.analyses_translation import AnalysesTranslation
 
         week_end = week_start + timedelta(days=7)
+        # Ranking of the top-N candidate pool is intentionally still keyed on citation_count
+        # specifically — that's a separate concern (which articles even make it into the prompt)
+        # from what each selected article's ArticleSummaryForReport.metrics carries (all of that
+        # article's catalog metrics, for the LLM's own judgment — see weekly_report_prompt.py).
         sort_citations = func.coalesce(ArticleMetricValue.value, 0)
         sort_views = func.coalesce(ArticleMetrics.view_count, 0)
 
         rows = (
-            self._session.query(Article, AnalysesTranslation, ArticleMetrics, ArticleMetricValue)
+            self._session.query(Article, AnalysesTranslation, ArticleMetrics)
             .outerjoin(ArticleMetrics, ArticleMetrics.article_id == Article.id)
             .outerjoin(
                 ArticleMetricValue,
@@ -48,17 +52,29 @@ class WeeklyReportRepoImpl(WeeklyReportRepository):
             .all()
         )
 
+        article_ids = [article.id for article, _, _ in rows]
+        metrics_by_article: Dict[UUID, Dict[str, float]] = {}
+        if article_ids:
+            metric_rows = (
+                self._session.query(ArticleMetricValue)
+                .filter(ArticleMetricValue.article_id.in_(article_ids), ArticleMetricValue.value.isnot(None))
+                .all()
+            )
+            for mv in metric_rows:
+                metrics_by_article.setdefault(mv.article_id, {})[mv.metric_key] = float(mv.value)
+
         results = []
-        for article, translation, metrics, citation_value in rows:
+        for article, translation, article_metrics in rows:
             results.append(ArticleSummaryForReport(
+                article_id=article.id,
                 title=article.title or "",
                 summary=translation.summary if translation else None,
                 pain_points=translation.pain_points if translation else None,
                 insights=translation.insights if translation else None,
                 innovations=translation.innovations if translation else None,
                 tags=[tag.name for tag in article.tags],
-                citation_count=int(citation_value.value) if citation_value and citation_value.value is not None else None,
-                view_count=(metrics.view_count if metrics else 0) or 0,
+                metrics=metrics_by_article.get(article.id, {}),
+                view_count=(article_metrics.view_count if article_metrics else 0) or 0,
                 published_at=article.published_at,
             ))
         return results

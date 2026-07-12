@@ -92,7 +92,7 @@ def test_fetch_top_articles_ranks_by_citation_count_desc(db_session):
     results = repo.fetch_top_articles(topic.id, week_start)
 
     assert [a.title for a in results] == ["High citations", "Low citations"]
-    assert results[0].citation_count == 100
+    assert results[0].metrics.get("citation_count") == 100
 
 
 @pytest.mark.integration
@@ -134,7 +134,7 @@ def test_fetch_top_articles_falls_back_to_published_at_when_no_metrics(db_sessio
     results = repo.fetch_top_articles(topic.id, week_start)
 
     assert [a.title for a in results] == ["Newer", "Older"]
-    assert all(a.citation_count is None for a in results)
+    assert all(a.metrics == {} for a in results)
     assert all(a.view_count == 0 for a in results)
 
 
@@ -153,6 +153,28 @@ def test_fetch_top_articles_excludes_articles_outside_week_range(db_session):
 
     titles = {a.title for a in results}
     assert titles == {"In range"}
+
+
+@pytest.mark.integration
+def test_fetch_top_articles_collects_all_catalog_metrics_not_just_citation_count(db_session):
+    """2026-07-12: ArticleSummaryForReport.metrics is deployment-agnostic — it must carry every
+    article_metric_values row for the article, not just the citation_count one used for ranking."""
+    from models.article_metric_value import ArticleMetricValue
+
+    topic = _topic(db_session)
+    week_start = date(2026, 6, 1)
+    scraped_at = datetime(2026, 6, 2, tzinfo=timezone.utc)
+
+    article = _article(db_session, topic.id, title="Multi-metric", scraped_at=scraped_at)
+    _metrics(db_session, article, citation_count=10)
+    db_session.add(ArticleMetricValue(article_id=article.id, metric_key="impact_factor", value=3.5))
+    db_session.commit()
+
+    repo = WeeklyReportRepoImpl(session=db_session)
+    results = repo.fetch_top_articles(topic.id, week_start)
+
+    assert len(results) == 1
+    assert results[0].metrics == {"citation_count": 10.0, "impact_factor": 3.5}
 
 
 @pytest.mark.integration

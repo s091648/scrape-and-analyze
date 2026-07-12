@@ -4,6 +4,13 @@ from datetime import date, datetime
 from pydantic import BaseModel
 
 
+class ArticleSourceOut(BaseModel):
+    id: UUID
+    title: str
+    url: str
+    public_article_id: UUID
+
+
 class WeeklyReportOut(BaseModel):
     id: UUID
     topic_id: Optional[UUID]
@@ -14,6 +21,7 @@ class WeeklyReportOut(BaseModel):
     article_count: int
     status: str
     created_at: Optional[datetime]
+    sources: List[ArticleSourceOut] = []
 
     class Config:
         from_attributes = True

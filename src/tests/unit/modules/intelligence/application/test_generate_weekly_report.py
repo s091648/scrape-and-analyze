@@ -17,15 +17,16 @@ TOPIC_NAME = "AI Research"
 WEEK_START = date(2026, 6, 16)
 
 
-def _summary(title="Paper A", tags=None):
+def _summary(title="Paper A", tags=None, article_id=None):
     return ArticleSummaryForReport(
+        article_id=article_id or uuid.uuid4(),
         title=title,
         summary="A great paper.",
         pain_points=None,
         insights=None,
         innovations=None,
         tags=tags or ["ai", "ml"],
-        citation_count=10,
+        metrics={"citation_count": 10},
         view_count=5,
         published_at=None,
     )
@@ -202,3 +203,69 @@ def test_execute_force_regenerates_even_when_completed_report_exists():
     assert result.title == "New Title"
     llm.generate.assert_called_once()
     repo.save.assert_called_once()
+
+
+# ── Citations: article_ids regression test (was populated with titles, now real UUIDs) ──
+
+def test_execute_populates_article_ids_with_real_uuids_in_prompt_order():
+    a1 = _summary("Paper A", article_id=uuid.uuid4())
+    a2 = _summary("Paper B", article_id=uuid.uuid4())
+    a3 = _summary("Paper C", article_id=uuid.uuid4())
+    uc, repo, _, _, _, _ = _make_uc(articles=[a1, a2, a3])
+
+    result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+    assert result.article_ids == [str(a1.article_id), str(a2.article_id), str(a3.article_id)]
+    # None of the stored ids are article titles (regression guard for the original bug)
+    assert "Paper A" not in result.article_ids
+
+
+# ── Translation citation preservation (FR-026) ──
+
+def test_translate_report_falls_back_to_english_summary_when_citations_mismatch():
+    uc, _, llm, _, _, translation_repo = _make_uc(translation_languages=["zh-TW"])
+    original_summary = "AI models improved this week [1], and infra advanced too [2]."
+    report = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="AI Week",
+        summary_text=original_summary,
+        cover_image_url=None,
+        article_ids=[str(uuid.uuid4()), str(uuid.uuid4())],
+        article_count=2,
+        status="completed",
+    )
+    # Translated response drops citation [2] — should trigger the fallback.
+    llm.translate.return_value = json.dumps({
+        "title": "AI 週報",
+        "summary_text": "AI 模型本週有所改進 [1]，基礎設施也有進步。",
+    })
+
+    uc._translate_report(report, "zh-TW")
+
+    saved = translation_repo.save.call_args[0][0]
+    assert saved.title == "AI 週報"
+    assert saved.summary_text == original_summary
+
+
+def test_translate_report_keeps_translation_when_citations_match():
+    uc, _, llm, _, _, translation_repo = _make_uc(translation_languages=["zh-TW"])
+    report = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="AI Week",
+        summary_text="AI models improved this week [1].",
+        cover_image_url=None,
+        article_ids=[str(uuid.uuid4())],
+        article_count=1,
+        status="completed",
+    )
+    translated_summary = "AI 模型本週有所改進 [1]。"
+    llm.translate.return_value = json.dumps({"title": "AI 週報", "summary_text": translated_summary})
+
+    uc._translate_report(report, "zh-TW")
+
+    saved = translation_repo.save.call_args[0][0]
+    assert saved.summary_text == translated_summary
