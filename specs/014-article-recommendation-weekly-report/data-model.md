@@ -121,7 +121,7 @@ CREATE TABLE weekly_reports (
     title           TEXT NOT NULL,          -- LLM-generated title
     summary_text    TEXT NOT NULL,          -- LLM-generated summary (markdown)
     cover_image_url TEXT,                   -- R2 public URL, NULL if generation failed
-    article_ids     JSONB NOT NULL DEFAULT '[]',  -- Array of included article UUIDs
+    article_ids     JSONB NOT NULL DEFAULT '[]',  -- Ordered array of included article UUIDs; position N (0-indexed) is the article cited by marker [N+1] in summary_text (2026-07-12: fixes a prior bug where this was populated with article titles, not UUIDs — see FR-025)
     article_count   INTEGER NOT NULL DEFAULT 0,
     status          VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending/completed/failed
     error_message   TEXT,                   -- populated on status='failed'
@@ -294,6 +294,7 @@ Used as per-article input to `WeeklyReportPrompt.render()`. Assembled by `Weekly
 
 @dataclass(frozen=True)
 class ArticleSummaryForReport:
+    article_id: UUID                # articles.id — 2026-07-12 addition (FR-025/FR-026), see Citations note below
     title: str
     summary: Optional[str]          # from analyses.summary
     pain_points: Optional[str]      # from analyses.pain_points
@@ -309,6 +310,7 @@ class ArticleSummaryForReport:
 - Articles without an `analyses` row (analysis failed or pending) are excluded from report input — only `status='completed'` analyses are included
 - `tags` is a flat list (e.g., `["transformer", "attention mechanism", "computer vision"]`), not grouped, for compact prompt representation
 - As of 2026-07-12, `citation_count` is populated via a join against `article_metric_values` rather than a flat column — the field name and type on this value object are unchanged, only `WeeklyReportRepoImpl`'s query changes
+- **Citations (2026-07-12, FR-024–FR-025)**: `article_id` is required so `WeeklyReportRepoImpl.fetch_top_articles()` and `GenerateWeeklyReportUseCase` can build `WeeklyReport.article_ids` as real UUIDs, ordered identically to the list passed into `WeeklyReportPrompt.render()`. The list's position (1-indexed) is the number the LLM is instructed to use for an inline `[N]` citation in `summary_text`; `article_ids[N-1]` resolves it back to a real article. This value object's field order IS the citation order — callers MUST NOT reorder `articles` between building this list and calling `render()`.
 
 ---
 
@@ -331,6 +333,12 @@ def render(
 ```
 
 Returns JSON with `{"title": "...", "summary_text": "..."}`.
+
+**Citations (2026-07-12, FR-024)**: The rendered prompt lists each article in `articles` with a 1-indexed bracket number (`[1]`, `[2]`, ...) matching its position in the list, and instructs the LLM to mark any sentence in `summary_text` that draws on a specific article with that number inline, e.g. `"...launched a new model [1], while..."`. The LLM is never given article UUIDs and is not asked to echo one back — `N` is purely a position reference that the use case resolves against the same-order `article_ids` it stores on `WeeklyReport` (see `ArticleSummaryForReport` notes above). No change to the JSON output shape — citations live inside the `summary_text` string.
+
+### `WeeklyReportTranslationPrompt` (translation, citation-safe as of 2026-07-12)
+
+`src/modules/intelligence/domain/value_objects/weekly_report_translation_prompt.py`, used by `TranslateWeeklyReportUseCase` to produce per-language rows in `weekly_reports_translation`. The prompt instructs the LLM to translate `title` and `summary_text` while preserving every `[N]` citation marker verbatim — same digits, same count, same position relative to the sentence they annotate. After receiving the translated `summary_text`, the use case extracts the set of `[N]` tokens from both the original and the translation; if they don't match exactly, the translated `summary_text` is discarded and the original English `summary_text` is stored for that language's row instead (FR-026) — this fallback never blocks report generation, it only affects that one language's summary text.
 
 ### `ImageGenerationPrompt`
 
@@ -454,6 +462,12 @@ Same additions as `ArticleOut` (view count especially relevant in detail view).
 ### New `WeeklyReportOut` schema
 
 ```python
+class ArticleSourceOut(BaseModel):  # 2026-07-12 addition (FR-027) — same shape as chat's ArticleSource
+    id: UUID
+    title: str
+    url: str
+    public_article_id: UUID  # mirrors id; Article has one UUID PK, no separate public identifier
+
 class WeeklyReportOut(BaseModel):
     id: UUID
     topic_id: Optional[UUID]
@@ -464,7 +478,10 @@ class WeeklyReportOut(BaseModel):
     article_count: int
     status: str
     created_at: datetime
+    sources: List[ArticleSourceOut] = []  # 2026-07-12 addition (FR-027), see Citations note below
 ```
+
+**Citations (2026-07-12, FR-027–FR-028)**: `sources[i]` corresponds to citation marker `[i+1]` in `summary_text`, resolved by looking up `Article` rows for `report.article_ids` in stored order. Each `article_ids` entry is parsed as a UUID individually; entries that fail to parse (pre-existing reports whose `article_ids` hold title strings from before this fix) are skipped rather than raising — such reports simply resolve to an empty `sources` list, so their `summary_text` renders as plain text with no citation styling on the frontend (FR-028). No backfill or regeneration of old reports is performed.
 
 ---
 

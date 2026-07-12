@@ -53,6 +53,8 @@ Track a view event for an article. Increments Redis counter (deduped by client I
 
 ---
 
+**2026-07-12 addition (FR-027)**: `WeeklyReportOut` (used by all three endpoints below) gains a `sources: ArticleSourceOut[]` field — `{id, title, url, public_article_id}` per entry, index-aligned with the `[N]` citation markers in `summary_text`. Empty for reports generated before this field existed. See data-model.md's "New `WeeklyReportOut` schema" section.
+
 ### `GET /weekly-reports`
 
 List weekly reports for a topic.

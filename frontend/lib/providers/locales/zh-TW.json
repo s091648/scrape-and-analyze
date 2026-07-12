@@ -33,7 +33,9 @@
     "articleCount": "{count} 篇文章",
     "selectWeek": "選擇報告週次",
     "collapse": "收合報告",
-    "expand": "顯示報告"
+    "expand": "顯示報告",
+    "pinReport": "向 AI 詢問本週報告",
+    "unpinReport": "將本報告的文章移出 AI 聊天"
   },
   "analysis": {
     "summary": "摘要",
@@ -182,7 +184,6 @@
     "sortTooltip": "選擇文章列表的排序方式",
     "sortScrapedAt": "抓取時間",
     "sortPublishedAt": "發布時間",
-    "sortCitationCount": "引用數",
     "sortViewCount": "瀏覽數",
     "sortSource": "來源",
     "sortTitle": "標題",
@@ -277,6 +278,12 @@
     "scraperSettings": "爬蟲設定",
     "userManagement": "使用者管理",
     "monitoring": "監控",
+    "metricDefinitions": "推薦指標",
+    "metricDefinitionsDescription": "開啟或關閉本部署追蹤的推薦指標。擷取邏輯與顯示設定僅維護者可修改。",
+    "metricEnabled": "已啟用",
+    "metricDisabled": "已停用",
+    "metricUpdateFailed": "更新指標失敗，請再試一次。",
+    "noMetricDefinitions": "此部署目前尚未設定任何指標。",
     "slug": "Slug（名稱）",
     "immutableAfterCreation": "建立後不可修改",
     "deactivateTopic": "停用主題？",
@@ -703,5 +710,8 @@
       "title": "瀏覽次數",
       "description": "這裡顯示這篇文章目前累積的瀏覽次數。"
     }
+  },
+  "metrics": {
+    "citation_count": "引用數"
   }
 }

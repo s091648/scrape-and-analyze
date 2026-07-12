@@ -33,7 +33,9 @@
     "articleCount": "{count} articles",
     "selectWeek": "Select report week",
     "collapse": "Hide report",
-    "expand": "Show report"
+    "expand": "Show report",
+    "pinReport": "Ask AI about this week's report",
+    "unpinReport": "Remove this report's articles from AI chat"
   },
   "analysis": {
     "summary": "Summary",
@@ -182,7 +184,6 @@
     "sortTooltip": "Choose how the article list is ordered",
     "sortScrapedAt": "Scraped At",
     "sortPublishedAt": "Published At",
-    "sortCitationCount": "Citation Count",
     "sortViewCount": "View Count",
     "sortSource": "Source",
     "sortTitle": "Title",
@@ -277,6 +278,12 @@
     "scraperSettings": "Scraper Settings",
     "userManagement": "User Management",
     "monitoring": "Monitoring",
+    "metricDefinitions": "Recommendation Metrics",
+    "metricDefinitionsDescription": "Enable or disable the recommendation-signal metrics tracked for this deployment. Extraction and display configuration are maintainer-only.",
+    "metricEnabled": "Enabled",
+    "metricDisabled": "Disabled",
+    "metricUpdateFailed": "Failed to update metric. Please try again.",
+    "noMetricDefinitions": "No metrics are configured for this deployment yet.",
     "slug": "Slug (name)",
     "immutableAfterCreation": "Immutable after creation",
     "deactivateTopic": "Deactivate topic?",
@@ -703,5 +710,8 @@
       "title": "View Count",
       "description": "This shows how many times the article has been viewed."
     }
+  },
+  "metrics": {
+    "citation_count": "Citations"
   }
 }

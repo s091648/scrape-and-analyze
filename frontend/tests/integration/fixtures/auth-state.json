@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "next-auth.session-token",
-      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..CLAf9HFT0plAIb5y.qjWnr8umUQAI1rwKsF_meOdS34InKJbq2fVfgO6T82TSfkFtazFIaC23ZvqaMh6ypI6WlJc0SPlM-Ea2B-LUvRII2TYNunDut5cQvu9OlOUjEamV1onwG1Gv5pl4BiPkbARITyEdL529Sp_Hdv-Dwl7UAAK1gK5sUkjbIYOFG3HxbhxJVzYXZPuNhTDxkKop2BaU___hJ1MdA4zG_4Nk0YlYmoiTrrSPlWy4nDRjx7aT80ZetVIsXn2-ISFl.SvwRvvrLhEuZF7HCPczVnQ",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..MZIdfzqVET3n6UP0.xri7SQCjVS_WRTEuSsWxzi2uvwi_0_XjmXTSZSOWrXzcn0X0KV15wWyQ30R_Fv6pu05KoxX2QCvifMF9fvwdx-vI7XhrItU9sYtFXWMFClY3kbgZh8KRjK2gTNmzac6RZGGY7Dbol9qJTDJ01uYvofLRoq7h2EmmZI0WUBWZkdMwRuZEaZVNzG0wwGgU-bG4inQJ4SW5KLyGiHTKHiBp1mxcA0Fxzu-GMbR_1NBMM_2YM_15ZnmLi-HLD0hk.voxlh-wQ-OV3_RB7A3LmDQ",
       "domain": "localhost",
       "path": "/",
-      "expires": 1815337407,
+      "expires": 1815382029,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

@@ -232,6 +232,134 @@
 
 ---
 
+## Phase 9: User Story 6 — Paragraph-Level Article Citations in Weekly Report (Priority: P5, added 2026-07-12)
+
+**Goal**: Weekly report summaries carry `[N]` inline citations resolvable to real articles (reusing the chat feature's citation UX); fixes the pre-existing `WeeklyReport.article_ids` bug (stored article titles instead of UUIDs) as a prerequisite. See spec.md FR-024–FR-029, plan.md Phase K.
+
+**Independent Test**: Generate a weekly report for a topic with several articles. Open it on the homepage — sentences drawing on a specific article show a small numbered citation marker; clicking a marker opens that article's detail dialog. A report generated before this phase shipped still renders its summary as plain text with no markers.
+
+### Implementation
+
+- [X] T093 [P] [US6] Add `article_id: UUID` field to `ArticleSummaryForReport` in `src/modules/intelligence/domain/value_objects/article_summary_for_report.py`. **Extended same day (FR-035)**: replaced the old hardcoded `citation_count: Optional[int]` field with `metrics: Dict[str, float]` (deployment-agnostic catalog metrics, metric_key → value) so the object isn't tied to one specific metric name.
+- [X] T094 [US6] Edit `WeeklyReportRepoImpl.fetch_top_articles()` in `src/infrastructure/persistence/intelligence/weekly_report_repo_impl.py` to additionally `SELECT Article.id` and populate `ArticleSummaryForReport.article_id`; depends on T093. **Extended same day (FR-035)**: the top-N ranking query (still ordered by `citation_count DESC, view_count DESC, published_at DESC`) no longer selects `ArticleMetricValue` directly — a second query fetches every non-NULL `article_metric_values` row for the selected article ids and groups them per-article into `ArticleSummaryForReport.metrics`, instead of filtering to `metric_key == "citation_count"` only
+- [X] T095 [P] [US6] Edit `WeeklyReportPrompt.render()` in `src/modules/intelligence/domain/value_objects/weekly_report_prompt.py` to render each article with a 1-indexed bracket number (`[1]`, `[2]`, ...) and add an instruction for the LLM to cite inline via `[N]` in `summary_text`, where `N` is the article's list position (not an LLM-supplied ID). **Extended same day (FR-035)**: each article's description also renders a `Metrics:` line (humanized metric key labels + view count, omitted when neither present) plus an instruction that metrics are one input among several, not a ranking to blindly follow — see `weekly_report_repo_impl.py`'s T094 update for the query-side change and `test_weekly_report_prompt.py` for coverage
+- [X] T096 [US6] Fix the `article_ids` bug in `GenerateWeeklyReportUseCase` (`src/modules/intelligence/application/use_cases/generate_weekly_report.py`, ~line 132): replace `article_ids = [str(a.title) for a in articles]` with `[str(a.article_id) for a in articles]`, order preserved so index i ↔ citation `[i+1]`; depends on T093, T094, T095
+- [X] T097 [P] [US6] **CORRECTED PATH**: Edit `WeeklyReportTranslationPrompt` in `src/modules/intelligence/domain/value_objects/translation_prompt.py` (not a separate `weekly_report_translation_prompt.py` file — it lives alongside the other translation prompt value objects) to instruct the LLM to preserve `[N]` citation markers verbatim (unchanged digits, count, and position) when translating `summary_text`
+- [X] T098 [US6] **CORRECTED SCOPE**: There is no standalone `TranslateWeeklyReportUseCase` — translation is handled by `GenerateWeeklyReportUseCase._translate_report()` / `_parse_translation_response()` in `src/modules/intelligence/application/use_cases/generate_weekly_report.py`. Added `_extract_citation_numbers()` and, after parsing the translated response, compare the set of `[N]` tokens against the original `report.summary_text`; on any mismatch, fall back to the original English `summary_text` for that language's translation row (title translation is kept regardless); depends on T097
+- [X] T099 [P] [US6] Add `ArticleSourceOut` schema (`id: UUID`, `title: str`, `url: str`, `public_article_id: UUID`) and a `sources: List[ArticleSourceOut] = []` field on `WeeklyReportOut` in `backend/schemas/weekly_report.py`
+- [X] T100 [US6] Edit `_resolve_sources()`/`_to_out()` in `backend/routers/weekly_reports.py` (now takes `db: Session`) to resolve `sources` by looking up `Article` rows for `report.article_ids` in order; wraps each entry's `UUID(...)` parse in try/except so pre-existing title-string `article_ids` are skipped (old reports resolve to an empty `sources` list, no error); all three call sites (`list_weekly_reports`, `get_latest_report`, `get_report_by_week`) updated to pass `db`; depends on T099, T096
+- [X] T101 [P] [US6] Extracted `parseInline`, `renderMarkdown`, the source-chip list, and the `ArticleDetailDialog`-open-on-click logic out of `frontend/components/features/chat/AnswerDisplay.tsx` into a new shared component `frontend/components/features/chat/cited-content.tsx` exporting `<CitedContent text sources showSourceList />`; refactored `AnswerDisplay.tsx` to render via `CitedContent` (passes `showSourceList={!isLoading}` to preserve the original streaming behavior where inline citations link immediately but the chip row only appears once streaming completes)
+- [X] T102 [P] [US6] Added `sources: ArticleSource[]` field to the `WeeklyReport` interface in `frontend/lib/api/weekly-reports.ts`, importing `ArticleSource` from `@/components/features/chat/types` (no import-cycle — `types.ts` has no imports). Also added `sources: []` to the existing mock objects in `frontend/tests/unit/weekly-report-widget.test.tsx` and `frontend/stories/WeeklyReportWidget.stories.tsx`
+- [X] T103 [US6] Edited `frontend/components/features/weekly-report/weekly-report-widget.tsx` to render `selected.summary_text` via `<CitedContent text={selected.summary_text} sources={selected.sources} />` (wrapped in a `text-sm text-neutral-700 leading-relaxed` div for inherited typography) instead of the manual `splitParagraphs(selected.summary_text).map(p => <p>)` block; removed the now-unused `splitParagraphs` helper; depends on T101, T102
+
+### Tests
+
+- [X] T104 [P] [US6] Added unit tests asserting `WeeklyReportPrompt.render()` produces a 1-indexed bracketed article list, the `[N]` citation instruction, and never leaks article UUIDs into the prompt, in `src/tests/unit/modules/intelligence/domain/test_weekly_report_prompt.py` (new file, matching this repo's actual `domain/test_*.py` flat-file convention rather than a `value_objects/` subfolder); depends on T095
+- [X] T105 [P] [US6] Extended `src/tests/unit/modules/intelligence/application/test_generate_weekly_report.py`: updated the `_summary()` helper to accept/generate `article_id`, and added `test_execute_populates_article_ids_with_real_uuids_in_prompt_order` — regression test for the title-string bug; depends on T096
+- [X] T106 [P] [US6] **CORRECTED PATH**: Added `test_translate_report_falls_back_to_english_summary_when_citations_mismatch` and `test_translate_report_keeps_translation_when_citations_match` to the same `test_generate_weekly_report.py` (there is no separate `translate_weekly_report.py` use case to test — see T098 correction); depends on T098
+- [X] T107 [P] [US6] **CORRECTED PATH**: Extended the existing `backend/tests/integration/test_weekly_reports.py` (not a new `backend/tests/test_weekly_reports.py` — that integration test already existed at this path) with `_article()` fixture helper plus `test_get_latest_resolves_sources_for_valid_article_ids` and `test_get_latest_returns_empty_sources_for_pre_existing_title_string_article_ids`; also asserted `"sources" in data` in the existing schema-fields test; depends on T100
+- [X] T108 [P] [US6] **CORRECTED PATH**: Created `frontend/tests/unit/rag/CitedContent.test.tsx` (matching the existing `rag/` subfolder convention used by `AnswerDisplay.test.tsx`, not a flat `cited-content.test.tsx`) asserting `[N]` renders as a clickable marker only when within `sources` range, renders out-of-range/sourceless `[N]` as literal text, and that `showSourceList={false}` hides the chip row while still linkifying inline citations; depends on T101
+- [X] T109 [P] [US6] **NO CHANGE NEEDED**: `frontend/tests/unit/rag/AnswerDisplay.test.tsx` already existed with comprehensive coverage of citation buttons, source chips, markdown, and thinking-block behavior: since `AnswerDisplay` now delegates rendering to `CitedContent` with an identical prop contract and output, this existing suite already serves as the no-regression test for the extraction — no new file created; depends on T101
+
+**Checkpoint**: Weekly report summaries show clickable `[N]` citations resolving to the correct article; translations preserve or safely fall back on citation markers; pre-existing reports remain unaffected
+
+---
+
+## Phase 10: User Story 7 — Pin This Week's Report into Chat (Priority: P6, added 2026-07-12)
+
+**Goal**: A report-level pin control on the weekly report widget bulk-adds the report's cited articles into the shared pinned-article chat context; the homepage's inline chat bar (`InlineQABarWrapper`) gains the pinning wiring it currently lacks (only the separate floating chatbot has it today). No backend or `chatbot-plugin` changes — reuses the existing `pinned_article_ids` filtered-retrieval mechanism unchanged. See spec.md FR-030–FR-034, plan.md Phase L.
+
+**Independent Test**: Open the homepage with a weekly report displayed. Click the report's pin control — the report's cited articles appear as pinned chips near the chat input. Ask a question — the request includes those article ids. Click the pin control again — the pinned chips clear.
+
+### Implementation
+
+- [X] T110 [P] [US7] Extend `PinnedArticleContextValue` in `frontend/lib/providers/pinned-article-provider.tsx` with `pinArticles(articles: PinnedArticle[])` (adds any not already present, no duplicates) and `areAllPinned(ids: string[])` (true only when every given id is currently pinned); existing per-article API (`togglePinnedArticle`, `removePinnedArticle`, `clearPinnedArticles`, `isPinned`) unchanged
+- [X] T111 [US7] Add a report-level pin control to `frontend/components/features/weekly-report/weekly-report-widget.tsx`: a Sparkles-style button (mirrors `article-card.tsx`'s existing per-article pin button), shown only when `selected.sources.length > 0`; toggling calls `pinArticles()` with `selected.sources` mapped to `PinnedArticle` when not fully pinned, or removes each of `selected.sources`'s ids when fully pinned (per FR-031, FR-032); depends on T110
+- [X] T112 [US7] Wire `usePinnedArticle()` into `frontend/components/features/chat/InlineQABarWrapper.tsx`: build the `X-Pinned-Article-Ids` header from `pinnedArticles` exactly as `FloatingChatbotWrapper.tsx` already does; render a compact pinned-chip row above `AgentInput` showing each pinned article's title with a per-chip remove action (per FR-033); depends on T110
+
+### Tests
+
+- [X] T113 [P] [US7] Unit test `pinArticles()` adds only articles not already present (no duplicates) and `areAllPinned()` returns true only when every given id is present, in `frontend/tests/unit/pinned-article-provider.test.tsx`; depends on T110
+- [X] T114 [P] [US7] Unit test: the weekly report widget's pin control is absent when `sources` is empty, pins all cited articles when none/some are pinned, and unpins all of them when all are already pinned, in `frontend/tests/unit/weekly-report-widget.test.tsx`; depends on T111
+- [X] T115 [P] [US7] Unit test: `InlineQABarWrapper` includes `X-Pinned-Article-Ids` in the chat request headers when articles are pinned, and omits it when none are pinned, in `frontend/tests/unit/rag/InlineQABarWrapper.test.tsx`; depends on T112
+
+**Checkpoint**: Weekly report's cited articles can be pinned into the homepage chat in one click; pinned state is visible and removable; chat requests carry the pinned article ids using the existing mechanism
+
+---
+
+## Phase 11: User Story 8 & 9 — Generalized Metric Display + Admin Enable/Disable (Priority: P7, added 2026-07-12)
+
+**Goal**: Any catalog metric automatically appears as a badge on article cards/detail dialog and as a sort option, driven by a new public display-metadata endpoint; administrators can toggle a metric's enabled state from a new admin page without touching its extraction/display configuration. See spec.md FR-036–FR-042, plan.md Phase M.
+
+**Independent Test**: With two catalog metrics enabled, open the articles list — cards show a badge per metric with correct icon/label; sort dropdown offers both. As admin, disable one metric on `/admin/metric-definitions` — it disappears from cards and sort everywhere, without a deployment.
+
+### Implementation
+
+- [X] T116 [US8][US9] **CORRECTED (2026-07-12)**: Migration 23 is still unshipped to production, so `icon_name` was added by editing `alembic/versions/23_article_recommendation_weekly_report.py` in place (nullable `icon_name VARCHAR(50)` column on `metric_definitions` + seed `INSERT` updated with `'quote'` for the two `citation_count` rows) — no new migration file, same rationale as the earlier citation_count/metric_definitions rework. Local Postgres (already stamped at revision 23) was brought in sync with a manual `ALTER TABLE ... ADD COLUMN` + `UPDATE` instead of a full downgrade/upgrade cycle, to avoid dropping unrelated local data.
+- [X] T117 [P] [US8][US9] Add `icon_name = Column(String(50), nullable=True)` to `models/metric_definition.py`; depends on T116
+- [X] T118 [P] [US8][US9] Create `backend/schemas/metric_definition.py`: `MetricDefinitionDisplayOut` (`metric_key`, `label_i18n_key`, `icon_name`, `format_hint`, `unit`), `MetricDefinitionAdminOut` (+ `id`, `provider_name`, `priority`, `enabled`), `MetricDefinitionEnabledUpdate` (`enabled: bool` only)
+- [X] T119 [US8][US9] Create `backend/services/metric_definition_service.py`: `get_enabled_metric_display(db)` (dedupe by `metric_key`, ordered by `priority`), `get_all_metric_definitions(db)`, `set_metric_definition_enabled(db, id, enabled)` (updates `enabled` only, no other field accepted); depends on T117, T118
+- [X] T120 [US8][US9] Create `backend/routers/metric_definitions.py`: `GET /metric-definitions` (public), `GET /admin/metric-definitions` (`require_admin`), `PATCH /admin/metric-definitions/{id}` (`require_admin`); register in `backend/main.py`; depends on T119
+- [X] T121 [P] [US8] Edit `backend/schemas/article.py`: replace `citation_count: Optional[int] = None` on `ArticleOut`/`ArticleDetailOut` with `metrics: Dict[str, float] = {}`
+- [X] T122 [US8] Edit `backend/services/article_service.py`: `build_article_out()` populates the generic `metrics` map (fetch every non-NULL `article_metric_values` row for the page's article ids, same two-query pattern as `WeeklyReportRepoImpl.fetch_top_articles()`); generalize `get_articles_paginated()`'s `if sort in ("citation_count", "view_count")` branch so any `sort` value matching an enabled `metric_definitions.metric_key` uses the same outerjoin+nullslast ordering, keyed dynamically instead of hardcoded; depends on T121, T117
+- [X] T123 [P] [US8][US9] Create `frontend/lib/api/metric-definitions.ts`: `fetchEnabledMetricDefinitions()` (public), `fetchAllMetricDefinitions()` / `updateMetricDefinitionEnabled(id, enabled)` (admin, under `/api/proxy/admin/metric-definitions`)
+- [X] T124 [P] [US8] Update `frontend/lib/api/articles.ts`'s `Article`/`ArticleDetail` types: `citation_count?: number | null` → `metrics: Record<string, number>`
+- [X] T125 [P] [US8] Create `frontend/components/features/articles/metric-icons.ts` exporting a whitelisted `Record<string, LucideIcon>` + default fallback icon (e.g. `BarChart3`)
+- [X] T126 [US8] Edit `article-card.tsx`: replace the hardcoded `citation_count > 0 && <Quote>` badge with a loop over `Object.entries(article.metrics)`, resolving each metric's icon/label via `fetchEnabledMetricDefinitions()` (fetched once and shared across cards, not per-card); depends on T123, T124, T125
+- [X] T127 [US8] Edit `article-detail-dialog.tsx`: same generalization as T126; depends on T123, T124, T125
+- [X] T128 [US8] Edit `sort-select.tsx`: fetch `fetchEnabledMetricDefinitions()` once, append one `SORT_OPTIONS` entry per returned metric after the fixed fields; depends on T123
+- [X] T129 [US9] Create `frontend/app/admin/metric-definitions/page.tsx`: fetch `fetchAllMetricDefinitions()`, render one card per row grouped by `metric_key` (mirrors `admin/llm-providers/page.tsx`'s card + `Switch` pattern), toggle calls `updateMetricDefinitionEnabled()` optimistically with rollback on failure — no create/edit/delete/reorder controls; depends on T123
+- [X] T130 [US9] Add the new tab to `frontend/app/settings/layout.tsx`'s admin nav list; add `admin.metricDefinitions` and related labels to `en.json`/`zh-TW.json`; depends on T129
+
+### Tests
+
+- [X] T131 [P] [US8][US9] Backend test: `GET /metric-definitions` returns only `enabled=true` rows, deduplicated by `metric_key`, without `provider_name`/`extractor_spec` in the response; depends on T120
+- [X] T132 [P] [US8][US9] Backend test: `GET /admin/metric-definitions` and `PATCH /admin/metric-definitions/{id}` both return 401/403 for a non-admin caller; depends on T120
+- [X] T133 [P] [US8][US9] Backend test: `PATCH /admin/metric-definitions/{id}` updates only `enabled`; other fields in the request body are never applied; depends on T120
+- [X] T134 [P] [US8] Backend test: `GET /articles` returns a `metrics` map covering every catalog metric the article has a value for, and sorting by an enabled metric_key orders correctly with nulls-last regardless of direction; depends on T122
+- [X] T135 [P] [US8] Frontend test: `article-card.tsx` renders one badge per `metrics` entry with the correct icon/label from a mocked `fetchEnabledMetricDefinitions()`, falling back to the default icon when `icon_name` is null; depends on T126
+- [X] T136 [P] [US8] Frontend test: `sort-select.tsx` includes a dynamically-fetched metric option alongside the fixed fields; depends on T128
+- [X] T137 [P] [US9] Frontend test: `admin/metric-definitions/page.tsx` toggles a `Switch`, calls `updateMetricDefinitionEnabled()`, and rolls back UI state if the call fails; depends on T129
+
+**Checkpoint**: New catalog metrics require zero frontend code changes to appear on cards/detail/sort; admins can toggle metrics without a deployment; extraction/display config remains migration-only
+
+---
+
+## Phase 12: Metric/Provider Table Split + arXiv Citation Coverage (Priority: P7, added 2026-07-12 same day, supersedes parts of Phase 11)
+
+**Goal**: Admin page shows one row per metric_key with zero extraction-plumbing (provider/priority) leakage; arXiv-only articles (no DOI) can get `citation_count` refreshed via Semantic Scholar's arXiv-ID lookup, which OpenAlex's API doesn't support. See spec.md's follow-up Clarifications on US8/US9, plan.md Phase N.
+
+**Independent Test**: As admin, open `/admin/metric-definitions` — exactly one row per metric_key, no provider/priority text anywhere, with an icon dropdown and enabled toggle. Seed an article with only an `arxiv_id` (no `doi`) in metadata, run `refresh_metrics.py` against a reachable Semantic Scholar API — `citation_count` gets populated where it previously would not have been.
+
+### Implementation
+
+- [X] T138 [US8][US9] Edit `alembic/versions/23_article_recommendation_weekly_report.py` in place again (still unshipped): split `metric_definitions` down to metric-key-level only (`metric_key` UNIQUE, `label_i18n_key`, `format_hint`, `unit`, `icon_name`, `enabled`); add new `metric_providers` table (`metric_definition_id` FK CASCADE, `provider_name`, `priority`, `extractor_type`, `extractor_spec`, UNIQUE(metric_definition_id, provider_name)); reseed `citation_count` with one `metric_definitions` row + three `metric_providers` rows (`openalex` prio 1, `semantic_scholar` prio 2, `semantic_scholar_arxiv` prio 3); update `downgrade()` to drop `metric_providers` before `metric_definitions`. Sync local Postgres in place (hand-run equivalent DROP/CREATE/reseed, not a full downgrade/upgrade)
+- [X] T139 [P] [US8][US9] Rewrite `models/metric_definition.py` to the metric-key-only shape; create `models/metric_provider.py`; register both in `models/__init__.py`; depends on T138
+- [X] T140 [US8][US9] Rewrite `shared/metric_definition.py::load_enabled_metric_definitions()` to join `metric_definitions`+`metric_providers` (filtered `enabled=True`), keeping the same flat output dict shape so `resilient_metrics_service.py` needs no changes; depends on T139
+- [X] T141 [P] [US8][US9] Add `SemanticScholarClient.fetch_by_arxiv_id(arxiv_id)` (`src/infrastructure/collection/clients/semantic_scholar_client.py`), same shape as `fetch_by_doi()`, hits `paper/ARXIV:<id>`
+- [X] T142 [US8][US9] Add `"semantic_scholar_arxiv"` entry to `build_provider_fetchers()` (`src/infrastructure/collection/metrics/resilient_metrics_service.py`), calling `fetch_by_arxiv_id()` only when `ids.get("arxiv_id")`; no OpenAlex equivalent (its API has no arXiv-ID lookup); depends on T141
+- [X] T143 [P] [US8][US9] Rewrite `backend/schemas/metric_definition.py`: `MetricDefinitionAdminOut` drops `provider_name`/`priority`; `MetricDefinitionAdminUpdate` (renamed from `MetricDefinitionEnabledUpdate`) accepts `enabled` and `icon_name`, the latter validated against a module-level `ICON_WHITELIST` via a Pydantic `field_validator`
+- [X] T144 [US8][US9] Rewrite `backend/services/metric_definition_service.py`: `get_all_metric_definitions()` becomes a plain `metric_definitions` query; `update_metric_definition(db, id, *, enabled, icon_name)` (renamed from `set_metric_definition_enabled`) sets whichever field(s) are provided; depends on T139, T143
+- [X] T145 [US8][US9] Update `backend/routers/metric_definitions.py`'s `PATCH /admin/metric-definitions/{id}` to use `MetricDefinitionAdminUpdate`/`update_metric_definition`; depends on T144
+- [X] T146 [P] [US8][US9] Expand `frontend/components/features/articles/metric-icons.ts`'s whitelist from 8 to 20 icons (`download`, `share-2`, `bookmark`, `heart`, `message-square`, `flame`, `trophy`, `hash`, `percent`, `clock`, `book-open`, `network`); export `METRIC_ICON_NAMES: string[]`
+- [X] T147 [P] [US8][US9] Update `frontend/lib/api/metric-definitions.ts`: `MetricDefinitionAdmin` drops `provider_name`/`priority`; replace `updateMetricDefinitionEnabled(id, enabled)` with `updateMetricDefinition(id, { enabled?, icon_name? })`
+- [X] T148 [US8][US9] Rewrite `frontend/app/admin/metric-definitions/page.tsx`: one row per metric_key with a `Switch` (enabled) + `NativeSelect` (icon, options from `METRIC_ICON_NAMES`), both calling `updateMetricDefinition()` optimistically with rollback on failure; no provider/priority displayed; depends on T146, T147
+- [X] T149 [US8][US9] Update `CLAUDE.md`: correct "LLM Provider Chain" section (no `providers.toml` file exists; DB-driven via `llm_providers` table since migration 16); add new "Metric Provider Chain" section documenting the `metric_definitions`/`metric_providers` split and contrasting it with the LLM chain; add `MetricDefinition`/`MetricProvider` to ORM Models; add missing router rows (`llm_providers.py`, `metric_definitions.py`, `weekly_reports.py`) to Backend Routers table
+
+### Tests
+
+- [X] T150 [P] [US8][US9] Backend integration test: `GET /admin/metric-definitions` returns exactly one row per metric_key even with multiple `metric_providers` rows, and that row exposes neither `provider_name` nor `priority`; depends on T145
+- [X] T151 [P] [US8][US9] Backend integration test: `PATCH /admin/metric-definitions/{id}` accepts a whitelisted `icon_name` and persists it, rejects (422) a non-whitelisted one, and leaves the other field untouched when only one of `enabled`/`icon_name` is sent; depends on T145
+- [X] T152 [P] [US8][US9] Backend integration test: `GET /articles?sort=<non-citation metric_key>` still orders correctly post-split (regression guard for T138–T140); depends on T140
+- [X] T153 [P] [US8][US9] Backend unit test: `SemanticScholarClient.fetch_by_arxiv_id()` hits `paper/ARXIV:<id>`, raises `SemanticScholarRateLimitedError` on 429, returns `None` on other failures; depends on T141
+- [X] T154 [P] [US8][US9] Backend unit test: `build_provider_fetchers()["semantic_scholar_arxiv"]` only calls `fetch_by_arxiv_id()` when `arxiv_id` is present; `build_provider_fetchers()["openalex"]` is never called with only an `arxiv_id` (regression guard for the original bug); depends on T142
+- [X] T155 [P] [US8][US9] Frontend unit test: admin page renders one card per metric_key with no provider/priority text visible, even when the underlying fixture has multiple providers for the same metric_key; depends on T148
+- [X] T156 [P] [US8][US9] Frontend unit test: changing the icon `NativeSelect` calls `updateMetricDefinition(id, { icon_name })`; toggling the `Switch` calls it with `{ enabled }`; both roll back their respective field on failure; depends on T148
+
+**Checkpoint**: Admin page fully decoupled from extraction plumbing; arXiv-only articles are no longer silently skipped by the citation refresh job
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -245,6 +373,10 @@
 - **US3 (Phase 6)**: Depends on Phase 2 (needs `WeeklyReport`, `UserTopicSubscription`, `UserNotificationSettings` ORMs T006, T007); T051 additionally depends on T010 (`ArticleMetricValue` ORM); otherwise largely independent of Phase 3–5
 - **US4 (Phase 7)**: Depends on Phase 6 (weekly reports must be generable for meaningful testing)
 - **Polish (Phase 8)**: Depends on all user story phases
+- **US6 (Phase 9, added 2026-07-12)**: Depends on Phase 7 (extends the already-displayed weekly report widget with citations); independent of Phase 8 Polish
+- **US7 (Phase 10, added 2026-07-12)**: Depends on Phase 9 (needs `WeeklyReportOut.sources` to have real article ids to pin); independent of Phase 8 Polish
+- **US8/US9 (Phase 11, added 2026-07-12)**: Depends on Phase 2 (needs `MetricDefinition`/`ArticleMetricValue` ORMs) and Phase 3/US1 (extends the already-shipped `citation_count` display it generalizes); independent of Phases 6–10 (weekly report / pinning)
+- **US8/US9 (Phase 12, added 2026-07-12 same day)**: Depends on Phase 11 completing first (splits the table Phase 11 just built); independent of Phases 6–10
 
 ### User Story Dependencies
 
@@ -255,6 +387,9 @@
 | US5 (P2) | Phase 2 complete | Shares `filter-bar.tsx` with US2; order: US2 → US5 |
 | US3 (P3) | Phase 2 complete | New DDD bounded context, largely independent; T051 depends on T010 |
 | US4 (P4) | US3 complete | Needs weekly reports to exist in DB |
+| US6 (P5, added 2026-07-12) | US4 complete | Adds citation resolution/rendering on top of the existing weekly report pipeline and widget; also fixes the `article_ids` bug that predates US6 |
+| US7 (P6, added 2026-07-12) | US6 complete | Bulk-pins US6's `sources` into the existing `usePinnedArticle` context; purely additive frontend wiring, no backend/RAG changes |
+| US8/US9 (P7, added 2026-07-12) | US1 complete | Generalizes US1's citation_count-only display/sort into any enabled catalog metric, plus a narrow admin-toggle exception to FR-022; independent of US2–US7 |
 
 ### 2026-07-12 Rework Note
 
@@ -289,6 +424,11 @@ T040–T046 (domain layer) run in parallel — entities, interfaces, value objec
 T048, T049, T050, T052, T053 (infrastructure) run in parallel after T042/T043.
 T056, T057, T058, T059, T060 (backend API + frontend settings) run in parallel.
 T061, T062, T063, T064 (tests) run in parallel.
+
+### Phase 9 (US6, added 2026-07-12)
+
+T093, T095, T097, T099, T101, T102 (independent value-object/schema/component edits) run in parallel.
+T104–T109 (tests) run in parallel once their respective implementation task lands.
 
 ### Parallel Example: Phase 6 Domain Layer
 
@@ -325,6 +465,7 @@ Task T046: Create image_generation_prompt.py value object
 5. Phase 6 (US3) → Weekly report generation + subscriptions + notifications live
 6. Phase 7 (US4) → Homepage weekly report widget live
 7. Phase 8 → E2E tests and final validation
+8. Phase 9 (US6, added 2026-07-12) → Weekly report citations live
 
 ### Parallel Team Strategy
 

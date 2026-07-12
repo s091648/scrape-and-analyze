@@ -316,12 +316,17 @@ test.describe("Feature Chat Spotlight Tour", () => {
       await mockArticlesWithVectors(page);
       await mockLanguages(page);
       // Isolate the chat spotlight tour from the other, unrelated spotlights
-      // that also target "/" or "/articles".
+      // that also target "/" or "/articles". Only seeds when unset — this
+      // script reruns on every navigation (including page.reload()), so an
+      // unconditional write would clobber "feature-chat-2026-07" once a test
+      // marks it seen and then reloads to assert persistence.
       await page.addInitScript(() => {
-        localStorage.setItem(
-          "tutorial_seen_tours",
-          JSON.stringify(["feature-weekly-report-2026-07", "feature-articles-stats-2026-07"]),
-        );
+        if (!localStorage.getItem("tutorial_seen_tours")) {
+          localStorage.setItem(
+            "tutorial_seen_tours",
+            JSON.stringify(["feature-weekly-report-2026-07", "feature-articles-stats-2026-07"]),
+          );
+        }
       });
     });
 
