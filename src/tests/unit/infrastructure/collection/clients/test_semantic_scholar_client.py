@@ -139,3 +139,47 @@ def test_fetch_papers_network_error():
     entries = client.fetch_papers(query="test")
 
     assert entries == []
+
+
+# ── fetch_by_arxiv_id (2026-07-12) ───────────────────────────────────────────
+# Added so citation_count can be refreshed for arXiv preprints with no DOI —
+# OpenAlex has no arXiv-ID lookup, Semantic Scholar does (paper/ARXIV:<id>).
+
+def test_fetch_by_arxiv_id_returns_raw_json():
+    client, mock_http = _make_client(SAMPLE_PAPER)
+    result = client.fetch_by_arxiv_id("2501.12345")
+
+    assert result == SAMPLE_PAPER
+    called_url = mock_http.get.call_args[0][0]
+    assert called_url == "https://api.semanticscholar.org/graph/v1/paper/ARXIV:2501.12345"
+
+
+def test_fetch_by_arxiv_id_rate_limit_raises():
+    from src.infrastructure.collection.clients.semantic_scholar_client import (
+        SemanticScholarClient,
+        SemanticScholarRateLimitedError,
+    )
+
+    mock_http = MagicMock()
+    mock_response_429 = Mock()
+    mock_response_429.status_code = 429
+    exc = requests.exceptions.HTTPError("429 Too Many Requests")
+    exc.response = mock_response_429
+    mock_http.get.side_effect = exc
+
+    client = SemanticScholarClient(api_key=None, http_client=mock_http)
+
+    with pytest.raises(SemanticScholarRateLimitedError):
+        client.fetch_by_arxiv_id("2501.12345")
+
+
+def test_fetch_by_arxiv_id_network_error_returns_none():
+    from src.infrastructure.collection.clients.semantic_scholar_client import SemanticScholarClient
+
+    mock_http = MagicMock()
+    mock_http.get.side_effect = Exception("Network failure")
+
+    client = SemanticScholarClient(api_key=None, http_client=mock_http)
+    result = client.fetch_by_arxiv_id("2501.12345")
+
+    assert result is None

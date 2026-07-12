@@ -83,6 +83,9 @@ Root layout wraps: `SessionProviderWrapper > TopicProvider > I18nProvider > Erro
 | `topics.py` | `/topics` | Write ops require_admin |
 | `scraper_keywords.py` | `/scraper-keywords` | All require_admin |
 | `languages.py` | `/api` | Public (resolves language from client IP via GeoIP) |
+| `llm_providers.py` | `/llm-providers` | All require_admin |
+| `metric_definitions.py` | `/` | `GET /metric-definitions` public; `/admin/metric-definitions` (GET, PATCH) require_admin |
+| `weekly_reports.py` | `/weekly-reports` | Public |
 
 ### Scraper Architecture (Hexagonal / DDD)
 
@@ -109,21 +112,19 @@ The scheduled runner (`src/entrypoints/cli/main.py`) adds 0-180s random startup 
 
 ### LLM Provider Chain
 
-`ResilientLLMService` holds an ordered list of `ProviderHandler` objects (sorted by priority). Each pairs a provider with a `SlidingWindowStrategy` rate limiter (rpm/tpm/rpd). On `analyze()`, walks providers in priority order; falls back on `RateLimitExhausted` or any exception. Provider config lives in `providers.toml` at project root:
+`ResilientLLMService` holds an ordered list of `ProviderHandler` objects (sorted by priority). Each pairs a provider with a `SlidingWindowStrategy` rate limiter (rpm/tpm/rpd). On `analyze()`, walks providers in priority order; falls back on `RateLimitExhausted` or any exception.
 
-```toml
-[[providers]]
-name = "gemini"           # "gemini", "claude", or "openrouter"
-priority = 1              # lower = tried first
-model = "gemini-3-flash-preview"
-api_key_env = "GEMINI_API_KEY"
+**Provider config is DB-driven, not a TOML file** — there is no `providers.toml` in this repo; a prior file-based config was superseded by the `llm_providers` table (`models/llm_provider.py`) in migration `16_add_llm_providers.py`. `shared/llm_provider.py::load_active_providers()` / `load_active_embedding_providers()` / `load_active_multimodal_provider()` load active rows filtered by `type` (`'llm'` / `'embedding'` / `'multimodal'`) and `is_active=True`, ordered by `priority`; `src/bootstrap.py::build_llm_service()` and the weekly-report image pipeline consume these directly from the DB on every run — no config file, no redeploy needed to change a provider, model, or priority. Managed at runtime via `backend/routers/llm_providers.py` (full CRUD + `/reorder`, all `require_admin`) and the `/admin/llm-providers` dashboard page.
 
-[providers.strategy]
-type = "sliding_window"
-rpm = 5
-tpm = 1000000
-rpd = 20
-```
+### Metric Provider Chain
+
+Same shape as the LLM Provider Chain (a `ResilientMetricsService` walks providers in priority order, `src/infrastructure/collection/metrics/resilient_metrics_service.py`), but the *reason* for multiple providers per metric is different: LLM providers are interchangeable (any of them can generate text, so priority is a pure rate-limit fallback), while metric providers are **not** interchangeable — `OpenAlexClient`/`SemanticScholarClient` each only know how to query their own external citation database via their own identifier scheme. `priority` instead orders which provider to try when an article's available identifiers (DOI and/or arXiv ID) and cross-database coverage make more than one *possibly* able to answer.
+
+Two tables, split 2026-07-12 so the admin-facing and maintainer-only concerns don't leak into each other:
+- **`metric_definitions`** (`models/metric_definition.py`) — one row per `metric_key` (e.g. `citation_count`). Display config (`label_i18n_key`, `icon_name`, `format_hint`, `unit`) + `enabled`. `icon_name` and `enabled` are the *only* admin-editable fields, via `PATCH /admin/metric-definitions/{id}` (`backend/routers/metric_definitions.py`) and the `/admin/metric-definitions` dashboard page; `icon_name` is validated server-side against a whitelist mirrored in `backend/schemas/metric_definition.py` (`ICON_WHITELIST`) and `frontend/components/features/articles/metric-icons.ts` (`METRIC_ICON_NAMES`) — keep both in sync when adding an icon.
+- **`metric_providers`** (`models/metric_provider.py`) — one row per `(metric_key, provider_name)`. Extraction config only (`provider_name`, `priority`, `extractor_type`, `extractor_spec`) — maintainer-only, migration + code review, never admin-editable. `extractor_type='json_path'` is declarative (a JMESPath string evaluated by `JsonPathMetricExtractor` — safe to store as data, never executable code); `extractor_type='code'` selects a named entry from a fixed in-code registry.
+
+`shared/metric_definition.py::load_enabled_metric_definitions()` joins both tables (filtered to `metric_definitions.enabled=True`) into the flat shape `ResilientMetricsService` expects. Walked by `src/entrypoints/cli/refresh_metrics.py` (recurring cron, keeps `article_metric_values` fresh for articles with a DOI and/or arXiv ID) — independent of the opportunistic free-seed at scrape time (`ProcessScrapedArticleUseCase` forwarding `ScrapedArticle.metric_seeds`, which bypasses this abstraction entirely, no HTTP call). Note: OpenAlex has no arXiv-ID lookup (DOI/PMID/PMCID/MAG ID only); Semantic Scholar does (`paper/ARXIV:<id>`) — `semantic_scholar_arxiv` is a separate `metric_providers` row from `semantic_scholar` (DOI-based) for exactly this reason.
 
 ### ORM Models
 
@@ -135,6 +136,7 @@ All models in `models/` use UUID primary keys and share a single `Base = declara
 - Translation uses a parallel-table pattern: `AnalysisTranslation`, `TagTranslation`, `TagGroupTranslation` each have a `language` column + unique constraint on `(parent_id, language)`. English content was normalized into translations by migration 17.
 - `configure_mappers()` is called in `tag.py` to resolve circular mapper dependencies
 - `ArxivKeyword` is legacy — superseded by `ScraperKeyword`
+- `MetricDefinition` (per `metric_key`, admin-editable `enabled`/`icon_name`) and `MetricProvider` (per `metric_key`+`provider_name`, maintainer-only extraction config) — see Metric Provider Chain above
 
 ### Observability
 

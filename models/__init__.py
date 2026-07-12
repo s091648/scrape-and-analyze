@@ -5,6 +5,7 @@ from models.article import Article
 from models.article_chunk import ArticleChunk  # noqa: F401
 from models.article_metrics import ArticleMetrics  # noqa: F401
 from models.metric_definition import MetricDefinition  # noqa: F401
+from models.metric_provider import MetricProvider  # noqa: F401
 from models.article_metric_value import ArticleMetricValue  # noqa: F401
 from models.analysis import Analysis
 from models.analyses_translation import AnalysesTranslation

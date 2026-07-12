@@ -91,6 +91,34 @@ class SemanticScholarClient:
             logger.error("semantic_scholar_fetch_by_doi_failed", doi=doi, error=str(e))
             return None
 
+    def fetch_by_arxiv_id(self, arxiv_id: str) -> Optional[dict]:
+        """Fetch a single paper by arXiv ID. Returns the raw parsed JSON dict, same shape as
+        fetch_by_doi() — used as a fallback for arXiv preprints that don't (yet) have a DOI,
+        which OpenAlex cannot look up directly (it only indexes DOI/PMID/PMCID/MAG ID)."""
+        headers = {"x-api-key": self._api_key} if self._api_key else {}
+        try:
+            response = self._http.get(
+                f"https://api.semanticscholar.org/graph/v1/paper/ARXIV:{arxiv_id}",
+                params={"fields": SEMANTIC_SCHOLAR_FIELDS},
+                headers=headers,
+                timeout=30,
+            )
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                logger.warning("semantic_scholar_rate_limited", url="paper/ARXIV:" + arxiv_id)
+                raise SemanticScholarRateLimitedError(str(exc)) from exc
+            logger.error("semantic_scholar_fetch_by_arxiv_id_failed", arxiv_id=arxiv_id, error=str(exc))
+            return None
+        except Exception as e:
+            logger.error("semantic_scholar_fetch_by_arxiv_id_failed", arxiv_id=arxiv_id, error=str(e))
+            return None
+
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error("semantic_scholar_fetch_by_arxiv_id_failed", arxiv_id=arxiv_id, error=str(e))
+            return None
+
     def fetch_papers(
         self,
         query: str,

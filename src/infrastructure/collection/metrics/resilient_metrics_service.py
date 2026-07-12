@@ -30,6 +30,10 @@ def build_provider_fetchers() -> Dict[str, Callable[[Dict[str, str]], Optional[d
     return {
         "openalex": lambda ids: openalex_client.fetch_by_doi(ids["doi"]) if ids.get("doi") else None,
         "semantic_scholar": lambda ids: semantic_scholar_client.fetch_by_doi(ids["doi"]) if ids.get("doi") else None,
+        # OpenAlex has no arXiv-ID lookup (only DOI/PMID/PMCID/MAG ID); Semantic Scholar does
+        # (paper/ARXIV:<id>) — this is the only provider that can resolve a metric for arXiv
+        # preprints that don't (yet) have a DOI. See alembic 23's semantic_scholar_arxiv seed row.
+        "semantic_scholar_arxiv": lambda ids: semantic_scholar_client.fetch_by_arxiv_id(ids["arxiv_id"]) if ids.get("arxiv_id") else None,
     }
 
 

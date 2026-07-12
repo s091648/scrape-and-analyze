@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.infrastructure.collection.metrics.resilient_metrics_service import (
     ResilientMetricsService,
     MetricHandler,
     build_resilient_metrics_service,
+    build_provider_fetchers,
 )
 
 
@@ -106,3 +107,46 @@ def test_build_wires_json_path_extractor_for_known_provider():
     ]
     service = build_resilient_metrics_service(definitions)
     assert service.tracked_metric_keys == ["citation_count"]
+
+
+# ── build_provider_fetchers (2026-07-12): semantic_scholar_arxiv fallback ───
+
+def test_provider_fetchers_includes_semantic_scholar_arxiv():
+    with patch("src.infrastructure.collection.clients.openalex_client.OpenAlexClient"), \
+         patch("src.infrastructure.collection.clients.semantic_scholar_client.SemanticScholarClient"):
+        fetchers = build_provider_fetchers()
+    assert "semantic_scholar_arxiv" in fetchers
+
+
+def test_semantic_scholar_arxiv_fetcher_uses_arxiv_id_not_doi():
+    mock_s2 = MagicMock()
+    with patch("src.infrastructure.collection.clients.openalex_client.OpenAlexClient"), \
+         patch("src.infrastructure.collection.clients.semantic_scholar_client.SemanticScholarClient", return_value=mock_s2):
+        fetchers = build_provider_fetchers()
+
+    fetchers["semantic_scholar_arxiv"]({"arxiv_id": "2501.12345"})
+    mock_s2.fetch_by_arxiv_id.assert_called_once_with("2501.12345")
+
+
+def test_semantic_scholar_arxiv_fetcher_returns_none_without_arxiv_id():
+    mock_s2 = MagicMock()
+    with patch("src.infrastructure.collection.clients.openalex_client.OpenAlexClient"), \
+         patch("src.infrastructure.collection.clients.semantic_scholar_client.SemanticScholarClient", return_value=mock_s2):
+        fetchers = build_provider_fetchers()
+
+    result = fetchers["semantic_scholar_arxiv"]({"doi": "10.1234/x"})  # no arxiv_id
+    assert result is None
+    mock_s2.fetch_by_arxiv_id.assert_not_called()
+
+
+def test_openalex_fetcher_still_ignores_arxiv_id():
+    """OpenAlex genuinely cannot look up by arXiv ID — confirmed against their docs — so its
+    fetcher must never be called with only an arxiv_id and no doi."""
+    mock_openalex = MagicMock()
+    with patch("src.infrastructure.collection.clients.openalex_client.OpenAlexClient", return_value=mock_openalex), \
+         patch("src.infrastructure.collection.clients.semantic_scholar_client.SemanticScholarClient"):
+        fetchers = build_provider_fetchers()
+
+    result = fetchers["openalex"]({"arxiv_id": "2501.12345"})
+    assert result is None
+    mock_openalex.fetch_by_doi.assert_not_called()

@@ -23,6 +23,7 @@ from backend.routers.monitoring import router as monitoring_router
 from backend.routers.chat import router as chat_router
 from backend.routers.user import router as user_router
 from backend.routers.weekly_reports import router as weekly_reports_router
+from backend.routers.metric_definitions import router as metric_definitions_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 VIEW_COUNT_FLUSH_INTERVAL = int(os.environ.get("VIEW_COUNT_FLUSH_INTERVAL", "900"))
@@ -75,6 +76,7 @@ app.include_router(monitoring_router)
 app.include_router(chat_router)
 app.include_router(user_router)
 app.include_router(weekly_reports_router)
+app.include_router(metric_definitions_router)
 
 
 @app.get("/health")
