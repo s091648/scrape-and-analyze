@@ -88,6 +88,10 @@ export const updatedSettingFixture = {
   is_active: false,
 }
 
+export const metricDefinitionsFixture = [
+  { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+]
+
 export async function mockApiRoutes(page: Page) {
   // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
   // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
@@ -126,6 +130,7 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxyPrefix('scraper-keywords'), route => route.fulfill({ json: [] }))
 
   await page.route(proxyPrefix('articles'), route => route.fulfill({ json: articleListFixture }))
+  await page.route(proxy('metric-definitions'), route => route.fulfill({ json: metricDefinitionsFixture }))
 
   // Specific routes registered last (higher priority in LIFO — override generic patterns above)
   await page.route(proxy('source-categories'), route =>

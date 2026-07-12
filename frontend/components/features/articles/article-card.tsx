@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles, Quote, Eye, Heart } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles, Eye, Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
 import { addFavorite, removeFavorite } from '@/lib/api/user'
@@ -10,6 +10,7 @@ import { ArticleDetailDialog } from './article-detail-dialog'
 import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
 import type { ArticleDetail } from '@/lib/api/articles'
+import { useMetricDefinitions } from './use-metric-definitions'
 
 export type { Article }
 
@@ -18,7 +19,6 @@ import { deriveDisplaySource, formatViaSource, toTitleCase } from './source-util
 interface ArticleCardProps extends Article {
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  citation_count?: number | null
   view_count?: number
   is_favorited?: boolean
   /** Marks this card as the Feature Spotlight target for the "pin to chat" tour step. */
@@ -27,9 +27,10 @@ interface ArticleCardProps extends Article {
   isStatsTutorialTarget?: boolean
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, citation_count, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, metrics, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
+  const metricDefs = useMetricDefinitions()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
   const { data: session, status } = useSession()
   const isAuthenticated = status === 'authenticated'
@@ -182,12 +183,23 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   {new Date(scraped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
               )}
-              {citation_count != null && citation_count > 0 && (
-                <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
-                  <Quote className="h-3 w-3" />
-                  {citation_count.toLocaleString()}
-                </span>
-              )}
+              {Object.entries(metrics ?? {})
+                // Only render metrics that are currently enabled (present in the public
+                // display-metadata list) — a disabled metric's stored value stays in the
+                // API response, but its badge must disappear everywhere (spec.md edge cases).
+                .filter(([metricKey]) => metricDefs[metricKey])
+                .map(([metricKey, value]) => {
+                  const def = metricDefs[metricKey]
+                  return (
+                    <span
+                      key={metricKey}
+                      className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground"
+                      title={t(def.label_i18n_key)}
+                    >
+                      {value.toLocaleString()}
+                    </span>
+                  )
+                })}
               {view_count != null && view_count > 0 && (
                 <span
                   id={isStatsTutorialTarget ? "tutorial-target-article-view-count" : undefined}

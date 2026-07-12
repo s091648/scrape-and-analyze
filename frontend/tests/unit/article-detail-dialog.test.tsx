@@ -15,6 +15,11 @@ vi.mock('@/components/features/articles/source-utils', () => ({
   formatViaSource: (v: string) => `via:${v}`,
 }))
 
+const mockUseMetricDefinitions = vi.fn()
+vi.mock('@/components/features/articles/use-metric-definitions', () => ({
+  useMetricDefinitions: () => mockUseMetricDefinitions(),
+}))
+
 const baseProps = {
   open: true,
   onOpenChange: vi.fn(),
@@ -32,6 +37,7 @@ const baseProps = {
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseI18n.mockReturnValue({ t: (k: string) => k, locale: 'en' })
+  mockUseMetricDefinitions.mockReturnValue({})
 })
 
 describe('ArticleDetailDialog', () => {
@@ -88,6 +94,24 @@ describe('ArticleDetailDialog', () => {
     const { ArticleDetailDialog } = await import('@/components/features/articles/article-detail-dialog')
     render(<ArticleDetailDialog {...baseProps} />)
     expect(screen.getByText('rss')).toBeInTheDocument()
+  })
+
+  it('shows a metric badge when the article has an enabled metric', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleDetailDialog } = await import('@/components/features/articles/article-detail-dialog')
+    const detail = { ...baseProps.detail, metrics: { citation_count: 42 } }
+    render(<ArticleDetailDialog {...baseProps} detail={detail as any} />)
+    expect(screen.getByText(/42 metrics\.citation_count/)).toBeInTheDocument()
+  })
+
+  it('does not show a metric badge for a metric that is not currently enabled', async () => {
+    mockUseMetricDefinitions.mockReturnValue({})
+    const { ArticleDetailDialog } = await import('@/components/features/articles/article-detail-dialog')
+    const detail = { ...baseProps.detail, metrics: { citation_count: 42 } }
+    render(<ArticleDetailDialog {...baseProps} detail={detail as any} />)
+    expect(screen.queryByText(/42/)).not.toBeInTheDocument()
   })
 
   it('does not render dialog content when open=false', async () => {

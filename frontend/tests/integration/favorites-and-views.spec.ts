@@ -101,14 +101,14 @@ test.describe('Article detail dialog — citation and view counts', () => {
 
   test('shows citation and view counts once the detail loads', async ({ page }) => {
     await page.route((url: URL) => /\/api\/proxy\/articles\/[^/]+$/.test(url.pathname), route =>
-      route.fulfill({ json: { ...articleDetailFixture, citation_count: 42, view_count: 137 } })
+      route.fulfill({ json: { ...articleDetailFixture, metrics: { citation_count: 42 }, view_count: 137 } })
     )
 
     await page.goto('/articles')
     await page.waitForURL(/topic=/)
     await page.getByText('Digital Twin Innovation').click()
     await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByText('42 citations')).toBeVisible()
+    await expect(page.getByText('42 Citations')).toBeVisible()
     await expect(page.getByText('137 views')).toBeVisible()
   })
 })

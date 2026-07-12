@@ -61,8 +61,16 @@ vi.mock('@/lib/providers', () => ({
   }),
 }))
 
+const mockUseMetricDefinitions = vi.fn()
+vi.mock('@/components/features/articles/use-metric-definitions', () => ({
+  useMetricDefinitions: () => mockUseMetricDefinitions(),
+}))
+
 describe('ArticleCard', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUseMetricDefinitions.mockReturnValue({})
+  })
 
   it('renders title and source', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
@@ -174,5 +182,34 @@ describe('ArticleCard', () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
     const { container } = render(<ArticleCard {...fixture} has_vectors />)
     expect(container.querySelector('#tutorial-target-chat-pin')).not.toBeInTheDocument()
+  })
+
+  // ── Generalized metrics badges (2026-07-12, US8) ─────────────────────────
+
+  it('renders a badge for each enabled metric present on the article', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it('does not render a badge for a metric that is not currently enabled', async () => {
+    mockUseMetricDefinitions.mockReturnValue({})
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    expect(screen.queryByText('42')).not.toBeInTheDocument()
+  })
+
+  it('renders a badge for every enabled metric when an article has more than one', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+      impact_factor: { metric_key: 'impact_factor', label_i18n_key: 'metrics.impact_factor', icon_name: null, format_hint: 'decimal', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42, impact_factor: 3.5 }} />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('3.5')).toBeInTheDocument()
   })
 })
