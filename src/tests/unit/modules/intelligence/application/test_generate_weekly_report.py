@@ -15,6 +15,7 @@ from src.modules.intelligence.domain.value_objects.translation_prompt import Wee
 TOPIC_ID = uuid.uuid4()
 TOPIC_NAME = "AI Research"
 WEEK_START = date(2026, 6, 16)
+WEEK_RANGE = "2026/06/16–2026/06/22"
 
 
 def _summary(title="Paper A", tags=None, article_id=None):
@@ -81,7 +82,7 @@ def test_execute_returns_weekly_report():
 def test_execute_uses_llm_title_and_summary():
     uc, _, _, _, _, _ = _make_uc(llm_response=json.dumps({"title": "LLM Title", "summary_text": "LLM Summary"}))
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
-    assert result.title == "LLM Title"
+    assert result.title == f"LLM Title ({WEEK_RANGE})"
     assert result.summary_text == "LLM Summary"
 
 
@@ -200,7 +201,7 @@ def test_execute_force_regenerates_even_when_completed_report_exists():
 
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START, force=True)
 
-    assert result.title == "New Title"
+    assert result.title == f"New Title ({WEEK_RANGE})"
     llm.generate.assert_called_once()
     repo.save.assert_called_once()
 
@@ -245,8 +246,32 @@ def test_translate_report_falls_back_to_english_summary_when_citations_mismatch(
     uc._translate_report(report, "zh-TW")
 
     saved = translation_repo.save.call_args[0][0]
-    assert saved.title == "AI 週報"
+    assert saved.title == f"AI 週報 ({WEEK_RANGE})"
     assert saved.summary_text == original_summary
+
+
+def test_translate_report_strips_week_range_before_sending_title_to_llm():
+    """report.title already carries the '(YYYY/MM/DD–YYYY/MM/DD)' suffix — the translation LLM should
+    only see the headline, since re-translating the date range risks reformatting it inconsistently."""
+    uc, _, llm, _, _, _ = _make_uc(translation_languages=["zh-TW"])
+    report = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title=f"AI Week ({WEEK_RANGE})",
+        summary_text="AI models improved this week [1].",
+        cover_image_url=None,
+        article_ids=[str(uuid.uuid4())],
+        article_count=1,
+        status="completed",
+    )
+    llm.translate.return_value = json.dumps({"title": "AI 週報", "summary_text": "AI 模型本週有所改進 [1]。"})
+
+    uc._translate_report(report, "zh-TW")
+
+    sent_prompt = llm.translate.call_args[0][1]
+    assert WEEK_RANGE not in sent_prompt
+    assert "AI Week" in sent_prompt
 
 
 def test_translate_report_keeps_translation_when_citations_match():

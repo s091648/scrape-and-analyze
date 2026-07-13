@@ -1,7 +1,8 @@
 import json
+import re
 import uuid
 from collections import Counter
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, List, Optional
 from uuid import UUID
 
@@ -22,6 +23,23 @@ from src.shared.domain.services.blob_storage_service import BlobStorageService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
+
+_WEEK_RANGE_SUFFIX_RE = re.compile(r"\s\(\d{4}/\d{2}/\d{2}–\d{4}/\d{2}/\d{2}\)$")
+
+
+def _format_week_range(week_start: date) -> str:
+    """Fixed, language-agnostic YYYY/MM/DD–YYYY/MM/DD label for the Monday-start week."""
+    week_end = week_start + timedelta(days=6)
+    return f"{week_start.strftime('%Y/%m/%d')}–{week_end.strftime('%Y/%m/%d')}"
+
+
+def _with_week_range(title: str, week_start: date) -> str:
+    return f"{title} ({_format_week_range(week_start)})"
+
+
+def _without_week_range(title: str) -> str:
+    """Strip a trailing week-range suffix added by _with_week_range, so translation only sees the headline."""
+    return _WEEK_RANGE_SUFFIX_RE.sub("", title)
 
 
 class GenerateWeeklyReportUseCase:
@@ -72,7 +90,7 @@ class GenerateWeeklyReportUseCase:
                 id=uuid.uuid4(),
                 topic_id=topic_id,
                 week_start_date=week_start,
-                title="No articles this week",
+                title=_with_week_range("No articles this week", week_start),
                 summary_text="",
                 cover_image_url=None,
                 article_ids=[],
@@ -98,7 +116,7 @@ class GenerateWeeklyReportUseCase:
             try:
                 llm_response = self._llm.generate(prompt.content)
                 parsed = json.loads(llm_response)
-                title = parsed.get("title", f"{topic_name} Weekly Report")
+                title = parsed.get("title") or f"{topic_name} Weekly Report"
                 summary_text = parsed.get("summary_text", "")
                 sub_span.set_attribute("weekly_report.summarize.success", True)
             except Exception as e:
@@ -108,6 +126,7 @@ class GenerateWeeklyReportUseCase:
                 logger.error("weekly_report_llm_failed", error=str(e))
                 title = f"{topic_name} Weekly Report"
                 summary_text = ""
+            title = _with_week_range(title, week_start)
 
         cover_image_url: Optional[str] = None
         with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_IMAGE) as sub_span:
@@ -192,7 +211,7 @@ class GenerateWeeklyReportUseCase:
             try:
                 rendered = self._translation_prompt.render(
                     target_language=language,
-                    title=report.title,
+                    title=_without_week_range(report.title),
                     summary=report.summary_text,
                 )
                 translated = self._llm.translate("", rendered.content)
@@ -224,6 +243,7 @@ class GenerateWeeklyReportUseCase:
                     language=language,
                 )
                 return
+            title = _with_week_range(title, report.week_start_date)
 
             original_citations = self._extract_citation_numbers(report.summary_text)
             translated_citations = self._extract_citation_numbers(summary)

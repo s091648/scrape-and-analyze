@@ -103,6 +103,12 @@ export function Dropdown({
         >
           <span className="flex items-center gap-1.5 truncate">
             {icon}
+            {selected?.leadingDot && (
+              <span
+                className="inline-block h-2 w-2 rounded-full shrink-0"
+                style={{ backgroundColor: selected.leadingDot }}
+              />
+            )}
             <span className={cn('truncate', !selected && 'text-muted-foreground')}>
               {selected ? selected.label : (placeholder ?? 'Select…')}
             </span>

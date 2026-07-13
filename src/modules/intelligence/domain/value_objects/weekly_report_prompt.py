@@ -23,8 +23,11 @@ bracket number from the list above, e.g. "...launched a new model [1], while..."
 only to that article's position in the list above — never invent a number, and never cite an article \
 by its title or any other identifier.
 
+The title must be a short, compelling headline about the week's themes only — do not include any date, \
+week, or year information in it; that is added separately afterward.
+
 Respond with ONLY valid JSON in this exact format:
-{{"title": "<compelling report title>", "summary_text": "<2-4 paragraph summary of key themes, insights, and innovations, with inline [N] citations>"}}
+{{"title": "<compelling report title, no date>", "summary_text": "<2-4 paragraph summary of key themes, insights, and innovations, with inline [N] citations>"}}
 """
 
 

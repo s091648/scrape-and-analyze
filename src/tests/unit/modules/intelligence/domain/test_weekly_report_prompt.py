@@ -79,3 +79,10 @@ def test_render_does_not_imply_the_article_list_is_ranked():
     prompt = WeeklyReportPrompt().render(topic_name="AI Research", articles=[_article()], week_start=date(2026, 6, 16))
     assert "sorted" not in prompt.content.lower()
     assert "ranked" not in prompt.content.lower()
+
+
+# ── Title format: date is composed in code, not by the LLM (2026-07-14) ─────
+
+def test_render_instructs_the_llm_to_omit_dates_from_the_title():
+    prompt = WeeklyReportPrompt().render(topic_name="AI Research", articles=[_article()], week_start=date(2026, 6, 16))
+    assert "do not include any date" in prompt.content.lower()
