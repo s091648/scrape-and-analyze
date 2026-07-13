@@ -73,7 +73,7 @@ export function ArticleDetailDialog({
               </span>
             )}
             {Object.entries(detail?.metrics ?? {})
-              .filter(([metricKey]) => metricDefs[metricKey])
+              .filter(([metricKey, value]) => metricDefs[metricKey] && value > 0)
               .map(([metricKey, value]) => {
                 const def = metricDefs[metricKey]
                 const Icon = resolveMetricIcon(def.icon_name)

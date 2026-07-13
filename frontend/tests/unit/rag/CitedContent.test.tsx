@@ -79,4 +79,47 @@ describe('CitedContent', () => {
       expect(mockFetchArticleById).toHaveBeenCalledWith('pub-1', 'en')
     })
   })
+
+  it('renders a [N, M] grouped citation as one clickable marker per number', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    const sources = [makeSource({ id: 'src-1', title: 'Paper One' }), makeSource({ id: 'src-2', title: 'Paper Two' })]
+    render(<CitedContent text="A trend [1, 2] emerged." sources={sources} />)
+    expect(screen.getByTitle('Paper One')).toBeInTheDocument()
+    expect(screen.getByTitle('Paper Two')).toBeInTheDocument()
+  })
+
+  it('renders a grouped citation as literal text when any member is out of range', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    render(<CitedContent text="A trend [1, 5] emerged." sources={[makeSource()]} />)
+    expect(screen.getByText(/\[1, 5\]/)).toBeInTheDocument()
+  })
+
+  it('renders extraContent between the parsed text and the source-chip row', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    render(
+      <CitedContent
+        text="See [1] for details."
+        sources={[makeSource()]}
+        extraContent={<p data-testid="extra">3 articles</p>}
+      />
+    )
+    expect(screen.getByTestId('extra')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Cited Paper/ })).toBeInTheDocument()
+  })
+
+  // ── Draggable source pills (2026-07-14, US10) ─────────────────────────────
+
+  it('does not mark source pills as draggable by default', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    render(<CitedContent text="See [1] for details." sources={[makeSource()]} />)
+    const chip = screen.getByRole('button', { name: /Cited Paper/ })
+    expect(chip).not.toHaveAttribute('aria-roledescription')
+  })
+
+  it('marks source pills as draggable when draggableSources is set', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    render(<CitedContent text="See [1] for details." sources={[makeSource()]} draggableSources />)
+    const chip = screen.getByRole('button', { name: /Cited Paper/ })
+    expect(chip).toHaveAttribute('aria-roledescription', 'draggable')
+  })
 })

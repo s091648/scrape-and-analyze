@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Sparkles } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
@@ -14,6 +15,11 @@ function toDateKey(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/** Short date label shared by the stepper's week dots and the group pin pill's label. */
+function formatShortDate(dateStr: string, locale: string): string {
+  return new Date(dateStr).toLocaleDateString(locale === 'zh-TW' ? 'zh-TW' : 'en-US', { month: 'short', day: 'numeric' })
 }
 
 function mergeReport(prev: WeeklyReport[], report: WeeklyReport): WeeklyReport[] {
@@ -31,12 +37,13 @@ interface WeeklyReportWidgetProps {
 
 export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
-  const { pinArticles, removePinnedArticle, areAllPinned } = usePinnedArticle()
+  const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedArticle()
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
   const [collapsed, setCollapsed] = useState(false)
+  const [sourcesExpanded, setSourcesExpanded] = useState(false)
 
   useEffect(() => {
     if (!topicId) return
@@ -106,14 +113,28 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
 
   const selected = reports.find(r => r.id === selectedId) ?? null
 
+  useEffect(() => {
+    setSourcesExpanded(false)
+  }, [selectedId])
+
   function handleTogglePinReport() {
     if (!selected || selected.sources.length === 0) return
     const ids = selected.sources.map(s => s.id)
     if (areAllPinned(ids)) {
-      ids.forEach(id => removePinnedArticle(id))
+      removeGroup(selected.id)
     } else {
-      pinArticles(selected.sources.map(s => ({ id: s.id, title: s.title ?? s.url, tags: [] })))
+      pinGroup({
+        id: selected.id,
+        dateLabel: formatShortDate(selected.week_start_date, locale),
+        articles: selected.sources.map(s => ({ id: s.id, title: s.title ?? s.url, tags: [] })),
+      })
     }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    if (event.over?.id !== 'chat-input-dropzone') return
+    const article = event.active.data.current?.article as { id: string; title: string } | undefined
+    if (article) pinArticles([article])
   }
 
   function isWeekAvailable(monday: Date): boolean {
@@ -126,6 +147,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   const hasCover = !!selected?.cover_image_url
 
   return (
+    <DndContext onDragEnd={handleDragEnd}>
     <section
       data-testid="weekly-report-widget"
       className="absolute inset-0 overflow-hidden"
@@ -227,9 +249,23 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                       )}
                     </div>
                     <div className="text-sm text-neutral-700 leading-relaxed">
-                      <CitedContent text={selected.summary_text} sources={selected.sources} />
+                      <CitedContent
+                        text={selected.summary_text}
+                        sources={selected.sources}
+                        showSourceList={sourcesExpanded}
+                        draggableSources
+                        extraContent={
+                          <button
+                            type="button"
+                            onClick={() => setSourcesExpanded(v => !v)}
+                            className="mt-4 flex cursor-pointer items-center gap-1 text-xs text-neutral-600 hover:text-neutral-900"
+                          >
+                            {sourcesExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            {t('weeklyReport.articleCount', { count: selected.article_count })}
+                          </button>
+                        }
+                      />
                     </div>
-                    <p className="text-xs text-neutral-600 mt-4">{t('weeklyReport.articleCount', { count: selected.article_count })}</p>
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -242,5 +278,6 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
         </div>
       </motion.div>
     </section>
+    </DndContext>
   )
 }

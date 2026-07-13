@@ -1,4 +1,6 @@
 'use client'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { type WeeklyReport } from '@/lib/api/weekly-reports'
 import { WeekPicker } from '@/components/ui/week-picker'
 import { useI18n } from '@/lib/providers'
@@ -14,6 +16,19 @@ interface WeeklyReportStepperProps {
 export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWeek, isWeekAvailable }: WeeklyReportStepperProps) {
   const { t, locale } = useI18n()
   const showDots = reports.length >= 2
+  const listRef = useRef<HTMLDivElement>(null)
+  const [isScrollable, setIsScrollable] = useState(false)
+
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) { setIsScrollable(false); return }
+    const check = () => setIsScrollable(el.scrollHeight > el.clientHeight)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [reports.length])
+
   if (!showDots && !onJumpToWeek) return null
 
   const selected = reports.find(r => r.id === selectedId) ?? null
@@ -21,10 +36,28 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
   // the first *unselected* one, so it points at something the user can actually switch to.
   const firstUnselectedId = reports.find(r => r.id !== selectedId)?.id
 
+  function scrollToEdge(edge: 'top' | 'bottom') {
+    listRef.current?.scrollTo({ top: edge === 'top' ? 0 : listRef.current.scrollHeight, behavior: 'smooth' })
+  }
+
   return (
     <div className="flex h-full flex-col items-center shrink-0 pr-2">
+      {/* This flex-1 area keeps the date picker pinned to the bottom regardless of week count —
+          when the list overflows it, the listbox scrolls internally instead of pushing/clipping the picker. */}
+      <div className="flex min-h-0 flex-1 flex-col items-center">
       {showDots && (
-        <div role="listbox" aria-label={t('weeklyReport.selectWeek')} className="flex flex-col items-center gap-2">
+        <>
+          {isScrollable && (
+            <button
+              type="button"
+              onClick={() => scrollToEdge('top')}
+              aria-label={t('weeklyReport.jumpToNewest')}
+              className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div ref={listRef} role="listbox" aria-label={t('weeklyReport.selectWeek')} className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto">
           {reports.map(r => {
             const isSelected = r.id === selectedId
             return (
@@ -63,14 +96,23 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
               </div>
             )
           })}
-        </div>
+          </div>
+          {isScrollable && (
+            <button
+              type="button"
+              onClick={() => scrollToEdge('bottom')}
+              aria-label={t('weeklyReport.jumpToOldest')}
+              className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </>
       )}
-
-      {/* Spacer keeps the date picker pinned to the bottom regardless of how many weeks are listed above. */}
-      <div className="flex-1" />
+      </div>
 
       {onJumpToWeek && (
-        <div className="pb-1">
+        <div className="pb-1 shrink-0">
           <WeekPicker
             triggerId="tutorial-target-weekly-datepicker"
             value={selected ? new Date(selected.week_start_date) : null}

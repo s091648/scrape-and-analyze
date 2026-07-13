@@ -12,9 +12,19 @@ vi.mock('@/lib/api/articles', () => ({
   fetchArticleById: vi.fn().mockResolvedValue(null),
 }))
 
+let capturedOnDragEnd: ((event: any) => void) | undefined
+vi.mock('@dnd-kit/core', () => ({
+  DndContext: ({ children, onDragEnd }: any) => {
+    capturedOnDragEnd = onDragEnd
+    return children
+  },
+  useDraggable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {} }),
+}))
+
 let mockPinnedArticleState: { pinnedArticles: { id: string; title: string }[] } = { pinnedArticles: [] }
 const mockPinArticles = vi.fn()
-const mockRemovePinnedArticle = vi.fn()
+const mockPinGroup = vi.fn()
+const mockRemoveGroup = vi.fn()
 
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
@@ -33,7 +43,8 @@ vi.mock('@/lib/providers', () => ({
   usePinnedArticle: () => ({
     pinnedArticles: mockPinnedArticleState.pinnedArticles,
     pinArticles: mockPinArticles,
-    removePinnedArticle: mockRemovePinnedArticle,
+    pinGroup: mockPinGroup,
+    removeGroup: mockRemoveGroup,
     areAllPinned: (ids: string[]) => ids.length > 0 && ids.every(id => mockPinnedArticleState.pinnedArticles.some(a => a.id === id)),
   }),
 }))
@@ -146,6 +157,10 @@ describe('WeeklyReportWidget', () => {
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
     render(<WeeklyReportWidget topicId="topic-1" />)
 
+    // Source pills are collapsed by default (2026-07-14, US10) — expand via the article-count toggle first.
+    const disclosure = await screen.findByText('5 articles')
+    fireEvent.click(disclosure)
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /paper one/i })).toBeInTheDocument()
     })
@@ -183,10 +198,14 @@ describe('WeeklyReportWidget', () => {
     const pinButton = await screen.findByLabelText("Ask AI about this week's report")
     fireEvent.click(pinButton)
 
-    expect(mockPinArticles).toHaveBeenCalledWith([
-      { id: 'a1', title: 'Paper One', tags: [] },
-      { id: 'a2', title: 'Paper Two', tags: [] },
-    ])
+    expect(mockPinGroup).toHaveBeenCalledWith({
+      id: 'report-1',
+      dateLabel: expect.any(String),
+      articles: [
+        { id: 'a1', title: 'Paper One', tags: [] },
+        { id: 'a2', title: 'Paper Two', tags: [] },
+      ],
+    })
   })
 
   it('unpins all cited articles when the pin control is activated and all are already pinned', async () => {
@@ -207,8 +226,7 @@ describe('WeeklyReportWidget', () => {
     const pinButton = await screen.findByLabelText("Remove this report's articles from AI chat")
     fireEvent.click(pinButton)
 
-    expect(mockRemovePinnedArticle).toHaveBeenCalledWith('a1')
-    expect(mockRemovePinnedArticle).toHaveBeenCalledWith('a2')
+    expect(mockRemoveGroup).toHaveBeenCalledWith('report-1')
   })
 
   it('selecting a different week option updates the displayed report', async () => {
@@ -229,5 +247,82 @@ describe('WeeklyReportWidget', () => {
     await waitFor(() => {
       expect(screen.getByText('Previous Week')).toBeInTheDocument()
     })
+  })
+
+  // ── Collapsible source pills (2026-07-14, US10) ──────────────────────────
+
+  it('keeps the source pill list collapsed by default', async () => {
+    const citedReport = {
+      ...mockReport,
+      summary_text: 'A great week in AI research [1].',
+      sources: [{ id: 'article-1', title: 'Paper One', url: 'https://example.com/paper-1', public_article_id: 'article-1' }],
+    }
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(citedReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await screen.findByText('5 articles')
+    expect(screen.queryByRole('button', { name: /paper one/i })).not.toBeInTheDocument()
+  })
+
+  it('collapses the source pill list again after switching to a different report', async () => {
+    const report2 = {
+      ...mockReport,
+      id: 'report-2',
+      week_start_date: '2026-06-09',
+      title: 'Previous Week',
+      summary_text: 'Previous week research [1].',
+      sources: [{ id: 'article-2', title: 'Paper Two', url: 'https://example.com/paper-2', public_article_id: 'article-2' }],
+    }
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('5 articles'))
+
+    const options = screen.getAllByRole('option')
+    fireEvent.click(options[1])
+
+    await waitFor(() => expect(screen.getByText('Previous Week')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /paper two/i })).not.toBeInTheDocument()
+  })
+
+  // ── Drag a source pill into the chat dropzone (2026-07-14, US10) ─────────
+
+  it('pins the dragged article when dropped on the chat input dropzone', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+
+    capturedOnDragEnd?.({
+      over: { id: 'chat-input-dropzone' },
+      active: { data: { current: { article: { id: 'a9', title: 'Dragged Paper' } } } },
+    })
+
+    expect(mockPinArticles).toHaveBeenCalledWith([{ id: 'a9', title: 'Dragged Paper' }])
+  })
+
+  it('does not pin when dropped outside the chat input dropzone', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+
+    capturedOnDragEnd?.({
+      over: null,
+      active: { data: { current: { article: { id: 'a9', title: 'Dragged Paper' } } } },
+    })
+
+    expect(mockPinArticles).not.toHaveBeenCalled()
   })
 })

@@ -11,6 +11,7 @@ import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
 import type { ArticleDetail } from '@/lib/api/articles'
 import { useMetricDefinitions } from './use-metric-definitions'
+import { resolveMetricIcon } from './metric-icons'
 
 export type { Article }
 
@@ -187,15 +188,18 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 // Only render metrics that are currently enabled (present in the public
                 // display-metadata list) — a disabled metric's stored value stays in the
                 // API response, but its badge must disappear everywhere (spec.md edge cases).
-                .filter(([metricKey]) => metricDefs[metricKey])
+                // A zero value is treated the same as "not tracked" — no badge (matches view_count below).
+                .filter(([metricKey, value]) => metricDefs[metricKey] && value > 0)
                 .map(([metricKey, value]) => {
                   const def = metricDefs[metricKey]
+                  const Icon = resolveMetricIcon(def.icon_name)
                   return (
                     <span
                       key={metricKey}
                       className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground"
                       title={t(def.label_i18n_key)}
                     >
+                      <Icon className="h-3 w-3" />
                       {value.toLocaleString()}
                     </span>
                   )

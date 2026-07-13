@@ -119,8 +119,24 @@ def test_execute_handles_empty_articles():
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     assert result.status == "completed"
     assert result.article_count == 0
+    assert result.title == f"No Articles This Week ({WEEK_RANGE})"
     llm.generate.assert_not_called()
     image.generate_image.assert_not_called()
+
+
+def test_execute_translates_the_empty_week_template_via_the_same_llm_translation_path():
+    """No-article reports still go through _translate_report per configured language — the
+    template isn't hardcoded per language, it's translated like any other report's title/summary."""
+    uc, _, llm, _, _, translation_repo = _make_uc(articles=[], translation_languages=["zh-TW"])
+    llm.translate.return_value = json.dumps({"title": "本週尚無文章", "summary_text": "本週該主題暫無發布文章。"})
+
+    result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+    llm.translate.assert_called_once()
+    saved = translation_repo.save.call_args[0][0]
+    assert saved.title == f"本週尚無文章 ({WEEK_RANGE})"
+    assert saved.summary_text == "本週該主題暫無發布文章。"
+    assert result.article_count == 0
 
 
 def test_execute_gracefully_handles_llm_failure():

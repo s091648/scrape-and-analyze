@@ -360,6 +360,35 @@
 
 ---
 
+## Phase 13: User Story 10 — Weekly Report Chat-Pin UX Refinements (Priority: P8, added 2026-07-14)
+
+**Goal**: Replace one-pill-per-article pinning with one editable batch pill per report; support dragging a source pill into chat; move the pinned row below the chat input; collapse the source pill list by default; fix the stepper's date-picker drift. See spec.md FR-043–FR-051, plan.md Phase O, `docs/superpowers/specs/2026-07-14-weekly-report-chat-pinning-design.md`.
+
+**Independent Test**: Click sparkles on a weekly report — one batch pill (not N article pills) appears below the chat input. Click its edit icon, uncheck an article — count decreases, pill disappears once all are unchecked. Expand a report's source pill list, drag one pill into the chat input — it pins as an individual pill. Resize a topic to have many weekly reports — the stepper's date picker stays put, with chevrons to jump to the newest/oldest week.
+
+### Implementation
+
+- [ ] T157 [P] [US10] Extend `PinnedArticleContextValue` in `frontend/lib/providers/pinned-article-provider.tsx` with `pinnedGroups: PinnedGroup[]` state (`{ id, dateLabel, articles }`) and three actions: `pinGroup(group)` (upsert by id, pin every article via existing `pinArticles`), `toggleGroupArticle(groupId, articleId)` (toggle via existing `togglePinnedArticle`; auto-remove the group once its included count hits 0), `removeGroup(groupId)` (unpin every article in the group, delete it); existing per-article API unchanged
+- [ ] T158 [US10] Edit `handleTogglePinReport` in `frontend/components/features/weekly-report/weekly-report-widget.tsx` to call `pinGroup({ id: selected.id, dateLabel, articles })` / `removeGroup(selected.id)` instead of the raw `pinArticles`/loop, keeping the same `areAllPinned(ids)` branch; `dateLabel` uses the same `{ month: 'short', day: 'numeric' }` format as the stepper's week dots (T163); depends on T157
+- [ ] T159 [P] [US10] Add opt-in `draggableSources?: boolean` prop (default `false`) to `frontend/components/features/chat/cited-content.tsx`; when true, wrap each source-chip button with dnd-kit's `useDraggable({ id: 'source-' + src.id, data: { article: { id, title } } })`; chat's existing usage (no `DndContext` ancestor) is unaffected by the default
+- [ ] T160 [US10] Add local state `sourcesExpanded` to `weekly-report-widget.tsx` (reset to `false` on every `selected.id` change via `useEffect`); turn the existing `extraContent` article-count paragraph into a disclosure button (▸/▾) toggling it; pass `showSourceList={sourcesExpanded}` and `draggableSources` to `CitedContent`; depends on T159
+- [ ] T161 [US10] Wrap `weekly-report-widget.tsx`'s returned JSX in dnd-kit's `<DndContext onDragEnd={handleDragEnd}>`; `handleDragEnd` checks `event.over?.id === 'chat-input-dropzone'` and calls `pinArticles([event.active.data.current.article])` when true; depends on T157, T159
+- [ ] T162 [US10] Edit `frontend/components/features/chat/InlineQABarWrapper.tsx`: move the pinned-pills block from above `<AgentInput>` to below it; render one pill per `pinnedGroups` entry (`🌟 {dateLabel} · {includedCount} 篇文章`, live-computed from `group.articles.filter(a => isPinned(a.id)).length`) before individually-pinned articles not covered by a group; edit icon opens a shadcn `Popover` (`components/ui/popover.tsx`) with a checkbox per `group.articles` entry bound to `isPinned`, calling `toggleGroupArticle`; remove icon calls `removeGroup`; wrap the pinned-pills+input container with `useDroppable({ id: 'chat-input-dropzone' })`, highlighting it while `isOver`; depends on T157
+- [ ] T163 [US10] Edit `frontend/components/features/weekly-report/weekly-report-stepper.tsx`: replace the `flex-1` spacer div with `overflow-y-auto flex-1 min-h-0` directly on the week-dots `listbox` div (with a `ref`), so the date picker stays pinned at the bottom of the column via normal flex-column order; add a `ResizeObserver` (re-checked on `reports.length` change) that shows `ChevronUp`/`ChevronDown` buttons above/below the listbox when `scrollHeight > clientHeight`, each calling `scrollTo({ top: 0 | scrollHeight, behavior: 'smooth' })`; hidden when the list fits
+- [ ] T164 [P] [US10] Add `rag.weeklyGroupPill`, `rag.editGroupArticles`, `rag.groupArticlesPopoverTitle` keys to `frontend/lib/providers/locales/en.json` and `zh-TW.json`; reuse existing `rag.removeArticleRef` for the batch pill's remove-icon aria-label
+
+### Tests
+
+- [ ] T165 [P] [US10] Unit tests for `pinGroup`/`toggleGroupArticle` (including auto-remove-at-zero-included)/`removeGroup` in `frontend/tests/unit/pinned-article-provider.test.tsx`; depends on T157
+- [ ] T166 [P] [US10] Unit test: `InlineQABarWrapper` renders a group pill with the correct live count, edit popover checkboxes reflect `isPinned`, and a simulated drop event on the dropzone pins the dragged article, in `frontend/tests/unit/rag/InlineQABarWrapper.test.tsx`; depends on T162
+- [ ] T167 [P] [US10] Unit test: `weekly-report-widget.tsx`'s sparkles toggle still drives `areAllPinned` correctly through the new group actions; source pill list starts collapsed, expands on click, and resets to collapsed when `selected.id` changes, in `frontend/tests/unit/weekly-report-widget.test.tsx`; depends on T158, T160
+- [ ] T168 [P] [US10] Unit test: `weekly-report-stepper.tsx`'s jump-to-top/bottom chevrons are absent when the list fits and present/functional when it overflows, in `frontend/tests/unit/weekly-report-stepper.test.tsx`; depends on T163
+- [ ] T169 [P] [US10] Unit test: `cited-content.tsx`'s existing citation tests are unaffected by the new `draggableSources` prop (defaults `false`); a new test confirms drag attributes are present only when the prop is set, in `frontend/tests/unit/rag/CitedContent.test.tsx`; depends on T159
+
+**Checkpoint**: Sparkles-pinning a weekly report produces one editable batch pill regardless of article count; source pills are draggable into chat when expanded; the pinned row sits below the chat input; the stepper's date picker no longer drifts with many weeks
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -377,6 +406,7 @@
 - **US7 (Phase 10, added 2026-07-12)**: Depends on Phase 9 (needs `WeeklyReportOut.sources` to have real article ids to pin); independent of Phase 8 Polish
 - **US8/US9 (Phase 11, added 2026-07-12)**: Depends on Phase 2 (needs `MetricDefinition`/`ArticleMetricValue` ORMs) and Phase 3/US1 (extends the already-shipped `citation_count` display it generalizes); independent of Phases 6–10 (weekly report / pinning)
 - **US8/US9 (Phase 12, added 2026-07-12 same day)**: Depends on Phase 11 completing first (splits the table Phase 11 just built); independent of Phases 6–10
+- **US10 (Phase 13, added 2026-07-14)**: Depends on Phase 10 (extends US7's pin control and reuses `InlineQABarWrapper`'s pinning wiring); independent of Phases 11–12 (metrics admin)
 
 ### User Story Dependencies
 
@@ -390,6 +420,7 @@
 | US6 (P5, added 2026-07-12) | US4 complete | Adds citation resolution/rendering on top of the existing weekly report pipeline and widget; also fixes the `article_ids` bug that predates US6 |
 | US7 (P6, added 2026-07-12) | US6 complete | Bulk-pins US6's `sources` into the existing `usePinnedArticle` context; purely additive frontend wiring, no backend/RAG changes |
 | US8/US9 (P7, added 2026-07-12) | US1 complete | Generalizes US1's citation_count-only display/sort into any enabled catalog metric, plus a narrow admin-toggle exception to FR-022; independent of US2–US7 |
+| US10 (P8, added 2026-07-14) | US7 complete | Replaces US7's one-pill-per-article pinning with one editable batch pill per report, adds drag-and-drop from source pills, repositions the pinned row, collapses the source list, and fixes an unrelated stepper scroll bug; purely additive frontend wiring, no backend changes |
 
 ### 2026-07-12 Rework Note
 

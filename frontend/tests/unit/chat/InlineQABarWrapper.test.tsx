@@ -23,12 +23,26 @@ const zhTW: Record<string, string> = {
 
 const mockCycleMode = vi.fn()
 const mockRemovePinnedArticle = vi.fn()
+const mockToggleGroupArticle = vi.fn()
+const mockRemoveGroup = vi.fn()
 vi.mock('@/lib/providers', () => ({
   useTopic: vi.fn().mockReturnValue({ selectedTopicId: null }),
-  useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
+  useI18n: vi.fn().mockReturnValue({
+    t: (k: string, params?: Record<string, any>) => {
+      if (k === 'rag.weeklyGroupPill') return `${params?.date} · ${params?.count} articles`
+      return zhTW[k] ?? k
+    },
+  }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
-  usePinnedArticle: vi.fn().mockReturnValue({ pinnedArticles: [], removePinnedArticle: mockRemovePinnedArticle }),
+  usePinnedArticle: vi.fn().mockReturnValue({
+    pinnedArticles: [],
+    removePinnedArticle: mockRemovePinnedArticle,
+    pinnedGroups: [],
+    toggleGroupArticle: mockToggleGroupArticle,
+    removeGroup: mockRemoveGroup,
+    isPinned: (_id: string) => false,
+  }),
 }))
 
 vi.mock('sonner', () => ({
@@ -73,6 +87,10 @@ describe('InlineQABarWrapper', () => {
     vi.mocked(usePinnedArticle).mockReturnValue({
       pinnedArticles: [],
       removePinnedArticle: mockRemovePinnedArticle,
+      pinnedGroups: [],
+      toggleGroupArticle: mockToggleGroupArticle,
+      removeGroup: mockRemoveGroup,
+      isPinned: (_id: string) => false,
     } as any)
     vi.mocked(AgentInput).mockImplementation(({ onSend, isLoading, placeholder }: any) => (
       <div>
@@ -437,5 +455,91 @@ describe('InlineQABarWrapper', () => {
     const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
     render(<InlineQABarWrapper />)
     expect(screen.queryByLabelText('rag.removeArticleRef')).not.toBeInTheDocument()
+  })
+
+  // ── Group pin pills (2026-07-14, US10) ────────────────────────────────────
+
+  it('renders one group pill with the live included count instead of one pill per article', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+      pinnedGroups: [{
+        id: 'report-1',
+        dateLabel: '6/29',
+        articles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
+      }],
+      toggleGroupArticle: mockToggleGroupArticle,
+      removeGroup: mockRemoveGroup,
+      isPinned: (id: string) => ['a1', 'a2'].includes(id),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    expect(screen.getByText('6/29 · 2 articles')).toBeInTheDocument()
+    expect(screen.queryByText('Paper One')).not.toBeInTheDocument()
+  })
+
+  it('renders individually-pinned articles alongside a group pill', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a9', title: 'Solo Paper' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+      pinnedGroups: [{ id: 'report-1', dateLabel: '6/29', articles: [{ id: 'a1', title: 'Paper One' }] }],
+      toggleGroupArticle: mockToggleGroupArticle,
+      removeGroup: mockRemoveGroup,
+      isPinned: (id: string) => id === 'a1' || id === 'a9',
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    expect(screen.getByText('6/29 · 1 articles')).toBeInTheDocument()
+    expect(screen.getByText('Solo Paper')).toBeInTheDocument()
+  })
+
+  it('removes the whole batch when the group pill\'s remove icon is clicked', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+      pinnedGroups: [{ id: 'report-1', dateLabel: '6/29', articles: [{ id: 'a1', title: 'Paper One' }] }],
+      toggleGroupArticle: mockToggleGroupArticle,
+      removeGroup: mockRemoveGroup,
+      isPinned: (id: string) => id === 'a1',
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    fireEvent.click(screen.getByLabelText('rag.removeArticleRef'))
+    expect(mockRemoveGroup).toHaveBeenCalledWith('report-1')
+  })
+
+  it('toggles an article via the edit popover checklist', async () => {
+    const { usePinnedArticle } = await import('@/lib/providers')
+    vi.mocked(usePinnedArticle).mockReturnValue({
+      pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
+      removePinnedArticle: mockRemovePinnedArticle,
+      pinnedGroups: [{
+        id: 'report-1',
+        dateLabel: '6/29',
+        articles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
+      }],
+      toggleGroupArticle: mockToggleGroupArticle,
+      removeGroup: mockRemoveGroup,
+      isPinned: (id: string) => ['a1', 'a2'].includes(id),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    fireEvent.click(screen.getByLabelText('rag.editGroupArticles'))
+    const checkbox = await screen.findByText('Paper Two')
+    const row = checkbox.closest('label')!
+    fireEvent.click(row.querySelector('button[role="checkbox"]')!)
+
+    expect(mockToggleGroupArticle).toHaveBeenCalledWith('report-1', 'a2')
   })
 })

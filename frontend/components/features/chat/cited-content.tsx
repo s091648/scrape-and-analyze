@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useRef, useState } from 'react'
+import { useDraggable } from '@dnd-kit/core'
 import { ExternalLink } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
@@ -11,6 +12,69 @@ interface CitedContentProps {
   sources?: ArticleSource[]
   /** Hide the trailing source-chip row (e.g. while a chat response is still streaming). Inline [N] markers still link. */
   showSourceList?: boolean
+  /** Rendered between the parsed text and the trailing source-chip row — lets callers interleave
+   * their own content (e.g. an article-count line) without breaking the ref-click → highlight →
+   * scroll wiring that ties inline [N] markers to their chip. */
+  extraContent?: React.ReactNode
+  /** Makes each source-chip pill a dnd-kit drag source carrying `{ article: { id, title } }`.
+   * Default false — chat's usage renders outside any `DndContext`, so this stays opt-in. */
+  draggableSources?: boolean
+}
+
+function SourceChip({
+  src,
+  idx,
+  highlighted,
+  draggable,
+  refCallback,
+  onOpen,
+}: {
+  src: ArticleSource
+  idx: number
+  highlighted: boolean
+  draggable: boolean
+  refCallback: (el: HTMLElement | null) => void
+  onOpen: () => void
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: `source-${src.id}`,
+    data: { article: { id: src.id, title: src.title ?? src.url } },
+    disabled: !draggable,
+  })
+  const setRefs = useCallback((el: HTMLElement | null) => {
+    refCallback(el)
+    setNodeRef(el)
+  }, [refCallback, setNodeRef])
+  const dragProps = draggable ? { ...listeners, ...attributes } : {}
+  const className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
+    highlighted
+      ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
+      : 'border-border hover:border-foreground/30'
+  }`
+  const content = (
+    <>
+      <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
+      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+      <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
+    </>
+  )
+
+  return src.public_article_id ? (
+    <button ref={setRefs} onClick={onOpen} className={className} {...dragProps}>
+      {content}
+    </button>
+  ) : (
+    <a
+      ref={setRefs as unknown as React.Ref<HTMLAnchorElement>}
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+      {...dragProps}
+    >
+      {content}
+    </a>
+  )
 }
 
 export function parseInline(
@@ -54,22 +118,25 @@ export function parseInline(
             }
           }
         }
-        // [N] citation reference
-        if (/^\d+$/.test(inner) && sources?.length) {
-          const num = parseInt(inner, 10)
-          if (num >= 1 && num <= sources.length) {
-            const src = sources[num - 1]
+        // [N] or [N, M, ...] citation reference — LLMs sometimes group multiple sources into
+        // one bracket instead of repeating "[N][M]"; render one pill per number either way.
+        if (/^\d+(\s*,\s*\d+)*$/.test(inner) && sources?.length) {
+          const nums = inner.split(',').map(n => parseInt(n.trim(), 10))
+          if (nums.every(n => n >= 1 && n <= sources.length)) {
             if (buf) { parts.push(buf); buf = '' }
-            parts.push(
-              <button
-                key={i}
-                onClick={() => onRefClick?.(num - 1)}
-                title={src.title ?? src.url}
-                className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 mx-0.5 align-middle cursor-pointer"
-              >
-                {num}
-              </button>
-            )
+            for (const num of nums) {
+              const src = sources[num - 1]
+              parts.push(
+                <button
+                  key={`${i}-${num}`}
+                  onClick={() => onRefClick?.(num - 1)}
+                  title={src.title ?? src.url}
+                  className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 mx-0.5 align-middle cursor-pointer"
+                >
+                  {num}
+                </button>
+              )
+            }
             i = closeBracket + 1
             continue
           }
@@ -115,7 +182,7 @@ export function renderMarkdown(
   return <>{result}</>
 }
 
-export function CitedContent({ text, sources, showSourceList = true }: CitedContentProps) {
+export function CitedContent({ text, sources, showSourceList = true, extraContent, draggableSources = false }: CitedContentProps) {
   const { locale } = useI18n()
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -150,43 +217,20 @@ export function CitedContent({ text, sources, showSourceList = true }: CitedCont
   return (
     <>
       {renderMarkdown(text, sources, handleRefClick)}
+      {extraContent}
       {showSourceList && sources && sources.length > 0 && (
         <div className="mt-3 pt-2 border-t border-border flex flex-wrap gap-1.5">
-          {sources.map((src, idx) =>
-            src.public_article_id ? (
-              <button
-                key={src.id}
-                ref={el => { sourceRefs.current[idx] = el }}
-                onClick={() => openArticleDialog(src.public_article_id!)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
-                  highlightedSrcIdx === idx
-                    ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
-                    : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
-                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
-              </button>
-            ) : (
-              <a
-                key={src.id}
-                ref={el => { sourceRefs.current[idx] = el as HTMLElement | null }}
-                href={src.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
-                  highlightedSrcIdx === idx
-                    ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
-                    : 'border-border hover:border-foreground/30'
-                }`}
-              >
-                <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
-                <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
-              </a>
-            )
-          )}
+          {sources.map((src, idx) => (
+            <SourceChip
+              key={src.id}
+              src={src}
+              idx={idx}
+              highlighted={highlightedSrcIdx === idx}
+              draggable={draggableSources}
+              refCallback={el => { sourceRefs.current[idx] = el }}
+              onOpen={() => src.public_article_id && openArticleDialog(src.public_article_id)}
+            />
+          ))}
         </div>
       )}
 

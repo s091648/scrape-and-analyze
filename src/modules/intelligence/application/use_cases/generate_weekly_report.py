@@ -42,6 +42,12 @@ def _without_week_range(title: str) -> str:
     return _WEEK_RANGE_SUFFIX_RE.sub("", title)
 
 
+# English base template for the "no articles this week" case. Per-language rows are produced by
+# the same _translate_report() LLM translation path every other report goes through — not hardcoded.
+_EMPTY_WEEK_TITLE = "No Articles This Week"
+_EMPTY_WEEK_SUMMARY = "No articles were published on this topic this week."
+
+
 class GenerateWeeklyReportUseCase:
     def __init__(
         self,
@@ -90,14 +96,17 @@ class GenerateWeeklyReportUseCase:
                 id=uuid.uuid4(),
                 topic_id=topic_id,
                 week_start_date=week_start,
-                title=_with_week_range("No articles this week", week_start),
-                summary_text="",
+                title=_with_week_range(_EMPTY_WEEK_TITLE, week_start),
+                summary_text=_EMPTY_WEEK_SUMMARY,
                 cover_image_url=None,
                 article_ids=[],
                 article_count=0,
                 status="completed",
             )
-            return self._repo.save(report)
+            saved = self._repo.save(report)
+            for language in self._translation_languages:
+                self._translate_report(saved, language)
+            return saved
 
         span.set_attribute("weekly_report.article_count", len(articles))
 

@@ -212,4 +212,23 @@ describe('ArticleCard', () => {
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('3.5')).toBeInTheDocument()
   })
+
+  it('does not render a badge when the metric value is 0', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 0 }} />)
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('renders the metric icon resolved from icon_name', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    const badge = screen.getByText('42').closest('span')
+    expect(badge?.querySelector('svg')).toBeInTheDocument()
+  })
 })
