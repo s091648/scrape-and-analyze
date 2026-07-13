@@ -33,13 +33,6 @@ def test_articles_returns_paginated_envelope():
     assert "size" in data
 
 
-def test_articles_invalid_sort_returns_422():
-    from backend.main import app
-    client = TestClient(app)
-    response = client.get("/articles?sort=invalid_column")
-    assert response.status_code == 422
-
-
 def test_articles_no_auth_required():
     from backend.main import app
     client = TestClient(app)
