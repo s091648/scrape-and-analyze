@@ -46,6 +46,9 @@ test.describe('Favorites — authenticated member', () => {
     )
 
     await page.goto('/articles')
+    // Wait for the article itself first — the favorite button only renders once useSession()
+    // resolves to 'authenticated', so asserting on it immediately races session hydration.
+    await expect(page.getByText('Favorited Paper')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Remove from favorites' })).toBeVisible()
     await page.getByRole('button', { name: 'Remove from favorites' }).click({ force: true })
     await removePromise

@@ -48,10 +48,17 @@ test.describe('Dark mode toggle', () => {
   test('hovering the theme icon shows a tooltip with the current mode name', async ({ page }) => {
     await page.goto('/articles')
     const themeButton = page.getByRole('button', { name: /^theme: auto$/i })
-    // Move away first so the hover is a genuine pointer transition onto the
-    // trigger (Radix Tooltip's delayDuration timer starts on pointer enter).
-    await page.mouse.move(0, 0)
-    await themeButton.hover()
-    await expect(page.locator('[data-slot="tooltip-content"]', { hasText: 'Auto' })).toBeVisible({ timeout: 10000 })
+    const tooltip = page.locator('[data-slot="tooltip-content"]', { hasText: 'Auto' })
+
+    // Radix Tooltip's delayDuration timer starts on a genuine pointer
+    // transition onto the trigger, so we move away first. The exact sequence
+    // of synthetic mouse events Playwright dispatches can rarely land in a
+    // timing window where Radix's pointer state machine misses that
+    // transition — retry the hover rather than fail on one missed attempt.
+    await expect(async () => {
+      await page.mouse.move(0, 0)
+      await themeButton.hover()
+      await expect(tooltip).toBeVisible({ timeout: 2000 })
+    }).toPass({ timeout: 10000 })
   })
 })

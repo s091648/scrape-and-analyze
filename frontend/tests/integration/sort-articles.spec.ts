@@ -71,7 +71,7 @@ test.describe('Sort by citation count', () => {
   test('sort dropdown changes URL to sort=citation_count', async ({ page }) => {
     await page.goto('/articles')
     await page.getByRole('button', { name: /sort by:/i }).click()
-    await page.getByRole('option', { name: 'Citation Count', exact: true }).click()
+    await page.getByRole('option', { name: 'Citations', exact: true }).click()
     await expect(page).toHaveURL(/sort=citation_count/)
   })
 
@@ -84,6 +84,6 @@ test.describe('Sort by citation count', () => {
 
   test('sort value is reflected in the sort dropdown', async ({ page }) => {
     await page.goto('/articles?sort=citation_count')
-    await expect(page.getByRole('button', { name: /sort by: citation count/i })).toBeVisible()
+    await expect(page.getByRole('button', { name: /sort by: citations/i })).toBeVisible()
   })
 })

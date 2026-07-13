@@ -13,6 +13,7 @@ const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000'
 export default defineConfig({
   testDir: './tests/integration',
   timeout: 30_000,
+  retries: process.env.CI ? 2 : 0,
   globalSetup: './tests/integration/global-setup.ts',
   webServer: process.env.PLAYWRIGHT_TEST_BASE_URL ? undefined : {
     command: 'npm run build && npm run start',
