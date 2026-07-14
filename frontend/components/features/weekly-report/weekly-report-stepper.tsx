@@ -57,7 +57,12 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
               <ChevronUp className="h-3.5 w-3.5" />
             </button>
           )}
-          <div ref={listRef} role="listbox" aria-label={t('weeklyReport.selectWeek')} className="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto">
+          <div
+            ref={listRef}
+            role="listbox"
+            aria-label={t('weeklyReport.selectWeek')}
+            className="weekly-stepper-scroll flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto overflow-x-hidden"
+          >
           {reports.map(r => {
             const isSelected = r.id === selectedId
             return (

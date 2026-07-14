@@ -91,4 +91,14 @@ describe('WeeklyReportStepper — scroll fix (2026-07-14, US10)', () => {
     expect(screen.getByTestId('week-picker')).toBeInTheDocument()
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
+
+  it('applies the slim custom scrollbar class and hides horizontal overflow on the listbox', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    withOverflow(500, 100, () => {
+      render(<WeeklyReportStepper reports={makeReports(10)} selectedId="report-0" onSelect={vi.fn()} />)
+      const list = screen.getByRole('listbox')
+      expect(list.className).toContain('weekly-stepper-scroll')
+      expect(list.className).toContain('overflow-x-hidden')
+    })
+  })
 })
