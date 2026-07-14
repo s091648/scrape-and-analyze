@@ -37,7 +37,9 @@
     "pinReport": "Ask AI about this week's report",
     "unpinReport": "Remove this report's articles from AI chat",
     "jumpToNewest": "Jump to newest week",
-    "jumpToOldest": "Jump to oldest week"
+    "jumpToOldest": "Jump to oldest week",
+    "switchToChat": "View chat",
+    "switchToReport": "View this week's report"
   },
   "analysis": {
     "summary": "Summary",
@@ -618,7 +620,9 @@
     "removeArticleRef": "Remove article reference",
     "weeklyGroupPill": "{date} · {count} articles",
     "editGroupArticles": "Edit included articles",
-    "groupArticlesPopoverTitle": "Included articles"
+    "groupArticlesPopoverTitle": "Included articles",
+    "previousTurn": "Previous question",
+    "nextTurn": "Next question"
   },
   "tutorial": {
     "stepOf": "Step {current} of {total}",

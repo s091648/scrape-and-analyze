@@ -37,7 +37,9 @@
     "pinReport": "向 AI 詢問本週報告",
     "unpinReport": "將本報告的文章移出 AI 聊天",
     "jumpToNewest": "跳到最新一週",
-    "jumpToOldest": "跳到最舊一週"
+    "jumpToOldest": "跳到最舊一週",
+    "switchToChat": "查看對話",
+    "switchToReport": "查看本週報告"
   },
   "analysis": {
     "summary": "摘要",
@@ -618,7 +620,9 @@
     "removeArticleRef": "移除文章參考",
     "weeklyGroupPill": "{date}·{count}篇文章",
     "editGroupArticles": "編輯納入的文章",
-    "groupArticlesPopoverTitle": "已納入的文章"
+    "groupArticlesPopoverTitle": "已納入的文章",
+    "previousTurn": "上一則問題",
+    "nextTurn": "下一則問題"
   },
   "tutorial": {
     "stepOf": "第 {current} 步，共 {total} 步",

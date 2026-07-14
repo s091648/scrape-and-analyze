@@ -14,7 +14,7 @@ function HomeContent() {
   const [initialWeek] = useState(() => searchParams.get('week'))
   return (
     <WeeklyReportWidget topicId={selectedTopicId} initialWeek={initialWeek}>
-      <InlineQABarWrapper className="w-full" />
+      {({ onSend }) => <InlineQABarWrapper className="w-full" onMessageSent={onSend} />}
     </WeeklyReportWidget>
   )
 }

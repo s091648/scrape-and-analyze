@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { ExternalLink } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
@@ -19,6 +19,11 @@ interface CitedContentProps {
   /** Makes each source-chip pill a dnd-kit drag source carrying `{ article: { id, title } }`.
    * Default false — chat's usage renders outside any `DndContext`, so this stays opt-in. */
   draggableSources?: boolean
+  /** Fires when an inline [N] marker is clicked, before the highlight/scroll logic below runs.
+   * Lets a caller with a collapsible source list (e.g. the weekly report widget) expand it —
+   * the highlight itself still applies even if the chip row isn't mounted yet at click time,
+   * since the scroll-into-view effect re-runs once showSourceList flips true and it mounts. */
+  onRefClick?: (idx: number) => void
 }
 
 function SourceChip({
@@ -182,7 +187,7 @@ export function renderMarkdown(
   return <>{result}</>
 }
 
-export function CitedContent({ text, sources, showSourceList = true, extraContent, draggableSources = false }: CitedContentProps) {
+export function CitedContent({ text, sources, showSourceList = true, extraContent, draggableSources = false, onRefClick }: CitedContentProps) {
   const { locale } = useI18n()
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -206,13 +211,22 @@ export function CitedContent({ text, sources, showSourceList = true, extraConten
 
   const handleRefClick = useCallback((idx: number) => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current)
+    onRefClick?.(idx)
     setHighlightedSrcIdx(idx)
-    sourceRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     highlightTimer.current = setTimeout(() => {
       setHighlightedSrcIdx(null)
       highlightTimer.current = null
     }, 2000)
-  }, [])
+  }, [onRefClick])
+
+  // Runs after every render where the highlighted chip could newly exist in the DOM — covers
+  // both the already-expanded case (ref exists immediately) and a caller expanding a collapsed
+  // source list in reaction to onRefClick above (ref only mounts once showSourceList flips true).
+  useEffect(() => {
+    if (highlightedSrcIdx !== null) {
+      sourceRefs.current[highlightedSrcIdx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [highlightedSrcIdx, showSourceList])
 
   return (
     <>

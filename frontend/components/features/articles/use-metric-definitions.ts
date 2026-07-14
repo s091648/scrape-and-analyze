@@ -18,6 +18,15 @@ function load(): Promise<MetricDefinitionDisplay[]> {
   return inFlight
 }
 
+/** Drops the cached display metadata so the next mount of useMetricDefinitions() refetches.
+ * Call after an admin edit (icon_name/enabled) — components already mounted won't pick up the
+ * change until they remount (e.g. a client-side navigation to /articles), same as `enabled`'s
+ * existing behavior; this only fixes the "edit, then navigate" case, not live cross-tab push. */
+export function invalidateMetricDefinitionsCache() {
+  cache = null
+  inFlight = null
+}
+
 /** Returns enabled metric display metadata keyed by metric_key, fetched once and shared. */
 export function useMetricDefinitions(): Record<string, MetricDefinitionDisplay> {
   const [defs, setDefs] = useState<MetricDefinitionDisplay[]>(cache ?? [])

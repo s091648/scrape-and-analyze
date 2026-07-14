@@ -10,16 +10,19 @@ import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle } from '@/l
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AnswerDisplay } from './AnswerDisplay'
-import type { ArticleSource } from './types'
+import type { ArticleSource, ConversationTurn } from './types'
 
 interface InlineQABarWrapperProps {
   placeholder?: string
   className?: string
+  /** Called when a message is sent — lets a wrapping component (the weekly report widget)
+   * react to the conversation starting/advancing without owning the chat state itself. */
+  onMessageSent?: () => void
 }
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
-export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrapperProps) {
+export function InlineQABarWrapper({ placeholder, className, onMessageSent }: InlineQABarWrapperProps) {
   const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
@@ -40,7 +43,10 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
 
   const pendingSourcesRef = useRef<ArticleSource[]>([])
   const prevIsLoadingRef = useRef(false)
-  const [lastSources, setLastSources] = useState<ArticleSource[]>([])
+  // Sources for every settled turn, keyed by that turn's assistant message id — unlike a single
+  // "latest sources" value, this survives paging back to an earlier turn (see ConversationTurn).
+  const [sourcesByMessageId, setSourcesByMessageId] = useState<Record<string, ArticleSource[]>>({})
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(0)
 
   const customAdapter = useMemo((): StreamAdapter => ({
     ...openaiAdapter,
@@ -77,14 +83,39 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     },
   })
 
+  // Every user/assistant message pair, oldest first — lets AnswerDisplay page back through
+  // settled turns instead of only ever showing the latest one.
+  const turns = useMemo((): ConversationTurn[] => {
+    const result: ConversationTurn[] = []
+    let pendingUser: typeof messages[number] | undefined
+    for (const m of messages) {
+      if (m.role === 'user') {
+        pendingUser = m
+      } else if (m.role === 'assistant') {
+        result.push({ userMessage: pendingUser, assistantMessage: m, sources: sourcesByMessageId[m.id] ?? [] })
+        pendingUser = undefined
+      }
+    }
+    return result
+  }, [messages, sourcesByMessageId])
+
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
-      setLastSources(pendingSourcesRef.current)
+      const justFinished = [...messages].reverse().find(m => m.role === 'assistant')
+      if (justFinished) {
+        setSourcesByMessageId(prev => ({ ...prev, [justFinished.id]: pendingSourcesRef.current }))
+      }
       pendingSourcesRef.current = []
       refreshQuota()
     }
     prevIsLoadingRef.current = isLoading
-  }, [isLoading, refreshQuota])
+  }, [isLoading, messages, refreshQuota])
+
+  // A newly-settled turn always becomes the visible one — jumping back to an older turn is a
+  // manual, temporary detour, not a state that should survive the next question being answered.
+  useEffect(() => {
+    setCurrentTurnIndex(Math.max(0, turns.length - 1))
+  }, [turns.length])
 
   useEffect(() => {
     if (!isLoading) return
@@ -96,10 +127,10 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return
-      setLastSources([])
+      onMessageSent?.()
       sendMessage(text)
     },
-    [sendMessage]
+    [sendMessage, onMessageSent]
   )
 
   const quotaText = quota && quota.remaining >= 0
@@ -107,10 +138,10 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
     : null
 
   return (
-    <div className={className}>
+    <div className={`${className ?? ''} flex h-full flex-col`}>
       <div
         ref={setDropRef}
-        className={`rounded-xl transition-colors ${isOver ? 'ring-2 ring-purple-300 bg-purple-50/50 dark:bg-purple-950/20' : ''}`}
+        className={`shrink-0 rounded-xl transition-colors ${isOver ? 'ring-2 ring-purple-300 bg-purple-50/50 dark:bg-purple-950/20' : ''}`}
       >
         <AgentInput
           theme={mode}
@@ -157,12 +188,15 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
                     <PopoverContent className="w-64">
                       <p className="mb-2 text-xs font-medium">{t('rag.groupArticlesPopoverTitle')}</p>
                       <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
-                        {group.articles.map(article => (
+                        {group.articles.map((article, idx) => (
                           <label key={article.id} className="flex cursor-pointer items-center gap-2 text-xs">
                             <Checkbox
                               checked={isPinned(article.id)}
                               onCheckedChange={() => toggleGroupArticle(group.id, article.id)}
                             />
+                            <span className="inline-flex h-[1.1rem] min-w-[1.1rem] shrink-0 items-center justify-center rounded-full bg-blue-100 text-[9px] font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                              {idx + 1}
+                            </span>
                             <span className="truncate">{article.title}</span>
                           </label>
                         ))}
@@ -199,7 +233,16 @@ export function InlineQABarWrapper({ placeholder, className }: InlineQABarWrappe
           </div>
         )}
       </div>
-      <AnswerDisplay messages={messages} isLoading={isLoading} error={error} sources={lastSources} />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <AnswerDisplay
+          turns={turns}
+          currentIndex={currentTurnIndex}
+          isLoading={isLoading}
+          error={error}
+          onPrevTurn={() => setCurrentTurnIndex(i => Math.max(0, i - 1))}
+          onNextTurn={() => setCurrentTurnIndex(i => Math.min(turns.length - 1, i + 1))}
+        />
+      </div>
     </div>
   )
 }

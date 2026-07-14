@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fetchAllMetricDefinitions, updateMetricDefinition, type MetricDefinitionAdmin } from '@/lib/api/metric-definitions'
 import { MetricIconPicker } from '@/components/features/articles/metric-icon-picker'
+import { invalidateMetricDefinitionsCache } from '@/components/features/articles/use-metric-definitions'
 import { useI18n } from '@/lib/providers'
 
 export default function MetricDefinitionsPage() {
@@ -37,6 +38,7 @@ export default function MetricDefinitionsPage() {
     setDefinitions(defs => defs.map(d => (d.id === id ? { ...d, ...data } : d)))
     try {
       await updateMetricDefinition(id, data, token)
+      invalidateMetricDefinitionsCache()
     } catch {
       setDefinitions(prev)
       setError(t('admin.metricUpdateFailed'))

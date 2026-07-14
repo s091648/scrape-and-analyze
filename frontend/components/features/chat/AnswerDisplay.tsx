@@ -1,16 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import type { Message } from '@s091648/chatbot-plugin-ui'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
 import { CitedContent } from './cited-content'
-import type { ArticleSource } from './types'
+import type { ConversationTurn } from './types'
 
 interface AnswerDisplayProps {
-  messages: Message[]
+  turns: ConversationTurn[]
+  /** Index into `turns` currently on screen — the parent auto-advances this to the newest turn
+   * whenever one settles; the prev/next buttons here only move it temporarily. */
+  currentIndex: number
   isLoading?: boolean
   error?: Error | null
-  sources?: ArticleSource[]
+  onPrevTurn: () => void
+  onNextTurn: () => void
 }
 
 function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabel: string }) {
@@ -34,11 +38,11 @@ function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabe
   )
 }
 
-export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDisplayProps) {
+export function AnswerDisplay({ turns, currentIndex, isLoading, error, onPrevTurn, onNextTurn }: AnswerDisplayProps) {
   const { t } = useI18n()
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const currentTurn = turns[currentIndex]
 
-  if (isLoading && !lastAssistant) {
+  if (isLoading && !currentTurn) {
     return (
       <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm text-muted-foreground animate-pulse">
         {t('rag.thinking')}
@@ -46,7 +50,7 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
     )
   }
 
-  if (error && !lastAssistant) {
+  if (error && !currentTurn) {
     const is429 = error.message.includes('429')
     const is503 = error.message.includes('503')
     const msg = is429
@@ -61,19 +65,49 @@ export function AnswerDisplay({ messages, isLoading, error, sources }: AnswerDis
     )
   }
 
-  if (!lastAssistant) return null
+  if (!currentTurn) return null
+
+  // The turn currently streaming in is always the newest one (the parent keeps currentIndex
+  // pinned to it) — everything else on screen is a settled, browsable turn.
+  const isLive = isLoading && currentIndex === turns.length - 1
 
   return (
     <>
-      {lastAssistant.thinking && (
-        <ThinkingBlock thinking={lastAssistant.thinking} toggleLabel={t('rag.thinkingToggle')} />
+      {currentTurn.assistantMessage.thinking && (
+        <ThinkingBlock thinking={currentTurn.assistantMessage.thinking} toggleLabel={t('rag.thinkingToggle')} />
       )}
       <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm leading-relaxed">
-        <CitedContent text={lastAssistant.content} sources={sources} showSourceList={!isLoading} />
-        {isLoading && (
+        {currentTurn.userMessage && (
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{currentTurn.userMessage.content}</p>
+        )}
+        <CitedContent text={currentTurn.assistantMessage.content} sources={currentTurn.sources} showSourceList={!isLive} />
+        {isLive && (
           <span className="inline-block w-1.5 h-4 ml-0.5 bg-foreground/60 animate-pulse align-middle" />
         )}
       </div>
+      {!isLoading && turns.length > 1 && (
+        <div className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+          <button
+            type="button"
+            onClick={onPrevTurn}
+            disabled={currentIndex === 0}
+            aria-label={t('rag.previousTurn')}
+            className="rounded-full p-0.5 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span>{currentIndex + 1} / {turns.length}</span>
+          <button
+            type="button"
+            onClick={onNextTurn}
+            disabled={currentIndex === turns.length - 1}
+            aria-label={t('rag.nextTurn')}
+            className="rounded-full p-0.5 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </>
   )
 }

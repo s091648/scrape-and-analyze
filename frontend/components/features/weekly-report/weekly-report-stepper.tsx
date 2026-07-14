@@ -18,6 +18,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
   const showDots = reports.length >= 2
   const listRef = useRef<HTMLDivElement>(null)
   const [isScrollable, setIsScrollable] = useState(false)
+  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     const el = listRef.current
@@ -28,6 +29,9 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
     observer.observe(el)
     return () => observer.disconnect()
   }, [reports.length])
+
+  // Stop any in-progress hover auto-scroll on unmount.
+  useEffect(() => () => stopAutoScroll(), [])
 
   if (!showDots && !onJumpToWeek) return null
 
@@ -40,8 +44,25 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
     listRef.current?.scrollTo({ top: edge === 'top' ? 0 : listRef.current.scrollHeight, behavior: 'smooth' })
   }
 
+  function stopAutoScroll() {
+    if (autoScrollRef.current) {
+      clearInterval(autoScrollRef.current)
+      autoScrollRef.current = null
+    }
+  }
+
+  // Hovering a chevron continuously nudges the list in that direction (slower than a click-jump).
+  function startAutoScroll(direction: 'up' | 'down') {
+    stopAutoScroll()
+    autoScrollRef.current = setInterval(() => {
+      const el = listRef.current
+      if (!el) return
+      el.scrollTop += direction === 'up' ? -3 : 3
+    }, 20)
+  }
+
   return (
-    <div className="flex h-full flex-col items-center shrink-0 pr-2">
+    <div className="flex h-full flex-col items-center shrink-0 pr-0">
       {/* This flex-1 area keeps the date picker pinned to the bottom regardless of week count —
           when the list overflows it, the listbox scrolls internally instead of pushing/clipping the picker. */}
       <div className="flex min-h-0 flex-1 flex-col items-center">
@@ -51,6 +72,8 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
             <button
               type="button"
               onClick={() => scrollToEdge('top')}
+              onMouseEnter={() => startAutoScroll('up')}
+              onMouseLeave={stopAutoScroll}
               aria-label={t('weeklyReport.jumpToNewest')}
               className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
             >
@@ -61,6 +84,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
             ref={listRef}
             role="listbox"
             aria-label={t('weeklyReport.selectWeek')}
+            dir="rtl"
             className="weekly-stepper-scroll flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto overflow-x-hidden"
           >
           {reports.map(r => {
@@ -68,6 +92,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
             return (
               <div
                 key={r.id}
+                dir="ltr"
                 id={r.id === firstUnselectedId ? 'tutorial-target-weekly-weeks' : undefined}
                 className={
                   isSelected
@@ -106,6 +131,8 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
             <button
               type="button"
               onClick={() => scrollToEdge('bottom')}
+              onMouseEnter={() => startAutoScroll('down')}
+              onMouseLeave={stopAutoScroll}
               aria-label={t('weeklyReport.jumpToOldest')}
               className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
             >
@@ -117,7 +144,7 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
       </div>
 
       {onJumpToWeek && (
-        <div className="pb-1 shrink-0">
+        <div className="pt-3 pb-1 shrink-0">
           <WeekPicker
             triggerId="tutorial-target-weekly-datepicker"
             value={selected ? new Date(selected.week_start_date) : null}

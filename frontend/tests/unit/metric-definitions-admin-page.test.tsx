@@ -36,6 +36,11 @@ vi.mock('@/lib/api/metric-definitions', () => ({
   updateMetricDefinition: (...args: any[]) => mockUpdate(...args),
 }))
 
+const mockInvalidateCache = vi.fn()
+vi.mock('@/components/features/articles/use-metric-definitions', () => ({
+  invalidateMetricDefinitionsCache: () => mockInvalidateCache(),
+}))
+
 const adminSession = {
   data: { user: { role: 'admin' }, accessToken: 'test-token' },
   status: 'authenticated',
@@ -98,6 +103,23 @@ describe('MetricDefinitionsPage (admin)', () => {
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalledWith('def-2', { enabled: true }, 'test-token')
     })
+    // Public-facing metric display cache must be invalidated so /articles picks up the change
+    // on next mount, instead of continuing to serve the stale module-level cache indefinitely.
+    await waitFor(() => expect(mockInvalidateCache).toHaveBeenCalled())
+  })
+
+  it('does not invalidate the public metric cache when the update call fails', async () => {
+    mockUpdate.mockRejectedValue(new Error('network error'))
+    const { default: MetricDefinitionsPage } = await import('@/app/admin/metric-definitions/page')
+    render(<MetricDefinitionsPage />)
+    await waitFor(() => expect(screen.getByText('Impact Factor')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByRole('switch')[1])
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to update metric. Please try again.')).toBeInTheDocument()
+    })
+    expect(mockInvalidateCache).not.toHaveBeenCalled()
   })
 
   it('rolls back the switch state when the update call fails', async () => {

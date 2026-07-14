@@ -36,6 +36,8 @@ vi.mock('@/lib/providers', () => ({
         'weeklyReport.selectWeek': 'Select report week',
         'weeklyReport.pinReport': "Ask AI about this week's report",
         'weeklyReport.unpinReport': "Remove this report's articles from AI chat",
+        'weeklyReport.switchToChat': 'View chat',
+        'weeklyReport.switchToReport': "View this week's report",
       }
       return map[key] ?? key
     },
@@ -164,6 +166,27 @@ describe('WeeklyReportWidget', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /paper one/i })).toBeInTheDocument()
     })
+  })
+
+  it('expands the collapsed source list and highlights the matching chip when an inline citation is clicked', async () => {
+    const citedReport = {
+      ...mockReport,
+      summary_text: 'A great week in AI research [1].',
+      sources: [{ id: 'article-1', title: 'Paper One', url: 'https://example.com/paper-1', public_article_id: 'article-1' }],
+    }
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(citedReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(<WeeklyReportWidget topicId="topic-1" />)
+
+    // Click the inline [1] marker directly, without expanding the source list first.
+    const marker = await screen.findByTitle('Paper One')
+    expect(screen.queryByRole('button', { name: /paper one/i })).not.toBeInTheDocument()
+    fireEvent.click(marker)
+
+    const chip = await screen.findByRole('button', { name: /paper one/i })
+    expect(chip.className).toContain('ring-2')
   })
 
   // ── Pin report into chat (2026-07-12, US7) ───────────────────────────────
@@ -308,6 +331,66 @@ describe('WeeklyReportWidget', () => {
     })
 
     expect(mockPinArticles).toHaveBeenCalledWith([{ id: 'a9', title: 'Dragged Paper' }])
+  })
+
+  // ── Report/chat card switching (2026-07-14) ───────────────────────────────
+
+  it('stacks the report and chat children as today, before any conversation starts', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(
+      <WeeklyReportWidget topicId="topic-1">
+        {({ onSend }) => <button data-testid="fake-chat" onClick={onSend}>chat</button>}
+      </WeeklyReportWidget>
+    )
+
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    // Both visible at once — no card-swap yet, and no switch button either.
+    expect(screen.getByTestId('fake-chat')).toBeInTheDocument()
+    expect(screen.queryByLabelText('View chat')).not.toBeInTheDocument()
+  })
+
+  it('swaps to the chat card and shows the switch button once the child calls onSend', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(
+      <WeeklyReportWidget topicId="topic-1">
+        {({ onSend }) => <button data-testid="fake-chat" onClick={onSend}>chat</button>}
+      </WeeklyReportWidget>
+    )
+
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('fake-chat'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('fake-chat')).toBeInTheDocument()
+      expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('View this week\'s report')).toBeInTheDocument()
+  })
+
+  it('switch button toggles back and forth between the report and chat cards', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+    render(
+      <WeeklyReportWidget topicId="topic-1">
+        {({ onSend }) => <button data-testid="fake-chat" onClick={onSend}>chat</button>}
+      </WeeklyReportWidget>
+    )
+
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('fake-chat'))
+    await waitFor(() => expect(screen.getByLabelText('View this week\'s report')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByLabelText('View this week\'s report'))
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    expect(screen.getByLabelText('View chat')).toBeInTheDocument()
   })
 
   it('does not pin when dropped outside the chat input dropzone', async () => {

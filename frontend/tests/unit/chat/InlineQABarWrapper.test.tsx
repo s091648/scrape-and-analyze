@@ -19,6 +19,8 @@ const zhTW: Record<string, string> = {
   'rag.toolStatusRunning': '執行中',
   'rag.toolStatusDone': '完成',
   'rag.toolStatusError': '錯誤',
+  'rag.previousTurn': '上一則問題',
+  'rag.nextTurn': '下一則問題',
 }
 
 const mockCycleMode = vi.fn()
@@ -352,7 +354,7 @@ describe('InlineQABarWrapper', () => {
     })
   })
 
-  it('clears lastSources when send is triggered', async () => {
+  it('still calls sendMessage as usual when send is triggered', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: [{ id: '1', role: 'assistant', content: 'answer', timestamp: new Date() }],
       sendMessage: mockSendMessage,
@@ -541,5 +543,83 @@ describe('InlineQABarWrapper', () => {
     fireEvent.click(row.querySelector('button[role="checkbox"]')!)
 
     expect(mockToggleGroupArticle).toHaveBeenCalledWith('report-1', 'a2')
+  })
+
+  // ── onMessageSent + multi-turn pairing (2026-07-14) ───────────────────────
+
+  it('calls onMessageSent when a message is sent', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+    const onMessageSent = vi.fn()
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper onMessageSent={onMessageSent} />)
+    fireEvent.click(screen.getByTestId('send-btn'))
+
+    expect(onMessageSent).toHaveBeenCalled()
+  })
+
+  it('does not throw when onMessageSent is omitted', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+    expect(() => fireEvent.click(screen.getByTestId('send-btn'))).not.toThrow()
+  })
+
+  it('pairs consecutive user/assistant messages into turns and shows the newest by default', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [
+        { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
+        { id: 'a1', role: 'assistant', content: 'First answer', timestamp: new Date() },
+        { id: 'u2', role: 'user', content: 'Second question', timestamp: new Date() },
+        { id: 'a2', role: 'assistant', content: 'Second answer', timestamp: new Date() },
+      ],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    expect(screen.getByText('Second answer')).toBeInTheDocument()
+    expect(screen.queryByText('First answer')).not.toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('paging to a previous turn shows that turn instead of the newest one', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [
+        { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
+        { id: 'a1', role: 'assistant', content: 'First answer', timestamp: new Date() },
+        { id: 'u2', role: 'user', content: 'Second question', timestamp: new Date() },
+        { id: 'a2', role: 'assistant', content: 'Second answer', timestamp: new Date() },
+      ],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper />)
+
+    fireEvent.click(screen.getByLabelText('上一則問題'))
+
+    expect(screen.getByText('First answer')).toBeInTheDocument()
+    expect(screen.queryByText('Second answer')).not.toBeInTheDocument()
   })
 })

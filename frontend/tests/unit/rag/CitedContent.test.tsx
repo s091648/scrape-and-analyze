@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
@@ -121,5 +122,39 @@ describe('CitedContent', () => {
     render(<CitedContent text="See [1] for details." sources={[makeSource()]} draggableSources />)
     const chip = screen.getByRole('button', { name: /Cited Paper/ })
     expect(chip).toHaveAttribute('aria-roledescription', 'draggable')
+  })
+
+  // ── Reveal + highlight on inline-citation click (2026-07-14) ──────────────
+
+  it('calls onRefClick with the 0-indexed source position when a [N] marker is clicked', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    const onRefClick = vi.fn()
+    render(<CitedContent text="See [1] for details." sources={[makeSource()]} onRefClick={onRefClick} />)
+    fireEvent.click(screen.getByTitle('Cited Paper'))
+    expect(onRefClick).toHaveBeenCalledWith(0)
+  })
+
+  it('highlights the corresponding chip once a collapsed source list is expanded in response to onRefClick', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+
+    function Wrapper() {
+      const [expanded, setExpanded] = useState(false)
+      return (
+        <CitedContent
+          text="See [1] for details."
+          sources={[makeSource()]}
+          showSourceList={expanded}
+          onRefClick={() => setExpanded(true)}
+        />
+      )
+    }
+
+    render(<Wrapper />)
+    expect(screen.queryByRole('button', { name: /Cited Paper/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Cited Paper'))
+
+    const chip = await screen.findByRole('button', { name: /Cited Paper/ })
+    expect(chip.className).toContain('ring-2')
   })
 })
