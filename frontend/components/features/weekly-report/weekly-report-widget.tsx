@@ -1,7 +1,11 @@
 'use client'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import {
+  DndContext, DragOverlay, MouseSensor, TouchSensor,
+  useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, MessageSquare, Newspaper, Sparkles } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
@@ -61,10 +65,37 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   const [activeCard, setActiveCard] = useState<'report' | 'chat'>('report')
   const [activeDragArticle, setActiveDragArticle] = useState<{ id: string; title: string } | null>(null)
   const [chatState, setChatState] = useState<ChatConversationSnapshot | null>(null)
+  // Lets the report/chat switch button surface a red dot when a chat answer finishes settling
+  // while the user is looking at the report card — otherwise a completed reply is silent until
+  // they happen to switch tabs on their own.
+  const [hasUnreadChatResponse, setHasUnreadChatResponse] = useState(false)
+  const prevChatLoadingRef = useRef(false)
+  // Without an activation constraint, dnd-kit treats a plain click (pointerdown → pointerup with
+  // no movement) as a completed zero-distance drag and swallows the click event — breaking the
+  // source-chip's onClick (open article detail). Requiring real movement first, same as
+  // app/tags/page.tsx, lets a click stay a click.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+  )
 
   function handleMessageSent() {
     setHasConversation(true)
     setActiveCard('chat')
+  }
+
+  useEffect(() => {
+    const isLoadingNow = chatState?.isLoading ?? false
+    if (prevChatLoadingRef.current && !isLoadingNow && activeCard !== 'chat') {
+      setHasUnreadChatResponse(true)
+    }
+    prevChatLoadingRef.current = isLoadingNow
+  }, [chatState?.isLoading, activeCard])
+
+  function handleToggleActiveCard() {
+    const next = activeCard === 'chat' ? 'report' : 'chat'
+    setActiveCard(next)
+    if (next === 'chat') setHasUnreadChatResponse(false)
   }
 
   useEffect(() => {
@@ -259,7 +290,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   )
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <section
       data-testid="weekly-report-widget"
       className="absolute inset-0 overflow-hidden"
@@ -301,11 +332,14 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => setActiveCard(c => (c === 'chat' ? 'report' : 'chat'))}
+                  onClick={handleToggleActiveCard}
                   aria-label={t(activeCard === 'chat' ? 'weeklyReport.switchToReport' : 'weeklyReport.switchToChat')}
-                  className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-purple-100 text-purple-600 shadow-sm backdrop-blur-md transition hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-800/60"
+                  className="relative flex size-8 cursor-pointer items-center justify-center rounded-full bg-purple-100 text-purple-600 shadow-sm backdrop-blur-md transition hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-800/60"
                 >
                   {activeCard === 'chat' ? <Newspaper className="size-4" /> : <MessageSquare className="size-4" />}
+                  {hasUnreadChatResponse && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-background" />
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent>{t(activeCard === 'chat' ? 'weeklyReport.switchToReport' : 'weeklyReport.switchToChat')}</TooltipContent>
@@ -347,7 +381,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
               }`}
             >
               {chatState && (
-                <div className="h-full overflow-y-auto">
+                <div className="weekly-stepper-scroll h-full overflow-y-auto">
                   <AnswerDisplay
                     turns={chatState.turns}
                     currentIndex={chatState.currentIndex}
@@ -355,6 +389,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                     error={chatState.error}
                     onPrevTurn={chatState.onPrevTurn}
                     onNextTurn={chatState.onNextTurn}
+                    draggableSources
                   />
                 </div>
               )}

@@ -20,6 +20,11 @@ vi.mock('@dnd-kit/core', () => ({
   },
   DragOverlay: ({ children }: any) => children,
   useDraggable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, isDragging: false }),
+  useDroppable: () => ({ setNodeRef: () => {}, isOver: false }),
+  MouseSensor: vi.fn(),
+  TouchSensor: vi.fn(),
+  useSensor: vi.fn(),
+  useSensors: vi.fn(() => []),
 }))
 
 let mockPinnedArticleState: { pinnedArticles: { id: string; title: string }[] } = { pinnedArticles: [] }

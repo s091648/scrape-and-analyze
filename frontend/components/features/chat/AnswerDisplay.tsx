@@ -15,6 +15,9 @@ interface AnswerDisplayProps {
   error?: Error | null
   onPrevTurn: () => void
   onNextTurn: () => void
+  /** Makes each source-chip pill in the answer a dnd-kit drag source (see CitedContent). Default
+   * false — only meaningful when the caller renders this inside its own DndContext. */
+  draggableSources?: boolean
 }
 
 function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabel: string }) {
@@ -38,13 +41,13 @@ function ThinkingBlock({ thinking, toggleLabel }: { thinking: string; toggleLabe
   )
 }
 
-export function AnswerDisplay({ turns, currentIndex, isLoading, error, onPrevTurn, onNextTurn }: AnswerDisplayProps) {
+export function AnswerDisplay({ turns, currentIndex, isLoading, error, onPrevTurn, onNextTurn, draggableSources }: AnswerDisplayProps) {
   const { t } = useI18n()
   const currentTurn = turns[currentIndex]
 
   if (isLoading && !currentTurn) {
     return (
-      <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm text-muted-foreground animate-pulse">
+      <div className="mt-3 px-4 py-3 rounded-lg bg-white/55 backdrop-blur-md text-sm text-neutral-600 animate-pulse">
         {t('rag.thinking')}
       </div>
     )
@@ -59,7 +62,7 @@ export function AnswerDisplay({ turns, currentIndex, isLoading, error, onPrevTur
         ? t('rag.serviceUnavailable')
         : t('rag.genericError')
     return (
-      <div className="mt-3 px-4 py-3 rounded-lg bg-destructive/10 text-sm text-destructive">
+      <div className="mt-3 px-4 py-3 rounded-lg bg-white/55 backdrop-blur-md text-sm text-destructive">
         {msg}
       </div>
     )
@@ -76,13 +79,18 @@ export function AnswerDisplay({ turns, currentIndex, isLoading, error, onPrevTur
       {currentTurn.assistantMessage.thinking && (
         <ThinkingBlock thinking={currentTurn.assistantMessage.thinking} toggleLabel={t('rag.thinkingToggle')} />
       )}
-      <div className="mt-3 px-4 py-3 rounded-lg bg-muted/50 text-sm leading-relaxed">
+      <div className="mt-3 px-4 py-3 rounded-lg bg-white/55 backdrop-blur-md text-sm leading-relaxed text-neutral-800">
         {currentTurn.userMessage && (
-          <p className="mb-1.5 text-xs font-medium text-muted-foreground">{currentTurn.userMessage.content}</p>
+          <p className="mb-1.5 text-xs font-medium text-neutral-600">{currentTurn.userMessage.content}</p>
         )}
-        <CitedContent text={currentTurn.assistantMessage.content} sources={currentTurn.sources} showSourceList={!isLive} />
+        <CitedContent
+          text={currentTurn.assistantMessage.content}
+          sources={currentTurn.sources}
+          showSourceList={!isLive}
+          draggableSources={draggableSources}
+        />
         {isLive && (
-          <span className="inline-block w-1.5 h-4 ml-0.5 bg-foreground/60 animate-pulse align-middle" />
+          <span className="inline-block w-1.5 h-4 ml-0.5 bg-neutral-800/60 animate-pulse align-middle" />
         )}
       </div>
       {!isLoading && turns.length > 1 && (
