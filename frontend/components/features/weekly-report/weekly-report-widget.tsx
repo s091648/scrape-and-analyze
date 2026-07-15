@@ -1,14 +1,16 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { DndContext, type DragEndEvent } from '@dnd-kit/core'
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MessageSquare, Newspaper, Sparkles } from 'lucide-react'
+import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, MessageSquare, Newspaper, Sparkles } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
 import { useI18n, usePinnedArticle } from '@/lib/providers'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CitedContent } from '@/components/features/chat/cited-content'
+import { AnswerDisplay } from '@/components/features/chat/AnswerDisplay'
+import type { ChatConversationSnapshot } from '@/components/features/chat/types'
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear()
@@ -34,8 +36,13 @@ interface WeeklyReportWidgetProps {
   initialWeek?: string | null
   /** Render-prop rather than a plain node: the chat child needs to tell this widget when a
    * message is sent (to switch from the stacked layout into report/chat card-swap mode and
-   * jump to the chat card), and a plain ReactNode has no channel to call back up. */
-  children?: (props: { onSend: () => void }) => ReactNode
+   * jump to the chat card) and report its live conversation state (so this widget can render
+   * that state's answer panel elsewhere in the tree, since the chat child itself stays fixed
+   * in the always-visible input-bar slot) — a plain ReactNode has no channel to call back up. */
+  children?: (props: {
+    onSend: () => void
+    onConversationChange: (snapshot: ChatConversationSnapshot) => void
+  }) => ReactNode
 }
 
 export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
@@ -52,6 +59,8 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   // bar, no overflow risk yet).
   const [hasConversation, setHasConversation] = useState(false)
   const [activeCard, setActiveCard] = useState<'report' | 'chat'>('report')
+  const [activeDragArticle, setActiveDragArticle] = useState<{ id: string; title: string } | null>(null)
+  const [chatState, setChatState] = useState<ChatConversationSnapshot | null>(null)
 
   function handleMessageSent() {
     setHasConversation(true)
@@ -144,7 +153,13 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
     }
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const article = event.active.data.current?.article as { id: string; title: string } | undefined
+    setActiveDragArticle(article ?? null)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveDragArticle(null)
     if (event.over?.id !== 'chat-input-dropzone') return
     const article = event.active.data.current?.article as { id: string; title: string } | undefined
     if (article) pinArticles([article])
@@ -244,7 +259,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   )
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <section
       data-testid="weekly-report-widget"
       className="absolute inset-0 overflow-hidden"
@@ -305,51 +320,61 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
         style={{ pointerEvents: collapsed ? 'none' : 'auto' }}
         className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
       >
-        {hasConversation ? (
-          // Once the chat has a real conversation, the report and chat no longer stack
-          // (that overflows vertically) — they swap in the same slot via the header button.
-          <div className="relative w-[80%] max-w-6xl h-[78%]">
-            <AnimatePresence mode="wait">
-              {activeCard === 'chat' ? (
-                <motion.div
-                  key="chat-card"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="h-full overflow-hidden rounded-2xl bg-white/40 backdrop-blur-sm p-3"
-                >
-                  {children?.({ onSend: handleMessageSent })}
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="report-card"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="h-full"
-                >
-                  {reportCardBody}
-                </motion.div>
-              )}
-            </AnimatePresence>
+        {/* The chat child (and its useChat() request) stays mounted here for the widget's whole
+            lifetime — it must never unmount just because the report card is what's currently
+            visible below, or an in-flight response gets abandoned and the conversation resets. */}
+        {children && (
+          <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">
+            {children({ onSend: handleMessageSent, onConversationChange: setChatState })}
           </div>
-        ) : (
-          <>
-            {children && (
-              <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">
-                {children({ onSend: handleMessageSent })}
-              </div>
-            )}
+        )}
 
-            <div className="w-[80%] max-w-6xl h-[78%]">
+        {hasConversation ? (
+          // Both the report and the chat's answer panel stay permanently mounted here too —
+          // only CSS visibility swaps between them, so switching back preserves conversation
+          // scroll position/pager state instead of losing it to a remount.
+          <div className="relative w-[80%] max-w-6xl h-[78%]">
+            <div
+              className={`absolute inset-0 h-full transition-opacity duration-200 ${
+                activeCard === 'report' ? 'opacity-100 z-10' : 'pointer-events-none z-0 opacity-0'
+              }`}
+            >
               {reportCardBody}
             </div>
-          </>
+            <div
+              className={`absolute inset-0 h-full overflow-hidden rounded-2xl bg-white/40 backdrop-blur-sm p-3 transition-opacity duration-200 ${
+                activeCard === 'chat' ? 'opacity-100 z-10' : 'pointer-events-none z-0 opacity-0'
+              }`}
+            >
+              {chatState && (
+                <div className="h-full overflow-y-auto">
+                  <AnswerDisplay
+                    turns={chatState.turns}
+                    currentIndex={chatState.currentIndex}
+                    isLoading={chatState.isLoading}
+                    error={chatState.error}
+                    onPrevTurn={chatState.onPrevTurn}
+                    onNextTurn={chatState.onNextTurn}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="w-[80%] max-w-6xl h-[78%]">
+            {reportCardBody}
+          </div>
         )}
       </motion.div>
     </section>
+    <DragOverlay>
+      {activeDragArticle && (
+        <div className="inline-flex items-center gap-1 rounded-full border border-purple-400 bg-card px-2 py-0.5 text-[11px] text-muted-foreground shadow-md cursor-grabbing">
+          <ExternalLink className="h-2.5 w-2.5 shrink-0 text-purple-500" />
+          <span className="truncate max-w-[200px]">{activeDragArticle.title}</span>
+        </div>
+      )}
+    </DragOverlay>
     </DndContext>
   )
 }

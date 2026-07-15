@@ -14,3 +14,17 @@ export interface ConversationTurn {
   assistantMessage: Message
   sources: ArticleSource[]
 }
+
+/** Everything AnswerDisplay needs, reported upward by InlineQABarWrapper (which owns the actual
+ * useChat() state) via an onConversationChange callback — not a Context, because the wrapper's
+ * input bar and the answer panel that shows this state are siblings rendered by their common
+ * parent (WeeklyReportWidget), not nested inside each other; a Context.Provider rendered by
+ * InlineQABarWrapper would only wrap its own subtree and never actually reach a sibling. */
+export interface ChatConversationSnapshot {
+  turns: ConversationTurn[]
+  currentIndex: number
+  isLoading: boolean
+  error: Error | null
+  onPrevTurn: () => void
+  onNextTurn: () => void
+}

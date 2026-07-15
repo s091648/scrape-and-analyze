@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { useChat, AgentInput } from '@s091648/chatbot-plugin-ui'
 
 vi.mock('next-auth/react', () => ({
@@ -142,7 +142,13 @@ describe('InlineQABarWrapper', () => {
     expect(mockSendMessage).not.toHaveBeenCalled()
   })
 
-  it('shows assistant answer in AnswerDisplay when messages include assistant reply', async () => {
+  // AnswerDisplay is no longer rendered by InlineQABarWrapper itself (2026-07-15) — the wrapper
+  // now only owns the chat state and reports it upward via onConversationChange, so a wrapping
+  // component (WeeklyReportWidget) can render the answer panel elsewhere in the tree without
+  // this input bar ever unmounting. These tests assert on the reported snapshot instead of DOM
+  // text; AnswerDisplay's own rendering of that snapshot is covered by AnswerDisplay.test.tsx.
+
+  it('reports paired turns via onConversationChange when messages include an assistant reply', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: mockMessages,
       sendMessage: mockSendMessage,
@@ -150,17 +156,22 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     })
+    const onConversationChange = vi.fn()
 
     const { InlineQABarWrapper } = await import(
       '@/components/features/chat/InlineQABarWrapper'
     )
-    render(<InlineQABarWrapper />)
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+
     await waitFor(() => {
-      expect(screen.getByText('Hi there!')).toBeInTheDocument()
+      const snapshot = onConversationChange.mock.calls.at(-1)?.[0]
+      expect(snapshot?.turns).toHaveLength(1)
+      expect(snapshot?.turns[0].assistantMessage.content).toBe('Hi there!')
+      expect(snapshot?.turns[0].userMessage?.content).toBe('hello')
     })
   })
 
-  it('shows loading cursor in AnswerDisplay when isLoading and assistant message exists', async () => {
+  it('reports isLoading true via onConversationChange while a response is streaming', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: mockMessages,
       sendMessage: mockSendMessage,
@@ -168,13 +179,16 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     })
+    const onConversationChange = vi.fn()
 
     const { InlineQABarWrapper } = await import(
       '@/components/features/chat/InlineQABarWrapper'
     )
-    render(<InlineQABarWrapper />)
-    const cursor = document.querySelector('.animate-pulse')
-    expect(cursor).toBeInTheDocument()
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+
+    const snapshot = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(snapshot?.isLoading).toBe(true)
+    expect(snapshot?.currentIndex).toBe(snapshot?.turns.length - 1)
   })
 
   it('passes mode from useTheme as theme prop to AgentInput', async () => {
@@ -207,7 +221,7 @@ describe('InlineQABarWrapper', () => {
     expect(receivedTheme).toBe('auto')
   })
 
-  it('shows rate limit error message on 429 error', async () => {
+  it('reports the error via onConversationChange on 429', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
@@ -215,12 +229,14 @@ describe('InlineQABarWrapper', () => {
       error: new Error('HTTP 429'),
       clearMessages: vi.fn(),
     })
+    const onConversationChange = vi.fn()
 
     const { InlineQABarWrapper } = await import(
       '@/components/features/chat/InlineQABarWrapper'
     )
-    render(<InlineQABarWrapper />)
-    expect(screen.getByText('已達每日問答上限')).toBeInTheDocument()
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+    const snapshot = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(snapshot?.error?.message).toBe('HTTP 429')
   })
 
   it('shows toast.warning on 429 via onError callback', async () => {
@@ -578,7 +594,7 @@ describe('InlineQABarWrapper', () => {
     expect(() => fireEvent.click(screen.getByTestId('send-btn'))).not.toThrow()
   })
 
-  it('pairs consecutive user/assistant messages into turns and shows the newest by default', async () => {
+  it('pairs consecutive user/assistant messages into turns and reports the newest as current by default', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: [
         { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
@@ -591,16 +607,17 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     } as any)
+    const onConversationChange = vi.fn()
 
     const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
-    render(<InlineQABarWrapper />)
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
 
-    expect(screen.getByText('Second answer')).toBeInTheDocument()
-    expect(screen.queryByText('First answer')).not.toBeInTheDocument()
-    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+    const snapshot = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(snapshot?.turns.map((t: any) => t.assistantMessage.content)).toEqual(['First answer', 'Second answer'])
+    expect(snapshot?.currentIndex).toBe(1)
   })
 
-  it('paging to a previous turn shows that turn instead of the newest one', async () => {
+  it('onPrevTurn/onNextTurn from the reported snapshot move currentIndex without changing the turns themselves', async () => {
     vi.mocked(useChat).mockReturnValue({
       messages: [
         { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
@@ -613,13 +630,20 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     } as any)
+    const onConversationChange = vi.fn()
 
     const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
-    render(<InlineQABarWrapper />)
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
 
-    fireEvent.click(screen.getByLabelText('上一則問題'))
+    const latest = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(latest.currentIndex).toBe(1)
 
-    expect(screen.getByText('First answer')).toBeInTheDocument()
-    expect(screen.queryByText('Second answer')).not.toBeInTheDocument()
+    act(() => { latest.onPrevTurn() })
+
+    await waitFor(() => {
+      const afterPrev = onConversationChange.mock.calls.at(-1)?.[0]
+      expect(afterPrev.currentIndex).toBe(0)
+      expect(afterPrev.turns).toHaveLength(2)
+    })
   })
 })

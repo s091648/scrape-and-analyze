@@ -18,7 +18,8 @@ vi.mock('@dnd-kit/core', () => ({
     capturedOnDragEnd = onDragEnd
     return children
   },
-  useDraggable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {} }),
+  DragOverlay: ({ children }: any) => children,
+  useDraggable: () => ({ attributes: {}, listeners: {}, setNodeRef: () => {}, isDragging: false }),
 }))
 
 let mockPinnedArticleState: { pinnedArticles: { id: string; title: string }[] } = { pinnedArticles: [] }
@@ -352,7 +353,7 @@ describe('WeeklyReportWidget', () => {
     expect(screen.queryByLabelText('View chat')).not.toBeInTheDocument()
   })
 
-  it('swaps to the chat card and shows the switch button once the child calls onSend', async () => {
+  it('shows the switch button once the child calls onSend, and hides (but does not unmount) the report card', async () => {
     vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
@@ -367,10 +368,12 @@ describe('WeeklyReportWidget', () => {
     fireEvent.click(screen.getByTestId('fake-chat'))
 
     await waitFor(() => {
-      expect(screen.getByTestId('fake-chat')).toBeInTheDocument()
-      expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('View this week\'s report')).toBeInTheDocument()
     })
-    expect(screen.getByLabelText('View this week\'s report')).toBeInTheDocument()
+    // Report card stays mounted (2026-07-15 fix) — merely hidden via opacity/pointer-events, so
+    // an in-flight chat response is never abandoned just because the report is what's on screen.
+    const heading = screen.getByText('AI Weekly Highlights')
+    expect(heading.closest('.opacity-0.pointer-events-none')).not.toBeNull()
   })
 
   it('switch button toggles back and forth between the report and chat cards', async () => {

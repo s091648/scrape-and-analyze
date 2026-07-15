@@ -622,7 +622,8 @@
     "editGroupArticles": "Edit included articles",
     "groupArticlesPopoverTitle": "Included articles",
     "previousTurn": "Previous question",
-    "nextTurn": "Next question"
+    "nextTurn": "Next question",
+    "dropToPin": "Drop to pin"
   },
   "tutorial": {
     "stepOf": "Step {current} of {total}",

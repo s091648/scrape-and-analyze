@@ -41,7 +41,7 @@ function SourceChip({
   refCallback: (el: HTMLElement | null) => void
   onOpen: () => void
 }) {
-  const { attributes, listeners, setNodeRef } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `source-${src.id}`,
     data: { article: { id: src.id, title: src.title ?? src.url } },
     disabled: !draggable,
@@ -51,7 +51,12 @@ function SourceChip({
     setNodeRef(el)
   }, [refCallback, setNodeRef])
   const dragProps = draggable ? { ...listeners, ...attributes } : {}
-  const className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
+  // The dragged pill itself just dims in place — the floating copy that actually follows the
+  // cursor is a <DragOverlay> rendered by the DndContext owner (weekly-report-widget.tsx),
+  // same convention as tag-group-card.tsx's draggable tags.
+  const className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+    draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+  } ${isDragging ? 'opacity-40' : ''} ${
     highlighted
       ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
       : 'border-border hover:border-foreground/30'

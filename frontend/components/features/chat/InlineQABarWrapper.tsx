@@ -4,13 +4,12 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useDroppable } from '@dnd-kit/core'
 import { AgentInput, openaiAdapter, useChat, type StreamAdapter, type StreamEvent } from '@s091648/chatbot-plugin-ui'
-import { Pencil, Sparkles, X } from 'lucide-react'
+import { Inbox, Pencil, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle } from '@/lib/providers'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
-import { AnswerDisplay } from './AnswerDisplay'
-import type { ArticleSource, ConversationTurn } from './types'
+import type { ArticleSource, ChatConversationSnapshot, ConversationTurn } from './types'
 
 interface InlineQABarWrapperProps {
   placeholder?: string
@@ -18,11 +17,15 @@ interface InlineQABarWrapperProps {
   /** Called when a message is sent — lets a wrapping component (the weekly report widget)
    * react to the conversation starting/advancing without owning the chat state itself. */
   onMessageSent?: () => void
+  /** Reports the live conversation state on every change — lets a wrapping component render the
+   * answer panel (e.g. AnswerDisplay) somewhere else in the tree, since this component owns the
+   * actual useChat() state but the answer panel is a sibling, not a descendant, of this input bar. */
+  onConversationChange?: (snapshot: ChatConversationSnapshot) => void
 }
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
-export function InlineQABarWrapper({ placeholder, className, onMessageSent }: InlineQABarWrapperProps) {
+export function InlineQABarWrapper({ placeholder, className, onMessageSent, onConversationChange }: InlineQABarWrapperProps) {
   const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
@@ -84,20 +87,27 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent }: In
   })
 
   // Every user/assistant message pair, oldest first — lets AnswerDisplay page back through
-  // settled turns instead of only ever showing the latest one.
+  // settled turns instead of only ever showing the latest one. The still-streaming message (if
+  // any) falls back to pendingSourcesRef directly: sourcesByMessageId only gets a message's
+  // entry once its response fully settles, but the backend sends sources early in the stream
+  // (retrieval happens before generation), so inline [N] citations can — and should — already be
+  // clickable while the answer is still typing in, not just after it finishes.
   const turns = useMemo((): ConversationTurn[] => {
     const result: ConversationTurn[] = []
     let pendingUser: typeof messages[number] | undefined
-    for (const m of messages) {
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i]
       if (m.role === 'user') {
         pendingUser = m
       } else if (m.role === 'assistant') {
-        result.push({ userMessage: pendingUser, assistantMessage: m, sources: sourcesByMessageId[m.id] ?? [] })
+        const isLiveMessage = isLoading && i === messages.length - 1
+        const sources = sourcesByMessageId[m.id] ?? (isLiveMessage ? pendingSourcesRef.current : [])
+        result.push({ userMessage: pendingUser, assistantMessage: m, sources })
         pendingUser = undefined
       }
     }
     return result
-  }, [messages, sourcesByMessageId])
+  }, [messages, sourcesByMessageId, isLoading])
 
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
@@ -124,6 +134,21 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent }: In
     return () => window.removeEventListener('keydown', handler)
   }, [isLoading, abort])
 
+  useEffect(() => {
+    onConversationChange?.({
+      turns,
+      currentIndex: currentTurnIndex,
+      isLoading,
+      error,
+      onPrevTurn: () => setCurrentTurnIndex(i => Math.max(0, i - 1)),
+      onNextTurn: () => setCurrentTurnIndex(i => Math.min(turns.length - 1, i + 1)),
+    })
+    // onConversationChange intentionally excluded: it's a plain callback prop, not expected to
+    // be memoized by the caller — including it would re-report on every parent render for no
+    // reason. Every value the snapshot is actually built from is listed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turns, currentTurnIndex, isLoading, error])
+
   const handleSend = useCallback(
     (text: string) => {
       if (!text.trim()) return
@@ -138,10 +163,12 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent }: In
     : null
 
   return (
-    <div className={`${className ?? ''} flex h-full flex-col`}>
+    <div className={className}>
       <div
         ref={setDropRef}
-        className={`shrink-0 rounded-xl transition-colors ${isOver ? 'ring-2 ring-purple-300 bg-purple-50/50 dark:bg-purple-950/20' : ''}`}
+        className={`relative rounded-xl transition-all duration-150 ${
+          isOver ? 'ring-2 ring-purple-400 bg-purple-50/80 scale-[1.01] dark:bg-purple-950/40' : ''
+        }`}
       >
         <AgentInput
           theme={mode}
@@ -161,6 +188,12 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent }: In
             },
           }}
         />
+        {isOver && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 rounded-xl bg-purple-100/90 text-xs font-medium text-purple-700 dark:bg-purple-900/80 dark:text-purple-200">
+            <Inbox className="h-3.5 w-3.5" />
+            {t('rag.dropToPin')}
+          </div>
+        )}
         {quotaText && (
           <p className="mt-1 text-right text-[11px] text-muted-foreground">{quotaText}</p>
         )}
@@ -232,16 +265,6 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent }: In
             ))}
           </div>
         )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <AnswerDisplay
-          turns={turns}
-          currentIndex={currentTurnIndex}
-          isLoading={isLoading}
-          error={error}
-          onPrevTurn={() => setCurrentTurnIndex(i => Math.max(0, i - 1))}
-          onNextTurn={() => setCurrentTurnIndex(i => Math.min(turns.length - 1, i + 1))}
-        />
       </div>
     </div>
   )

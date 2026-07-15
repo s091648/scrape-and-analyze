@@ -622,7 +622,8 @@
     "editGroupArticles": "編輯納入的文章",
     "groupArticlesPopoverTitle": "已納入的文章",
     "previousTurn": "上一則問題",
-    "nextTurn": "下一則問題"
+    "nextTurn": "下一則問題",
+    "dropToPin": "放開以加入引用"
   },
   "tutorial": {
     "stepOf": "第 {current} 步，共 {total} 步",
