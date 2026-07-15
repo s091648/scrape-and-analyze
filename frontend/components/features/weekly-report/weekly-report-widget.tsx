@@ -338,7 +338,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                 >
                   {activeCard === 'chat' ? <Newspaper className="size-4" /> : <MessageSquare className="size-4" />}
                   {hasUnreadChatResponse && (
-                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-background" />
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 animate-notify-blink rounded-full bg-red-500 ring-1 ring-background" />
                   )}
                 </button>
               </TooltipTrigger>
