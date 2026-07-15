@@ -111,11 +111,15 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
 
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
-      const justFinished = [...messages].reverse().find(m => m.role === 'assistant')
-      if (justFinished) {
-        setSourcesByMessageId(prev => ({ ...prev, [justFinished.id]: pendingSourcesRef.current }))
-      }
+      // Capture BEFORE clearing — the functional updater passed to setSourcesByMessageId runs
+      // during the next render, by which point pendingSourcesRef.current would already be [] if
+      // we cleared it first. Same fix applied in FloatingChatbotWrapper.tsx.
+      const captured = pendingSourcesRef.current
       pendingSourcesRef.current = []
+      const justFinished = [...messages].reverse().find(m => m.role === 'assistant')
+      if (justFinished && captured.length > 0) {
+        setSourcesByMessageId(prev => ({ ...prev, [justFinished.id]: captured }))
+      }
       refreshQuota()
     }
     prevIsLoadingRef.current = isLoading
