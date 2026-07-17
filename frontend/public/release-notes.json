@@ -1,5 +1,43 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Introduced a comprehensive weekly report system featuring automated generation and a dedicated navigation dashboard"
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced chat functionality with support for multi-turn conversations and drag-and-drop file uploads"
+      },
+      {
+        "type": "feat",
+        "description": "Added email and Telegram notification support for weekly report updates"
+      },
+      {
+        "type": "feat",
+        "description": "Implemented article favorites and new sorting options based on recommendation signals"
+      },
+      {
+        "type": "feat",
+        "description": "Added inline citations and source-pinning capabilities to the weekly report widget"
+      },
+      {
+        "type": "fix",
+        "description": "Resolved a display issue where distribution charts were invisible in dark mode"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed navigation behavior to preserve search filters and query parameters when switching topics"
+      },
+      {
+        "type": "feat",
+        "description": "Launched an interactive tutorial to guide users through the weekly report features"
+      }
+    ]
+  },
+  {
     "version": "v1.2.3",
     "date": "2026-07-11",
     "changes": [
