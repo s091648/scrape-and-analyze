@@ -46,6 +46,8 @@ jobs:
             [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
             [postgres]="c11d60e9-9bb3-450d-8a78-98f85ba4e890"
             [redis]="ac3aa7a4-c431-4d43-9827-f493dad682df"
+            [weekly-report]="0b2a6997-6401-4f6e-91d8-ba1abe34ea46"
+            [refresh-metrics]="a8d5fa77-7498-4447-843f-f328d6d595a5"
           )
 
           for name in "${!SERVICES[@]}"; do

@@ -62,8 +62,9 @@ GRAFANA_OTLP_USER: str = os.environ.get("GRAFANA_OTLP_USER", "").strip()
 GRAFANA_OTLP_ENDPOINT: str = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()
 
 # Collection API clients
+# OpenAlex's polite-pool "mailto" identifier reuses CONTACT_EMAIL (same bot-identity
+# contact used in scraper User-Agent/From headers) — no separate env var.
 SEMANTIC_SCHOLAR_API_KEY: Optional[str] = os.environ.get("SEMANTIC_SCHOLAR_API_KEY") or None
-OPENALEX_MAILTO: str = os.environ.get("OPENALEX_MAILTO", "")
 
 # Vector DB connection
 VECTOR_DB_NAME: str = os.environ.get("VECTOR_DB_NAME", "")

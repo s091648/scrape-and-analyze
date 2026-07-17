@@ -165,6 +165,8 @@ jobs:
           railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
           (cd chatbot-plugin && railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2)  # chatbot-plugin
           railway up --detach --service c97be150-c9cc-42d0-a23e-04406573ee93  # fastembed
+          railway up --detach --service 0b2a6997-6401-4f6e-91d8-ba1abe34ea46  # weekly-report
+          railway up --detach --service a8d5fa77-7498-4447-843f-f328d6d595a5  # refresh-metrics
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
