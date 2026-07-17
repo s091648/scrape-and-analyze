@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 14 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 15 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -56,6 +56,9 @@ features:
   - title: '013 · Dark Mode Toggle'
     details: '在 NavBar 加一個切換 light / dark / auto mode 的 icon，點擊依序切換，icon 隨之改變。RAG 元件隨 theme 更新。'
     link: '/specs/013-dark-mode-toggle/spec'
+  - title: '014 · Article Recommendation Weekly Report'
+    details: 'Feature specification for Article Recommendation Weekly Report'
+    link: '/specs/014-article-recommendation-weekly-report/spec'
   - title: '015 · Guest Tutorial Mode'
     details: '在 guest mode 時新增一個 tutorial mode，加上一個類似於 stepper 的東西，一步一步地告訴使用者如何操作。後續追加需求：教學呈現方式改為「灰色 overlay + 對目標元素挖空 highlight + 頁面導覽 + 貼齊元素的說明對話框」，並擴充為所有使用者在新功能上線時都能看到對應的功能導覽（feature spotlight），且已讀狀態需要持久化。'
     link: '/specs/015-guest-tutorial-mode/spec'
