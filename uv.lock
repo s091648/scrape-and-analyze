@@ -2928,6 +2928,17 @@ dev = [
     { name = "responses" },
     { name = "starlette" },
 ]
+http-clients = [
+    { name = "requests" },
+]
+llm = [
+    { name = "anthropic" },
+    { name = "huggingface-hub" },
+    { name = "tenacity" },
+]
+metrics = [
+    { name = "jmespath" },
+]
 observability = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -2937,17 +2948,12 @@ observability = [
     { name = "sentry-sdk" },
 ]
 scraper = [
-    { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "chatbot-plugin-sdk" },
     { name = "fastembed" },
     { name = "feedparser" },
-    { name = "huggingface-hub" },
-    { name = "jmespath" },
     { name = "lxml" },
     { name = "pymupdf" },
-    { name = "requests" },
-    { name = "tenacity" },
 ]
 
 [package.metadata]
@@ -2985,6 +2991,13 @@ dev = [
     { name = "responses" },
     { name = "starlette" },
 ]
+http-clients = [{ name = "requests" }]
+llm = [
+    { name = "anthropic" },
+    { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "tenacity" },
+]
+metrics = [{ name = "jmespath", specifier = ">=1.0" }]
 observability = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
@@ -2994,17 +3007,12 @@ observability = [
     { name = "sentry-sdk" },
 ]
 scraper = [
-    { name = "anthropic" },
     { name = "beautifulsoup4" },
     { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v0.15.2" },
     { name = "fastembed", specifier = ">=0.3" },
     { name = "feedparser" },
-    { name = "huggingface-hub", specifier = ">=0.24" },
-    { name = "jmespath", specifier = ">=1.0" },
     { name = "lxml" },
     { name = "pymupdf", specifier = ">=1.24" },
-    { name = "requests" },
-    { name = "tenacity" },
 ]
 
 [[package]]

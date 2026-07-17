@@ -1,13 +1,22 @@
 # Worker service (scraper/analyzer cron jobs)
 # Railway Root Directory: / (repo root)
+#
+# All three src/ services below share this one build (dockerfilePath = src/Dockerfile)
+# but install a different subset of dependency-groups via the UV_GROUPS build ARG —
+# Railway auto-passes a same-named service variable into Dockerfile ARGs at build
+# time, so set UV_GROUPS as a plain service Variable (not here) per service.
+# See pyproject.toml [dependency-groups] for what each group contains/why they're split.
+#
 # Railway Dashboard must set per-service overrides:
 #   worker         → Dockerfile Path: src/Dockerfile
 #                    Start Command:   (empty — use Dockerfile CMD: python -m src.main)
 #                    Restart Policy:  never
+#                    UV_GROUPS:       (unset — Dockerfile default is "scraper llm http-clients")
 #   weekly-report  → Config File Path: src/railway.toml (reuses this same build)
 #                    Start Command:   python -m src.entrypoints.cli.weekly_report
 #                    Cron Schedule:   0 8 * * 1  (every Monday, 08:00 UTC)
 #                    Restart Policy:  never
+#                    UV_GROUPS:       "llm http-clients"
 #                    No arguments needed — --topic-id / --week-start are for manual
 #                    local runs only; the cron invocation defaults to all active
 #                    topics and last week's Monday.
@@ -15,6 +24,7 @@
 #                    Start Command:   python -m src.entrypoints.cli.refresh_metrics
 #                    Cron Schedule:   0 3 * * *  (daily, 03:00 UTC)
 #                    Restart Policy:  never
+#                    UV_GROUPS:       "http-clients metrics"
 #                    Independent of weekly-report and of the backend's view_count
 #                    Redis flush — keeps citation_count (and future catalog metrics)
 #                    fresh for previously-scraped articles. See research.md §9b, §9f
