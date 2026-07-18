@@ -11,7 +11,7 @@ export const NativeSelect = forwardRef<HTMLSelectElement, NativeSelectProps>(
     <select
       ref={ref}
       className={cn(
-        'rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring',
+        'rounded-lg border border-border bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring',
         size === 'md' && 'h-9 px-2 text-sm',
         size === 'sm' && 'px-1.5 py-0.5 text-xs rounded',
         className,

@@ -42,8 +42,16 @@ def db_engine():
     from models.scraper_keyword import ScraperKeyword  # noqa: F401
     from models.article_translation import ArticleTranslation  # noqa: F401
 
-    # Create all tables inside the test schema
-    Base.metadata.create_all(engine)
+    # Create all tables inside the test schema.
+    # checkfirst=False is required: has_table() would otherwise resolve
+    # unqualified table names via search_path, find the identically-named
+    # table in `public` (the real dev database), and skip creation here —
+    # silently routing every insert in this suite into `public` instead of
+    # the isolated test schema. Fixed-schema tables (auth, vectors) are
+    # excluded since they're owned by alembic migrations, not per-test setup.
+    FIXED_SCHEMAS = {"auth", "vectors"}
+    tables = [t for t in Base.metadata.sorted_tables if t.schema not in FIXED_SCHEMAS]
+    Base.metadata.create_all(engine, tables=tables, checkfirst=False)
 
     yield engine
 

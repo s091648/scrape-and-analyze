@@ -22,6 +22,8 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from src.config.settings import APP_ENV
+
 
 # --- SDK JSON formatter (reads correlation_id from the ContextVar) ------------------
 
@@ -76,9 +78,11 @@ def _configure_sdk_logging(loki_handler: logging.Handler | None = None) -> None:
 def configure_loki() -> None:
     """Set up stdout handler and optional Loki handler for the root logger,
     then configure SDK logging separately."""
-    url = os.environ.get("GRAFANA_LOKI_URL")
-    user = os.environ.get("GRAFANA_LOKI_USER")
-    key = os.environ.get("GRAFANA_API_KEY")
+    # Read directly from os.environ (not the frozen settings constants) so tests
+    # that set/unset these env vars per-case take effect without a module reload.
+    url = os.environ.get("GRAFANA_LOKI_URL") or None
+    user = os.environ.get("GRAFANA_LOKI_USER") or None
+    key = os.environ.get("GRAFANA_API_KEY") or None
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
@@ -93,7 +97,7 @@ def configure_loki() -> None:
         try:
             from logging_loki import LokiHandler
             from shared.enums.observability import LokiLabel, LokiAppValue
-            app_env = os.environ.get("APP_ENV", "local").strip()
+            app_env = APP_ENV.strip()
             loki_handler = LokiHandler(
                 url=f"{url.rstrip('/')}/push",
                 auth=(user, key),

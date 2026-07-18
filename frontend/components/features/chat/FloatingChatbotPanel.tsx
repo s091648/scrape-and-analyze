@@ -337,7 +337,7 @@ export function FloatingChatbotPanel({
                               sourceRefsMap.current.get(m.id)![idx] = el
                             }}
                             onClick={() => openArticleDialog(src.public_article_id!)}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
                               highlighted?.msgId === m.id && highlighted?.idx === idx
                                 ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
                                 : 'border-border hover:border-foreground/30'
@@ -357,7 +357,7 @@ export function FloatingChatbotPanel({
                             href={src.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[10px] text-muted-foreground hover:text-foreground transition-all duration-300 cursor-pointer ${
                               highlighted?.msgId === m.id && highlighted?.idx === idx
                                 ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
                                 : 'border-border hover:border-foreground/30'
@@ -467,6 +467,7 @@ export function FloatingChatbotPanel({
       <ArticleDetailDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        id={dialogArticle?.id ?? ''}
         title={dialogArticle?.title ?? ''}
         source={dialogArticle?.source ?? ''}
         url={dialogArticle?.url ?? ''}

@@ -69,12 +69,13 @@ interface RunWaterfallDialogProps {
   traceId: string
   trace: OtlpTraceResponse
   onSelectArticle?: (pipelineSpan: OtlpSpan, stageSpans: SpanNode[]) => void
+  onSelectTopic?: (topicSpan: OtlpSpan, stageSpans: SpanNode[]) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function RunWaterfallDialog({
-  open, onClose, traceId, trace, onSelectArticle,
+  open, onClose, traceId, trace, onSelectArticle, onSelectTopic,
 }: RunWaterfallDialogProps) {
   const { t } = useI18n()
 
@@ -169,23 +170,29 @@ export function RunWaterfallDialog({
             <tbody>
               {rows.map(({ span, depth, hasChildren }) => {
                 const isPipeline = span.name === SpanName.ARTICLE_PIPELINE
+                const isTopic = span.name === SpanName.WEEKLY_REPORT_TOPIC
                 const durationMs = spanDurationMs(span)
                 const error = isErrorSpan(span)
                 const isCollapsed = collapsed.has(span.spanId)
                 const label = isPipeline
                   ? `↳ ${(getAttr(span, 'article.url') as string | undefined)?.split('/').slice(-2).join('/') ?? 'article'}`
+                  : isTopic
+                  ? `↳ ${(getAttr(span, 'topic.name') as string | undefined) ?? 'topic'}`
                   : span.name.split('.').slice(-2).join('.')
+                const isClickable = (isPipeline && !!onSelectArticle) || (isTopic && !!onSelectTopic)
 
                 return (
                   <tr
                     key={span.spanId}
                     className={cn(
                       'border-b border-border/30 hover:bg-muted/20 transition-colors',
-                      isPipeline && onSelectArticle && 'cursor-pointer',
+                      isClickable && 'cursor-pointer',
                     )}
                     onClick={() => {
                       if (isPipeline && onSelectArticle) {
                         onSelectArticle(span, findStageSpans(tree, span.spanId))
+                      } else if (isTopic && onSelectTopic) {
+                        onSelectTopic(span, findStageSpans(tree, span.spanId))
                       }
                     }}
                   >
@@ -197,7 +204,7 @@ export function RunWaterfallDialog({
                         {hasChildren && (
                           <button
                             onClick={e => { e.stopPropagation(); toggle(span.spanId) }}
-                            className="text-muted-foreground hover:text-foreground transition-colors mr-0.5"
+                            className="text-muted-foreground hover:text-foreground transition-colors mr-0.5 cursor-pointer"
                             aria-label={isCollapsed ? 'Expand' : 'Collapse'}
                           >
                             {isCollapsed

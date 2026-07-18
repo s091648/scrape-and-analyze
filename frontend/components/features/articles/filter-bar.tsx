@@ -1,14 +1,15 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { SlidersHorizontal, X } from 'lucide-react'
+import { SlidersHorizontal, X, Heart } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
 import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
 import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { useI18n, useTopic } from '@/lib/providers'
+import { useSession } from 'next-auth/react'
 import { GroupedTagSelect } from './grouped-tag-select'
 
 interface FilterBarProps {
@@ -21,6 +22,8 @@ interface FilterBarProps {
   scrapedAfter: string
   scrapedBefore: string
   activeFilterCount: number
+  favoritesOnly?: boolean
+  onFavoritesToggle?: (v: boolean) => void
   onApply: (updates: {
     aggregator?: string[]
     original_source?: string[]
@@ -31,6 +34,8 @@ interface FilterBarProps {
     scraped_after?: string
     scraped_before?: string
   }) => void
+  /** Rendered at the right edge of the top row — e.g. <SortSelect /> — kept as a sibling component since sorting and filtering are independent concerns. */
+  children?: ReactNode
 }
 
 export function FilterBar({
@@ -38,10 +43,14 @@ export function FilterBar({
   originalSources: activeOriginalSources,
   tags: activeTags, tagGroups: activeTagGroups,
   publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
-  activeFilterCount, onApply,
+  activeFilterCount,
+  favoritesOnly = false, onFavoritesToggle, onApply,
+  children,
 }: FilterBarProps) {
   const { t, locale } = useI18n()
   const { selectedTopicId } = useTopic()
+  const { status } = useSession()
+  const isAuthenticated = status === 'authenticated'
   const [open, setOpen] = useState(false)
   const [aggregatorOptions, setAggregatorOptions] = useState<SourceEntry[]>([])
   const [originalSourceOptions, setOriginalSourceOptions] = useState<string[]>([])
@@ -108,21 +117,35 @@ export function FilterBar({
 
   return (
     <div className="space-y-3">
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5 text-xs"
-        onClick={() => setOpen(o => !o)}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {t('filterBar.filters')}
-        {activeFilterCount > 0 && (
-          <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
-        )}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs cursor-pointer"
+          onClick={() => setOpen(o => !o)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {t('filterBar.filters')}
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="h-4 px-1 text-[10px]">{activeFilterCount}</Badge>
+          )}
+        </Button>
+        {children && <div className="ml-auto">{children}</div>}
+      </div>
 
       {open && (
         <div className="flex flex-wrap items-start gap-2 p-3 rounded-xl border border-border bg-muted/30">
+          {isAuthenticated && (
+            <Button
+              variant={favoritesOnly ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 text-xs cursor-pointer"
+              onClick={() => onFavoritesToggle?.(!favoritesOnly)}
+            >
+              <Heart className={`h-3.5 w-3.5 ${favoritesOnly ? 'fill-current' : ''}`} />
+              {t('filterBar.favoritesOnly')}
+            </Button>
+          )}
           <MultiSelectPopover
             label={t('filterBar.aggregator')}
             options={aggregatorOptions}
@@ -165,11 +188,11 @@ export function FilterBar({
           />
           <div className="flex gap-2 ml-auto">
             {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={handleClear}>
+              <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 cursor-pointer" onClick={handleClear}>
                 <X className="h-3 w-3" /> {t('filterBar.clear')}
               </Button>
             )}
-            <Button size="sm" className="h-8 text-xs" onClick={handleApply}>{t('filterBar.apply')}</Button>
+            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={handleApply}>{t('filterBar.apply')}</Button>
           </div>
         </div>
       )}

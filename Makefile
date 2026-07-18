@@ -8,7 +8,7 @@
 	backfill-suggestions backfill-suggestions-dry-run \
 	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
 	data-migrate data-migrate-list data-migrate-down \
-	create-admin scrape translate translate-remote run retry-failed retry-failed-remote \
+	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
@@ -169,6 +169,27 @@ translate-remote:
 
 run:
 	docker compose run --rm app python -m src.entrypoints.cli.main
+
+# Generate weekly article summary report(s).
+# Usage:
+#   make weekly-report
+#   make weekly-report TOPIC_ID=<uuid>
+#   make weekly-report TOPIC_ID=<uuid> WEEK_START=2025-01-06
+#   make weekly-report WEEK_START=2025-01-06 FORCE=1   # regenerate even if this week's report already exists
+#   make weekly-report-remote                          # staging DB (default ENV)
+#   make weekly-report-remote ENV=production            # production DB
+TOPIC_ID ?=
+WEEK_START ?=
+FORCE ?=
+_WEEKLY_ARGS := $(if $(TOPIC_ID),--topic-id $(TOPIC_ID),) $(if $(WEEK_START),--week-start $(WEEK_START),) $(if $(FORCE),--force,)
+
+weekly-report:
+	docker compose run --rm job_service python -m src.entrypoints.cli.weekly_report $(_WEEKLY_ARGS)
+
+weekly-report-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set — check REMOTE_RAILWAY_STAGING_DB_URL (or REMOTE_RAILWAY_DB_URL for ENV=production) in .env"; exit 1)
+	@echo "Running weekly report against Railway $(ENV) DB..."
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python -m src.entrypoints.cli.weekly_report $(_WEEKLY_ARGS)
 
 # optional: override with HOURS=48 LIMIT=20
 _RETRY_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(HOURS),--hours $(HOURS),)

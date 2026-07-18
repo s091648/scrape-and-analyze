@@ -17,6 +17,11 @@ vi.mock('@/lib/api/source-categories', () => ({
   fetchSourceCategories: vi.fn().mockResolvedValue({ aggregator: [], scraper: [] }),
 }))
 
+let mockSessionStatus = 'unauthenticated'
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({ status: mockSessionStatus }),
+}))
+
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
     locale: 'en',
@@ -39,6 +44,7 @@ vi.mock('@/lib/providers', () => ({
         'filterBar.clear': 'Clear',
         'filterBar.apply': 'Apply',
         'filterBar.noTagsFound': 'No tags found',
+        'filterBar.favoritesOnly': 'Favorites Only',
       }
       return map[key] ?? key
     },
@@ -84,6 +90,7 @@ beforeAll(async () => {
 describe('FilterBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockSessionStatus = 'unauthenticated'
     setupApiMock()
   })
 
@@ -137,5 +144,41 @@ describe('FilterBar', () => {
       expect(fetchArticleFilterOriginalSources).toHaveBeenCalledWith('topic-1', 'en')
       expect(fetchTagGroups).toHaveBeenCalledWith('topic-1')
     })
+  })
+
+  it('renders sort slot content passed as children next to the Filters button', async () => {
+    render(<FilterBar {...defaultProps}><button>Sort slot</button></FilterBar>)
+    expect(screen.getByRole('button', { name: 'Sort slot' })).toBeInTheDocument()
+  })
+})
+
+describe('FilterBar — Favorites Only', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setupApiMock()
+  })
+
+  it('is hidden for unauthenticated users', async () => {
+    mockSessionStatus = 'unauthenticated'
+    render(<FilterBar {...defaultProps} />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
+  })
+
+  it('appears inside the filter panel (not the always-visible top row) for authenticated users', async () => {
+    mockSessionStatus = 'authenticated'
+    render(<FilterBar {...defaultProps} />)
+    expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    expect(screen.getByRole('button', { name: /favorites only/i })).toBeInTheDocument()
+  })
+
+  it('calls onFavoritesToggle with the flipped value when clicked', async () => {
+    mockSessionStatus = 'authenticated'
+    const onFavoritesToggle = vi.fn()
+    render(<FilterBar {...defaultProps} favoritesOnly={false} onFavoritesToggle={onFavoritesToggle} />)
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    fireEvent.click(screen.getByRole('button', { name: /favorites only/i }))
+    expect(onFavoritesToggle).toHaveBeenCalledWith(true)
   })
 })

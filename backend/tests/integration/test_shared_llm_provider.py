@@ -80,3 +80,39 @@ def test_dict_contains_required_keys(db_session):
     match = next(r for r in result if r['model'] == 'model-keys')
     for key in ('name', 'model', 'api_key_env', 'priority', 'strategy'):
         assert key in match
+
+
+# ---------------------------------------------------------------------------
+# load_active_multimodal_provider
+# ---------------------------------------------------------------------------
+
+def test_load_active_multimodal_provider_returns_highest_priority(db_session):
+    from shared.llm_provider import load_active_multimodal_provider
+    _make_provider(db_session, model='mm-p2', type='multimodal', priority=2)
+    _make_provider(db_session, model='mm-p1', type='multimodal', priority=1)
+
+    result = load_active_multimodal_provider(db_session)
+
+    assert result is not None
+    assert result['model'] == 'mm-p1'
+
+
+def test_load_active_multimodal_provider_ignores_inactive_and_other_types(db_session):
+    from shared.llm_provider import load_active_multimodal_provider
+    _make_provider(db_session, model='mm-inactive', type='multimodal', priority=1, is_active=False)
+    _make_provider(db_session, model='mm-llm', type='llm', priority=1)
+    _make_provider(db_session, model='mm-active', type='multimodal', priority=2)
+
+    result = load_active_multimodal_provider(db_session)
+
+    assert result is not None
+    assert result['model'] == 'mm-active'
+
+
+def test_load_active_multimodal_provider_returns_none_when_absent(db_session):
+    from shared.llm_provider import load_active_multimodal_provider
+    _make_provider(db_session, model='llm-only', type='llm', priority=1)
+
+    result = load_active_multimodal_provider(db_session)
+
+    assert result is None

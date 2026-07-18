@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock, patch
+"""Tests for NotificationHandler dispatching pipeline events to sender callables."""
+from unittest.mock import MagicMock
+
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import SourceStats
 
@@ -10,30 +12,30 @@ def _make_event():
     )
 
 
-def test_handle_delegates_to_all_notifiers():
+def test_handle_delegates_to_all_senders():
     from src.infrastructure.shared.notifications.notification_service import NotificationHandler
-    n1 = MagicMock()
-    n2 = MagicMock()
-    handler = NotificationHandler(notifiers=[n1, n2])
+    s1 = MagicMock()
+    s2 = MagicMock()
+    handler = NotificationHandler(senders=[s1, s2])
     event = _make_event()
     handler.handle(event)
-    n1.notify.assert_called_once_with(event)
-    n2.notify.assert_called_once_with(event)
+    s1.assert_called_once_with(event)
+    s2.assert_called_once_with(event)
 
 
-def test_handle_continues_if_one_notifier_raises():
+def test_handle_continues_if_one_sender_raises():
     from src.infrastructure.shared.notifications.notification_service import NotificationHandler
-    failing = MagicMock()
-    failing.notify.side_effect = RuntimeError("network error")
+    failing = MagicMock(side_effect=RuntimeError("network error"))
     succeeding = MagicMock()
-    handler = NotificationHandler(notifiers=[failing, succeeding])
+    handler = NotificationHandler(senders=[failing, succeeding])
     handler.handle(_make_event())
-    succeeding.notify.assert_called_once()
+    succeeding.assert_called_once()
 
 
 def test_build_notification_handler_returns_handler():
-    from src.infrastructure.shared.notifications.notification_service import build_notification_handler
-    with patch.dict("os.environ", {}, clear=False):
-        handler = build_notification_handler()
-    from src.infrastructure.shared.notifications.notification_service import NotificationHandler
+    from src.infrastructure.shared.notifications.notification_service import (
+        NotificationHandler,
+        build_notification_handler,
+    )
+    handler = build_notification_handler()
     assert isinstance(handler, NotificationHandler)

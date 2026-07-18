@@ -348,7 +348,7 @@ export function TagGroupCard({
           </div>
         )}
         <button
-          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+          className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
           onClick={() => setOpen(o => !o)}
           aria-expanded={open}
         >
@@ -382,6 +382,8 @@ export function TagGroupCard({
             <Button
               variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
               onClick={async () => { await deleteTagGroup(group.id!, token); onDeleted(group.id!) }}
+              aria-label="Delete group"
+              title="Delete group"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -440,7 +442,7 @@ export function TagGroupCard({
               <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-card to-transparent flex items-end justify-center pb-2">
                 <button
                   onClick={() => setExpanded(true)}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   {t('tags.expand')}
                 </button>
@@ -450,7 +452,7 @@ export function TagGroupCard({
           {expanded && (
             <button
               onClick={() => setExpanded(false)}
-              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               {t('tags.collapse')}
             </button>

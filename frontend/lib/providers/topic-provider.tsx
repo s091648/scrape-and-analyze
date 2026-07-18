@@ -60,12 +60,13 @@ function TopicUrlSync({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, topics.length])
 
-  // State → URL: keep URL in sync with current topic
+  // State → URL: keep URL in sync with current topic, preserving other params (e.g. `week`)
   useEffect(() => {
     if (!selectedTopicId) return
     if (searchParams.get('topic') === selectedTopicId) return
-    // Replace with only ?topic=, clearing page-specific params (pagination, filters)
-    router.replace(`${pathname}?topic=${selectedTopicId}`, { scroll: false })
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('topic', selectedTopicId)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTopicId])
 

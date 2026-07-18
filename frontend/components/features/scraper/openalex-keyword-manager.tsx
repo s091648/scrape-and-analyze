@@ -43,7 +43,7 @@ export function OpenAlexKeywordManager({
             <span className="font-mono">{kw.keyword}</span>
             <button
               onClick={() => onDelete(kw.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5 cursor-pointer"
               aria-label={`Remove ${kw.keyword}`}
             >
               <X className="h-3 w-3" />

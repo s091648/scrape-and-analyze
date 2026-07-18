@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { fetchUsers, updateUser, deleteUser as deleteUserApi, createUser } from '@/lib/api/auth'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useI18n } from '@/lib/providers'
@@ -116,11 +117,15 @@ export default function UsersPage() {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t('admin.role')}</label>
-              <select value={newRole} onChange={e => setNewRole(e.target.value as 'admin' | 'user')}
-                className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="user">{t('admin.user')}</option>
-                <option value="admin">{t('admin.admin')}</option>
-              </select>
+              <Dropdown
+                value={newRole}
+                onChange={v => setNewRole(v as 'admin' | 'user')}
+                className="w-full h-10"
+                options={[
+                  { value: 'user', label: t('admin.user') },
+                  { value: 'admin', label: t('admin.admin') },
+                ]}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t('register.username')} ({t('register.displayNameOptional')})</label>
@@ -202,14 +207,15 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <select
+                      <Dropdown
+                        size="sm"
                         value={user.role}
-                        onChange={e => changeRole(user, e.target.value as 'admin' | 'user')}
-                        className="h-8 px-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="user">{t('admin.user')}</option>
-                        <option value="admin">{t('admin.admin')}</option>
-                      </select>
+                        onChange={v => changeRole(user, v as 'admin' | 'user')}
+                        options={[
+                          { value: 'user', label: t('admin.user') },
+                          { value: 'admin', label: t('admin.admin') },
+                        ]}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <Switch checked={user.is_allowed} onCheckedChange={() => toggleAllowed(user)} />

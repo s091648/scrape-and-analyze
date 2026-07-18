@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Pencil, X, Check, Plus, HelpCircle, GripVertical } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import { Dropdown } from '@/components/ui/dropdown'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AccordionSection } from '@/components/ui/accordion-section'
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -41,8 +42,8 @@ import {
 } from '@/lib/api'
 import { useI18n } from '@/lib/providers'
 
-const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter'] as const
-const PROVIDER_TYPES = ['llm', 'embedding'] as const
+const PROVIDER_NAMES = ['gemini', 'claude', 'openrouter', 'huggingface'] as const
+const PROVIDER_TYPES = ['llm', 'embedding', 'multimodal'] as const
 
 // ── Sortable Provider Card ────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ function SortableProviderCard({
       model: form.model,
       api_key_env: form.api_key_env,
       is_active: form.is_active,
-      type: form.type as 'llm' | 'embedding',
+      type: form.type as 'llm' | 'embedding' | 'multimodal',
       rpm: form.rpm !== '' ? Number(form.rpm) : null,
       tpm: form.tpm !== '' ? Number(form.tpm) : null,
       rpd: form.rpd !== '' ? Number(form.rpd) : null,
@@ -119,25 +120,21 @@ function SortableProviderCard({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>{t('admin.provider')}</label>
-                <select
+                <Dropdown
                   value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className={inputClass}
-                >
-                  {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                  onChange={v => setForm(f => ({ ...f, name: v }))}
+                  className="w-full h-9"
+                  options={PROVIDER_NAMES.map(n => ({ value: n, label: n }))}
+                />
               </div>
               <div>
                 <label className={labelClass}>{t('admin.providerType')}</label>
-                <select
+                <Dropdown
                   value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' }))}
-                  className={inputClass}
-                >
-                  {PROVIDER_TYPES.map(pt => (
-                    <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
-                  ))}
-                </select>
+                  onChange={v => setForm(f => ({ ...f, type: v as 'llm' | 'embedding' | 'multimodal' }))}
+                  className="w-full h-9"
+                  options={PROVIDER_TYPES.map(pt => ({ value: pt, label: t(`admin.type_${pt}`) }))}
+                />
               </div>
             </div>
             <div>
@@ -274,7 +271,7 @@ function SortableProviderCard({
 function AddProviderCard({ onAdd, nextPriority, defaultType }: {
   onAdd: (data: Omit<LlmProvider, 'id' | 'usage_24h' | 'created_at' | 'updated_at'>) => Promise<void>
   nextPriority: number
-  defaultType: 'llm' | 'embedding'
+  defaultType: 'llm' | 'embedding' | 'multimodal'
 }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
@@ -304,7 +301,7 @@ function AddProviderCard({ onAdd, nextPriority, defaultType }: {
       api_key_env: form.api_key_env,
       priority: nextPriority,
       is_active: form.is_active,
-      type: form.type as 'llm' | 'embedding',
+      type: form.type as 'llm' | 'embedding' | 'multimodal',
       rpm: form.rpm !== '' ? Number(form.rpm) : null,
       tpm: form.tpm !== '' ? Number(form.tpm) : null,
       rpd: form.rpd !== '' ? Number(form.rpd) : null,
@@ -318,7 +315,7 @@ function AddProviderCard({ onAdd, nextPriority, defaultType }: {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
       >
         <Plus className="h-4 w-4" />
         {t('admin.addProvider')}
@@ -337,25 +334,21 @@ function AddProviderCard({ onAdd, nextPriority, defaultType }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>{t('admin.provider')}</label>
-          <select
+          <Dropdown
             value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            className={inputClass}
-          >
-            {PROVIDER_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+            onChange={v => setForm(f => ({ ...f, name: v }))}
+            className="w-full h-9"
+            options={PROVIDER_NAMES.map(n => ({ value: n, label: n }))}
+          />
         </div>
         <div>
           <label className={labelClass}>{t('admin.providerType')}</label>
-          <select
+          <Dropdown
             value={form.type}
-            onChange={e => setForm(f => ({ ...f, type: e.target.value as 'llm' | 'embedding' }))}
-            className={inputClass}
-          >
-            {PROVIDER_TYPES.map(pt => (
-              <option key={pt} value={pt}>{t(`admin.type_${pt}`)}</option>
-            ))}
-          </select>
+            onChange={v => setForm(f => ({ ...f, type: v as 'llm' | 'embedding' | 'multimodal' }))}
+            className="w-full h-9"
+            options={PROVIDER_TYPES.map(pt => ({ value: pt, label: t(`admin.type_${pt}`) }))}
+          />
         </div>
       </div>
       <div>
@@ -442,7 +435,7 @@ function ProviderSection({
   nextPriority,
 }: {
   title: string
-  type: 'llm' | 'embedding'
+  type: 'llm' | 'embedding' | 'multimodal'
   providers: LlmProvider[]
   sensors: ReturnType<typeof useSensors>
   onDragEnd: (event: DragEndEvent) => Promise<void>
@@ -525,8 +518,9 @@ export default function LlmProvidersPage() {
 
   const llmProviders = providers.filter(p => (p.type ?? 'llm') === 'llm').sort((a, b) => a.priority - b.priority)
   const embeddingProviders = providers.filter(p => p.type === 'embedding').sort((a, b) => a.priority - b.priority)
+  const multimodalProviders = providers.filter(p => p.type === 'multimodal').sort((a, b) => a.priority - b.priority)
 
-  function makeDragEndHandler(type: 'llm' | 'embedding') {
+  function makeDragEndHandler(type: 'llm' | 'embedding' | 'multimodal') {
     return async function handleDragEnd(event: DragEndEvent) {
       const { active, over } = event
       if (!over || active.id === over.id) return
@@ -607,6 +601,7 @@ export default function LlmProvidersPage() {
 
   const llmNextPriority = llmProviders.length > 0 ? Math.max(...llmProviders.map(p => p.priority)) + 1 : 1
   const embeddingNextPriority = embeddingProviders.length > 0 ? Math.max(...embeddingProviders.map(p => p.priority)) + 1 : 1
+  const multimodalNextPriority = multimodalProviders.length > 0 ? Math.max(...multimodalProviders.map(p => p.priority)) + 1 : 1
 
   return (
     <TooltipProvider>
@@ -660,6 +655,17 @@ export default function LlmProvidersPage() {
             onDelete={handleDelete}
             onAdd={handleCreate}
             nextPriority={embeddingNextPriority}
+          />
+          <ProviderSection
+            title={t('admin.type_multimodal')}
+            type="multimodal"
+            providers={multimodalProviders}
+            sensors={sensors}
+            onDragEnd={makeDragEndHandler('multimodal')}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onAdd={handleCreate}
+            nextPriority={multimodalNextPriority}
           />
         </div>
       )}

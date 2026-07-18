@@ -6,6 +6,10 @@ vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
 }))
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
+}))
+
 vi.mock('@/lib/api/articles', () => ({
   fetchArticles: vi.fn().mockResolvedValue({
     items: [{

@@ -123,13 +123,13 @@ export function GroupedTagSelect({
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: g.color_hex }} />
                   )}
                   <button
-                    className="flex-1 text-xs font-medium text-left"
+                    className="flex-1 text-xs font-medium text-left cursor-pointer"
                     onClick={() => toggleGroup(g)}
                   >
                     {highlight(g.display_name, search)}
                   </button>
                   <button
-                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    className="text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
                     onClick={e => { e.stopPropagation(); toggleExpand(g.name) }}
                     aria-label={isExpanded ? 'Collapse' : 'Expand'}
                   >
@@ -144,7 +144,7 @@ export function GroupedTagSelect({
                 {isExpanded && g.matchedTags.map(tag => (
                   <button
                     key={tag.id}
-                    className="flex items-center gap-2 pl-7 pr-2 py-1 w-full hover:bg-muted/50 text-left"
+                    className="flex items-center gap-2 pl-7 pr-2 py-1 w-full hover:bg-muted/50 text-left cursor-pointer"
                     onClick={() => toggleTag(tag, g)}
                   >
                     <Checkbox

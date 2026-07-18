@@ -1,10 +1,12 @@
+import asyncio
 import os
 import models  # noqa: F401 — registers all ORM mappers at startup
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from backend.database import get_db, check_db_connection
+from backend.database import get_db, check_db_connection, SessionLocal
 from backend.middleware.logging import RequestLoggingMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from backend.routers.articles import router as articles_router
@@ -19,10 +21,35 @@ from backend.routers.llm_providers import router as llm_providers_router
 from backend.routers.grafana import router as grafana_router
 from backend.routers.monitoring import router as monitoring_router
 from backend.routers.chat import router as chat_router
+from backend.routers.user import router as user_router
+from backend.routers.weekly_reports import router as weekly_reports_router
+from backend.routers.metric_definitions import router as metric_definitions_router
 
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+VIEW_COUNT_FLUSH_INTERVAL = int(os.environ.get("VIEW_COUNT_FLUSH_INTERVAL", "900"))
 
-app = FastAPI(title="Article Analyzer API", version="1.0.0")
+
+async def _periodic_view_flush():
+    from backend.services.article_service import flush_view_counts
+    while True:
+        await asyncio.sleep(VIEW_COUNT_FLUSH_INTERVAL)
+        db = SessionLocal()
+        try:
+            await flush_view_counts(db)
+        except Exception:
+            pass
+        finally:
+            db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_periodic_view_flush())
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="Article Analyzer API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
@@ -47,6 +74,9 @@ app.include_router(tags_router)
 app.include_router(grafana_router)
 app.include_router(monitoring_router)
 app.include_router(chat_router)
+app.include_router(user_router)
+app.include_router(weekly_reports_router)
+app.include_router(metric_definitions_router)
 
 
 @app.get("/health")

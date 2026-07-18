@@ -5,13 +5,19 @@ import { defineConfig, devices } from '@playwright/test'
 const NEXTAUTH_SECRET =
   process.env.NEXTAUTH_SECRET || 'e2e-nextauth-secret-local-testing-only'
 
+// Allows pointing tests at an already-running dev server (e.g. the `frontend`
+// docker-compose service) during local iteration, without changing CI's
+// build+start behavior when unset.
+const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000'
+
 export default defineConfig({
   testDir: './tests/integration',
   timeout: 30_000,
+  retries: process.env.CI ? 2 : 0,
   globalSetup: './tests/integration/global-setup.ts',
-  webServer: {
+  webServer: process.env.PLAYWRIGHT_TEST_BASE_URL ? undefined : {
     command: 'npm run build && npm run start',
-    url: 'http://localhost:3000',
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
@@ -21,7 +27,7 @@ export default defineConfig({
     },
   },
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     storageState: 'tests/integration/fixtures/auth-state.json',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -13,6 +13,9 @@ export interface Article {
   translated_title?: string | null
   translated_content?: string | null
   has_vectors?: boolean
+  metrics?: Record<string, number>
+  view_count?: number
+  is_favorited?: boolean
 }
 
 export interface TagGroup {
@@ -53,6 +56,7 @@ export interface ArticleListParams {
 export async function fetchArticles(
   params: ArticleListParams,
   locale?: string,
+  token?: string,
 ): Promise<{ items: Article[]; total: number }> {
   const qs = new URLSearchParams()
   if (params.page) qs.set('page', String(params.page))
@@ -69,7 +73,9 @@ export async function fetchArticles(
   if (params.published_before) qs.set('published_before', params.published_before)
   if (params.scraped_after) qs.set('scraped_after', params.scraped_after)
   if (params.scraped_before) qs.set('scraped_before', params.scraped_before)
-  const res = await apiFetch(`/articles?${qs}`, {}, locale)
+  // Sent when logged in so the backend can annotate each article with is_favorited —
+  // without it, get_optional_user_id() always resolves to None (GET /articles is public).
+  const res = await apiFetch(`/articles?${qs}`, token ? { headers: { Authorization: `Bearer ${token}` } } : {}, locale)
   return res.json()
 }
 
@@ -93,4 +99,8 @@ export async function fetchArticleFilterOriginalSources(topicId?: string, locale
 export async function fetchArticleFilterTags(locale?: string): Promise<string[]> {
   const res = await apiFetch('/articles/filters/tags', {}, locale)
   return res.json()
+}
+
+export function recordArticleView(id: string): void {
+  apiFetch(`/articles/${id}/view`, { method: 'POST' }).catch(() => {})
 }

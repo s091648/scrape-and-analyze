@@ -1,0 +1,205 @@
+# API Contracts: Article Recommendation Signals & Weekly Summary Report
+
+All endpoints follow existing patterns: FastAPI router, `apiFetch()` on frontend, proxy via `/api/proxy/[...path]`.
+
+## Extended Endpoints
+
+### `GET /articles` (extended)
+
+Add two new sort values to the existing `sort` query param:
+
+```
+sort: "scraped_at" | "published_at" | "source" | "title" | "citation_count" | "view_count"
+order: "asc" | "desc"
+```
+
+New query param added:
+```
+favorites_only: bool = false   // when true + user authenticated, restricts to user's favorites
+```
+
+Response `ArticleOut` gains:
+```json
+{
+  "id": "uuid",
+  "citation_count": 42,    // null if not available
+  "view_count": 118,       // 0 if never viewed
+  "is_favorited": true,    // bool — only meaningful when user is authenticated; false for guests
+  ...existing fields
+}
+```
+
+**Sourcing note (2026-07-12)**: `citation_count` is sourced from a `LEFT JOIN article_metric_values ON ... AND metric_key = 'citation_count'`, not a flat column — see [data-model.md](../data-model.md#article_metric_values). Field name/shape in the response is unchanged; only the backend query changes. `citation_count` may be refreshed independently of scrape time by a daily background job (see [plan.md](../plan.md)), so it can update without a new scrape of the article.
+
+### `GET /articles/{id}` (extended)
+
+Response `ArticleDetailOut` gains same `citation_count` and `view_count` fields.
+
+---
+
+## New Endpoints
+
+### `POST /articles/{id}/view`
+
+Track a view event for an article. Increments Redis counter (deduped by client IP within 24h).
+
+**Request**: No body required. Client IP read from `X-Forwarded-For` header (set by Railway proxy).
+
+**Response**: `204 No Content`
+
+**Auth**: Public (same as article reads).
+
+**Rate limiting**: Redis dedup key `viewed:{ip}:{article_id}` with 24h TTL; endpoint returns 204 regardless (no error on duplicate view).
+
+---
+
+**2026-07-12 addition (FR-027)**: `WeeklyReportOut` (used by all three endpoints below) gains a `sources: ArticleSourceOut[]` field — `{id, title, url, public_article_id}` per entry, index-aligned with the `[N]` citation markers in `summary_text`. Empty for reports generated before this field existed. See data-model.md's "New `WeeklyReportOut` schema" section.
+
+### `GET /weekly-reports`
+
+List weekly reports for a topic.
+
+**Query params**:
+```
+topic_id: UUID (required)
+limit: int = 10
+offset: int = 0
+```
+
+**Response**:
+```json
+{
+  "items": [WeeklyReportOut],
+  "total": 42
+}
+```
+
+### `GET /weekly-reports/latest`
+
+Get the most recent completed weekly report for a topic.
+
+**Query params**:
+```
+topic_id: UUID (required)
+```
+
+**Response**: `WeeklyReportOut | null`
+
+### `GET /user/subscriptions` (authenticated)
+
+Get the current user's topic subscriptions.
+
+**Response**:
+```json
+{
+  "subscriptions": [
+    { "topic_id": "uuid", "topic_name": "string", "created_at": "datetime" }
+  ]
+}
+```
+
+**Auth**: `require_user`
+
+### `POST /user/subscriptions`
+
+Subscribe to a topic.
+
+**Request body**: `{ "topic_id": "uuid" }`
+
+**Response**: `201 Created` with `{ "id": "uuid", "topic_id": "uuid" }`
+
+**Auth**: `require_user`
+
+### `DELETE /user/subscriptions/{topic_id}`
+
+Unsubscribe from a topic.
+
+**Response**: `204 No Content`
+
+**Auth**: `require_user`
+
+---
+
+### `GET /user/favorites` (authenticated)
+
+Get the list of article IDs the current user has favorited.
+
+**Response**: `{ "article_ids": ["uuid", "uuid", ...] }`
+
+**Auth**: `require_user`
+
+### `POST /user/favorites/{article_id}`
+
+Add an article to the current user's favorites. Idempotent (ON CONFLICT DO NOTHING).
+
+**Response**: `201 Created` | `204 No Content` (if already favorited)
+
+**Auth**: `require_user`
+
+### `DELETE /user/favorites/{article_id}`
+
+Remove an article from the current user's favorites.
+
+**Response**: `204 No Content`
+
+**Auth**: `require_user`
+
+---
+
+### `GET /user/notification-settings` (authenticated)
+
+Get the current user's notification settings.
+
+**Response**:
+```json
+{
+  "email_enabled": true,
+  "telegram_chat_id": "123456789",
+  "telegram_enabled": false,
+  "locale": "zh-TW"
+}
+```
+
+**Auth**: `require_user`
+
+### `PUT /user/notification-settings`
+
+Upsert notification settings.
+
+**Request body**:
+```json
+{
+  "email_enabled": true,
+  "telegram_chat_id": "123456789",
+  "telegram_enabled": true,
+  "locale": "zh-TW"
+}
+```
+
+**`locale`**: Controls the language of email notification wrapper (subject, greeting, CTA). Accepted values: `"en"`, `"zh-TW"`. Defaults to `"en"`.
+
+**Response**: `200 OK` with updated settings.
+
+**Auth**: `require_user`
+
+---
+
+## Frontend API Client Changes
+
+New functions in `frontend/lib/api/`:
+- `weekly-reports.ts` — `fetchLatestWeeklyReport(topicId)`, `fetchWeeklyReports(topicId, limit, offset)`
+- `articles.ts` (extended) — `recordArticleView(id)` (fire-and-forget)
+- `user.ts` (extended or new) — `fetchSubscriptions()`, `subscribeToTopic(topicId)`, `unsubscribeTopic(topicId)`, `fetchNotificationSettings()`, `updateNotificationSettings(settings)`
+
+## Frontend Component Changes
+
+### New components
+- `components/features/weekly-report/WeeklyReportWidget.tsx` — report display with dropdown
+- `components/features/weekly-report/WeeklyReportSkeleton.tsx` — loading state
+
+### Modified components
+- `components/features/articles/filter-bar.tsx` — add sort dropdown (right side, immediate apply) + Favorites toggle (logged-in only, hidden for guests)
+- `components/features/articles/article-card.tsx` — add heart icon (left of title, hover-visible when unfavorited / always-visible when favorited, hidden for guests); show citation_count badge, view_count badge
+- `components/features/articles/article-detail-dialog.tsx` — show citation_count + view_count, fire POST /articles/{id}/view on open
+- `app/page.tsx` — add `WeeklyReportWidget` above `InlineQABarWrapper`
+- `app/settings/page.tsx` — add topic subscription UI and notification settings form

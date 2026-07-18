@@ -9,6 +9,7 @@ export function usePagination() {
   const page = parseInt(searchParams.get('page') || '1', 10)
   const sort = searchParams.get('sort') || 'scraped_at'
   const order = searchParams.get('order') || 'desc'
+  const favoritesOnly = searchParams.get('favorites_only') === 'true'
 
   // Memoized so array identity is stable between renders when URL hasn't changed
   const aggregators = useMemo(() => searchParams.getAll('aggregator'), [searchParams])
@@ -29,6 +30,21 @@ export function usePagination() {
   function setSort(newSort: string) {
     const params = new URLSearchParams(searchParams.toString())
     params.set('sort', newSort)
+    params.set('page', '1')
+    router.push(`?${params.toString()}`)
+  }
+
+  function setOrder(newOrder: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('order', newOrder)
+    params.set('page', '1')
+    router.push(`?${params.toString()}`)
+  }
+
+  function setFavoritesOnly(value: boolean) {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value) params.set('favorites_only', 'true')
+    else params.delete('favorites_only')
     params.set('page', '1')
     router.push(`?${params.toString()}`)
   }
@@ -81,10 +97,10 @@ export function usePagination() {
   ].filter(Boolean).length
 
   return {
-    page, sort, order,
+    page, sort, order, favoritesOnly,
     aggregators, originalSources, tags, tagGroups,
     publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
-    setPage, setSort, setFilters,
+    setPage, setSort, setOrder, setFilters, setFavoritesOnly,
     activeFilterCount,
   }
 }

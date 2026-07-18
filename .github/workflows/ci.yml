@@ -48,6 +48,10 @@ jobs:
             [scrape-and-analyze]="84433f38-f9e9-4082-bd2e-2af327e3ba69"
             [chatbot-plugin]="e3a28eae-2765-456e-822c-841598fcf1c2"
             [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
+            [postgres]="c11d60e9-9bb3-450d-8a78-98f85ba4e890"
+            [redis]="ac3aa7a4-c431-4d43-9827-f493dad682df"
+            [weekly-report]="0b2a6997-6401-4f6e-91d8-ba1abe34ea46"
+            [refresh-metrics]="a8d5fa77-7498-4447-843f-f328d6d595a5"
           )
 
           # Recursively search the CLI's JSON output for the service's status,
@@ -98,7 +102,14 @@ jobs:
               FAILED=1
             elif [ "$STATUS" = "REMOVED" ]; then
               echo "$name is REMOVED — redeploying from master"
-              if [ "$name" = "chatbot-plugin" ]; then
+              if [ "$name" = "postgres" ]; then
+                # Not built from repo source — redeploy the service's last known
+                # deployment/image instead of pushing repo contents via `railway up`.
+                if ! railway redeploy --service "$id" --environment staging --yes; then
+                  echo "::error::Failed to redeploy $name"
+                  FAILED=1
+                fi
+              elif [ "$name" = "chatbot-plugin" ]; then
                 if ! (cd chatbot-plugin && railway up --detach --service "$id" --environment staging); then
                   echo "::error::Failed to redeploy $name"
                   FAILED=1
@@ -384,6 +395,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -411,6 +431,7 @@ jobs:
         run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+          REDIS_URL: redis://localhost:6379/0
 
       - name: Upload backend-integration coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -903,6 +924,64 @@ jobs:
 
       - name: Deploy fastembed to Railway (staging)
         run: railway up --detach --service c97be150-c9cc-42d0-a23e-04406573ee93 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4f: Deploy Weekly Report to Staging (PR only)
+  # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
+  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # this a distinct Railway service from the main worker.
+  # -----------------------------------------------
+  deploy-staging-weekly-report:
+    name: Deploy Weekly Report to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    if: |
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy weekly-report to Railway (staging)
+        run: railway up --detach --service 0b2a6997-6401-4f6e-91d8-ba1abe34ea46 --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4g: Deploy Refresh Metrics to Staging (PR only)
+  # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
+  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # this a distinct Railway service from the main worker.
+  # -----------------------------------------------
+  deploy-staging-refresh-metrics:
+    name: Deploy Refresh Metrics to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    if: |
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy refresh-metrics to Railway (staging)
+        run: railway up --detach --service a8d5fa77-7498-4447-843f-f328d6d595a5 --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 

@@ -28,6 +28,19 @@
     "next": "下一頁",
     "pageOf": "第 {page} 頁，共 {total} 頁"
   },
+  "weeklyReport": {
+    "noReportYet": "本週尚無報告。",
+    "articleCount": "{count} 篇文章",
+    "selectWeek": "選擇報告週次",
+    "collapse": "收合報告",
+    "expand": "顯示報告",
+    "pinReport": "向 AI 詢問本週報告",
+    "unpinReport": "將本報告的文章移出 AI 聊天",
+    "jumpToNewest": "跳到最新一週",
+    "jumpToOldest": "跳到最舊一週",
+    "switchToChat": "查看對話",
+    "switchToReport": "查看本週報告"
+  },
   "analysis": {
     "summary": "摘要",
     "painPoints": "痛點",
@@ -114,7 +127,42 @@
     "googleAccountLinked": "Google 帳戶已成功連結",
     "failedToLinkGoogle": "連結 Google 帳戶失敗，可能已被使用",
     "googleAccountUnlinked": "Google 帳戶已取消連結",
-    "failedToUnlink": "取消連結失敗"
+    "failedToUnlink": "取消連結失敗",
+    "manageNotificationsDescription": "管理您的每週報告訂閱與通知偏好設定。",
+    "weeklyReportSubscriptions": "每週報告訂閱",
+    "weeklyReportSubscriptionsHelp": "訂閱主題以接收每週摘要報告。",
+    "subscribe": "訂閱",
+    "unsubscribe": "取消訂閱",
+    "notificationSettings": "通知設定",
+    "emailNotifications": "電子郵件通知",
+    "telegramChatId": "Telegram Chat ID",
+    "telegramChatIdPlaceholder": "例如：123456789",
+    "telegramNotifications": "Telegram 通知",
+    "telegramHelp": {
+      "openLabel": "如何取得我的 Telegram Chat ID？",
+      "step1": {
+        "title": "開啟與 @userinfobot 的對話",
+        "description": "在 Telegram App 中點擊搜尋圖示，搜尋「@userinfobot」— 一個免費的公開機器人，可以查詢你的帳號資訊。"
+      },
+      "step2": {
+        "title": "啟動機器人",
+        "description": "點擊「Start」（或傳送 /start）開始對話。"
+      },
+      "step3": {
+        "title": "複製你的 Id",
+        "description": "機器人會立即回覆你的帳號資訊，複製「Id」旁邊的數字 — 那就是你的 Chat ID。"
+      },
+      "step4": {
+        "title": "貼上並跟我們的機器人打聲招呼",
+        "description": "把這個數字貼到下方的 Telegram Chat ID 欄位。同時記得先跟我們的通知機器人開始對話 — Telegram 只允許機器人主動傳訊息給先聯絡過它的使用者。"
+      }
+    },
+    "notificationLanguage": "語言",
+    "languageEnglish": "English",
+    "languageZhTw": "繁體中文",
+    "saveNotificationSettings": "儲存通知設定",
+    "notifSettingsSaved": "已儲存",
+    "notifSettingsFailedToSave": "儲存失敗"
   },
   "filterBar": {
     "filters": "篩選",
@@ -135,7 +183,17 @@
     "recent": "近期",
     "days": "天",
     "aggregator": "聚合器",
-    "originalSource": "原始來源"
+    "originalSource": "原始來源",
+    "sortBy": "排序方式",
+    "sortTooltip": "選擇文章列表的排序方式",
+    "sortScrapedAt": "抓取時間",
+    "sortPublishedAt": "發布時間",
+    "sortViewCount": "瀏覽數",
+    "sortSource": "來源",
+    "sortTitle": "標題",
+    "sortAscending": "遞增",
+    "sortDescending": "遞減",
+    "favoritesOnly": "僅收藏"
   },
   "tags": {
     "title": "標籤",
@@ -224,6 +282,12 @@
     "scraperSettings": "爬蟲設定",
     "userManagement": "使用者管理",
     "monitoring": "監控",
+    "metricDefinitions": "推薦指標",
+    "metricDefinitionsDescription": "開啟或關閉本部署追蹤的推薦指標。擷取邏輯與顯示設定僅維護者可修改。",
+    "metricEnabled": "已啟用",
+    "metricDisabled": "已停用",
+    "metricUpdateFailed": "更新指標失敗，請再試一次。",
+    "noMetricDefinitions": "此部署目前尚未設定任何指標。",
     "slug": "Slug（名稱）",
     "immutableAfterCreation": "建立後不可修改",
     "deactivateTopic": "停用主題？",
@@ -309,6 +373,7 @@
     "providerType": "類型",
     "type_llm": "LLM",
     "type_embedding": "Embedding",
+    "type_multimodal": "多模態",
     "logColumnTime": "時間",
     "logColumnLevel": "等級",
     "logColumnEnvironment": "環境",
@@ -480,6 +545,26 @@
     "stageAttr_ragIngestDuration": "嵌入耗時（秒）",
     "stageAttr_ragIngestErrorType": "嵌入錯誤",
     "stageTranslateLabel": "翻譯 ({lang})",
+    "stageLabel_weeklyReportTopic": "週報",
+    "stageLabel_weeklyReportSummarize": "摘要生成",
+    "stageLabel_weeklyReportImage": "圖片生成",
+    "stageLabel_weeklyReportTranslate": "翻譯",
+    "stageLabel_weeklyReportNotify": "通知",
+    "stageAttr_weeklyReportArticleCount": "文章數",
+    "stageAttr_weeklyReportOutcome": "結果",
+    "stageAttr_weeklyReportSummarizeSuccess": "摘要成功",
+    "stageAttr_weeklyReportSummarizeErrorType": "摘要錯誤",
+    "stageAttr_weeklyReportImageSuccess": "圖片成功",
+    "stageAttr_weeklyReportImageErrorType": "圖片錯誤",
+    "stageAttr_notifyChannel": "通知管道",
+    "stageAttr_notifySuccess": "通知成功",
+    "stageAttr_notifyErrorType": "通知錯誤",
+    "weeklyReportNotifyLabel": "通知 ({channel})",
+    "weeklyReportTopicTitle": "週報主題",
+    "weeklyReportTopicNoStages": "此主題沒有找到任何階段 span。",
+    "noTopicsInRun": "此次執行無主題被處理",
+    "topicColumnTitle": "主題",
+    "topicColumnArticleCount": "文章數",
     "activateSemanticScholar": "啟用 Semantic Scholar",
     "editSemanticScholarSource": "編輯 Semantic Scholar 來源",
     "deleteSemanticScholarSource": "刪除 Semantic Scholar 來源",
@@ -532,7 +617,13 @@
     "thinkingToggle": "思考過程",
     "addToChat": "向 AI 詢問這篇文章",
     "removeFromChat": "移除 AI 文章參考",
-    "removeArticleRef": "移除文章參考"
+    "removeArticleRef": "移除文章參考",
+    "weeklyGroupPill": "{date}·{count}篇文章",
+    "editGroupArticles": "編輯納入的文章",
+    "groupArticlesPopoverTitle": "已納入的文章",
+    "previousTurn": "上一則問題",
+    "nextTurn": "下一則問題",
+    "dropToPin": "放開以加入引用"
   },
   "tutorial": {
     "stepOf": "第 {current} 步，共 {total} 步",
@@ -593,6 +684,10 @@
       "title": "導覽完成",
       "description": "您可以隨時點選導覽列上的說明圖示，重新開啟此導覽。"
     },
+    "chatIntro": {
+      "title": "新功能：AI 對話助理",
+      "description": "針對您正在瀏覽的文章提出問題，AI 會根據文章內容為您解答。"
+    },
     "chatPin": {
       "title": "釘選文章作為上下文",
       "description": "點擊文章上的 sparkles 圖示將其釘選為 AI 對話的上下文，讓您的提問能根據該文章內容回答。"
@@ -600,6 +695,33 @@
     "chatToggle": {
       "title": "詢問 AI 助理",
       "description": "開啟聊天視窗，針對已釘選的文章或您正在瀏覽的主題提出問題。"
+    },
+    "weeklyReportIntro": {
+      "title": "新功能：週報摘要",
+      "description": "我們每週會將該主題最重要的文章整理成一份摘要，讓您幾分鐘內就能掌握重點。"
+    },
+    "weeklyWeeks": {
+      "title": "瀏覽其他週報",
+      "description": "點擊圓點即可切換查看不同週的週報。"
+    },
+    "weeklyDatepicker": {
+      "title": "跳到更久以前的週",
+      "description": "使用左下角的日期選擇器，可以跳到更久以前的週報。"
+    },
+    "articleStatsIntro": {
+      "title": "新功能：收藏與瀏覽次數",
+      "description": "收藏您感興趣的文章，並查看每篇文章有多少讀者瀏覽過。"
+    },
+    "articleFavorite": {
+      "title": "收藏喜歡的文章",
+      "description": "點擊愛心圖示即可將文章加入收藏。"
+    },
+    "articleViewCount": {
+      "title": "瀏覽次數",
+      "description": "這裡顯示這篇文章目前累積的瀏覽次數。"
     }
+  },
+  "metrics": {
+    "citation_count": "引用數"
   }
 }

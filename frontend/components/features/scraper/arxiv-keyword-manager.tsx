@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { NativeSelect } from '@/components/ui/native-select'
+import { Dropdown } from '@/components/ui/dropdown'
 import { useI18n } from '@/lib/providers'
 
 // ── arXiv field definitions (categories handled separately) ───────────────────
@@ -136,7 +136,7 @@ export function ArxivKeywordManager({
                 <span className="font-mono">{parsed.value}</span>
                 <button
                   onClick={() => onDeleteKeyword(kw.id)}
-                  className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                  className="text-muted-foreground hover:text-foreground transition-colors ml-0.5 cursor-pointer"
                   aria-label={`Remove ${kw.keyword}`}
                 >
                   <X className="h-3 w-3" />
@@ -147,15 +147,12 @@ export function ArxivKeywordManager({
         </div>
 
         <div className="flex gap-2">
-          <NativeSelect
+          <Dropdown
             value={kwField}
-            onChange={e => setKwField(e.target.value)}
+            onChange={setKwField}
             className="shrink-0"
-          >
-            {ARXIV_FIELDS.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </NativeSelect>
+            options={ARXIV_FIELDS.map(f => ({ value: f.value, label: f.label }))}
+          />
           <input
             className="h-9 px-3 rounded-lg border border-border bg-background text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-ring font-mono"
             placeholder={
@@ -195,7 +192,7 @@ export function ArxivKeywordManager({
               <span className="font-mono font-semibold">{cat.keyword}</span>
               <button
                 onClick={() => onDeleteCategory(cat.id)}
-                className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                className="text-muted-foreground hover:text-foreground transition-colors ml-0.5 cursor-pointer"
                 aria-label={`Remove category ${cat.keyword}`}
               >
                 <X className="h-3 w-3" />
@@ -205,22 +202,21 @@ export function ArxivKeywordManager({
         </div>
 
         <div className="flex gap-2">
-          <NativeSelect
-            value={catValue}
-            onChange={e => setCatValue(e.target.value)}
+          <Dropdown
+            value={catValue || undefined}
+            onChange={setCatValue}
             className="flex-1"
-          >
-            <option value="">{t('admin.selectCategory')}</option>
-            {Object.entries(categoryGroups).map(([group, cats]) => (
-              <optgroup key={group} label={group}>
-                {cats.map(c => (
-                  <option key={c.value} value={c.value} disabled={categories.some(x => x.keyword === c.value)}>
-                    {c.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </NativeSelect>
+            placeholder={t('admin.selectCategory')}
+            searchable
+            groups={Object.entries(categoryGroups).map(([group, cats]) => ({
+              label: group,
+              options: cats.map(c => ({
+                value: c.value,
+                label: c.label,
+                disabled: categories.some(x => x.keyword === c.value),
+              })),
+            }))}
+          />
           <Button size="sm" variant="outline" onClick={handleAddCategory} disabled={catAdding || !catValue}>
             <Plus className="h-4 w-4" />
           </Button>

@@ -23,6 +23,11 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'scraper.pipeline_completed.handle':      'admin.stageLabel_pipelineCompleted',
   'scraper.pipeline_completed.notify':      'admin.stageLabel_pipelineNotify',
   'article.rag_ingest':                    'admin.stageLabel_ragIngest',
+  'weekly_report.topic':                   'admin.stageLabel_weeklyReportTopic',
+  'weekly_report.summarize':               'admin.stageLabel_weeklyReportSummarize',
+  'weekly_report.image':                   'admin.stageLabel_weeklyReportImage',
+  'weekly_report.translate':                'admin.stageLabel_weeklyReportTranslate',
+  'weekly_report.notify':                  'admin.stageLabel_weeklyReportNotify',
 }
 
 const ATTR_I18N_KEYS: Record<string, string> = {
@@ -64,6 +69,15 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'rag_ingest.success':            'admin.stageAttr_ragIngestSuccess',
   'rag_ingest.duration_seconds':   'admin.stageAttr_ragIngestDuration',
   'rag_ingest.error_type':         'admin.stageAttr_ragIngestErrorType',
+  'weekly_report.article_count':          'admin.stageAttr_weeklyReportArticleCount',
+  'weekly_report.outcome':                'admin.stageAttr_weeklyReportOutcome',
+  'weekly_report.summarize.success':      'admin.stageAttr_weeklyReportSummarizeSuccess',
+  'weekly_report.summarize.error_type':   'admin.stageAttr_weeklyReportSummarizeErrorType',
+  'weekly_report.image.success':          'admin.stageAttr_weeklyReportImageSuccess',
+  'weekly_report.image.error_type':       'admin.stageAttr_weeklyReportImageErrorType',
+  'notify.channel':                       'admin.stageAttr_notifyChannel',
+  'notify.success':                       'admin.stageAttr_notifySuccess',
+  'notify.error_type':                    'admin.stageAttr_notifyErrorType',
 }
 
 function formatValue(v: OtlpAttributeValue): string {
@@ -153,13 +167,13 @@ function KdeSparkline({ durationMs, durations }: { durationMs: number; durations
 
   return (
     <svg width={W} height={H} className="block overflow-visible mt-1.5">
-      <path d={areaPath} fill="hsl(var(--foreground))" fillOpacity={0.08} />
-      <path d={linePath} fill="none" stroke="hsl(var(--foreground))"
+      <path d={areaPath} fill="var(--foreground)" fillOpacity={0.08} />
+      <path d={linePath} fill="none" stroke="var(--foreground)"
         strokeWidth={1.5} strokeOpacity={0.35} strokeLinecap="round" />
       <line x1={mx.toFixed(1)} y1="0" x2={mx.toFixed(1)} y2={H - PAD}
-        stroke="hsl(var(--primary))" strokeWidth={2} />
+        stroke="var(--primary)" strokeWidth={2} />
       <circle cx={mx.toFixed(1)} cy={my.toFixed(1)} r={3.5}
-        fill="hsl(var(--primary))" />
+        fill="var(--primary)" />
     </svg>
   )
 }
@@ -256,7 +270,7 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
-              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               aria-label={collapsed ? 'Expand' : 'Collapse'}
             >
               {collapsed
@@ -273,7 +287,7 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
           {onViewLogs && (
             <button
               onClick={e => { e.stopPropagation(); onViewLogs() }}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="View logs for this span"
             >
               <ScrollText className="h-3.5 w-3.5" />

@@ -116,6 +116,7 @@ def test_get_articles_paginated_with_sources_filter():
     db = MagicMock()
     query_chain = MagicMock()
     db.query.return_value = query_chain
+    query_chain.outerjoin.return_value = query_chain
     query_chain.filter.return_value = query_chain
     query_chain.order_by.return_value = query_chain
     query_chain.offset.return_value.limit.return_value.all.return_value = []
@@ -146,6 +147,7 @@ def test_get_articles_paginated_with_date_filters():
     db = MagicMock()
     q = MagicMock()
     db.query.return_value = q
+    q.outerjoin.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
     q.offset.return_value.limit.return_value.all.return_value = []
@@ -172,6 +174,57 @@ def test_get_articles_paginated_with_date_filters():
             published_before=date(2024, 12, 31),
         )
         assert q.filter.called
+
+
+def test_get_articles_paginated_view_count_sort_uses_nullslast_desc():
+    """Articles with no ArticleMetrics row (NULL, not 0) must sort last even in
+    descending order — otherwise Postgres' default NULLS FIRST on DESC pushes every
+    article with no recorded views to the top of a "most viewed first" sort."""
+    from backend.services.article_service import get_articles_paginated
+
+    db = MagicMock()
+    q = MagicMock()
+    db.query.return_value = q
+    q.outerjoin.return_value = q
+    q.filter.return_value = q
+    q.order_by.return_value = q
+    q.offset.return_value.limit.return_value.all.return_value = []
+    q.count.return_value = 0
+
+    with patch("models.article_metrics.ArticleMetrics") as MockMetrics:
+        nullslast_result = MagicMock()
+        desc_result = MagicMock()
+        desc_result.nullslast.return_value = nullslast_result
+        MockMetrics.view_count.desc.return_value = desc_result
+
+        get_articles_paginated(db, "view_count", "desc", 1, 10)
+
+        MockMetrics.view_count.desc.return_value.nullslast.assert_called_once()
+        q.order_by.assert_called_once_with(nullslast_result)
+
+
+def test_get_articles_paginated_view_count_sort_uses_nullslast_asc():
+    from backend.services.article_service import get_articles_paginated
+
+    db = MagicMock()
+    q = MagicMock()
+    db.query.return_value = q
+    q.outerjoin.return_value = q
+    q.filter.return_value = q
+    q.order_by.return_value = q
+    q.offset.return_value.limit.return_value.all.return_value = []
+    q.count.return_value = 0
+
+    with patch("models.article_metrics.ArticleMetrics") as MockMetrics:
+        nullslast_result = MagicMock()
+        asc_result = MagicMock()
+        asc_result.nullslast.return_value = nullslast_result
+        MockMetrics.view_count.asc.return_value = asc_result
+
+        get_articles_paginated(db, "view_count", "asc", 1, 10)
+
+        MockMetrics.view_count.asc.return_value.nullslast.assert_called_once()
+        q.order_by.assert_called_once_with(nullslast_result)
 
 
 # ---------------------------------------------------------------------------

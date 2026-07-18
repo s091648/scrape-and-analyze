@@ -38,6 +38,7 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.dev
+    image: scrape-analyzer-src-tools  # shared with job_service/test_service — same Dockerfile, built once
     volumes:
       - ./src:/app/src
       - ./models:/app/models
@@ -82,8 +83,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-      args:
-        - GITHUB_PACKAGE_TOKEN=${GITHUB_PACKAGE_TOKEN}
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules  # preserve installed modules
@@ -135,6 +134,7 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.dev
+    image: scrape-analyzer-src-tools  # shared with app/job_service — same Dockerfile, built once
     volumes:
       - ./src:/app/src
       - ./models:/app/models
@@ -147,6 +147,8 @@ services:
       - .env
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # no command; `docker compose run` will supply the test command
 
@@ -175,6 +177,7 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.dev
+    image: scrape-analyzer-src-tools  # shared with app/test_service — same Dockerfile, built once
     volumes:
       - ./src:/app/src
       - ./models:/app/models

@@ -49,12 +49,21 @@ export function spanDurationMs(span: OtlpSpan): number {
 }
 
 export function isErrorSpan(span: OtlpSpan): boolean {
-  return (span.status?.code ?? 0) === 2  // OTLP StatusCode.ERROR = 2
+  // Tempo's OTLP-JSON export serializes the enum as its name (protojson default),
+  // e.g. "STATUS_CODE_ERROR", not the numeric 2 — accept both forms.
+  const code = span.status?.code
+  return code === 2 || code === 'STATUS_CODE_ERROR'
 }
 
 export function findArticlePipelineSpans(spans: OtlpSpan[]): OtlpSpan[] {
   return spans
     .filter(s => s.name === SpanName.ARTICLE_PIPELINE)
+    .sort((a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano)))
+}
+
+export function findWeeklyReportTopicSpans(spans: OtlpSpan[]): OtlpSpan[] {
+  return spans
+    .filter(s => s.name === SpanName.WEEKLY_REPORT_TOPIC)
     .sort((a, b) => Number(BigInt(a.startTimeUnixNano) - BigInt(b.startTimeUnixNano)))
 }
 

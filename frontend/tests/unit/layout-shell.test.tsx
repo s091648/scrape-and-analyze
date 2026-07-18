@@ -87,7 +87,7 @@ describe("LayoutShell", () => {
   });
 
   it("applies pt-24 class to main on normal paths", async () => {
-    mockUsePathname.mockReturnValue("/");
+    mockUsePathname.mockReturnValue("/graph");
     const { LayoutShell } = await import("@/app/layout-shell");
     const { container } = render(
       <LayoutShell>

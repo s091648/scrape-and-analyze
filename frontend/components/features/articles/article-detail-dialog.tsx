@@ -1,17 +1,21 @@
 'use client'
+import { useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Clock, ExternalLink, Globe, Sparkles } from 'lucide-react'
-import { ArticleDetail } from '@/lib/api/articles'
+import { Clock, ExternalLink, Globe, Sparkles, Eye } from 'lucide-react'
+import { ArticleDetail, recordArticleView } from '@/lib/api/articles'
 import { ArticleDetailSkeleton } from './article-card-skeleton'
 import { useI18n } from '@/lib/providers'
+import { useMetricDefinitions } from './use-metric-definitions'
+import { resolveMetricIcon } from './metric-icons'
 
 import { deriveDisplaySource, formatViaSource } from './source-utils'
 
 interface ArticleDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  id: string
   title: string
   source: string
   url: string
@@ -24,10 +28,15 @@ interface ArticleDetailDialogProps {
 }
 
 export function ArticleDetailDialog({
-  open, onOpenChange, title, source, url, via_source, original_source, published_at, content, detail, loading,
+  open, onOpenChange, id, title, source, url, via_source, original_source, published_at, content, detail, loading,
 }: ArticleDetailDialogProps) {
   const { t, locale } = useI18n()
+  const metricDefs = useMetricDefinitions()
   const hasAnalysis = detail && !!detail.model_used
+
+  useEffect(() => {
+    if (open) recordArticleView(id)
+  }, [open, id])
   const displaySource = deriveDisplaySource(url, source, original_source)
   const displayTitle = detail?.translated_title ?? title
   const displayContent = detail?.translated_content ?? detail?.content ?? content
@@ -61,6 +70,24 @@ export function ArticleDetailDialog({
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 {new Date(published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
+            {Object.entries(detail?.metrics ?? {})
+              .filter(([metricKey, value]) => metricDefs[metricKey] && value > 0)
+              .map(([metricKey, value]) => {
+                const def = metricDefs[metricKey]
+                const Icon = resolveMetricIcon(def.icon_name)
+                return (
+                  <span key={metricKey} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Icon className="h-3 w-3" />
+                    {value.toLocaleString()} {t(def.label_i18n_key)}
+                  </span>
+                )
+              })}
+            {detail?.view_count != null && detail.view_count > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Eye className="h-3 w-3" />
+                {detail.view_count.toLocaleString()} views
               </span>
             )}
           </div>

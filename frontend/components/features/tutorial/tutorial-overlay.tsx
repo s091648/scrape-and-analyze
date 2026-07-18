@@ -58,6 +58,22 @@ export function TutorialOverlay() {
     }
   }, [isTutorialOpen, step, pathname, router]);
 
+  // Snapshot the scroll position when a tour opens and restore it once the
+  // tour closes, so scrolling to an off-screen step target (see
+  // useTutorialTarget) doesn't leave the page stranded mid-scroll afterward.
+  const savedScrollYRef = useRef<number | null>(null);
+  const wasOpenForScrollRef = useRef(false);
+  useEffect(() => {
+    const wasOpen = wasOpenForScrollRef.current;
+    wasOpenForScrollRef.current = isTutorialOpen;
+    if (isTutorialOpen && !wasOpen) {
+      savedScrollYRef.current = window.scrollY;
+    } else if (!isTutorialOpen && wasOpen && savedScrollYRef.current !== null) {
+      window.scrollTo({ top: savedScrollYRef.current, behavior: "smooth" });
+      savedScrollYRef.current = null;
+    }
+  }, [isTutorialOpen]);
+
   if (!isTutorialOpen || !tour || !step) return null;
 
   const isLastStep = tutorialStep === tour.steps.length - 1;

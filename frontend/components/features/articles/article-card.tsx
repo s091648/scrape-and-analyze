@@ -1,13 +1,17 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles } from 'lucide-react'
+import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles, Eye, Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { fetchArticleById, type Article } from '@/lib/api/articles'
+import { addFavorite, removeFavorite } from '@/lib/api/user'
 import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
 import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
+import { useSession } from 'next-auth/react'
 import type { ArticleDetail } from '@/lib/api/articles'
+import { useMetricDefinitions } from './use-metric-definitions'
+import { resolveMetricIcon } from './metric-icons'
 
 export type { Article }
 
@@ -16,14 +20,22 @@ import { deriveDisplaySource, formatViaSource, toTitleCase } from './source-util
 interface ArticleCardProps extends Article {
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  view_count?: number
+  is_favorited?: boolean
   /** Marks this card as the Feature Spotlight target for the "pin to chat" tour step. */
   isFirstTutorialTarget?: boolean
+  /** Marks this card as the Feature Spotlight target for the favorite/view-count tour steps. */
+  isStatsTutorialTarget?: boolean
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, metrics, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
+  const metricDefs = useMetricDefinitions()
   const { togglePinnedArticle, removePinnedArticle, isPinned } = usePinnedArticle()
+  const { data: session, status } = useSession()
+  const isAuthenticated = status === 'authenticated'
+  const token = (session as any)?.accessToken
   const isControlled = controlledOpen !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
   const open = isControlled ? controlledOpen! : internalOpen
@@ -33,6 +45,20 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const [detail, setDetail] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [favorited, setFavorited] = useState(!!is_favorited)
+
+  async function handleToggleFavorite(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!isAuthenticated) return
+    const next = !favorited
+    setFavorited(next)
+    try {
+      if (next) await addFavorite(id, token)
+      else await removeFavorite(id, token)
+    } catch {
+      setFavorited(!next)
+    }
+  }
 
   async function handleTogglePin(e: React.MouseEvent) {
     e.stopPropagation()
@@ -88,6 +114,19 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-semibold leading-snug">
             <div className="flex items-start gap-2">
+              {isAuthenticated && (
+                <button
+                  id={isStatsTutorialTarget ? "tutorial-target-article-favorite" : undefined}
+                  type="button"
+                  onClick={handleToggleFavorite}
+                  aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  className={`shrink-0 mt-0.5 cursor-pointer transition-opacity duration-200 ${
+                    favorited || isStatsTutorialTarget ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  <Heart className={`h-3.5 w-3.5 ${favorited ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
+                </button>
+              )}
               <span className="flex-1">{toTitleCase(displayTitle)}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
@@ -128,7 +167,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 target="_blank"
                 rel="noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors cursor-pointer"
               >
                 <Globe className="h-3 w-3" />
                 {displaySource}
@@ -143,6 +182,35 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                 <span className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground">
                   <Download className="h-3 w-3" />
                   {new Date(scraped_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+              {Object.entries(metrics ?? {})
+                // Only render metrics that are currently enabled (present in the public
+                // display-metadata list) — a disabled metric's stored value stays in the
+                // API response, but its badge must disappear everywhere (spec.md edge cases).
+                // A zero value is treated the same as "not tracked" — no badge (matches view_count below).
+                .filter(([metricKey, value]) => metricDefs[metricKey] && value > 0)
+                .map(([metricKey, value]) => {
+                  const def = metricDefs[metricKey]
+                  const Icon = resolveMetricIcon(def.icon_name)
+                  return (
+                    <span
+                      key={metricKey}
+                      className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground"
+                      title={t(def.label_i18n_key)}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {value.toLocaleString()}
+                    </span>
+                  )
+                })}
+              {view_count != null && view_count > 0 && (
+                <span
+                  id={isStatsTutorialTarget ? "tutorial-target-article-view-count" : undefined}
+                  className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full border border-border bg-background text-xs text-muted-foreground"
+                >
+                  <Eye className="h-3 w-3" />
+                  {view_count.toLocaleString()}
                 </span>
               )}
             </div>
@@ -178,6 +246,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
       <ArticleDetailDialog
         open={open}
         onOpenChange={setOpen}
+        id={id}
         title={displayTitle}
         source={source}
         url={url}

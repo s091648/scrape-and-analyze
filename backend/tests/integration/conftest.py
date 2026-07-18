@@ -37,12 +37,23 @@ def db_engine():
     from models.llm_provider import LlmProvider          # noqa: F401
     from models.scraper_keyword import ScraperKeyword    # noqa: F401
     from models.failed_task import FailedTask            # noqa: F401
+    from models.article_metrics import ArticleMetrics    # noqa: F401
+    from models.weekly_report import WeeklyReport        # noqa: F401
+    from models.user_subscription import (               # noqa: F401
+        UserTopicSubscription,
+        UserNotificationSettings,
+        UserArticleFavorite,
+    )
 
     # Exclude auth-schema tables (User) — those exist only in public.
-    # Use checkfirst=False so SQLAlchemy creates tables in the test schema
-    # even when identically-named tables exist in the public schema (which
-    # would otherwise cause has_table() to return True and skip creation).
-    non_auth = [t for t in Base.metadata.sorted_tables if t.schema != "auth"]
+    # Also exclude tables pinned to a fixed, migration-owned schema (eg.
+    # `vectors.article_chunks`) — those already exist in the real database
+    # via alembic and aren't isolated per-test like the default-schema tables.
+    # Use checkfirst=False for the per-test-schema tables so SQLAlchemy creates
+    # them even when identically-named tables exist in the public schema
+    # (which would otherwise cause has_table() to return True and skip creation).
+    FIXED_SCHEMAS = {"auth", "vectors"}
+    non_auth = [t for t in Base.metadata.sorted_tables if t.schema not in FIXED_SCHEMAS]
     Base.metadata.create_all(engine, tables=non_auth, checkfirst=False)
 
     yield engine
@@ -90,4 +101,9 @@ def api_client(db_session):
 
 def admin_token() -> str:
     payload = {"sub": "admin", "role": "admin", "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+
+
+def user_token(user_id: str = "user-uuid-001") -> str:
+    payload = {"sub": user_id, "role": "user", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")

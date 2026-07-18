@@ -28,6 +28,19 @@
     "next": "Next",
     "pageOf": "Page {page} of {total}"
   },
+  "weeklyReport": {
+    "noReportYet": "No report for this week yet.",
+    "articleCount": "{count} articles",
+    "selectWeek": "Select report week",
+    "collapse": "Hide report",
+    "expand": "Show report",
+    "pinReport": "Ask AI about this week's report",
+    "unpinReport": "Remove this report's articles from AI chat",
+    "jumpToNewest": "Jump to newest week",
+    "jumpToOldest": "Jump to oldest week",
+    "switchToChat": "View chat",
+    "switchToReport": "View this week's report"
+  },
   "analysis": {
     "summary": "Summary",
     "painPoints": "Pain Points",
@@ -114,7 +127,42 @@
     "googleAccountLinked": "Google account linked successfully.",
     "failedToLinkGoogle": "Failed to link Google account. It may already be in use.",
     "googleAccountUnlinked": "Google account unlinked.",
-    "failedToUnlink": "Failed to unlink."
+    "failedToUnlink": "Failed to unlink.",
+    "manageNotificationsDescription": "Manage your weekly report subscriptions and notification preferences.",
+    "weeklyReportSubscriptions": "Weekly Report Subscriptions",
+    "weeklyReportSubscriptionsHelp": "Subscribe to topics to receive weekly summary reports.",
+    "subscribe": "Subscribe",
+    "unsubscribe": "Unsubscribe",
+    "notificationSettings": "Notification Settings",
+    "emailNotifications": "Email notifications",
+    "telegramChatId": "Telegram Chat ID",
+    "telegramChatIdPlaceholder": "e.g. 123456789",
+    "telegramNotifications": "Telegram notifications",
+    "telegramHelp": {
+      "openLabel": "How do I find my Telegram Chat ID?",
+      "step1": {
+        "title": "Open a chat with @userinfobot",
+        "description": "In the Telegram app, tap the search icon and search for \"@userinfobot\" — a free public bot that looks up your account info."
+      },
+      "step2": {
+        "title": "Start the bot",
+        "description": "Tap \"Start\" (or send /start) to begin the conversation."
+      },
+      "step3": {
+        "title": "Copy your Id",
+        "description": "The bot instantly replies with your account details. Copy the number next to \"Id\" — that's your Chat ID."
+      },
+      "step4": {
+        "title": "Paste it here and say hello to our bot",
+        "description": "Paste the number into the Telegram Chat ID field below. Also make sure you've started a chat with our notification bot — Telegram only allows bots to message users who contacted them first."
+      }
+    },
+    "notificationLanguage": "Language",
+    "languageEnglish": "English",
+    "languageZhTw": "繁體中文",
+    "saveNotificationSettings": "Save notification settings",
+    "notifSettingsSaved": "Saved",
+    "notifSettingsFailedToSave": "Failed to save"
   },
   "filterBar": {
     "filters": "Filters",
@@ -135,7 +183,17 @@
     "recent": "Recent",
     "days": "days",
     "aggregator": "Aggregator",
-    "originalSource": "Original Source"
+    "originalSource": "Original Source",
+    "sortBy": "Sort by",
+    "sortTooltip": "Choose how the article list is ordered",
+    "sortScrapedAt": "Scraped At",
+    "sortPublishedAt": "Published At",
+    "sortViewCount": "View Count",
+    "sortSource": "Source",
+    "sortTitle": "Title",
+    "sortAscending": "Ascending",
+    "sortDescending": "Descending",
+    "favoritesOnly": "Favorites Only"
   },
   "tags": {
     "title": "Tags",
@@ -224,6 +282,12 @@
     "scraperSettings": "Scraper Settings",
     "userManagement": "User Management",
     "monitoring": "Monitoring",
+    "metricDefinitions": "Recommendation Metrics",
+    "metricDefinitionsDescription": "Enable or disable the recommendation-signal metrics tracked for this deployment. Extraction and display configuration are maintainer-only.",
+    "metricEnabled": "Enabled",
+    "metricDisabled": "Disabled",
+    "metricUpdateFailed": "Failed to update metric. Please try again.",
+    "noMetricDefinitions": "No metrics are configured for this deployment yet.",
     "slug": "Slug (name)",
     "immutableAfterCreation": "Immutable after creation",
     "deactivateTopic": "Deactivate topic?",
@@ -309,6 +373,7 @@
     "providerType": "Type",
     "type_llm": "LLM",
     "type_embedding": "Embedding",
+    "type_multimodal": "Multimodal",
     "logColumnTime": "Time",
     "logColumnLevel": "Level",
     "logColumnEnvironment": "Env",
@@ -480,6 +545,26 @@
     "stageAttr_ragIngestDuration": "Ingest Duration (s)",
     "stageAttr_ragIngestErrorType": "Ingest Error",
     "stageTranslateLabel": "Translate ({lang})",
+    "stageLabel_weeklyReportTopic": "Weekly Report",
+    "stageLabel_weeklyReportSummarize": "Summarize",
+    "stageLabel_weeklyReportImage": "Generate Image",
+    "stageLabel_weeklyReportTranslate": "Translate",
+    "stageLabel_weeklyReportNotify": "Notify",
+    "stageAttr_weeklyReportArticleCount": "Article Count",
+    "stageAttr_weeklyReportOutcome": "Outcome",
+    "stageAttr_weeklyReportSummarizeSuccess": "Summarize OK",
+    "stageAttr_weeklyReportSummarizeErrorType": "Summarize Error",
+    "stageAttr_weeklyReportImageSuccess": "Image OK",
+    "stageAttr_weeklyReportImageErrorType": "Image Error",
+    "stageAttr_notifyChannel": "Channel",
+    "stageAttr_notifySuccess": "Notify OK",
+    "stageAttr_notifyErrorType": "Notify Error",
+    "weeklyReportNotifyLabel": "Notify ({channel})",
+    "weeklyReportTopicTitle": "Weekly Report Topic",
+    "weeklyReportTopicNoStages": "No stage spans found for this topic.",
+    "noTopicsInRun": "No topics processed in this run",
+    "topicColumnTitle": "Topic",
+    "topicColumnArticleCount": "Articles",
     "activateSemanticScholar": "Activate Semantic Scholar",
     "editSemanticScholarSource": "Edit Semantic Scholar Source",
     "deleteSemanticScholarSource": "Delete Semantic Scholar Source",
@@ -532,7 +617,13 @@
     "thinkingToggle": "Thinking process",
     "addToChat": "Ask AI about this article",
     "removeFromChat": "Remove from AI chat",
-    "removeArticleRef": "Remove article reference"
+    "removeArticleRef": "Remove article reference",
+    "weeklyGroupPill": "{date} · {count} articles",
+    "editGroupArticles": "Edit included articles",
+    "groupArticlesPopoverTitle": "Included articles",
+    "previousTurn": "Previous question",
+    "nextTurn": "Next question",
+    "dropToPin": "Drop to pin"
   },
   "tutorial": {
     "stepOf": "Step {current} of {total}",
@@ -593,6 +684,10 @@
       "title": "You're All Set",
       "description": "You can reopen this tour anytime from the help icon in the navigation bar."
     },
+    "chatIntro": {
+      "title": "New: AI Chat Assistant",
+      "description": "Ask questions about the articles you're browsing and get answers grounded in their content."
+    },
     "chatPin": {
       "title": "Pin Articles for Context",
       "description": "Click the sparkles icon on an article to pin it as context for the AI chat, so your questions are answered using that article's content."
@@ -600,6 +695,33 @@
     "chatToggle": {
       "title": "Ask the AI Assistant",
       "description": "Open the chat to ask questions about pinned articles or the topics you're browsing."
+    },
+    "weeklyReportIntro": {
+      "title": "New: Weekly Reports",
+      "description": "Every week, we summarize the most important articles for your topic into a single digest so you can catch up in minutes."
+    },
+    "weeklyWeeks": {
+      "title": "Browse Other Weeks",
+      "description": "Click a dot to switch between different weeks' reports."
+    },
+    "weeklyDatepicker": {
+      "title": "Jump to an Older Week",
+      "description": "Use the date picker in the bottom-left corner to jump further back in time."
+    },
+    "articleStatsIntro": {
+      "title": "New: Favorites & View Counts",
+      "description": "Save articles you care about and see how popular each article is with other readers."
+    },
+    "articleFavorite": {
+      "title": "Save Your Favorites",
+      "description": "Click the heart icon to add an article to your favorites."
+    },
+    "articleViewCount": {
+      "title": "View Count",
+      "description": "This shows how many times the article has been viewed."
     }
+  },
+  "metrics": {
+    "citation_count": "Citations"
   }
 }

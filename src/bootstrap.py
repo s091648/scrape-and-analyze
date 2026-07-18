@@ -232,6 +232,7 @@ def build_collection_pipeline():
     from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
     from src.infrastructure.persistence.collection.scraper_setting_repo_impl import SqlAlchemyScraperSettingRepository
+    from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
@@ -272,6 +273,7 @@ def build_collection_pipeline():
     tag_repo = SqlAlchemyTagRepository(session=session)
     tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=session)
     article_translation_repo = SqlAlchemyArticleTranslationRepository(session=session)
+    article_metrics_repo = SqlAlchemyArticleMetricsRepository(session=session)
 
     # ── Event Bus ──────────────────────────────────────────────────────────
     event_bus = InMemoryEventBus()
@@ -290,6 +292,7 @@ def build_collection_pipeline():
     process_article_uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup_service,
+        article_metrics_repo=article_metrics_repo,
     )
     analyze_article_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
@@ -458,6 +461,88 @@ def build_collection_pipeline():
 
 
 # ---------------------------------------------------------------------------
+# Weekly Report Pipeline
+# ---------------------------------------------------------------------------
+
+def build_weekly_pipeline():
+    """Assemble WeeklyReportPipeline (topic resolution + GenerateWeeklyReportUseCase) from env vars and DB."""
+    from src.infrastructure.persistence.database import get_session, init_db
+    from src.infrastructure.persistence.intelligence.weekly_report_repo_impl import WeeklyReportRepoImpl
+    from src.infrastructure.persistence.intelligence.weekly_report_translation_repo_impl import SqlAlchemyWeeklyReportTranslationRepository
+    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
+    from src.infrastructure.storage.r2_blob_storage import R2BlobStorageService
+    from src.infrastructure.intelligence.notifications.weekly_report_email_notifier import WeeklyReportEmailNotifier
+    from src.infrastructure.intelligence.notifications.weekly_report_telegram_notifier import WeeklyReportTelegramNotifier
+    from src.infrastructure.intelligence.weekly_report_pipeline import WeeklyReportPipeline
+    from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
+    from src.modules.intelligence.application.use_cases.generate_weekly_report import GenerateWeeklyReportUseCase
+
+    init_db()
+    session = get_session()
+
+    llm_service, _, _ = build_llm_service(session)
+
+    report_repo = WeeklyReportRepoImpl(session=session)
+    weekly_report_translation_repo = SqlAlchemyWeeklyReportTranslationRepository(session=session)
+
+    # Multimodal provider: requires an active 'multimodal' LlmProvider in DB.
+    # Provider name selects between Gemini Imagen and HuggingFace (free-tier alternative).
+    from shared.llm_provider import load_active_multimodal_provider
+    multimodal_cfg = load_active_multimodal_provider(session)
+    if not multimodal_cfg:
+        raise ValueError("No active multimodal provider found in DB — add one via the admin UI")
+
+    provider_name = multimodal_cfg["name"]
+    api_key = os.environ.get(multimodal_cfg["api_key_env"], "")
+    if provider_name == "huggingface":
+        from src.infrastructure.intelligence.image.huggingface_image_provider import HuggingFaceImageProvider
+        image_service = HuggingFaceImageProvider(model=multimodal_cfg["model"], api_key=api_key)
+    else:
+        from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
+        image_service = GeminiImagenProvider(model=multimodal_cfg["model"], api_key=api_key)
+
+    blob_storage = R2BlobStorageService.from_env()
+
+    from src.config.settings import FRONTEND_ORIGIN, RESEND_API_KEY, RESEND_FROM_EMAIL, TELEGRAM_BOT_TOKEN, TRANSLATION_LANGUAGES
+    from src.infrastructure.shared.notifications import TelegramNotifierClient
+
+    # Every notification CTA links back to FRONTEND_ORIGIN — without it (or with
+    # the placeholder default), links go nowhere useful. Warn loudly at startup
+    # rather than letting it fail silently in a sent message.
+    if not FRONTEND_ORIGIN or FRONTEND_ORIGIN == "https://example.com":
+        logger.warning("frontend_origin_not_configured", frontend_origin=FRONTEND_ORIGIN)
+
+    resend_key = RESEND_API_KEY
+    from_email = RESEND_FROM_EMAIL
+    email_notifier = WeeklyReportEmailNotifier(session=session, api_key=resend_key, from_email=from_email, site_url=FRONTEND_ORIGIN) if resend_key else None
+
+    telegram_notifier = None
+    if TELEGRAM_BOT_TOKEN:
+        telegram_client = TelegramNotifierClient(bot_token=TELEGRAM_BOT_TOKEN)
+        telegram_notifier = WeeklyReportTelegramNotifier(session=session, notifier=telegram_client, site_url=FRONTEND_ORIGIN)
+
+    # Weekly report i18n: title + summary_text are produced in English, then
+    # translated into each language in TRANSLATION_LANGUAGES via the same
+    # prompt factory path used by every other translation use case.
+    prompt_factory = ConcretePromptFactory()
+
+    generate_use_case = GenerateWeeklyReportUseCase(
+        report_repo=report_repo,
+        llm_service=llm_service,
+        image_service=image_service,
+        blob_storage=blob_storage,
+        translation_repository=weekly_report_translation_repo,
+        translation_prompt=prompt_factory.weekly_report_translation_prompt(),
+        email_notifier=email_notifier,
+        telegram_notifier=telegram_notifier,
+        translation_languages=TRANSLATION_LANGUAGES,
+    )
+    topic_repository = SqlAlchemyTopicRepository(session=session)
+
+    return WeeklyReportPipeline(topic_repository=topic_repository, generate_use_case=generate_use_case), session
+
+
+# ---------------------------------------------------------------------------
 # Translation Pipeline：翻譯流程的依賴組裝
 # ---------------------------------------------------------------------------
 
@@ -516,3 +601,27 @@ def build_translation_pipeline():
         "tag_translation_repository": tag_translation_repo,
         "article_translation_repository": article_translation_repo,
     }
+
+
+# ---------------------------------------------------------------------------
+# Metrics Refresh Pipeline：定期重抓 citation_count 等 catalog-defined metrics
+# ---------------------------------------------------------------------------
+
+def build_metrics_refresh_pipeline():
+    """Assemble (ResilientMetricsService, ArticleMetricsRepository, session) from
+    the DB-configured metric_definitions catalog. Independent of build_llm_service
+    and build_weekly_pipeline — no shared code path with the backend's view_count
+    flush (research.md §9b)."""
+    from shared.metric_definition import load_enabled_metric_definitions
+    from src.infrastructure.collection.metrics.resilient_metrics_service import build_resilient_metrics_service
+    from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
+
+    init_db()
+    session = get_session()
+
+    metric_definitions = load_enabled_metric_definitions(session)
+    metrics_service = build_resilient_metrics_service(metric_definitions)
+    metrics_repo = SqlAlchemyArticleMetricsRepository(session=session)
+
+    logger.info("metrics_refresh_bootstrap_complete", metric_definitions_count=len(metric_definitions))
+    return metrics_service, metrics_repo, session

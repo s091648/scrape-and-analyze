@@ -299,3 +299,118 @@ def test_article_detail_with_tags_and_group(db_session, api_client):
 def test_article_detail_not_found(api_client):
     r = api_client.get(f"/articles/{uuid.uuid4()}")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Recommendation signals: citation_count / view_count (spec 014)
+# ---------------------------------------------------------------------------
+
+def _seed_metrics(db_session, article, *, view_count=0, citation_count=None):
+    from models.article_metrics import ArticleMetrics
+    from models.article_metric_value import ArticleMetricValue
+
+    db_session.add(ArticleMetrics(article_id=article.id, view_count=view_count))
+    if citation_count is not None:
+        db_session.add(ArticleMetricValue(
+            article_id=article.id, metric_key="citation_count", value=citation_count,
+        ))
+    db_session.flush()
+
+
+def test_articles_list_includes_citation_and_view_count(db_session, api_client):
+    a = _article(title="With metrics")
+    db_session.add(a)
+    db_session.flush()
+    _seed_metrics(db_session, a, view_count=42, citation_count=17)
+
+    r = api_client.get("/articles")
+    assert r.status_code == 200
+    item = r.json()["items"][0]
+    assert item["metrics"]["citation_count"] == 17
+    assert item["view_count"] == 42
+
+
+def test_articles_list_metrics_empty_and_view_count_zero_when_no_metrics_row(db_session, api_client):
+    db_session.add(_article(title="No metrics"))
+    db_session.flush()
+
+    r = api_client.get("/articles")
+    assert r.status_code == 200
+    item = r.json()["items"][0]
+    assert item["metrics"] == {}
+    assert item["view_count"] == 0
+
+
+def test_articles_list_metrics_includes_every_catalog_metric_not_just_citation_count(db_session, api_client):
+    """2026-07-12: `metrics` is a generic map covering any tracked metric_key, not hardcoded."""
+    from models.article_metric_value import ArticleMetricValue
+
+    a = _article(title="Multi-metric")
+    db_session.add(a)
+    db_session.flush()
+    _seed_metrics(db_session, a, view_count=5, citation_count=10)
+    db_session.add(ArticleMetricValue(article_id=a.id, metric_key="impact_factor", value=3.5))
+    db_session.flush()
+
+    r = api_client.get("/articles")
+    assert r.status_code == 200
+    item = r.json()["items"][0]
+    assert item["metrics"] == {"citation_count": 10.0, "impact_factor": 3.5}
+
+
+def test_articles_sort_by_citation_count_desc(db_session, api_client):
+    low = _article(title="Low citations")
+    high = _article(title="High citations")
+    db_session.add(low)
+    db_session.add(high)
+    db_session.flush()
+    _seed_metrics(db_session, low, citation_count=2)
+    _seed_metrics(db_session, high, citation_count=99)
+
+    r = api_client.get("/articles?sort=citation_count&order=desc")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert items[0]["title"] == "High citations"
+    assert items[-1]["title"] == "Low citations"
+
+
+def test_articles_sort_by_view_count_desc(db_session, api_client):
+    few = _article(title="Few views")
+    many = _article(title="Many views")
+    db_session.add(few)
+    db_session.add(many)
+    db_session.flush()
+    _seed_metrics(db_session, few, view_count=1)
+    _seed_metrics(db_session, many, view_count=500)
+
+    r = api_client.get("/articles?sort=view_count&order=desc")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert items[0]["title"] == "Many views"
+    assert items[-1]["title"] == "Few views"
+
+
+def test_article_detail_includes_citation_and_view_count(db_session, api_client):
+    a = _article(title="Detail metrics")
+    db_session.add(a)
+    db_session.flush()
+    _seed_metrics(db_session, a, view_count=7, citation_count=3)
+
+    r = api_client.get(f"/articles/{a.id}")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["metrics"]["citation_count"] == 3
+    assert data["view_count"] == 7
+
+
+def test_article_detail_metrics_empty_when_no_metric_value(db_session, api_client):
+    a = _article(title="No citation row")
+    db_session.add(a)
+    db_session.flush()
+    _seed_metrics(db_session, a, view_count=0, citation_count=None)
+
+    r = api_client.get(f"/articles/{a.id}")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["metrics"] == {}
+    assert data["view_count"] == 0

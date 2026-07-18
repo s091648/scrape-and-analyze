@@ -11,21 +11,43 @@ dependencies = [
     "alembic>=1.13",
     "geoip2>=4.8",
     "pydantic",
-    "google-genai"
+    "google-genai",
+    "boto3>=1.34",
+    "resend>=2.0"
 ]
 
 [dependency-groups]
-# src/ 爬蟲服務專屬依賴
+# src/ 爬蟲/解析/RAG embedding 專屬依賴 — 只有 worker (main pipeline) 需要，
+# weekly-report、refresh-metrics 都不 import 這些。故意跟 llm/http-clients/metrics
+# 分開，讓後兩者的 Railway service 不用背爬蟲解析的重量級套件。
 scraper = [
     "beautifulsoup4",
-    "requests",
     "feedparser",
-    "anthropic",
-    "tenacity",
     "lxml",
     "pymupdf>=1.24",
     "chatbot-plugin-sdk",
     "fastembed>=0.3",
+]
+# LLM provider chain 共用依賴 — worker(analyze/translate) 與 weekly-report
+# (summary/translate/image) 都會呼叫 src.bootstrap.build_llm_service()，
+# 其內部無條件 import ClaudeProvider（anthropic）、tenacity 重試、
+# HuggingFace 作為 multimodal provider 選項之一。refresh-metrics 不需要，
+# 它完全不碰 LLM。
+llm = [
+    "anthropic",
+    "tenacity",
+    "huggingface-hub>=0.24",
+]
+# 外部 HTTP client 共用依賴 — worker 的 scrape http client、
+# refresh-metrics 的 OpenAlex/Semantic Scholar client、
+# weekly-report 的 Telegram notifier 都直接用 requests。
+http-clients = [
+    "requests",
+]
+# metric 擷取（JsonPathMetricExtractor）專屬依賴 — 只有 refresh-metrics 需要；
+# 爬蟲時的 opportunistic metric free-seed 會繞過這層抽象，不需要 jmespath。
+metrics = [
+    "jmespath>=1.0",
 ]
 # backend/ FastAPI 服務專屬依賴
 backend = [
@@ -60,7 +82,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v0.15.0" }
+chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v0.15.2" }
 
 [tool.coverage.run]
 omit = [

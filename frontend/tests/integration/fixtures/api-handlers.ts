@@ -88,6 +88,10 @@ export const updatedSettingFixture = {
   is_active: false,
 }
 
+export const metricDefinitionsFixture = [
+  { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+]
+
 export async function mockApiRoutes(page: Page) {
   // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
   // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
@@ -126,6 +130,7 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxyPrefix('scraper-keywords'), route => route.fulfill({ json: [] }))
 
   await page.route(proxyPrefix('articles'), route => route.fulfill({ json: articleListFixture }))
+  await page.route(proxy('metric-definitions'), route => route.fulfill({ json: metricDefinitionsFixture }))
 
   // Specific routes registered last (higher priority in LIFO — override generic patterns above)
   await page.route(proxy('source-categories'), route =>
@@ -156,13 +161,20 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))
 }
 
-// The "feature-chat-2026-07" spotlight tour auto-opens for any authenticated
-// or guest session visiting /articles that hasn't seen it yet (see
-// tutorial-provider.tsx). Specs that aren't testing the tutorial itself need
-// to mark it as already seen, otherwise its dialog covers the page and
-// intercepts clicks intended for the article list underneath.
+// Every registered Feature Spotlight tour (components/features/tutorial/tutorial-registry.ts)
+// auto-opens for any authenticated or guest session visiting its target route that hasn't
+// seen it yet (see tutorial-provider.tsx). Specs that aren't testing the tutorial itself need
+// to mark them all as already seen, otherwise a spotlight dialog covers the page and
+// intercepts clicks intended for the content underneath.
+// NB: keep this list in sync with the `kind: 'spotlight'` tour ids in tutorial-registry.ts.
+const SPOTLIGHT_TOUR_IDS = [
+  'feature-chat-2026-07',
+  'feature-weekly-report-2026-07',
+  'feature-articles-stats-2026-07',
+]
+
 export async function dismissFeatureSpotlights(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem('tutorial_seen_tours', JSON.stringify(['feature-chat-2026-07']))
-  })
+  await page.addInitScript((ids) => {
+    localStorage.setItem('tutorial_seen_tours', JSON.stringify(ids))
+  }, SPOTLIGHT_TOUR_IDS)
 }

@@ -46,11 +46,20 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --animate-wiggle: wiggle 0.4s ease-in-out infinite;
+  --animate-notify-blink: notify-blink 1.6s ease-in-out infinite;
 }
 
 @keyframes wiggle {
   0%, 100% { transform: rotate(-4deg); }
   50% { transform: rotate(4deg); }
+}
+
+/* Slow breathing blink for "unread"/"ready" notification dots — deliberately slower and more
+   pronounced than Tailwind's built-in animate-pulse (2s, opacity only) so a small dot still
+   reads as "needs attention" from the corner of the eye. */
+@keyframes notify-blink {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { opacity: 0.35; transform: scale(0.7); box-shadow: 0 0 5px 1px rgba(239, 68, 68, 0.5); }
 }
 
 :root {
@@ -129,4 +138,56 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Slim, rounded scrollbar tuned for the weekly-report week stepper
+   (sits on a colorful gradient). Firefox uses the standardized
+   scrollbar-width/scrollbar-color; WebKit/Blink get the ::-webkit-scrollbar
+   pseudo-element fallback. Scoped to this class so other scrollable
+   surfaces in the app keep their default styling.
+
+   scrollbar-gutter: stable reserves the scrollbar's width on the side it
+   actually renders on (the left, since the listbox is dir="rtl" — see
+   weekly-report-stepper.tsx) even when the list isn't currently overflowing.
+   Without it, a week list that's short enough to not scroll has zero gutter
+   reserved while a longer, scrolling list has ~4px reserved — since that
+   reservation shifts the centered dots (and the flush-against-the-content-
+   pane highlighted tab), the two states end up a couple pixels out of sync
+   with each other. `both-edges` was tried first but reserves the gutter on
+   BOTH sides, widening the whole stepper column and creating a real gap —
+   single-edge `stable` matches what the browser already reserves once a
+   list actually overflows, just making it unconditional. */
+.weekly-stepper-scroll {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+}
+
+.weekly-stepper-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 0;
+}
+
+.weekly-stepper-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.weekly-stepper-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.45);
+  border-radius: 9999px;
+}
+
+.weekly-stepper-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+/* Chromium shows its own tiny native step-arrow buttons at each end of any
+   custom-styled scrollbar unless explicitly hidden — redundant here since
+   the stepper already has its own jump-to-top/bottom chevron buttons with
+   better behavior (instant jump on click, slow continuous scroll on hover). */
+.weekly-stepper-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }

@@ -9,17 +9,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen \
-    --group scraper \
-    --group observability \
-    --no-group backend \
-    --no-group dev
+
+# Which src/ dependency groups this service needs (space-separated).
+# Railway auto-injects a same-named service variable into ARGs at build time —
+# set UV_GROUPS per-service in the Railway dashboard, no railway.toml needed:
+#   worker          → (unset; default below) "scraper llm http-clients"
+#   weekly-report   → "llm http-clients"
+#   refresh-metrics → "http-clients metrics"
+ARG UV_GROUPS="scraper llm http-clients"
+RUN set -eu; \
+    GROUP_FLAGS=""; \
+    for g in $UV_GROUPS; do GROUP_FLAGS="$GROUP_FLAGS --group $g"; done; \
+    uv sync --frozen $GROUP_FLAGS \
+        --group observability \
+        --no-group backend \
+        --no-group dev
 
 ENV FASTEMBED_CACHE_PATH=/app/.fastembed_cache
 
 ARG RAG_DENSE_PROVIDER=gemini
 ARG RAG_DENSE_MODEL=gemini-embedding-001
-ARG RAG_SPARSE_PROVIDER=local
+ARG RAG_SPARSE_PROVIDER=endpoint
 ARG RAG_SPARSE_MODEL=prithivida/Splade_PP_en_v1
 
 RUN set -eu; \

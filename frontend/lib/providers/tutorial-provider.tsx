@@ -53,12 +53,18 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [activeTourId, setActiveTourId] = useState<string | null>(null);
   const [tutorialStep, setTutorialStep] = useState(0);
+  // Remaining auto-triggered spotlight tours still queued for the current
+  // page, so closing one immediately chains into the next instead of
+  // requiring a fresh page visit to surface it (FR: multiple new-feature
+  // tours on the same page should all play back-to-back).
+  const [spotlightQueue, setSpotlightQueue] = useState<string[]>([]);
 
   const activeTour = activeTourId ? getTour(activeTourId) : undefined;
   const stepCount = activeTour?.steps.length ?? 1;
 
   function openTutorial(tourId: string = DEFAULT_TOUR_ID) {
     if (status === "unauthenticated" && !isGuestMode) return;
+    setSpotlightQueue([]);
     setActiveTourId(tourId);
     setIsTutorialOpen(true);
     setTutorialStep(0);
@@ -68,7 +74,14 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (activeTourId && getTour(activeTourId)?.kind === "spotlight") {
       markTourSeen(activeTourId);
     }
-    setIsTutorialOpen(false);
+    const [nextTourId, ...rest] = spotlightQueue;
+    setSpotlightQueue(rest);
+    if (nextTourId) {
+      setActiveTourId(nextTourId);
+      setTutorialStep(0);
+    } else {
+      setIsTutorialOpen(false);
+    }
   }
 
   function nextTutorialStep() {
@@ -96,6 +109,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   if (isGuestMode !== prevIsGuestMode) {
     setPrevIsGuestMode(isGuestMode);
     if (isGuestMode) {
+      setSpotlightQueue([]);
       setActiveTourId(DEFAULT_TOUR_ID);
       setIsTutorialOpen(true);
       setTutorialStep(0);
@@ -107,6 +121,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
       setIsTutorialOpen(false);
       setActiveTourId(null);
       setTutorialStep(0);
+      setSpotlightQueue([]);
       effectiveIsTutorialOpen = false;
     }
   }
@@ -122,11 +137,13 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     setPrevSpotlightTriggerKey(spotlightTriggerKey);
     if (!effectiveIsTutorialOpen && (isGuestMode || status === "authenticated")) {
       const seen = readSeenTours();
-      const match = getSpotlightTours().find(
+      const matches = getSpotlightTours().filter(
         (tour) => tour.steps[0]?.route === pathname && !seen.includes(tour.id),
       );
-      if (match) {
-        setActiveTourId(match.id);
+      if (matches.length > 0) {
+        const [first, ...rest] = matches;
+        setSpotlightQueue(rest.map((tour) => tour.id));
+        setActiveTourId(first.id);
         setIsTutorialOpen(true);
         setTutorialStep(0);
       }

@@ -69,7 +69,7 @@ export function TablePanel({
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 cursor-pointer"
               aria-label="Refresh"
             >
               <RotateCw className={cn('h-3 w-3', refreshing && 'animate-spin')} />

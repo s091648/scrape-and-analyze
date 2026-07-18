@@ -155,7 +155,7 @@ export function ActiveBadge({
   return (
     <button
       onClick={onToggle}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
         active
           ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100 dark:bg-green-950 dark:border-green-800 dark:text-green-400'
           : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100 dark:bg-red-950 dark:border-red-800 dark:text-red-400'
@@ -213,7 +213,7 @@ export function RssKeywordManager({
             {kw.keyword}
             <button
               onClick={() => onDelete(kw.id)}
-              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+              className="text-muted-foreground hover:text-foreground transition-colors ml-0.5 cursor-pointer"
               aria-label={`Remove ${kw.keyword}`}
             >
               <X className="h-3 w-3" />

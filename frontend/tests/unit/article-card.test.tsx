@@ -1,9 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { useSession } from 'next-auth/react'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }))
+
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn().mockReturnValue({ data: null, status: 'unauthenticated' }),
+}))
+
+const mockAddFavorite = vi.fn()
+const mockRemoveFavorite = vi.fn()
+vi.mock('@/lib/api/user', () => ({
+  addFavorite: (...args: any[]) => mockAddFavorite(...args),
+  removeFavorite: (...args: any[]) => mockRemoveFavorite(...args),
+}))
+
+function mockAuthenticated(token = 'test-token') {
+  vi.mocked(useSession).mockReturnValue({
+    data: { accessToken: token } as any,
+    status: 'authenticated',
+  } as any)
+}
 
 const fixture = {
   id: 'abc',
@@ -41,6 +60,7 @@ vi.mock('@/lib/api/articles', () => ({
     innovations: null,
     model_used: 'claude-test',
   }),
+  recordArticleView: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/providers', () => ({
@@ -56,8 +76,17 @@ vi.mock('@/lib/providers', () => ({
   }),
 }))
 
+const mockUseMetricDefinitions = vi.fn()
+vi.mock('@/components/features/articles/use-metric-definitions', () => ({
+  useMetricDefinitions: () => mockUseMetricDefinitions(),
+}))
+
 describe('ArticleCard', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUseMetricDefinitions.mockReturnValue({})
+    vi.mocked(useSession).mockReturnValue({ data: null, status: 'unauthenticated' } as any)
+  })
 
   it('renders title and source', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
@@ -169,5 +198,154 @@ describe('ArticleCard', () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
     const { container } = render(<ArticleCard {...fixture} has_vectors />)
     expect(container.querySelector('#tutorial-target-chat-pin')).not.toBeInTheDocument()
+  })
+
+  // ── Generalized metrics badges (2026-07-12, US8) ─────────────────────────
+
+  it('renders a badge for each enabled metric present on the article', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it('does not render a badge for a metric that is not currently enabled', async () => {
+    mockUseMetricDefinitions.mockReturnValue({})
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    expect(screen.queryByText('42')).not.toBeInTheDocument()
+  })
+
+  it('renders a badge for every enabled metric when an article has more than one', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+      impact_factor: { metric_key: 'impact_factor', label_i18n_key: 'metrics.impact_factor', icon_name: null, format_hint: 'decimal', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42, impact_factor: 3.5 }} />)
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('3.5')).toBeInTheDocument()
+  })
+
+  it('does not render a badge when the metric value is 0', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 0 }} />)
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('renders the metric icon resolved from icon_name', async () => {
+    mockUseMetricDefinitions.mockReturnValue({
+      citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
+    })
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    const badge = screen.getByText('42').closest('span')
+    expect(badge?.querySelector('svg')).toBeInTheDocument()
+  })
+
+  // ── view_count badge ──────────────────────────────────────────────────────
+
+  it('renders view_count badge when greater than 0', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} view_count={123} />)
+    expect(screen.getByText('123')).toBeInTheDocument()
+  })
+
+  it('does not render view_count badge when 0', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} view_count={0} />)
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('does not render view_count badge when undefined', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} />)
+    expect(container.querySelector('#tutorial-target-article-view-count')).not.toBeInTheDocument()
+  })
+
+  it('sets tutorial target id on view_count badge when isStatsTutorialTarget', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    const { container } = render(<ArticleCard {...fixture} view_count={5} isStatsTutorialTarget />)
+    expect(container.querySelector('#tutorial-target-article-view-count')).toBeInTheDocument()
+  })
+
+  // ── Favorite toggle (authenticated only, 2026-07 user favorites feature) ──
+
+  it('does not render the favorite button when unauthenticated', async () => {
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    expect(screen.queryByLabelText('Add to favorites')).not.toBeInTheDocument()
+  })
+
+  it('renders the favorite button when authenticated', async () => {
+    mockAuthenticated()
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+    expect(screen.getByLabelText('Add to favorites')).toBeInTheDocument()
+  })
+
+  it('shows "Remove from favorites" label when is_favorited is true', async () => {
+    mockAuthenticated()
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} is_favorited />)
+    expect(screen.getByLabelText('Remove from favorites')).toBeInTheDocument()
+  })
+
+  it('calls addFavorite with id and token, and flips the icon, when toggled on', async () => {
+    mockAuthenticated('my-token')
+    mockAddFavorite.mockResolvedValue(undefined)
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+
+    fireEvent.click(screen.getByLabelText('Add to favorites'))
+
+    expect(mockAddFavorite).toHaveBeenCalledWith('abc', 'my-token')
+    await waitFor(() => {
+      expect(screen.getByLabelText('Remove from favorites')).toBeInTheDocument()
+    })
+  })
+
+  it('calls removeFavorite when toggled off from an already-favorited state', async () => {
+    mockAuthenticated('my-token')
+    mockRemoveFavorite.mockResolvedValue(undefined)
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} is_favorited />)
+
+    fireEvent.click(screen.getByLabelText('Remove from favorites'))
+
+    expect(mockRemoveFavorite).toHaveBeenCalledWith('abc', 'my-token')
+    await waitFor(() => {
+      expect(screen.getByLabelText('Add to favorites')).toBeInTheDocument()
+    })
+  })
+
+  it('rolls back the optimistic favorite toggle when the API call fails', async () => {
+    mockAuthenticated()
+    mockAddFavorite.mockRejectedValue(new Error('network error'))
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+
+    fireEvent.click(screen.getByLabelText('Add to favorites'))
+    // optimistic update happens synchronously
+    expect(screen.getByLabelText('Remove from favorites')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Add to favorites')).toBeInTheDocument()
+    })
+  })
+
+  it('clicking the favorite button does not open the article dialog', async () => {
+    mockAuthenticated()
+    mockAddFavorite.mockResolvedValue(undefined)
+    const { ArticleCard } = await import('@/components/features/articles/article-card')
+    render(<ArticleCard {...fixture} />)
+
+    fireEvent.click(screen.getByLabelText('Add to favorites'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

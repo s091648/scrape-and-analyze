@@ -75,7 +75,7 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 cursor-pointer" onClick={onClose}>
       <form
         className="bg-card border border-border rounded-xl shadow-lg w-full max-w-5xl flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
@@ -89,7 +89,7 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
               {groupA.display_name} + {groupB.display_name}
             </p>
           </div>
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={onClose} className="cursor-pointer">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>

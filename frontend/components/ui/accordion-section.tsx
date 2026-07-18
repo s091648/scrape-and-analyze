@@ -16,7 +16,7 @@ export function AccordionSection({ title, badge, defaultOpen = true, children }:
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 bg-card hover:bg-muted/40 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 bg-card hover:bg-muted/40 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <span className="font-semibold">{title}</span>

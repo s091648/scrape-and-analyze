@@ -277,7 +277,7 @@ function AddTopicCard({ onAdd }: { onAdd: (data: Omit<Topic, 'id' | 'is_active'>
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        className="w-full rounded-xl border border-dashed border-border bg-card/50 py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors cursor-pointer"
       >
         <Plus className="h-4 w-4" /> {t('admin.addTopic')}
       </button>
@@ -451,7 +451,7 @@ export default function TopicsPage() {
           {topics.some(t => !t.is_active) && (
             <button
               onClick={() => setShowInactive(v => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors cursor-pointer"
             >
               {showInactive ? t('admin.hideInactive') : t('admin.showInactive')}
             </button>

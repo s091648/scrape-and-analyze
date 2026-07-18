@@ -91,4 +91,55 @@ describe('usePagination', () => {
     const { result } = renderHook(() => usePagination())
     expect(result.current.activeFilterCount).toBe(2)
   })
+
+  it('favoritesOnly defaults to false when URL has no param', async () => {
+    setup('')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    expect(result.current.favoritesOnly).toBe(false)
+  })
+
+  it('favoritesOnly reads true from URL', async () => {
+    setup('favorites_only=true')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    expect(result.current.favoritesOnly).toBe(true)
+  })
+
+  it('favoritesOnly is false for any non-"true" value', async () => {
+    setup('favorites_only=1')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    expect(result.current.favoritesOnly).toBe(false)
+  })
+
+  it('setOrder pushes URL with updated order and resets page to 1', async () => {
+    const { mockPush } = setup('page=3&order=desc')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    result.current.setOrder('asc')
+    const calledWith: string = mockPush.mock.calls[0][0]
+    expect(calledWith).toContain('order=asc')
+    expect(calledWith).toContain('page=1')
+  })
+
+  it('setFavoritesOnly(true) sets the param and resets page to 1', async () => {
+    const { mockPush } = setup('page=3')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    result.current.setFavoritesOnly(true)
+    const calledWith: string = mockPush.mock.calls[0][0]
+    expect(calledWith).toContain('favorites_only=true')
+    expect(calledWith).toContain('page=1')
+  })
+
+  it('setFavoritesOnly(false) removes the param', async () => {
+    const { mockPush } = setup('favorites_only=true&page=2')
+    const { usePagination } = await import('@/hooks/use-pagination')
+    const { result } = renderHook(() => usePagination())
+    result.current.setFavoritesOnly(false)
+    const calledWith: string = mockPush.mock.calls[0][0]
+    expect(calledWith).not.toContain('favorites_only')
+    expect(calledWith).toContain('page=1')
+  })
 })

@@ -19,7 +19,7 @@ import {
 } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { NativeSelect } from '@/components/ui/native-select'
+import { Dropdown } from '@/components/ui/dropdown'
 import { RotateCw } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ function FilterBar({
               key={tr}
               onClick={() => onChange({ ...filters, timeRange: tr })}
               className={cn(
-                'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                'text-xs px-2.5 py-1 rounded-lg border transition-colors cursor-pointer',
                 filters.timeRange === tr
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground',
@@ -483,13 +483,17 @@ function FilterBar({
       {appEnv === 'local' && (
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">{t('admin.filterEnvironment')}:</span>
-          <NativeSelect size="sm" value={filters.environment}
-            onChange={e => onChange({ ...filters, environment: e.target.value as Environment })}>
-            <option value="all">{t('admin.filterAll')}</option>
-            <option value="local">local</option>
-            <option value="production">production</option>
-            <option value="test">test</option>
-          </NativeSelect>
+          <Dropdown
+            size="sm"
+            value={filters.environment}
+            onChange={v => onChange({ ...filters, environment: v as Environment })}
+            options={[
+              { value: 'all', label: t('admin.filterAll') },
+              { value: 'local', label: 'local' },
+              { value: 'production', label: 'production' },
+              { value: 'test', label: 'test' },
+            ]}
+          />
         </div>
       )}
     </div>

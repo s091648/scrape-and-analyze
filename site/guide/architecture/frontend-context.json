@@ -1,0 +1,533 @@
+{
+  "generated_at": "2026-06-09T12:18:00.364Z",
+  "providers": [
+    {
+      "id": "session",
+      "name": "SessionProviderWrapper",
+      "file": "components/providers/session-provider.tsx",
+      "hookName": "useSession",
+      "importPath": "next-auth/react",
+      "parent": null,
+      "nestingLevel": 0,
+      "children": [
+        "topic"
+      ],
+      "consumerCount": 13,
+      "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
+    },
+    {
+      "id": "topic",
+      "name": "TopicProvider",
+      "file": "lib/providers/topic-provider.tsx",
+      "hookName": "useTopic",
+      "importPath": "@/lib/providers",
+      "parent": "session",
+      "nestingLevel": 1,
+      "children": [
+        "i18n"
+      ],
+      "consumerCount": 14,
+      "description": "Topics list, selectedTopicId, URL sync, localStorage"
+    },
+    {
+      "id": "i18n",
+      "name": "I18nProvider",
+      "file": "lib/providers/i18n-provider.tsx",
+      "hookName": "useI18n",
+      "importPath": "@/lib/providers",
+      "parent": "topic",
+      "nestingLevel": 2,
+      "children": [
+        "guestMode"
+      ],
+      "consumerCount": 53,
+      "description": "Locale, translations, t(), localStorage"
+    },
+    {
+      "id": "guestMode",
+      "name": "GuestModeProvider",
+      "file": "lib/providers/guest-mode-provider.tsx",
+      "hookName": "useGuestMode",
+      "importPath": "@/lib/providers",
+      "parent": "i18n",
+      "nestingLevel": 3,
+      "children": [],
+      "consumerCount": 6,
+      "description": "isGuestMode, sessionStorage"
+    }
+  ],
+  "consumers": [
+    {
+      "contextId": "session",
+      "hookName": "useSession",
+      "sites": [
+        {
+          "file": "app/admin/llm-providers/page.tsx",
+          "line": 501,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 1045,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/admin/topics/page.tsx",
+          "line": 396,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/admin/user-management/page.tsx",
+          "line": 40,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/articles/[articleId]/page.tsx",
+          "line": 16,
+          "destructured": "{ status }"
+        },
+        {
+          "file": "app/graph/page.tsx",
+          "line": 11,
+          "destructured": "{ status }"
+        },
+        {
+          "file": "app/home-page-content.tsx",
+          "line": 29,
+          "destructured": "{ status }"
+        },
+        {
+          "file": "app/login/login-page-content.tsx",
+          "line": 11,
+          "destructured": "{ status }"
+        },
+        {
+          "file": "app/settings/layout.tsx",
+          "line": 23,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/settings/settings-page-content.tsx",
+          "line": 50,
+          "destructured": "{ data: session }"
+        },
+        {
+          "file": "app/tags/page.tsx",
+          "line": 408,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "components/features/graph/knowledge-graph.tsx",
+          "line": 105,
+          "destructured": "{ status }"
+        },
+        {
+          "file": "components/features/navigation/nav-bar.tsx",
+          "line": 22,
+          "destructured": "{ data: session }"
+        }
+      ]
+    },
+    {
+      "contextId": "topic",
+      "hookName": "useTopic",
+      "sites": [
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 286,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 547,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 774,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 877,
+          "destructured": "{ topics }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 1063,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/admin/topics/page.tsx",
+          "line": 401,
+          "destructured": "{ refresh: refreshTopicContext }"
+        },
+        {
+          "file": "app/graph/page.tsx",
+          "line": 14,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/home-page-content.tsx",
+          "line": 44,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "app/settings/layout.tsx",
+          "line": 30,
+          "destructured": "{ selectedTopic }"
+        },
+        {
+          "file": "app/tags/page.tsx",
+          "line": 411,
+          "destructured": "{ selectedTopic, refresh: refreshTopics }"
+        },
+        {
+          "file": "components/features/articles/article-card.tsx",
+          "line": 23,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "components/features/articles/filter-bar.tsx",
+          "line": 44,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "components/features/graph/knowledge-graph.tsx",
+          "line": 109,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "components/features/navigation/nav-bar.tsx",
+          "line": 29,
+          "destructured": "{ topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading }"
+        }
+      ]
+    },
+    {
+      "contextId": "i18n",
+      "hookName": "useI18n",
+      "sites": [
+        {
+          "file": "app/admin/llm-providers/page.tsx",
+          "line": 58,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/llm-providers/page.tsx",
+          "line": 279,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/llm-providers/page.tsx",
+          "line": 499,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 351,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 395,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 432,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 461,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 502,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 89,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 280,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 418,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 538,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 646,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 765,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 865,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/scraper-settings/page.tsx",
+          "line": 1046,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/topics/page.tsx",
+          "line": 39,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/topics/page.tsx",
+          "line": 245,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/topics/page.tsx",
+          "line": 397,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/admin/user-management/page.tsx",
+          "line": 41,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/articles/[articleId]/page.tsx",
+          "line": 15,
+          "destructured": "{ locale, t }"
+        },
+        {
+          "file": "app/graph/page.tsx",
+          "line": 12,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/home-page-content.tsx",
+          "line": 34,
+          "destructured": "{ t, locale }"
+        },
+        {
+          "file": "app/login/login-page-content.tsx",
+          "line": 13,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/register/register-page-content.tsx",
+          "line": 13,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/settings/layout.tsx",
+          "line": 24,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/settings/settings-page-content.tsx",
+          "line": 51,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/tags/page.tsx",
+          "line": 82,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "app/tags/page.tsx",
+          "line": 412,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/articles/article-card.tsx",
+          "line": 22,
+          "destructured": "{ locale, t }"
+        },
+        {
+          "file": "components/features/articles/article-detail-dialog.tsx",
+          "line": 29,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/articles/filter-bar.tsx",
+          "line": 43,
+          "destructured": "{ t, locale }"
+        },
+        {
+          "file": "components/features/graph/knowledge-graph.tsx",
+          "line": 106,
+          "destructured": "{ t, locale }"
+        },
+        {
+          "file": "components/features/monitoring/article-workflow-dialog.tsx",
+          "line": 81,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/log-detail-dialog.tsx",
+          "line": 62,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/logs-table.tsx",
+          "line": 140,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/run-waterfall-dialog.tsx",
+          "line": 79,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/stage-card.tsx",
+          "line": 184,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/traces-table.tsx",
+          "line": 62,
+          "destructured": "{ locale }"
+        },
+        {
+          "file": "components/features/monitoring/traces-table.tsx",
+          "line": 191,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/navigation/nav-bar.tsx",
+          "line": 30,
+          "destructured": "{ locale, setLocale, availableLanguages, t, isLoading: i18nLoading }"
+        },
+        {
+          "file": "components/features/scraper/arxiv-keyword-manager.tsx",
+          "line": 87,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/scraper/openalex-keyword-manager.tsx",
+          "line": 18,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/scraper/scraper-source-card.tsx",
+          "line": 154,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/scraper/scraper-source-card.tsx",
+          "line": 187,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/scraper/scraper-source-card.tsx",
+          "line": 252,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/scraper/semantic-scholar-keyword-manager.tsx",
+          "line": 18,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/tags/pending-changes-panel.tsx",
+          "line": 15,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/tags/pending-suggestions.tsx",
+          "line": 16,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/tags/tag-dialog.tsx",
+          "line": 28,
+          "destructured": "{ t, locale }"
+        },
+        {
+          "file": "components/features/tags/tag-group-card.tsx",
+          "line": 120,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/tags/tag-group-card.tsx",
+          "line": 220,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/tags/tag-mode-selector.tsx",
+          "line": 16,
+          "destructured": "{ t }"
+        }
+      ]
+    },
+    {
+      "contextId": "guestMode",
+      "hookName": "useGuestMode",
+      "sites": [
+        {
+          "file": "app/graph/page.tsx",
+          "line": 13,
+          "destructured": "{ isGuestMode }"
+        },
+        {
+          "file": "app/home-page-content.tsx",
+          "line": 30,
+          "destructured": "{ isGuestMode }"
+        },
+        {
+          "file": "app/login/login-page-content.tsx",
+          "line": 14,
+          "destructured": "{ enterGuestMode }"
+        },
+        {
+          "file": "app/settings/layout.tsx",
+          "line": 25,
+          "destructured": "{ isGuestMode }"
+        },
+        {
+          "file": "app/settings/settings-page-content.tsx",
+          "line": 52,
+          "destructured": "{ isGuestMode }"
+        },
+        {
+          "file": "components/features/graph/knowledge-graph.tsx",
+          "line": 107,
+          "destructured": "{ isGuestMode }"
+        }
+      ]
+    }
+  ],
+  "crossContextDeps": [
+    {
+      "from": "guestMode",
+      "to": "session",
+      "description": "GuestModeProvider internally uses useSession()",
+      "evidence": {
+        "file": "lib/providers/guest-mode-provider.tsx",
+        "line": 20,
+        "code": "const { status } = useSession()"
+      }
+    }
+  ],
+  "summary": {
+    "totalProviders": 4,
+    "totalConsumerSites": 86,
+    "maxNestingDepth": 3,
+    "mostConsumedContext": "i18n"
+  }
+}

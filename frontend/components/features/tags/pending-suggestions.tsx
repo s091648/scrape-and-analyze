@@ -48,7 +48,7 @@ export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
     <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-5 space-y-3">
       <div className="flex items-center justify-between">
         <button
-          className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+          className="flex items-center gap-1.5 flex-1 min-w-0 text-left cursor-pointer"
           onClick={() => setIsCollapsed(c => !c)}
         >
           <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
