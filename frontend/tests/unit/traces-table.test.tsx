@@ -12,12 +12,15 @@ vi.mock('@/lib/providers', () => ({
 }))
 
 vi.mock('@/components/features/monitoring/run-waterfall-dialog', () => ({
-  RunWaterfallDialog: ({ open, onClose, onSelectArticle }: any) =>
+  RunWaterfallDialog: ({ open, onClose, onSelectArticle, onSelectTopic }: any) =>
     open ? (
       <div data-testid="waterfall-dialog">
         <button onClick={onClose}>close waterfall</button>
         {onSelectArticle && (
           <button onClick={() => onSelectArticle({}, [])}>select article</button>
+        )}
+        {onSelectTopic && (
+          <button onClick={() => onSelectTopic({}, [])}>select topic</button>
         )}
       </div>
     ) : null,
@@ -28,6 +31,15 @@ vi.mock('@/components/features/monitoring/article-workflow-dialog', () => ({
     open ? (
       <div data-testid="workflow-dialog">
         <button onClick={onClose}>close workflow</button>
+      </div>
+    ) : null,
+}))
+
+vi.mock('@/components/features/monitoring/weekly-report-topic-dialog', () => ({
+  WeeklyReportTopicDialog: ({ open, onClose }: any) =>
+    open ? (
+      <div data-testid="topic-workflow-dialog">
+        <button onClick={onClose}>close topic workflow</button>
       </div>
     ) : null,
 }))
@@ -339,6 +351,263 @@ describe('TracesTable waterfall dialog', () => {
 
     fireEvent.click(screen.getByText('close waterfall'))
     await waitFor(() => expect(screen.queryByTestId('waterfall-dialog')).toBeNull())
+  })
+})
+
+// ── Weekly report run branch ──────────────────────────────────────────────────
+
+describe('TracesTable weekly report run', () => {
+  function weeklyReportTrace(traceID: string) {
+    return {
+      traceID,
+      rootServiceName: 'backend',
+      rootTraceName: 'weekly_report.run',
+      startTimeUnixNano: '1700000000000000000',
+      durationMs: 8000,
+    }
+  }
+
+  function mockWeeklyReportDetail(overrides?: { topicAttrs?: any[] }) {
+    return {
+      batches: [{
+        resource: { attributes: [] },
+        scopeSpans: [{
+          spans: [
+            {
+              traceId: 'wtrace01',
+              spanId: 'root001',
+              parentSpanId: '',
+              name: 'weekly_report.run',
+              startTimeUnixNano: '1700000000000000000',
+              endTimeUnixNano: '1700000008000000000',
+              attributes: [],
+              status: { code: 0 },
+            },
+            {
+              traceId: 'wtrace01',
+              spanId: 'topic001',
+              parentSpanId: 'root001',
+              name: 'weekly_report.topic',
+              startTimeUnixNano: '1700000001000000000',
+              endTimeUnixNano: '1700000005000000000',
+              attributes: overrides?.topicAttrs ?? [
+                { key: 'topic.name', value: { stringValue: 'AI Weekly' } },
+                { key: 'weekly_report.article_count', value: { intValue: '5' } },
+              ],
+              status: { code: 0 },
+            },
+          ],
+        }],
+      }],
+    }
+  }
+
+  it('renders topic sub-rows for a weekly_report.run trace instead of article rows', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockWeeklyReportDetail())
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace01')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace01…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Weekly')).toBeDefined()
+    })
+  })
+
+  it('shows "no topics in run" when a weekly_report.run trace has no topic spans', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce({
+      batches: [{
+        resource: { attributes: [] },
+        scopeSpans: [{
+          spans: [{
+            traceId: 'wtrace02',
+            spanId: 'root002',
+            parentSpanId: '',
+            name: 'weekly_report.run',
+            startTimeUnixNano: '1700000000000000000',
+            endTimeUnixNano: '1700000001000000000',
+            attributes: [],
+            status: { code: 0 },
+          }],
+        }],
+      }],
+    })
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace02')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace02…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+
+    await waitFor(() => {
+      expect(screen.getByText('admin.noTopicsInRun')).toBeDefined()
+    })
+  })
+
+  it('shows a checkmark status for a successful topic', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockWeeklyReportDetail())
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace01')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace01…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+
+    await waitFor(() => expect(screen.getByText('AI Weekly')).toBeDefined())
+    expect(screen.getByText('✓')).toBeDefined()
+    expect(screen.queryByText('✗')).toBeNull()
+  })
+
+  it('shows a cross status when the topic span itself errored', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce({
+      batches: [{
+        resource: { attributes: [] },
+        scopeSpans: [{
+          spans: [
+            {
+              traceId: 'wtrace03',
+              spanId: 'root003',
+              parentSpanId: '',
+              name: 'weekly_report.run',
+              startTimeUnixNano: '1700000000000000000',
+              endTimeUnixNano: '1700000008000000000',
+              attributes: [],
+              status: { code: 0 },
+            },
+            {
+              traceId: 'wtrace03',
+              spanId: 'topic003',
+              parentSpanId: 'root003',
+              name: 'weekly_report.topic',
+              startTimeUnixNano: '1700000001000000000',
+              endTimeUnixNano: '1700000005000000000',
+              attributes: [{ key: 'topic.name', value: { stringValue: 'Errored Topic' } }],
+              status: { code: 2 },
+            },
+          ],
+        }],
+      }],
+    })
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace03')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace03…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+
+    await waitFor(() => expect(screen.getByText('Errored Topic')).toBeDefined())
+    expect(screen.getByText('✗')).toBeDefined()
+  })
+
+  it('opens the weekly report topic dialog when a topic row is clicked', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockWeeklyReportDetail())
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace01')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace01…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(screen.getByText('AI Weekly')).toBeDefined())
+
+    fireEvent.click(screen.getByText('view →'))
+    await waitFor(() => {
+      expect(screen.getByTestId('topic-workflow-dialog')).toBeDefined()
+    })
+  })
+
+  it('closes the weekly report topic dialog', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockWeeklyReportDetail())
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace01')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace01…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(screen.getByText('AI Weekly')).toBeDefined())
+    fireEvent.click(screen.getByText('view →'))
+    await waitFor(() => expect(screen.getByTestId('topic-workflow-dialog')).toBeDefined())
+
+    fireEvent.click(screen.getByText('close topic workflow'))
+    await waitFor(() => expect(screen.queryByTestId('topic-workflow-dialog')).toBeNull())
+  })
+
+  it('opens the topic dialog from the waterfall dialog via onSelectTopic, closing the waterfall', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValue(mockWeeklyReportDetail())
+
+    const external: TempoResponse = { traces: [weeklyReportTrace('wtrace01')] }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('wtrace01…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(queryTraceById).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByText('wtrace01…'))
+    await waitFor(() => expect(screen.getByTestId('waterfall-dialog')).toBeDefined())
+
+    fireEvent.click(screen.getByText('select topic'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('waterfall-dialog')).toBeNull()
+      expect(screen.getByTestId('topic-workflow-dialog')).toBeDefined()
+    })
+  })
+
+  it('renders article rows (not topic rows) for a non-weekly-report run', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce({
+      batches: [{
+        resource: { attributes: [] },
+        scopeSpans: [{
+          spans: [
+            {
+              traceId: 'trace001',
+              spanId: 'root001',
+              parentSpanId: '',
+              name: 'scraper.run',
+              startTimeUnixNano: '1700000000000000000',
+              endTimeUnixNano: '1700000010000000000',
+              attributes: [],
+              status: { code: 0 },
+            },
+          ],
+        }],
+      }],
+    })
+
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace001',
+        rootServiceName: 'backend',
+        rootTraceName: 'scraper.run',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 10000,
+      }],
+    }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('trace001…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+
+    await waitFor(() => {
+      expect(screen.getByText('admin.noArticlesInRun')).toBeDefined()
+    })
+    expect(screen.queryByText('admin.noTopicsInRun')).toBeNull()
   })
 })
 

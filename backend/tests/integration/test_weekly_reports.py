@@ -187,3 +187,171 @@ def test_get_latest_returns_empty_sources_for_pre_existing_title_string_article_
     assert r.status_code == 200
     data = r.json()
     assert data["sources"] == []
+
+
+def test_get_latest_skips_article_id_with_no_matching_article(db_session, api_client):
+    """article_ids can reference an article that was later deleted — a well-formed UUID
+    with no matching row must be silently skipped, not error."""
+    topic = _topic(db_session)
+    a1 = _article(title="Still Exists")
+    db_session.add(a1)
+    db_session.flush()
+    missing_id = uuid.uuid4()
+
+    report = _weekly_report(
+        topic.id,
+        date(2026, 6, 16),
+        title="Partially Deleted Report",
+        article_ids=[str(a1.id), str(missing_id)],
+    )
+    db_session.add(report)
+    db_session.flush()
+
+    r = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data["sources"]) == 1
+    assert data["sources"][0]["id"] == str(a1.id)
+
+
+# ─── GET /weekly-reports/weeks ────────────────────────────────────────────────
+
+def test_list_weeks_empty(db_session, api_client):
+    topic = _topic(db_session)
+    r = api_client.get(f"/weekly-reports/weeks?topic_id={topic.id}")
+    assert r.status_code == 200
+    assert r.json()["weeks"] == []
+
+
+def test_list_weeks_returns_completed_report_weeks_desc(db_session, api_client):
+    topic = _topic(db_session)
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 9)))
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 16)))
+    db_session.flush()
+
+    r = api_client.get(f"/weekly-reports/weeks?topic_id={topic.id}")
+    assert r.status_code == 200
+    weeks = r.json()["weeks"]
+    assert weeks == ["2026-06-16", "2026-06-09"]
+
+
+def test_list_weeks_excludes_non_completed_reports(db_session, api_client):
+    topic = _topic(db_session)
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 9), status="pending"))
+    db_session.flush()
+
+    r = api_client.get(f"/weekly-reports/weeks?topic_id={topic.id}")
+    assert r.status_code == 200
+    assert r.json()["weeks"] == []
+
+
+def test_list_weeks_requires_topic_id(api_client):
+    r = api_client.get("/weekly-reports/weeks")
+    assert r.status_code == 422
+
+
+# ─── GET /weekly-reports/by-week ──────────────────────────────────────────────
+
+def test_get_by_week_returns_null_when_no_match(db_session, api_client):
+    topic = _topic(db_session)
+    r = api_client.get(f"/weekly-reports/by-week?topic_id={topic.id}&week_start=2026-06-16")
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+def test_get_by_week_normalizes_to_monday(db_session, api_client):
+    """week_start_date is always a Monday — any date within that week resolves to it."""
+    topic = _topic(db_session)
+    monday = date(2026, 6, 15)  # Monday
+    report = _weekly_report(topic.id, monday, title="Week of June 15")
+    db_session.add(report)
+    db_session.flush()
+
+    # Thursday of the same week
+    r = api_client.get(f"/weekly-reports/by-week?topic_id={topic.id}&week_start=2026-06-18")
+    assert r.status_code == 200
+    data = r.json()
+    assert data is not None
+    assert data["title"] == "Week of June 15"
+    assert data["week_start_date"] == "2026-06-15"
+
+
+def test_get_by_week_ignores_non_completed_report(db_session, api_client):
+    topic = _topic(db_session)
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 15), status="pending"))
+    db_session.flush()
+
+    r = api_client.get(f"/weekly-reports/by-week?topic_id={topic.id}&week_start=2026-06-15")
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+def test_get_by_week_requires_topic_id_and_week_start(api_client):
+    r = api_client.get("/weekly-reports/by-week")
+    assert r.status_code == 422
+
+
+# ─── Translation override (_to_out, FR-030-ish i18n) ─────────────────────────
+
+def _translation(db_session, report_id, language, title, summary_text):
+    from models.weekly_report_translation import WeeklyReportTranslation
+    t = WeeklyReportTranslation(
+        id=uuid.uuid4(),
+        weekly_report_id=report_id,
+        language=language,
+        title=title,
+        summary_text=summary_text,
+    )
+    db_session.add(t)
+    db_session.flush()
+    return t
+
+
+def test_get_latest_uses_translation_when_lang_requested(db_session, api_client):
+    topic = _topic(db_session)
+    report = _weekly_report(topic.id, date(2026, 6, 16), title="English Title")
+    db_session.add(report)
+    db_session.flush()
+    _translation(db_session, report.id, "zh-TW", "中文標題", "中文摘要")
+
+    r = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}&lang=zh-TW")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["title"] == "中文標題"
+    assert data["summary_text"] == "中文摘要"
+
+
+def test_get_latest_falls_back_to_english_when_translation_missing(db_session, api_client):
+    topic = _topic(db_session)
+    report = _weekly_report(topic.id, date(2026, 6, 16), title="English Only Title")
+    db_session.add(report)
+    db_session.flush()
+
+    r = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}&lang=zh-TW")
+    assert r.status_code == 200
+    assert r.json()["title"] == "English Only Title"
+
+
+def test_get_latest_default_lang_is_english_no_translation_lookup(db_session, api_client):
+    topic = _topic(db_session)
+    report = _weekly_report(topic.id, date(2026, 6, 16), title="English Title")
+    db_session.add(report)
+    db_session.flush()
+    _translation(db_session, report.id, "zh-TW", "中文標題", "中文摘要")
+
+    r = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")
+    assert r.status_code == 200
+    assert r.json()["title"] == "English Title"
+
+
+def test_list_weekly_reports_applies_translation_per_item(db_session, api_client):
+    topic = _topic(db_session)
+    w1 = _weekly_report(topic.id, date(2026, 6, 16), title="Report W1 EN")
+    db_session.add(w1)
+    db_session.flush()
+    _translation(db_session, w1.id, "zh-TW", "報告一", "摘要一")
+
+    r = api_client.get(f"/weekly-reports?topic_id={topic.id}&lang=zh-TW")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["items"][0]["title"] == "報告一"

@@ -19,7 +19,13 @@ vi.mock('@/lib/providers', () => ({
 }))
 
 vi.mock('@/components/ui/week-picker', () => ({
-  WeekPicker: () => <div data-testid="week-picker" />,
+  WeekPicker: (props: any) => (
+    <div data-testid="week-picker">
+      <button data-testid="week-picker-select" onClick={() => props.onSelectWeek(new Date('2026-07-13'))}>
+        select
+      </button>
+    </div>
+  ),
 }))
 
 function makeReports(count: number) {
@@ -100,5 +106,118 @@ describe('WeeklyReportStepper — scroll fix (2026-07-14, US10)', () => {
       expect(list.className).toContain('weekly-stepper-scroll')
       expect(list.className).toContain('overflow-x-hidden')
     })
+  })
+})
+
+describe('WeeklyReportStepper — render guard', () => {
+  it('renders nothing when there is only one report and no onJumpToWeek', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    const { container } = render(
+      <WeeklyReportStepper reports={makeReports(1)} selectedId="report-0" onSelect={vi.fn()} />
+    )
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('renders nothing when there are zero reports and no onJumpToWeek', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    const { container } = render(
+      <WeeklyReportStepper reports={makeReports(0)} selectedId={null} onSelect={vi.fn()} />
+    )
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('still renders the date picker with a single report when onJumpToWeek is provided', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    render(
+      <WeeklyReportStepper
+        reports={makeReports(1)}
+        selectedId="report-0"
+        onSelect={vi.fn()}
+        onJumpToWeek={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('week-picker')).toBeInTheDocument()
+  })
+})
+
+describe('WeeklyReportStepper — week selection', () => {
+  it('calls onSelect with the clicked report id', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    const onSelect = vi.fn()
+    render(<WeeklyReportStepper reports={makeReports(3)} selectedId="report-0" onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('Feb 1').closest('button')!)
+    expect(onSelect).toHaveBeenCalledWith('report-1')
+  })
+
+  it('marks the selected week as aria-selected', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    render(<WeeklyReportStepper reports={makeReports(3)} selectedId="report-0" onSelect={vi.fn()} />)
+
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    expect(options[1]).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('forwards the picked week to onJumpToWeek via WeekPicker', async () => {
+    const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+    const onJumpToWeek = vi.fn()
+    render(
+      <WeeklyReportStepper
+        reports={makeReports(2)}
+        selectedId="report-0"
+        onSelect={vi.fn()}
+        onJumpToWeek={onJumpToWeek}
+      />
+    )
+    fireEvent.click(screen.getByTestId('week-picker-select'))
+    expect(onJumpToWeek).toHaveBeenCalledWith(new Date('2026-07-13'))
+  })
+})
+
+describe('WeeklyReportStepper — hover auto-scroll', () => {
+  it('nudges scrollTop while hovering the up chevron, and stops on mouse leave', async () => {
+    vi.useFakeTimers()
+    try {
+      const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+      withOverflow(500, 100, () => {
+        render(<WeeklyReportStepper reports={makeReports(10)} selectedId="report-0" onSelect={vi.fn()} />)
+        const up = screen.getByLabelText('Jump to newest week')
+        const list = screen.getByRole('listbox')
+        Object.defineProperty(list, 'scrollTop', { writable: true, value: 100 })
+
+        fireEvent.mouseEnter(up)
+        vi.advanceTimersByTime(60) // 3 ticks @ 20ms, -3 each
+        expect(list.scrollTop).toBe(91)
+
+        fireEvent.mouseLeave(up)
+        const afterLeave = list.scrollTop
+        vi.advanceTimersByTime(100)
+        expect(list.scrollTop).toBe(afterLeave) // no further movement once stopped
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('nudges scrollTop in the opposite direction while hovering the down chevron', async () => {
+    vi.useFakeTimers()
+    try {
+      const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
+      withOverflow(500, 100, () => {
+        render(<WeeklyReportStepper reports={makeReports(10)} selectedId="report-0" onSelect={vi.fn()} />)
+        const down = screen.getByLabelText('Jump to oldest week')
+        const list = screen.getByRole('listbox')
+        Object.defineProperty(list, 'scrollTop', { writable: true, value: 100 })
+
+        fireEvent.mouseEnter(down)
+        vi.advanceTimersByTime(60)
+        expect(list.scrollTop).toBe(109)
+
+        fireEvent.mouseLeave(down)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
