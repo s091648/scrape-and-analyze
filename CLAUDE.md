@@ -168,5 +168,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/014-article-recommendation-weekly-report/plan.md`.
+at `specs/016-db-schema-brushup/plan.md`.
 <!-- SPECKIT END -->
