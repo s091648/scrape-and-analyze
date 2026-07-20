@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 15 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 16 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -62,4 +62,7 @@ features:
   - title: '015 · Guest Tutorial Mode'
     details: '在 guest mode 時新增一個 tutorial mode，加上一個類似於 stepper 的東西，一步一步地告訴使用者如何操作。後續追加需求：教學呈現方式改為「灰色 overlay + 對目標元素挖空 highlight + 頁面導覽 + 貼齊元素的說明對話框」，並擴充為所有使用者在新功能上線時都能看到對應的功能導覽（feature spotlight），且已讀狀態需要持久化。'
     link: '/specs/015-guest-tutorial-mode/spec'
+  - title: '016 · DB Schema Brushup'
+    details: 'Database schema brush-up (GitHub issue #91): all public-schema tables (other than `auth` and `vectors`, which already have their own PostgreSQL schema) are currently unorganized under `public`. Reorganize them into use-case-based PostgreSQL schemas via Alembic migrations, following the pattern already used for `auth`/`vectors`. Also add an AST-based step to the existing docs pipeline (`.github/workflows/speckit-github-pages.yml`) that reads the SQLAlchemy models and renders a database schema diagram (tables, columns, FK relationships, schema grouping) as a new page in the VitePress site.'
+    link: '/specs/016-db-schema-brushup/spec'
 ---

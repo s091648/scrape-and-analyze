@@ -156,6 +156,7 @@ export default defineConfig({
         items: [
           { text: 'Pipeline', link: '/guide/architecture/uml' },
           { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
+          { text: 'DB Schema', link: '/guide/architecture/db-schema' },
         ],
       },
 ${sidebar}
