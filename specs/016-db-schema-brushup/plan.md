@@ -26,7 +26,7 @@ Reorganize the 24 `public`-schema tables that have a live SQLAlchemy model into 
 
 **Constraints**: Zero query-level behavior change (SC-002); zero data loss and no extended outage during the production migration (SC-005); the migration must be reversible (FR-002); diagram generation must not require installing the full `backend`/`src` dependency tree in CI (drives the AST-over-runtime-import decision below); new VitePress markdown must avoid bare `<...>` outside code fences per constitution VII's "VitePress-compatible Markdown" rule (relevant because column type annotations like `list[str]` or `Vector(768)` could otherwise break the production `npm run build`)
 
-**Scale/Scope**: 24 tables moved across 5 new schemas + 2 tables intentionally left in `public` (`data_migrations`, `arxiv_metadata`); ~30 `ForeignKey(...)` string references across `models/*.py` need schema-qualification (see research.md); ~23 files under `backend/` currently call `os.environ`/`os.getenv` directly
+**Scale/Scope**: 24 tables moved across 5 new schemas + 1 table intentionally left in `public` (`data_migrations`; `arxiv_metadata` was initially believed to be a second orphan but was found during implementation to not exist at all — migration 22 drops it in `upgrade()`); ~30 `ForeignKey(...)` string references across `models/*.py` need schema-qualification (see research.md); ~23 files under `backend/` currently call `os.environ`/`os.getenv` directly
 
 ## Constitution Check
 

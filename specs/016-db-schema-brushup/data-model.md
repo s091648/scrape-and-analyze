@@ -21,7 +21,7 @@ class DbSchema(str, Enum):
 
 ## 2. Table → schema migration mapping
 
-24 tables move; `data_migrations` and `arxiv_metadata` stay in `public` untouched (no model, see spec.md Assumptions); `arxiv_keywords` model is deleted (dead — see spec.md Assumptions), not moved.
+24 tables move; `data_migrations` stays in `public` untouched (no model, see spec.md Assumptions); `arxiv_keywords` model is deleted (dead — see spec.md Assumptions), not moved. `arxiv_metadata` was initially believed to be a second no-model orphan in `public` but turned out not to exist at all — migration 22's `upgrade()` drops it (the `create_table` survives only in `downgrade()`), confirmed empirically post-migration via `information_schema.tables`.
 
 | Table | Model file | New schema | `ForeignKey` strings in this file needing requalification |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Parsing rules (see research.md §4 for the `__table_args__` dict-vs-tuple and en
 1. Walk every `.py` file directly under `models/` (excluding `__init__.py`, `base.py`, `types.py`, `db_schema.py` itself).
 2. For each `ast.ClassDef` whose bases include `Base`, extract `__tablename__` (string literal) and resolve `schema` from `__table_args__` (dict literal, or last element of a tuple literal) — defaulting to `"public"` only for models this feature doesn't touch that have no explicit schema key (none currently exist among in-scope models, but the parser must not crash if one appears later).
 3. For `Table(...)` calls at module level (the `article_tags` association table in `tag.py`) — same extraction logic, since it isn't a `ClassDef`.
-4. For each `Column(...)` call assigned to a class attribute, extract the column name (from the assignment target), and if a `ForeignKey(...)` call appears among its arguments, parse the literal string argument into `schema.table.column` (splitting on `.`; a 2-part string with no schema prefix means the target is `public`-schema-implicit as of this feature's completion, e.g. `data_migrations`/`arxiv_metadata`-referencing FKs, none of which currently exist).
+4. For each `Column(...)` call assigned to a class attribute, extract the column name (from the assignment target), and if a `ForeignKey(...)` call appears among its arguments, parse the literal string argument into `schema.table.column` (splitting on `.`; a 2-part string with no schema prefix means the target is `public`-schema-implicit as of this feature's completion, e.g. a `data_migrations`-referencing FK, none of which currently exist).
 5. Output: one `TableInfo` per table, grouped by `schema` for the `.dot` subgraph rendering (one visual cluster per PostgreSQL schema, matching the existing UML diagram's per-layer subgraph convention), with cross-schema FK edges rendered distinctly (e.g. a different edge color/style) per spec.md's edge-case requirement ("the diagram MUST clearly indicate when a relationship crosses a schema boundary").
 6. Any model that fails to parse (unexpected AST shape) MUST raise and fail the script (FR-010 — no silent omission), matching `generate_uml.py`'s existing fail-loud behavior for pyreverse errors.
 

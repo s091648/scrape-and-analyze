@@ -20,7 +20,7 @@
 
 **Purpose**: Confirm a clean starting baseline before touching schema/model code
 
-- [ ] T001 Run `make migrate` at the repo root to confirm the local Postgres is at Alembic `head` (revision `23_article_recommendation_weekly_report`) before starting — establishes the known-good pre-migration baseline referenced throughout quickstart.md
+- [X] T001 Run `make migrate` at the repo root to confirm the local Postgres is at Alembic `head` (revision `23_article_recommendation_weekly_report`) before starting — establishes the known-good pre-migration baseline referenced throughout quickstart.md
 
 ---
 
@@ -30,7 +30,7 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 Create `models/db_schema.py` with `DbSchema(str, Enum)` — members `CORE = "core"`, `COLLECTION = "collection"`, `INTELLIGENCE = "intelligence"`, `AI_INFRA = "ai_infra"`, `USER_PREFS = "user_prefs"` — per data-model.md §1
+- [X] T002 Create `models/db_schema.py` with `DbSchema(str, Enum)` — members `CORE = "core"`, `COLLECTION = "collection"`, `INTELLIGENCE = "intelligence"`, `AI_INFRA = "ai_infra"`, `USER_PREFS = "user_prefs"` — per data-model.md §1
 
 **Checkpoint**: `DbSchema` enum exists and is importable — US1 (model updates) and US2 (diagram generator, which statically parses this file) can now both proceed.
 
@@ -46,46 +46,47 @@
 
 > Write these first — T003 fails until the model updates below land; T004 fails until the migration (T005) lands.
 
-- [ ] T003 [P] [US1] Add schema-assertion tests to `src/tests/unit/infrastructure/persistence/test_orm_models.py` — one assertion per moved model, `<Model>.__table__.schema == DbSchema.<X>.value`, covering all 24 tables per the data-model.md §2 mapping (no DB required — matches this file's existing style, e.g. `test_topic_model_columns`)
-- [ ] T004 [P] [US1] Add `src/tests/integration/test_db_schema_migration.py` (`@pytest.mark.integration`) — after `alembic upgrade head` has run (already guaranteed by the CI job order per `.github/workflows/ci.yml`), query `information_schema.tables` and assert: the 5 new schemas exist, contain exactly the tables listed in data-model.md §2, and `public` contains only `data_migrations`, `arxiv_metadata`, `alembic_version`
+- [X] T003 [P] [US1] Add schema-assertion tests to `src/tests/unit/infrastructure/persistence/test_orm_models.py` — one assertion per moved model, `<Model>.__table__.schema == DbSchema.<X>.value`, covering all 24 tables per the data-model.md §2 mapping (no DB required — matches this file's existing style, e.g. `test_topic_model_columns`)
+- [X] T004 [P] [US1] Add `src/tests/integration/test_db_schema_migration.py` (`@pytest.mark.integration`) — after `alembic upgrade head` has run (already guaranteed by the CI job order per `.github/workflows/ci.yml`), query `information_schema.tables` and assert: the 5 new schemas exist, contain exactly the tables listed in data-model.md §2, and `public` contains only `data_migrations` (plus `alembic_version`)
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Create `alembic/versions/24_reorganize_public_schema_into_ddd_schemas.py` — `upgrade()`: 5× `CREATE SCHEMA IF NOT EXISTS`, then `ALTER TABLE public.<table> SET SCHEMA <schema>` for all 24 tables in data-model.md §2's mapping; `downgrade()`: reverse every move back to `public`, then `DROP SCHEMA IF EXISTS` the 5 schemas
-- [ ] T006 [P] [US1] Update `models/article.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}`; requalify `ForeignKey('topics.id')` → `ForeignKey('core.topics.id')`
-- [ ] T007 [P] [US1] Update `models/article_translation.py` — `__table_args__` → `DbSchema.CORE`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
-- [ ] T008 [P] [US1] Update `models/topic.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}` (no FKs to requalify)
-- [ ] T009 [P] [US1] Update `models/scraper_setting.py` — `__table_args__` → `{'schema': DbSchema.COLLECTION.value}` (no FKs to requalify)
-- [ ] T010 [P] [US1] Update `models/scraper_keyword.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
-- [ ] T011 [P] [US1] Update `models/failed_task.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id')` → `'core.articles.id'` and `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
-- [ ] T012 [P] [US1] Update `models/article_metrics.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
-- [ ] T013 [P] [US1] Update `models/article_metric_value.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
-- [ ] T014 [P] [US1] Update `models/analysis.py` — `__table_args__` → `{'schema': DbSchema.INTELLIGENCE.value}`; requalify `ForeignKey('articles.id')` → `'core.articles.id'`
-- [ ] T015 [P] [US1] Update `models/analyses_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
-- [ ] T016 [P] [US1] Update `models/tag.py` — `Tag.__table_args__` and the module-level `article_tags` association `Table(...)` both → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id', ...)`, `ForeignKey('articles.id')` → `'core.articles.id'`, `ForeignKey('tags.id')` → `'intelligence.tags.id'`
-- [ ] T017 [P] [US1] Update `models/tag_group.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id')` → `'core.topics.id'`
-- [ ] T018 [P] [US1] Update `models/tag_group_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id')` → `'intelligence.tag_group_definitions.id'`
-- [ ] T019 [P] [US1] Update `models/tag_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tags.id')` → `'intelligence.tags.id'`
-- [ ] T020 [P] [US1] Update `models/tag_normalization_suggestion.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify both `ForeignKey('tags.id', ...)` → `'intelligence.tags.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`
-- [ ] T021 [P] [US1] Update `models/weekly_report.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
-- [ ] T022 [P] [US1] Update `models/weekly_report_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('weekly_reports.id', ...)` → `'intelligence.weekly_reports.id'`
-- [ ] T023 [P] [US1] Update `models/llm_provider.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
-- [ ] T024 [P] [US1] Update `models/metric_definition.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
-- [ ] T025 [P] [US1] Update `models/metric_provider.py` — `__table_args__` → `DbSchema.AI_INFRA`; requalify `ForeignKey('metric_definitions.id', ...)` → `'ai_infra.metric_definitions.id'`
-- [ ] T026 [P] [US1] Update `models/user_subscription.py` — all 3 classes' (`UserTopicSubscription`, `UserNotificationSettings`, `UserArticleFavorite`) `__table_args__` → `DbSchema.USER_PREFS`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`; leave the `ForeignKey('auth.users.id', ...)` FKs unchanged
-- [ ] T027 [P] [US1] Update `models/article_chunk.py` — cross-boundary fix only: requalify `ForeignKey("articles.id", ...)` → `"core.articles.id"`; do **not** change its own `__table_args__` (stays `vectors`, out of scope)
-- [ ] T028 [US1] Delete `models/arxiv_keyword.py`; remove the now-obsolete `# NOTE: models.arxiv_keyword is intentionally excluded...` comment block from `models/__init__.py`
-- [ ] T029 [P] [US1] Fix raw SQL in `src/entrypoints/cli/refresh_metrics.py` — `FROM articles` → `FROM core.articles`
-- [ ] T030 [P] [US1] Fix raw SQL in `src/infrastructure/persistence/intelligence/tag_repo_impl.py` — requalify `tags`, `article_tags`, `articles`, `tag_group_definitions` references (multiple lines — see research.md's grep findings) to `intelligence.*`/`core.articles`
-- [ ] T031 [P] [US1] Fix raw SQL in `src/infrastructure/persistence/intelligence/tag_group_definition_repo_impl.py` — requalify `tag_group_definitions` references to `intelligence.tag_group_definitions`
-- [ ] T032 [P] [US1] Fix raw SQL in `backend/routers/tags.py` — requalify `article_tags`, `tags`, `tag_group_definitions`, `articles` references
-- [ ] T033 [P] [US1] Fix raw SQL in `backend/services/scraper_settings_service.py` — `FROM articles` → `FROM core.articles`
-- [ ] T034 [P] [US1] Fix raw SQL in `backend/services/tag_service.py` — requalify `tag_group_definitions`, `article_tags`, `tags` references
-- [ ] T035 [P] [US1] Fix raw SQL in `backend/services/article_service.py` — requalify the `article_metrics` reference to `collection.article_metrics`
-- [ ] T036 [US1] Extend `FIXED_SCHEMAS = {"auth", "vectors"}` in `src/tests/integration/conftest.py` to also include `"core"`, `"collection"`, `"intelligence"`, `"ai_infra"`, `"user_prefs"` (research.md §8 — required or the isolated-schema `create_all()` breaks)
-- [ ] T037 [US1] Extend `FIXED_SCHEMAS = {"auth", "vectors"}` in `backend/tests/integration/conftest.py` the same way (research.md §8)
+- [X] T005 [US1] Create `alembic/versions/24_reorganize_public_schema_into_ddd_schemas.py` — `upgrade()`: 5× `CREATE SCHEMA IF NOT EXISTS`, then `ALTER TABLE public.<table> SET SCHEMA <schema>` for all 24 tables in data-model.md §2's mapping; **plus** (added during implementation, research.md §8) `ALTER DATABASE ... SET search_path TO core, collection, intelligence, ai_infra, user_prefs, public` so pre-existing unqualified raw SQL keeps resolving; `downgrade()`: reverse every move back to `public`, `RESET search_path`, then `DROP SCHEMA IF EXISTS` the 5 schemas — verified reversible (downgrade -1 → upgrade head) on both a fresh throwaway DB and the local dev DB
+- [X] T006 [P] [US1] Update `models/article.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}`; requalify `ForeignKey('topics.id')` → `ForeignKey('core.topics.id')`
+- [X] T007 [P] [US1] Update `models/article_translation.py` — `__table_args__` → `DbSchema.CORE`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T008 [P] [US1] Update `models/topic.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}` (no FKs to requalify)
+- [X] T009 [P] [US1] Update `models/scraper_setting.py` — `__table_args__` → `{'schema': DbSchema.COLLECTION.value}` (no FKs to requalify)
+- [X] T010 [P] [US1] Update `models/scraper_keyword.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
+- [X] T011 [P] [US1] Update `models/failed_task.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id')` → `'core.articles.id'` and `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
+- [X] T012 [P] [US1] Update `models/article_metrics.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T013 [P] [US1] Update `models/article_metric_value.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T014 [P] [US1] Update `models/analysis.py` — `__table_args__` → `{'schema': DbSchema.INTELLIGENCE.value}`; requalify `ForeignKey('articles.id')` → `'core.articles.id'`
+- [X] T015 [P] [US1] Update `models/analyses_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
+- [X] T016 [P] [US1] Update `models/tag.py` — `Tag.__table_args__` and the module-level `article_tags` association `Table(...)` both → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id', ...)`, `ForeignKey('articles.id')` → `'core.articles.id'`, `ForeignKey('tags.id')` → `'intelligence.tags.id'`
+- [X] T017 [P] [US1] Update `models/tag_group.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id')` → `'core.topics.id'`
+- [X] T018 [P] [US1] Update `models/tag_group_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id')` → `'intelligence.tag_group_definitions.id'`
+- [X] T019 [P] [US1] Update `models/tag_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tags.id')` → `'intelligence.tags.id'`
+- [X] T020 [P] [US1] Update `models/tag_normalization_suggestion.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify both `ForeignKey('tags.id', ...)` → `'intelligence.tags.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T021 [P] [US1] Update `models/weekly_report.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
+- [X] T022 [P] [US1] Update `models/weekly_report_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('weekly_reports.id', ...)` → `'intelligence.weekly_reports.id'`
+- [X] T023 [P] [US1] Update `models/llm_provider.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
+- [X] T024 [P] [US1] Update `models/metric_definition.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
+- [X] T025 [P] [US1] Update `models/metric_provider.py` — `__table_args__` → `DbSchema.AI_INFRA`; requalify `ForeignKey('metric_definitions.id', ...)` → `'ai_infra.metric_definitions.id'`
+- [X] T026 [P] [US1] Update `models/user_subscription.py` — all 3 classes' (`UserTopicSubscription`, `UserNotificationSettings`, `UserArticleFavorite`) `__table_args__` → `DbSchema.USER_PREFS`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`; leave the `ForeignKey('auth.users.id', ...)` FKs unchanged
+- [X] T027 [P] [US1] Update `models/article_chunk.py` — cross-boundary fix only: requalify `ForeignKey("articles.id", ...)` → `"core.articles.id"`; do **not** change its own `__table_args__` (stays `vectors`, out of scope)
+- [X] T028 [US1] Delete `models/arxiv_keyword.py`; remove the now-obsolete `# NOTE: models.arxiv_keyword is intentionally excluded...` comment block from `models/__init__.py`
+- [X] T029 [P] [US1] Surveyed raw SQL in `src/entrypoints/cli/refresh_metrics.py` — **superseded, see research.md §8**: initially schema-qualified (`FROM core.articles`), then reverted to unqualified (`FROM articles`) once `schema_translate_map` was found to not apply to raw `text()` SQL — resolves correctly via the new database-level `search_path` (T005) instead
+- [X] T030 [P] [US1] Surveyed raw SQL in `src/infrastructure/persistence/intelligence/tag_repo_impl.py` — same supersession as T029; left unqualified, relies on `search_path`
+- [X] T031 [P] [US1] Surveyed raw SQL in `src/infrastructure/persistence/intelligence/tag_group_definition_repo_impl.py` — same supersession as T029
+- [X] T032 [P] [US1] Surveyed raw SQL in `backend/routers/tags.py` — same supersession as T029
+- [X] T033 [P] [US1] Surveyed raw SQL in `backend/services/scraper_settings_service.py` — same supersession as T029
+- [X] T034 [P] [US1] Surveyed raw SQL in `backend/services/tag_service.py` — same supersession as T029
+- [X] T035 [P] [US1] Surveyed raw SQL in `backend/services/article_service.py` — same supersession as T029
+- [X] T036 [US1] `src/tests/integration/conftest.py` — **expanded beyond the original task description** (research.md §8): added `schema_translate_map={schema: TEST_SCHEMA for schema in DDD_SCHEMAS}` on the test engine (not just a `FIXED_SCHEMAS` set addition — a plain exclusion broke isolation for the ~35 tests exercising these tables, since several moved tables carry migration-seeded rows even on a fresh DB); `FIXED_SCHEMAS` itself stays `{"auth", "vectors"}`, its original pre-feature value
+- [X] T037 [US1] `backend/tests/integration/conftest.py` — same `schema_translate_map` approach as T036
+- [X] (unplanned, found via full-suite verification) Fixed 2 test files with raw SQL against moved tables to match the unqualified convention: `src/tests/integration/test_metrics_refresh_pipeline.py` (also scoped `_STALE_ARTICLES_QUERY` assertions by `article_id` instead of relying on `LIMIT 200` over what is, outside full isolation, a much larger real table; changed `_make_article`'s `commit()` to `flush()` to stay within the session's rollback boundary) and `src/tests/integration/intelligence/test_tag_constraints_integration.py`
 
-**Checkpoint**: `make test` and `make test-integration` pass with zero modifications to existing test *assertions* (only the two `conftest.py` files change); T003/T004 pass; quickstart.md §1–2 succeed end to end. User Story 1 is independently shippable here.
+**Checkpoint**: ✅ Verified against a disposable freshly-migrated throwaway Postgres container AND the local dev DB: `src/tests/unit/` 701 passed, `backend/tests/` (unit) 332 passed, `src/tests/integration/` 80 passed, `backend/tests/integration/` 224 passed (304 total integration, 1033 total unit — 1337 tests green). `make migrate-down` → `make migrate` round-trip verified reversible. Quickstart.md §1–2 succeed end to end. User Story 1 is independently shippable here.
 
 ---
 
@@ -97,16 +98,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Add `scripts/tests/test_generate_db_schema.py` — cover: dict-form `__table_args__` (e.g. `auth.py`-style), tuple-form `__table_args__` (e.g. `article_chunk.py`-style), `DbSchema.<MEMBER>.value` attribute-chain resolution, cross-schema FK detection, and a fail-loud case for an unparseable model (FR-010) — matches the `scripts/tests/` convention already used for `generate_uml.py`
+- [X] T038 [P] [US2] Added `scripts/tests/test_generate_db_schema.py` — 9 tests covering dict-form/tuple-form `__table_args__`, literal-string schema (auth-style), `DbSchema.<MEMBER>.value` resolution, cross-schema FK detection, association `Table()` parsing, the `Column('db_name', Type)` name-override edge case (found while dogfooding against real `models/article.py`), and fail-loud on unparseable `__table_args__` — all 9 pass
 
 ### Implementation for User Story 2
 
-- [ ] T039 [US2] Implement `scripts/generate_db_schema.py` — static `ast`-parse every file in `models/` (excluding `__init__.py`, `base.py`, `types.py`, `db_schema.py`) into the `TableInfo`/`ColumnInfo`/`ForeignKeyInfo` shape from data-model.md §3, group into one Graphviz subgraph per schema, render cross-schema FK edges with a distinct style, emit `.dot` and render to `.svg` via `dot` into `site/public/guide/architecture/`; fail non-zero on any unparseable model
-- [ ] T040 [US2] Add a "Generate DB schema diagram" step to `.github/workflows/speckit-github-pages.yml`, immediately after the existing "Generate backend UML (pyreverse)" step, running `python scripts/generate_db_schema.py`
-- [ ] T041 [US2] Create `site/guide/architecture/db-schema.md` embedding the generated SVG (escaping any bare `<...>` in rendered column-type text per constitution VII's VitePress-markdown rule — e.g. `Vector(768)`, `list[str]`)
-- [ ] T042 [US2] Add a "DB Schema" nav/sidebar entry in `site/.vitepress/config.js`, alongside the existing "Pipeline" (`/guide/architecture/uml`) and "Frontend Dependencies" (`/guide/architecture/deps`) entries
+- [X] T039 [US2] Implemented `scripts/generate_db_schema.py` — static `ast`-parses `models/*.py`, emits `site/public/guide/architecture/db-schema.dot` — **design change from the plan**: outputs only `.dot` (no server-side `.svg` render step); discovered `site/guide/architecture/viewer.html` already renders `.dot` client-side via `@viz-js/viz` (loaded from CDN) rather than pre-rendering SVG server-side, so this reuses that exact established pattern instead of introducing a second one — no `dot` CLI/Graphviz dependency needed for this script at all (confirmed: runs with plain stdlib-only `python`, no `uv sync` required). Verified against real `models/`: discovers all 26 tables (24 moved + `auth.users` + `vectors.article_chunks`) across 7 schema clusters, 27 FK edges, cross-schema edges correctly flagged (e.g. `vectors.article_chunks → core.articles`)
+- [X] T040 [US2] Added "Generate DB schema diagram" step to `.github/workflows/speckit-github-pages.yml` after "Generate backend UML (pyreverse)"
+- [X] T041 [US2] Created `site/guide/architecture/db-schema.md` + `site/.vitepress/theme/DbSchemaViewer.vue` (registered globally in `site/.vitepress/theme/index.js`, matching the existing `UmlViewer`/`DepGraphViewer` pattern) — fetches `./db-schema.dot` and renders client-side via the same `@viz-js/viz` CDN build `viewer.html` already uses
+- [X] T042 [US2] Added "DB Schema" nav/sidebar entry — in `site/scripts/generate-config.mjs` (the actual source of truth: `site/.vitepress/config.js` is auto-generated by `npm run generate`, so hand-editing only `config.js` would be overwritten) and reflected in the current `config.js` via running that generator
 
-**Checkpoint**: quickstart.md §3–4 succeed; the diagram page is live in a local VitePress build. Independently shippable — does not require User Story 3.
+**Checkpoint**: ✅ `npm run generate && npm run build` (production build, the stricter one per constitution VII) succeeds with zero errors; `dist/guide/architecture/db-schema.html` and `db-schema.dot` both present in build output. Independently shippable — does not require User Story 3.
 
 ---
 
@@ -118,24 +119,25 @@
 
 ### Tests for User Story 3
 
-- [ ] T043 [P] [US3] Add `backend/tests/test_config.py` — for each constant in `backend/config.py`, set the env var via `monkeypatch`/`os.environ` and assert the module reflects it (matching how `src/tests/unit/config/test_config.py` tests `src/config/settings.py`)
+- [X] T043 [P] [US3] Added `backend/tests/test_config.py` — 8 tests covering every constant
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Create `backend/config.py` per data-model.md §4 — pure `os.environ.get(...)` reads only, no side effects, no imports from the rest of `backend/`: `DATABASE_URL`, `FRONTEND_ORIGIN`, `VIEW_COUNT_FLUSH_INTERVAL` (int-cast), `REDIS_URL` (shared default `"redis://redis:6379/0"`), `NEXTAUTH_SECRET`, `CHAT_SERVICE_URL`, `CHAT_SERVICE_API_KEY`, `GRAFANA_PROMETHEUS_URL`, `GRAFANA_PROMETHEUS_USER`, `GRAFANA_API_KEY`, `GRAFANA_LOKI_URL`, `GRAFANA_LOKI_USER`, `GRAFANA_TEMPO_URL`, `GRAFANA_TEMPO_USER`, `GEMINI_API_KEY`
-- [ ] T045 [P] [US3] Migrate `backend/database.py` to import `DATABASE_URL` from `config.py` instead of calling `os.environ.get` directly
-- [ ] T046 [P] [US3] Migrate `backend/main.py` to import `FRONTEND_ORIGIN` and `VIEW_COUNT_FLUSH_INTERVAL` from `config.py`
-- [ ] T047 [P] [US3] Migrate `backend/auth/guards.py` (3 call sites) to import `NEXTAUTH_SECRET` from `config.py`
-- [ ] T048 [P] [US3] Migrate `backend/middleware/logging.py` to import `NEXTAUTH_SECRET` from `config.py`
-- [ ] T049 [P] [US3] Migrate `backend/services/article_service.py` to import `REDIS_URL` from `config.py`
-- [ ] T050 [P] [US3] Migrate `backend/services/chat_service.py` to import `CHAT_SERVICE_URL` and `CHAT_SERVICE_API_KEY` from `config.py`
-- [ ] T051 [P] [US3] Migrate `backend/services/tag_service.py` to import `GEMINI_API_KEY` from `config.py`
-- [ ] T052 [P] [US3] Migrate `backend/routers/chat.py` to import `REDIS_URL` and `NEXTAUTH_SECRET` from `config.py`
-- [ ] T053 [P] [US3] Migrate `backend/routers/articles.py` to import `REDIS_URL` from `config.py`
-- [ ] T054 [US3] Migrate `backend/routers/grafana.py` (7 vars × 6 near-identical call sites) to import all 7 `GRAFANA_*` constants from `config.py`
-- [ ] T055 [US3] Cross-check every var read by `backend/config.py` against the repo-root `.env.example`; add any missing entries
+- [X] T044 [US3] Created `backend/config.py` per data-model.md §4 — all 15 vars, matching `src/config/settings.py`'s pure-reads style
+- [X] T045 [P] [US3] Migrated `backend/database.py`
+- [X] T046 [P] [US3] Migrated `backend/main.py` (also dropped the now-unused `import os`)
+- [X] T047 [P] [US3] Migrated `backend/auth/guards.py` (3 call sites)
+- [X] T048 [P] [US3] Migrated `backend/middleware/logging.py`
+- [X] T049 [P] [US3] Migrated `backend/services/article_service.py`
+- [X] T050 [P] [US3] Migrated `backend/services/chat_service.py`
+- [X] T051 [P] [US3] Migrated `backend/services/tag_service.py`
+- [X] T052 [P] [US3] Migrated `backend/routers/chat.py`
+- [X] T053 [P] [US3] Migrated `backend/routers/articles.py`
+- [X] T054 [US3] Migrated `backend/routers/grafana.py` (7 vars × 6 call sites)
+- [X] T055 [US3] Cross-checked all 15 vars against `.env.example` — all already present, no additions needed
+- [X] (unplanned, found via full-suite verification) **Frozen-constant test regression, fixed**: `backend/config.py` reads env vars once at import time (by design, matching `src/config/settings.py` and constitution IX) — several existing tests relied on the *old* per-request `os.environ.get()` behavior via `patch.dict(os.environ, ...)` around individual requests, expecting live reads. Fixed by reloading the affected module chain (`backend.config` → the router/module that imports from it → `backend.main`, since `app.include_router()` bakes in handler closures that only refresh on a `backend.main` reload) inside a test-local context manager, mirroring the reload pattern `backend/tests/test_cors.py` had already established pre-this-feature for `FRONTEND_ORIGIN`. Fixed 3 files: `backend/tests/test_cors.py` (extended its existing reload fixture to also reload `backend.config` first), `backend/tests/test_grafana.py` (new `_grafana_env()` helper, all 21 `patch.dict` call sites), `backend/tests/integration/test_grafana.py` (new `_grafana_env()` helper that also re-applies the `get_db` dependency override to the rebuilt app, all 16 call sites)
 
-**Checkpoint**: quickstart.md §5 succeeds. Independently shippable — touches none of the files from US1/US2.
+**Checkpoint**: ✅ Verified against both a disposable freshly-migrated throwaway Postgres container and the local dev DB: full suite (`src/tests/unit/` + `src/tests/integration/` + `backend/tests/` unit + `backend/tests/integration/`) = **1345 passed, 0 failed** on both databases. `grep -rn "os\.environ\|os\.getenv" backend/ --include="*.py" | grep -v backend/tests | grep -v backend/config.py` returns nothing. Independently shippable — touches none of the files from US1/US2.
 
 ---
 
@@ -143,9 +145,9 @@
 
 **Purpose**: Whole-feature verification across all three stories
 
-- [ ] T056 [P] Run `make test` and `make test-integration` (full suites, not just the new tests) and confirm zero regressions — the concrete evidence for SC-002
-- [ ] T057 Walk through quickstart.md end to end (§1–§5) as the final acceptance pass
-- [ ] T058 [P] Add a one-line pointer in `CLAUDE.md`'s "### ORM Models" section noting the `core`/`collection`/`intelligence`/`ai_infra`/`user_prefs` schema grouping and linking to the new `site/guide/architecture/db-schema.md` page
+- [X] T056 [P] Ran `make test-src test-backend test-src-integration test-backend-integration` (the actual Makefile target names — `test`/`test-integration` in the original task description were approximate) — **1345 passed, 0 failed**, confirmed against both the local dev DB and a disposable freshly-migrated throwaway Postgres container
+- [X] T057 Walked through quickstart.md §1–§5 end to end during implementation (migration round-trip verified, `arxiv_keyword.py` deletion verified, diagram generator + `npm run build` verified, `backend/config.py` zero-`os.environ`-outside-config verified)
+- [X] T058 [P] Added a pointer in `CLAUDE.md`'s "### ORM Models" section (also fixed a now-stale line: `ArxivKeyword` was documented as "legacy" but is now fully deleted, not just superseded)
 
 ---
 
