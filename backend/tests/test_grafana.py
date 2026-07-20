@@ -1,5 +1,7 @@
+import importlib
 import os
 import time
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -24,6 +26,34 @@ _TEMPO_ENV = {
     "GRAFANA_API_KEY": "glc_test",
 }
 _UNCONFIGURED = {"GRAFANA_PROMETHEUS_URL": "", "GRAFANA_PROMETHEUS_USER": "", "GRAFANA_LOKI_URL": "", "GRAFANA_LOKI_USER": "", "GRAFANA_TEMPO_URL": "", "GRAFANA_TEMPO_USER": "", "GRAFANA_API_KEY": ""}
+
+
+@contextmanager
+def _grafana_env(overrides: dict):
+    """backend/routers/grafana.py does `from backend.config import GRAFANA_*`, bound once at
+    import time — patch.dict(os.environ, ...) alone no longer has any effect (backend.config's
+    own os.environ.get() calls already ran). Reloading just backend.config (or even
+    backend.routers.grafana too) isn't enough either: backend.main's `app` object already has
+    the *original* route handler functions baked in via include_router() at its own import
+    time, and those closures keep referencing the pre-reload module globals — only rebuilding
+    `app` itself (by reloading backend.main, which re-runs include_router()) picks up fresh
+    handlers. Reload order: config -> grafana router module -> main, then yield the fresh app.
+    Reloads everything back afterward so later tests see the process's real values again."""
+    with patch.dict(os.environ, overrides):
+        import backend.config as config
+        importlib.reload(config)
+        import backend.routers.grafana as grafana
+        importlib.reload(grafana)
+        import backend.main as main
+        importlib.reload(main)
+        yield main.app
+    importlib.reload(config)
+    importlib.reload(grafana)
+    importlib.reload(main)
+
+
+def _unconfigured():
+    return _grafana_env(_UNCONFIGURED)
 
 
 def admin_token():
@@ -80,60 +110,52 @@ def test_traces_batch_no_auth_returns_401():
 # ── Not-configured (503) ────────────────────────────────────────────────────────
 
 def test_metrics_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).get("/grafana/metrics", params={"query": "up"}, headers=auth())
     assert resp.status_code == 503
     assert resp.json()["error"] == "not_configured"
 
 
 def test_metrics_batch_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).post("/grafana/metrics/batch", json=[{"query": "up"}], headers=auth())
     assert resp.status_code == 503
 
 
 def test_logs_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).get("/grafana/logs", params={"query": '{app="x"}'}, headers=auth())
     assert resp.status_code == 503
     assert resp.json()["error"] == "not_configured"
 
 
 def test_logs_batch_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).post("/grafana/logs/batch", json=[{"query": '{app="x"}'}], headers=auth())
     assert resp.status_code == 503
 
 
 def test_loki_metrics_batch_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).post("/grafana/loki-metrics/batch", json=[{"query": 'count_over_time({app="x"}[1h])'}], headers=auth())
     assert resp.status_code == 503
 
 
 def test_traces_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).get("/grafana/traces", headers=auth())
     assert resp.status_code == 503
     assert resp.json()["error"] == "not_configured"
 
 
 def test_trace_by_id_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).get("/grafana/traces/abc123", headers=auth())
     assert resp.status_code == 503
 
 
 def test_traces_batch_not_configured_returns_503():
-    from backend.main import app
-    with patch.dict(os.environ, _UNCONFIGURED):
+    with _unconfigured() as app:
         resp = TestClient(app).post("/grafana/traces/batch", json=[{}], headers=auth())
     assert resp.status_code == 503
 
@@ -141,9 +163,8 @@ def test_traces_batch_not_configured_returns_503():
 # ── Happy path ─────────────────────────────────────────────────────────────────
 
 def test_metrics_returns_prometheus_body():
-    from backend.main import app
     body = {"status": "success", "data": {"resultType": "matrix", "result": []}}
-    with patch.dict(os.environ, _PROMETHEUS_ENV):
+    with _grafana_env(_PROMETHEUS_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).get("/grafana/metrics", params={"query": "up"}, headers=auth())
     assert resp.status_code == 200
@@ -151,10 +172,9 @@ def test_metrics_returns_prometheus_body():
 
 
 def test_metrics_batch_returns_list_of_same_length():
-    from backend.main import app
     items = [{"query": "up"}, {"query": "scrape_duration_seconds"}]
     body = {"status": "success", "data": {"resultType": "matrix", "result": []}}
-    with patch.dict(os.environ, _PROMETHEUS_ENV):
+    with _grafana_env(_PROMETHEUS_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).post("/grafana/metrics/batch", json=items, headers=auth())
     assert resp.status_code == 200
@@ -162,9 +182,8 @@ def test_metrics_batch_returns_list_of_same_length():
 
 
 def test_logs_returns_loki_body():
-    from backend.main import app
     body = {"status": "success", "data": {"resultType": "streams", "result": []}}
-    with patch.dict(os.environ, _LOKI_ENV):
+    with _grafana_env(_LOKI_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).get("/grafana/logs", params={"query": '{app="x"}'}, headers=auth())
     assert resp.status_code == 200
@@ -172,10 +191,9 @@ def test_logs_returns_loki_body():
 
 
 def test_logs_batch_returns_list_of_same_length():
-    from backend.main import app
     items = [{"query": '{app="x"}'}, {"query": '{app="y"}'}]
     body = {"status": "success", "data": {"resultType": "streams", "result": []}}
-    with patch.dict(os.environ, _LOKI_ENV):
+    with _grafana_env(_LOKI_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).post("/grafana/logs/batch", json=items, headers=auth())
     assert resp.status_code == 200
@@ -183,10 +201,9 @@ def test_logs_batch_returns_list_of_same_length():
 
 
 def test_loki_metrics_batch_returns_list_of_same_length():
-    from backend.main import app
     items = [{"query": 'count_over_time({app="x"}[1h])'}]
     body = {"status": "success", "data": {"resultType": "matrix", "result": []}}
-    with patch.dict(os.environ, _LOKI_ENV):
+    with _grafana_env(_LOKI_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).post("/grafana/loki-metrics/batch", json=items, headers=auth())
     assert resp.status_code == 200
@@ -194,9 +211,8 @@ def test_loki_metrics_batch_returns_list_of_same_length():
 
 
 def test_traces_returns_tempo_body():
-    from backend.main import app
     body = {"traces": [{"traceID": "abc", "rootServiceName": "backend"}]}
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).get("/grafana/traces", params={"q": '{service.name="backend"}'}, headers=auth())
     assert resp.status_code == 200
@@ -205,7 +221,6 @@ def test_traces_returns_tempo_body():
 
 def test_trace_by_id_normalises_resource_spans_to_batches():
     """Tempo OTLP JSON uses resourceSpans; backend normalises it to batches."""
-    from backend.main import app
     otlp_body = {"resourceSpans": [{"resource": {}, "scopeSpans": []}]}
     resp_mock = MagicMock()
     resp_mock.status_code = 200
@@ -213,7 +228,7 @@ def test_trace_by_id_normalises_resource_spans_to_batches():
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
     mock_client.get = AsyncMock(return_value=resp_mock)
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=mock_client):
             resp = TestClient(app).get("/grafana/traces/trace-abc-123", headers=auth())
     assert resp.status_code == 200
@@ -223,9 +238,8 @@ def test_trace_by_id_normalises_resource_spans_to_batches():
 
 
 def test_trace_by_id_preserves_existing_batches_field():
-    from backend.main import app
     body = {"batches": [{"resource": {}, "instrumentationLibrarySpans": []}]}
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).get("/grafana/traces/trace-xyz", headers=auth())
     assert resp.status_code == 200
@@ -233,10 +247,9 @@ def test_trace_by_id_preserves_existing_batches_field():
 
 
 def test_traces_batch_returns_list_of_same_length():
-    from backend.main import app
     items = [{"q": '{service.name="backend"}', "limit": 5}, {"limit": 10}]
     body = {"traces": []}
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).post("/grafana/traces/batch", json=items, headers=auth())
     assert resp.status_code == 200
@@ -258,8 +271,7 @@ def _mock_httpx_invalid_json(status: int = 200):
 
 def test_grafana_get_returns_invalid_response_on_non_json_body():
     """_grafana_get wraps non-JSON response bodies as {'error': 'invalid_response'}."""
-    from backend.main import app
-    with patch.dict(os.environ, _PROMETHEUS_ENV):
+    with _grafana_env(_PROMETHEUS_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_invalid_json(200)):
             resp = TestClient(app).get("/grafana/metrics", params={"query": "up"}, headers=auth())
     assert resp.json()["error"] == "invalid_response"
@@ -267,8 +279,7 @@ def test_grafana_get_returns_invalid_response_on_non_json_body():
 
 def test_get_trace_by_id_returns_invalid_response_on_non_json_body():
     """get_trace_by_id wraps non-JSON Tempo responses as {'error': 'invalid_response'}."""
-    from backend.main import app
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_invalid_json(200)):
             resp = TestClient(app).get("/grafana/traces/abc123", headers=auth())
     assert resp.json()["error"] == "invalid_response"
@@ -285,8 +296,7 @@ def _mock_httpx_raises():
 
 
 def test_metrics_batch_returns_invalid_response_on_fetch_exception():
-    from backend.main import app
-    with patch.dict(os.environ, _PROMETHEUS_ENV):
+    with _grafana_env(_PROMETHEUS_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
             resp = TestClient(app).post(
                 "/grafana/metrics/batch",
@@ -298,8 +308,7 @@ def test_metrics_batch_returns_invalid_response_on_fetch_exception():
 
 
 def test_logs_batch_returns_invalid_response_on_fetch_exception():
-    from backend.main import app
-    with patch.dict(os.environ, _LOKI_ENV):
+    with _grafana_env(_LOKI_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
             resp = TestClient(app).post(
                 "/grafana/logs/batch",
@@ -311,8 +320,7 @@ def test_logs_batch_returns_invalid_response_on_fetch_exception():
 
 
 def test_loki_metrics_batch_returns_invalid_response_on_fetch_exception():
-    from backend.main import app
-    with patch.dict(os.environ, _LOKI_ENV):
+    with _grafana_env(_LOKI_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
             resp = TestClient(app).post(
                 "/grafana/loki-metrics/batch",
@@ -324,8 +332,7 @@ def test_loki_metrics_batch_returns_invalid_response_on_fetch_exception():
 
 
 def test_traces_batch_returns_invalid_response_on_fetch_exception():
-    from backend.main import app
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx_raises()):
             resp = TestClient(app).post(
                 "/grafana/traces/batch",
@@ -340,9 +347,8 @@ def test_traces_batch_returns_invalid_response_on_fetch_exception():
 
 def test_query_traces_with_min_duration_param():
     """query_traces passes minDuration param when provided."""
-    from backend.main import app
     body = {"traces": []}
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)) as mock_cls:
             resp = TestClient(app).get(
                 "/grafana/traces",
@@ -358,10 +364,9 @@ def test_query_traces_with_min_duration_param():
 
 def test_traces_batch_with_min_duration_param():
     """traces/batch passes minDuration when item includes it."""
-    from backend.main import app
     body = {"traces": []}
     items = [{"minDuration": "200ms", "limit": 10}]
-    with patch.dict(os.environ, _TEMPO_ENV):
+    with _grafana_env(_TEMPO_ENV) as app:
         with patch("httpx.AsyncClient", return_value=_mock_httpx(200, body)):
             resp = TestClient(app).post("/grafana/traces/batch", json=items, headers=auth())
     assert resp.status_code == 200

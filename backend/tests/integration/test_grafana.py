@@ -8,14 +8,46 @@ Strategy:
 
 All endpoints require admin JWT.  No DB rows are touched by these tests.
 """
+import importlib
 import os
 import time
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 from jose import jwt
 
 pytestmark = pytest.mark.integration
+
+
+@contextmanager
+def _grafana_env(overrides: dict, db_session):
+    """backend/routers/grafana.py does `from backend.config import GRAFANA_*`, bound once at
+    import time — patch.dict(os.environ, ...) alone has no effect on it anymore. Reload
+    backend.config -> backend.routers.grafana -> backend.main (in that order; each only re-binds
+    to the previous module's *current* attributes on its own reload, and backend.main's `app`
+    only picks up fresh route handlers by re-running its own include_router() calls), then
+    re-apply the get_db override to the freshly-rebuilt app (a reload makes a new app instance,
+    dropping any override set on the old one) and yield a TestClient bound to it."""
+    with patch.dict(os.environ, overrides):
+        import backend.config as config
+        importlib.reload(config)
+        import backend.routers.grafana as grafana
+        importlib.reload(grafana)
+        import backend.main as main
+        importlib.reload(main)
+        from backend.database import get_db
+
+        def _override():
+            yield db_session
+
+        main.app.dependency_overrides[get_db] = _override
+        yield TestClient(main.app)
+        main.app.dependency_overrides.pop(get_db, None)
+    importlib.reload(config)
+    importlib.reload(grafana)
+    importlib.reload(main)
 
 
 # ---------------------------------------------------------------------------
@@ -113,56 +145,56 @@ _EMPTY_ENV = {
 }
 
 
-def test_metrics_not_configured_returns_503(api_client):
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.get("/grafana/metrics", params={"query": "up"}, headers=_HDR)
+def test_metrics_not_configured_returns_503(db_session):
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.get("/grafana/metrics", params={"query": "up"}, headers=_HDR)
     assert r.status_code == 503
     assert r.json()["error"] == "not_configured"
 
 
-def test_metrics_batch_not_configured_returns_503(api_client):
+def test_metrics_batch_not_configured_returns_503(db_session):
     items = [{"query": "up", "step": "60"}]
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.post("/grafana/metrics/batch", json=items, headers=_HDR)
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.post("/grafana/metrics/batch", json=items, headers=_HDR)
     assert r.status_code == 503
 
 
-def test_logs_not_configured_returns_503(api_client):
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.get("/grafana/logs", params={"query": '{app="x"}'}, headers=_HDR)
+def test_logs_not_configured_returns_503(db_session):
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.get("/grafana/logs", params={"query": '{app="x"}'}, headers=_HDR)
     assert r.status_code == 503
 
 
-def test_loki_metrics_batch_not_configured_returns_503(api_client):
+def test_loki_metrics_batch_not_configured_returns_503(db_session):
     items = [{"query": "up", "step": "60"}]
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.post("/grafana/loki-metrics/batch", json=items, headers=_HDR)
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.post("/grafana/loki-metrics/batch", json=items, headers=_HDR)
     assert r.status_code == 503
 
 
-def test_logs_batch_not_configured_returns_503(api_client):
+def test_logs_batch_not_configured_returns_503(db_session):
     items = [{"query": '{app="x"}', "limit": 100}]
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.post("/grafana/logs/batch", json=items, headers=_HDR)
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.post("/grafana/logs/batch", json=items, headers=_HDR)
     assert r.status_code == 503
 
 
-def test_traces_not_configured_returns_503(api_client):
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.get("/grafana/traces", headers=_HDR)
+def test_traces_not_configured_returns_503(db_session):
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.get("/grafana/traces", headers=_HDR)
     assert r.status_code == 503
 
 
-def test_traces_detail_not_configured_returns_503(api_client):
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.get("/grafana/traces/some-trace-id", headers=_HDR)
+def test_traces_detail_not_configured_returns_503(db_session):
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.get("/grafana/traces/some-trace-id", headers=_HDR)
     assert r.status_code == 503
 
 
-def test_traces_batch_not_configured_returns_503(api_client):
+def test_traces_batch_not_configured_returns_503(db_session):
     items = [{"q": "test"}]
-    with patch.dict(os.environ, _EMPTY_ENV):
-        r = api_client.post("/grafana/traces/batch", json=items, headers=_HDR)
+    with _grafana_env(_EMPTY_ENV, db_session) as client:
+        r = client.post("/grafana/traces/batch", json=items, headers=_HDR)
     assert r.status_code == 503
 
 
@@ -170,72 +202,72 @@ def test_traces_batch_not_configured_returns_503(api_client):
 # 200 — env configured, httpx mocked
 # ---------------------------------------------------------------------------
 
-def test_metrics_configured_returns_200(api_client):
+def test_metrics_configured_returns_200(db_session):
     mock_client = _mock_httpx_client()
-    with patch.dict(os.environ, _PROM_ENV), \
+    with _grafana_env(_PROM_ENV, db_session) as client, \
          patch("backend.services.grafana_service.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.get("/grafana/metrics", params={"query": "up"}, headers=_HDR)
+        r = client.get("/grafana/metrics", params={"query": "up"}, headers=_HDR)
     assert r.status_code == 200
 
 
-def test_metrics_batch_configured_returns_200(api_client):
+def test_metrics_batch_configured_returns_200(db_session):
     mock_client = _mock_httpx_client()
     items = [{"query": "up", "step": "60"}]
-    with patch.dict(os.environ, _PROM_ENV), \
+    with _grafana_env(_PROM_ENV, db_session) as client, \
          patch("backend.routers.grafana.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.post("/grafana/metrics/batch", json=items, headers=_HDR)
+        r = client.post("/grafana/metrics/batch", json=items, headers=_HDR)
     assert r.status_code == 200
     assert isinstance(r.json(), list)
 
 
-def test_logs_configured_returns_200(api_client):
+def test_logs_configured_returns_200(db_session):
     mock_client = _mock_httpx_client(body={"status": "success", "data": {"result": []}})
-    with patch.dict(os.environ, _LOKI_ENV), \
+    with _grafana_env(_LOKI_ENV, db_session) as client, \
          patch("backend.services.grafana_service.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.get("/grafana/logs", params={"query": '{app="x"}'}, headers=_HDR)
+        r = client.get("/grafana/logs", params={"query": '{app="x"}'}, headers=_HDR)
     assert r.status_code == 200
 
 
-def test_loki_metrics_batch_configured_returns_200(api_client):
+def test_loki_metrics_batch_configured_returns_200(db_session):
     mock_client = _mock_httpx_client()
     items = [{"query": "up", "step": "60"}]
-    with patch.dict(os.environ, _LOKI_ENV), \
+    with _grafana_env(_LOKI_ENV, db_session) as client, \
          patch("backend.routers.grafana.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.post("/grafana/loki-metrics/batch", json=items, headers=_HDR)
+        r = client.post("/grafana/loki-metrics/batch", json=items, headers=_HDR)
     assert r.status_code == 200
 
 
-def test_logs_batch_configured_returns_200(api_client):
+def test_logs_batch_configured_returns_200(db_session):
     mock_client = _mock_httpx_client(body={"status": "success", "data": {"result": []}})
     items = [{"query": '{app="x"}', "limit": 100}]
-    with patch.dict(os.environ, _LOKI_ENV), \
+    with _grafana_env(_LOKI_ENV, db_session) as client, \
          patch("backend.routers.grafana.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.post("/grafana/logs/batch", json=items, headers=_HDR)
+        r = client.post("/grafana/logs/batch", json=items, headers=_HDR)
     assert r.status_code == 200
 
 
-def test_traces_configured_returns_200(api_client):
+def test_traces_configured_returns_200(db_session):
     mock_client = _mock_httpx_client(body={"data": []})
-    with patch.dict(os.environ, _TEMPO_ENV), \
+    with _grafana_env(_TEMPO_ENV, db_session) as client, \
          patch("backend.services.grafana_service.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.get("/grafana/traces", headers=_HDR)
+        r = client.get("/grafana/traces", headers=_HDR)
     assert r.status_code == 200
 
 
-def test_traces_detail_configured_returns_200(api_client):
+def test_traces_detail_configured_returns_200(db_session):
     mock_client = _mock_httpx_client(body={"data": {}})
-    with patch.dict(os.environ, _TEMPO_ENV), \
+    with _grafana_env(_TEMPO_ENV, db_session) as client, \
          patch("backend.routers.grafana.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.get("/grafana/traces/trace-abc", headers=_HDR)
+        r = client.get("/grafana/traces/trace-abc", headers=_HDR)
     assert r.status_code == 200
 
 
-def test_traces_batch_configured_returns_200(api_client):
+def test_traces_batch_configured_returns_200(db_session):
     mock_client = _mock_httpx_client(body={"data": {}})
     items = [{"q": "duration>100ms"}]
-    with patch.dict(os.environ, _TEMPO_ENV), \
+    with _grafana_env(_TEMPO_ENV, db_session) as client, \
          patch("backend.routers.grafana.httpx.AsyncClient", return_value=mock_client):
-        r = api_client.post("/grafana/traces/batch", json=items, headers=_HDR)
+        r = client.post("/grafana/traces/batch", json=items, headers=_HDR)
     assert r.status_code == 200
 
 
