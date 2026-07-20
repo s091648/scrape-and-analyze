@@ -21,13 +21,29 @@ def db_engine():
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{TEST_SCHEMA}"'))
         conn.commit()
 
-    # Test engine — all unqualified table references route to the test schema
+    # DDD-bounded-context schemas (016-db-schema-brushup) carry an explicit
+    # `schema=` on their Table, so SQLAlchemy compiles fully-qualified names
+    # for them regardless of `search_path` — a plain search_path trick (as
+    # used for the originally-unqualified tables below) can no longer route
+    # them into the isolated test schema. `schema_translate_map` is SQLAlchemy's
+    # supported mechanism for exactly this: it rewrites every compiled
+    # `<schema>.<table>` reference (DDL and DML alike, for ORM/Core queries)
+    # to `TEST_SCHEMA.<table>` at execution time, collapsing all 5 schemas
+    # into the one isolated per-test schema. NOTE: it does NOT apply to raw
+    # `text()` SQL — any raw SQL against these tables in application code is
+    # written against the real schema name and will see the real database,
+    # not the isolated one (see repo docs / research.md §8 follow-up).
+    DDD_SCHEMAS = {"core", "collection", "intelligence", "ai_infra", "user_prefs"}
+    schema_translate_map = {schema: TEST_SCHEMA for schema in DDD_SCHEMAS}
+
+    # Test engine — unqualified table references route to the test schema via
+    # search_path; explicit-schema tables route there via schema_translate_map.
     engine = create_engine(
         base_url,
         # Include `public` so types installed by extensions (eg. pgvector)
         # are visible when the test schema is set as the first search_path.
         connect_args={"options": f"-csearch_path={TEST_SCHEMA},public"},
-    )
+    ).execution_options(schema_translate_map=schema_translate_map)
 
     # Import every non-auth model so their tables are registered before create_all()
     from models.base import Base
@@ -41,14 +57,28 @@ def db_engine():
     from models.scraper_setting import ScraperSetting  # noqa: F401
     from models.scraper_keyword import ScraperKeyword  # noqa: F401
     from models.article_translation import ArticleTranslation  # noqa: F401
+    from models.article_metrics import ArticleMetrics  # noqa: F401
+    from models.article_metric_value import ArticleMetricValue  # noqa: F401
+    from models.tag_translation import TagsTranslation  # noqa: F401
+    from models.tag_group_translation import TagGroupDefinitionsTranslation  # noqa: F401
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion  # noqa: F401
+    from models.weekly_report import WeeklyReport  # noqa: F401
+    from models.weekly_report_translation import WeeklyReportTranslation  # noqa: F401
+    from models.llm_provider import LlmProvider  # noqa: F401
+    from models.metric_definition import MetricDefinition  # noqa: F401
+    from models.metric_provider import MetricProvider  # noqa: F401
+    from models.user_subscription import (  # noqa: F401
+        UserTopicSubscription, UserNotificationSettings, UserArticleFavorite,
+    )
 
     # Create all tables inside the test schema.
     # checkfirst=False is required: has_table() would otherwise resolve
     # unqualified table names via search_path, find the identically-named
     # table in `public` (the real dev database), and skip creation here —
     # silently routing every insert in this suite into `public` instead of
-    # the isolated test schema. Fixed-schema tables (auth, vectors) are
-    # excluded since they're owned by alembic migrations, not per-test setup.
+    # the isolated test schema. Only `auth`/`vectors` remain excluded — those
+    # predate DbSchema, are truly owned by alembic migrations, and are left
+    # untranslated (few tests touch them directly).
     FIXED_SCHEMAS = {"auth", "vectors"}
     tables = [t for t in Base.metadata.sorted_tables if t.schema not in FIXED_SCHEMAS]
     Base.metadata.create_all(engine, tables=tables, checkfirst=False)

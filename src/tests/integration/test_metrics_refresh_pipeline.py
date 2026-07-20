@@ -58,7 +58,7 @@ def _make_article(db_session, *, doi=None, arxiv_id=None, title="Metrics Article
         metadata_=metadata,
     )
     db_session.add(article)
-    db_session.commit()
+    db_session.flush()
     return article
 
 
@@ -188,13 +188,19 @@ def test_upsert_does_not_overwrite_existing_view_count(db_session):
 
 # ---------------------------------------------------------------------------
 # Stale-articles discovery query (refresh_metrics.py::_STALE_ARTICLES_QUERY)
+#
+# `core.articles` is a fixed-schema table (016-db-schema-brushup) — no longer
+# created fresh per test run, so these assertions scope by `a.id = :article_id`
+# rather than relying on the just-inserted row landing inside an unordered
+# `LIMIT :limit` window of the shared, already-populated real table.
 # ---------------------------------------------------------------------------
 
 _STALE_ARTICLES_QUERY = text(
     """
     SELECT a.id, a.metadata
     FROM articles a
-    WHERE (a.metadata->>'doi' IS NOT NULL OR a.metadata->>'arxiv_id' IS NOT NULL)
+    WHERE a.id = :article_id
+      AND (a.metadata->>'doi' IS NOT NULL OR a.metadata->>'arxiv_id' IS NOT NULL)
       AND EXISTS (
           SELECT 1 FROM unnest(:metric_keys) AS mk(metric_key)
           WHERE NOT EXISTS (
@@ -204,7 +210,6 @@ _STALE_ARTICLES_QUERY = text(
                 AND amv.last_flushed_at >= now() - interval '1 day'
           )
       )
-    LIMIT :limit
     """
 )
 
@@ -214,7 +219,7 @@ def test_stale_query_includes_article_with_doi_and_no_metric_value(db_session):
     article = _make_article(db_session, doi="10.2000/no-metrics")
 
     rows = db_session.execute(
-        _STALE_ARTICLES_QUERY, {"metric_keys": ["citation_count"], "limit": 200},
+        _STALE_ARTICLES_QUERY, {"article_id": article.id, "metric_keys": ["citation_count"]},
     ).fetchall()
 
     assert article.id in {row.id for row in rows}
@@ -225,7 +230,7 @@ def test_stale_query_excludes_article_without_doi_or_arxiv_id(db_session):
     article = _make_article(db_session, title="No identifiers")
 
     rows = db_session.execute(
-        _STALE_ARTICLES_QUERY, {"metric_keys": ["citation_count"], "limit": 200},
+        _STALE_ARTICLES_QUERY, {"article_id": article.id, "metric_keys": ["citation_count"]},
     ).fetchall()
 
     assert article.id not in {row.id for row in rows}
@@ -240,10 +245,10 @@ def test_stale_query_excludes_article_with_freshly_flushed_metric(db_session):
         article_id=article.id, metric_key="citation_count", value=10,
         last_flushed_at=datetime.now(timezone.utc),
     ))
-    db_session.commit()
+    db_session.flush()
 
     rows = db_session.execute(
-        _STALE_ARTICLES_QUERY, {"metric_keys": ["citation_count"], "limit": 200},
+        _STALE_ARTICLES_QUERY, {"article_id": article.id, "metric_keys": ["citation_count"]},
     ).fetchall()
 
     assert article.id not in {row.id for row in rows}
@@ -258,10 +263,10 @@ def test_stale_query_includes_article_with_metric_value_older_than_one_day(db_se
         article_id=article.id, metric_key="citation_count", value=10,
         last_flushed_at=datetime.now(timezone.utc) - timedelta(days=2),
     ))
-    db_session.commit()
+    db_session.flush()
 
     rows = db_session.execute(
-        _STALE_ARTICLES_QUERY, {"metric_keys": ["citation_count"], "limit": 200},
+        _STALE_ARTICLES_QUERY, {"article_id": article.id, "metric_keys": ["citation_count"]},
     ).fetchall()
 
     assert article.id in {row.id for row in rows}
