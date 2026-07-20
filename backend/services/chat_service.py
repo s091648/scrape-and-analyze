@@ -1,11 +1,12 @@
 import asyncio
-import os
 from dataclasses import dataclass
 from datetime import date
 from typing import AsyncIterator, Optional
 
 import httpx
 import structlog
+
+from backend.config import CHAT_SERVICE_URL, CHAT_SERVICE_API_KEY
 
 logger = structlog.get_logger()
 
@@ -76,8 +77,8 @@ class ChatCompletionService:
     """Stateless httpx proxy to the downstream LLM chat service. No Redis dependency."""
 
     def __init__(self) -> None:
-        self._chat_service_url = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
-        self._chat_service_api_key = os.environ.get("CHAT_SERVICE_API_KEY", "")
+        self._chat_service_url = CHAT_SERVICE_URL
+        self._chat_service_api_key = CHAT_SERVICE_API_KEY
 
     async def stream_completions(
         self, messages: list, topic_id: Optional[str] = None, pinned_article_ids: Optional[list] = None

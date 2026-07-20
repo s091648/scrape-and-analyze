@@ -6,11 +6,11 @@ from sqlalchemy import func, distinct, text
 from sqlalchemy.orm import Session
 
 from backend.schemas.tag import TagOut, SimilarGroupOut
+from backend.config import GEMINI_API_KEY
 
 
 def embed_text(content: str) -> Optional[list]:
-    import os
-    api_key = os.environ.get("GEMINI_API_KEY", "")
+    api_key = GEMINI_API_KEY
     if not api_key:
         return None
     try:

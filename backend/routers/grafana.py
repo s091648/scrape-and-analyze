@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 from typing import Optional
 
@@ -8,6 +7,15 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from backend.auth.guards import require_admin
+from backend.config import (
+    GRAFANA_PROMETHEUS_URL,
+    GRAFANA_PROMETHEUS_USER,
+    GRAFANA_API_KEY,
+    GRAFANA_LOKI_URL,
+    GRAFANA_LOKI_USER,
+    GRAFANA_TEMPO_URL,
+    GRAFANA_TEMPO_USER,
+)
 from backend.schemas.grafana import (
     MetricsBatchItem,
     LogsBatchItem,
@@ -27,9 +35,9 @@ async def query_metrics(
     step: str = Query(default="60"),
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_PROMETHEUS_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_PROMETHEUS_URL
+    user = GRAFANA_PROMETHEUS_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
     now = int(time.time())
@@ -46,9 +54,9 @@ async def query_metrics_batch(
     items: list[MetricsBatchItem],
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_PROMETHEUS_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_PROMETHEUS_URL
+    user = GRAFANA_PROMETHEUS_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 
@@ -83,9 +91,9 @@ async def query_logs(
     direction: str = Query(default="backward"),
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_LOKI_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_LOKI_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_LOKI_URL
+    user = GRAFANA_LOKI_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
     now_ms = int(time.time() * 1000)
@@ -104,9 +112,9 @@ async def query_loki_metrics_batch(
     items: list[LokiMetricsBatchItem],
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_LOKI_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_LOKI_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_LOKI_URL
+    user = GRAFANA_LOKI_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 
@@ -137,9 +145,9 @@ async def query_logs_batch(
     items: list[LogsBatchItem],
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_LOKI_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_LOKI_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_LOKI_URL
+    user = GRAFANA_LOKI_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 
@@ -174,9 +182,9 @@ async def query_traces(
     min_duration: Optional[str] = Query(default=None, alias="minDuration"),
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_TEMPO_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_TEMPO_URL
+    user = GRAFANA_TEMPO_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
     now = int(time.time())
@@ -194,9 +202,9 @@ async def get_trace_by_id(
     trace_id: str,
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_TEMPO_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_TEMPO_URL
+    user = GRAFANA_TEMPO_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
 
@@ -218,9 +226,9 @@ async def query_traces_batch(
     items: list[TracesBatchItem],
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    url = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
-    user = os.environ.get("GRAFANA_TEMPO_USER", "")
-    api_key = os.environ.get("GRAFANA_API_KEY", "")
+    url = GRAFANA_TEMPO_URL
+    user = GRAFANA_TEMPO_USER
+    api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 

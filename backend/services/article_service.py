@@ -240,12 +240,11 @@ def get_filter_original_sources(db: Session, topic_id: Optional[UUID] = None) ->
 async def flush_view_counts(db: Session) -> int:
     """Scan Redis view:* keys, flush accumulated counts to article_metrics, return flushed count."""
     import redis.asyncio as aioredis
-    import os
     from models.article_metrics import ArticleMetrics
     from sqlalchemy import text
+    from backend.config import REDIS_URL
 
-    redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-    r = aioredis.from_url(redis_url)
+    r = aioredis.from_url(REDIS_URL)
     flushed = 0
     try:
         cursor = 0

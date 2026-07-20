@@ -1,5 +1,4 @@
 import hashlib
-import os
 import time
 import uuid
 from typing import Optional
@@ -10,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from jose import JWTError, jwt
 from opentelemetry import trace as _otel_trace
 
+from backend.config import NEXTAUTH_SECRET, REDIS_URL
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
     DAILY_LIMIT_USER,
@@ -25,15 +25,14 @@ router = APIRouter()
 
 def _make_redis():
     import redis.asyncio as aioredis
-    redis_url = os.environ.get("REDIS_URL") or "redis://redis:6379/0"
-    return aioredis.from_url(redis_url)
+    return aioredis.from_url(REDIS_URL)
 
 
 def _parse_identity(authorization: Optional[str]) -> Optional[ChatIdentity]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
     token = authorization.removeprefix("Bearer ")
-    secret = os.environ.get("NEXTAUTH_SECRET", "")
+    secret = NEXTAUTH_SECRET
     try:
         payload = jwt.decode(
             token, secret, algorithms=["HS256"], options={"verify_exp": False}

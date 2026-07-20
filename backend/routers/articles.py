@@ -1,10 +1,10 @@
-import os
 from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from backend.config import REDIS_URL
 from backend.database import get_db
 from backend.schemas.article import ArticleOut, PaginatedArticles, ArticleDetailOut
 from backend.services.article_service import (
@@ -24,8 +24,7 @@ router = APIRouter()
 
 def _get_redis():
     import redis.asyncio as aioredis
-    url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-    return aioredis.from_url(url)
+    return aioredis.from_url(REDIS_URL)
 
 
 @router.get("/articles", response_model=PaginatedArticles)

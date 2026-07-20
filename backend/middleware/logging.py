@@ -1,4 +1,3 @@
-import os
 import uuid
 import time
 import structlog
@@ -6,9 +5,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from backend.config import NEXTAUTH_SECRET
+
 logger = structlog.get_logger()
 
-_SECRET = os.environ.get("NEXTAUTH_SECRET", "")
+_SECRET = NEXTAUTH_SECRET
 
 
 def _extract_user(request: Request) -> dict:
