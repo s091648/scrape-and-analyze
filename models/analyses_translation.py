@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class AnalysesTranslation(Base):
     __tablename__ = 'analyses_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    analysis_id = Column(UUID(as_uuid=True), ForeignKey('analyses.id', ondelete='CASCADE'), nullable=False)
+    analysis_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.analyses.id', ondelete='CASCADE'), nullable=False)
     language = Column(String(10), nullable=False)
     summary = Column(Text)
     pain_points = Column(Text)
@@ -26,4 +27,5 @@ class AnalysesTranslation(Base):
         Index('idx_analyses_translation_analysis_id', 'analysis_id'),
         Index('idx_analyses_translation_language', 'language'),
         UniqueConstraint('analysis_id', 'language', name='uq_analyses_translation_analysis_language'),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

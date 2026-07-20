@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class ArticleTranslation(Base):
     __tablename__ = 'articles_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    article_id = Column(UUID(as_uuid=True), ForeignKey('articles.id', ondelete='CASCADE'), nullable=False)
+    article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id', ondelete='CASCADE'), nullable=False)
     language = Column(String(10), nullable=False)
     title = Column(Text, nullable=False)
     content = Column(Text, nullable=True)
@@ -24,4 +25,5 @@ class ArticleTranslation(Base):
         Index('idx_articles_translation_article_id', 'article_id'),
         Index('idx_articles_translation_language', 'language'),
         UniqueConstraint('article_id', 'language', name='uq_articles_translation_article_language'),
+        {'schema': DbSchema.CORE.value},
     )

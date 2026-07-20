@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class LlmProvider(Base):
@@ -26,4 +27,5 @@ class LlmProvider(Base):
     __table_args__ = (
         CheckConstraint("type IN ('llm', 'embedding', 'multimodal')", name='ck_llm_provider_type'),
         UniqueConstraint('priority', 'type', name='uq_llm_providers_priority_type', deferrable=True, initially='deferred'),
+        {'schema': DbSchema.AI_INFRA.value},
     )
