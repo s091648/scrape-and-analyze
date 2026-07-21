@@ -1,0 +1,1052 @@
+{
+  "exceptions": [
+    {
+      "name": "ArxivRateLimitedError",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "arXiv API returned HTTP 429. Signals callers to abort remaining arxiv tasks for this run.",
+      "defined_at": {
+        "file": "src/infrastructure/collection/clients/arxiv_client.py",
+        "line": 27
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/clients/arxiv_client.py",
+          "line": 92,
+          "function": "ArxivClient.fetch_entries",
+          "snippet": "raise ArxivRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/executor/discover_task.py",
+          "line": 33,
+          "function": "DiscoverTask.execute",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/scrapers/arxiv_scraper.py",
+          "line": 49,
+          "function": "ArxivScraper.discover",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "Exception",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "backend/routers/auth.py",
+          "line": 104,
+          "function": "admin_create_user",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/entrypoints/cli/main.py",
+          "line": 98,
+          "function": "main",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/entrypoints/cli/weekly_report.py",
+          "line": 123,
+          "function": "main",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/image/gemini_imagen_provider.py",
+          "line": 38,
+          "function": "GeminiImagenProvider.generate_image",
+          "snippet": "raise e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/embedding/gemini_embedding_provider.py",
+          "line": 39,
+          "function": "GeminiEmbeddingProvider._call_embed",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/gemini_provider.py",
+          "line": 31,
+          "function": "GeminiProvider._generate",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/collection/scraper_setting_repo_impl.py",
+          "line": 60,
+          "function": "SqlAlchemyScraperSettingRepository.mark_scraped",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/analyses_translation_repo_impl.py",
+          "line": 53,
+          "function": "SqlAlchemyAnalysesTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/analysis_repo_impl.py",
+          "line": 56,
+          "function": "SqlAlchemyAnalysisRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/article_translation_repo_impl.py",
+          "line": 44,
+          "function": "SqlAlchemyArticleTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
+          "line": 185,
+          "function": "SqlAlchemyTagRepository.commit",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_translation_repo_impl.py",
+          "line": 36,
+          "function": "SqlAlchemyTagTranslationRepository.save_tag_translation",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_translation_repo_impl.py",
+          "line": 84,
+          "function": "SqlAlchemyTagTranslationRepository.save_group_translation",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/weekly_report_translation_repo_impl.py",
+          "line": 46,
+          "function": "SqlAlchemyWeeklyReportTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/shared/failed_task_repo_impl.py",
+          "line": 38,
+          "function": "SqlAlchemyFailedTaskRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/shared/observability/span_wrappers.py",
+          "line": 34,
+          "function": "with_span._wrapper",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/shared/observability/span_wrappers.py",
+          "line": 54,
+          "function": "with_span_deferred._wrapper",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "HTTPError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/shared/http/http_client.py",
+          "line": 127,
+          "function": "HttpClient.get",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "HTTPException",
+      "category": "framework",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "backend/auth/guards.py",
+          "line": 35,
+          "function": "_require_admin_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid token\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 38,
+          "function": "_require_admin_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Token missing exp claim\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 40,
+          "function": "_require_admin_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Token expired\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 42,
+          "function": "_require_admin_impl",
+          "snippet": "raise HTTPException(status_code=403, detail=\"Admin role required\")",
+          "status_code": 403
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 61,
+          "function": "_require_user_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid token\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 64,
+          "function": "_require_user_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Token missing exp claim\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 66,
+          "function": "_require_user_impl",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Token expired\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/routers/articles.py",
+          "line": 128,
+          "function": "get_article",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Article not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 38,
+          "function": "verify_credentials",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid credentials\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 40,
+          "function": "verify_credentials",
+          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid credentials\")",
+          "status_code": 401
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 42,
+          "function": "verify_credentials",
+          "snippet": "raise HTTPException(status_code=403, detail=\"Account disabled\")",
+          "status_code": 403
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 66,
+          "function": "register",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Email or username already taken\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 67,
+          "function": "register",
+          "snippet": "raise HTTPException(status_code=422, detail=str(e))",
+          "status_code": 422
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 74,
+          "function": "google_authorize",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Email not registered\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 76,
+          "function": "google_authorize",
+          "snippet": "raise HTTPException(status_code=403, detail=\"Account disabled\")",
+          "status_code": 403
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 78,
+          "function": "google_authorize",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Google account not linked\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 91,
+          "function": "admin_create_user",
+          "snippet": "raise HTTPException(status_code=422, detail=\"email or username required\")",
+          "status_code": 422
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 103,
+          "function": "admin_create_user",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Email or username already taken\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 112,
+          "function": "update_user_endpoint",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 120,
+          "function": "delete_user_endpoint",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 129,
+          "function": "get_me",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 138,
+          "function": "update_me",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 152,
+          "function": "change_password",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 154,
+          "function": "change_password",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Password change not available for this account\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 156,
+          "function": "change_password",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Current password incorrect\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 167,
+          "function": "delete_me",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 177,
+          "function": "link_google",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 179,
+          "function": "link_google",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Google account already linked\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 181,
+          "function": "link_google",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Google account already in use\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 190,
+          "function": "unlink_google",
+          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 192,
+          "function": "unlink_google",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Cannot unlink Google from a Google-only account\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/routers/chat.py",
+          "line": 99,
+          "function": "chat_completions",
+          "snippet": "raise HTTPException(",
+          "status_code": 429
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 34,
+          "function": "reorder",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Duplicate provider IDs in reorder request\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 43,
+          "function": "update",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Provider not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 50,
+          "function": "delete",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Provider not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/metric_definitions.py",
+          "line": 42,
+          "function": "patch_metric_definition",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Metric definition not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/scraper_keywords.py",
+          "line": 44,
+          "function": "delete_keyword_endpoint",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Keyword not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/scraper_settings.py",
+          "line": 39,
+          "function": "update",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Setting not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/scraper_settings.py",
+          "line": 46,
+          "function": "delete",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Setting not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 141,
+          "function": "get_tag_group",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 159,
+          "function": "update_tag_group",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 165,
+          "function": "update_tag_group",
+          "snippet": "raise HTTPException(status_code=409, detail=\"A tag group with this name already exists in this topic\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 186,
+          "function": "delete_tag_group",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 201,
+          "function": "rename_tag",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 212,
+          "function": "rename_tag",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Tag name already exists in target group\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 231,
+          "function": "delete_tag",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 294,
+          "function": "approve_suggestion",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Suggestion not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 325,
+          "function": "reject_suggestion",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Suggestion not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/topics.py",
+          "line": 42,
+          "function": "update_topic",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Topic not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/routers/topics.py",
+          "line": 56,
+          "function": "delete_topic",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Topic not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/services/llm_provider_service.py",
+          "line": 46,
+          "function": "create_provider",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Priority already in use by another provider of the same type\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/services/llm_provider_service.py",
+          "line": 63,
+          "function": "update_provider",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Priority already in use by another provider of the same type\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/services/llm_provider_service.py",
+          "line": 85,
+          "function": "reorder_providers",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Duplicate priority values in reorder request\")",
+          "status_code": 400
+        },
+        {
+          "file": "backend/services/llm_provider_service.py",
+          "line": 88,
+          "function": "reorder_providers",
+          "snippet": "raise HTTPException(status_code=404, detail=\"One or more providers not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/services/llm_provider_service.py",
+          "line": 100,
+          "function": "reorder_providers",
+          "snippet": "raise HTTPException(",
+          "status_code": 409
+        },
+        {
+          "file": "backend/services/scraper_keyword_service.py",
+          "line": 21,
+          "function": "create_keyword",
+          "snippet": "raise HTTPException(status_code=409, detail=\"Keyword already exists\")",
+          "status_code": 409
+        },
+        {
+          "file": "backend/services/tag_service.py",
+          "line": 91,
+          "function": "merge_tag_groups",
+          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
+          "status_code": 404
+        },
+        {
+          "file": "backend/services/tag_service.py",
+          "line": 93,
+          "function": "merge_tag_groups",
+          "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
+          "status_code": 400
+        }
+      ]
+    },
+    {
+      "name": "InvalidScraperIntervalError",
+      "category": "custom",
+      "bases": [
+        "CollectionDomainError"
+      ],
+      "docstring": "Raised when a ScraperSetting's interval_hours is not a positive number.",
+      "defined_at": {
+        "file": "src/modules/collection/domain/exceptions.py",
+        "line": 20
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/collection/domain/entities/scraper_setting.py",
+          "line": 27,
+          "function": "ScraperSetting.__post_init__",
+          "snippet": "raise InvalidScraperIntervalError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "InvalidScraperKeywordTypeError",
+      "category": "custom",
+      "bases": [
+        "CollectionDomainError"
+      ],
+      "docstring": "Raised when a scraper keyword's type does not match any known ScraperKeywordVO variant.",
+      "defined_at": {
+        "file": "src/modules/collection/domain/exceptions.py",
+        "line": 12
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/collection/domain/value_objects/scraper_keyword.py",
+          "line": 55,
+          "function": "build_scraper_keyword",
+          "snippet": "raise InvalidScraperKeywordTypeError(f\"Unknown keyword_type: {keyword_type!r}\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "InvalidSimilarityScoreError",
+      "category": "custom",
+      "bases": [
+        "IntelligenceDomainError"
+      ],
+      "docstring": "Raised when a TagNormalizationSuggestion's similarity_score is outside [0.0, 1.0].",
+      "defined_at": {
+        "file": "src/modules/intelligence/domain/exceptions.py",
+        "line": 12
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/domain/entities/tag_normalization_suggestion.py",
+          "line": 33,
+          "function": "TagNormalizationSuggestion.__post_init__",
+          "snippet": "raise InvalidSimilarityScoreError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "InvalidSuggestionStatusError",
+      "category": "custom",
+      "bases": [
+        "IntelligenceDomainError"
+      ],
+      "docstring": "Raised when a TagNormalizationSuggestion's status is not pending/approved/rejected.",
+      "defined_at": {
+        "file": "src/modules/intelligence/domain/exceptions.py",
+        "line": 8
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/domain/entities/tag_normalization_suggestion.py",
+          "line": 29,
+          "function": "TagNormalizationSuggestion.__post_init__",
+          "snippet": "raise InvalidSuggestionStatusError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "InvalidUrlHashError",
+      "category": "custom",
+      "bases": [
+        "CollectionDomainError"
+      ],
+      "docstring": "Raised when a UrlHash value is not a valid 64-char hex SHA-256 digest.",
+      "defined_at": {
+        "file": "src/modules/collection/domain/exceptions.py",
+        "line": 8
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/collection/domain/value_objects/url.py",
+          "line": 24,
+          "function": "UrlHash.__post_init__",
+          "snippet": "raise InvalidUrlHashError(f\"UrlHash must be a 64-char hex string, got: {self.value!r}\")",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/collection/domain/value_objects/url.py",
+          "line": 30,
+          "function": "UrlHash.from_url",
+          "snippet": "raise InvalidUrlHashError(\"Cannot create UrlHash from empty URL\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "InvalidWeeklyReportStatusError",
+      "category": "custom",
+      "bases": [
+        "IntelligenceDomainError"
+      ],
+      "docstring": "Raised when a WeeklyReport's status is not pending/completed/failed.",
+      "defined_at": {
+        "file": "src/modules/intelligence/domain/exceptions.py",
+        "line": 16
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/domain/entities/weekly_report.py",
+          "line": 27,
+          "function": "WeeklyReport.__post_init__",
+          "snippet": "raise InvalidWeeklyReportStatusError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "MissingDatabaseUrlError",
+      "category": "custom",
+      "bases": [
+        "InfrastructureConfigError"
+      ],
+      "docstring": "Raised when DATABASE_URL is not configured.",
+      "defined_at": {
+        "file": "src/infrastructure/shared/exceptions.py",
+        "line": 9
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/persistence/database.py",
+          "line": 15,
+          "function": "create_engine_with_nullpool",
+          "snippet": "raise MissingDatabaseUrlError(\"DATABASE_URL environment variable is required\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "MissingR2ConfigError",
+      "category": "custom",
+      "bases": [
+        "InfrastructureConfigError"
+      ],
+      "docstring": "Raised when required R2 blob storage environment variables are missing.",
+      "defined_at": {
+        "file": "src/infrastructure/shared/exceptions.py",
+        "line": 5
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/storage/r2_blob_storage.py",
+          "line": 50,
+          "function": "R2BlobStorageService.from_env",
+          "snippet": "raise MissingR2ConfigError(f\"R2 blob storage config incomplete: missing {missing}\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "MissingTelegramTokenError",
+      "category": "custom",
+      "bases": [
+        "InfrastructureConfigError"
+      ],
+      "docstring": "Raised when a Telegram bot token is not configured.",
+      "defined_at": {
+        "file": "src/infrastructure/shared/exceptions.py",
+        "line": 13
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/shared/notifications/telegram_notifier_client.py",
+          "line": 23,
+          "function": "TelegramNotifierClient.__init__",
+          "snippet": "raise MissingTelegramTokenError(\"Telegram bot_token is required\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "OpenAlexRateLimitedError",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "OpenAlex API returned HTTP 429.",
+      "defined_at": {
+        "file": "src/infrastructure/collection/clients/openalex_client.py",
+        "line": 23
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 191,
+          "function": "OpenAlexClient.fetch_by_doi",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 239,
+          "function": "OpenAlexClient.fetch_papers",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "ProxyError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/shared/http/http_client.py",
+          "line": 105,
+          "function": "HttpClient.get",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "RateLimitExceeded",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": null,
+      "defined_at": {
+        "file": "backend/services/chat_service.py",
+        "line": 17
+      },
+      "raise_sites": [
+        {
+          "file": "backend/services/chat_service.py",
+          "line": 61,
+          "function": "RateLimitService.check_rate_limit",
+          "snippet": "raise RateLimitExceeded(limit=limit)",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "RateLimitExhausted",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "Raised when a provider's daily request cap is reached and no more calls should be made.",
+      "defined_at": {
+        "file": "src/infrastructure/intelligence/llm/rate_limit/sliding_window_strategy.py",
+        "line": 9
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/intelligence/llm/embedding/gemini_embedding_provider.py",
+          "line": 38,
+          "function": "GeminiEmbeddingProvider._call_embed",
+          "snippet": "raise RateLimitExhausted(f\"Daily quota exceeded for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 129,
+          "function": "BaseProvider.analyze",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 155,
+          "function": "BaseProvider.translate",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 176,
+          "function": "BaseProvider.generate",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/gemini_provider.py",
+          "line": 30,
+          "function": "GeminiProvider._generate",
+          "snippet": "raise RateLimitExhausted(f\"Daily quota exceeded for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/rate_limit/sliding_window_strategy.py",
+          "line": 63,
+          "function": "SlidingWindowStrategy._compute_wait",
+          "snippet": "raise RateLimitExhausted(f\"Daily request limit of {self.rpd} reached\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "RuntimeError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/intelligence/image/gemini_imagen_provider.py",
+          "line": 35,
+          "function": "GeminiImagenProvider.generate_image",
+          "snippet": "raise RuntimeError(\"Gemini API 成功回應，但未包含任何圖片數據。\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "SemanticScholarRateLimitedError",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "Semantic Scholar API returned HTTP 429. Signals callers to abort remaining tasks for this run.",
+      "defined_at": {
+        "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+        "line": 29
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 81,
+          "function": "SemanticScholarClient.fetch_by_doi",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 109,
+          "function": "SemanticScholarClient.fetch_by_arxiv_id",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 161,
+          "function": "SemanticScholarClient.fetch_papers",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "UnsupportedSourceTypeError",
+      "category": "custom",
+      "bases": [
+        "CollectionDomainError"
+      ],
+      "docstring": "Raised when a ScraperSetting's source_type cannot be resolved to a scraper implementation.",
+      "defined_at": {
+        "file": "src/modules/collection/domain/exceptions.py",
+        "line": 16
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/scrapers/scraper_factory.py",
+          "line": 110,
+          "function": "ConcreteScraperFactory.create_for",
+          "snippet": "raise UnsupportedSourceTypeError(f\"Unsupported source_type: {setting.source_type}\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "ValueError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "backend/schemas/metric_definition.py",
+          "line": 52,
+          "function": "MetricDefinitionAdminUpdate.validate_icon_name",
+          "snippet": "raise ValueError(f\"icon_name must be one of {sorted(ICON_WHITELIST)}\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/schemas/scraper_keyword.py",
+          "line": 19,
+          "function": "ScraperKeywordCreate._check_type",
+          "snippet": "raise ValueError(f\"keyword_type must be one of {sorted(VALID_KEYWORD_TYPES)}\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 66,
+          "function": "build_llm_service",
+          "snippet": "raise ValueError(\"llm_providers table has no active LLM providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 85,
+          "function": "build_llm_service",
+          "snippet": "raise ValueError(\"llm_providers table has no active embedding providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 493,
+          "function": "build_weekly_pipeline",
+          "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
+          "status_code": null
+        },
+        {
+          "file": "src/config/settings.py",
+          "line": 150,
+          "function": "validate_config",
+          "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
+          "line": 74,
+          "function": "SqlAlchemyTagRepository.save",
+          "snippet": "raise ValueError(\"topic_id is required to save a tag\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
+          "line": 80,
+          "function": "SqlAlchemyTagRepository.save",
+          "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
+          "status_code": null
+        }
+      ]
+    }
+  ]
+}

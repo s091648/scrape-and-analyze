@@ -11,6 +11,8 @@ Usage:
 import hashlib
 from dataclasses import dataclass
 
+from src.modules.collection.domain.exceptions import InvalidUrlHashError
+
 
 @dataclass(frozen=True)
 class UrlHash:
@@ -19,13 +21,13 @@ class UrlHash:
 
     def __post_init__(self) -> None:
         if not self.value or len(self.value) != 64:
-            raise ValueError(f"UrlHash must be a 64-char hex string, got: {self.value!r}")
+            raise InvalidUrlHashError(f"UrlHash must be a 64-char hex string, got: {self.value!r}")
 
     @classmethod
     def from_url(cls, url: str) -> "UrlHash":
         """Compute SHA-256 of *url* and return a UrlHash instance."""
         if not url:
-            raise ValueError("Cannot create UrlHash from empty URL")
+            raise InvalidUrlHashError("Cannot create UrlHash from empty URL")
         digest = cls.generate_url_hash(url)
         return cls(value=digest)
     

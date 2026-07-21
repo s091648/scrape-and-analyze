@@ -118,3 +118,37 @@ Every current `os.environ.get`/`os.getenv`/`os.environ[...]` **read** call site 
 | `GEMINI_API_KEY` | `services/tag_service.py` | |
 
 All of the above already appear in the repo-root `.env.example` except none found missing in the spot-check during planning; `/speckit-tasks` should include a task to re-verify the full set against `.env.example` and add any gaps (constitution IX requirement).
+
+**Story 4 addition**: one new constant, `SWAGGER_TRY_IT_OUT_ENABLED: bool` (`os.environ.get("SWAGGER_TRY_IT_OUT_ENABLED", "false").lower() == "true"`), consumed by `backend/main.py`'s `FastAPI(...)` constructor (see §5 below). Documented in `.env.example` alongside `FRONTEND_ORIGIN`/`ADMIN_PASSWORD`. `BACKEND_URL` (already present in `.env.example` for the frontend proxy) is reused, unmodified, as the source for the docs-site's `SwaggerViewer.vue` iframe target — no new env var needed for that half.
+
+## 5. Exception catalog data model (`scripts/generate_exceptions.py`, User Story 4)
+
+Internal representation the AST parser builds, output as `site/public/guide/architecture/exceptions-data.json`:
+
+```python
+@dataclass
+class RaiseSite:
+    file: str            # repo-relative path
+    line: int
+    function: str         # enclosing function/method qualified name, e.g. "ArticleService.create"
+    snippet: str          # the raise statement's source line, stripped
+    status_code: int | None = None   # best-effort literal extraction, HTTPException(status_code=...) only
+
+@dataclass
+class ExceptionInfo:
+    name: str
+    category: str          # "custom" | "framework" | "builtin"
+    bases: list[str]        # base class names, as written (e.g. ["Exception"], ["RateLimitExhausted"])
+    docstring: str | None
+    defined_at: dict | None   # {"file": str, "line": int} — only for category == "custom"
+    raise_sites: list[RaiseSite]
+```
+
+Parsing rules (see research.md §11 for the full `raise`-resolution algorithm):
+
+1. Walk every `.py` file under `backend/`, `src/`, `models/`, `shared/`, excluding any path containing a `tests/` segment.
+2. For each `ast.ClassDef` whose bases resolve (by name) to `Exception`, `BaseException`, or another exception class already found in this scan, record an `ExceptionInfo` with `category="custom"`, `defined_at` set, and `docstring` from `ast.get_docstring`.
+3. For every `ast.Raise` node: resolve the raised type name per research.md §11 (direct `Call`/`Name`, or nearest-enclosing `ExceptHandler.type` for bare `raise`/`raise e`); if unresolvable, skip the node entirely (excluded from the catalog, not misattributed). Otherwise append a `RaiseSite` (file, line, enclosing `FunctionDef`/`AsyncFunctionDef`/method qualified name, source snippet) to that type's `raise_sites`, creating an `ExceptionInfo` with `category="builtin"` or `"framework"` on first sight if it wasn't already found as a custom class in step 2. `framework` vs `builtin` is decided by whether the name matches a small fixed set of known framework-exception identifiers (currently just `HTTPException`); everything else not found as a custom class is `builtin`.
+4. For `HTTPException(...)` raise sites specifically, additionally attempt to extract a literal integer `status_code=` keyword argument into `RaiseSite.status_code` (skipped, left `None`, if the argument is not a literal `ast.Constant`).
+5. Any file that fails to parse (`SyntaxError` from `ast.parse`) MUST raise and fail the script (FR-020 — no silent omission), matching `generate_db_schema.py`'s existing fail-loud behavior.
+6. Output: one JSON object `{"exceptions": [ExceptionInfo, ...]}`, sorted by `name`, consumed client-side by `ExceptionViewer.vue`'s flat searchable card grid (research.md §12).

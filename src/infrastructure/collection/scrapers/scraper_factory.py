@@ -1,5 +1,6 @@
 from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import ScraperSetting
+from src.modules.collection.domain.exceptions import UnsupportedSourceTypeError
 from src.modules.collection.domain.factories import ScraperFactory
 from src.modules.collection.domain.value_objects import (
     ArxivConfig,
@@ -106,4 +107,4 @@ class ConcreteScraperFactory(ScraperFactory):
             )
 
         logger.warning("unknown_source_type", source_type=setting.source_type)
-        raise ValueError(f"Unsupported source_type: {setting.source_type}")
+        raise UnsupportedSourceTypeError(f"Unsupported source_type: {setting.source_type}")

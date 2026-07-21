@@ -6,10 +6,19 @@
     "components/ui/accordion-section.tsx",
     "components/ui/button.tsx",
     "components/ui/dialog.tsx",
+    "components/ui/dropdown.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/switch.tsx",
     "components/ui/tooltip.tsx",
     "lib/api/index.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/admin/metric-definitions/page.tsx": [
+    "components/features/articles/metric-icon-picker.tsx",
+    "components/features/articles/use-metric-definitions.ts",
+    "components/ui/skeleton.tsx",
+    "components/ui/switch.tsx",
+    "lib/api/metric-definitions.ts",
     "lib/providers/index.tsx"
   ],
   "app/admin/monitoring/monitoring-content.tsx": [
@@ -18,7 +27,7 @@
     "components/features/monitoring/stat-card.tsx",
     "components/features/monitoring/traces-table.tsx",
     "components/ui/button.tsx",
-    "components/ui/native-select.tsx",
+    "components/ui/dropdown.tsx",
     "components/ui/tabs.tsx",
     "components/ui/tooltip.tsx",
     "lib/api/grafana.ts",
@@ -38,6 +47,7 @@
     "components/ui/accordion-section.tsx",
     "components/ui/button.tsx",
     "components/ui/dialog.tsx",
+    "components/ui/dropdown.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/switch.tsx",
     "lib/api/scraper-keywords.ts",
@@ -56,6 +66,7 @@
   ],
   "app/admin/user-management/page.tsx": [
     "components/ui/button.tsx",
+    "components/ui/dropdown.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/switch.tsx",
     "lib/api/auth.ts",
@@ -79,7 +90,13 @@
     "lib/providers/index.tsx"
   ],
   "app/articles/page.tsx": [
-    "app/home-page-content.tsx"
+    "components/features/articles/article-card.tsx",
+    "components/features/articles/filter-bar.tsx",
+    "components/features/articles/sort-select.tsx",
+    "components/ui/button.tsx",
+    "hooks/use-pagination.ts",
+    "lib/api/articles.ts",
+    "lib/providers/index.tsx"
   ],
   "app/globals.css": [],
   "app/graph/page.tsx": [
@@ -87,18 +104,11 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
-  "app/home-page-content.tsx": [
-    "components/features/articles/article-card.tsx",
-    "components/features/articles/filter-bar.tsx",
-    "components/ui/button.tsx",
-    "hooks/use-pagination.ts",
-    "lib/api/articles.ts",
-    "lib/providers/index.tsx"
-  ],
   "app/layout-shell.tsx": [
     "components/common/error-boundary.tsx",
     "components/features/chat/FloatingChatbotWrapper.tsx",
-    "components/features/navigation/nav-bar.tsx"
+    "components/features/navigation/nav-bar.tsx",
+    "components/features/tutorial/tutorial-overlay.tsx"
   ],
   "app/layout.tsx": [
     "app/globals.css",
@@ -113,7 +123,9 @@
     "app/login/login-page-content.tsx"
   ],
   "app/page.tsx": [
-    "components/features/chat/InlineQABarWrapper.tsx"
+    "components/features/chat/InlineQABarWrapper.tsx",
+    "components/features/weekly-report/weekly-report-widget.tsx",
+    "lib/providers/index.tsx"
   ],
   "app/register/page.tsx": [
     "app/register/register-page-content.tsx"
@@ -127,6 +139,19 @@
     "lib/providers/index.tsx",
     "lib/providers/topic-provider.tsx",
     "lib/utils.ts"
+  ],
+  "app/settings/notifications/notifications-page-content.tsx": [
+    "components/features/settings/telegram-chat-id-help.tsx",
+    "components/ui/button.tsx",
+    "components/ui/dropdown.tsx",
+    "components/ui/skeleton.tsx",
+    "components/ui/toggle-row.tsx",
+    "lib/api/topics.ts",
+    "lib/api/user.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/settings/notifications/page.tsx": [
+    "app/settings/notifications/notifications-page-content.tsx"
   ],
   "app/settings/page.tsx": [
     "app/settings/settings-page-content.tsx"
@@ -169,14 +194,19 @@
   "components/features/articles/article-card.tsx": [
     "components/features/articles/article-card-skeleton.tsx",
     "components/features/articles/article-detail-dialog.tsx",
+    "components/features/articles/metric-icons.ts",
     "components/features/articles/source-utils.ts",
+    "components/features/articles/use-metric-definitions.ts",
     "components/ui/card.tsx",
     "lib/api/articles.ts",
+    "lib/api/user.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/articles/article-detail-dialog.tsx": [
     "components/features/articles/article-card-skeleton.tsx",
+    "components/features/articles/metric-icons.ts",
     "components/features/articles/source-utils.ts",
+    "components/features/articles/use-metric-definitions.ts",
     "components/ui/badge.tsx",
     "components/ui/button.tsx",
     "components/ui/dialog.tsx",
@@ -201,11 +231,27 @@
     "components/ui/popover.tsx",
     "lib/api/tags.ts"
   ],
+  "components/features/articles/metric-icon-picker.tsx": [
+    "components/features/articles/metric-icons.ts",
+    "components/ui/popover.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/utils.ts"
+  ],
+  "components/features/articles/metric-icons.ts": [],
+  "components/features/articles/sort-select.tsx": [
+    "components/features/articles/use-metric-definitions.ts",
+    "components/ui/button.tsx",
+    "components/ui/command.tsx",
+    "components/ui/popover.tsx",
+    "lib/providers/index.tsx"
+  ],
   "components/features/articles/source-utils.ts": [],
+  "components/features/articles/use-metric-definitions.ts": [
+    "lib/api/metric-definitions.ts"
+  ],
   "components/features/chat/AnswerDisplay.tsx": [
-    "components/features/articles/article-detail-dialog.tsx",
+    "components/features/chat/cited-content.tsx",
     "components/features/chat/types.ts",
-    "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/chat/FloatingChatbotPanel.tsx": [
@@ -219,8 +265,15 @@
     "lib/providers/index.tsx"
   ],
   "components/features/chat/InlineQABarWrapper.tsx": [
-    "components/features/chat/AnswerDisplay.tsx",
     "components/features/chat/types.ts",
+    "components/ui/checkbox.tsx",
+    "components/ui/popover.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/chat/cited-content.tsx": [
+    "components/features/articles/article-detail-dialog.tsx",
+    "components/features/chat/types.ts",
+    "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/chat/types.ts": [],
@@ -292,6 +345,7 @@
     "components/features/articles/article-detail-dialog.tsx",
     "components/features/monitoring/article-workflow-dialog.tsx",
     "components/features/monitoring/run-waterfall-dialog.tsx",
+    "components/features/monitoring/weekly-report-topic-dialog.tsx",
     "components/ui/table-panel.tsx",
     "lib/api/articles.ts",
     "lib/api/grafana.ts",
@@ -299,9 +353,19 @@
     "lib/providers/index.tsx",
     "lib/utils.ts"
   ],
+  "components/features/monitoring/weekly-report-topic-dialog.tsx": [
+    "components/features/monitoring/log-detail-dialog.tsx",
+    "components/features/monitoring/stage-card.tsx",
+    "components/ui/dialog.tsx",
+    "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
+    "lib/otlp-utils.ts",
+    "lib/providers/index.tsx"
+  ],
   "components/features/navigation/nav-bar.tsx": [
     "components/features/navigation/release-notes-popover.tsx",
     "components/ui/button.tsx",
+    "components/ui/dropdown.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/tooltip.tsx",
     "lib/api/auth.ts",
@@ -313,7 +377,7 @@
   ],
   "components/features/scraper/arxiv-keyword-manager.tsx": [
     "components/ui/button.tsx",
-    "components/ui/native-select.tsx",
+    "components/ui/dropdown.tsx",
     "lib/providers/index.tsx"
   ],
   "components/features/scraper/openalex-keyword-manager.tsx": [
@@ -327,10 +391,17 @@
     "lib/providers/index.tsx"
   ],
   "components/features/scraper/scraper-source-form.tsx": [
-    "components/ui/button.tsx"
+    "components/ui/button.tsx",
+    "components/ui/dropdown.tsx"
   ],
   "components/features/scraper/semantic-scholar-keyword-manager.tsx": [
     "components/ui/button.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/settings/telegram-chat-id-help.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/tooltip.tsx",
     "lib/providers/index.tsx"
   ],
   "components/features/tags/merge-group-dialog.tsx": [
@@ -366,6 +437,36 @@
     "components/ui/tabs.tsx",
     "lib/providers/index.tsx"
   ],
+  "components/features/tutorial/tutorial-overlay.tsx": [
+    "components/features/tutorial/tutorial-registry.ts",
+    "components/features/tutorial/use-is-mobile.ts",
+    "components/features/tutorial/use-tutorial-target.ts",
+    "components/ui/button.tsx",
+    "components/ui/dialog.tsx",
+    "components/ui/popover.tsx",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/tutorial/tutorial-registry.ts": [],
+  "components/features/tutorial/use-is-mobile.ts": [],
+  "components/features/tutorial/use-tutorial-target.ts": [],
+  "components/features/weekly-report/weekly-report-skeleton.tsx": [
+    "components/ui/skeleton.tsx"
+  ],
+  "components/features/weekly-report/weekly-report-stepper.tsx": [
+    "components/ui/week-picker.tsx",
+    "lib/api/weekly-reports.ts",
+    "lib/providers/index.tsx"
+  ],
+  "components/features/weekly-report/weekly-report-widget.tsx": [
+    "components/features/chat/AnswerDisplay.tsx",
+    "components/features/chat/cited-content.tsx",
+    "components/features/chat/types.ts",
+    "components/features/weekly-report/weekly-report-skeleton.tsx",
+    "components/features/weekly-report/weekly-report-stepper.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/weekly-reports.ts",
+    "lib/providers/index.tsx"
+  ],
   "components/ui/accordion-section.tsx": [],
   "components/ui/badge.tsx": [
     "lib/utils.ts"
@@ -385,6 +486,12 @@
   ],
   "components/ui/dialog.tsx": [
     "components/ui/button.tsx",
+    "lib/utils.ts"
+  ],
+  "components/ui/dropdown.tsx": [
+    "components/ui/button.tsx",
+    "components/ui/command.tsx",
+    "components/ui/popover.tsx",
     "lib/utils.ts"
   ],
   "components/ui/native-select.tsx": [
@@ -413,7 +520,15 @@
   "components/ui/tabs.tsx": [
     "lib/utils.ts"
   ],
+  "components/ui/toggle-row.tsx": [
+    "components/ui/switch.tsx",
+    "lib/utils.ts"
+  ],
   "components/ui/tooltip.tsx": [
+    "lib/utils.ts"
+  ],
+  "components/ui/week-picker.tsx": [
+    "components/ui/popover.tsx",
     "lib/utils.ts"
   ],
   "hooks/use-pagination.ts": [],
@@ -441,6 +556,9 @@
   "lib/api/llm-providers.ts": [
     "lib/api/client.ts"
   ],
+  "lib/api/metric-definitions.ts": [
+    "lib/api/client.ts"
+  ],
   "lib/api/scraper-keywords.ts": [
     "lib/api/client.ts"
   ],
@@ -454,6 +572,14 @@
     "lib/api/client.ts"
   ],
   "lib/api/topics.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/user.ts": [
+    "lib/api/auth.ts",
+    "lib/api/client.ts"
+  ],
+  "lib/api/weekly-reports.ts": [
+    "components/features/chat/types.ts",
     "lib/api/client.ts"
   ],
   "lib/auth.ts": [],
@@ -475,16 +601,23 @@
     "lib/providers/chat-quota-provider.tsx",
     "lib/providers/guest-mode-provider.tsx",
     "lib/providers/i18n-provider.tsx",
+    "lib/providers/pinned-article-provider.tsx",
     "lib/providers/session-provider.tsx",
     "lib/providers/theme-provider.tsx",
-    "lib/providers/topic-provider.tsx"
+    "lib/providers/topic-provider.tsx",
+    "lib/providers/tutorial-provider.tsx"
   ],
   "lib/providers/locales/en.json": [],
   "lib/providers/locales/zh-TW.json": [],
+  "lib/providers/pinned-article-provider.tsx": [],
   "lib/providers/session-provider.tsx": [],
   "lib/providers/theme-provider.tsx": [],
   "lib/providers/topic-provider.tsx": [
     "lib/api/topics.ts"
+  ],
+  "lib/providers/tutorial-provider.tsx": [
+    "components/features/tutorial/tutorial-registry.ts",
+    "lib/providers/guest-mode-provider.tsx"
   ],
   "lib/utils.ts": []
 }

@@ -1,5 +1,6 @@
 import requests
 
+from src.infrastructure.shared.exceptions import MissingTelegramTokenError
 from src.shared.domain.services.telegram_notifier_service import TelegramNotifierService
 from src.shared.domain.value_objects.telegram_message import TelegramMessage
 from src.shared.logging import get_logger
@@ -19,7 +20,7 @@ class TelegramNotifierClient(TelegramNotifierService):
 
     def __init__(self, bot_token: str, timeout: int = 10) -> None:
         if not bot_token:
-            raise ValueError("Telegram bot_token is required")
+            raise MissingTelegramTokenError("Telegram bot_token is required")
         self._bot_token = bot_token
         self._timeout = timeout
 

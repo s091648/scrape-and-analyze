@@ -1,6 +1,7 @@
 import boto3
 
 from src.config import settings
+from src.infrastructure.shared.exceptions import MissingR2ConfigError
 from src.shared.domain.services.blob_storage_service import BlobStorageService
 
 
@@ -46,7 +47,7 @@ class R2BlobStorageService(BlobStorageService):
             if not val
         ]
         if missing:
-            raise ValueError(f"R2 blob storage config incomplete: missing {missing}")
+            raise MissingR2ConfigError(f"R2 blob storage config incomplete: missing {missing}")
         return cls(
             account_id=settings.R2_ACCOUNT_ID,
             access_key_id=settings.R2_ACCESS_KEY_ID,

@@ -59,6 +59,9 @@ jobs:
       - name: Generate DB schema diagram
         run: python scripts/generate_db_schema.py
 
+      - name: Generate exception catalog
+        run: python scripts/generate_exceptions.py
+
       - name: Install frontend dependencies for madge
         run: npm ci
         working-directory: frontend
@@ -92,6 +95,7 @@ jobs:
         env:
           VITEPRESS_BASE: "${{ steps.pages.outputs.base_path }}/"
           STORYBOOK_URL: "${{ vars.STORYBOOK_URL }}"
+          BACKEND_URL: "${{ vars.BACKEND_URL }}"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

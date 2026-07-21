@@ -9,6 +9,8 @@ DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
 VIEW_COUNT_FLUSH_INTERVAL: int = int(os.environ.get("VIEW_COUNT_FLUSH_INTERVAL", "900"))
 
+SWAGGER_TRY_IT_OUT_ENABLED: bool = os.environ.get("SWAGGER_TRY_IT_OUT_ENABLED", "false").lower() == "true"
+
 NEXTAUTH_SECRET: str = os.environ.get("NEXTAUTH_SECRET", "")
 
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")

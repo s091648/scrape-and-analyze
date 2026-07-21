@@ -134,6 +134,7 @@ export default defineConfig({
   ignoreDeadLinks: [/localhost/, /^\\.?\\/?research\\/?$/],
   themeConfig: {
     storybookUrl: process.env.STORYBOOK_URL || '',
+    backendUrl: process.env.BACKEND_URL || '',
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Speckit Guide', link: '/guide/speckit' },
@@ -157,6 +158,8 @@ export default defineConfig({
           { text: 'Pipeline', link: '/guide/architecture/uml' },
           { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
           { text: 'DB Schema', link: '/guide/architecture/db-schema' },
+          { text: 'API Docs', link: '/guide/architecture/api-docs' },
+          { text: 'Exceptions', link: '/guide/architecture/exceptions' },
         ],
       },
 ${sidebar}

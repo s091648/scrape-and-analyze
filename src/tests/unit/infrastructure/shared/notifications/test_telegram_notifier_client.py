@@ -16,9 +16,10 @@ def _mock_response(ok=True, status_code=200, body="ok"):
 
 
 def test_constructor_requires_bot_token():
+    from src.infrastructure.shared.exceptions import MissingTelegramTokenError
     from src.infrastructure.shared.notifications import TelegramNotifierClient
 
-    with pytest.raises(ValueError):
+    with pytest.raises(MissingTelegramTokenError):
         TelegramNotifierClient(bot_token="")
 
 

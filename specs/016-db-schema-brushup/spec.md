@@ -19,6 +19,11 @@
 - Q: Backend (`backend/`) reads ~23 files' worth of `os.environ`/`os.getenv` ad hoc, unlike `src/config/settings.py`'s centralized pattern — fold that cleanup into this feature? → A: Yes, in scope — add a `backend/config/settings.py` mirroring `src/config/settings.py`'s pure, side-effect-free style, and migrate the scattered call sites to read from it.
 - Q: What should the 3 per-reader tables' schema be named, given `user` collides with PostgreSQL's reserved `USER` keyword? → A: `user_prefs`.
 
+### Session 2026-07-21
+
+- Q: Should the Swagger "Try it out" execution capability be restricted only within the docs-site embed, or at the backend's own live `/docs` endpoint? → A: At the backend source itself, via FastAPI's `swagger_ui_parameters`, toggleable through a `SWAGGER_TRY_IT_OUT_ENABLED` environment variable defaulting to disabled — so the restriction holds everywhere the live docs page is reachable, not just inside the docs-site iframe.
+- Q: How should the exception catalog page organize the exception types it finds — mirror the existing UML viewer's two-stage folder→card navigation, or something simpler? → A: A single flat, searchable card grid — the actual dataset (~9-10 exception types across ~86 raise sites) is too small to justify a folder-grid navigation layer.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Tables Organized by DDD Bounded Context (Priority: P1)
@@ -59,12 +64,33 @@ A maintainer working in `backend/` wants to find and change environment-variable
 
 **Why this priority**: Genuinely useful and requested alongside this feature, but orthogonal to the DB schema move (no shared files, no shared migration risk) — it can be delivered and verified independently of User Stories 1 and 2, so it's sequenced last without blocking them.
 
-**Independent Test**: Grep `backend/` for `os.environ`/`os.getenv` after this story ships and confirm none remain outside `backend/config/settings.py` itself; run the backend test suite and confirm no behavior change.
+**Independent Test**: Grep `backend/` for `os.environ`/`os.getenv` after this story ships and confirm none remain outside `backend/config.py` itself; run the backend test suite and confirm no behavior change.
 
 **Acceptance Scenarios**:
 
-1. **Given** the current ~23 backend files reading `os.environ`/`os.getenv` directly, **When** this story is implemented, **Then** all of them read configuration from a new `backend/config/settings.py` module instead (pure, side-effect-free, reading env vars only — matching `src/config/settings.py`'s existing style).
-2. **Given** the new `backend/config/settings.py` module, **When** a required environment variable is missing at startup, **Then** the backend fails with the same clarity/behavior it does today (no silent fallback introduced, no behavior regression).
+1. **Given** the current ~23 backend files reading `os.environ`/`os.getenv` directly, **When** this story is implemented, **Then** all of them read configuration from a new `backend/config.py` module instead (pure, side-effect-free, reading env vars only — matching `src/config/settings.py`'s existing style).
+2. **Given** the new `backend/config.py` module, **When** a required environment variable is missing at startup, **Then** the backend fails with the same clarity/behavior it does today (no silent fallback introduced, no behavior regression).
+
+---
+
+### User Story 4 - Read-Only API Docs & Exception Catalog in the Docs Site (Priority: P4)
+
+A maintainer or new engineer browsing the project's docs site wants to explore the backend's REST API surface and see, for any exception the codebase can raise, exactly which files/functions raise it — without being able to accidentally execute a real request against the production backend from a public documentation page.
+
+**Why this priority**: Purely additive documentation tooling, layered on top of the docs-site infrastructure already built for User Story 2's schema diagram — has no dependency on, or shared risk with, the schema move or config centralization, so it is sequenced last.
+
+**Independent Test**:
+1. Deploy the docs site with the backend URL configured; confirm the API docs page renders the live OpenAPI spec but the "Try it out" execute controls are absent, and confirm the same is true visiting the backend's own `/docs` endpoint directly.
+2. Run the exception-catalog generator against the current codebase and confirm the published page lists every exception type currently raised in `backend/`, `src/`, `models/`, `shared/`, each with an accurate list of raise sites (file, line, enclosing function).
+
+**Acceptance Scenarios**:
+
+1. **Given** a deployed backend with the try-it-out toggle unset (default), **When** anyone visits the backend's `/docs` endpoint directly (not just through the docs site), **Then** the "Try it out" execute button is absent for every operation.
+2. **Given** the docs site is built with a configured backend URL, **When** a visitor opens the new API docs page, **Then** they see the full interactive Swagger documentation (all endpoints, schemas, descriptions) embedded from the live backend, read-only.
+3. **Given** the docs site is built without a configured backend URL, **When** a visitor opens the API docs page, **Then** they see a clear message explaining the URL is not configured, instead of a broken embed.
+4. **Given** the current set of `raise` statements across `backend/`, `src/`, `models/`, `shared/`, **When** the exception-catalog generator runs, **Then** it produces a page listing every distinct exception type raised, each showing its definition location (for project-defined exceptions) and every file/line/function where it is raised.
+5. **Given** the exception catalog page is published, **When** a maintainer searches for a specific exception name, **Then** matching exception types are filtered in place without navigating away.
+6. **Given** a source file changes to add, remove, or move a `raise` statement, **When** the docs workflow next runs, **Then** the published exception catalog reflects the change automatically, with no manual step required.
 
 ---
 
@@ -76,6 +102,8 @@ A maintainer working in `backend/` wants to find and change environment-variable
 - What happens if the docs workflow's model-reading step encounters a model it cannot parse (e.g. a dynamically-constructed table)? It MUST fail the workflow step loudly (matching the existing `pyreverse` step's behavior) rather than silently omitting tables from the diagram.
 - What happens to tables that exist in the live database but have no corresponding SQLAlchemy model in `models/` (`data_migrations` — see Assumptions)? They are out of scope for the reorganization and MUST be left untouched in `public`.
 - What happens to `models/arxiv_keyword.py`, whose table no longer exists? It MUST be deleted as part of this feature, along with the now-unnecessary exclusion comment in `models/__init__.py`.
+- What happens if the exception-catalog generator encounters a bare `raise` (re-raise) whose enclosing `except` clause cannot be resolved to a single exception type? That raise site MUST be excluded from the catalog rather than misattributed to the wrong exception type.
+- What happens if an operator explicitly sets the try-it-out toggle to enabled (e.g. on a staging backend)? The docs-site embed will then show a fully interactive, executable Swagger UI — this is an intentional operator escape hatch, not a scope violation, since the default remains disabled everywhere.
 
 ## Requirements *(mandatory)*
 
@@ -93,8 +121,14 @@ A maintainer working in `backend/` wants to find and change environment-variable
 - **FR-010**: If the diagram-generation step fails (e.g., a model cannot be introspected), the workflow step MUST fail visibly rather than publish an incomplete or silently-outdated diagram.
 - **FR-011**: System MUST define the 5 schema names as a single shared Python enum (e.g. `DbSchema(str, Enum)`) that every touched model in `models/` references from its `__table_args__`, instead of each model hardcoding its own string literal.
 - **FR-012**: `models/arxiv_keyword.py` MUST be deleted (dead code — its table no longer exists in the live database; `models/__init__.py` already excludes it), and the now-obsolete exclusion comment in `models/__init__.py` removed.
-- **FR-013**: System MUST add a `backend/config/settings.py` module, following `src/config/settings.py`'s existing pattern (pure functions/constants reading `os.environ` only, no database imports, no side effects), and MUST migrate every existing `os.environ`/`os.getenv` call site under `backend/` to read from it instead.
+- **FR-013**: System MUST add a `backend/config.py` module, following `src/config/settings.py`'s existing pattern (pure functions/constants reading `os.environ` only, no database imports, no side effects), and MUST migrate every existing `os.environ`/`os.getenv` call site under `backend/` to read from it instead.
 - **FR-014**: `public.data_migrations` MUST be left untouched in `public` — no schema move, no new ORM model added — since it has no corresponding SQLAlchemy model today (see Assumptions for why it's intentionally out of scope rather than overlooked).
+- **FR-015**: System MUST provide a mechanism (an environment-variable toggle, defaulting to disabled) that, when disabled, removes the interactive "Try it out" / execute capability from the backend's own live Swagger UI (`/docs`) endpoint — not merely from any downstream embed of it.
+- **FR-016**: The docs site MUST include a new page embedding the backend's live Swagger/OpenAPI documentation, sourced from a configurable backend URL (read from an environment variable at docs-build time, following the same mechanism already used for the existing Storybook embed), and MUST show a clear placeholder message when that URL is not configured.
+- **FR-017**: System MUST generate an exception catalog — derived via static analysis of `raise` statements and exception class definitions across `backend/`, `src/`, `models/`, `shared/` (excluding test directories) — consistent with the AST/static-analysis approach already used for the backend UML and database schema diagrams (not a manually-maintained document).
+- **FR-018**: For each distinct exception type found, the catalog MUST record every location where it is raised (file, line, enclosing function) and, for project-defined exception classes, their definition location.
+- **FR-019**: Exception-catalog generation MUST run as an additional step in the existing `speckit-github-pages.yml` pipeline, publishing to the `site/` VitePress site and reachable through the site's existing architecture navigation, alongside the schema diagram and API docs pages.
+- **FR-020**: If the exception-catalog generation step encounters a source file it cannot parse, the workflow step MUST fail visibly (matching the existing failure behavior of the UML/schema-diagram generation steps) rather than publish an incomplete catalog silently.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -110,6 +144,8 @@ This feature reorganizes existing entities rather than introducing new ones. The
 
 Several tables have foreign keys that cross these boundaries (notably `core.topics`, referenced from `intelligence.tag_group_definitions`, `collection.scraper_keywords`, and `intelligence.weekly_reports`; and `core.articles`, referenced from `intelligence.tag_normalization_suggestions`, `collection.failed_tasks`, and `user_prefs.user_article_favorites`). These cross-schema relationships are expected and must be preserved, not eliminated — `core` exists specifically because these entities are legitimately shared.
 
+**Exception type** (User Story 4) — every distinct exception class raised somewhere in `backend/`, `src/`, `models/`, `shared/`; classified as project-defined (has a definition location within these directories), framework (raised from an imported framework class, e.g. `HTTPException`), or built-in (raised from a Python built-in, e.g. `ValueError`). Each exception type has one or more **raise sites** (file, line, enclosing function).
+
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
@@ -119,7 +155,9 @@ Several tables have foreign keys that cross these boundaries (notably `core.topi
 - **SC-003**: A maintainer or new engineer can find a complete, accurate, and current database diagram on the public docs site without running any local tooling, querying the database, or asking a teammate.
 - **SC-004**: The published diagram never goes stale relative to `models/`: any model change is reflected the next time the docs site is deployed, with zero manual regeneration steps.
 - **SC-005**: The schema migration runs against the production database via the existing `make migrate-remote` / CI `migrate` job path with zero data loss and no extended service outage.
-- **SC-006**: Zero `os.environ`/`os.getenv` call sites remain in `backend/` outside `backend/config/settings.py`, with zero behavior change in existing backend tests.
+- **SC-006**: Zero `os.environ`/`os.getenv` call sites remain in `backend/` outside `backend/config.py`, with zero behavior change in existing backend tests.
+- **SC-007**: A maintainer or new engineer can browse the backend's full API surface on the public docs site without running any local tooling or connecting to the backend directly, and cannot trigger any real backend operation while doing so.
+- **SC-008**: A maintainer can look up any exception type raised anywhere in the codebase and find every location it's raised from, on the public docs site, without grepping the codebase locally.
 
 ## Assumptions
 
@@ -130,4 +168,6 @@ Several tables have foreign keys that cross these boundaries (notably `core.topi
 - `ALTER TABLE ... SET SCHEMA` in PostgreSQL is a catalog-only metadata operation (no table rewrite, no data copy), so the migration is expected to be fast and low-risk the same way migrations 01 and 21 were; no special maintenance-window process beyond the existing CI `migrate` → `rollback-on-test-failure` safety net is assumed necessary.
 - The diagram is a static, auto-generated page (image or rendered diagram-as-code, consistent with how the existing `pyreverse` UML output is presented) — not an interactive/queryable tool.
 - The diagram page's exact visual format (e.g. Mermaid ER diagram vs. Graphviz image) is an implementation decision for the planning phase, not a product decision that needs to be pinned down here.
-- `backend/config/settings.py`'s exact API shape (module-level constants like `src/config/settings.py`, vs. a settings class/object) is an implementation decision for the planning phase; the binding constraint from this session is only that it must be a single centralized, pure (no DB imports, no side effects) module that every existing `os.environ`/`os.getenv` call site in `backend/` migrates to use.
+- `backend/config.py`'s exact API shape (module-level constants like `src/config/settings.py`, vs. a settings class/object) is an implementation decision for the planning phase; the binding constraint from this session is only that it must be a single centralized, pure (no DB imports, no side effects) module that every existing `os.environ`/`os.getenv` call site in `backend/` migrates to use. **Resolved in planning** (research.md §7): the module is a single flat file, `backend/config.py` — not a `config/` package — matching constitution IX's literal naming for the 3 named FastAPI microservices.
+- The exception catalog (User Story 4) only covers exceptions the project's own code explicitly raises via a `raise` statement; exceptions raised deep inside third-party library internals that the project's code never explicitly raises are out of scope — not detectable via static AST analysis without tracing every dependency's source.
+- Enabling the try-it-out toggle (e.g. for a staging backend) is an intentional operator escape hatch, not a scope violation — when set, the docs-site embed and the backend's own `/docs` will both show a fully interactive Swagger UI; the default everywhere remains disabled.

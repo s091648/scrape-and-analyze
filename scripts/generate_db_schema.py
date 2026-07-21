@@ -38,6 +38,7 @@ class ColumnInfo:
     type_repr: str
     nullable: bool
     is_primary_key: bool
+    is_indexed: bool = False
 
 
 @dataclass
@@ -120,6 +121,36 @@ def _extract_schema_from_table_args(table_args: ast.AST, enum_members: dict, sou
     raise ModelParseError(f"{source_file}: __table_args__ dict has no 'schema' key")
 
 
+def _extract_indexed_columns(table_args: ast.AST) -> set[str]:
+    """Column names covered by an `Index('name', 'col1', 'col2', ...)` entry
+    in a tuple-form __table_args__ (single-column and composite alike)."""
+    if not isinstance(table_args, ast.Tuple):
+        return set()
+
+    indexed: set[str] = set()
+    for elt in table_args.elts:
+        if isinstance(elt, ast.Call) and isinstance(elt.func, ast.Name) and elt.func.id == "Index":
+            for arg in elt.args[1:]:  # args[0] is the index name
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    indexed.add(arg.value)
+    return indexed
+
+
+def _sanitize_port(name: str) -> str:
+    return "".join(c if c.isalnum() or c == "_" else "_" for c in name)
+
+
+def _cell_sig(schema: str, table: str, column: str) -> str:
+    """Unique id (safe for both a Graphviz `id=` and a DOM lookup) for one
+    column's cells — the frontend hover handler uses this to find the two
+    ends of an FK relationship and highlight them."""
+    return f"cell_{_sanitize_port(schema)}_{_sanitize_port(table)}_{_sanitize_port(column)}"
+
+
+def _table_sig(schema: str, table: str) -> str:
+    return f"tbl_{_sanitize_port(schema)}_{_sanitize_port(table)}"
+
+
 def _type_repr(annotation_node: ast.AST) -> str:
     try:
         return ast.unparse(annotation_node)
@@ -152,9 +183,10 @@ def _column_name_from_target(node: ast.AST) -> str | None:
     return None
 
 
-def _parse_columns_and_fks(class_or_call_body, source_file: str, table_name: str):
+def _parse_columns_and_fks(class_or_call_body, source_file: str, table_name: str, indexed_columns: set | None = None):
     columns: list[ColumnInfo] = []
     fks: list[ForeignKeyInfo] = []
+    indexed_columns = indexed_columns or set()
 
     def handle_column_call(col_name: str, call: ast.Call):
         # Column('db_col_name', Type, ...) overrides the DB column name via a
@@ -169,7 +201,10 @@ def _parse_columns_and_fks(class_or_call_body, source_file: str, table_name: str
                 nullable = bool(kw.value.value)
             if kw.arg == "primary_key" and isinstance(kw.value, ast.Constant):
                 is_pk = bool(kw.value.value)
-        columns.append(ColumnInfo(name=col_name, type_repr=type_repr, nullable=nullable, is_primary_key=is_pk))
+        columns.append(ColumnInfo(
+            name=col_name, type_repr=type_repr, nullable=nullable, is_primary_key=is_pk,
+            is_indexed=col_name in indexed_columns,
+        ))
 
         fk = _extract_foreign_key(call, source_file)
         if fk is not None:
@@ -240,17 +275,19 @@ def parse_model_file(path: Path, enum_members: dict) -> list[TableInfo]:
 
         tablename = None
         schema = "public"
+        indexed_columns: set[str] = set()
         for stmt in node.body:
             if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
                 if stmt.targets[0].id == "__tablename__" and isinstance(stmt.value, ast.Constant):
                     tablename = stmt.value.value
                 if stmt.targets[0].id == "__table_args__":
                     schema = _extract_schema_from_table_args(stmt.value, enum_members, source_file)
+                    indexed_columns = _extract_indexed_columns(stmt.value)
 
         if tablename is None:
             continue  # not every Base subclass necessarily maps a table in a way we care about
 
-        columns, fks = _parse_columns_and_fks(node.body, source_file, tablename)
+        columns, fks = _parse_columns_and_fks(node.body, source_file, tablename, indexed_columns)
         tables.append(TableInfo(
             name=tablename, schema=schema, model_class=node.name,
             source_file=source_file, columns=columns, foreign_keys=fks,
@@ -277,6 +314,8 @@ def render_dot(tables: list[TableInfo]) -> str:
     lines = [
         "digraph db_schema {",
         '  rankdir="LR";',
+        '  nodesep="0.6";',
+        '  ranksep="1.0";',
         '  node [shape=plaintext, fontname="Helvetica"];',
         '  edge [fontname="Helvetica", fontsize=10];',
         "",
@@ -285,36 +324,104 @@ def render_dot(tables: list[TableInfo]) -> str:
     schema_order = [s for s, _ in SCHEMA_DISPLAY if s in by_schema]
     schema_order += sorted(s for s in by_schema if s not in schema_order)
     color_map = dict(SCHEMA_DISPLAY)
+    schema_rank = {s: i for i, s in enumerate(schema_order)}
 
     node_id = lambda schema, name: f'"{schema}.{name}"'  # noqa: E731
+
+    # (schema, table) -> {column names}, so FK edges can target the exact row
+    # of the referenced key instead of just the table node when the target
+    # column was itself discovered from a parsed model.
+    columns_by_table: dict[tuple[str, str], set[str]] = {
+        (t.schema, t.name): {c.name for c in t.columns} for t in tables
+    }
 
     for schema in schema_order:
         color = color_map.get(schema, "#EEEEEE")
         lines.append(f'  subgraph "cluster_{schema}" {{')
         lines.append(f'    label="{schema}"; style=filled; color="{color}"; fontname="Helvetica"; fontsize=14;')
         for t in sorted(by_schema[schema], key=lambda t: t.name):
-            rows = "".join(
-                f'<tr><td align="left">{"🔑 " if c.is_primary_key else ""}{c.name}</td>'
-                f'<td align="left"><font point-size="10">{c.type_repr}</font></td></tr>'
-                for c in t.columns
-            )
+            fk_columns = {fk.column for fk in t.foreign_keys}
+            rows = []
+            for c in t.columns:
+                markers = []
+                if c.is_primary_key:
+                    markers.append("PK")
+                if c.name in fk_columns:
+                    markers.append("FK")
+                if c.is_indexed:
+                    markers.append("IDX")
+                # Graphviz's HTML-like label grammar rejects an empty <b></b> —
+                # a single bad node aborts parsing of the whole label, so leave
+                # the marker cell bare (no nested tags) when there's nothing to show.
+                marker_text = " ".join(markers)
+                marker_cell = f'<font point-size="9"><b>{marker_text}</b></font>' if marker_text else ""
+                # Two ports per row, one on the leftmost cell and one on the
+                # rightmost cell — not the middle "name" column — so a `:w`/`:e`
+                # compass edge lands on the table's actual left/right border for
+                # that row instead of an internal column boundary it would have
+                # to cross the row to reach.
+                port = _sanitize_port(c.name)
+                # `id=` on each cell is inert for Graphviz itself but is carried
+                # straight through to the rendered SVG's `id` attribute — the
+                # frontend hover handler (DbSchemaViewer.vue) uses these to find
+                # and highlight the exact column cells an FK edge connects.
+                sig = _cell_sig(schema, t.name, c.name)
+                rows.append(
+                    f'<tr>'
+                    f'<td align="center" id="{sig}_l" port="{port}_l">{marker_cell}</td>'
+                    f'<td align="left" id="{sig}_m">{c.name}</td>'
+                    f'<td align="left" id="{sig}_r" port="{port}_r"><font point-size="10">{c.type_repr}</font></td>'
+                    f'</tr>'
+                )
             label = (
-                f'<<table border="1" cellborder="0" cellspacing="0" bgcolor="white">'
-                f'<tr><td colspan="2" bgcolor="#333333"><font color="white"><b>{t.name}</b></font></td></tr>'
-                f"{rows}"
+                f'<<table border="1" cellborder="1" cellspacing="0" bgcolor="white">'
+                f'<tr><td colspan="3" bgcolor="#333333"><font color="white"><b>{t.name}</b></font></td></tr>'
+                f"{''.join(rows)}"
                 f"</table>>"
             )
-            lines.append(f"    {node_id(schema, t.name)} [label={label}];")
+            lines.append(f'    {node_id(schema, t.name)} [id="{_table_sig(schema, t.name)}", label={label}];')
         lines.append("  }")
         lines.append("")
 
     for t in tables:
         for fk in t.foreign_keys:
-            src = node_id(t.schema, t.name)
-            dst = node_id(fk.target_schema, fk.target_table)
+            # With rankdir=LR, clusters are laid out left-to-right in schema_order.
+            # Pinning the edge to the west/east compass point of its row (rather
+            # than letting Graphviz pick automatically) keeps the line hugging the
+            # table's left/right border for that row instead of cutting across the
+            # table's interior to reach a port on a row it isn't level with.
+            going_rightward = schema_rank.get(fk.target_schema, 0) >= schema_rank.get(t.schema, 0)
+            tail_side, head_side = ("e", "w") if going_rightward else ("w", "e")
+            side_suffix = {"e": "r", "w": "l"}
+
+            src = f"{node_id(t.schema, t.name)}:{_sanitize_port(fk.column)}_{side_suffix[tail_side]}:{tail_side}"
+            target_key = (fk.target_schema, fk.target_table)
+            target_resolved = fk.target_column in columns_by_table.get(target_key, set())
+            if target_resolved:
+                dst = (
+                    f"{node_id(fk.target_schema, fk.target_table)}"
+                    f":{_sanitize_port(fk.target_column)}_{side_suffix[head_side]}:{head_side}"
+                )
+            else:
+                dst = f"{node_id(fk.target_schema, fk.target_table)}:{head_side}"
+
+            src_sig = _cell_sig(t.schema, t.name, fk.column)
+            dst_sig = (
+                _cell_sig(fk.target_schema, fk.target_table, fk.target_column)
+                if target_resolved
+                else _table_sig(fk.target_schema, fk.target_table)
+            )
+            tooltip = (
+                f"{t.schema}.{t.name}.{fk.column} → "
+                f"{fk.target_schema}.{fk.target_table}.{fk.target_column}"
+            )
+
             cross_schema = fk.target_schema != t.schema
             style = 'color="#e94560", penwidth=1.5' if cross_schema else 'color="#888888"'
-            lines.append(f"  {src} -> {dst} [{style}, label=\"{fk.column}\"];")
+            lines.append(
+                f'  {src} -> {dst} [id="fkedge--{src_sig}--{dst_sig}", tooltip="{tooltip}", '
+                f'{style}, label="{fk.column}"];'
+            )
 
     lines.append("}")
     return "\n".join(lines)

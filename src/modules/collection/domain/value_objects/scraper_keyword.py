@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import Annotated, Literal, Union
 from pydantic import BaseModel, Field
 
+from src.modules.collection.domain.exceptions import InvalidScraperKeywordTypeError
+
 
 class RssKeyword(BaseModel):
     """Keyword for filtering RSS feed entries by regex pattern."""
@@ -50,4 +52,4 @@ def build_scraper_keyword(keyword_type: str, keyword: str) -> RssKeyword | Arxiv
         return SemanticScholarKeyword(keyword=keyword)
     if keyword_type == "openalex_keyword":
         return OpenAlexKeyword(keyword=keyword)
-    raise ValueError(f"Unknown keyword_type: {keyword_type!r}")
+    raise InvalidScraperKeywordTypeError(f"Unknown keyword_type: {keyword_type!r}")

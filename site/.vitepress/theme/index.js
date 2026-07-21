@@ -5,6 +5,8 @@ import { initImageLightbox } from './image-lightbox.js'
 import UmlViewer from './UmlViewer.vue'
 import DepGraphViewer from './DepGraphViewer.vue'
 import DbSchemaViewer from './DbSchemaViewer.vue'
+import SwaggerViewer from './SwaggerViewer.vue'
+import ExceptionViewer from './ExceptionViewer.vue'
 
 export default {
   extends: DefaultTheme,
@@ -12,6 +14,8 @@ export default {
     app.component('UmlViewer', UmlViewer)
     app.component('DepGraphViewer', DepGraphViewer)
     app.component('DbSchemaViewer', DbSchemaViewer)
+    app.component('SwaggerViewer', SwaggerViewer)
+    app.component('ExceptionViewer', ExceptionViewer)
   },
   setup() {
     const route = useRoute()
