@@ -1,22 +1,20 @@
 <!--
 Sync Impact Report:
-- Version change: 1.3.0 → 1.4.0 (MINOR: Added IX. FastAPI Microservice Structure;
-  updated IV service list; updated VI logging rule)
+- Version change: 1.4.0 → 1.5.0 (MINOR: expanded Principle I with a domain-layer
+  dataclass-vs-Pydantic rule, formalizing a pre-existing but previously
+  undocumented codebase convention discovered during a code review)
 - Modified principles:
-  - IV. Docker-First: service count 7 → 10; added fastembed, chatbot_plugin, redis;
-    added Docker Compose profiles rule for one-off services
-  - VI. Observability: widened logging rule to include stdlib logging + _JsonFormatter
-    used by microservices (backend/, chatbot-plugin/, services/fastembed/)
-- Added sections:
-  - IX. FastAPI Microservice Structure — documents config.py / observability.py /
-    routers/ / services/ layout, env var discipline (.env.example as source of truth),
-    and JSON log format shared across all services
+  - I. Domain-Driven Design: added a sub-bullet under the Domain layer entry
+    requiring stdlib `@dataclass` by default for entities/value objects, with
+    Pydantic `BaseModel` permitted only for a genuinely Pydantic-specific
+    capability (documented exception: `ScraperKeywordVO`'s discriminated union)
+- Added sections: None
 - Removed sections: None
 - Templates requiring updates:
-  - .specify/templates/tasks-template.md: ✅ compatible
+  - .specify/templates/tasks-template.md: ✅ compatible (no dataclass/Pydantic references)
   - .specify/templates/plan-template.md: ✅ compatible
   - .specify/templates/spec-template.md: ✅ compatible
-- Follow-up TODOs: Update chatbot-plugin/CLAUDE.md to reflect new service structure
+- Follow-up TODOs: None
 -->
 
 # Scrape-and-Analyze Constitution
@@ -31,6 +29,14 @@ layer separation:
 - **Domain layer** (`src/modules/*/domain/`): Entities, value objects,
   repository interfaces, and domain service interfaces. Zero dependency
   on infrastructure or application code.
+  - Entities and value objects MUST default to stdlib `@dataclass`.
+    Pydantic `BaseModel` MUST NOT be used in the domain layer unless a
+    genuinely Pydantic-specific capability is required and a `@dataclass`
+    cannot reasonably provide it (documented exception: `ScraperKeywordVO`
+    in `src/modules/collection/domain/value_objects/scraper_keyword.py`,
+    which needs `Field(discriminator="type")` for polymorphic
+    deserialization). Pydantic remains reserved for API/config boundaries
+    per Principle VII, not as a default choice for domain modeling.
 - **Application layer** (`src/modules/*/application/`): Use cases, event
   handlers, DTOs, and application events. Depends only on domain layer
   interfaces.
@@ -400,4 +406,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.4.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-06-21
+**Version**: 1.5.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-21

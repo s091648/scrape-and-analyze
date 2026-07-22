@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
 from src.config.settings import DATABASE_URL
+from src.infrastructure.shared.exceptions import MissingDatabaseUrlError
 
 _engine = None
 _SessionLocal = None
@@ -11,7 +12,7 @@ _SessionLocal = None
 def create_engine_with_nullpool():
     """Create SQLAlchemy engine with NullPool"""
     if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is required")
+        raise MissingDatabaseUrlError("DATABASE_URL environment variable is required")
     return create_engine(DATABASE_URL, poolclass=NullPool)
 
 

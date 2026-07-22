@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class UserTopicSubscription(Base):
@@ -10,11 +11,12 @@ class UserTopicSubscription(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('auth.users.id', ondelete='CASCADE'), nullable=False)
-    topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id', ondelete='CASCADE'), nullable=False)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id', ondelete='CASCADE'), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         UniqueConstraint('user_id', 'topic_id', name='uq_user_topic_subscriptions'),
+        {'schema': DbSchema.USER_PREFS.value},
     )
 
 
@@ -36,6 +38,7 @@ class UserNotificationSettings(Base):
 
     __table_args__ = (
         UniqueConstraint('user_id', name='uq_user_notification_settings_user_id'),
+        {'schema': DbSchema.USER_PREFS.value},
     )
 
 
@@ -44,9 +47,10 @@ class UserArticleFavorite(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('auth.users.id', ondelete='CASCADE'), nullable=False)
-    article_id = Column(UUID(as_uuid=True), ForeignKey('articles.id', ondelete='CASCADE'), nullable=False)
+    article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id', ondelete='CASCADE'), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         UniqueConstraint('user_id', 'article_id', name='uq_user_article_favorites'),
+        {'schema': DbSchema.USER_PREFS.value},
     )

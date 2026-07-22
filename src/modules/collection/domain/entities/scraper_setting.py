@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
 
+from src.modules.collection.domain.exceptions import InvalidScraperIntervalError
 from src.modules.collection.domain.value_objects import SelectorConfig, ScraperKeywordVO
 
 
@@ -20,6 +21,12 @@ class ScraperSetting:
     keyword_items: Optional[List[ScraperKeywordVO]] = None
     last_scraped_at: Optional[datetime] = None
     is_active: bool = True
+
+    def __post_init__(self) -> None:
+        if self.interval_hours <= 0:
+            raise InvalidScraperIntervalError(
+                f"interval_hours must be a positive number, got: {self.interval_hours!r}"
+            )
 
     def is_due(self, now: Optional[datetime] = None) -> bool:
         """Return True if this source has never been scraped or its interval has elapsed."""

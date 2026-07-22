@@ -3,6 +3,10 @@ from datetime import date, datetime
 from typing import List, Optional
 from uuid import UUID
 
+from src.modules.intelligence.domain.exceptions import InvalidWeeklyReportStatusError
+
+_VALID_STATUSES = frozenset({"pending", "completed", "failed"})
+
 
 @dataclass
 class WeeklyReport:
@@ -17,3 +21,9 @@ class WeeklyReport:
     status: str  # 'pending' | 'completed' | 'failed'
     error_message: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    def __post_init__(self) -> None:
+        if self.status not in _VALID_STATUSES:
+            raise InvalidWeeklyReportStatusError(
+                f"status must be one of {sorted(_VALID_STATUSES)}, got: {self.status!r}"
+            )

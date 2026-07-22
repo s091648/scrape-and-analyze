@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class WeeklyReportTranslation(Base):
@@ -13,7 +14,7 @@ class WeeklyReportTranslation(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     weekly_report_id = Column(
         UUID(as_uuid=True),
-        ForeignKey('weekly_reports.id', ondelete='CASCADE'),
+        ForeignKey('intelligence.weekly_reports.id', ondelete='CASCADE'),
         nullable=False,
     )
     language = Column(String(10), nullable=False)
@@ -36,4 +37,5 @@ class WeeklyReportTranslation(Base):
             'language',
             name='uq_weekly_reports_translation_report_language',
         ),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

@@ -4,6 +4,7 @@ from sqlalchemy import Column, String, Text, Boolean, Integer, DateTime, Index
 from sqlalchemy.dialects.postgresql import UUID
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class Topic(Base):
@@ -25,4 +26,5 @@ class Topic(Base):
 
     __table_args__ = (
         Index("idx_topics_name", "name"),
+        {'schema': DbSchema.CORE.value},
     )

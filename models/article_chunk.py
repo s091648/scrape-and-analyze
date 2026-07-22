@@ -18,7 +18,7 @@ class ArticleChunk(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    article_id = Column(UUID(as_uuid=True), ForeignKey("articles.id", ondelete="CASCADE"), nullable=False)
+    article_id = Column(UUID(as_uuid=True), ForeignKey("core.articles.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(_VECTOR_TYPE, nullable=True)

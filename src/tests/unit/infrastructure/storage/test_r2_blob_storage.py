@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.infrastructure.shared.exceptions import MissingR2ConfigError
 from src.infrastructure.storage.r2_blob_storage import R2BlobStorageService
 
 
@@ -88,12 +89,12 @@ def test_from_env_reads_settings(monkeypatch):
 
 
 def test_from_env_raises_when_settings_incomplete(monkeypatch):
-    """from_env() raises ValueError listing missing settings when any R2_* is empty."""
+    """from_env() raises MissingR2ConfigError listing missing settings when any R2_* is empty."""
     monkeypatch.setattr("src.config.settings.R2_ACCOUNT_ID", "")
     monkeypatch.setattr("src.config.settings.R2_ACCESS_KEY_ID", "k")
     monkeypatch.setattr("src.config.settings.R2_SECRET_ACCESS_KEY", "s")
     monkeypatch.setattr("src.config.settings.R2_BUCKET_NAME", "b")
     monkeypatch.setattr("src.config.settings.R2_PUBLIC_URL", "https://x")
 
-    with pytest.raises(ValueError, match="R2_ACCOUNT_ID"):
+    with pytest.raises(MissingR2ConfigError, match="R2_ACCOUNT_ID"):
         R2BlobStorageService.from_env()

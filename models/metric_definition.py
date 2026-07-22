@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class MetricDefinition(Base):
@@ -27,4 +28,5 @@ class MetricDefinition(Base):
 
     __table_args__ = (
         UniqueConstraint('metric_key', name='uq_metric_definitions_metric_key'),
+        {'schema': DbSchema.AI_INFRA.value},
     )

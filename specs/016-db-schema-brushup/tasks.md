@@ -1,0 +1,283 @@
+# Tasks: Database Schema Brush-Up & Auto-Generated Schema Diagram
+
+**Input**: Design documents from `/specs/016-db-schema-brushup/`
+
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, quickstart.md (all present)
+
+**Tests**: Included — mandatory per constitution §III ("Mandatory test tasks in every tasks.md"). Test locations used: `src/tests/unit/`, `src/tests/integration/` (`@pytest.mark.integration`), `backend/tests/`, `scripts/tests/`.
+
+**Organization**: Tasks are grouped by user story (US1/US2/US3/US4, matching spec.md's priorities P1/P2/P3/P4) so each story can be implemented, tested, and delivered independently. US4 (Phase 6) was added in a later planning pass, after US1-US3 (Phases 3-5) and the original Polish pass (Final Phase) were already implemented — see spec.md's 2026-07-21 Clarifications session.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
+- **[Story]**: Which user story this task belongs to
+- File paths are exact and relative to the repository root
+
+---
+
+## Phase 1: Setup
+
+**Purpose**: Confirm a clean starting baseline before touching schema/model code
+
+- [X] T001 Run `make migrate` at the repo root to confirm the local Postgres is at Alembic `head` (revision `23_article_recommendation_weekly_report`) before starting — establishes the known-good pre-migration baseline referenced throughout quickstart.md
+
+---
+
+## Phase 2: Foundational (Blocking Prerequisites)
+
+**Purpose**: The one artifact every other phase in this feature reads or references
+
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+
+- [X] T002 Create `models/db_schema.py` with `DbSchema(str, Enum)` — members `CORE = "core"`, `COLLECTION = "collection"`, `INTELLIGENCE = "intelligence"`, `AI_INFRA = "ai_infra"`, `USER_PREFS = "user_prefs"` — per data-model.md §1
+
+**Checkpoint**: `DbSchema` enum exists and is importable — US1 (model updates) and US2 (diagram generator, which statically parses this file) can now both proceed.
+
+---
+
+## Phase 3: User Story 1 - Tables Organized by DDD Bounded Context (Priority: P1) 🎯 MVP
+
+**Goal**: Move the 24 modeled `public` tables into `core`/`collection`/`intelligence`/`ai_infra`/`user_prefs`, matching the codebase's existing DDD bounded contexts, with zero behavior change.
+
+**Independent Test**: Run `make migrate`, then query `information_schema.tables` and confirm the 3/5/10/3/3 distribution from data-model.md §2; run `make test` + `make test-integration` and confirm they still pass unmodified; run `make migrate-down` and confirm every table returns to `public`.
+
+### Tests for User Story 1
+
+> Write these first — T003 fails until the model updates below land; T004 fails until the migration (T005) lands.
+
+- [X] T003 [P] [US1] Add schema-assertion tests to `src/tests/unit/infrastructure/persistence/test_orm_models.py` — one assertion per moved model, `<Model>.__table__.schema == DbSchema.<X>.value`, covering all 24 tables per the data-model.md §2 mapping (no DB required — matches this file's existing style, e.g. `test_topic_model_columns`)
+- [X] T004 [P] [US1] Add `src/tests/integration/test_db_schema_migration.py` (`@pytest.mark.integration`) — after `alembic upgrade head` has run (already guaranteed by the CI job order per `.github/workflows/ci.yml`), query `information_schema.tables` and assert: the 5 new schemas exist, contain exactly the tables listed in data-model.md §2, and `public` contains only `data_migrations` (plus `alembic_version`)
+
+### Implementation for User Story 1
+
+- [X] T005 [US1] Create `alembic/versions/24_reorganize_public_schema_into_ddd_schemas.py` — `upgrade()`: 5× `CREATE SCHEMA IF NOT EXISTS`, then `ALTER TABLE public.<table> SET SCHEMA <schema>` for all 24 tables in data-model.md §2's mapping; **plus** (added during implementation, research.md §8) `ALTER DATABASE ... SET search_path TO core, collection, intelligence, ai_infra, user_prefs, public` so pre-existing unqualified raw SQL keeps resolving; `downgrade()`: reverse every move back to `public`, `RESET search_path`, then `DROP SCHEMA IF EXISTS` the 5 schemas — verified reversible (downgrade -1 → upgrade head) on both a fresh throwaway DB and the local dev DB
+- [X] T006 [P] [US1] Update `models/article.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}`; requalify `ForeignKey('topics.id')` → `ForeignKey('core.topics.id')`
+- [X] T007 [P] [US1] Update `models/article_translation.py` — `__table_args__` → `DbSchema.CORE`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T008 [P] [US1] Update `models/topic.py` — `__table_args__` → `{'schema': DbSchema.CORE.value}` (no FKs to requalify)
+- [X] T009 [P] [US1] Update `models/scraper_setting.py` — `__table_args__` → `{'schema': DbSchema.COLLECTION.value}` (no FKs to requalify)
+- [X] T010 [P] [US1] Update `models/scraper_keyword.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
+- [X] T011 [P] [US1] Update `models/failed_task.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id')` → `'core.articles.id'` and `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
+- [X] T012 [P] [US1] Update `models/article_metrics.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T013 [P] [US1] Update `models/article_metric_value.py` — `__table_args__` → `DbSchema.COLLECTION`; requalify `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T014 [P] [US1] Update `models/analysis.py` — `__table_args__` → `{'schema': DbSchema.INTELLIGENCE.value}`; requalify `ForeignKey('articles.id')` → `'core.articles.id'`
+- [X] T015 [P] [US1] Update `models/analyses_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('analyses.id', ...)` → `'intelligence.analyses.id'`
+- [X] T016 [P] [US1] Update `models/tag.py` — `Tag.__table_args__` and the module-level `article_tags` association `Table(...)` both → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id', ...)`, `ForeignKey('articles.id')` → `'core.articles.id'`, `ForeignKey('tags.id')` → `'intelligence.tags.id'`
+- [X] T017 [P] [US1] Update `models/tag_group.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id')` → `'core.topics.id'`
+- [X] T018 [P] [US1] Update `models/tag_group_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tag_group_definitions.id')` → `'intelligence.tag_group_definitions.id'`
+- [X] T019 [P] [US1] Update `models/tag_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('tags.id')` → `'intelligence.tags.id'`
+- [X] T020 [P] [US1] Update `models/tag_normalization_suggestion.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify both `ForeignKey('tags.id', ...)` → `'intelligence.tags.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`
+- [X] T021 [P] [US1] Update `models/weekly_report.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'`
+- [X] T022 [P] [US1] Update `models/weekly_report_translation.py` — `__table_args__` → `DbSchema.INTELLIGENCE`; requalify `ForeignKey('weekly_reports.id', ...)` → `'intelligence.weekly_reports.id'`
+- [X] T023 [P] [US1] Update `models/llm_provider.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
+- [X] T024 [P] [US1] Update `models/metric_definition.py` — `__table_args__` → `{'schema': DbSchema.AI_INFRA.value}` (no FKs to requalify)
+- [X] T025 [P] [US1] Update `models/metric_provider.py` — `__table_args__` → `DbSchema.AI_INFRA`; requalify `ForeignKey('metric_definitions.id', ...)` → `'ai_infra.metric_definitions.id'`
+- [X] T026 [P] [US1] Update `models/user_subscription.py` — all 3 classes' (`UserTopicSubscription`, `UserNotificationSettings`, `UserArticleFavorite`) `__table_args__` → `DbSchema.USER_PREFS`; requalify `ForeignKey('topics.id', ...)` → `'core.topics.id'` and `ForeignKey('articles.id', ...)` → `'core.articles.id'`; leave the `ForeignKey('auth.users.id', ...)` FKs unchanged
+- [X] T027 [P] [US1] Update `models/article_chunk.py` — cross-boundary fix only: requalify `ForeignKey("articles.id", ...)` → `"core.articles.id"`; do **not** change its own `__table_args__` (stays `vectors`, out of scope)
+- [X] T028 [US1] Delete `models/arxiv_keyword.py`; remove the now-obsolete `# NOTE: models.arxiv_keyword is intentionally excluded...` comment block from `models/__init__.py`
+- [X] T029 [P] [US1] Surveyed raw SQL in `src/entrypoints/cli/refresh_metrics.py` — **superseded, see research.md §8**: initially schema-qualified (`FROM core.articles`), then reverted to unqualified (`FROM articles`) once `schema_translate_map` was found to not apply to raw `text()` SQL — resolves correctly via the new database-level `search_path` (T005) instead
+- [X] T030 [P] [US1] Surveyed raw SQL in `src/infrastructure/persistence/intelligence/tag_repo_impl.py` — same supersession as T029; left unqualified, relies on `search_path`
+- [X] T031 [P] [US1] Surveyed raw SQL in `src/infrastructure/persistence/intelligence/tag_group_definition_repo_impl.py` — same supersession as T029
+- [X] T032 [P] [US1] Surveyed raw SQL in `backend/routers/tags.py` — same supersession as T029
+- [X] T033 [P] [US1] Surveyed raw SQL in `backend/services/scraper_settings_service.py` — same supersession as T029
+- [X] T034 [P] [US1] Surveyed raw SQL in `backend/services/tag_service.py` — same supersession as T029
+- [X] T035 [P] [US1] Surveyed raw SQL in `backend/services/article_service.py` — same supersession as T029
+- [X] T036 [US1] `src/tests/integration/conftest.py` — **expanded beyond the original task description** (research.md §8): added `schema_translate_map={schema: TEST_SCHEMA for schema in DDD_SCHEMAS}` on the test engine (not just a `FIXED_SCHEMAS` set addition — a plain exclusion broke isolation for the ~35 tests exercising these tables, since several moved tables carry migration-seeded rows even on a fresh DB); `FIXED_SCHEMAS` itself stays `{"auth", "vectors"}`, its original pre-feature value
+- [X] T037 [US1] `backend/tests/integration/conftest.py` — same `schema_translate_map` approach as T036
+- [X] (unplanned, found via full-suite verification) Fixed 2 test files with raw SQL against moved tables to match the unqualified convention: `src/tests/integration/test_metrics_refresh_pipeline.py` (also scoped `_STALE_ARTICLES_QUERY` assertions by `article_id` instead of relying on `LIMIT 200` over what is, outside full isolation, a much larger real table; changed `_make_article`'s `commit()` to `flush()` to stay within the session's rollback boundary) and `src/tests/integration/intelligence/test_tag_constraints_integration.py`
+
+**Checkpoint**: ✅ Verified against a disposable freshly-migrated throwaway Postgres container AND the local dev DB: `src/tests/unit/` 701 passed, `backend/tests/` (unit) 332 passed, `src/tests/integration/` 80 passed, `backend/tests/integration/` 224 passed (304 total integration, 1033 total unit — 1337 tests green). `make migrate-down` → `make migrate` round-trip verified reversible. Quickstart.md §1–2 succeed end to end. User Story 1 is independently shippable here.
+
+---
+
+## Phase 4: User Story 2 - Auto-Generated Database Diagram in the Docs Site (Priority: P2)
+
+**Goal**: A new VitePress page showing every table/column/FK/schema, generated by static AST analysis of `models/`, wired into the existing docs pipeline.
+
+**Independent Test**: Run `scripts/generate_db_schema.py` locally, confirm it emits an SVG under `site/public/guide/architecture/`; build the site (`npm run build` in `site/`) and confirm the new page renders and is reachable from nav.
+
+### Tests for User Story 2
+
+- [X] T038 [P] [US2] Added `scripts/tests/test_generate_db_schema.py` — 9 tests covering dict-form/tuple-form `__table_args__`, literal-string schema (auth-style), `DbSchema.<MEMBER>.value` resolution, cross-schema FK detection, association `Table()` parsing, the `Column('db_name', Type)` name-override edge case (found while dogfooding against real `models/article.py`), and fail-loud on unparseable `__table_args__` — all 9 pass
+
+### Implementation for User Story 2
+
+- [X] T039 [US2] Implemented `scripts/generate_db_schema.py` — static `ast`-parses `models/*.py`, emits `site/public/guide/architecture/db-schema.dot` — **design change from the plan**: outputs only `.dot` (no server-side `.svg` render step); discovered `site/guide/architecture/viewer.html` already renders `.dot` client-side via `@viz-js/viz` (loaded from CDN) rather than pre-rendering SVG server-side, so this reuses that exact established pattern instead of introducing a second one — no `dot` CLI/Graphviz dependency needed for this script at all (confirmed: runs with plain stdlib-only `python`, no `uv sync` required). Verified against real `models/`: discovers all 26 tables (24 moved + `auth.users` + `vectors.article_chunks`) across 7 schema clusters, 27 FK edges, cross-schema edges correctly flagged (e.g. `vectors.article_chunks → core.articles`)
+- [X] T040 [US2] Added "Generate DB schema diagram" step to `.github/workflows/speckit-github-pages.yml` after "Generate backend UML (pyreverse)"
+- [X] T041 [US2] Created `site/guide/architecture/db-schema.md` + `site/.vitepress/theme/DbSchemaViewer.vue` (registered globally in `site/.vitepress/theme/index.js`, matching the existing `UmlViewer`/`DepGraphViewer` pattern) — fetches `./db-schema.dot` and renders client-side via the same `@viz-js/viz` CDN build `viewer.html` already uses
+- [X] T042 [US2] Added "DB Schema" nav/sidebar entry — in `site/scripts/generate-config.mjs` (the actual source of truth: `site/.vitepress/config.js` is auto-generated by `npm run generate`, so hand-editing only `config.js` would be overwritten) and reflected in the current `config.js` via running that generator
+
+**Checkpoint**: ✅ `npm run generate && npm run build` (production build, the stricter one per constitution VII) succeeds with zero errors; `dist/guide/architecture/db-schema.html` and `db-schema.dot` both present in build output. Independently shippable — does not require User Story 3.
+
+---
+
+## Phase 5: User Story 3 - Centralized Backend Configuration (Priority: P3)
+
+**Goal**: `backend/config.py` becomes the single place `backend/` reads environment variables, closing the pre-existing constitution IX compliance gap.
+
+**Independent Test**: `grep -rn "os\.environ\|os\.getenv" backend/ --include="*.py" | grep -v backend/tests | grep -v backend/config.py` returns nothing; `backend/tests/` passes unmodified.
+
+### Tests for User Story 3
+
+- [X] T043 [P] [US3] Added `backend/tests/test_config.py` — 8 tests covering every constant
+
+### Implementation for User Story 3
+
+- [X] T044 [US3] Created `backend/config.py` per data-model.md §4 — all 15 vars, matching `src/config/settings.py`'s pure-reads style
+- [X] T045 [P] [US3] Migrated `backend/database.py`
+- [X] T046 [P] [US3] Migrated `backend/main.py` (also dropped the now-unused `import os`)
+- [X] T047 [P] [US3] Migrated `backend/auth/guards.py` (3 call sites)
+- [X] T048 [P] [US3] Migrated `backend/middleware/logging.py`
+- [X] T049 [P] [US3] Migrated `backend/services/article_service.py`
+- [X] T050 [P] [US3] Migrated `backend/services/chat_service.py`
+- [X] T051 [P] [US3] Migrated `backend/services/tag_service.py`
+- [X] T052 [P] [US3] Migrated `backend/routers/chat.py`
+- [X] T053 [P] [US3] Migrated `backend/routers/articles.py`
+- [X] T054 [US3] Migrated `backend/routers/grafana.py` (7 vars × 6 call sites)
+- [X] T055 [US3] Cross-checked all 15 vars against `.env.example` — all already present, no additions needed
+- [X] (unplanned, found via full-suite verification) **Frozen-constant test regression, fixed**: `backend/config.py` reads env vars once at import time (by design, matching `src/config/settings.py` and constitution IX) — several existing tests relied on the *old* per-request `os.environ.get()` behavior via `patch.dict(os.environ, ...)` around individual requests, expecting live reads. Fixed by reloading the affected module chain (`backend.config` → the router/module that imports from it → `backend.main`, since `app.include_router()` bakes in handler closures that only refresh on a `backend.main` reload) inside a test-local context manager, mirroring the reload pattern `backend/tests/test_cors.py` had already established pre-this-feature for `FRONTEND_ORIGIN`. Fixed 3 files: `backend/tests/test_cors.py` (extended its existing reload fixture to also reload `backend.config` first), `backend/tests/test_grafana.py` (new `_grafana_env()` helper, all 21 `patch.dict` call sites), `backend/tests/integration/test_grafana.py` (new `_grafana_env()` helper that also re-applies the `get_db` dependency override to the rebuilt app, all 16 call sites)
+
+**Checkpoint**: ✅ Verified against both a disposable freshly-migrated throwaway Postgres container and the local dev DB: full suite (`src/tests/unit/` + `src/tests/integration/` + `backend/tests/` unit + `backend/tests/integration/`) = **1345 passed, 0 failed** on both databases. `grep -rn "os\.environ\|os\.getenv" backend/ --include="*.py" | grep -v backend/tests | grep -v backend/config.py` returns nothing. Independently shippable — touches none of the files from US1/US2.
+
+---
+
+## Phase 6: User Story 4 - Read-Only API Docs & Exception Catalog in the Docs Site (Priority: P4)
+
+**Goal**: Two new auto-generated docs-site pages — a read-only Swagger/API-docs embed (with "Try it out" disabled at the backend source, toggleable via `SWAGGER_TRY_IT_OUT_ENABLED`) and an exception catalog (AST-derived index of every exception type raised in `backend/`, `src/`, `models/`, `shared/` and where each is raised from).
+
+**Independent Test**: Deploy/run the backend with `SWAGGER_TRY_IT_OUT_ENABLED` unset; confirm `/docs` has no "Try it out" controls directly and via the docs-site embed. Run `scripts/generate_exceptions.py`; confirm `exceptions-data.json` lists every currently-raised exception type with accurate raise sites; build the docs site and confirm both new pages render and are reachable from nav.
+
+### Tests for User Story 4
+
+- [X] T059 [P] [US4] Add `SWAGGER_TRY_IT_OUT_ENABLED` assertions to `backend/tests/test_config.py` (extends the file T043 created) — default `False` when unset, `True` for `"true"`/`"True"`/etc.
+- [X] T060 [P] [US4] Add a test to `backend/tests/` (new `test_main.py`) asserting `app.swagger_ui_parameters` is `{"supportedSubmitMethods": []}` by default and `None` when `SWAGGER_TRY_IT_OUT_ENABLED=true` — reload `backend.config` → `backend.main` inside the test, matching the reload pattern `backend/tests/test_cors.py` already established (see research.md §8's frozen-constant note from US3)
+- [X] T061 [P] [US4] Add `scripts/tests/test_generate_exceptions.py` — matching `scripts/tests/test_generate_db_schema.py`'s pattern (synthetic `.py` fixtures under `tmp_path`), covering: custom exception class detection (with/without a custom base), `raise X(...)`, `raise X(...) from e`, bare `raise`/`raise e` resolved via the nearest `except ExcType as e:`, the unresolvable-re-raise exclusion (multi-type `except` tuple and no-enclosing-handler cases), `HTTPException(status_code=...)` literal extraction (present/absent), `builtin` vs `framework` vs `custom` classification, and fail-loud (raised exception, non-zero exit) on an unparseable file — **16 tests, all pass**; found and fixed two real bugs while dogfooding against the actual codebase (see T065's note)
+
+### Implementation for User Story 4 — Swagger / API Docs
+
+- [X] T062 [P] [US4] Add `SWAGGER_TRY_IT_OUT_ENABLED: bool = os.environ.get("SWAGGER_TRY_IT_OUT_ENABLED", "false").lower() == "true"` to `backend/config.py` per data-model.md §4's Story 4 addition
+- [X] T063 [US4] Update `backend/main.py`'s `FastAPI(...)` constructor: `swagger_ui_parameters=None if SWAGGER_TRY_IT_OUT_ENABLED else {"supportedSubmitMethods": []}` (depends on T062)
+- [X] T064 [P] [US4] Add `SWAGGER_TRY_IT_OUT_ENABLED=` to `.env.example` near `FRONTEND_ORIGIN`/`ADMIN_PASSWORD`, with a comment noting the default-disabled/safe-by-default behavior and that `BACKEND_URL` (already present) is reused for the docs-site embed target
+
+### Implementation for User Story 4 — Exception Catalog
+
+- [X] T065 [P] [US4] Implement `scripts/generate_exceptions.py` per data-model.md §5 / research.md §11 — AST-parses `backend/`, `src/`, `models/`, `shared/` (excluding any path containing a `tests/` segment), outputs `site/public/guide/architecture/exceptions-data.json`. **Two bugs found and fixed while dogfooding against real source**: (1) the original per-node recursive walker broke when passed a single statement (e.g. an `except` handler's body items) rather than a container, silently missing raises inside `try`/`except`/`else`/`finally` blocks — rewritten as a consistent `_walk_body(stmts)`/`_walk_stmt(stmt)` pair that also generically recurses into `If`/`For`/`While`/`With`/`Match` bodies. (2) `raise last_403_exc` (a lowercase variable holding a stored exception instance under a name *other* than the enclosing `except ... as e:` binding, found in `src/infrastructure/shared/http/http_client.py`) was being misresolved as if `last_403_exc` were itself an exception class — fixed by only treating a bare `raise <Name>` as a class reference when the name is UpperCamelCase (PEP 8 / this project's own "Handler classes MUST be UpperCamelCase" convention), otherwise excluding it as unresolvable, consistent with the "exclude rather than misattribute" principle. Verified against the real codebase: 11 exception types, ~93 raise sites, `last_403_exc` correctly absent.
+- [X] T066 [US4] Add `uml-exceptions` Makefile target (`docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_exceptions.py"`), fold into the existing `uml` combo target alongside `uml-backend`/`uml-db-schema`/`uml-frontend` (depends on T065)
+
+### Implementation for User Story 4 — Docs Site Wiring (shared by both sub-features)
+
+- [X] T067 [P] [US4] Update `site/scripts/generate-config.mjs` — add `backendUrl: process.env.BACKEND_URL || ''` to `themeConfig`; add "API Docs" and "Exceptions" entries to the Architecture sidebar section
+- [X] T068 [US4] Regenerate `site/.vitepress/config.js` by running `npm run generate` in `site/` (depends on T067)
+- [X] T069 [P] [US4] Create `site/.vitepress/theme/SwaggerViewer.vue` — iframe-embeds `${backendUrl}/docs`, empty-state message when `backendUrl` is unset (matching `DepGraphViewer.vue`'s `storybook-empty` pattern), fullscreen toggle matching sibling viewers
+- [X] T070 [P] [US4] Create `site/.vitepress/theme/ExceptionViewer.vue` — flat searchable card grid over `exceptions-data.json` per data-model.md §5's shape; card = exception type with category-color badge + raise-site count; click opens the existing dialog pattern (GitHub-linked `defined_at`, docstring, full raise-site list with GitHub links + snippets + status-code badges)
+- [X] T071 [US4] Register `SwaggerViewer` and `ExceptionViewer` in `site/.vitepress/theme/index.js` (depends on T069, T070)
+- [X] T072 [P] [US4] Create `site/guide/architecture/api-docs.md` embedding `<SwaggerViewer />`
+- [X] T073 [P] [US4] Create `site/guide/architecture/exceptions.md` embedding `<ExceptionViewer />`, with a doc section modeled on `db-schema.md` explaining generation mechanics and the scope caveat (only exceptions the project's own code explicitly `raise`s are covered)
+- [X] T074 [US4] Update `.github/workflows/speckit-github-pages.yml` — pass the `BACKEND_URL` repo variable as an env var to the **"Build VitePress"** step, alongside the existing `STORYBOOK_URL` (not "Generate VitePress config" — `config.js`'s `process.env.BACKEND_URL` read is only evaluated when VitePress loads the config, i.e. at build/dev/preview time, see research.md's corrected §10 note); add a "Generate exception catalog" step running `scripts/generate_exceptions.py`, after the "Generate DB schema diagram" step (depends on T065). **Found during implementation**: `specs/016-db-schema-brushup/tasks.md` (this file) originally documented this task using literal ``${{ vars.BACKEND_URL }}`` GitHub Actions syntax inside single-backtick inline code — VitePress does not wrap inline (single-backtick) code spans in `v-pre` the way it does fenced code blocks, so the literal `{{ vars.BACKEND_URL }}` was compiled as a real Vue mustache interpolation and broke `npm run build` with `Cannot read properties of undefined (reading 'BACKEND_URL')`. Reworded to avoid the raw `${{ }}` sequence — same class of issue as constitution VII's existing "no bare `<...>` outside code fences" rule, just the `{{ }}` variant.
+
+### Verification for User Story 4
+
+- [X] T075 [US4] Walk through quickstart.md §6–7 end to end: `backend/tests/test_main.py`'s two tests confirm the try-it-out toggle flips `app.swagger_ui_parameters` in both directions (the same attribute FastAPI's `/docs` renders from, so this is the app-level equivalent of the manual curl/browser check); `exceptions-data.json` regenerated against the real codebase and spot-checked — `RateLimitExhausted`, `ArxivRateLimitedError`, `OpenAlexRateLimitedError`, `SemanticScholarRateLimitedError`, `HTTPException`, `ValueError`, `RuntimeError` all present with accurate raise-site counts; `npm run build` (production) succeeds with `api-docs.html` and `exceptions.html` both present in `site/.vitepress/dist/guide/architecture/`. Confirms SC-007/SC-008 from spec.md. Full manual browser walkthrough (live `/docs` + docs-site preview) left for the user to do via `make site-preview`, per their request.
+
+**Checkpoint**: Backend's live `/docs` has no execute capability by default (and gains it only via explicit opt-in); docs site has two new pages reachable from nav; exception catalog regenerates automatically from source changes with no manual step. Independently shippable — touches no files from US1/US2/US3 except adding one constant to the already-existing `backend/config.py` (T062) and one method call to the already-existing `backend/main.py` (T063).
+
+---
+
+## Final Phase: Polish & Cross-Cutting Concerns
+
+**Purpose**: Whole-feature verification across all three stories
+
+- [X] T056 [P] Ran `make test-src test-backend test-src-integration test-backend-integration` (the actual Makefile target names — `test`/`test-integration` in the original task description were approximate) — **1345 passed, 0 failed**, confirmed against both the local dev DB and a disposable freshly-migrated throwaway Postgres container
+- [X] T057 Walked through quickstart.md §1–§5 end to end during implementation (migration round-trip verified, `arxiv_keyword.py` deletion verified, diagram generator + `npm run build` verified, `backend/config.py` zero-`os.environ`-outside-config verified)
+- [X] T058 [P] Added a pointer in `CLAUDE.md`'s "### ORM Models" section (also fixed a now-stale line: `ArxivKeyword` was documented as "legacy" but is now fully deleted, not just superseded)
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: No dependencies
+- **Foundational (Phase 2)**: Depends on Setup — BLOCKS all user stories (both US1's model edits and US2's diagram-generator design reference the `DbSchema` enum)
+- **User Story 1 (Phase 3)**: Depends on Foundational only
+- **User Story 2 (Phase 4)**: Depends on Foundational only, technically — but is only *meaningful* once US1 has landed (spec.md's own stated priority rationale: the diagram's value is showing the new grouping). No hard file-level dependency exists between the two, so they *can* proceed in parallel if needed.
+- **User Story 3 (Phase 5)**: Depends on Foundational only — fully independent of US1 and US2 (disjoint file sets: `backend/config.py` + call sites vs. `models/`/`alembic/`/`scripts/`/`site/`)
+- **User Story 4 (Phase 6)**: Depends on Foundational only — fully independent of US1, US2, US3 (disjoint file sets: `backend/config.py`'s single new constant + `backend/main.py`'s single constructor kwarg vs. `models/`/`alembic/`; new `scripts/generate_exceptions.py` vs. `scripts/generate_db_schema.py`; new `site/.vitepress/theme/{SwaggerViewer,ExceptionViewer}.vue` + `site/guide/architecture/{api-docs,exceptions}.md` vs. `DbSchemaViewer.vue`/`db-schema.md`). Can be staffed and shipped independently of, and in any order relative to, the other three stories.
+- **Polish (Final Phase)**: Depends on User Stories 1-3 being complete (already the case) — Story 4 was added later and is verified independently via its own Phase 6 checkpoint rather than folded into this pre-existing Polish pass
+
+### Within User Story 1
+
+- T003/T004 (tests) should be written first and observed failing, then T005 (migration) and T006–T027 (model updates) make them pass
+- T005 (migration) has no code dependency on T006–T027 (models) or vice versa — they can be authored in parallel, but T004's integration test needs T005 applied to a real database to pass
+- T028 (delete arxiv_keyword) is independent of everything else in this phase
+- T029–T035 (raw SQL fixes) are independent of each other and of the model-file tasks — same schema-naming facts, different files
+- T036/T037 (conftest fixes) should land after the model tasks are understood but have no code dependency on them; they must land before re-running `make test-integration` in the Checkpoint
+
+### Parallel Opportunities
+
+- All of T006–T027 (22 model files) are mutually independent — full-team parallel batch
+- All of T029–T035 (7 raw-SQL files) are mutually independent
+- T036 and T037 (the two `conftest.py` files) are independent of each other
+- T045–T053 (9 of the 10 backend call-site migrations) are mutually independent; only T054 (`grafana.py`, denser) is separated out as its own task
+- US2 and US3 can be staffed entirely in parallel with each other and (after Foundational) with US1
+- Within US4: T059–T061 (tests) are mutually independent; T062/T064/T065 are mutually independent (different files); T069/T070 (the two new Vue components) are mutually independent; T072/T073 (the two new markdown pages) are mutually independent. T063 depends on T062; T066 depends on T065; T068 depends on T067; T071 depends on T069+T070; T074 depends on T065. US4 as a whole can be staffed entirely in parallel with US1/US2/US3 (after Foundational) — zero file overlap.
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# After T002 (DbSchema enum) and T005 (migration) exist, launch the model-file batch together:
+Task: "Update models/article.py — schema + FK requalification"
+Task: "Update models/topic.py — schema"
+Task: "Update models/scraper_setting.py — schema"
+Task: "Update models/analysis.py — schema + FK requalification"
+# ... (all of T006-T027)
+
+# Independently, launch the raw-SQL batch together:
+Task: "Fix raw SQL in src/entrypoints/cli/refresh_metrics.py"
+Task: "Fix raw SQL in backend/services/scraper_settings_service.py"
+Task: "Fix raw SQL in backend/services/article_service.py"
+# ... (all of T029-T035)
+```
+
+---
+
+## Parallel Example: User Story 4
+
+```bash
+# Tests batch (T059-T061) — mutually independent, different files:
+Task: "backend/tests/test_config.py — SWAGGER_TRY_IT_OUT_ENABLED assertions"
+Task: "backend/tests/test_main.py — swagger_ui_parameters toggle test"
+Task: "scripts/tests/test_generate_exceptions.py — full generator test suite"
+
+# Independently, the two sub-feature implementations can proceed in parallel:
+Task: "backend/config.py + backend/main.py — SWAGGER_TRY_IT_OUT_ENABLED wiring (T062-T064)"
+Task: "scripts/generate_exceptions.py + Makefile uml-exceptions target (T065-T066)"
+
+# Once both are far enough along, the shared docs-site wiring batch (T069, T070, T072, T073) is
+# mutually independent — two new Vue components, two new markdown pages, different files each.
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Story 1 Only)
+
+1. Phase 1 (Setup) → Phase 2 (Foundational) → Phase 3 (US1)
+2. **STOP and VALIDATE**: quickstart.md §1–2, `make test` + `make test-integration` green
+3. This alone satisfies issue #91's core ask — schemas are reorganized, app behavior unchanged
+
+### Incremental Delivery
+
+1. Setup + Foundational → foundation ready
+2. User Story 1 → validate independently → the schemas exist, everything still works (MVP)
+3. User Story 2 → validate independently → the diagram is live and accurate
+4. User Story 3 → validate independently → `backend/config.py` closes the constitution IX gap
+5. Polish → whole-feature regression pass + doc pointer
+6. User Story 4 (added later, independent of 1-5) → validate independently → the live `/docs` execute capability is off by default everywhere it's reachable, and the exception catalog stays current with zero manual regeneration
+
+### Parallel Team Strategy
+
+Once Foundational (T002) is merged: one contributor can take US1 (by far the largest phase — 35 tasks, but 29 of them are mutually [P]), a second can take US2 (5 tasks), a third can take US3 (13 tasks, 9 of them [P]), and a fourth can take US4 (17 tasks, 11 of them [P]). None of the four touch overlapping files.

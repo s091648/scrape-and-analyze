@@ -17,3 +17,76 @@ def test_tag_group_model_has_topic_id():
 def test_scraper_setting_model_has_topic_id():
     from models.scraper_setting import ScraperSetting
     assert "topic_id" in {c.name for c in ScraperSetting.__table__.columns}
+
+
+# --- 016-db-schema-brushup: every moved table declares its new schema via DbSchema ---
+
+def test_core_schema_tables():
+    from models.db_schema import DbSchema
+    from models.article import Article
+    from models.article_translation import ArticleTranslation
+    from models.topic import Topic
+    for model in (Article, ArticleTranslation, Topic):
+        assert model.__table__.schema == DbSchema.CORE.value, model.__tablename__
+
+
+def test_collection_schema_tables():
+    from models.db_schema import DbSchema
+    from models.scraper_setting import ScraperSetting
+    from models.scraper_keyword import ScraperKeyword
+    from models.failed_task import FailedTask
+    from models.article_metrics import ArticleMetrics
+    from models.article_metric_value import ArticleMetricValue
+    for model in (ScraperSetting, ScraperKeyword, FailedTask, ArticleMetrics, ArticleMetricValue):
+        assert model.__table__.schema == DbSchema.COLLECTION.value, model.__tablename__
+
+
+def test_intelligence_schema_tables():
+    from models.db_schema import DbSchema
+    from models.analysis import Analysis
+    from models.analyses_translation import AnalysesTranslation
+    from models.tag import Tag, article_tags
+    from models.tag_group import TagGroupDefinition
+    from models.tag_group_translation import TagGroupDefinitionsTranslation
+    from models.tag_translation import TagsTranslation
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    from models.weekly_report import WeeklyReport
+    from models.weekly_report_translation import WeeklyReportTranslation
+    for model in (
+        Analysis, AnalysesTranslation, Tag, TagGroupDefinition,
+        TagGroupDefinitionsTranslation, TagsTranslation,
+        TagNormalizationSuggestion, WeeklyReport, WeeklyReportTranslation,
+    ):
+        assert model.__table__.schema == DbSchema.INTELLIGENCE.value, model.__tablename__
+    assert article_tags.schema == DbSchema.INTELLIGENCE.value
+
+
+def test_ai_infra_schema_tables():
+    from models.db_schema import DbSchema
+    from models.llm_provider import LlmProvider
+    from models.metric_definition import MetricDefinition
+    from models.metric_provider import MetricProvider
+    for model in (LlmProvider, MetricDefinition, MetricProvider):
+        assert model.__table__.schema == DbSchema.AI_INFRA.value, model.__tablename__
+
+
+def test_user_prefs_schema_tables():
+    from models.db_schema import DbSchema
+    from models.user_subscription import UserTopicSubscription, UserNotificationSettings, UserArticleFavorite
+    for model in (UserTopicSubscription, UserNotificationSettings, UserArticleFavorite):
+        assert model.__table__.schema == DbSchema.USER_PREFS.value, model.__tablename__
+
+
+def test_auth_and_vectors_schemas_unchanged():
+    """auth/vectors predate DbSchema and are out of this feature's scope."""
+    from models.auth import User
+    from models.article_chunk import ArticleChunk
+    assert User.__table__.schema == "auth"
+    assert ArticleChunk.__table__.schema == "vectors"
+
+
+def test_article_chunk_fk_requalified_to_core():
+    """article_chunk.py doesn't move, but its FK into articles must follow the move."""
+    from models.article_chunk import ArticleChunk
+    fk = next(iter(ArticleChunk.__table__.c.article_id.foreign_keys))
+    assert fk.target_fullname == "core.articles.id"

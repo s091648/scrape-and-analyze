@@ -131,11 +131,12 @@ Two tables, split 2026-07-12 so the admin-facing and maintainer-only concerns do
 All models in `models/` use UUID primary keys and share a single `Base = declarative_base()`.
 
 - `User` lives in the `auth` PostgreSQL schema (`__table_args__ = {'schema': 'auth'}`)
+- The other 24 tables are organized into 5 PostgreSQL schemas mirroring the DDD bounded contexts in `src/modules/`: `core` (shared kernel), `collection`, `intelligence`, `ai_infra`, `user_prefs` — see `models/db_schema.py`'s `DbSchema` enum (referenced from every model's `__table_args__`) and the auto-generated diagram at `site/guide/architecture/db-schema.md`
 - `Tag.tag_group_name` is a non-FK string join to `TagGroupDefinition.name` (viewonly relationship)
 - `Article.metadata_` Python attribute maps to `metadata` DB column (underscore avoids SQLAlchemy reserved word)
 - Translation uses a parallel-table pattern: `AnalysisTranslation`, `TagTranslation`, `TagGroupTranslation` each have a `language` column + unique constraint on `(parent_id, language)`. English content was normalized into translations by migration 17.
 - `configure_mappers()` is called in `tag.py` to resolve circular mapper dependencies
-- `ArxivKeyword` is legacy — superseded by `ScraperKeyword`
+- `ArxivKeyword` was legacy (superseded by `ScraperKeyword`) and has been deleted — its table no longer exists
 - `MetricDefinition` (per `metric_key`, admin-editable `enabled`/`icon_name`) and `MetricProvider` (per `metric_key`+`provider_name`, maintainer-only extraction config) — see Metric Provider Chain above
 
 ### Observability
@@ -168,5 +169,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/014-article-recommendation-weekly-report/plan.md`.
+at `specs/016-db-schema-brushup/plan.md`.
 <!-- SPECKIT END -->

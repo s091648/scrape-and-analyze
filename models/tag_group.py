@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Text, Integer, ForeignKey, UniqueConstrai
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from models.base import Base
+from models.db_schema import DbSchema
 import uuid
 
 
@@ -14,9 +15,10 @@ class TagGroupDefinition(Base):
     description = Column(Text)
     color_hex = Column(String(7))
     sort_order = Column(Integer)
-    topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id'), nullable=False)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id'), nullable=False)
     embedding = Column(Vector(768), nullable=True)
 
     __table_args__ = (
         UniqueConstraint('name', 'topic_id', name='uq_tag_group_name_topic'),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

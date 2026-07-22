@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T22:39:28.271944+00:00",
+  "generated_at": "2026-07-21T08:26:04.425034+00:00",
   "layers": [
     "application",
     "domain",
@@ -530,7 +530,7 @@
       "context": "intelligence"
     },
     {
-      "id": "entities.article.Article",
+      "id": "domain.entities.article.Article",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Article|content",
@@ -538,11 +538,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "entities.article",
+      "module": "domain.entities.article",
       "class_name": "Article",
       "attributes": [],
       "methods": [],
-      "full_path": "src/entities/article/Article.py",
+      "full_path": "src/domain/entities/article/Article.py",
       "docstring": "Domain entity representing a scraped article with URL, content, and metadata.",
       "typed_attrs": [
         "url: str",
@@ -659,6 +659,33 @@
       "context": "intelligence"
     },
     {
+      "id": "repositories.article_metrics_repository.ArticleMetricsRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ArticleMetricsRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.article_metrics_repository",
+      "class_name": "ArticleMetricsRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/article_metrics_repository/ArticleMetricsRepository.py",
+      "docstring": "",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "upsert(article_id: UUID, metrics: Dict[str, Any]) → None",
+          "doc": "Upsert one article_metric_values row per (article_id, metric_key) in `metrics`."
+        }
+      ],
+      "source_file": "src/modules/collection/domain/repositories/article_metrics_repository.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
       "id": "use_cases.article_outcome.ArticleOutcome",
       "color": "black",
       "fontcolor": "black",
@@ -700,7 +727,8 @@
       "full_path": "src/application/events/article_processed/ArticleProcessedEvent.py",
       "docstring": "Event emitted after an article has been successfully processed and persisted.",
       "typed_attrs": [
-        "article: Article"
+        "article: Article",
+        "full_text: str"
       ],
       "typed_methods": [],
       "source_file": "src/shared/application/events/article_processed.py",
@@ -745,7 +773,7 @@
       "context": "intelligence"
     },
     {
-      "id": "repositories.article_repository.ArticleRepository",
+      "id": "domain.repositories.article_repository.ArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleRepository|<br",
@@ -753,11 +781,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.article_repository",
+      "module": "domain.repositories.article_repository",
       "class_name": "ArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/article_repository/ArticleRepository.py",
+      "full_path": "src/domain/repositories/article_repository/ArticleRepository.py",
       "docstring": "Abstract repository interface for Article persistence operations.",
       "typed_attrs": [],
       "typed_methods": [
@@ -805,7 +833,8 @@
         "topic_id: Optional[UUID]",
         "published_at: Optional[datetime]",
         "authors: List[str]",
-        "metadata: Dict[str, Any]"
+        "metadata: Dict[str, Any]",
+        "full_text: str"
       ],
       "typed_methods": [
         {
@@ -858,6 +887,39 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
+    },
+    {
+      "id": "value_objects.article_summary_for_report.ArticleSummaryForReport",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ArticleSummaryForReport|article_id",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "value_objects.article_summary_for_report",
+      "class_name": "ArticleSummaryForReport",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/value_objects/article_summary_for_report/ArticleSummaryForReport.py",
+      "docstring": "",
+      "typed_attrs": [
+        "article_id: UUID",
+        "title: str",
+        "summary: Optional[str]",
+        "pain_points: Optional[str]",
+        "insights: Optional[str]",
+        "innovations: Optional[str]",
+        "tags: List[str]",
+        "metrics: Dict[str, float]",
+        "view_count: int",
+        "published_at: Optional[datetime]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/value_objects/article_summary_for_report.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
     },
     {
       "id": "entities.article_translation.ArticleTranslation",
@@ -1081,66 +1143,6 @@
       "context": "collection"
     },
     {
-      "id": "entities.arxiv_metadata.ArxivMetadata",
-      "color": "black",
-      "fontcolor": "black",
-      "label": "<{ArxivMetadata|article_id",
-      "ALIGN": "LEFT",
-      "layer": "domain",
-      "ca_layer": "entities",
-      "subgroup": "entities",
-      "module": "entities.arxiv_metadata",
-      "class_name": "ArxivMetadata",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/entities/arxiv_metadata/ArxivMetadata.py",
-      "docstring": "ArXiv-specific metadata attached to an article, including authors and paper sections.",
-      "typed_attrs": [
-        "article_id: UUID",
-        "id: UUID",
-        "arxiv_id: Optional[str]",
-        "authors: List[str]",
-        "pdf_available: bool",
-        "sections: Dict[str, str]"
-      ],
-      "typed_methods": [],
-      "source_file": "src/modules/collection/domain/entities/arxiv_metadata.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "collection"
-    },
-    {
-      "id": "repositories.arxiv_metadata_repository.ArxivMetadataRepository",
-      "color": "black",
-      "fontcolor": "black",
-      "label": "<{ArxivMetadataRepository|<br",
-      "ALIGN": "LEFT",
-      "layer": "domain",
-      "ca_layer": "entities",
-      "subgroup": "repositories",
-      "module": "repositories.arxiv_metadata_repository",
-      "class_name": "ArxivMetadataRepository",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/repositories/arxiv_metadata_repository/ArxivMetadataRepository.py",
-      "docstring": "Abstract repository for persisting and querying ArxivMetadata entities.",
-      "typed_attrs": [],
-      "typed_methods": [
-        {
-          "sig": "save(meta: ArxivMetadata) → ArxivMetadata",
-          "doc": "Persist a new ArxivMetadata row. Returns saved entity with id populated."
-        },
-        {
-          "sig": "find_by_article_id(article_id: UUID) → Optional[ArxivMetadata]",
-          "doc": "Return ArxivMetadata for this article, or None."
-        }
-      ],
-      "source_file": "src/modules/collection/domain/repositories/arxiv_metadata_repository.py",
-      "is_abstract": true,
-      "is_protocol": false,
-      "context": "collection"
-    },
-    {
       "id": "clients.arxiv_client.ArxivRateLimitedError",
       "color": "black",
       "fontcolor": "red",
@@ -1246,19 +1248,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "id": "embedding.base_embedding_provider.BaseEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseEmbeddingProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.embedding.base_embedding_provider",
+      "subgroup": "other",
+      "module": "embedding.base_embedding_provider",
       "class_name": "BaseEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
+      "full_path": "src/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
       "docstring": "Infrastructure base for all embedding providers.\n\nImplements EmbeddingService.embed() and embed_batch() as templates:\n  1. Split into chunks of _BATCH_SIZE.\n  2. Call _call_embed() with…",
       "typed_attrs": [
         "_model",
@@ -1290,35 +1292,6 @@
       "is_abstract": true,
       "is_protocol": false,
       "context": "intelligence"
-    },
-    {
-      "id": "notifications.base_notifier.BaseNotifier",
-      "color": "black",
-      "fontcolor": "black",
-      "label": "<{BaseNotifier|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "infrastructure-shared",
-      "ca_layer": "infrastructure",
-      "subgroup": "notifications",
-      "module": "notifications.base_notifier",
-      "class_name": "BaseNotifier",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/notifications/base_notifier/BaseNotifier.py",
-      "docstring": "Abstract base for pipeline-completion notification senders.",
-      "typed_attrs": [],
-      "typed_methods": [
-        {
-          "sig": "notify(event: PipelineCompletedEvent) → None",
-          "doc": "Send a notification about pipeline completion."
-        }
-      ],
-      "source_file": "src/infrastructure/shared/notifications/base_notifier.py",
-      "is_abstract": true,
-      "is_protocol": false,
-      "context": "notifications"
     },
     {
       "id": "value_objects.base_prompt.BasePrompt",
@@ -1358,19 +1331,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.providers.base_provider.BaseProvider",
+      "id": "providers.base_provider.BaseProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.base_provider",
+      "subgroup": "other",
+      "module": "providers.base_provider",
       "class_name": "BaseProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/base_provider/BaseProvider.py",
+      "full_path": "src/providers/base_provider/BaseProvider.py",
       "docstring": "Infrastructure base for all LLM providers.\n\nImplements LLMService.analyze() as a template:\n  1. Call _call_api() with exponential-backoff retry (transient errors only).\n  2. Validate required fields…",
       "typed_attrs": [
         "_model",
@@ -1405,6 +1378,10 @@
         {
           "sig": "translate(content: str, prompt: str) → Optional[str]",
           "doc": "Translate content via the LLM raw-text endpoint with retry and empty-check."
+        },
+        {
+          "sig": "generate(prompt: str) → Optional[str]",
+          "doc": "Run a one-shot generation task via the LLM raw-text endpoint with retry and empty-check."
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
@@ -1442,6 +1419,35 @@
       "is_abstract": true,
       "is_protocol": false,
       "context": "collection"
+    },
+    {
+      "id": "domain.services.blob_storage_service.BlobStorageService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{BlobStorageService|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "domain.services.blob_storage_service",
+      "class_name": "BlobStorageService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/services/blob_storage_service/BlobStorageService.py",
+      "docstring": "",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "upload(data: bytes, key: str, content_type: str) → str",
+          "doc": "Upload data to blob storage and return the public URL."
+        }
+      ],
+      "source_file": "src/shared/domain/services/blob_storage_service.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "shared"
     },
     {
       "id": "scrapers.blog_scraper.BlogScraper",
@@ -1504,21 +1510,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.providers.claude_provider.ClaudeProvider",
+      "id": "providers.claude_provider.ClaudeProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ClaudeProvider|_client",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.claude_provider",
+      "subgroup": "other",
+      "module": "providers.claude_provider",
       "class_name": "ClaudeProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/claude_provider/ClaudeProvider.py",
+      "full_path": "src/providers/claude_provider/ClaudeProvider.py",
       "docstring": "Anthropic Claude LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -1621,6 +1627,10 @@
         {
           "sig": "article_body_translation_prompt() → ArticleBodyTranslationPrompt",
           "doc": "Return the default article body translation prompt value object."
+        },
+        {
+          "sig": "weekly_report_translation_prompt() → WeeklyReportTranslationPrompt",
+          "doc": "Return the default weekly report translation prompt value object."
         }
       ],
       "source_file": "src/infrastructure/intelligence/prompt/prompt_factory.py",
@@ -1770,19 +1780,70 @@
       "context": "collection"
     },
     {
-      "id": "llm.resilient_llm_service.EmbeddingProviderHandler",
+      "id": "domain.exceptions.DomainError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{DomainError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "domain.exceptions",
+      "class_name": "DomainError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/exceptions/DomainError.py",
+      "docstring": "Root of the domain exception hierarchy shared by all bounded contexts.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/shared/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "notifications.weekly_report_email_message_builder.EmailMessage",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{EmailMessage|html",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_email_message_builder",
+      "class_name": "EmailMessage",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_email_message_builder/EmailMessage.py",
+      "docstring": "Transport-agnostic representation of a weekly report email to be sent.",
+      "typed_attrs": [
+        "subject: str",
+        "html: str"
+      ],
+      "typed_methods": [],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_email_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "resilient_llm_service.EmbeddingProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EmbeddingProviderHandler|_can_count_tokens",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "EmbeddingProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/EmbeddingProviderHandler.py",
+      "full_path": "src/resilient_llm_service/EmbeddingProviderHandler.py",
       "docstring": "Wraps any EmbeddingService with quota management — mirrors the\nacquire → call → record_usage pattern used by ProviderHandler in the LLM stack.",
       "typed_attrs": [
         "provider: BaseEmbeddingProvider",
@@ -1969,7 +2030,7 @@
       "context": "intelligence"
     },
     {
-      "id": "repositories.failed_task_repository.FailedTaskRepository",
+      "id": "domain.repositories.failed_task_repository.FailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedTaskRepository|<br",
@@ -1979,11 +2040,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.failed_task_repository",
+      "module": "domain.repositories.failed_task_repository",
       "class_name": "FailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/failed_task_repository/FailedTaskRepository.py",
+      "full_path": "src/domain/repositories/failed_task_repository/FailedTaskRepository.py",
       "docstring": "Abstract repository interface for persisting FailedTask records.",
       "typed_attrs": [],
       "typed_methods": [
@@ -2031,19 +2092,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "id": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiEmbeddingProvider|_client",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.embedding.gemini_embedding_provider",
+      "subgroup": "other",
+      "module": "embedding.gemini_embedding_provider",
       "class_name": "GeminiEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
+      "full_path": "src/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
       "docstring": "Google Gemini embedding provider with configurable output dimensionality.",
       "typed_attrs": [
         "_output_dimensionality",
@@ -2069,21 +2130,57 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.providers.gemini_provider.GeminiProvider",
+      "id": "image.gemini_imagen_provider.GeminiImagenProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{GeminiImagenProvider|_api_key",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "image.gemini_imagen_provider",
+      "class_name": "GeminiImagenProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/image/gemini_imagen_provider/GeminiImagenProvider.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_model",
+        "_api_key"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(model: str, api_key: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "generate_image(prompt: str) → bytes",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/image/gemini_imagen_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "providers.gemini_provider.GeminiProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiProvider|_client",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.gemini_provider",
+      "subgroup": "other",
+      "module": "providers.gemini_provider",
       "class_name": "GeminiProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/gemini_provider/GeminiProvider.py",
+      "full_path": "src/providers/gemini_provider/GeminiProvider.py",
       "docstring": "Google Gemini LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -2107,6 +2204,59 @@
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/providers/gemini_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "use_cases.generate_weekly_report.GenerateWeeklyReportUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{GenerateWeeklyReportUseCase|_blob",
+      "ALIGN": "LEFT",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.generate_weekly_report",
+      "class_name": "GenerateWeeklyReportUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/generate_weekly_report/GenerateWeeklyReportUseCase.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_repo",
+        "_llm",
+        "_image",
+        "_blob",
+        "_translation_repo",
+        "_translation_prompt",
+        "_email",
+        "_telegram",
+        "_translation_languages"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(report_repo: WeeklyReportRepository, llm_service: TextGenerationService, image_service: ImageGenerationService, blob_storage: BlobStorageService, translation_repository: WeeklyReportTranslationRepository, translation_prompt: WeeklyReportTranslationPrompt, email_notifier, telegram_notifier, translation_languages: Iterable[str]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "execute(topic_id: UUID, topic_name: str, week_start: date, force: bool) → WeeklyReport",
+          "doc": ""
+        },
+        {
+          "sig": "_translate_report(report: WeeklyReport, language: str) → None",
+          "doc": "Translate title + summary_text into *language* and persist. Failures are logged, never raised."
+        },
+        {
+          "sig": "_extract_citation_numbers(text: str) → set[int]",
+          "doc": "Return the set of [N] citation marker numbers present in *text*."
+        },
+        {
+          "sig": "_parse_translation_response(text: str) → tuple[Optional[str], Optional[str]]",
+          "doc": "Try JSON first, fall back to section-header parsing."
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/generate_weekly_report.py",
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
@@ -2234,6 +2384,109 @@
       "context": "collection"
     },
     {
+      "id": "image.huggingface_image_provider.HuggingFaceImageProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{HuggingFaceImageProvider|_api_key",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "image.huggingface_image_provider",
+      "class_name": "HuggingFaceImageProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/image/huggingface_image_provider/HuggingFaceImageProvider.py",
+      "docstring": "Generate cover images via the HuggingFace Inference API.\n\nThe provider is stateless: every call opens a short-lived\n``InferenceClient`` (cheap to construct) and decodes the returned\n``PIL.Image`` to…",
+      "typed_attrs": [
+        "_model",
+        "_api_key",
+        "_timeout"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(model: str, api_key: str, timeout: float) → None",
+          "doc": ""
+        },
+        {
+          "sig": "generate_image(prompt: str) → bytes",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/image/huggingface_image_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "value_objects.image_generation_prompt.ImageGenerationPrompt",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ImageGenerationPrompt|_content",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "value_objects.image_generation_prompt",
+      "class_name": "ImageGenerationPrompt",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/value_objects/image_generation_prompt/ImageGenerationPrompt.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_content"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(filled: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "content() → str",
+          "doc": ""
+        },
+        {
+          "sig": "render(topic_name: str, top_tags: List[str], week_label: str, summary_text: str) → 'ImageGenerationPrompt'",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/value_objects/image_generation_prompt.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "services.image_generation_service.ImageGenerationService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ImageGenerationService|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "services.image_generation_service",
+      "class_name": "ImageGenerationService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/services/image_generation_service/ImageGenerationService.py",
+      "docstring": "",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "generate_image(prompt: str) → bytes",
+          "doc": "Generate an image from the prompt and return raw bytes."
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/services/image_generation_service.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "events.in_memory_event_bus.InMemoryEventBus",
       "color": "black",
       "fontcolor": "black",
@@ -2270,6 +2523,182 @@
       "context": "shared"
     },
     {
+      "id": "use_cases.ingest_article_for_rag.IngestArticleForRagUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{IngestArticleForRagUseCase|_rag_ingestion_service",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.ingest_article_for_rag",
+      "class_name": "IngestArticleForRagUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/ingest_article_for_rag/IngestArticleForRagUseCase.py",
+      "docstring": "Accepts pre-assembled full text from the event pipeline and delegates\ningestion to the RAG infrastructure service.\n\n``full_text`` carries the complete PDF text for arxiv/openalex sources,\nor the full…",
+      "typed_attrs": [
+        "_rag_ingestion_service"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(rag_ingestion_service: RagIngestionService) → None",
+          "doc": ""
+        },
+        {
+          "sig": "execute(article, full_text: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_build_full_text(article) → str",
+          "doc": "Fallback: assemble text from persisted article fields."
+        },
+        {
+          "sig": "_is_bot_detection(text: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/ingest_article_for_rag.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.IntelligenceDomainError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{IntelligenceDomainError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "IntelligenceDomainError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/IntelligenceDomainError.py",
+      "docstring": "Root of the intelligence bounded context's domain exceptions.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidSimilarityScoreError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidSimilarityScoreError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidSimilarityScoreError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidSimilarityScoreError.py",
+      "docstring": "Raised when a TagNormalizationSuggestion's similarity_score is outside [0.0, 1.0].",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidSuggestionStatusError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidSuggestionStatusError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidSuggestionStatusError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidSuggestionStatusError.py",
+      "docstring": "Raised when a TagNormalizationSuggestion's status is not pending/approved/rejected.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidWeeklyReportStatusError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidWeeklyReportStatusError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidWeeklyReportStatusError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidWeeklyReportStatusError.py",
+      "docstring": "Raised when a WeeklyReport's status is not pending/completed/failed.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "metrics.json_path_extractor.JsonPathMetricExtractor",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{JsonPathMetricExtractor|_fetcher",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "metrics.json_path_extractor",
+      "class_name": "JsonPathMetricExtractor",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/metrics/json_path_extractor/JsonPathMetricExtractor.py",
+      "docstring": "Generic extractor for extractor_type='json_path' metric_definitions rows.\n\nfetch() delegates to a provider-keyed fetcher callable (an HTTP call — this\nis code, registered once per provider in…",
+      "typed_attrs": [
+        "_provider_name",
+        "_fetcher"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(provider_name: str, fetcher: Callable[[Dict[str, str]], Optional[dict]]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "fetch(article_identifiers: Dict[str, str]) → Optional[dict]",
+          "doc": ""
+        },
+        {
+          "sig": "extract(raw_response: dict, extractor_spec: Dict[str, Any]) → Optional[Any]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/collection/metrics/json_path_extractor.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
       "id": "services.llm_service.LLMService",
       "color": "black",
       "fontcolor": "black",
@@ -2301,21 +2730,80 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.rate_limit.no_op_strategy.NoOpStrategy",
+      "id": "services.metric_extractor.MetricExtractor",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{MetricExtractor|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "services.metric_extractor",
+      "class_name": "MetricExtractor",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/services/metric_extractor/MetricExtractor.py",
+      "docstring": "",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "fetch(article_identifiers: Dict[str, str]) → Optional[dict]",
+          "doc": "Fetch the raw response for one article from this extractor's source.\narticle_identifiers e.g. {\"doi\": \"...\", \"arxiv_id\": \"...\"} — extractor uses whichever key…"
+        },
+        {
+          "sig": "extract(raw_response: dict, extractor_spec: Dict[str, Any]) → Optional[Any]",
+          "doc": "Pull the metric value out of a raw response already fetched via fetch()."
+        }
+      ],
+      "source_file": "src/modules/collection/domain/services/metric_extractor.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "metrics.resilient_metrics_service.MetricHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{MetricHandler|extractor",
+      "ALIGN": "LEFT",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "metrics.resilient_metrics_service",
+      "class_name": "MetricHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/metrics/resilient_metrics_service/MetricHandler.py",
+      "docstring": "Pairs one metric_definitions row (resolved to a MetricExtractor instance)\nwith its priority within a metric_key's fallback chain.",
+      "typed_attrs": [
+        "metric_key: str",
+        "provider_name: str",
+        "priority: int",
+        "extractor: MetricExtractor",
+        "extractor_spec: Dict[str, Any]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/infrastructure/collection/metrics/resilient_metrics_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "rate_limit.no_op_strategy.NoOpStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{NoOpStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.no_op_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.no_op_strategy",
       "class_name": "NoOpStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/no_op_strategy/NoOpStrategy.py",
+      "full_path": "src/rate_limit/no_op_strategy/NoOpStrategy.py",
       "docstring": "Quota strategy that performs no rate limiting; all calls pass through immediately.",
       "typed_attrs": [],
       "typed_methods": [
@@ -2414,7 +2902,7 @@
       "id": "notifications.notification_service.NotificationHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{NotificationHandler|_notifiers",
+      "label": "<{NotificationHandler|_senders",
       "layer": "infrastructure-shared",
       "ca_layer": "infrastructure",
       "subgroup": "notifications",
@@ -2423,18 +2911,18 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/notifications/notification_service/NotificationHandler.py",
-      "docstring": "Dispatches pipeline completion events to all registered notifiers.",
+      "docstring": "Dispatches pipeline completion events to all registered sender callables.",
       "typed_attrs": [
-        "_notifiers"
+        "_senders"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(notifiers: list[BaseNotifier]) → None",
+          "sig": "__init__(senders: list[Callable[[PipelineCompletedEvent], None]]) → None",
           "doc": ""
         },
         {
           "sig": "handle(event: PipelineCompletedEvent) → None",
-          "doc": "Fan out the event to every notifier, swallowing individual failures."
+          "doc": "Fan out the event to every sender, swallowing individual failures."
         }
       ],
       "source_file": "src/infrastructure/shared/notifications/notification_service.py",
@@ -2469,6 +2957,10 @@
         {
           "sig": "_lookup_publisher_via_crossref(doi: str) → Optional[str]",
           "doc": "Query Crossref for publisher info on first encounter of a DOI prefix.\n\nResults are cached by registrant prefix (e.g. '10.1145/') so that\nonly one HTTP call is…"
+        },
+        {
+          "sig": "fetch_by_doi(doi: str) → Optional[dict]",
+          "doc": "Fetch a single work by DOI. Returns the raw parsed JSON dict (not an\nOpenAlexEntry) so metric extractors can evaluate JMESPath expressions\nagainst OpenAlex's…"
         },
         {
           "sig": "fetch_papers(query: str, max_results: int, days_back: Optional[int]) → List[OpenAlexEntry]",
@@ -2619,21 +3111,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.providers.openrouter_provider.OpenRouterProvider",
+      "id": "providers.openrouter_provider.OpenRouterProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{OpenRouterProvider|_api_key",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.openrouter_provider",
+      "subgroup": "other",
+      "module": "providers.openrouter_provider",
       "class_name": "OpenRouterProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/openrouter_provider/OpenRouterProvider.py",
+      "full_path": "src/providers/openrouter_provider/OpenRouterProvider.py",
       "docstring": "OpenRouter LLM provider implementing the BaseProvider interface via chat completions API.",
       "typed_attrs": [
         "_api_key"
@@ -2718,6 +3210,10 @@
           "doc": "Download PDF from URL and return full extracted text. Returns '' on failure."
         },
         {
+          "sig": "_sanitize(text: str) → str",
+          "doc": "Remove characters that are invalid in PostgreSQL text columns."
+        },
+        {
           "sig": "extract_sections(text: str) → dict[str, str]",
           "doc": "Heuristic extraction of target sections from plain text.\nReturns dict mapping normalised section name → content."
         },
@@ -2755,6 +3251,35 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
+    },
+    {
+      "id": "notifications.pipeline_completed_message_builder.PipelineCompletedMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{PipelineCompletedMessageBuilder|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.pipeline_completed_message_builder",
+      "class_name": "PipelineCompletedMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/pipeline_completed_message_builder/PipelineCompletedMessageBuilder.py",
+      "docstring": "Builds a MarkdownV2 TelegramMessage describing a scraper pipeline completion event.",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "build(event: PipelineCompletedEvent) → TelegramMessage",
+          "doc": "Format and return a TelegramMessage for the given pipeline completion event."
+        }
+      ],
+      "source_file": "src/infrastructure/collection/notifications/pipeline_completed_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
     },
     {
       "id": "use_cases.pipeline_stats.PipelineStats",
@@ -2798,8 +3323,7 @@
       "id": "use_cases.process_scraped_article.ProcessScrapedArticleUseCase",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{ProcessScrapedArticleUseCase|_article_repo",
-      "ALIGN": "LEFT",
+      "label": "<{ProcessScrapedArticleUseCase|_article_metrics_repo",
       "layer": "application",
       "ca_layer": "application",
       "subgroup": "use_cases",
@@ -2808,15 +3332,15 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/use_cases/process_scraped_article/ProcessScrapedArticleUseCase.py",
-      "docstring": "Receives an ArticleScrapedEvent from infrastructure, applies dedup,\npersists a new Article (and ArxivMetadata when applicable).\nReturns (ArticleOutcome, Article | None) so the handler can publish…",
+      "docstring": "Receives an ArticleScrapedEvent from infrastructure, applies dedup,\npersists a new Article.\nReturns (ArticleOutcome, Article | None) so the handler can publish events.",
       "typed_attrs": [
         "_article_repo",
         "_dedup_service",
-        "_arxiv_metadata_repo"
+        "_article_metrics_repo"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(article_repo: ArticleRepository, dedup_service: DedupService, arxiv_metadata_repo: Optional[ArxivMetadataRepository]) → None",
+          "sig": "__init__(article_repo: ArticleRepository, dedup_service: DedupService, article_metrics_repo: Optional[ArticleMetricsRepository]) → None",
           "doc": ""
         },
         {
@@ -2826,10 +3350,6 @@
         {
           "sig": "_build_article(event: ArticleScrapedEvent) → Article",
           "doc": "Construct an Article entity from an ArticleScrapedEvent."
-        },
-        {
-          "sig": "_save_arxiv_metadata(article: Article, metadata: dict) → None",
-          "doc": "Persist ArxivMetadata for arxiv-sourced articles."
         }
       ],
       "source_file": "src/modules/collection/application/use_cases/process_scraped_article.py",
@@ -2875,6 +3395,10 @@
         {
           "sig": "article_body_translation_prompt() → ArticleBodyTranslationPrompt",
           "doc": "Create an article body (title + content) translation prompt value object."
+        },
+        {
+          "sig": "weekly_report_translation_prompt() → WeeklyReportTranslationPrompt",
+          "doc": "Create a weekly report (title + summary) translation prompt value object."
         }
       ],
       "source_file": "src/modules/intelligence/domain/factories/prompt_factory.py",
@@ -2883,19 +3407,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ProviderHandler",
+      "id": "resilient_llm_service.ProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ProviderHandler|name",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ProviderHandler.py",
+      "full_path": "src/resilient_llm_service/ProviderHandler.py",
       "docstring": "Pairs a provider with its quota management strategy.",
       "typed_attrs": [
         "provider: BaseProvider",
@@ -2911,6 +3435,10 @@
         {
           "sig": "translate(content: str, prompt: str) → Optional[str]",
           "doc": "Acquire quota, delegate to the provider's translate, and record estimated token usage."
+        },
+        {
+          "sig": "generate(prompt: str) → Optional[str]",
+          "doc": "Acquire quota, delegate to the provider's generate, and record estimated token usage."
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
@@ -2987,21 +3515,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.rate_limit.quota_strategy.QuotaStrategy",
+      "id": "rate_limit.quota_strategy.QuotaStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{QuotaStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.quota_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.quota_strategy",
       "class_name": "QuotaStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/quota_strategy/QuotaStrategy.py",
+      "full_path": "src/rate_limit/quota_strategy/QuotaStrategy.py",
       "docstring": "Abstract base for LLM API quota/rate-limit strategies.",
       "typed_attrs": [],
       "typed_methods": [
@@ -3024,6 +3552,47 @@
       "context": "intelligence"
     },
     {
+      "id": "storage.r2_blob_storage.R2BlobStorageService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{R2BlobStorageService|_bucket",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "storage.r2_blob_storage",
+      "class_name": "R2BlobStorageService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/storage/r2_blob_storage/R2BlobStorageService.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_bucket",
+        "_public_url",
+        "_client"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(account_id: str, access_key_id: str, secret_access_key: str, bucket_name: str, public_url: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "upload(data: bytes, key: str, content_type: str) → str",
+          "doc": ""
+        },
+        {
+          "sig": "from_env(cls) → 'R2BlobStorageService'",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/storage/r2_blob_storage.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "other"
+    },
+    {
       "id": "events.rag_config_failed.RagConfigFailedEvent",
       "color": "black",
       "fontcolor": "black",
@@ -3036,7 +3605,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/events/rag_config_failed/RagConfigFailedEvent.py",
-      "docstring": "Published at startup when RAG is enabled (CHAT_SERVICE_URL set) but required\nconfig vars are missing. article_id/url are None since this is not per-article.",
+      "docstring": "Published at startup when VECTOR_DB_* vars are set but RAG is still misconfigured.\narticle_id/url are None since this is not per-article.",
       "typed_attrs": [
         "task_type: str",
         "article_id: Optional[UUID]",
@@ -3103,12 +3672,12 @@
       "full_path": "src/event_handlers/rag_ingestion_handler/RagIngestionHandler.py",
       "docstring": "",
       "typed_attrs": [
-        "_rag_ingestion_service",
+        "_use_case",
         "_event_bus"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(rag_ingestion_service: RagIngestionService, event_bus) → None",
+          "sig": "__init__(use_case: IngestArticleForRagUseCase, event_bus) → None",
           "doc": ""
         },
         {
@@ -3141,7 +3710,7 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "ingest(article) → None",
+          "sig": "ingest(article, full_text: str) → None",
           "doc": ""
         }
       ],
@@ -3154,7 +3723,7 @@
       "id": "vector_store.rag_sdk_ingestion_impl.RagSdkIngestionService",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{RagSdkIngestionService|_processor<br",
+      "label": "<{RagSdkIngestionService|_processor",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3168,15 +3737,15 @@
       "full_path": "src/vector_store/rag_sdk_ingestion_impl/RagSdkIngestionService.py",
       "docstring": "",
       "typed_attrs": [
-        "_processor"
+        "_processor: IngestProcessor"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(processor) → None",
+          "sig": "__init__(processor: IngestProcessor) → None",
           "doc": ""
         },
         {
-          "sig": "ingest(article) → None",
+          "sig": "ingest(article, full_text: str) → None",
           "doc": ""
         }
       ],
@@ -3186,21 +3755,21 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.rate_limit.sliding_window_strategy.RateLimitExhausted",
+      "id": "rate_limit.sliding_window_strategy.RateLimitExhausted",
       "color": "black",
       "fontcolor": "red",
       "label": "<{RateLimitExhausted|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.sliding_window_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.sliding_window_strategy",
       "class_name": "RateLimitExhausted",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
+      "full_path": "src/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
       "docstring": "Raised when a provider's daily request cap is reached and no more calls should be made.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -3210,19 +3779,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ResilientEmbeddingService",
+      "id": "resilient_llm_service.ResilientEmbeddingService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientEmbeddingService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ResilientEmbeddingService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ResilientEmbeddingService.py",
+      "full_path": "src/resilient_llm_service/ResilientEmbeddingService.py",
       "docstring": "Composite EmbeddingService that tries multiple providers in order.",
       "typed_attrs": [
         "_handlers"
@@ -3247,19 +3816,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ResilientLLMService",
+      "id": "resilient_llm_service.ResilientLLMService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientLLMService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ResilientLLMService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ResilientLLMService.py",
+      "full_path": "src/resilient_llm_service/ResilientLLMService.py",
       "docstring": "Composite LLMService that walks an ordered list of ProviderHandlers.\nFalls back to the next provider on rate limit or failure.",
       "typed_attrs": [
         "_handlers"
@@ -3276,12 +3845,52 @@
         {
           "sig": "translate(content: str, prompt: str) → Optional[str]",
           "doc": "Try each provider handler in priority order for translation, falling back on failure."
+        },
+        {
+          "sig": "generate(prompt: str) → Optional[str]",
+          "doc": "Try each provider handler in priority order for one-shot generation, falling back on failure."
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
+    },
+    {
+      "id": "metrics.resilient_metrics_service.ResilientMetricsService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ResilientMetricsService|_by_metric_key",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "metrics.resilient_metrics_service",
+      "class_name": "ResilientMetricsService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/metrics/resilient_metrics_service/ResilientMetricsService.py",
+      "docstring": "Walks each metric_key's provider list in priority order, keeping the\nfirst non-null result. Metric keys are independent of each other.",
+      "typed_attrs": [
+        "_by_metric_key: Dict[str, List[MetricHandler]]"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(handlers: List[MetricHandler]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "tracked_metric_keys() → List[str]",
+          "doc": "The metric_keys this service has at least one enabled provider for."
+        },
+        {
+          "sig": "fetch_all(article_identifiers: Dict[str, str]) → Dict[str, Any]",
+          "doc": "For each tracked metric_key, try each provider in priority order until\none returns a non-null value. Returns {metric_key: value} only for\nmetrics that resolved…"
+        }
+      ],
+      "source_file": "src/infrastructure/collection/metrics/resilient_metrics_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
     },
     {
       "id": "executor.queue_selector.RoundRobinQueueSelector",
@@ -3632,7 +4241,8 @@
         "topic_id: Optional[UUID]",
         "published_at: Optional[datetime]",
         "authors: List[str]",
-        "extra: Dict[str, Any]"
+        "extra: Dict[str, Any]",
+        "full_text: str"
       ],
       "typed_methods": [],
       "source_file": "src/modules/collection/domain/value_objects/scraped_article.py",
@@ -3795,6 +4405,14 @@
           "doc": ""
         },
         {
+          "sig": "fetch_by_doi(doi: str) → Optional[dict]",
+          "doc": "Fetch a single paper by DOI. Returns the raw parsed JSON dict (not a\nSemanticScholarEntry) so metric extractors can evaluate JMESPath\nexpressions against…"
+        },
+        {
+          "sig": "fetch_by_arxiv_id(arxiv_id: str) → Optional[dict]",
+          "doc": "Fetch a single paper by arXiv ID. Returns the raw parsed JSON dict, same shape as\nfetch_by_doi() — used as a fallback for arXiv preprints that don't (yet) have…"
+        },
+        {
           "sig": "fetch_papers(query: str, max_results: int, days_back: Optional[int]) → List[SemanticScholarEntry]",
           "doc": "Call the Semantic Scholar API and return parsed entries.\n\nArgs:\n    query:       search query string.\n    max_results: max number of results to request (capped…"
         },
@@ -3941,19 +4559,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "id": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SlidingWindowStrategy|_WINDOW",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.sliding_window_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.sliding_window_strategy",
       "class_name": "SlidingWindowStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
+      "full_path": "src/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
       "docstring": "Sliding-window rate limiter for LLM API quota management.\n\nTracks requests and token usage within a rolling 60-second window,\nblocking until capacity is available. Also enforces a hard daily cap…",
       "typed_attrs": [
         "rpm",
@@ -4122,6 +4740,39 @@
       "context": "intelligence"
     },
     {
+      "id": "collection.article_metrics_repo_impl.SqlAlchemyArticleMetricsRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SqlAlchemyArticleMetricsRepository|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-collection",
+      "ca_layer": "infrastructure",
+      "subgroup": "persistence",
+      "module": "collection.article_metrics_repo_impl",
+      "class_name": "SqlAlchemyArticleMetricsRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/collection/article_metrics_repo_impl/SqlAlchemyArticleMetricsRepository.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "upsert(article_id: UUID, metrics: Dict[str, Any]) → None",
+          "doc": "Upsert one article_metric_values row per key in `metrics`, and ensure\nan article_metrics row exists (view_count defaults to 0 on first insert)."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/collection/article_metrics_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
       "id": "shared.article_repo_impl.SqlAlchemyArticleRepository",
       "color": "black",
       "fontcolor": "black",
@@ -4214,47 +4865,6 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
-    },
-    {
-      "id": "collection.arxiv_metadata_repo_impl.SqlAlchemyArxivMetadataRepository",
-      "color": "black",
-      "fontcolor": "black",
-      "label": "<{SqlAlchemyArxivMetadataRepository|_session<br",
-      "ALIGN": "LEFT",
-      "layer": "infrastructure-collection",
-      "ca_layer": "infrastructure",
-      "subgroup": "persistence",
-      "module": "collection.arxiv_metadata_repo_impl",
-      "class_name": "SqlAlchemyArxivMetadataRepository",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/collection/arxiv_metadata_repo_impl/SqlAlchemyArxivMetadataRepository.py",
-      "docstring": "SQLAlchemy implementation of the ArxivMetadataRepository interface.",
-      "typed_attrs": [
-        "_session"
-      ],
-      "typed_methods": [
-        {
-          "sig": "__init__(session) → None",
-          "doc": ""
-        },
-        {
-          "sig": "save(meta: ArxivMetadata) → ArxivMetadata",
-          "doc": "Persist arXiv metadata and return the entity with DB-generated fields."
-        },
-        {
-          "sig": "find_by_article_id(article_id: UUID) → Optional[ArxivMetadata]",
-          "doc": "Look up arXiv metadata by article ID; returns None if not found."
-        },
-        {
-          "sig": "_to_entity(row) → ArxivMetadata",
-          "doc": "Convert an ORM ArxivMetadata row to a domain ArxivMetadata entity."
-        }
-      ],
-      "source_file": "src/infrastructure/persistence/collection/arxiv_metadata_repo_impl.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "collection"
     },
     {
       "id": "shared.failed_task_repo_impl.SqlAlchemyFailedTaskRepository",
@@ -4525,6 +5135,47 @@
       "context": "shared"
     },
     {
+      "id": "intelligence.weekly_report_translation_repo_impl.SqlAlchemyWeeklyReportTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SqlAlchemyWeeklyReportTranslationRepository|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.weekly_report_translation_repo_impl",
+      "class_name": "SqlAlchemyWeeklyReportTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/weekly_report_translation_repo_impl/SqlAlchemyWeeklyReportTranslationRepository.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "save(translation: WeeklyReportTranslation) → None",
+          "doc": ""
+        },
+        {
+          "sig": "find_by_report_id_and_language(weekly_report_id: UUID, language: str) → Optional[WeeklyReportTranslation]",
+          "doc": ""
+        },
+        {
+          "sig": "exists(weekly_report_id: UUID, language: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/weekly_report_translation_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "repositories.tag_repository.TagData",
       "color": "black",
       "fontcolor": "black",
@@ -4635,7 +5286,7 @@
       "context": "intelligence"
     },
     {
-      "id": "value_objects.tag_mode.TagMode",
+      "id": "domain.value_objects.tag_mode.TagMode",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TagMode|name<br",
@@ -4645,11 +5296,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "value_objects.tag_mode",
+      "module": "domain.value_objects.tag_mode",
       "class_name": "TagMode",
       "attributes": [],
       "methods": [],
-      "full_path": "src/value_objects/tag_mode/TagMode.py",
+      "full_path": "src/domain/value_objects/tag_mode/TagMode.py",
       "docstring": "Enum controlling how tags are assigned: unsupervised, semi-supervised, or supervised.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -4921,58 +5572,148 @@
       "context": "intelligence"
     },
     {
-      "id": "notifications.telegram.TelegramNotifier",
+      "id": "domain.value_objects.telegram_message.TelegramMessage",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{TelegramNotifier|_chat_id",
+      "label": "<{TelegramMessage|parse_mode",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "domain.value_objects.telegram_message",
+      "class_name": "TelegramMessage",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/value_objects/telegram_message/TelegramMessage.py",
+      "docstring": "Transport-agnostic representation of a Telegram message to be sent.",
+      "typed_attrs": [
+        "text: str",
+        "parse_mode: str",
+        "photo_url: Optional[str]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/shared/domain/value_objects/telegram_message.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "notifications.telegram_notifier_client.TelegramNotifierClient",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{TelegramNotifierClient|_bot_token",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
       "layer": "infrastructure-shared",
       "ca_layer": "infrastructure",
       "subgroup": "notifications",
-      "module": "notifications.telegram",
-      "class_name": "TelegramNotifier",
+      "module": "notifications.telegram_notifier_client",
+      "class_name": "TelegramNotifierClient",
       "attributes": [],
       "methods": [],
-      "full_path": "src/notifications/telegram/TelegramNotifier.py",
-      "docstring": "Sends pipeline completion summaries to a Telegram chat via the Bot API.",
+      "full_path": "src/notifications/telegram_notifier_client/TelegramNotifierClient.py",
+      "docstring": "HTTP client for the Telegram Bot API sendMessage/sendPhoto endpoints.\n\nPure transport — does no content formatting. Use a per-module\nmessage builder to construct the TelegramMessage before calling…",
       "typed_attrs": [
-        "_token",
-        "_chat_id"
+        "_bot_token",
+        "_timeout"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(token: str, chat_id: str) → None",
+          "sig": "__init__(bot_token: str, timeout: int) → None",
           "doc": ""
         },
         {
-          "sig": "notify(event: PipelineCompletedEvent) → None",
-          "doc": "Format and send the pipeline result as a MarkdownV2 Telegram message."
+          "sig": "send(chat_id: str, message: TelegramMessage) → None",
+          "doc": "POST a message to Telegram; raises requests.HTTPError on failure.\n\nUses sendPhoto (with the text as caption) when photo_url is set,\nsince Telegram has no way…"
         },
         {
-          "sig": "_format_message(event: PipelineCompletedEvent) → str",
-          "doc": "Build a MarkdownV2-formatted summary table from pipeline completion stats."
+          "sig": "_send_message(chat_id: str, message: TelegramMessage) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_send_photo(chat_id: str, message: TelegramMessage) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_raise_for_status(response: requests.Response, chat_id: str) → None",
+          "doc": ""
         }
       ],
-      "source_file": "src/infrastructure/shared/notifications/telegram.py",
+      "source_file": "src/infrastructure/shared/notifications/telegram_notifier_client.py",
       "is_abstract": false,
       "is_protocol": false,
       "context": "notifications"
     },
     {
-      "id": "entities.topic.Topic",
+      "id": "domain.services.telegram_notifier_service.TelegramNotifierService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{TelegramNotifierService|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "domain.services.telegram_notifier_service",
+      "class_name": "TelegramNotifierService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/services/telegram_notifier_service/TelegramNotifierService.py",
+      "docstring": "Transport-only interface for sending a Telegram message to a chat id.\n\nConcrete implementations live in src/shared/infrastructure/notifications/.\nUse-case-specific content (Markdown formatting,…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "send(chat_id: str, message: TelegramMessage) → None",
+          "doc": "Send a pre-built Telegram message to a single chat."
+        }
+      ],
+      "source_file": "src/shared/domain/services/telegram_notifier_service.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "services.text_generation_service.TextGenerationService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{TextGenerationService|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "services.text_generation_service",
+      "class_name": "TextGenerationService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/services/text_generation_service/TextGenerationService.py",
+      "docstring": "Domain interface for one-shot LLM text generation from a single\nself-contained prompt (e.g. weekly report title/summary synthesis).\n\nDeliberately separate from LLMService: consumers that only…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "generate(prompt: str) → Optional[str]",
+          "doc": "Run a one-shot generation task from the given prompt.\n\nReturns raw text response, or None on failure."
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/services/text_generation_service.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "domain.entities.topic.Topic",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Topic|color_hex",
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "entities.topic",
+      "module": "domain.entities.topic",
       "class_name": "Topic",
       "attributes": [],
       "methods": [],
-      "full_path": "src/entities/topic/Topic.py",
+      "full_path": "src/domain/entities/topic/Topic.py",
       "docstring": "Domain entity representing a topic category for article classification.",
       "typed_attrs": [
         "name: str",
@@ -4993,7 +5734,7 @@
       "context": "shared"
     },
     {
-      "id": "repositories.topic_repository.TopicRepository",
+      "id": "domain.repositories.topic_repository.TopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TopicRepository|<br",
@@ -5001,11 +5742,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.topic_repository",
+      "module": "domain.repositories.topic_repository",
       "class_name": "TopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/topic_repository/TopicRepository.py",
+      "full_path": "src/domain/repositories/topic_repository/TopicRepository.py",
       "docstring": "Abstract repository interface for Topic lookup queries.",
       "typed_attrs": [],
       "typed_methods": [
@@ -5217,6 +5958,464 @@
       "context": "collection"
     },
     {
+      "id": "entities.weekly_report.WeeklyReport",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReport|article_count",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "entities",
+      "module": "entities.weekly_report",
+      "class_name": "WeeklyReport",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/entities/weekly_report/WeeklyReport.py",
+      "docstring": "",
+      "typed_attrs": [
+        "id: Optional[UUID]",
+        "topic_id: Optional[UUID]",
+        "week_start_date: date",
+        "title: str",
+        "summary_text: str",
+        "cover_image_url: Optional[str]",
+        "article_ids: List[str]",
+        "article_count: int",
+        "status: str",
+        "error_message: Optional[str]",
+        "created_at: Optional[datetime]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/entities/weekly_report.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "notifications.weekly_report_email_message_builder.WeeklyReportEmailMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportEmailMessageBuilder|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_email_message_builder",
+      "class_name": "WeeklyReportEmailMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_email_message_builder/WeeklyReportEmailMessageBuilder.py",
+      "docstring": "Builds an HTML EmailMessage describing a completed weekly report.\n\nMirrors WeeklyReportTelegramMessageBuilder: shares the same channel-agnostic\nWeeklyReportNotificationContent, only the rendering…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "build(report: WeeklyReport, locale: str, site_url: str) → EmailMessage",
+          "doc": "Return an EmailMessage announcing *report* to a subscriber with *locale*."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_email_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "notifications.weekly_report_email_notifier.WeeklyReportEmailNotifier",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportEmailNotifier|_api_key",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_email_notifier",
+      "class_name": "WeeklyReportEmailNotifier",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_email_notifier/WeeklyReportEmailNotifier.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session",
+        "_api_key",
+        "_from_email",
+        "_site_url"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session, api_key: str, from_email: str, site_url: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_localize(report: WeeklyReport, language: str, cache: Dict[str, WeeklyReport]) → WeeklyReport",
+          "doc": "Return *report* with title/summary_text swapped for the translated copy in *language*."
+        },
+        {
+          "sig": "notify(report: WeeklyReport, topic_id: Optional[UUID]) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_email_notifier.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "notifications.weekly_report_notification_content.WeeklyReportNotificationContent",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportNotificationContent|cover_image_url",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_notification_content",
+      "class_name": "WeeklyReportNotificationContent",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_notification_content/WeeklyReportNotificationContent.py",
+      "docstring": "Locale-aware notification copy shared by every channel (Telegram, email, ...).",
+      "typed_attrs": [
+        "title: str",
+        "summary_excerpt: str",
+        "cta_label: str",
+        "cta_url: str",
+        "cover_image_url: Optional[str]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/application/notifications/weekly_report_notification_content.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "weekly_report_pipeline.WeeklyReportPipeline",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportPipeline|_generate_use_case",
+      "ALIGN": "LEFT",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "weekly_report_pipeline",
+      "class_name": "WeeklyReportPipeline",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/weekly_report_pipeline/WeeklyReportPipeline.py",
+      "docstring": "Resolves target topics and runs weekly report generation for each, one span per topic.",
+      "typed_attrs": [
+        "_topic_repository",
+        "_generate_use_case"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(topic_repository: TopicRepository, generate_use_case: GenerateWeeklyReportUseCase) → None",
+          "doc": ""
+        },
+        {
+          "sig": "run(week_start: date, topic_id: Optional[UUID], force: bool) → List[WeeklyReport]",
+          "doc": "Generate weekly reports for the given topic (or all active topics)."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/weekly_report_pipeline.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "value_objects.weekly_report_prompt.WeeklyReportPrompt",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportPrompt|_content",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "value_objects.weekly_report_prompt",
+      "class_name": "WeeklyReportPrompt",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/value_objects/weekly_report_prompt/WeeklyReportPrompt.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_content"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(filled: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "content() → str",
+          "doc": ""
+        },
+        {
+          "sig": "render(topic_name: str, articles: List[ArticleSummaryForReport], week_start: date) → 'WeeklyReportPrompt'",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/value_objects/weekly_report_prompt.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "intelligence.weekly_report_repo_impl.WeeklyReportRepoImpl",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportRepoImpl|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.weekly_report_repo_impl",
+      "class_name": "WeeklyReportRepoImpl",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/weekly_report_repo_impl/WeeklyReportRepoImpl.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "fetch_top_articles(topic_id: UUID, week_start: date, limit: int) → List[ArticleSummaryForReport]",
+          "doc": ""
+        },
+        {
+          "sig": "save(report: WeeklyReport) → WeeklyReport",
+          "doc": ""
+        },
+        {
+          "sig": "get_latest(topic_id: UUID) → Optional[WeeklyReport]",
+          "doc": ""
+        },
+        {
+          "sig": "find_by_topic_and_week(topic_id: UUID, week_start: date) → Optional[WeeklyReport]",
+          "doc": ""
+        },
+        {
+          "sig": "_to_domain(row) → WeeklyReport",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/weekly_report_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.weekly_report_repository.WeeklyReportRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.weekly_report_repository",
+      "class_name": "WeeklyReportRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/weekly_report_repository/WeeklyReportRepository.py",
+      "docstring": "",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "fetch_top_articles(topic_id: UUID, week_start: date, limit: int) → List[ArticleSummaryForReport]",
+          "doc": "Fetch top articles for report using COALESCE(citation_count,0) DESC, view_count DESC, published_at DESC."
+        },
+        {
+          "sig": "save(report: WeeklyReport) → WeeklyReport",
+          "doc": "Upsert a WeeklyReport. Returns saved entity with id populated."
+        },
+        {
+          "sig": "get_latest(topic_id: UUID) → Optional[WeeklyReport]",
+          "doc": "Return the most recent completed report for a topic, or None."
+        },
+        {
+          "sig": "find_by_topic_and_week(topic_id: UUID, week_start: date) → Optional[WeeklyReport]",
+          "doc": "Return the report for this exact topic + week_start, or None."
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/weekly_report_repository.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "notifications.weekly_report_telegram_message_builder.WeeklyReportTelegramMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportTelegramMessageBuilder|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_telegram_message_builder",
+      "class_name": "WeeklyReportTelegramMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_telegram_message_builder/WeeklyReportTelegramMessageBuilder.py",
+      "docstring": "Builds a Markdown TelegramMessage describing a completed weekly report.\n\nThe builder does not know about Telegram chat ids or the bot client —\ncallers (e.g. WeeklyReportTelegramNotifier) wire those…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "build(report: WeeklyReport, locale: str, site_url: str) → TelegramMessage",
+          "doc": "Return a TelegramMessage announcing *report* to a subscriber with *locale*."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_telegram_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "notifications.weekly_report_telegram_notifier.WeeklyReportTelegramNotifier",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportTelegramNotifier|_notifier",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_telegram_notifier",
+      "class_name": "WeeklyReportTelegramNotifier",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_telegram_notifier/WeeklyReportTelegramNotifier.py",
+      "docstring": "Sends a weekly report Telegram message to every subscriber of a topic.",
+      "typed_attrs": [
+        "_session",
+        "_notifier",
+        "_site_url"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session, notifier: TelegramNotifierService, site_url: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_localize(report: WeeklyReport, language: str, cache: Dict[str, WeeklyReport]) → WeeklyReport",
+          "doc": "Return *report* with title/summary_text swapped for the translated copy in *language*.\n\nFalls back to the original (English) report when no translation row…"
+        },
+        {
+          "sig": "notify(report: WeeklyReport, topic_id: Optional[UUID]) → None",
+          "doc": "Send the weekly report to every telegram-enabled subscriber of *topic_id*."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_telegram_notifier.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "entities.weekly_report_translation.WeeklyReportTranslation",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportTranslation|created_at",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "entities",
+      "module": "entities.weekly_report_translation",
+      "class_name": "WeeklyReportTranslation",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/entities/weekly_report_translation/WeeklyReportTranslation.py",
+      "docstring": "Domain entity representing a localized title + summary for a WeeklyReport.",
+      "typed_attrs": [
+        "weekly_report_id: UUID",
+        "language: str",
+        "title: str",
+        "summary_text: str",
+        "id: Optional[UUID]",
+        "created_at: Optional[datetime]",
+        "updated_at: Optional[datetime]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/entities/weekly_report_translation.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "value_objects.translation_prompt.WeeklyReportTranslationPrompt",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportTranslationPrompt|_content",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "value_objects.translation_prompt",
+      "class_name": "WeeklyReportTranslationPrompt",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/value_objects/translation_prompt/WeeklyReportTranslationPrompt.py",
+      "docstring": "Prompt value object for weekly report (title + summary) translation.",
+      "typed_attrs": [
+        "_content: str"
+      ],
+      "typed_methods": [
+        {
+          "sig": "content() → str",
+          "doc": ""
+        },
+        {
+          "sig": "render(target_language: str, title: str, summary: str) → 'WeeklyReportTranslationPrompt'",
+          "doc": ""
+        },
+        {
+          "sig": "parse_response(text: str) → tuple[Optional[str], Optional[str]]",
+          "doc": "Parse LLM response into (title, summary) by section headers."
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/value_objects/translation_prompt.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.weekly_report_translation_repository.WeeklyReportTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportTranslationRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.weekly_report_translation_repository",
+      "class_name": "WeeklyReportTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/weekly_report_translation_repository/WeeklyReportTranslationRepository.py",
+      "docstring": "Domain interface for WeeklyReport translation persistence.",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "save(translation: WeeklyReportTranslation) → None",
+          "doc": "Upsert a translation keyed on (weekly_report_id, language)."
+        },
+        {
+          "sig": "find_by_report_id_and_language(weekly_report_id: UUID, language: str) → Optional[WeeklyReportTranslation]",
+          "doc": "Return translation for a specific report and language, or None."
+        },
+        {
+          "sig": "exists(weekly_report_id: UUID, language: str) → bool",
+          "doc": "Return True if a translation exists for (weekly_report_id, language)."
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/weekly_report_translation_repository.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "executor.queue_selector.WeightedRoundRobinQueueSelector",
       "color": "black",
       "fontcolor": "black",
@@ -5275,6 +6474,34 @@
   ],
   "edges": [
     {
+      "source": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "target": "embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "exceptions.InvalidSimilarityScoreError",
+      "target": "exceptions.IntelligenceDomainError",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "exceptions.InvalidSuggestionStatusError",
+      "target": "exceptions.IntelligenceDomainError",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "exceptions.InvalidWeeklyReportStatusError",
+      "target": "exceptions.IntelligenceDomainError",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
       "source": "executor.queue_selector.RoundRobinQueueSelector",
       "target": "executor.queue_selector.QueueSelector",
       "type": "inheritance",
@@ -5289,55 +6516,6 @@
       "arrowtail": "none"
     },
     {
-      "source": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
-      "target": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.claude_provider.ClaudeProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.gemini_provider.GeminiProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.openrouter_provider.OpenRouterProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.rate_limit.no_op_strategy.NoOpStrategy",
-      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
-      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "notifications.telegram.TelegramNotifier",
-      "target": "notifications.base_notifier.BaseNotifier",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
       "source": "parsers.html_parser.HtmlArticleParser",
       "target": "parsers.base_parser.BaseContentParser",
       "type": "inheritance",
@@ -5347,6 +6525,41 @@
     {
       "source": "parsers.pdf_parser.PdfParser",
       "target": "parsers.base_parser.BaseContentParser",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.claude_provider.ClaudeProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.gemini_provider.GeminiProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.openrouter_provider.OpenRouterProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "rate_limit.no_op_strategy.NoOpStrategy",
+      "target": "rate_limit.quota_strategy.QuotaStrategy",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "target": "rate_limit.quota_strategy.QuotaStrategy",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -5415,6 +6628,13 @@
       "arrowtail": "none"
     },
     {
+      "source": "value_objects.translation_prompt.WeeklyReportTranslationPrompt",
+      "target": "value_objects.base_prompt.BasePrompt",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
       "source": "executor.scrape_executor.ScrapeExecutor",
       "target": "executor.queue_selector.WeightedRoundRobinQueueSelector",
       "type": "association",
@@ -5463,16 +6683,6 @@
       "fontcolor": "green",
       "label": "_map",
       "style": "solid"
-    },
-    {
-      "source": "notifications.base_notifier.BaseNotifier",
-      "target": "notifications.notification_service.NotificationHandler",
-      "type": "association",
-      "arrowhead": "odiamond",
-      "arrowtail": "none",
-      "fontcolor": "green",
-      "label": "_notifiers",
-      "style": "solid"
     }
   ],
   "circles": [
@@ -5480,17 +6690,22 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 60,
+      "count": 78,
       "subgroups": [
         {
-          "id": "llm",
-          "label": "LLM Providers",
-          "count": 14
+          "id": "other",
+          "label": "Other",
+          "count": 28
         },
         {
           "id": "clients",
           "label": "Clients",
           "count": 11
+        },
+        {
+          "id": "notifications",
+          "label": "Notifications",
+          "count": 9
         },
         {
           "id": "executor",
@@ -5513,18 +6728,8 @@
           "count": 4
         },
         {
-          "id": "notifications",
-          "label": "Notifications",
-          "count": 3
-        },
-        {
           "id": "factories",
           "label": "Factories",
-          "count": 2
-        },
-        {
-          "id": "other",
-          "label": "Other",
           "count": 2
         },
         {
@@ -5552,22 +6757,27 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 36
+          "count": 39
         },
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 19
+          "count": 26
         },
         {
           "id": "notifications",
           "label": "Notifications",
-          "count": 3
+          "count": 9
         },
         {
           "id": "shared",
           "label": "Shared",
-          "count": 2
+          "count": 3
+        },
+        {
+          "id": "other",
+          "label": "Other",
+          "count": 1
         }
       ]
     },
@@ -5575,19 +6785,19 @@
       "id": "adapters",
       "label": "Interface Adapters",
       "color": "#EEDD88",
-      "count": 9,
+      "count": 11,
       "subgroups": [
         {
           "id": "persistence",
           "label": "Persistence",
-          "count": 9
+          "count": 11
         }
       ],
       "context_subgroups": [
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 6
+          "count": 8
         },
         {
           "id": "shared",
@@ -5600,12 +6810,12 @@
       "id": "application",
       "label": "Application",
       "color": "#44BB99",
-      "count": 28,
+      "count": 30,
       "subgroups": [
         {
           "id": "use_cases",
           "label": "Use Cases",
-          "count": 12
+          "count": 14
         },
         {
           "id": "events",
@@ -5627,7 +6837,7 @@
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 18
+          "count": 20
         },
         {
           "id": "collection",
@@ -5645,34 +6855,34 @@
       "id": "entities",
       "label": "Domain / Entities",
       "color": "#77AADD",
-      "count": 51,
+      "count": 64,
       "subgroups": [
         {
           "id": "value_objects",
           "label": "Value Objects",
-          "count": 22
+          "count": 27
         },
         {
           "id": "repositories",
           "label": "Repositories",
-          "count": 13
+          "count": 15
         },
         {
           "id": "entities",
           "label": "Entities",
-          "count": 11
+          "count": 12
         },
         {
           "id": "domain_services",
           "label": "Domain Services",
-          "count": 5
+          "count": 10
         }
       ],
       "context_subgroups": [
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 29
+          "count": 39
         },
         {
           "id": "collection",
@@ -5682,7 +6892,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 6
+          "count": 9
         }
       ]
     }
@@ -5914,19 +7124,8 @@
               ]
             },
             {
-              "param": "arxiv_metadata_repo",
-              "class": "SqlAlchemyArxivMetadataRepository",
-              "deps": [
-                {
-                  "param": "creates",
-                  "class": "ArxivMetadata",
-                  "deps": []
-                }
-              ]
-            },
-            {
-              "param": "creates",
-              "class": "ArxivMetadata",
+              "param": "article_metrics_repo",
+              "class": "SqlAlchemyArticleMetricsRepository",
               "deps": []
             }
           ]
@@ -6045,7 +7244,8 @@
       "desc": "ArticleProcessedEvent -> RagIngestionHandler",
       "color": "#44BB99",
       "classes": [
-        "RagIngestionHandler"
+        "RagIngestionHandler",
+        "IngestArticleForRagUseCase"
       ],
       "receives": [
         "ArticleProcessedEvent"
@@ -6066,6 +7266,11 @@
         }
       ],
       "di": [
+        {
+          "param": "",
+          "class": "IngestArticleForRagUseCase",
+          "deps": []
+        },
         {
           "param": "",
           "class": "InMemoryEventBus",

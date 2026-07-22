@@ -4,36 +4,24 @@
     "date": "2026-07-18",
     "changes": [
       {
-        "type": "feat",
-        "description": "Introduced a comprehensive weekly report system featuring automated generation and a dedicated navigation dashboard"
-      },
-      {
-        "type": "feat",
-        "description": "Enhanced chat functionality with support for multi-turn conversations and drag-and-drop file uploads"
-      },
-      {
-        "type": "feat",
-        "description": "Added email and Telegram notification support for weekly report updates"
-      },
-      {
-        "type": "feat",
-        "description": "Implemented article favorites and new sorting options based on recommendation signals"
-      },
-      {
-        "type": "feat",
-        "description": "Added inline citations and source-pinning capabilities to the weekly report widget"
-      },
-      {
         "type": "fix",
-        "description": "Resolved a display issue where distribution charts were invisible in dark mode"
-      },
-      {
-        "type": "fix",
-        "description": "Fixed navigation behavior to preserve search filters and query parameters when switching topics"
+        "description": "Updated system deprecation warnings to provide clearer and more accurate information."
       },
       {
         "type": "feat",
-        "description": "Launched an interactive tutorial to guide users through the weekly report features"
+        "description": "Improved error handling to provide more specific and helpful feedback for application errors."
+      },
+      {
+        "type": "feat",
+        "description": "Added a visual database schema diagram to the project documentation site."
+      },
+      {
+        "type": "feat",
+        "description": "Reorganized database architecture into logical domain-based schemas for better data management."
+      },
+      {
+        "type": "feat",
+        "description": "Published new technical documentation covering the latest database schema improvements."
       }
     ]
   },

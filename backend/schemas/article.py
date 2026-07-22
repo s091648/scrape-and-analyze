@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ArticleTagGroupOut(BaseModel):
@@ -28,8 +28,7 @@ class ArticleOut(BaseModel):
     view_count: int = 0
     is_favorited: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginatedArticles(BaseModel):
@@ -61,5 +60,4 @@ class ArticleDetailOut(BaseModel):
     metrics: Dict[str, float] = {}
     view_count: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

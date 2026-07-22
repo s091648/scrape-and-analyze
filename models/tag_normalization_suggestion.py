@@ -4,17 +4,18 @@ from sqlalchemy.orm import relationship
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class TagNormalizationSuggestion(Base):
     __tablename__ = 'tag_normalization_suggestions'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    new_tag_id = Column(UUID(as_uuid=True), ForeignKey('tags.id', ondelete='CASCADE'), nullable=False)
-    existing_tag_id = Column(UUID(as_uuid=True), ForeignKey('tags.id', ondelete='CASCADE'), nullable=False)
+    new_tag_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.tags.id', ondelete='CASCADE'), nullable=False)
+    existing_tag_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.tags.id', ondelete='CASCADE'), nullable=False)
     similarity_score = Column(Float, nullable=False)
     status = Column(String(20), nullable=False, default='pending')
-    article_id = Column(UUID(as_uuid=True), ForeignKey('articles.id', ondelete='SET NULL'), nullable=True)
+    article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id', ondelete='SET NULL'), nullable=True)
     created_at = Column(DateTime(timezone=True))
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     resolved_by = Column(UUID(as_uuid=True), nullable=True)
@@ -25,4 +26,5 @@ class TagNormalizationSuggestion(Base):
     __table_args__ = (
         Index('idx_tns_status', 'status'),
         Index('idx_tns_new_tag_id', 'new_tag_id'),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

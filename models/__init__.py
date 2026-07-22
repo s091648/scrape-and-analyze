@@ -24,7 +24,4 @@ from models.article_translation import ArticleTranslation  # noqa: F401 — regi
 from models.user_subscription import UserTopicSubscription, UserNotificationSettings, UserArticleFavorite  # noqa: F401
 from models.weekly_report import WeeklyReport  # noqa: F401
 from models.weekly_report_translation import WeeklyReportTranslation  # noqa: F401 — registers WeeklyReport.translations backref
-# NOTE: models.arxiv_keyword is intentionally excluded — legacy model, its table
-# was dropped in migration 14 (superseded by ScraperKeyword). Importing it here
-# would make Base.metadata expect a table that no longer exists.
 configure_mappers()

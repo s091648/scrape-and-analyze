@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class ScraperKeyword(Base):
@@ -12,7 +13,7 @@ class ScraperKeyword(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     topic_id = Column(
         UUID(as_uuid=True),
-        ForeignKey('topics.id', ondelete='CASCADE'),
+        ForeignKey('core.topics.id', ondelete='CASCADE'),
         nullable=False,
     )
     # Discriminates the keyword variant: 'rss' | 'arxiv_keyword' | 'arxiv_category'
@@ -22,4 +23,5 @@ class ScraperKeyword(Base):
 
     __table_args__ = (
         UniqueConstraint('topic_id', 'keyword_type', 'keyword', name='uq_scraper_keyword_topic_type_keyword'),
+        {'schema': DbSchema.COLLECTION.value},
     )

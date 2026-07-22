@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class FailedTask(Base):
@@ -12,8 +13,8 @@ class FailedTask(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     task_type = Column(String(50), nullable=False)
     article_url = Column(Text)
-    article_id = Column(UUID(as_uuid=True), ForeignKey('articles.id'))
-    analysis_id = Column(UUID(as_uuid=True), ForeignKey('analyses.id', ondelete='SET NULL'), nullable=True)
+    article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id'))
+    analysis_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.analyses.id', ondelete='SET NULL'), nullable=True)
     exception_type = Column(String(200))
     exception_message = Column(Text)
     context = Column(JSONB, nullable=True)
@@ -27,4 +28,5 @@ class FailedTask(Base):
         Index('idx_failed_tasks_resolved', 'resolved'),
         Index('idx_failed_tasks_failed_at', 'failed_at'),
         Index('idx_failed_tasks_correlation_id', 'correlation_id'),
+        {'schema': DbSchema.COLLECTION.value},
     )

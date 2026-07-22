@@ -102,11 +102,17 @@ jobs:
               FAILED=1
             elif [ "$STATUS" = "REMOVED" ]; then
               echo "$name is REMOVED — redeploying from master"
-              if [ "$name" = "postgres" ]; then
-                # Not built from repo source — redeploy the service's last known
-                # deployment/image instead of pushing repo contents via `railway up`.
+              if [ "$name" = "postgres" ] || [ "$name" = "redis" ]; then
+                # Database services are provisioned from Railway's official image/template,
+                # not built from repo source — `railway up` would incorrectly push repo
+                # contents as a build. Use `redeploy` instead, which reuses the service's
+                # last known deployment/image. Note: this only works if a deployment
+                # record still exists; a fully REMOVED database with no deployment
+                # history can't be recovered this way and needs manual recreation
+                # (Dashboard "New" → Database, or `railway add --database <name>`) —
+                # which provisions a new service/volume and does not restore old data.
                 if ! railway redeploy --service "$id" --environment staging --yes; then
-                  echo "::error::Failed to redeploy $name"
+                  echo "::error::Failed to redeploy $name — this database service likely has no deployment history left to redeploy from. It needs to be manually recreated (Railway Dashboard \"New\" -> Database, or 'railway add --database $name'); note this provisions a new service/volume and does not restore prior data."
                   FAILED=1
                 fi
               elif [ "$name" = "chatbot-plugin" ]; then

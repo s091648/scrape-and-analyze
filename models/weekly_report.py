@@ -3,13 +3,14 @@ import uuid
 from sqlalchemy import Column, String, Text, Integer, Date, DateTime, UniqueConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class WeeklyReport(Base):
     __tablename__ = 'weekly_reports'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id', ondelete='SET NULL'), nullable=True)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id', ondelete='SET NULL'), nullable=True)
     week_start_date = Column(Date, nullable=False)
     title = Column(Text, nullable=False)
     summary_text = Column(Text, nullable=False)
@@ -27,4 +28,5 @@ class WeeklyReport(Base):
 
     __table_args__ = (
         UniqueConstraint('topic_id', 'week_start_date', name='uq_weekly_reports_topic_week'),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

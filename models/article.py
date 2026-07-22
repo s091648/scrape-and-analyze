@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 
 
 class Article(Base):
@@ -19,7 +20,7 @@ class Article(Base):
     scraped_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     metadata_ = Column('metadata', JSONB)
     correlation_id = Column(UUID(as_uuid=True), nullable=False)
-    topic_id = Column(UUID(as_uuid=True), ForeignKey('topics.id'), nullable=True)
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id'), nullable=True)
     original_source = Column(String(200), nullable=True)
     has_vectors = Column(Boolean, nullable=False, server_default='false')
 
@@ -29,4 +30,5 @@ class Article(Base):
         Index('idx_articles_scraped_at', 'scraped_at'),
         Index('idx_articles_topic_id', 'topic_id'),
         Index('idx_articles_original_source', 'original_source'),
+        {'schema': DbSchema.CORE.value},
     )

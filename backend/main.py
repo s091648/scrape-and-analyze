@@ -1,5 +1,4 @@
 import asyncio
-import os
 import models  # noqa: F401 — registers all ORM mappers at startup
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
@@ -24,9 +23,7 @@ from backend.routers.chat import router as chat_router
 from backend.routers.user import router as user_router
 from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
-
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
-VIEW_COUNT_FLUSH_INTERVAL = int(os.environ.get("VIEW_COUNT_FLUSH_INTERVAL", "900"))
+from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED
 
 
 async def _periodic_view_flush():
@@ -49,7 +46,12 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="Article Analyzer API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Article Analyzer API",
+    version="1.0.0",
+    lifespan=lifespan,
+    swagger_ui_parameters=None if SWAGGER_TRY_IT_OUT_ENABLED else {"supportedSubmitMethods": []},
+)
 
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(

@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+import pytest
 from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.value_objects import ArxivKeyword
 from shared.selector_config import ArxivConfig, SemanticScholarConfig, OpenAlexConfig
@@ -69,3 +70,22 @@ def test_factory_arxiv_keywords_is_none():
     # Factory always passes keywords=None for ArXiv (categories come from ArxivCategory items,
     # not ArxivKeyword items — so _keywords is always None for ArXiv scrapers).
     assert scraper._keywords is None
+
+
+def test_factory_raises_for_unsupported_source_type():
+    from src.infrastructure.collection.scrapers.scraper_factory import ConcreteScraperFactory
+    from src.modules.collection.domain.exceptions import UnsupportedSourceTypeError
+
+    setting = ScraperSetting(
+        source="unknown_test",
+        source_type="unknown_source",
+        url="",
+        interval_hours=24,
+        selector_config=None,
+        keyword_items=None,
+    )
+
+    factory = ConcreteScraperFactory(http_client=_make_http_client())
+
+    with pytest.raises(UnsupportedSourceTypeError):
+        factory.create_for(setting)

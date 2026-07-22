@@ -5,14 +5,16 @@ from pgvector.sqlalchemy import Vector
 import uuid
 
 from models.base import Base
+from models.db_schema import DbSchema
 from models.tag_group import TagGroupDefinition  # noqa: F401 — registers mapper
 
 
 article_tags = Table(
     'article_tags',
     Base.metadata,
-    Column('article_id', UUID(as_uuid=True), ForeignKey('articles.id'), primary_key=True),
-    Column('tag_id', UUID(as_uuid=True), ForeignKey('tags.id'), primary_key=True),
+    Column('article_id', UUID(as_uuid=True), ForeignKey('core.articles.id'), primary_key=True),
+    Column('tag_id', UUID(as_uuid=True), ForeignKey('intelligence.tags.id'), primary_key=True),
+    schema=DbSchema.INTELLIGENCE.value,
 )
 
 
@@ -23,7 +25,7 @@ class Tag(Base):
     name = Column(Text, nullable=False)
     tag_group_id = Column(
         UUID(as_uuid=True),
-        ForeignKey('tag_group_definitions.id', ondelete='SET NULL'),
+        ForeignKey('intelligence.tag_group_definitions.id', ondelete='SET NULL'),
         nullable=True,
     )
     embedding = Column(Vector(768), nullable=True)
@@ -42,4 +44,5 @@ class Tag(Base):
             postgresql_where=text('tag_group_id IS NOT NULL'),
         ),
         Index('idx_tags_group', 'tag_group_id'),
+        {'schema': DbSchema.INTELLIGENCE.value},
     )

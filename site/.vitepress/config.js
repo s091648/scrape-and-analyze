@@ -7,6 +7,7 @@ export default defineConfig({
   ignoreDeadLinks: [/localhost/, /^\.?\/?research\/?$/],
   themeConfig: {
     storybookUrl: process.env.STORYBOOK_URL || '',
+    backendUrl: process.env.BACKEND_URL || '',
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Speckit Guide', link: '/guide/speckit' },
@@ -29,6 +30,9 @@ export default defineConfig({
         items: [
           { text: 'Pipeline', link: '/guide/architecture/uml' },
           { text: 'Frontend Dependencies', link: '/guide/architecture/deps' },
+          { text: 'DB Schema', link: '/guide/architecture/db-schema' },
+          { text: 'API Docs', link: '/guide/architecture/api-docs' },
+          { text: 'Exceptions', link: '/guide/architecture/exceptions' },
         ],
       },
       {
@@ -202,6 +206,19 @@ export default defineConfig({
           { text: 'Data Model', link: '/specs/015-guest-tutorial-mode/data-model' },
           { text: 'Tasks', link: '/specs/015-guest-tutorial-mode/tasks' },
           { text: 'Contract: Ui', link: '/specs/015-guest-tutorial-mode/contracts/ui-contract' },
+        ],
+      },
+      {
+        text: '016 · DB Schema Brushup',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/016-db-schema-brushup/spec' },
+          { text: 'Plan', link: '/specs/016-db-schema-brushup/plan' },
+          { text: 'Data Model', link: '/specs/016-db-schema-brushup/data-model' },
+          { text: 'Tasks', link: '/specs/016-db-schema-brushup/tasks' },
+          { text: 'Research', link: '/specs/016-db-schema-brushup/research' },
+          { text: 'Quick Start', link: '/specs/016-db-schema-brushup/quickstart' },
+          { text: 'Requirements', link: '/specs/016-db-schema-brushup/checklists/requirements' },
         ],
       },
     ],
