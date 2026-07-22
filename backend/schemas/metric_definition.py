@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # Mirrors frontend/components/features/articles/metric-icons.ts's METRIC_ICON_NAMES —
 # keep in sync. The backend rejects any icon_name outside this set so an admin can never
@@ -35,8 +35,7 @@ class MetricDefinitionAdminOut(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MetricDefinitionAdminUpdate(BaseModel):

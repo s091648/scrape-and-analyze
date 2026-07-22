@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class FailedTaskOut(BaseModel):
@@ -13,8 +13,7 @@ class FailedTaskOut(BaseModel):
     failed_at: Optional[datetime]
     resolved: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaginatedFailedTasks(BaseModel):

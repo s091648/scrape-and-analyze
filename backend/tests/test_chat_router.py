@@ -222,6 +222,7 @@ def test_guest_with_existing_cookie_uses_cookie_id():
     from backend.main import app
 
     client = TestClient(app)
+    client.cookies.set("__rag_gid", "existing-cookie-uuid")
     mock_redis = make_mock_redis()
 
     with (
@@ -234,7 +235,6 @@ def test_guest_with_existing_cookie_uses_cookie_id():
         client.post(
             "/chat/completions",
             json={"messages": [{"role": "user", "content": "hello"}]},
-            cookies={"__rag_gid": "existing-cookie-uuid"},
         )
 
     key_used = mock_redis.incr.call_args[0][0]
@@ -400,10 +400,11 @@ def test_chat_quota_existing_cookie_used():
     from backend.main import app
 
     client = TestClient(app)
+    client.cookies.set("__rag_gid", "known-cookie")
     mock_redis = make_quota_redis(count=2)
 
     with patch("backend.routers.chat._make_redis", return_value=mock_redis):
-        client.get("/chat/quota", cookies={"__rag_gid": "known-cookie"})
+        client.get("/chat/quota")
 
     key_used = mock_redis.get.call_args[0][0]
     assert "known-cookie" in key_used

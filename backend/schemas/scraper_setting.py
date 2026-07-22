@@ -1,7 +1,7 @@
 from typing import Any, Literal, Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ScraperSettingCreate(BaseModel):
@@ -44,5 +44,4 @@ class ScraperSettingOut(BaseModel):
             return v.model_dump()
         return v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

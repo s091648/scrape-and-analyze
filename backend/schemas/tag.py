@@ -1,7 +1,7 @@
 import re
 from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 def _to_slug(v: str) -> str:
@@ -19,8 +19,7 @@ class TagOut(BaseModel):
     name: str
     article_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SimilarGroupOut(BaseModel):
@@ -38,8 +37,7 @@ class TagGroupOut(BaseModel):
     tags: List[TagOut]
     similar_groups: List[SimilarGroupOut] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TagGroupCreate(BaseModel):
@@ -105,8 +103,7 @@ class SuggestionOut(BaseModel):
     similarity_score: float
     article_id: Optional[UUID]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TagGroupMergeRequest(BaseModel):
@@ -132,5 +129,4 @@ class TagGroupReorderItem(BaseModel):
     id: UUID
     sort_order: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
