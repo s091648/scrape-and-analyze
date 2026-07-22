@@ -41,6 +41,15 @@ def test_articles_no_auth_required():
     assert response.status_code == 200
 
 
+def test_get_redis_builds_client_from_configured_url():
+    from backend.routers.articles import _get_redis
+
+    with patch("redis.asyncio.from_url") as mock_from_url:
+        _get_redis()
+
+    mock_from_url.assert_called_once()
+
+
 def test_article_detail_returns_full_data():
     from backend.main import app
     from backend.database import get_db

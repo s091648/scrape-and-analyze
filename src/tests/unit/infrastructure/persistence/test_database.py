@@ -10,6 +10,15 @@ def test_engine_uses_nullpool():
         assert isinstance(engine.pool, NullPool)
 
 
+def test_create_engine_raises_when_database_url_missing():
+    import src.infrastructure.persistence.database as db_module
+    from src.infrastructure.shared.exceptions import MissingDatabaseUrlError
+
+    with patch.object(db_module, "DATABASE_URL", ""):
+        with pytest.raises(MissingDatabaseUrlError):
+            db_module.create_engine_with_nullpool()
+
+
 def test_find_recent_failures_filters_by_time():
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
     mock_session = MagicMock()

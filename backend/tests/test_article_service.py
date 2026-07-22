@@ -6,7 +6,9 @@ functions directly with a mock DB session to achieve coverage.
 """
 import uuid
 from datetime import date, datetime, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch, call
+
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -473,3 +475,47 @@ def test_get_filter_tags_with_topic_joins_article():
         result = get_filter_tags(db, topic_id=uuid.uuid4())
     # When topic_id provided, query should use joins
     assert q.join.called
+
+
+# ---------------------------------------------------------------------------
+# flush_view_counts
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_flush_view_counts_updates_metrics_for_each_key():
+    from backend.services.article_service import flush_view_counts
+
+    article_id = str(uuid.uuid4())
+    mock_redis = AsyncMock()
+    mock_redis.scan = AsyncMock(return_value=(0, [f"view:{article_id}".encode()]))
+    mock_redis.getdel = AsyncMock(return_value=b"3")
+    mock_redis.aclose = AsyncMock()
+
+    db = MagicMock()
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        flushed = await flush_view_counts(db)
+
+    assert flushed == 1
+    db.execute.assert_called_once()
+    db.commit.assert_called_once()
+    mock_redis.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_flush_view_counts_skips_keys_with_no_or_zero_count():
+    from backend.services.article_service import flush_view_counts
+
+    mock_redis = AsyncMock()
+    mock_redis.scan = AsyncMock(return_value=(0, [b"view:no-count", b"view:zero-count"]))
+    mock_redis.getdel = AsyncMock(side_effect=[None, b"0"])
+    mock_redis.aclose = AsyncMock()
+
+    db = MagicMock()
+
+    with patch("redis.asyncio.from_url", return_value=mock_redis):
+        flushed = await flush_view_counts(db)
+
+    assert flushed == 0
+    db.execute.assert_not_called()
+    db.commit.assert_called_once()

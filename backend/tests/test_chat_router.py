@@ -396,6 +396,15 @@ def test_chat_quota_admin_returns_unlimited():
     assert data["remaining"] == -1
 
 
+def test_make_redis_builds_client_from_configured_url():
+    from backend.routers.chat import _make_redis
+
+    with patch("redis.asyncio.from_url") as mock_from_url:
+        _make_redis()
+
+    mock_from_url.assert_called_once()
+
+
 def test_chat_quota_existing_cookie_used():
     from backend.main import app
 
