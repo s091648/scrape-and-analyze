@@ -107,6 +107,15 @@ export async function mockApiRoutes(page: Page) {
     route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
   )
 
+  // Guest token bootstrap — AuthTokenProvider calls this unauthenticated (test.use({
+  // storageState: { cookies: [], origins: [] } })) to get a token before ANYTHING else
+  // that depends on it (e.g. I18nProvider's /languages fetch, gated on `token` being
+  // truthy) can proceed. Without this mock it falls through to the 404 catch-all above,
+  // silently stranding those callers forever.
+  await page.route((url: URL) => url.pathname === '/api/proxy/auth/guest', route =>
+    route.fulfill({ json: { access_token: 'test-guest-access-token', refresh_token: 'test-guest-refresh-token', expires_in: 3600 } })
+  )
+
   // Generic routes (registered before specifics — lower priority in LIFO)
   await page.route(proxyPrefix('analyses/graph'), route => route.fulfill({ json: graphFixture }))
 
