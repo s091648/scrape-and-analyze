@@ -36,6 +36,62 @@
       ]
     },
     {
+      "name": "ConflictError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "The requested operation conflicts with existing state (e.g. a uniqueness violation).",
+      "defined_at": {
+        "file": "src/shared/domain/exceptions.py",
+        "line": 13
+      },
+      "raise_sites": [
+        {
+          "file": "backend/routers/auth.py",
+          "line": 74,
+          "function": "register",
+          "snippet": "raise ConflictError(\"Email or username already taken\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 86,
+          "function": "google_authorize",
+          "snippet": "raise ConflictError(\"Google account not linked\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 111,
+          "function": "admin_create_user",
+          "snippet": "raise ConflictError(\"Email or username already taken\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 189,
+          "function": "link_google",
+          "snippet": "raise ConflictError(\"Google account already in use\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 168,
+          "function": "update_tag_group",
+          "snippet": "raise ConflictError(\"A tag group with this name already exists in this topic\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 215,
+          "function": "rename_tag",
+          "snippet": "raise ConflictError(\"Tag name already exists in target group\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "Exception",
       "category": "builtin",
       "bases": [],
@@ -44,7 +100,7 @@
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 104,
+          "line": 112,
           "function": "admin_create_user",
           "snippet": "raise",
           "status_code": null
@@ -164,6 +220,41 @@
       ]
     },
     {
+      "name": "ForbiddenError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "The caller is authenticated but not authorized to perform this action.",
+      "defined_at": {
+        "file": "src/shared/domain/exceptions.py",
+        "line": 21
+      },
+      "raise_sites": [
+        {
+          "file": "backend/auth/guards.py",
+          "line": 45,
+          "function": "_require_admin_impl",
+          "snippet": "raise ForbiddenError(\"Admin role required\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 50,
+          "function": "verify_credentials",
+          "snippet": "raise ForbiddenError(\"Account disabled\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 84,
+          "function": "google_authorize",
+          "snippet": "raise ForbiddenError(\"Account disabled\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "HTTPError",
       "category": "builtin",
       "bases": [],
@@ -187,354 +278,11 @@
       "defined_at": null,
       "raise_sites": [
         {
-          "file": "backend/auth/guards.py",
-          "line": 35,
-          "function": "_require_admin_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid token\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 38,
-          "function": "_require_admin_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Token missing exp claim\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 40,
-          "function": "_require_admin_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Token expired\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 42,
-          "function": "_require_admin_impl",
-          "snippet": "raise HTTPException(status_code=403, detail=\"Admin role required\")",
-          "status_code": 403
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 61,
-          "function": "_require_user_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid token\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 64,
-          "function": "_require_user_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Token missing exp claim\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 66,
-          "function": "_require_user_impl",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Token expired\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/routers/articles.py",
-          "line": 128,
-          "function": "get_article",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Article not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 38,
-          "function": "verify_credentials",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid credentials\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 40,
-          "function": "verify_credentials",
-          "snippet": "raise HTTPException(status_code=401, detail=\"Invalid credentials\")",
-          "status_code": 401
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 42,
-          "function": "verify_credentials",
-          "snippet": "raise HTTPException(status_code=403, detail=\"Account disabled\")",
-          "status_code": 403
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 66,
-          "function": "register",
-          "snippet": "raise HTTPException(status_code=409, detail=\"Email or username already taken\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 67,
-          "function": "register",
-          "snippet": "raise HTTPException(status_code=422, detail=str(e))",
-          "status_code": 422
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 74,
-          "function": "google_authorize",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Email not registered\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 76,
-          "function": "google_authorize",
-          "snippet": "raise HTTPException(status_code=403, detail=\"Account disabled\")",
-          "status_code": 403
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 78,
-          "function": "google_authorize",
-          "snippet": "raise HTTPException(status_code=409, detail=\"Google account not linked\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 91,
-          "function": "admin_create_user",
-          "snippet": "raise HTTPException(status_code=422, detail=\"email or username required\")",
-          "status_code": 422
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 103,
-          "function": "admin_create_user",
-          "snippet": "raise HTTPException(status_code=409, detail=\"Email or username already taken\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 112,
-          "function": "update_user_endpoint",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 120,
-          "function": "delete_user_endpoint",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 129,
-          "function": "get_me",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 138,
-          "function": "update_me",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 152,
-          "function": "change_password",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 154,
-          "function": "change_password",
-          "snippet": "raise HTTPException(status_code=400, detail=\"Password change not available for this account\")",
-          "status_code": 400
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 156,
-          "function": "change_password",
-          "snippet": "raise HTTPException(status_code=400, detail=\"Current password incorrect\")",
-          "status_code": 400
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 167,
-          "function": "delete_me",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 177,
-          "function": "link_google",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 179,
-          "function": "link_google",
-          "snippet": "raise HTTPException(status_code=400, detail=\"Google account already linked\")",
-          "status_code": 400
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 181,
-          "function": "link_google",
-          "snippet": "raise HTTPException(status_code=409, detail=\"Google account already in use\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 190,
-          "function": "unlink_google",
-          "snippet": "raise HTTPException(status_code=404, detail=\"User not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/auth.py",
-          "line": 192,
-          "function": "unlink_google",
-          "snippet": "raise HTTPException(status_code=400, detail=\"Cannot unlink Google from a Google-only account\")",
-          "status_code": 400
-        },
-        {
           "file": "backend/routers/chat.py",
-          "line": 99,
+          "line": 67,
           "function": "chat_completions",
           "snippet": "raise HTTPException(",
           "status_code": 429
-        },
-        {
-          "file": "backend/routers/llm_providers.py",
-          "line": 34,
-          "function": "reorder",
-          "snippet": "raise HTTPException(status_code=400, detail=\"Duplicate provider IDs in reorder request\")",
-          "status_code": 400
-        },
-        {
-          "file": "backend/routers/llm_providers.py",
-          "line": 43,
-          "function": "update",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Provider not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/llm_providers.py",
-          "line": 50,
-          "function": "delete",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Provider not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/metric_definitions.py",
-          "line": 42,
-          "function": "patch_metric_definition",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Metric definition not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/scraper_keywords.py",
-          "line": 44,
-          "function": "delete_keyword_endpoint",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Keyword not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/scraper_settings.py",
-          "line": 39,
-          "function": "update",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Setting not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/scraper_settings.py",
-          "line": 46,
-          "function": "delete",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Setting not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 141,
-          "function": "get_tag_group",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 159,
-          "function": "update_tag_group",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 165,
-          "function": "update_tag_group",
-          "snippet": "raise HTTPException(status_code=409, detail=\"A tag group with this name already exists in this topic\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 186,
-          "function": "delete_tag_group",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 201,
-          "function": "rename_tag",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Tag not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 212,
-          "function": "rename_tag",
-          "snippet": "raise HTTPException(status_code=409, detail=\"Tag name already exists in target group\")",
-          "status_code": 409
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 231,
-          "function": "delete_tag",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Tag not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 294,
-          "function": "approve_suggestion",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Suggestion not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/tags.py",
-          "line": 325,
-          "function": "reject_suggestion",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Suggestion not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/topics.py",
-          "line": 42,
-          "function": "update_topic",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Topic not found\")",
-          "status_code": 404
-        },
-        {
-          "file": "backend/routers/topics.py",
-          "line": 56,
-          "function": "delete_topic",
-          "snippet": "raise HTTPException(status_code=404, detail=\"Topic not found\")",
-          "status_code": 404
         },
         {
           "file": "backend/services/llm_provider_service.py",
@@ -598,6 +346,7 @@
       "name": "InvalidScraperIntervalError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "CollectionDomainError"
       ],
       "docstring": "Raised when a ScraperSetting's interval_hours is not a positive number.",
@@ -619,6 +368,7 @@
       "name": "InvalidScraperKeywordTypeError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "CollectionDomainError"
       ],
       "docstring": "Raised when a scraper keyword's type does not match any known ScraperKeywordVO variant.",
@@ -640,6 +390,7 @@
       "name": "InvalidSimilarityScoreError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "IntelligenceDomainError"
       ],
       "docstring": "Raised when a TagNormalizationSuggestion's similarity_score is outside [0.0, 1.0].",
@@ -661,6 +412,7 @@
       "name": "InvalidSuggestionStatusError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "IntelligenceDomainError"
       ],
       "docstring": "Raised when a TagNormalizationSuggestion's status is not pending/approved/rejected.",
@@ -682,6 +434,7 @@
       "name": "InvalidUrlHashError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "CollectionDomainError"
       ],
       "docstring": "Raised when a UrlHash value is not a valid 64-char hex SHA-256 digest.",
@@ -710,6 +463,7 @@
       "name": "InvalidWeeklyReportStatusError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "IntelligenceDomainError"
       ],
       "docstring": "Raised when a WeeklyReport's status is not pending/completed/failed.",
@@ -786,6 +540,195 @@
           "line": 23,
           "function": "TelegramNotifierClient.__init__",
           "snippet": "raise MissingTelegramTokenError(\"Telegram bot_token is required\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "NotFoundError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "A requested resource does not exist.",
+      "defined_at": {
+        "file": "src/shared/domain/exceptions.py",
+        "line": 9
+      },
+      "raise_sites": [
+        {
+          "file": "backend/routers/articles.py",
+          "line": 135,
+          "function": "get_article",
+          "snippet": "raise NotFoundError(\"Article not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 82,
+          "function": "google_authorize",
+          "snippet": "raise NotFoundError(\"Email not registered\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 120,
+          "function": "update_user_endpoint",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 128,
+          "function": "delete_user_endpoint",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 137,
+          "function": "get_me",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 146,
+          "function": "update_me",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 160,
+          "function": "change_password",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 175,
+          "function": "delete_me",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 185,
+          "function": "link_google",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 198,
+          "function": "unlink_google",
+          "snippet": "raise NotFoundError(\"User not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 45,
+          "function": "update",
+          "snippet": "raise NotFoundError(\"Provider not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 52,
+          "function": "delete",
+          "snippet": "raise NotFoundError(\"Provider not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/metric_definitions.py",
+          "line": 44,
+          "function": "patch_metric_definition",
+          "snippet": "raise NotFoundError(\"Metric definition not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/scraper_keywords.py",
+          "line": 46,
+          "function": "delete_keyword_endpoint",
+          "snippet": "raise NotFoundError(\"Keyword not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/scraper_settings.py",
+          "line": 41,
+          "function": "update",
+          "snippet": "raise NotFoundError(\"Setting not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/scraper_settings.py",
+          "line": 48,
+          "function": "delete",
+          "snippet": "raise NotFoundError(\"Setting not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 144,
+          "function": "get_tag_group",
+          "snippet": "raise NotFoundError(\"Tag group not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 162,
+          "function": "update_tag_group",
+          "snippet": "raise NotFoundError(\"Tag group not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 189,
+          "function": "delete_tag_group",
+          "snippet": "raise NotFoundError(\"Tag group not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 204,
+          "function": "rename_tag",
+          "snippet": "raise NotFoundError(\"Tag not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 234,
+          "function": "delete_tag",
+          "snippet": "raise NotFoundError(\"Tag not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 297,
+          "function": "approve_suggestion",
+          "snippet": "raise NotFoundError(\"Suggestion not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/tags.py",
+          "line": 328,
+          "function": "reject_suggestion",
+          "snippet": "raise NotFoundError(\"Suggestion not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/topics.py",
+          "line": 45,
+          "function": "update_topic",
+          "snippet": "raise NotFoundError(\"Topic not found\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/topics.py",
+          "line": 59,
+          "function": "delete_topic",
+          "snippet": "raise NotFoundError(\"Topic not found\")",
           "status_code": null
         }
       ]
@@ -963,9 +906,164 @@
       ]
     },
     {
+      "name": "UnauthorizedError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "The caller's authentication is missing, invalid, or expired.",
+      "defined_at": {
+        "file": "src/shared/domain/exceptions.py",
+        "line": 17
+      },
+      "raise_sites": [
+        {
+          "file": "backend/auth/guards.py",
+          "line": 32,
+          "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 38,
+          "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 41,
+          "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 43,
+          "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 60,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 66,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 69,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 71,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 76,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"A guest token is not accepted for this endpoint\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 90,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 96,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 99,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 101,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 110,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 46,
+          "function": "verify_credentials",
+          "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 48,
+          "function": "verify_credentials",
+          "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 119,
+          "function": "decode_guest_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 122,
+          "function": "decode_guest_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 124,
+          "function": "decode_guest_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 126,
+          "function": "decode_guest_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "UnsupportedSourceTypeError",
       "category": "custom",
       "bases": [
+        "ValidationError",
         "CollectionDomainError"
       ],
       "docstring": "Raised when a ScraperSetting's source_type cannot be resolved to a scraper implementation.",
@@ -984,6 +1082,69 @@
       ]
     },
     {
+      "name": "ValidationError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "A domain-layer invariant was violated (business-rule validation, not request-shape validation).",
+      "defined_at": {
+        "file": "src/shared/domain/exceptions.py",
+        "line": 5
+      },
+      "raise_sites": [
+        {
+          "file": "backend/routers/auth.py",
+          "line": 75,
+          "function": "register",
+          "snippet": "raise ValidationError(str(e))",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 99,
+          "function": "admin_create_user",
+          "snippet": "raise ValidationError(\"email or username required\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 162,
+          "function": "change_password",
+          "snippet": "raise ValidationError(\"Password change not available for this account\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 164,
+          "function": "change_password",
+          "snippet": "raise ValidationError(\"Current password incorrect\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 187,
+          "function": "link_google",
+          "snippet": "raise ValidationError(\"Google account already linked\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/auth.py",
+          "line": 200,
+          "function": "unlink_google",
+          "snippet": "raise ValidationError(\"Cannot unlink Google from a Google-only account\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/llm_providers.py",
+          "line": 36,
+          "function": "reorder",
+          "snippet": "raise ValidationError(\"Duplicate provider IDs in reorder request\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "ValueError",
       "category": "builtin",
       "bases": [],
@@ -992,7 +1153,7 @@
       "raise_sites": [
         {
           "file": "backend/schemas/metric_definition.py",
-          "line": 52,
+          "line": 51,
           "function": "MetricDefinitionAdminUpdate.validate_icon_name",
           "snippet": "raise ValueError(f\"icon_name must be one of {sorted(ICON_WHITELIST)}\")",
           "status_code": null

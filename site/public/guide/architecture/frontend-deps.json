@@ -538,7 +538,9 @@
   "lib/api/auth.ts": [
     "lib/api/client.ts"
   ],
-  "lib/api/client.ts": [],
+  "lib/api/client.ts": [
+    "lib/auth-token-store.ts"
+  ],
   "lib/api/grafana.ts": [],
   "lib/api/graph.ts": [
     "lib/api/client.ts"
@@ -582,6 +584,7 @@
     "components/features/chat/types.ts",
     "lib/api/client.ts"
   ],
+  "lib/auth-token-store.ts": [],
   "lib/auth.ts": [],
   "lib/chat-session.ts": [],
   "lib/loki-logger.ts": [],
@@ -590,14 +593,22 @@
     "lib/api/grafana.ts",
     "lib/observability-constants.ts"
   ],
-  "lib/providers/chat-quota-provider.tsx": [],
+  "lib/providers/auth-token-provider.tsx": [
+    "lib/auth-token-store.ts"
+  ],
+  "lib/providers/chat-quota-provider.tsx": [
+    "lib/api/client.ts",
+    "lib/providers/auth-token-provider.tsx"
+  ],
   "lib/providers/guest-mode-provider.tsx": [],
   "lib/providers/i18n-provider.tsx": [
     "lib/api/client.ts",
+    "lib/providers/auth-token-provider.tsx",
     "lib/providers/locales/en.json",
     "lib/providers/locales/zh-TW.json"
   ],
   "lib/providers/index.tsx": [
+    "lib/providers/auth-token-provider.tsx",
     "lib/providers/chat-quota-provider.tsx",
     "lib/providers/guest-mode-provider.tsx",
     "lib/providers/i18n-provider.tsx",

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-21T08:26:37.135Z",
+  "generated_at": "2026-07-23T11:35:54.584Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 22,
+      "consumerCount": 21,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -147,11 +147,6 @@
           "destructured": "{ data: session, status }"
         },
         {
-          "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 29,
-          "destructured": "{ data: session }"
-        },
-        {
           "file": "components/features/graph/knowledge-graph.tsx",
           "line": 105,
           "destructured": "{ status }"
@@ -162,8 +157,8 @@
           "destructured": "{ data: session }"
         },
         {
-          "file": "lib/providers/chat-quota-provider.tsx",
-          "line": 24,
+          "file": "lib/providers/auth-token-provider.tsx",
+          "line": 105,
           "destructured": "{ data: session, status }"
         },
         {
@@ -249,7 +244,7 @@
         },
         {
           "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 30,
+          "line": 28,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -460,7 +455,7 @@
         },
         {
           "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 31,
+          "line": 29,
           "destructured": "{ t }"
         },
         {
@@ -676,7 +671,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 116,
+    "totalConsumerSites": 115,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

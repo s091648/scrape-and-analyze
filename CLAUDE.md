@@ -76,16 +76,18 @@ Root layout wraps: `SessionProviderWrapper > TopicProvider > I18nProvider > Erro
 
 | Router | Prefix | Auth |
 |---|---|---|
-| `articles.py` | `/` | Public |
-| `auth.py` | `/auth` | Admin on user mgmt; `require_user` on `/me` |
-| `graph.py` | `/` | Public |
+| `articles.py` | `/` | `require_any_token` (any valid token — guest or logged-in); `POST /admin/articles/flush-view-counts` require_admin |
+| `auth.py` | `/auth` | Admin on user mgmt; `require_user` on `/me`; `POST /guest` and `POST /guest/refresh` unauthenticated (the guest-token bootstrap itself) |
+| `graph.py` | `/` | `require_any_token` |
 | `scraper_settings.py` | `/scraper-settings` | All require_admin |
-| `topics.py` | `/topics` | Write ops require_admin |
+| `topics.py` | `/topics` | `GET` requires `require_any_token`; write ops require_admin |
 | `scraper_keywords.py` | `/scraper-keywords` | All require_admin |
-| `languages.py` | `/api` | Public (resolves language from client IP via GeoIP) |
+| `languages.py` | `/api` | `require_any_token` (resolves language from client IP via GeoIP) |
 | `llm_providers.py` | `/llm-providers` | All require_admin |
 | `metric_definitions.py` | `/` | `GET /metric-definitions` public; `/admin/metric-definitions` (GET, PATCH) require_admin |
-| `weekly_reports.py` | `/weekly-reports` | Public |
+| `weekly_reports.py` | `/weekly-reports` | `require_any_token` |
+
+`require_any_token` (`backend/auth/guards.py`, `018-public-api-auth`) accepts any real user/admin JWT or a guest access token (obtained via `POST /auth/guest`, no credentials required); it never accepts a guest *refresh* token. It is the floor auth requirement for every endpoint above that isn't already gated by `require_admin`/`require_user` — see `site/guide/architecture/exception-handling.md`'s sibling doc for the full guest-token contract in `specs/018-public-api-auth/contracts/guest-token.md`.
 
 ### Scraper Architecture (Hexagonal / DDD)
 
@@ -165,9 +167,10 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 - **Dependency management** — `uv` with `uv.lock`, Python 3.11, dependency groups in `pyproject.toml`: core, scraper, backend, observability, dev
 - **Frontend UI** — Shadcn/UI primitives in `components/ui/`, Tailwind CSS v4, Radix UI
 - **Test markers** — `@pytest.mark.integration` for tests requiring postgres; integration test conftest creates `test_integration` schema with per-test rollback
+- **Exception handling** — domain exceptions raised anywhere in `src/`/`backend/` must subclass `DomainError` (`src/shared/domain/exceptions.py`) via one of its shared categories (`ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `ForbiddenError`, `ExternalDependencyError`); a single central handler (`backend/exceptions/handlers.py`) maps these to HTTP status codes — routers never construct `HTTPException` themselves. Full guideline: `site/guide/architecture/exception-handling.md`.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/016-db-schema-brushup/plan.md`.
+at `specs/018-public-api-auth/plan.md`.
 <!-- SPECKIT END -->
