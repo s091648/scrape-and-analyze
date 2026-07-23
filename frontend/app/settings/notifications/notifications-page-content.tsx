@@ -156,11 +156,6 @@ export default function NotificationsPageContent() {
             <h2 className="font-semibold text-sm">{t('settings.notificationSettings')}</h2>
             <div className="space-y-3">
               <ToggleRow
-                label={t('settings.emailNotifications')}
-                checked={notifSettings.email_enabled}
-                onCheckedChange={v => setNotifSettings(prev => ({ ...prev, email_enabled: v }))}
-              />
-              <ToggleRow
                 label={t('settings.telegramNotifications')}
                 checked={notifSettings.telegram_enabled}
                 onCheckedChange={v => setNotifSettings(prev => ({ ...prev, telegram_enabled: v }))}
