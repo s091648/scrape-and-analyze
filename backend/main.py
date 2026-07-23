@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from backend.database import get_db, check_db_connection, SessionLocal
 from backend.middleware.logging import RequestLoggingMiddleware
+from backend.exceptions.handlers import register_exception_handlers
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from backend.routers.articles import router as articles_router
 from backend.routers.graph import router as graph_router
@@ -23,7 +24,12 @@ from backend.routers.chat import router as chat_router
 from backend.routers.user import router as user_router
 from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
-from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED
+from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN
+from backend.schemas.error import error_responses
+
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(dsn=SENTRY_DSN)
 
 
 async def _periodic_view_flush():
@@ -51,6 +57,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     swagger_ui_parameters=None if SWAGGER_TRY_IT_OUT_ENABLED else {"supportedSubmitMethods": []},
+    responses=error_responses(500),
 )
 
 app.add_middleware(RequestLoggingMiddleware)
@@ -62,6 +69,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+register_exception_handlers(app)
 
 
 app.include_router(articles_router)
@@ -81,7 +90,7 @@ app.include_router(weekly_reports_router)
 app.include_router(metric_definitions_router)
 
 
-@app.get("/health")
+@app.get("/health", tags=["health"])
 def health_check(db: Session = Depends(get_db)):
     db_ok = check_db_connection(db)
     status_code = 200 if db_ok else 503

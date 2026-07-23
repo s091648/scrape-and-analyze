@@ -20,6 +20,8 @@ CHAT_SERVICE_API_KEY: str = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
 GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
 
+SENTRY_DSN: str = os.environ.get("SENTRY_DSN", "")
+
 # Grafana proxy (routers/grafana.py)
 GRAFANA_PROMETHEUS_URL: str = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
 GRAFANA_PROMETHEUS_USER: str = os.environ.get("GRAFANA_PROMETHEUS_USER", "")
