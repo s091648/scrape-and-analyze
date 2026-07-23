@@ -7,11 +7,29 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
 
 
-def test_get_languages_returns_available_list():
+def _guest_headers(extra=None):
+    from backend.services.auth_service import create_guest_access_token
+    headers = {"Authorization": f"Bearer {create_guest_access_token('test-guest-id')}"}
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def test_get_languages_requires_at_least_a_guest_token():
+    """018-public-api-auth: no longer fully public — a guest token (not a real
+    login) is sufficient, but *some* valid token is now required."""
     from backend.main import app
 
     client = TestClient(app)
     response = client.get("/languages")
+    assert response.status_code == 401
+
+
+def test_get_languages_returns_available_list():
+    from backend.main import app
+
+    client = TestClient(app)
+    response = client.get("/languages", headers=_guest_headers())
 
     assert response.status_code == 200
     data = response.json()
@@ -27,7 +45,7 @@ def test_get_languages_no_ip_resolves_en():
 
     client = TestClient(app)
     with patch("backend.routers.languages.resolve_language_from_ip", return_value="en"):
-        response = client.get("/languages")
+        response = client.get("/languages", headers=_guest_headers())
 
     assert response.status_code == 200
     assert response.json()["resolved"] == "en"
@@ -40,7 +58,7 @@ def test_get_languages_forwarded_for_header_is_used():
     with patch("backend.routers.languages.resolve_language_from_ip", return_value="zh-TW") as mock_resolve:
         response = client.get(
             "/languages",
-            headers={"X-Forwarded-For": "1.2.3.4, 10.0.0.1"},
+            headers=_guest_headers({"X-Forwarded-For": "1.2.3.4, 10.0.0.1"}),
         )
 
     assert response.status_code == 200
@@ -55,7 +73,7 @@ def test_get_languages_tw_ip_resolves_zh_tw():
     with patch("backend.routers.languages.resolve_language_from_ip", return_value="zh-TW"):
         response = client.get(
             "/languages",
-            headers={"X-Forwarded-For": "111.248.0.1"},
+            headers=_guest_headers({"X-Forwarded-For": "111.248.0.1"}),
         )
 
     assert response.status_code == 200

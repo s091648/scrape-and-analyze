@@ -17,6 +17,11 @@ def _admin_token():
     )
 
 
+def _guest_token():
+    from backend.services.auth_service import create_guest_access_token
+    return create_guest_access_token("test-guest-id")
+
+
 def _mock_topic(**kwargs):
     t = MagicMock(spec=[])
     t.id = kwargs.get("id", uuid.uuid4())
@@ -54,7 +59,7 @@ def test_list_topics_returns_200():
     app.dependency_overrides[get_db] = _override_db(mock_db)
     try:
         client = TestClient(app)
-        response = client.get("/topics")
+        response = client.get("/topics", headers={"Authorization": f"Bearer {_guest_token()}"})
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -77,7 +82,7 @@ def test_list_topics_include_inactive_skips_filter():
     app.dependency_overrides[get_db] = _override_db(mock_db)
     try:
         client = TestClient(app)
-        response = client.get("/topics?include_inactive=true")
+        response = client.get("/topics?include_inactive=true", headers={"Authorization": f"Bearer {_guest_token()}"})
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -85,7 +90,17 @@ def test_list_topics_include_inactive_skips_filter():
     assert response.json()[0]["is_active"] is False
 
 
-def test_list_topics_no_auth_required():
+def test_list_topics_requires_at_least_a_guest_token():
+    """018-public-api-auth: no longer fully public — a guest token (not a real login)
+    is sufficient, but *some* valid token is now required."""
+    from backend.main import app
+
+    client = TestClient(app)
+    response = client.get("/topics")
+    assert response.status_code == 401
+
+
+def test_list_topics_guest_token_is_sufficient():
     from backend.main import app
     from backend.database import get_db
 
@@ -95,7 +110,7 @@ def test_list_topics_no_auth_required():
     app.dependency_overrides[get_db] = _override_db(mock_db)
     try:
         client = TestClient(app)
-        response = client.get("/topics")
+        response = client.get("/topics", headers={"Authorization": f"Bearer {_guest_token()}"})
     finally:
         app.dependency_overrides.pop(get_db, None)
 

@@ -1,7 +1,31 @@
 # backend/tests/test_graph.py
+import os
 import uuid
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
+
+
+def _guest_headers():
+    from backend.services.auth_service import create_guest_access_token
+    return {"Authorization": f"Bearer {create_guest_access_token('test-guest-id')}"}
+
+
+class _AuthedClient:
+    """018-public-api-auth: /analyses/graph* now requires a token — wrap TestClient
+    so every .get() carries a guest token by default without editing every call site."""
+
+    def __init__(self, app):
+        self._client = TestClient(app)
+
+    def get(self, url, **kwargs):
+        kwargs["headers"] = {**_guest_headers(), **kwargs.get("headers", {})}
+        return self._client.get(url, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
 
 # Stable UUIDs for mock group definitions
 _DT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
@@ -63,8 +87,10 @@ def _mock_group_def(name='digital_twin', display='Digital Twin'):
 
 
 def test_graph_returns_nodes_and_edges():
+    import backend.routers.graph as graph_module
+    graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -76,8 +102,10 @@ def test_graph_returns_nodes_and_edges():
 
 
 def test_graph_contains_group_and_article_nodes():
+    import backend.routers.graph as graph_module
+    graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -89,8 +117,10 @@ def test_graph_contains_group_and_article_nodes():
 
 
 def test_graph_group_node_has_color_and_count():
+    import backend.routers.graph as graph_module
+    graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -105,7 +135,7 @@ def test_graph_different_days_different_cache():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -117,7 +147,7 @@ def test_graph_different_days_different_cache():
 def test_graph_group_endpoint_returns_articles():
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica', 'model fidelity']}])]
     mock_db = _make_mock_db()
 
@@ -142,7 +172,7 @@ def test_graph_group_endpoint_returns_articles():
 def test_graph_group_excerpt_max_200_chars():
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
     mock_analysis.article.content = 'x' * 500
     mock_db = _make_mock_db()
@@ -160,10 +190,12 @@ def test_graph_group_excerpt_max_200_chars():
     assert len(response.json()[0]['excerpt']) <= 200
 
 
-def test_graph_group_no_auth_required():
+def test_graph_group_guest_token_is_sufficient():
+    """018-public-api-auth: no longer fully public — a guest token (not a real
+    login) is sufficient, but *some* valid token is now required."""
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_db = _make_mock_db()
 
     def override_get_db():
@@ -179,11 +211,28 @@ def test_graph_group_no_auth_required():
     assert response.status_code == 200
 
 
+def test_graph_group_requires_at_least_a_guest_token():
+    from backend.main import app
+    from backend.database import get_db
+    client = TestClient(app)
+    mock_db = _make_mock_db()
+
+    def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        response = client.get('/analyses/graph/group/any')
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+    assert response.status_code == 401
+
+
 def test_graph_cache_hit_avoids_second_query():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -195,7 +244,7 @@ def test_graph_cache_hit_avoids_second_query():
 def test_graph_group_skips_analysis_without_article():
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
 
     analysis_no_article = MagicMock()
     analysis_no_article.id = uuid.uuid4()
@@ -222,7 +271,7 @@ def test_graph_group_skips_analysis_without_article():
 def test_graph_group_uses_en_translation_fallback():
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
 
     analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
 
@@ -258,7 +307,7 @@ def test_graph_group_uses_en_translation_fallback():
 def test_graph_group_uses_lang_translation_when_present():
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
 
     analysis = make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])
 

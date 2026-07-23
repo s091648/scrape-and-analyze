@@ -5,7 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from backend.auth.guards import require_any_token
 from backend.database import get_db
+from backend.schemas.error import error_responses
 from backend.services.graph_service import (
     load_group_defs,
     load_group_def,
@@ -14,13 +16,13 @@ from backend.services.graph_service import (
     build_graph,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["graph"])
 
 _cache: dict[tuple, tuple[Any, float]] = {}
 CACHE_TTL_SECONDS = 300
 
 
-@router.get('/analyses/graph')
+@router.get('/analyses/graph', responses=error_responses(401))
 def get_graph(
     topic_id: Optional[UUID] = Query(default=None),
     lang: str = Query(default="en"),
@@ -32,6 +34,7 @@ def get_graph(
     original_source: Optional[List[str]] = Query(default=None),
     tag: Optional[List[str]] = Query(default=None),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     cache_key = (
         str(topic_id), lang,
@@ -64,7 +67,7 @@ def get_graph(
     return result
 
 
-@router.get('/analyses/graph/group/{group_name}')
+@router.get('/analyses/graph/group/{group_name}', responses=error_responses(401))
 def get_group_articles(
     group_name: str,
     topic_id: Optional[UUID] = Query(default=None),
@@ -77,6 +80,7 @@ def get_group_articles(
     original_source: Optional[List[str]] = Query(default=None),
     tag: Optional[List[str]] = Query(default=None),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     from models.analyses_translation import AnalysesTranslation
     from models.tag_translation import TagsTranslation

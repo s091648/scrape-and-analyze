@@ -84,7 +84,7 @@ def test_list_topics_no_auth_required(api_client):
 # ---------------------------------------------------------------------------
 
 def test_create_topic_requires_auth(api_client):
-    r = api_client.post("/topics", json=_topic_payload())
+    r = api_client.app_client.post("/topics", json=_topic_payload())
     assert r.status_code == 401
 
 
@@ -113,7 +113,7 @@ def test_create_topic_appears_in_list(api_client):
 
 def test_update_topic_requires_auth(api_client, db_session):
     t = _seed_topic(db_session)
-    r = api_client.patch(f"/topics/{t.id}", json={"display_name": "New Name"})
+    r = api_client.app_client.patch(f"/topics/{t.id}", json={"display_name": "New Name"})
     assert r.status_code == 401
 
 
@@ -145,7 +145,7 @@ def test_update_topic_not_found(api_client):
 
 def test_delete_topic_requires_auth(api_client, db_session):
     t = _seed_topic(db_session)
-    r = api_client.delete(f"/topics/{t.id}")
+    r = api_client.app_client.delete(f"/topics/{t.id}")
     assert r.status_code == 401
 
 

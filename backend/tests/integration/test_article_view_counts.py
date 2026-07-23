@@ -13,7 +13,10 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
 
+from backend.tests.integration.conftest import admin_token
+
 pytestmark = pytest.mark.integration
+_ADMIN_HDR = {"Authorization": f"Bearer {admin_token()}"}
 
 
 def _redis_client():
@@ -101,7 +104,7 @@ async def test_flush_view_counts_moves_redis_counts_into_article_metrics(db_sess
     await _cleanup_view_keys(redis_client, article.id)
     await redis_client.set(f"view:{article.id}", 5)
 
-    r = api_client.post("/admin/articles/flush-view-counts")
+    r = api_client.post("/admin/articles/flush-view-counts", headers=_ADMIN_HDR)
     assert r.status_code == 200
     assert r.json()["flushed"] >= 1
 
@@ -125,7 +128,8 @@ async def test_flush_view_counts_skips_zero_and_negative_counts(db_session, api_
     await _cleanup_view_keys(redis_client, article.id)
     await redis_client.set(f"view:{article.id}", 0)
 
-    api_client.post("/admin/articles/flush-view-counts")
+    r = api_client.post("/admin/articles/flush-view-counts", headers=_ADMIN_HDR)
+    assert r.status_code == 200
 
     db_session.expire_all()
     metrics = db_session.query(ArticleMetrics).filter_by(article_id=article.id).first()

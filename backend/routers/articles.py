@@ -1,11 +1,13 @@
 from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from src.shared.domain.exceptions import NotFoundError
 from backend.config import REDIS_URL
 from backend.database import get_db
+from backend.schemas.error import error_responses
 from backend.schemas.article import ArticleOut, PaginatedArticles, ArticleDetailOut
 from backend.services.article_service import (
     get_articles_paginated,
@@ -17,9 +19,9 @@ from backend.services.article_service import (
     get_filter_tags,
     flush_view_counts,
 )
-from backend.auth.guards import get_optional_user_id
+from backend.auth.guards import get_optional_user_id, require_admin, require_any_token
 
-router = APIRouter()
+router = APIRouter(tags=["articles"])
 
 
 def _get_redis():
@@ -27,7 +29,7 @@ def _get_redis():
     return aioredis.from_url(REDIS_URL)
 
 
-@router.get("/articles", response_model=PaginatedArticles)
+@router.get("/articles", response_model=PaginatedArticles, responses=error_responses(401))
 def list_articles(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
@@ -50,6 +52,7 @@ def list_articles(
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
     current_user_id: Optional[UUID] = Depends(get_optional_user_id),
+    _token: dict = Depends(require_any_token),
 ):
     total, rows = get_articles_paginated(
         db, sort, order, page, size,
@@ -87,45 +90,49 @@ def list_articles(
     )
 
 
-@router.get("/source-categories")
-def get_source_categories():
+@router.get("/source-categories", responses=error_responses(401))
+def get_source_categories(_token: dict = Depends(require_any_token)):
     from backend.constants import SOURCE_CATEGORIES
     return {k: [{"value": e.value, "label": e.label} for e in v] for k, v in SOURCE_CATEGORIES.items()}
 
 
-@router.get("/articles/filters/sources")
+@router.get("/articles/filters/sources", responses=error_responses(401))
 def list_filter_sources(
     topic_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     return get_filter_sources(db, topic_id)
 
 
-@router.get("/articles/filters/original-sources")
+@router.get("/articles/filters/original-sources", responses=error_responses(401))
 def list_filter_original_sources(
     topic_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     return get_filter_original_sources(db, topic_id)
 
 
-@router.get("/articles/filters/tags")
+@router.get("/articles/filters/tags", responses=error_responses(401))
 def list_filter_tags(
     topic_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     return get_filter_tags(db, topic_id)
 
 
-@router.get("/articles/{article_id}", response_model=ArticleDetailOut)
+@router.get("/articles/{article_id}", response_model=ArticleDetailOut, responses=error_responses(401, 404))
 def get_article(
     article_id: UUID,
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     article = get_article_by_id(db, article_id)
     if not article:
-        raise HTTPException(status_code=404, detail="Article not found")
+        raise NotFoundError("Article not found")
 
     from models.article_metrics import ArticleMetrics as ArticleMetricsModel
     from models.article_metric_value import ArticleMetricValue
@@ -194,8 +201,8 @@ def get_article(
     )
 
 
-@router.post("/articles/{article_id}/view", status_code=204)
-async def record_article_view(article_id: UUID, request: Request):
+@router.post("/articles/{article_id}/view", status_code=204, responses=error_responses(401))
+async def record_article_view(article_id: UUID, request: Request, _token: dict = Depends(require_any_token)):
     """Increment view count in Redis with IP deduplication (24h TTL)."""
     client_ip = request.client.host if request.client else "unknown"
     dedup_key = f"viewed:{client_ip}:{article_id}"
@@ -211,9 +218,8 @@ async def record_article_view(article_id: UUID, request: Request):
     return Response(status_code=204)
 
 
-@router.post("/admin/articles/flush-view-counts")
-async def admin_flush_view_counts(db: Session = Depends(get_db)):
+@router.post("/admin/articles/flush-view-counts", responses=error_responses(401, 403))
+async def admin_flush_view_counts(db: Session = Depends(get_db), _admin: dict = Depends(require_admin)):
     """Flush Redis view counts into article_metrics table."""
-    from backend.auth.guards import require_admin
     flushed = await flush_view_counts(db)
     return {"flushed": flushed}

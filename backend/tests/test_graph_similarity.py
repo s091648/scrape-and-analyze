@@ -1,9 +1,33 @@
 # backend/tests/test_graph_similarity.py
 """Additional tests for graph.py covering the include_similarity
 and tag-based filtering added in feat/semantic_tag_mgr."""
+import os
 import uuid
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
+
+
+def _guest_headers():
+    from backend.services.auth_service import create_guest_access_token
+    return {"Authorization": f"Bearer {create_guest_access_token('test-guest-id')}"}
+
+
+class _AuthedClient:
+    """018-public-api-auth: /analyses/graph* now requires a token — wrap TestClient
+    so every .get() carries a guest token by default without editing every call site."""
+
+    def __init__(self, app):
+        self._client = TestClient(app)
+
+    def get(self, url, **kwargs):
+        kwargs["headers"] = {**_guest_headers(), **kwargs.get("headers", {})}
+        return self._client.get(url, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
 
 _DT_UUID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 _AI_UUID = uuid.UUID("22222222-2222-2222-2222-222222222222")
@@ -68,7 +92,7 @@ def test_graph_with_tag_filter():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -84,7 +108,7 @@ def test_graph_with_topic_id_filter():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
     topic_id = str(uuid.uuid4())
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
@@ -100,7 +124,7 @@ def test_graph_caches_result():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
     with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
          patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
@@ -114,7 +138,7 @@ def test_graph_multiple_groups_same_article():
     import backend.routers.graph as graph_module
     graph_module._cache.clear()
     from backend.main import app
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([
         {'group': 'digital_twin', 'tags': ['virtual replica']},
         {'group': 'ai_ml', 'tags': ['llm']},
@@ -133,7 +157,7 @@ def test_graph_group_endpoint_with_tag_filter():
     """Group detail endpoint should support tag filtering."""
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_analysis = make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm', 'nlp']}])
     mock_db = _make_mock_db()
 
@@ -156,7 +180,7 @@ def test_graph_group_endpoint_with_topic_id():
     """Group detail endpoint should pass topic_id."""
     from backend.main import app
     from backend.database import get_db
-    client = TestClient(app)
+    client = _AuthedClient(app)
     mock_db = _make_mock_db()
     topic_id = str(uuid.uuid4())
 

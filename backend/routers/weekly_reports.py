@@ -1,10 +1,12 @@
 from datetime import date
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from backend.auth.guards import require_any_token
 from backend.database import get_db
+from backend.schemas.error import error_responses
 from backend.schemas.weekly_report import ArticleSourceOut, WeeklyReportOut, PaginatedWeeklyReports, WeeklyReportWeeksOut
 from backend.services.weekly_report_service import (
     get_weekly_reports,
@@ -59,13 +61,14 @@ def _to_out(report, translations: dict, db: Session) -> WeeklyReportOut:
     return out
 
 
-@router.get("", response_model=PaginatedWeeklyReports)
+@router.get("", response_model=PaginatedWeeklyReports, responses=error_responses(401))
 def list_weekly_reports(
     topic_id: UUID = Query(...),
     limit: int = Query(default=10, ge=1, le=52),
     offset: int = Query(default=0, ge=0),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     total, items = get_weekly_reports(db, topic_id, limit=limit, offset=offset)
     translations = get_weekly_report_translations(db, [r.id for r in items], lang)
@@ -77,11 +80,12 @@ def list_weekly_reports(
     )
 
 
-@router.get("/latest", response_model=Optional[WeeklyReportOut])
+@router.get("/latest", response_model=Optional[WeeklyReportOut], responses=error_responses(401))
 def get_latest_report(
     topic_id: UUID = Query(...),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     report = get_latest_weekly_report(db, topic_id)
     if not report:
@@ -90,21 +94,23 @@ def get_latest_report(
     return _to_out(report, translations, db)
 
 
-@router.get("/weeks", response_model=WeeklyReportWeeksOut)
+@router.get("/weeks", response_model=WeeklyReportWeeksOut, responses=error_responses(401))
 def list_weekly_report_weeks(
     topic_id: UUID = Query(...),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     """Lightweight list of week_start_date values with a completed report — drives date-picker availability."""
     return WeeklyReportWeeksOut(weeks=get_weekly_report_weeks(db, topic_id))
 
 
-@router.get("/by-week", response_model=Optional[WeeklyReportOut])
+@router.get("/by-week", response_model=Optional[WeeklyReportOut], responses=error_responses(401))
 def get_report_by_week(
     topic_id: UUID = Query(...),
     week_start: date = Query(..., description="Any date within the target week; normalized to that week's Monday"),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     report = get_weekly_report_by_week(db, topic_id, week_start)
     if not report:

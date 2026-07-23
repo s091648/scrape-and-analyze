@@ -1,15 +1,13 @@
-import hashlib
-import time
-import uuid
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Cookie, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from jose import JWTError, jwt
 from opentelemetry import trace as _otel_trace
 
-from backend.config import NEXTAUTH_SECRET, REDIS_URL
+from backend.auth.guards import require_any_token
+from backend.config import REDIS_URL
+from backend.schemas.error import error_responses
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
     DAILY_LIMIT_USER,
@@ -20,7 +18,7 @@ from backend.services.chat_service import (
 )
 
 logger = structlog.get_logger()
-router = APIRouter()
+router = APIRouter(tags=["chat"])
 
 
 def _make_redis():
@@ -28,52 +26,25 @@ def _make_redis():
     return aioredis.from_url(REDIS_URL)
 
 
-def _parse_identity(authorization: Optional[str]) -> Optional[ChatIdentity]:
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.removeprefix("Bearer ")
-    secret = NEXTAUTH_SECRET
-    try:
-        payload = jwt.decode(
-            token, secret, algorithms=["HS256"], options={"verify_exp": False}
-        )
-        if "exp" not in payload:
-            return None
-        if payload["exp"] < int(time.time()):
-            return None
-        role = payload.get("role", "user")
-        user_id = payload.get("sub")
-        if role == "admin":
-            return ChatIdentity(tier="admin", user_id=user_id)
-        return ChatIdentity(tier="user", user_id=user_id)
-    except JWTError:
-        return None
+def _identity_from_payload(payload: dict) -> ChatIdentity:
+    """Map an already-verified require_any_token payload to a ChatIdentity. The
+    guest_id claim (research.md §7, 018-public-api-auth) replaces the retired
+    __rag_gid cookie / ip-hash logic — the guest token itself is the identity now."""
+    if payload.get("tier") == "guest":
+        return ChatIdentity(tier="guest", guest_id=payload.get("guest_id"))
+    role = payload.get("role", "user")
+    user_id = payload.get("sub")
+    if role == "admin":
+        return ChatIdentity(tier="admin", user_id=user_id)
+    return ChatIdentity(tier="user", user_id=user_id)
 
 
-def _guest_identity(
-    request: Request, cookie_value: Optional[str]
-) -> tuple[ChatIdentity, Optional[str]]:
-    """Returns (identity, new_cookie_value_to_set_on_response)."""
-    if cookie_value:
-        return ChatIdentity(tier="guest", guest_id=cookie_value), None
-
-    client_ip = (
-        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )
-    ua = request.headers.get("user-agent", "")
-    ip_hash = hashlib.sha256(f"{client_ip}{ua}".encode()).hexdigest()[:16]
-    new_cookie = str(uuid.uuid4())
-    return ChatIdentity(tier="guest", guest_id=f"ip:{ip_hash}"), new_cookie
-
-
-@router.post("/chat/completions")
+@router.post("/chat/completions", responses=error_responses(401))
 async def chat_completions(
     request: Request,
-    authorization: Optional[str] = Header(default=None),
     x_topic_id: Optional[str] = Header(default=None),
     x_pinned_article_ids: Optional[str] = Header(default=None),
-    rag_gid: Optional[str] = Cookie(alias="__rag_gid", default=None),
+    payload: dict = Depends(require_any_token),
 ):
     span = _otel_trace.get_current_span()
     span.set_attribute("chat.topic_id", x_topic_id or "")
@@ -81,10 +52,7 @@ async def chat_completions(
     body = await request.json()
     messages = body.get("messages", [])
 
-    identity = _parse_identity(authorization)
-    new_cookie: Optional[str] = None
-    if identity is None:
-        identity, new_cookie = _guest_identity(request, rag_gid)
+    identity = _identity_from_payload(payload)
 
     span.set_attribute("chat.identity_tier", identity.tier)
 
@@ -124,8 +92,13 @@ async def chat_completions(
             async for chunk in completion_svc.stream_completions(messages, x_topic_id, pinned_ids):
                 yield chunk
         except Exception:
+            # The HTTP status (200) is already committed once streaming starts, so a
+            # mid-stream failure — including all LLM providers being exhausted — can't
+            # be expressed as a status code. It's signaled in-band using the same
+            # error.code/error.message vocabulary as the ErrorResponse contract instead
+            # (contracts/error-response.md "Streaming exception" clause).
             logger.exception("chat_stream_failed", tier=identity.tier)
-            yield b'data: {"error": "chat_stream_failed"}\n\n'
+            yield b'data: {"error": {"code": "EXTERNAL_DEPENDENCY_ERROR", "message": "An upstream dependency is unavailable"}}\n\n'
             yield b"data: [DONE]\n\n"
 
     response = StreamingResponse(
@@ -138,28 +111,12 @@ async def chat_completions(
             "X-RateLimit-Limit": str(limit),
         },
     )
-    if new_cookie:
-        response.set_cookie(
-            "__rag_gid",
-            new_cookie,
-            httponly=True,
-            samesite="lax",
-            max_age=31536000,
-            path="/",
-        )
     return response
 
 
-@router.get("/chat/quota")
-async def chat_quota(
-    request: Request,
-    authorization: Optional[str] = Header(default=None),
-    rag_gid: Optional[str] = Cookie(alias="__rag_gid", default=None),
-):
-    identity = _parse_identity(authorization)
-    new_cookie: Optional[str] = None
-    if identity is None:
-        identity, new_cookie = _guest_identity(request, rag_gid)
+@router.get("/chat/quota", responses=error_responses(401))
+async def chat_quota(payload: dict = Depends(require_any_token)):
+    identity = _identity_from_payload(payload)
 
     redis_client = _make_redis()
     try:
@@ -168,20 +125,10 @@ async def chat_quota(
     finally:
         await redis_client.aclose()
 
-    response = JSONResponse({
+    return JSONResponse({
         "tier": identity.tier,
         "remaining": remaining,
         "limit": limit,
         "guest_daily_limit": DAILY_LIMIT_GUEST,
         "member_daily_limit": DAILY_LIMIT_USER,
     })
-    if new_cookie:
-        response.set_cookie(
-            "__rag_gid",
-            new_cookie,
-            httponly=True,
-            samesite="lax",
-            max_age=31536000,
-            path="/",
-        )
-    return response

@@ -102,35 +102,35 @@ def _mock_httpx_client(status: int = 200, body=None):
 # ---------------------------------------------------------------------------
 
 def test_metrics_no_token_returns_401(api_client):
-    assert api_client.get("/grafana/metrics", params={"query": "up"}).status_code == 401
+    assert api_client.app_client.get("/grafana/metrics", params={"query": "up"}).status_code == 401
 
 
 def test_metrics_batch_no_token_returns_401(api_client):
-    assert api_client.post("/grafana/metrics/batch", json=[]).status_code == 401
+    assert api_client.app_client.post("/grafana/metrics/batch", json=[]).status_code == 401
 
 
 def test_logs_no_token_returns_401(api_client):
-    assert api_client.get("/grafana/logs", params={"query": '{app="x"}'}).status_code == 401
+    assert api_client.app_client.get("/grafana/logs", params={"query": '{app="x"}'}).status_code == 401
 
 
 def test_loki_metrics_batch_no_token_returns_401(api_client):
-    assert api_client.post("/grafana/loki-metrics/batch", json=[]).status_code == 401
+    assert api_client.app_client.post("/grafana/loki-metrics/batch", json=[]).status_code == 401
 
 
 def test_logs_batch_no_token_returns_401(api_client):
-    assert api_client.post("/grafana/logs/batch", json=[]).status_code == 401
+    assert api_client.app_client.post("/grafana/logs/batch", json=[]).status_code == 401
 
 
 def test_traces_no_token_returns_401(api_client):
-    assert api_client.get("/grafana/traces").status_code == 401
+    assert api_client.app_client.get("/grafana/traces").status_code == 401
 
 
 def test_traces_detail_no_token_returns_401(api_client):
-    assert api_client.get("/grafana/traces/abc123").status_code == 401
+    assert api_client.app_client.get("/grafana/traces/abc123").status_code == 401
 
 
 def test_traces_batch_no_token_returns_401(api_client):
-    assert api_client.post("/grafana/traces/batch", json=[]).status_code == 401
+    assert api_client.app_client.post("/grafana/traces/batch", json=[]).status_code == 401
 
 
 # ---------------------------------------------------------------------------
