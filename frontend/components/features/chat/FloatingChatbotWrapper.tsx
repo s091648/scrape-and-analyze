@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { openaiAdapter, useChat, type StreamAdapter, type StreamEvent, type Message } from '@s091648/chatbot-plugin-ui'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota, usePinnedArticle, type PinnedArticle } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useGuestMode, useChatQuota, usePinnedArticle, useAuthToken, type PinnedArticle } from '@/lib/providers'
 import { FloatingChatbotPanel, type ArticleSource } from './FloatingChatbotPanel'
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
@@ -48,7 +48,9 @@ export function FloatingChatbotWrapper() {
   const pendingPinnedRef = useRef<PinnedArticle[]>([])
   const prevUserMsgCountRef = useRef(0)
 
-  const token = (session as any)?.accessToken as string | undefined
+  // 018-public-api-auth: /chat/completions now requires a token — useAuthToken()
+  // resolves to the real session token when logged in, otherwise the guest token.
+  const { token } = useAuthToken()
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId

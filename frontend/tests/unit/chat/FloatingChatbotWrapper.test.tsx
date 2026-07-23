@@ -23,6 +23,7 @@ vi.mock('@/lib/providers', () => ({
   useI18n: vi.fn().mockReturnValue({ t: (k: string) => zhTW[k] ?? k }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
   useGuestMode: vi.fn().mockReturnValue({ isGuestMode: true }),
+  useAuthToken: vi.fn().mockReturnValue({ token: 'tok', isLoading: false }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
   usePinnedArticle: vi.fn().mockReturnValue({
     pinnedArticles: [],

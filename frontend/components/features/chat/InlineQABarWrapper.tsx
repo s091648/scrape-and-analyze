@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
-import { useSession } from 'next-auth/react'
 import { useDroppable } from '@dnd-kit/core'
 import { AgentInput, openaiAdapter, useChat, type StreamAdapter, type StreamEvent } from '@s091648/chatbot-plugin-ui'
 import { Inbox, Pencil, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle, useAuthToken } from '@/lib/providers'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { ArticleSource, ChatConversationSnapshot, ConversationTurn } from './types'
@@ -26,7 +25,6 @@ interface InlineQABarWrapperProps {
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 
 export function InlineQABarWrapper({ placeholder, className, onMessageSent, onConversationChange }: InlineQABarWrapperProps) {
-  const { data: session } = useSession()
   const { selectedTopicId } = useTopic()
   const { t } = useI18n()
   const { mode } = useTheme()
@@ -34,7 +32,9 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
   const { pinnedArticles, removePinnedArticle, pinnedGroups = [], toggleGroupArticle, removeGroup, isPinned } = usePinnedArticle()
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: 'chat-input-dropzone' })
 
-  const token = (session as any)?.accessToken as string | undefined
+  // 018-public-api-auth: /chat/completions now requires a token — useAuthToken()
+  // resolves to the real session token when logged in, otherwise the guest token.
+  const { token } = useAuthToken()
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId

@@ -1,8 +1,7 @@
 'use client'
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
-
-const QUOTA_ENDPOINT = '/api/proxy/chat/quota'
+import { useAuthToken } from './auth-token-provider'
+import { apiFetch } from '@/lib/api/client'
 
 export interface Quota {
   remaining: number
@@ -21,28 +20,27 @@ const ChatQuotaContext = createContext<ChatQuotaContextType>({
 })
 
 export function ChatQuotaProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
-  const [quota, setQuota] = useState<Quota | null>(null)
+  // 018-public-api-auth: /chat/quota now requires a token (guest tokens included) —
+  // apiFetch() attaches whichever one AuthTokenProvider currently has.
+  const { token, isLoading } = useAuthToken()
 
-  const token = (session as any)?.accessToken as string | undefined
+  const [quota, setQuota] = useState<Quota | null>(null)
 
   const refreshQuota = useCallback(async () => {
     try {
-      const res = await fetch(QUOTA_ENDPOINT, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const res = await apiFetch('/chat/quota')
       if (res.ok) {
         const data = await res.json()
         setQuota({ remaining: data.remaining, limit: data.limit, tier: data.tier })
       }
     } catch {}
-  }, [token])
+  }, [])
 
   useEffect(() => {
-    if (status !== 'loading') {
+    if (!isLoading && token) {
       refreshQuota()
     }
-  }, [status, refreshQuota])
+  }, [isLoading, token, refreshQuota])
 
   return (
     <ChatQuotaContext.Provider value={{ quota, refreshQuota }}>

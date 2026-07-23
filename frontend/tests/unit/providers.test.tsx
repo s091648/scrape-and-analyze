@@ -35,6 +35,11 @@ vi.mock('@/lib/providers/theme-provider', () => ({
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: vi.fn(), setMode: vi.fn() }),
 }))
 
+vi.mock('@/lib/providers/auth-token-provider', () => ({
+  AuthTokenProvider: ({ children }: any) => <>{children}</>,
+  useAuthToken: vi.fn().mockReturnValue({ token: undefined, isLoading: false }),
+}))
+
 describe('AppProviders', () => {
   it('renders children inside all providers', async () => {
     const { AppProviders } = await import('@/lib/providers')
@@ -89,5 +94,10 @@ describe('providers re-exports', () => {
   it('exports useChatQuota hook', async () => {
     const { useChatQuota } = await import('@/lib/providers')
     expect(typeof useChatQuota).toBe('function')
+  })
+
+  it('exports useAuthToken hook', async () => {
+    const { useAuthToken } = await import('@/lib/providers')
+    expect(typeof useAuthToken).toBe('function')
   })
 })

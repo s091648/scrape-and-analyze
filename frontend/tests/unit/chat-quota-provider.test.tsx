@@ -1,27 +1,23 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
-import { useContext } from 'react'
 
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
+vi.mock('@/lib/providers/auth-token-provider', () => ({
+  useAuthToken: vi.fn(),
 }))
 
-import { useSession } from 'next-auth/react'
+import { useAuthToken } from '@/lib/providers/auth-token-provider'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
-function makeSessionMock(status: 'authenticated' | 'unauthenticated' | 'loading', token?: string) {
-  return {
-    data: status === 'authenticated' ? { accessToken: token ?? 'tok' } : null,
-    status,
-    update: vi.fn(),
-  }
+function makeAuthTokenMock(token: string | undefined, isLoading = false) {
+  return { token, isLoading }
 }
 
 function makeQuotaResponse(overrides = {}) {
   return {
     ok: true,
+    status: 200,
     json: async () => ({ tier: 'guest', remaining: 5, limit: 10, ...overrides }),
   }
 }
@@ -30,7 +26,7 @@ describe('ChatQuotaProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetch.mockResolvedValue(makeQuotaResponse())
-    vi.mocked(useSession).mockReturnValue(makeSessionMock('unauthenticated') as any)
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock('guest-token'))
   })
 
   it('renders children', async () => {
@@ -43,19 +39,27 @@ describe('ChatQuotaProvider', () => {
     expect(screen.getByTestId('child')).toBeInTheDocument()
   })
 
-  it('fetches quota on mount when session is not loading', async () => {
+  it('fetches quota via apiFetch once a token is available', async () => {
     const { ChatQuotaProvider } = await import('@/lib/providers/chat-quota-provider')
     render(<ChatQuotaProvider><div /></ChatQuotaProvider>)
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/proxy/chat/quota',
-        expect.objectContaining({ headers: expect.any(Object) })
+        expect.stringContaining('/api/proxy/chat/quota'),
+        expect.any(Object),
       )
     })
   })
 
-  it('does not fetch while session status is loading', async () => {
-    vi.mocked(useSession).mockReturnValue(makeSessionMock('loading') as any)
+  it('does not fetch while the token is still loading', async () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, true))
+    const { ChatQuotaProvider } = await import('@/lib/providers/chat-quota-provider')
+    render(<ChatQuotaProvider><div /></ChatQuotaProvider>)
+    await new Promise(r => setTimeout(r, 50))
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch when there is no token at all', async () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, false))
     const { ChatQuotaProvider } = await import('@/lib/providers/chat-quota-provider')
     render(<ChatQuotaProvider><div /></ChatQuotaProvider>)
     await new Promise(r => setTimeout(r, 50))
@@ -79,7 +83,7 @@ describe('ChatQuotaProvider', () => {
   })
 
   it('quota remains null when fetch returns non-ok response', async () => {
-    mockFetch.mockResolvedValue({ ok: false, json: async () => ({}) })
+    mockFetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) })
 
     const { ChatQuotaProvider, useChatQuota } = await import('@/lib/providers/chat-quota-provider')
     function Consumer() {
@@ -105,21 +109,6 @@ describe('ChatQuotaProvider', () => {
     render(<ChatQuotaProvider><Consumer /></ChatQuotaProvider>)
     await waitFor(() => {
       expect(screen.getByTestId('result')).toHaveTextContent('null')
-    })
-  })
-
-  it('includes Authorization header when session has accessToken', async () => {
-    vi.mocked(useSession).mockReturnValue(makeSessionMock('authenticated', 'my-token') as any)
-
-    const { ChatQuotaProvider } = await import('@/lib/providers/chat-quota-provider')
-    render(<ChatQuotaProvider><div /></ChatQuotaProvider>)
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/proxy/chat/quota',
-        expect.objectContaining({
-          headers: expect.objectContaining({ Authorization: 'Bearer my-token' }),
-        })
-      )
     })
   })
 

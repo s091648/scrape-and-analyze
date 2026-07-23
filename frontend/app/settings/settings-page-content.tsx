@@ -155,7 +155,7 @@ export default function SettingsPageContent() {
       setNewPassword('')
     } else {
       const data = await res.json().catch(() => ({}))
-      setPasswordMsg({ ok: false, text: data?.detail ?? t('settings.failedToChangePassword') })
+      setPasswordMsg({ ok: false, text: data?.error?.message ?? t('settings.failedToChangePassword') })
     }
   }
 
@@ -175,7 +175,7 @@ export default function SettingsPageContent() {
       setLinkMsg({ ok: true, text: t('settings.googleAccountUnlinked') })
     } else {
       const data = await res.json().catch(() => ({}))
-      setLinkMsg({ ok: false, text: data?.detail ?? t('settings.failedToUnlink') })
+      setLinkMsg({ ok: false, text: data?.error?.message ?? t('settings.failedToUnlink') })
     }
   }
 

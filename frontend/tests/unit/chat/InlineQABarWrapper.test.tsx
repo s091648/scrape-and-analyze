@@ -36,6 +36,7 @@ vi.mock('@/lib/providers', () => ({
     },
   }),
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
+  useAuthToken: vi.fn().mockReturnValue({ token: undefined, isLoading: false }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
   usePinnedArticle: vi.fn().mockReturnValue({
     pinnedArticles: [],
