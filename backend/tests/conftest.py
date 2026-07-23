@@ -29,6 +29,13 @@ def make_user_token():
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
+def make_guest_token(guest_id="test-guest-id"):
+    """Create a guest access token (018-public-api-auth) — every endpoint that used
+    to require no auth at all now requires at least a guest token."""
+    from backend.services.auth_service import create_guest_access_token
+    return create_guest_access_token(guest_id)
+
+
 # ── ORM mock factories ──────────────────────────────────────────────────────
 
 

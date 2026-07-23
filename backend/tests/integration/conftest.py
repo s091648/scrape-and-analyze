@@ -104,20 +104,6 @@ def db_session(db_engine):
     connection.close()
 
 
-@pytest.fixture
-def api_client(db_session):
-    from fastapi.testclient import TestClient
-    from backend.main import app
-    from backend.database import get_db
-
-    def _override():
-        yield db_session
-
-    app.dependency_overrides[get_db] = _override
-    yield TestClient(app)
-    app.dependency_overrides.pop(get_db, None)
-
-
 def admin_token() -> str:
     payload = {"sub": "admin", "role": "admin", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
@@ -126,3 +112,58 @@ def admin_token() -> str:
 def user_token(user_id: str = "user-uuid-001") -> str:
     payload = {"sub": user_id, "role": "user", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+
+
+def guest_token(guest_id: str = "test-guest-id") -> str:
+    payload = {"tier": "guest", "guest_id": guest_id, "token_use": "access", "exp": int(time.time()) + 3600}
+    return jwt.encode(payload, _JWT_SECRET, algorithm="HS256")
+
+
+class _DefaultGuestAuthClient:
+    """018-public-api-auth: every previously fully-public endpoint now requires
+    at least a valid token. Rather than edit every existing integration test's
+    call sites individually, this wraps TestClient so a guest token is attached
+    by default — any test that explicitly passes its own Authorization header
+    (e.g. admin_token()/user_token() for role-gated endpoints) is unaffected,
+    and a test that wants to exercise the *unauthenticated* 401 path can pass
+    headers={"Authorization": ""} or use client.app_client directly."""
+
+    def __init__(self, app):
+        self.app_client = __import__("fastapi.testclient", fromlist=["TestClient"]).TestClient(app)
+
+    def _with_default_auth(self, kwargs):
+        headers = dict(kwargs.get("headers") or {})
+        headers.setdefault("Authorization", f"Bearer {guest_token()}")
+        kwargs["headers"] = headers
+        return kwargs
+
+    def get(self, url, **kwargs):
+        return self.app_client.get(url, **self._with_default_auth(kwargs))
+
+    def post(self, url, **kwargs):
+        return self.app_client.post(url, **self._with_default_auth(kwargs))
+
+    def put(self, url, **kwargs):
+        return self.app_client.put(url, **self._with_default_auth(kwargs))
+
+    def patch(self, url, **kwargs):
+        return self.app_client.patch(url, **self._with_default_auth(kwargs))
+
+    def delete(self, url, **kwargs):
+        return self.app_client.delete(url, **self._with_default_auth(kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self.app_client, name)
+
+
+@pytest.fixture
+def api_client(db_session):
+    from backend.main import app
+    from backend.database import get_db
+
+    def _override():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override
+    yield _DefaultGuestAuthClient(app)
+    app.dependency_overrides.pop(get_db, None)
