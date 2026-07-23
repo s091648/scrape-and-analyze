@@ -22,6 +22,12 @@ jobs:
   check-staging-deployments:
     name: Check & Revive Staging Deployments
     runs-on: ubuntu-latest
+    # PR-review context only. A push to master is always a post-merge push (branch
+    # protection forbids direct pushes), which fires at the same time as
+    # close-staging.yml's `pull_request: closed` — racing against it to revive
+    # deployments close-staging is concurrently tearing down. Nothing here is needed
+    # once the PR is merged.
+    if: github.event_name == 'pull_request'
     timeout-minutes: 15
     environment: scraper / staging
 
@@ -145,7 +151,9 @@ jobs:
     name: DB Migration
     runs-on: ubuntu-latest
     needs: [check-staging-deployments]
-    if: needs.check-staging-deployments.result == 'success'
+    if: |
+      always() &&
+      (needs.check-staging-deployments.result == 'success' || needs.check-staging-deployments.result == 'skipped')
     timeout-minutes: 10
     environment: scraper / staging
 
@@ -786,7 +794,9 @@ jobs:
     name: Deploy Backend to Staging
     runs-on: ubuntu-latest
     needs: [backend-unit, backend-integration]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.backend-unit.result == 'success' &&
       needs.backend-integration.result == 'success'
     environment: scraper / staging
@@ -812,7 +822,9 @@ jobs:
     name: Deploy Frontend to Staging
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
@@ -838,7 +850,9 @@ jobs:
     name: Deploy Storybook to Staging
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
@@ -864,7 +878,9 @@ jobs:
     name: Deploy Scrape-Analyzer to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
@@ -890,7 +906,9 @@ jobs:
     name: Deploy Chatbot Plugin to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
@@ -915,7 +933,9 @@ jobs:
     name: Deploy Fastembed to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
@@ -943,7 +963,9 @@ jobs:
     name: Deploy Weekly Report to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
@@ -972,7 +994,9 @@ jobs:
     name: Deploy Refresh Metrics to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
