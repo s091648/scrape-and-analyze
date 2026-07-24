@@ -86,6 +86,8 @@ Root layout wraps: `SessionProviderWrapper > TopicProvider > I18nProvider > Erro
 | `llm_providers.py` | `/llm-providers` | All require_admin |
 | `metric_definitions.py` | `/` | `GET /metric-definitions` public; `/admin/metric-definitions` (GET, PATCH) require_admin |
 | `weekly_reports.py` | `/weekly-reports` | `require_any_token` |
+| `tags.py` | `/` | `GET /tag-groups`, `GET /tag-groups/{group_id}` require_any_token; all other (write) endpoints require_admin |
+| `chat.py` | `/chat` | `require_any_token` on `/chat/completions` and `/chat/quota` |
 
 `require_any_token` (`backend/auth/guards.py`, `018-public-api-auth`) accepts any real user/admin JWT or a guest access token (obtained via `POST /auth/guest`, no credentials required); it never accepts a guest *refresh* token. It is the floor auth requirement for every endpoint above that isn't already gated by `require_admin`/`require_user` — see `site/guide/architecture/exception-handling.md`'s sibling doc for the full guest-token contract in `specs/018-public-api-auth/contracts/guest-token.md`.
 
@@ -167,7 +169,7 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 - **Dependency management** — `uv` with `uv.lock`, Python 3.11, dependency groups in `pyproject.toml`: core, scraper, backend, observability, dev
 - **Frontend UI** — Shadcn/UI primitives in `components/ui/`, Tailwind CSS v4, Radix UI
 - **Test markers** — `@pytest.mark.integration` for tests requiring postgres; integration test conftest creates `test_integration` schema with per-test rollback
-- **Exception handling** — domain exceptions raised anywhere in `src/`/`backend/` must subclass `DomainError` (`src/shared/domain/exceptions.py`) via one of its shared categories (`ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `ForbiddenError`, `ExternalDependencyError`); a single central handler (`backend/exceptions/handlers.py`) maps these to HTTP status codes — routers never construct `HTTPException` themselves. Full guideline: `site/guide/architecture/exception-handling.md`.
+- **Exception handling** — domain exceptions raised anywhere in `src/`/`backend/` must subclass `DomainError` (`src/shared/domain/exceptions.py`) via one of its shared categories (`ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `ForbiddenError`, `ExternalDependencyError`); a single central handler (`backend/exceptions/handlers.py`) maps these to HTTP status codes — routers never construct `HTTPException` themselves, with one documented exception: `chat.py`'s 429 rate-limit response, since 429 was never part of the `DomainError` category mapping (`specs/017-exception-handling-guideline/router-audit.md`). Full guideline: `site/guide/architecture/exception-handling.md`.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
