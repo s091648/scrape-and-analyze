@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useEffect } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 
 vi.mock('next-auth/react', () => ({
@@ -174,6 +175,32 @@ describe('AuthTokenProvider', () => {
     })
     expect(mockFetch).toHaveBeenCalledWith('/api/proxy/auth/guest/refresh', expect.any(Object))
     expect(mockFetch).toHaveBeenCalledWith('/api/proxy/auth/guest', { method: 'POST' })
+  })
+
+  it('syncs the module-level token store before a child effect observing the new token runs (regression: topics/languages/chat-quota 401 race)', async () => {
+    const { AuthTokenProvider, useAuthToken } = await import('@/lib/providers/auth-token-provider')
+    const { getCurrentToken } = await import('@/lib/auth-token-store')
+
+    let observedAtEffectTime: string | undefined = 'not-run'
+    function ChildConsumer() {
+      const { token, isLoading } = useAuthToken()
+      // Mirrors the guard used by ChatQuotaProvider/TopicProvider/I18nProvider:
+      // fire only once a token is actually available, then read the store the
+      // way apiFetch does — from a useEffect, since React runs child effects
+      // before the parent's own effect in the same commit. A parent-level
+      // useEffect writing to the store would still be observed as stale here.
+      useEffect(() => {
+        if (!isLoading && token && observedAtEffectTime === 'not-run') {
+          observedAtEffectTime = getCurrentToken()
+        }
+      }, [isLoading, token])
+      return null
+    }
+
+    render(<AuthTokenProvider><ChildConsumer /></AuthTokenProvider>)
+
+    await waitFor(() => expect(observedAtEffectTime).not.toBe('not-run'))
+    expect(observedAtEffectTime).toBe('guest-access-1')
   })
 
   it('clears the cached guest pair once the user logs in', async () => {
