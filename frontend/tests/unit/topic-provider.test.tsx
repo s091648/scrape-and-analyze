@@ -12,9 +12,22 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }))
 
+// 018-public-api-auth: TopicProvider now waits for a resolved auth token
+// (real session or guest) before calling /topics.
+vi.mock('@/lib/providers/auth-token-provider', () => ({
+  useAuthToken: vi.fn(),
+}))
+
+import { useAuthToken } from '@/lib/providers/auth-token-provider'
+
+function makeAuthTokenMock(token: string | undefined, isLoading = false) {
+  return { token, isLoading }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
+  vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock('test-token'))
 })
 
 const sampleTopics = [
@@ -102,5 +115,33 @@ describe('TopicProvider', () => {
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
     expect(screen.getByTestId('selected').textContent).toBe('none')
     expect(screen.getByTestId('count').textContent).toBe('0')
+  })
+
+  it('does not fetch topics while the auth token is still loading', async () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, true))
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProvider()
+    await new Promise(r => setTimeout(r, 50))
+    expect(mockFetchTopics).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch topics when there is no token at all', async () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, false))
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProvider()
+    await new Promise(r => setTimeout(r, 50))
+    expect(mockFetchTopics).not.toHaveBeenCalled()
+  })
+
+  it('fetches topics once the auth token resolves', async () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, true))
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    const { rerender } = renderProvider()
+    await new Promise(r => setTimeout(r, 20))
+    expect(mockFetchTopics).not.toHaveBeenCalled()
+
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock('guest-token', false))
+    rerender(<TopicProvider><TestConsumer /></TopicProvider>)
+    await waitFor(() => expect(mockFetchTopics).toHaveBeenCalledTimes(1))
   })
 })

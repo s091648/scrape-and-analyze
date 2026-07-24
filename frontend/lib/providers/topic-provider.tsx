@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, Suspense } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { fetchTopics } from '@/lib/api/topics'
+import { useAuthToken } from './auth-token-provider'
 
 export type TagMode = 'unsupervised' | 'semi_supervised' | 'supervised'
 
@@ -63,17 +64,29 @@ function TopicUrlSync({
   // State → URL: keep URL in sync with current topic, preserving other params (e.g. `week`)
   useEffect(() => {
     if (!selectedTopicId) return
+    // /login and /register aren't topic-scoped, and — now that /topics succeeds
+    // pre-auth for guests (it used to 401 silently before token-gating) — this
+    // effect can fire while still on /login, e.g. right as a "Continue as
+    // Guest" click is navigating away via router.push('/'). A replace() here
+    // using this render's (possibly stale, pre-navigation) `pathname` would
+    // race that push and strand the user back on /login?topic=... .
+    if (pathname === '/login' || pathname === '/register') return
     if (searchParams.get('topic') === selectedTopicId) return
     const params = new URLSearchParams(searchParams.toString())
     params.set('topic', selectedTopicId)
     router.replace(`${pathname}?${params.toString()}`, { scroll: false })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTopicId])
+  }, [selectedTopicId, pathname])
 
   return null
 }
 
 export function TopicProvider({ children }: { children: ReactNode }) {
+  // 018-public-api-auth: /topics now requires a token — wait for AuthTokenProvider
+  // to resolve one (real session or guest) before calling, so this doesn't race
+  // the guest-token bootstrap on a fresh anonymous visit.
+  const { token, isLoading: authLoading } = useAuthToken()
+
   const [topics, setTopics] = useState<Topic[]>([])
   const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
@@ -94,9 +107,10 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    if (authLoading || !token) return
     setIsLoading(true)
     loadTopics().finally(() => setIsLoading(false))
-  }, [])
+  }, [authLoading, token])
 
   function setSelectedTopicId(id: string) {
     setSelectedTopicIdState(id)
