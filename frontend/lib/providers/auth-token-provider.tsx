@@ -147,9 +147,13 @@ export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
   const token = status === 'authenticated' ? sessionToken : guestPair?.accessToken
   const isLoading = status === 'loading' || (status === 'unauthenticated' && guestLoading)
 
-  useEffect(() => {
-    setCurrentToken(token)
-  }, [token])
+  // Written synchronously during render (not in a useEffect) so the module-level
+  // store is already up to date by the time children render and their own
+  // effects call apiFetch — React fires child effects before parent effects, so
+  // a parent-level useEffect here would still be racing every descendant that
+  // reacts to `token` becoming available in the same commit (topics/languages/
+  // chat-quota all observed 401s from exactly this race).
+  setCurrentToken(token)
 
   return (
     <AuthTokenContext.Provider value={{ token, isLoading }}>
