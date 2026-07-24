@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace as _otel_trace
 
 from backend.auth.guards import require_any_token
-from backend.config import REDIS_URL
+from backend.config import CHAT_SERVICE_URL, REDIS_URL
 from backend.schemas.error import error_responses
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
@@ -19,6 +19,22 @@ from backend.services.chat_service import (
 
 logger = structlog.get_logger()
 router = APIRouter(tags=["chat"])
+
+# This endpoint is a thin proxy to the chatbot-plugin service's own OpenAI-compatible
+# POST /v1/chat/completions (source: chatbot-plugin/src/chatbot_plugin/routers/chat.py).
+# Link to that service's own Swagger UI when configured — note CHAT_SERVICE_URL is a
+# Docker/Railway *internal* hostname (like BACKEND_URL, see .env.example), so this link
+# only resolves for something on the same private network as this backend (e.g. a local
+# `docker compose up`), not for a browser viewing this page over the public internet.
+_CHAT_COMPLETIONS_DESCRIPTION = (
+    "Proxies to the chatbot-plugin service's own OpenAI-compatible `POST /v1/chat/completions`.\n\n"
+    + (
+        f"chatbot-plugin's own Swagger UI: [{CHAT_SERVICE_URL}/docs]({CHAT_SERVICE_URL}/docs) "
+        "(only reachable from the same internal network as this backend, not from a public browser)."
+        if CHAT_SERVICE_URL
+        else "chatbot-plugin's own Swagger UI is unavailable — `CHAT_SERVICE_URL` is not configured."
+    )
+)
 
 
 def _make_redis():
@@ -39,7 +55,7 @@ def _identity_from_payload(payload: dict) -> ChatIdentity:
     return ChatIdentity(tier="user", user_id=user_id)
 
 
-@router.post("/chat/completions", responses=error_responses(401))
+@router.post("/chat/completions", description=_CHAT_COMPLETIONS_DESCRIPTION, responses=error_responses(401))
 async def chat_completions(
     request: Request,
     x_topic_id: Optional[str] = Header(default=None),
