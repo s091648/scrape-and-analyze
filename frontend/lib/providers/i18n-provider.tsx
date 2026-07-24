@@ -46,7 +46,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (authLoading || !token) return
 
-    apiFetch('/languages')
+    apiFetch('/languages', {}, undefined, { silent: true })
       .then(res => res.json())
       .then(data => {
         setAvailableLanguages(data.available || [])

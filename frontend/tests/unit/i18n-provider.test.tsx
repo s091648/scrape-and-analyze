@@ -50,7 +50,9 @@ describe('I18nProvider', () => {
 
   it('calls apiFetch to resolve available languages on mount', async () => {
     renderProvider()
-    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith('/languages'))
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith('/languages', {}, undefined, { silent: true })
+    )
   })
 
   it('defaults locale to resolved language from API', async () => {

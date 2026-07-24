@@ -45,7 +45,7 @@ export async function createLlmProvider(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify(data),
-    }),
+    }, undefined, { silent: true }),
   )
   return res.json()
 }
@@ -60,14 +60,14 @@ export async function updateLlmProvider(
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify(data),
-    }),
+    }, undefined, { silent: true }),
   )
   return res.json()
 }
 
 export async function deleteLlmProvider(id: string, token?: string): Promise<void> {
   await throwOnError(
-    await apiFetch(`/llm-providers/${id}`, { method: 'DELETE', headers: authHeader(token) }),
+    await apiFetch(`/llm-providers/${id}`, { method: 'DELETE', headers: authHeader(token) }, undefined, { silent: true }),
   )
 }
 
@@ -80,7 +80,7 @@ export async function reorderLlmProviders(
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify({ order }),
-    }),
+    }, undefined, { silent: true }),
   )
   return res.json()
 }

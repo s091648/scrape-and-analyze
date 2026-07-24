@@ -124,7 +124,7 @@ describe('user API', () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ telegram_enabled: true }),
-      })
+      }, undefined, { silent: true })
       expect(result).toEqual(updated)
     })
 

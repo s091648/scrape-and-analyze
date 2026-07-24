@@ -20,7 +20,7 @@ describe('weekly-reports API', () => {
       mockOk(report)
       const { fetchLatestWeeklyReport } = await import('@/lib/api/weekly-reports')
       const result = await fetchLatestWeeklyReport('t1')
-      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/latest?topic_id=t1', {}, undefined)
+      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/latest?topic_id=t1', {}, undefined, { silent: true })
       expect(result).toEqual(report)
     })
 
@@ -42,7 +42,7 @@ describe('weekly-reports API', () => {
       mockOk(null)
       const { fetchLatestWeeklyReport } = await import('@/lib/api/weekly-reports')
       await fetchLatestWeeklyReport('t1', 'zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.any(String), {}, 'zh-TW')
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.any(String), {}, 'zh-TW', { silent: true })
     })
   })
 
@@ -76,7 +76,7 @@ describe('weekly-reports API', () => {
       mockOk(report)
       const { fetchWeeklyReportByWeek } = await import('@/lib/api/weekly-reports')
       const result = await fetchWeeklyReportByWeek('t1', '2026-06-15')
-      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/by-week?topic_id=t1&week_start=2026-06-15', {}, undefined)
+      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/by-week?topic_id=t1&week_start=2026-06-15', {}, undefined, { silent: true })
       expect(result).toEqual(report)
     })
 
@@ -100,7 +100,7 @@ describe('weekly-reports API', () => {
       mockOk({ weeks: ['2026-06-15', '2026-06-08'] })
       const { fetchWeeklyReportWeeks } = await import('@/lib/api/weekly-reports')
       const result = await fetchWeeklyReportWeeks('t1')
-      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/weeks?topic_id=t1')
+      expect(mockApiFetch).toHaveBeenCalledWith('/weekly-reports/weeks?topic_id=t1', {}, undefined, { silent: true })
       expect(result).toEqual(['2026-06-15', '2026-06-08'])
     })
 

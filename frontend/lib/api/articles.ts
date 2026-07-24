@@ -79,8 +79,8 @@ export async function fetchArticles(
   return res.json()
 }
 
-export async function fetchArticleById(id: string, locale?: string): Promise<ArticleDetail> {
-  const res = await apiFetch(`/articles/${id}`, {}, locale)
+export async function fetchArticleById(id: string, locale?: string, silent?: boolean): Promise<ArticleDetail> {
+  const res = await apiFetch(`/articles/${id}`, {}, locale, { silent })
   if (!res.ok) throw new Error(`${res.status}`)
   return res.json()
 }
@@ -102,5 +102,5 @@ export async function fetchArticleFilterTags(locale?: string): Promise<string[]>
 }
 
 export function recordArticleView(id: string): void {
-  apiFetch(`/articles/${id}/view`, { method: 'POST' }).catch(() => {})
+  apiFetch(`/articles/${id}/view`, { method: 'POST' }, undefined, { silent: true }).catch(() => {})
 }

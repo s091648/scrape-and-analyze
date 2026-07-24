@@ -28,7 +28,7 @@ export function ChatQuotaProvider({ children }: { children: React.ReactNode }) {
 
   const refreshQuota = useCallback(async () => {
     try {
-      const res = await apiFetch('/chat/quota')
+      const res = await apiFetch('/chat/quota', {}, undefined, { silent: true })
       if (res.ok) {
         const data = await res.json()
         setQuota({ remaining: data.remaining, limit: data.limit, tier: data.tier })

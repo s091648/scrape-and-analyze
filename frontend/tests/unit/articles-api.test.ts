@@ -110,7 +110,7 @@ describe('articles API', () => {
       mockOk(article)
       const { fetchArticleById } = await import('@/lib/api/articles')
       const result = await fetchArticleById('a1')
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, undefined)
+      expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, undefined, { silent: undefined })
       expect(result.id).toBe('a1')
     })
 
@@ -125,7 +125,7 @@ describe('articles API', () => {
       mockOk(article)
       const { fetchArticleById } = await import('@/lib/api/articles')
       await fetchArticleById('a1', 'zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, 'zh-TW')
+      expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, 'zh-TW', { silent: undefined })
     })
   })
 
