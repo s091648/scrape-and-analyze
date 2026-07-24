@@ -68,6 +68,7 @@ observability = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",
     "opentelemetry-instrumentation",
+    "opentelemetry-instrumentation-fastapi",
 ]
 # 本地開發與測試工具
 dev = [

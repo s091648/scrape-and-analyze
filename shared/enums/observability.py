@@ -14,6 +14,7 @@ from enum import StrEnum
 # ── Service identity ──────────────────────────────────────────────────────────
 
 SERVICE_NAME = "scrape-analyzer"
+SERVICE_NAME_BACKEND = "scrape-analyzer-backend"
 
 
 # ── OTel Resource ────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ class LokiLabel(StrEnum):
 
 class LokiAppValue(StrEnum):
     SCRAPER = "scraper"
+    BACKEND = "backend"
 
 
 class LokiEnvValue(StrEnum):

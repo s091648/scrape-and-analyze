@@ -32,7 +32,7 @@ export function pushToLoki(entry: LogEntry): void {
   const credentials = Buffer.from(`${user}:${key}`).toString('base64')
 
   // Intentionally not awaited — fire and forget
-  fetch(url, {
+  fetch(`${url.replace(/\/$/, '')}/push`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

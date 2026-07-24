@@ -42,7 +42,7 @@ describe('pushToLoki', () => {
     pushToLoki({ level: 'warn', fields: { msg: 'hello' } })
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledOnce())
     const [url, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
-    expect(url).toBe('https://loki.example.com')
+    expect(url).toBe('https://loki.example.com/push')
     expect(opts.method).toBe('POST')
     expect(opts.headers['Content-Type']).toBe('application/json')
   })

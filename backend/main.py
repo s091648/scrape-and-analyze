@@ -24,12 +24,16 @@ from backend.routers.chat import router as chat_router
 from backend.routers.user import router as user_router
 from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
-from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN
+from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV
 from backend.schemas.error import error_responses
+from backend.observability import configure_logging, setup_tracing
 
 if SENTRY_DSN:
     import sentry_sdk
     sentry_sdk.init(dsn=SENTRY_DSN)
+
+configure_logging(APP_ENV)
+_tracer_provider = setup_tracing(APP_ENV)
 
 
 async def _periodic_view_flush():
@@ -50,6 +54,8 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(_periodic_view_flush())
     yield
     task.cancel()
+    if _tracer_provider:
+        _tracer_provider.shutdown()
 
 
 app = FastAPI(
@@ -69,6 +75,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+if _tracer_provider:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider, excluded_urls="health")
 
 register_exception_handlers(app)
 
