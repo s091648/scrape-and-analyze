@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
+from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.shared.domain.exceptions import ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError
@@ -57,22 +59,25 @@ def register(data: dict, db: Session = Depends(get_db)):
     try:
         if "google_id" in data:
             req = RegisterGoogleRequest(**data)
-            new_user = _create_user(
+        else:
+            req = RegisterCredentialsRequest(**data)
+    except PydanticValidationError as e:
+        raise ValidationError(str(e))
+
+    try:
+        if "google_id" in data:
+            return _create_user(
                 db, id=_uuid.uuid4(), email=req.email, name=req.name,
                 google_id=req.google_id, role='user', is_allowed=True,
             )
-        else:
-            req = RegisterCredentialsRequest(**data)
-            new_user = _create_user(
-                db, id=_uuid.uuid4(), email=req.email, name=req.name,
-                username=req.username, hashed_password=hash_password(req.password),
-                role='user', is_allowed=True,
-            )
-        return new_user
-    except Exception as e:
-        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
-            raise ConflictError("Email or username already taken")
-        raise ValidationError(str(e))
+        return _create_user(
+            db, id=_uuid.uuid4(), email=req.email, name=req.name,
+            username=req.username, hashed_password=hash_password(req.password),
+            role='user', is_allowed=True,
+        )
+    except IntegrityError:
+        db.rollback()
+        raise ConflictError("Email or username already taken")
 
 
 @router.post("/google/authorize", response_model=UserOut, responses=error_responses(403, 404, 409))
@@ -106,10 +111,9 @@ def admin_create_user(data: AdminCreateUserRequest, db: Session = Depends(get_db
         kwargs["hashed_password"] = hash_password(data.password)
     try:
         return _create_user(db, **kwargs)
-    except Exception as e:
-        if "duplicate" in str(e).lower() or "unique" in str(e).lower():
-            raise ConflictError("Email or username already taken")
-        raise
+    except IntegrityError:
+        db.rollback()
+        raise ConflictError("Email or username already taken")
 
 
 @router.patch("/users/{user_id}", response_model=UserOut, responses=error_responses(401, 403, 404))

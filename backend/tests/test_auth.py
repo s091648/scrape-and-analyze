@@ -121,9 +121,10 @@ def test_register_google_returns_201():
 def test_register_duplicate_email_returns_409():
     from backend.main import app
     from unittest.mock import patch
+    from sqlalchemy.exc import IntegrityError
     client = TestClient(app)
     with patch("backend.routers.auth._create_user",
-               side_effect=Exception("duplicate key value violates unique constraint")):
+               side_effect=IntegrityError("INSERT", {}, Exception("duplicate key value violates unique constraint"))):
         response = client.post("/auth/register", json={
             "username": "dup", "password": "pass", "email": "dup@test.com"
         })
