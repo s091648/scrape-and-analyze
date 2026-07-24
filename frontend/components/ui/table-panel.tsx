@@ -77,7 +77,7 @@ export function TablePanel({
           )}
         </div>
       </div>
-      <div className="rounded-lg border border-border overflow-auto" style={{ height }}>
+      <div className="themed-scrollbar rounded-lg border border-border overflow-auto" style={{ height }}>
         {loading ? (
           <div className="p-3 space-y-2">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}

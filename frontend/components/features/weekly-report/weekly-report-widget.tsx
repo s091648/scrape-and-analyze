@@ -229,7 +229,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
             exit={{ rotateY: 90, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
             style={{ transformOrigin: 'left center', backfaceVisibility: 'hidden' }}
-            className="h-full overflow-y-auto"
+            className="weekly-stepper-scroll h-full overflow-y-auto"
           >
             <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600 mb-1">
               {new Date(selected.week_start_date).toLocaleDateString(locale === 'zh-TW' ? 'zh-TW' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -352,7 +352,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
         animate={collapsed ? { opacity: 0, x: 24 } : { opacity: 1, x: 0 }}
         transition={{ duration: 0.25, ease: 'easeInOut' }}
         style={{ pointerEvents: collapsed ? 'none' : 'auto' }}
-        className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
+        className="weekly-stepper-scroll relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
       >
         {/* The chat child (and its useChat() request) stays mounted here for the widget's whole
             lifetime — it must never unmount just because the report card is what's currently

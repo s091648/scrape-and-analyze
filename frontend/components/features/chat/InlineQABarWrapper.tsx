@@ -224,7 +224,7 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
                     </PopoverTrigger>
                     <PopoverContent className="w-64">
                       <p className="mb-2 text-xs font-medium">{t('rag.groupArticlesPopoverTitle')}</p>
-                      <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+                      <div className="themed-scrollbar flex max-h-56 flex-col gap-1.5 overflow-y-auto">
                         {group.articles.map((article, idx) => (
                           <label key={article.id} className="flex cursor-pointer items-center gap-2 text-xs">
                             <Checkbox

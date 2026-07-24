@@ -443,7 +443,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+            <div className="themed-scrollbar flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
               {selectedArticle.pain_points && (
                 <div>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -507,7 +507,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
             </div>
 
             {/* Article list */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="themed-scrollbar flex-1 min-h-0 overflow-y-auto">
               <ul className="p-4 space-y-4">
                 {groupData.map(a => (
                   <li key={a.articleId} className="space-y-2 pb-4 border-b border-border last:border-0 last:pb-0">
@@ -588,7 +588,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
               )}
             </div>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          <div className="themed-scrollbar flex-1 min-h-0 overflow-y-auto px-6 py-4">
             {dialogLoading ? (
               <div className="space-y-3 py-2">
                 <Skeleton className="h-4 w-full" />

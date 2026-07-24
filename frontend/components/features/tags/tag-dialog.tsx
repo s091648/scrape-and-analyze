@@ -142,7 +142,7 @@ export function TagDialog({
           </p>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+        <div className="themed-scrollbar flex-1 min-h-0 overflow-y-auto px-6 py-4">
           {confirmDelete ? (
             <div className="flex flex-col items-center gap-4 py-8 text-center">
               <p className="text-sm font-medium">{t('tags.deleteTagConfirm', { name: tag.name })}</p>
