@@ -1,19 +1,19 @@
 <!--
 Sync Impact Report:
-- Version change: 1.5.0 → 1.6.0 (MINOR: corrected Principle V to describe the
-  actual deploy mechanism — GitHub Actions performs explicit CD via `railway up`
-  gated on PR/tag events, not the "CI-only, Railway branch-watch auto-deploy"
-  model this principle previously documented. Also documents chatbot-plugin's
-  standalone-repo Railway auto-deploy carve-out. Both were real since the
-  environments were split apart; only the doc was stale.)
+- Version change: 1.6.0 → 1.7.0 (MINOR: replaced chatbot-plugin's standalone-repo
+  Railway auto-deploy carve-out in Principle V with a tag-gated promotion model —
+  that auto-deploy is being removed; production now only deploys a submodule
+  commit that carries a v* tag in chatbot-plugin's own repo, verified by
+  release.yml before the railway up call, while staging keeps deploying the
+  submodule pointer as-is. Mirrors a build-once/tag-then-promote pattern without
+  a container registry.)
 - Modified principles:
-  - V. Renamed "CI-Only Deployment Boundary" → "Explicit CI/CD Deployment
-    Boundary". Replaced the "GitHub Actions MUST NOT build or deploy
-    artifacts" / "Railway auto-deploys from master" claims with the actual
-    mechanism: staging deploys on `pull_request` (ci.yml), production deploys
-    on `v*` tag push (release.yml), no deploy on a bare merge to master. Added
-    a bullet documenting chatbot-plugin's independent Railway Git integration
-    against its own standalone GitHub repo.
+  - V. Rewrote the "Exception — chatbot-plugin" bullet: removed the "Railway's
+    own Git integration is connected and deploys independently" description
+    (that integration is being disconnected) and replaced it with the
+    tag-gated production / pointer-as-is staging split, plus a note that
+    chatbot-plugin's own CI + branch protection + release tags are what now
+    back the production guarantee. Updated Rationale to match.
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
@@ -172,16 +172,25 @@ containers.
     to Railway *production*.
   - A plain push to `master` (post-merge) runs migration + tests +
     the `rollback` safety net only — it does not deploy anything.
-- **Exception — `chatbot-plugin`**: this service also has Railway's
-  own native Git integration pointed directly at its *own* standalone
-  GitHub repo (`github.com/s091648/chatbot-plugin`), separate from
-  this monorepo. A push to that repo's watched branch triggers an
-  independent Railway auto-deploy, outside of and in addition to the
-  explicit `railway up` calls this monorepo's CI makes against the
-  same Railway service (using whatever commit the submodule pointer
-  had checked out at CI time). Contributors working directly in
-  `chatbot-plugin/` should be aware pushing there can deploy without
-  this monorepo's CI running at all.
+- **Exception — `chatbot-plugin`**: this service has its own standalone
+  GitHub repo (`github.com/s091648/chatbot-plugin`), own CI
+  (`chatbot-plugin/.github/workflows/ci.yml`, gated by that repo's own
+  branch protection on `master`), and own semver `v*` release tags
+  (`chatbot-plugin/.github/workflows/release.yml`). Railway's native
+  Git integration for this service is intentionally NOT connected —
+  it is deployed only via this monorepo's `railway up` calls, using
+  whatever commit the `chatbot-plugin` submodule pointer has checked
+  out. The two monorepo triggers apply asymmetrically to it:
+  - **Staging** deploys the submodule pointer's current commit as-is,
+    tagged or not — staging is a preview environment, not a release.
+  - **Production** deploys it only if that exact commit carries a `v*`
+    tag in `chatbot-plugin`'s own repo (verified by `release.yml`
+    before the `railway up` call); an untagged commit is skipped with
+    a loud warning rather than silently deployed. This mirrors a
+    build-once/tag-then-promote pattern (the `chatbot-plugin` repo is
+    the "build once, test, tag" stage; this monorepo just pins and
+    promotes an already-tagged reference to production) without
+    needing a container registry.
 - **Migration safety**: On push to master, CI runs
   `alembic upgrade head` against the production DB. If any downstream
   test stage fails, the `rollback` job runs `alembic downgrade -1` on
@@ -193,11 +202,13 @@ containers.
 Rationale: Gating deploys on explicit CI triggers (PR review for
 staging, version tags for production) instead of Railway's own
 branch-watching auto-deploy prevents unreviewed or untested commits
-from reaching a live environment. `chatbot-plugin`'s standalone-repo
-auto-deploy is a deliberate carve-out from when environments were
-split apart, not an oversight — it lets that service ship independent
-of the monorepo's release cadence, at the cost of bypassing this
-repo's own CI for changes pushed there directly.
+from reaching a live environment. `chatbot-plugin` previously also had
+Railway's own Git integration watching its standalone repo directly,
+deploying on every push independent of (and untested by) either repo's
+CI — that auto-deploy has been removed in favor of the tag-gated
+promotion described above, so a production deploy of that service now
+always traces back to a commit that passed its own CI and was
+deliberately released.
 
 ### VI. Observability as a First-Class Concern
 
@@ -436,4 +447,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.6.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-24
+**Version**: 1.7.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-25
