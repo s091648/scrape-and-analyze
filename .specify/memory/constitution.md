@@ -1,17 +1,23 @@
 <!--
 Sync Impact Report:
-- Version change: 1.4.0 → 1.5.0 (MINOR: expanded Principle I with a domain-layer
-  dataclass-vs-Pydantic rule, formalizing a pre-existing but previously
-  undocumented codebase convention discovered during a code review)
+- Version change: 1.5.0 → 1.6.0 (MINOR: corrected Principle V to describe the
+  actual deploy mechanism — GitHub Actions performs explicit CD via `railway up`
+  gated on PR/tag events, not the "CI-only, Railway branch-watch auto-deploy"
+  model this principle previously documented. Also documents chatbot-plugin's
+  standalone-repo Railway auto-deploy carve-out. Both were real since the
+  environments were split apart; only the doc was stale.)
 - Modified principles:
-  - I. Domain-Driven Design: added a sub-bullet under the Domain layer entry
-    requiring stdlib `@dataclass` by default for entities/value objects, with
-    Pydantic `BaseModel` permitted only for a genuinely Pydantic-specific
-    capability (documented exception: `ScraperKeywordVO`'s discriminated union)
+  - V. Renamed "CI-Only Deployment Boundary" → "Explicit CI/CD Deployment
+    Boundary". Replaced the "GitHub Actions MUST NOT build or deploy
+    artifacts" / "Railway auto-deploys from master" claims with the actual
+    mechanism: staging deploys on `pull_request` (ci.yml), production deploys
+    on `v*` tag push (release.yml), no deploy on a bare merge to master. Added
+    a bullet documenting chatbot-plugin's independent Railway Git integration
+    against its own standalone GitHub repo.
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
-  - .specify/templates/tasks-template.md: ✅ compatible (no dataclass/Pydantic references)
+  - .specify/templates/tasks-template.md: ✅ compatible (no deployment references)
   - .specify/templates/plan-template.md: ✅ compatible
   - .specify/templates/spec-template.md: ✅ compatible
 - Follow-up TODOs: None
@@ -150,13 +156,32 @@ Rationale: Docker-first eliminates "works on my machine" issues and
 ensures parity between developer environments and CI service
 containers.
 
-### V. CI-Only Deployment Boundary
+### V. Explicit CI/CD Deployment Boundary
 
-- **GitHub Actions** performs CI only: lint, test, coverage, and
-  auto-migration on push to `master`. It MUST NOT build or deploy
-  artifacts.
-- **Railway** handles CD: continuous deployment from the `master`
-  branch. Railway is the single source of production truth.
+- **GitHub Actions performs both CI and explicit CD** via the Railway
+  CLI (`railway up --detach --service <id>`) — it is not CI-only.
+  Deploys are gated on tests passing and only fire on two specific
+  triggers, never on a bare merge to `master`:
+  - **Staging** (`.github/workflows/ci.yml`, `deploy-staging-*` jobs):
+    fires only on `pull_request` events, after the relevant test jobs
+    succeed. Deploys the PR's checked-out commit to each service's
+    Railway *staging* environment.
+  - **Production** (`.github/workflows/release.yml`): fires only on
+    pushing a `v*` tag, after stamping the version and running
+    `alembic upgrade head` against production. Deploys every service
+    to Railway *production*.
+  - A plain push to `master` (post-merge) runs migration + tests +
+    the `rollback` safety net only — it does not deploy anything.
+- **Exception — `chatbot-plugin`**: this service also has Railway's
+  own native Git integration pointed directly at its *own* standalone
+  GitHub repo (`github.com/s091648/chatbot-plugin`), separate from
+  this monorepo. A push to that repo's watched branch triggers an
+  independent Railway auto-deploy, outside of and in addition to the
+  explicit `railway up` calls this monorepo's CI makes against the
+  same Railway service (using whatever commit the submodule pointer
+  had checked out at CI time). Contributors working directly in
+  `chatbot-plugin/` should be aware pushing there can deploy without
+  this monorepo's CI running at all.
 - **Migration safety**: On push to master, CI runs
   `alembic upgrade head` against the production DB. If any downstream
   test stage fails, the `rollback` job runs `alembic downgrade -1` on
@@ -165,9 +190,14 @@ containers.
   production MUST go through Makefile targets (`make migrate-remote`,
   `make retry-failed-remote`) that use `REMOTE_RAILWAY_DB_URL`.
 
-Rationale: Separating CI from CD prevents accidental production
-deployments from PR branches and ensures Railway is the authoritative
-deployment pipeline.
+Rationale: Gating deploys on explicit CI triggers (PR review for
+staging, version tags for production) instead of Railway's own
+branch-watching auto-deploy prevents unreviewed or untested commits
+from reaching a live environment. `chatbot-plugin`'s standalone-repo
+auto-deploy is a deliberate carve-out from when environments were
+split apart, not an oversight — it lets that service ship independent
+of the monorepo's release cadence, at the cost of bypassing this
+repo's own CI for changes pushed there directly.
 
 ### VI. Observability as a First-Class Concern
 
@@ -406,4 +436,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.5.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-21
+**Version**: 1.6.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-24
