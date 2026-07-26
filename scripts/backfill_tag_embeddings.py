@@ -17,6 +17,48 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def build_embedding_service(session):
+    from typing import List
+    from shared.llm_provider import load_active_embedding_providers
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        ResilientEmbeddingService, EmbeddingProviderHandler
+    )
+    from src.infrastructure.intelligence.llm.embedding import GeminiEmbeddingProvider
+    from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
+    from src.shared.logging import get_logger
+
+    logger = get_logger(__name__)
+    emb_handlers: List[EmbeddingProviderHandler] = []
+
+    for emb_cfg in load_active_embedding_providers(session):
+        name = emb_cfg['name']
+        api_key = os.environ.get(emb_cfg['api_key_env'], '')
+
+        if name == 'gemini':
+            provider = GeminiEmbeddingProvider(api_key=api_key, model=emb_cfg['model'])
+        else:
+            logger.warning("unknown_embedding_provider_skipped", name=name)
+            continue
+
+        s = emb_cfg.get('strategy', {})
+        if s.get('type') == 'sliding_window':
+            strategy = SlidingWindowStrategy(rpm=s['rpm'], tpm=s['tpm'], rpd=s['rpd'])
+        else:
+            strategy = NoOpStrategy()
+
+        emb_handlers.append(EmbeddingProviderHandler(
+            provider=provider,
+            strategy=strategy,
+            priority=emb_cfg['priority'],
+            name=name,
+        ))
+
+    if not emb_handlers:
+        raise ValueError("llm_providers table 中未設定任何有效的 Embedding provider")
+
+    return ResilientEmbeddingService(handlers=emb_handlers)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=0,
@@ -35,6 +77,10 @@ def main():
             sys.exit(1)
         os.environ["DATABASE_URL"] = remote_url
 
+    if not os.environ.get("DATABASE_URL"):
+        print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
+        sys.exit(1)
+
     from src.shared.logging import get_logger
     logger = get_logger(__name__)
 
@@ -44,46 +90,7 @@ def main():
     init_db()
     session = get_session()
 
-    def build_embedding_service():
-        from typing import List
-        from shared.llm_provider import load_active_embedding_providers
-        from src.infrastructure.intelligence.llm.resilient_llm_service import (
-            ResilientEmbeddingService, EmbeddingProviderHandler
-        )
-        from src.infrastructure.intelligence.llm.embedding import GeminiEmbeddingProvider
-        from src.infrastructure.intelligence.llm.rate_limit import SlidingWindowStrategy, NoOpStrategy
-
-        emb_handlers: List[EmbeddingProviderHandler] = []
-
-        for emb_cfg in load_active_embedding_providers(session):
-            name = emb_cfg['name']
-            api_key = os.environ.get(emb_cfg['api_key_env'], '')
-
-            if name == 'gemini':
-                provider = GeminiEmbeddingProvider(api_key=api_key, model=emb_cfg['model'])
-            else:
-                logger.warning("unknown_embedding_provider_skipped", name=name)
-                continue
-
-            s = emb_cfg.get('strategy', {})
-            if s.get('type') == 'sliding_window':
-                strategy = SlidingWindowStrategy(rpm=s['rpm'], tpm=s['tpm'], rpd=s['rpd'])
-            else:
-                strategy = NoOpStrategy()
-
-            emb_handlers.append(EmbeddingProviderHandler(
-                provider=provider,
-                strategy=strategy,
-                priority=emb_cfg['priority'],
-                name=name,
-            ))
-
-        if not emb_handlers:
-            raise ValueError("llm_providers table 中未設定任何有效的 Embedding provider")
-
-        return ResilientEmbeddingService(handlers=emb_handlers)
-
-    provider = build_embedding_service()
+    provider = build_embedding_service(session)
     batch_size = 10
 
     def embed_table(table: str, text_col: str, label: str):

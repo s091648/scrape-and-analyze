@@ -8,9 +8,11 @@ def test_embed_table_selects_null_embedding_rows():
     from scripts.backfill_tag_embeddings import main
 
     session = MagicMock()
+    # embed_table() indexes rows positionally (r[0]=id, r[1]=text_col), matching
+    # a real SQLAlchemy Row's tuple-like access — plain tuples, not MagicMocks.
     rows = [
-        MagicMock(id="tag-1", name="Transformer"),
-        MagicMock(id="tag-2", name="Diffusion"),
+        ("tag-1", "Transformer"),
+        ("tag-2", "Diffusion"),
     ]
     session.execute.return_value.fetchall.return_value = rows
 
@@ -18,8 +20,8 @@ def test_embed_table_selects_null_embedding_rows():
     provider.embed_batch.return_value = [[0.1] * 768, [0.2] * 768]
 
     with patch("scripts.backfill_tag_embeddings.build_embedding_service", return_value=provider):
-        with patch("scripts.backfill_tag_embeddings.init_db"):
-            with patch("scripts.backfill_tag_embeddings.get_session", return_value=session):
+        with patch("src.infrastructure.persistence.database.init_db"):
+            with patch("src.infrastructure.persistence.database.get_session", return_value=session):
                 with pytest.MonkeyPatch().context() as mp:
                     mp.setattr("sys.argv", ["backfill_tag_embeddings.py"])
                     main()
@@ -33,7 +35,7 @@ def test_embed_table_dry_run_does_not_update():
     from scripts.backfill_tag_embeddings import main
 
     session = MagicMock()
-    rows = [MagicMock(id="tag-1", name="Transformer")]
+    rows = [("tag-1", "Transformer")]
     session.execute.return_value.fetchall.return_value = rows
 
     provider = MagicMock()
@@ -50,8 +52,8 @@ def test_embed_table_dry_run_does_not_update():
     session.execute.side_effect = track_execute
 
     with patch("scripts.backfill_tag_embeddings.build_embedding_service", return_value=provider):
-        with patch("scripts.backfill_tag_embeddings.init_db"):
-            with patch("scripts.backfill_tag_embeddings.get_session", return_value=session):
+        with patch("src.infrastructure.persistence.database.init_db"):
+            with patch("src.infrastructure.persistence.database.get_session", return_value=session):
                 with pytest.MonkeyPatch().context() as mp:
                     mp.setattr("sys.argv", ["backfill_tag_embeddings.py", "--dry-run"])
                     main()
@@ -66,15 +68,15 @@ def test_embed_batch_called_with_texts():
     from scripts.backfill_tag_embeddings import main
 
     session = MagicMock()
-    rows = [MagicMock(id="tag-1", name="Transformer")]
+    rows = [("tag-1", "Transformer")]
     session.execute.return_value.fetchall.return_value = rows
 
     provider = MagicMock()
     provider.embed_batch.return_value = [[0.1] * 768]
 
     with patch("scripts.backfill_tag_embeddings.build_embedding_service", return_value=provider):
-        with patch("scripts.backfill_tag_embeddings.init_db"):
-            with patch("scripts.backfill_tag_embeddings.get_session", return_value=session):
+        with patch("src.infrastructure.persistence.database.init_db"):
+            with patch("src.infrastructure.persistence.database.get_session", return_value=session):
                 with pytest.MonkeyPatch().context() as mp:
                     mp.setattr("sys.argv", ["backfill_tag_embeddings.py", "--only", "tags", "--dry-run"])
                     main()

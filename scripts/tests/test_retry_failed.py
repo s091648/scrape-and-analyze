@@ -161,7 +161,7 @@ class TestMain:
             mock_session.query.return_value.filter_by.return_value.all.return_value = []
             mock_get_session.return_value = mock_session
 
-            with patch("scripts.retry_failed.SqlAlchemyFailedTaskRepository") as mock_repo_cls:
+            with patch("src.infrastructure.persistence.shared.failed_task_repo_impl.SqlAlchemyFailedTaskRepository") as mock_repo_cls:
                 mock_repo = MagicMock()
                 mock_repo.find_recent_failures.return_value = []
                 mock_repo_cls.return_value = mock_repo

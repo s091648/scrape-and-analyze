@@ -35,10 +35,10 @@ def test_suggestions_created_for_similar_pairs():
     mock_repo.find_similar.return_value = [(similar_tag_data, 0.92)]
     mock_repo.save_suggestion = MagicMock()
 
-    with patch("scripts.backfill_tag_suggestions.init_db"):
-        with patch("scripts.backfill_tag_suggestions.get_session", return_value=session):
-            with patch("scripts.backfill_tag_suggestions.SqlAlchemyTagRepository", return_value=mock_repo):
-                with patch("scripts.backfill_tag_suggestions.TagNormalizationSuggestion"):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
+            with patch("src.infrastructure.persistence.intelligence.tag_repo_impl.SqlAlchemyTagRepository", return_value=mock_repo):
+                with patch("src.modules.intelligence.domain.entities.tag_normalization_suggestion.TagNormalizationSuggestion"):
                     with pytest.MonkeyPatch().context() as mp:
                         mp.setattr("sys.argv", ["backfill_tag_suggestions.py"])
                         main()
@@ -75,10 +75,10 @@ def test_suggestions_created_even_above_auto_merge_threshold():
     mock_repo.find_similar.return_value = [(similar_tag_data, 0.97)]
     mock_repo.save_suggestion = MagicMock()
 
-    with patch("scripts.backfill_tag_suggestions.init_db"):
-        with patch("scripts.backfill_tag_suggestions.get_session", return_value=session):
-            with patch("scripts.backfill_tag_suggestions.SqlAlchemyTagRepository", return_value=mock_repo):
-                with patch("scripts.backfill_tag_suggestions.TagNormalizationSuggestion"):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
+            with patch("src.infrastructure.persistence.intelligence.tag_repo_impl.SqlAlchemyTagRepository", return_value=mock_repo):
+                with patch("src.modules.intelligence.domain.entities.tag_normalization_suggestion.TagNormalizationSuggestion"):
                     with pytest.MonkeyPatch().context() as mp:
                         mp.setattr("sys.argv", ["backfill_tag_suggestions.py"])
                         main()
@@ -114,9 +114,9 @@ def test_dry_run_does_not_save():
     similar_tag_data.name = tag2.name
     mock_repo.find_similar.return_value = [(similar_tag_data, 0.90)]
 
-    with patch("scripts.backfill_tag_suggestions.init_db"):
-        with patch("scripts.backfill_tag_suggestions.get_session", return_value=session):
-            with patch("scripts.backfill_tag_suggestions.SqlAlchemyTagRepository", return_value=mock_repo):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
+            with patch("src.infrastructure.persistence.intelligence.tag_repo_impl.SqlAlchemyTagRepository", return_value=mock_repo):
                 with pytest.MonkeyPatch().context() as mp:
                     mp.setattr("sys.argv", ["backfill_tag_suggestions.py", "--dry-run"])
                     main()
@@ -158,9 +158,9 @@ def test_skips_existing_pairs():
     similar_tag_data.name = tag2.name
     mock_repo.find_similar.return_value = [(similar_tag_data, 0.90)]
 
-    with patch("scripts.backfill_tag_suggestions.init_db"):
-        with patch("scripts.backfill_tag_suggestions.get_session", return_value=session):
-            with patch("scripts.backfill_tag_suggestions.SqlAlchemyTagRepository", return_value=mock_repo):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
+            with patch("src.infrastructure.persistence.intelligence.tag_repo_impl.SqlAlchemyTagRepository", return_value=mock_repo):
                 with pytest.MonkeyPatch().context() as mp:
                     mp.setattr("sys.argv", ["backfill_tag_suggestions.py"])
                     main()

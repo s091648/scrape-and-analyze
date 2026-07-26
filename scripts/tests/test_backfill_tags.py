@@ -60,18 +60,19 @@ def test_upsert_tags_dry_run_does_not_call_session(capsys):
     assert "real-time sync" in out
 
 
-def test_upsert_tags_executes_three_statements_per_tag():
-    """Each tag triggers INSERT tag, SELECT tag id, INSERT article_tag"""
+def test_upsert_tags_executes_four_statements_per_tag():
+    """Each tag triggers SELECT tag_group_definitions.id, INSERT tag, SELECT tag id, INSERT article_tag"""
     from scripts.backfill_tags import upsert_tags_for_article, TagGroup
 
     session = MagicMock()
-    # SELECT returns a row with an id
+    # SELECT returns a row with an id (used for both the tag_group_definitions
+    # lookup and the tags-id lookup)
     session.execute.return_value.first.return_value = ("tag-id-123",)
 
     tag_groups = [TagGroup(display_name="digital_twin", description="virtual replica")]
     upsert_tags_for_article(session, "art-uuid", tag_groups, dry_run=False)
 
-    assert session.execute.call_count == 3  # INSERT tag, SELECT id, INSERT article_tag
+    assert session.execute.call_count == 4  # SELECT tag_group_definitions.id, INSERT tag, SELECT id, INSERT article_tag
 
 
 def test_upsert_tags_skips_empty_tag_names():
@@ -85,8 +86,8 @@ def test_upsert_tags_skips_empty_tag_names():
     tag_groups = [TagGroup(display_name="digital_twin", description="valid-tag")]
     upsert_tags_for_article(session, "art-uuid", tag_groups, dry_run=False)
 
-    # Only 1 valid tag → 3 execute calls
-    assert session.execute.call_count == 3
+    # Only 1 valid tag → 4 execute calls
+    assert session.execute.call_count == 4
 
 
 def _make_result():

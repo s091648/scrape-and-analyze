@@ -42,8 +42,8 @@ def test_audit_reports_orphan_groups(capsys):
         [duplicate_row], # duplicate casing query
     ]
 
-    with patch("scripts.audit_tag_groups.init_db"):
-        with patch("scripts.audit_tag_groups.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["audit_tag_groups.py"])
                 main()
@@ -63,8 +63,8 @@ def test_audit_reports_no_issues(capsys):
         [],  # no duplicates
     ]
 
-    with patch("scripts.audit_tag_groups.init_db"):
-        with patch("scripts.audit_tag_groups.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["audit_tag_groups.py"])
                 main()
@@ -80,8 +80,8 @@ def test_audit_with_topic_filter():
     session = MagicMock()
     session.execute.return_value.fetchall.side_effect = [[], []]
 
-    with patch("scripts.audit_tag_groups.init_db"):
-        with patch("scripts.audit_tag_groups.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["audit_tag_groups.py", "--topic", "digital-twins"])
                 main()

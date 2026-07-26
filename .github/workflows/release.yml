@@ -151,6 +151,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Run data migrations on production DB
+        run: uv run python scripts/run_data_migrations.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       # -------------------------------------------------------------------
       # Deploy to Railway production
       # -------------------------------------------------------------------
