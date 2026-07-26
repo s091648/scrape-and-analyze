@@ -1,19 +1,15 @@
 <!--
 Sync Impact Report:
-- Version change: 1.6.0 → 1.7.0 (MINOR: replaced chatbot-plugin's standalone-repo
-  Railway auto-deploy carve-out in Principle V with a tag-gated promotion model —
-  that auto-deploy is being removed; production now only deploys a submodule
-  commit that carries a v* tag in chatbot-plugin's own repo, verified by
-  release.yml before the railway up call, while staging keeps deploying the
-  submodule pointer as-is. Mirrors a build-once/tag-then-promote pattern without
-  a container registry.)
+- Version change: 1.7.0 → 1.8.0 (MINOR: documented the new automatic
+  data-migration CI/CD step added by 019-cicd-data-migrations — a purely
+  additive behavior description, no existing principle rewritten or removed.)
 - Modified principles:
-  - V. Rewrote the "Exception — chatbot-plugin" bullet: removed the "Railway's
-    own Git integration is connected and deploys independently" description
-    (that integration is being disconnected) and replaced it with the
-    tag-gated production / pointer-as-is staging split, plus a note that
-    chatbot-plugin's own CI + branch protection + release tags are what now
-    back the production guarantee. Updated Rationale to match.
+  - V. Added a new "Data migrations run alongside schema migrations" bullet
+    describing the `scripts/run_data_migrations.py` step now added
+    immediately after `alembic upgrade head` in both `ci.yml`'s `migrate`
+    job and `release.yml`, its exclusion from the three ephemeral-test-DB
+    jobs, its `requires_api` gating, and its transactional fail-fast/
+    non-rollback-of-schema failure semantics.
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
@@ -195,6 +191,19 @@ containers.
   `alembic upgrade head` against the production DB. If any downstream
   test stage fails, the `rollback` job runs `alembic downgrade -1` on
   production automatically.
+- **Data migrations run alongside schema migrations**: Immediately after
+  each `alembic upgrade head` step in `ci.yml`'s `migrate` job (staging)
+  and `release.yml` (production), a second step runs
+  `scripts/run_data_migrations.py` to apply any pending standalone data
+  migration from `scripts/data/versions/` (the `data_migrations`-table-
+  tracked, Alembic-analogous framework for one-off data fixes that aren't
+  tied to a schema change). It is deliberately not run against the three
+  ephemeral-per-job test databases. `requires_api=True` migrations are
+  always skipped by these automatic runs (manual-only, via
+  `make data-migrate --include-api`). A migration's `up()` runs in its own
+  transaction; on failure it rolls back, is not recorded, halts the rest
+  of that run's chain, and fails the containing CI job — without
+  reversing an already-successful schema migration from the same run.
 - **No direct production access**: Migrations and retries against
   production MUST go through Makefile targets (`make migrate-remote`,
   `make retry-failed-remote`) that use `REMOTE_RAILWAY_DB_URL`.
@@ -447,4 +456,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.7.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-25
+**Version**: 1.8.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-26
