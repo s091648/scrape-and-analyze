@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 16 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 18 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -65,4 +65,10 @@ features:
   - title: '016 · DB Schema Brushup'
     details: 'Database schema brush-up (GitHub issue #91): all public-schema tables (other than `auth` and `vectors`, which already have their own PostgreSQL schema) are currently unorganized under `public`. Reorganize them into use-case-based PostgreSQL schemas via Alembic migrations, following the pattern already used for `auth`/`vectors`. Also add an AST-based step to the existing docs pipeline (`.github/workflows/speckit-github-pages.yml`) that reads the SQLAlchemy models and renders a database schema diagram (tables, columns, FK relationships, schema grouping) as a new page in the VitePress site.'
     link: '/specs/016-db-schema-brushup/spec'
+  - title: '017 · Exception Handling Guideline'
+    details: 'Exception handling guideline for src/ and API status code management for backend/ (GitHub issue #41). src/ 目前的 exception handling 很混亂:任何 function 都可以自行決定要不要 raise exception,exception 型別也不一致,exception propagation 也沒有良好結構。backend/ API 目前幾乎沒有妥善管理 status code。src/shared/domain/exceptions.py 已有 domain-specific exception hierarchy(016-db-schema-brushup 完成),此 feature 應以此為基礎,補齊(1) exception 使用規範/準則,(2) backend API 的 status code 對應規範與盤點。'
+    link: '/specs/017-exception-handling-guideline/spec'
+  - title: '018 · Public API Auth'
+    details: '為目前完全公開(無任何 auth 檢查)的 backend API endpoint 加上「任何有效 token 即可」的存取控制,防止外部 consumer 繞過前端直接打 API 拿到未受保護的資料。不做 RBAC,只做「有沒有合法 token」的檢查。讓 backend 也對訪客發一組輕量的 guest JWT,前端的 Guest Mode 與訪客瀏覽都改成先跟 backend 換一組 guest token,之後打其他公開端點時帶上這組 token。真實登入使用者(含 admin)用原本的 JWT,角色仍從 User.role 判斷,不受影響。'
+    link: '/specs/018-public-api-auth/spec'
 ---
