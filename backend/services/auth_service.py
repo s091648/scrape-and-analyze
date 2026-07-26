@@ -9,7 +9,7 @@ from fastapi import Request
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from src.shared.domain.exceptions import UnauthorizedError
+from shared.domain.exceptions import UnauthorizedError
 from backend.config import NEXTAUTH_SECRET
 from backend.schemas.user import AdminUpdateUserRequest
 

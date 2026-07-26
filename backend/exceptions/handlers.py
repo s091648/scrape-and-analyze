@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sentry_sdk import capture_exception
 
-from src.shared.domain.exceptions import (
+from shared.domain.exceptions import (
     DomainError,
     ValidationError,
     NotFoundError,

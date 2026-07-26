@@ -53,7 +53,7 @@ Passwords are hashed with `bcrypt`. CORS is restricted to `FRONTEND_ORIGIN`. Goo
 
 ## Error Handling
 
-Every domain exception raised anywhere in `src/`/`backend/` subclasses `DomainError` (`src/shared/domain/exceptions.py`) via one of 6 shared categories. `backend/exceptions/handlers.py` registers a single central handler that maps them to HTTP status + a uniform `{"error": {"code", "message", "request_id"}}` body — routers never construct `HTTPException` directly (the one documented exception is `chat.py`'s `429` rate-limit response, since 429 was never in the category mapping):
+Every domain exception raised anywhere in `src/`/`backend/` subclasses `DomainError` (`shared/domain/exceptions.py`) via one of 6 shared categories. `backend/exceptions/handlers.py` registers a single central handler that maps them to HTTP status + a uniform `{"error": {"code", "message", "request_id"}}` body — routers never construct `HTTPException` directly (the one documented exception is `chat.py`'s `429` rate-limit response, since 429 was never in the category mapping):
 
 | Category | Status |
 |---|---|

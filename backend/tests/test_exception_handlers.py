@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
-from src.shared.domain.exceptions import (
+from shared.domain.exceptions import (
     DomainError,
     ValidationError,
     NotFoundError,

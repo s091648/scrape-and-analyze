@@ -5,7 +5,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 
-from src.shared.domain.exceptions import UnauthorizedError, ForbiddenError
+from shared.domain.exceptions import UnauthorizedError, ForbiddenError
 from backend.config import NEXTAUTH_SECRET
 
 bearer = HTTPBearer(auto_error=False)

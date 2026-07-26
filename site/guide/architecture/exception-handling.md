@@ -17,7 +17,7 @@ Returning `None` / an empty collection remains appropriate for "absence is a nor
 
 ## 2. Which exception type
 
-Every domain exception belongs to the hierarchy rooted at `DomainError` (`src/shared/domain/exceptions.py`):
+Every domain exception belongs to the hierarchy rooted at `DomainError` (`shared/domain/exceptions.py`):
 
 ```
 DomainError
@@ -55,7 +55,7 @@ Built-in exceptions (`ValueError`, etc.) remain acceptable only for the unrecove
 
 FastAPI's own request-shape validation (missing required field, wrong JSON type, fails Pydantic coercion at the route signature) keeps producing its native 422 response, unchanged — this happens before any router or domain code runs, so there's nothing for `DomainError` to intercept.
 
-`ValidationError` (400) is for validation that can only be evaluated *inside* domain logic — a business-rule invariant that Pydantic's schema-level checks can't express (e.g. "email or username required" when both individually are optional, or a value object's own invariant like `InvalidUrlHashError`). If you're manually constructing a Pydantic model deep inside a route body's `try`/`except` (not via the route's own parameter typing) and catching its `ValidationError`, that's still a domain-layer concern — translate it to `src.shared.domain.exceptions.ValidationError`, not a hand-rolled 422.
+`ValidationError` (400) is for validation that can only be evaluated *inside* domain logic — a business-rule invariant that Pydantic's schema-level checks can't express (e.g. "email or username required" when both individually are optional, or a value object's own invariant like `InvalidUrlHashError`). If you're manually constructing a Pydantic model deep inside a route body's `try`/`except` (not via the route's own parameter typing) and catching its `ValidationError`, that's still a domain-layer concern — translate it to `shared.domain.exceptions.ValidationError`, not a hand-rolled 422.
 
 ## 5. External-dependency failures
 

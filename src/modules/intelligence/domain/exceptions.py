@@ -1,4 +1,4 @@
-from src.shared.domain.exceptions import DomainError, ValidationError
+from shared.domain.exceptions import DomainError, ValidationError
 
 
 class IntelligenceDomainError(DomainError):

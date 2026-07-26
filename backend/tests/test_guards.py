@@ -8,7 +8,7 @@ import pytest
 from jose import jwt
 from fastapi.security import HTTPAuthorizationCredentials
 
-from src.shared.domain.exceptions import UnauthorizedError, ForbiddenError
+from shared.domain.exceptions import UnauthorizedError, ForbiddenError
 
 SECRET = "test-secret"  # matches conftest.py NEXTAUTH_SECRET
 os.environ["NEXTAUTH_SECRET"] = SECRET

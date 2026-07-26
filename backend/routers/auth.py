@@ -7,7 +7,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.shared.domain.exceptions import ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError
+from shared.domain.exceptions import ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError
 from backend.database import get_db
 from backend.auth.guards import require_admin, require_user
 from backend.schemas.error import error_responses

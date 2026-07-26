@@ -27,7 +27,7 @@ def test_valid_admin_token_passes():
 
 def test_expired_token_returns_401():
     from backend.auth.guards import require_admin
-    from src.shared.domain.exceptions import UnauthorizedError
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(exp_offset=-10)  # already expired
     with pytest.raises(UnauthorizedError):
@@ -36,7 +36,7 @@ def test_expired_token_returns_401():
 
 def test_missing_exp_claim_returns_401():
     from backend.auth.guards import require_admin
-    from src.shared.domain.exceptions import UnauthorizedError
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(include_exp=False)
     with pytest.raises(UnauthorizedError):
@@ -45,7 +45,7 @@ def test_missing_exp_claim_returns_401():
 
 def test_viewer_role_returns_403():
     from backend.auth.guards import require_admin
-    from src.shared.domain.exceptions import ForbiddenError
+    from shared.domain.exceptions import ForbiddenError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(role="viewer")
     with pytest.raises(ForbiddenError):
@@ -293,7 +293,7 @@ def test_require_user_accepts_admin():
 
 def test_require_user_rejects_expired():
     from backend.auth import guards
-    from src.shared.domain.exceptions import UnauthorizedError
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(role="user", exp_offset=-1)
     creds = _make_creds(token)

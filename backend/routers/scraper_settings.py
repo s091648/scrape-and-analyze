@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from src.shared.domain.exceptions import NotFoundError
+from shared.domain.exceptions import NotFoundError
 from backend.database import get_db
 from backend.auth.guards import require_admin
 from backend.schemas.error import error_responses

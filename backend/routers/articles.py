@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
-from src.shared.domain.exceptions import NotFoundError
+from shared.domain.exceptions import NotFoundError
 from backend.config import REDIS_URL
 from backend.database import get_db
 from backend.schemas.error import error_responses

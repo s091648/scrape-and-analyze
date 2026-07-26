@@ -6,7 +6,7 @@ from sqlalchemy import func, distinct, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.shared.domain.exceptions import NotFoundError, ConflictError
+from shared.domain.exceptions import NotFoundError, ConflictError
 from backend.database import get_db
 from backend.auth.guards import require_admin, require_user, require_any_token
 from backend.schemas.error import error_responses
