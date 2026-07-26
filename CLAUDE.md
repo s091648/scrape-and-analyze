@@ -154,11 +154,13 @@ Custom `I18nProvider` context with locale files in `frontend/i18n/` (English + z
 ### CI/CD
 
 GitHub Actions on push/PR to `master`:
-1. **migrate** — Auto-runs `alembic upgrade head` on production DB on push to master
+1. **migrate** — PR only; runs `alembic upgrade head` against the shared staging DB (skipped on push to master, since that would race `close-staging.yml` tearing the same staging deployments down post-merge — see `migrate` job comment in `ci.yml`)
 2. **unit-test** → **integration-test** — Spins up postgres service container; integration tests need LLM API keys
 3. **frontend-unit** → **frontend-e2e** — Vitest then Playwright (chromium)
-4. **rollback** — If migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on production DB
+4. **rollback** — PR only; if migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on the staging DB
 5. Coverage uploaded to Codecov; pass-rate badges updated via GitHub Gist
+
+Production migration + deploy is a separate flow: `release.yml`, triggered by pushing a `v*` tag, runs `alembic upgrade head` against production DB (`scraper / production` environment) before deploying.
 
 AI PR reviewer (`coderabbitai`) runs on all PRs.
 

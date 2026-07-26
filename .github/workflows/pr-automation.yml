@@ -66,7 +66,12 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 2: Generate release notes via LLM (runs after Job 1 to avoid push races)
-  # Uses scraper / staging environment so DATABASE_URL points to staging DB.
+  # Uses scraper / production environment so DATABASE_URL points to the
+  # production DB — it's only ever used for a read-only llm_providers lookup
+  # (see generate_release_notes.py), not app schema, and production is never
+  # torn down like the staging postgres is by close-staging.yml. This mirrors
+  # release.yml's hotfix fallback, which already runs the same script the
+  # same way against production.
   # ---------------------------------------------------------------------------
   generate-release-notes:
     name: Generate release notes
@@ -74,7 +79,7 @@ jobs:
     needs: [autogen-vitepress]
     # always() ensures this job runs even when autogen-vitepress is skipped
     if: always() && (github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'))
-    environment: scraper / staging
+    environment: scraper / production
 
     steps:
       # Fresh checkout to pick up any commits pushed by autogen-vitepress

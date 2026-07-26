@@ -37,6 +37,11 @@ jobs:
           FAILED=0
 
           # name -> service ID (must match check-staging-deployments/deploy-staging-* in ci.yml)
+          # postgres/redis are intentionally NOT here: Railway's CLI has no reliable way to
+          # revive a fully-removed DB service (no deployment/image snapshot left to redeploy
+          # from — see check-staging-deployments' postgres/redis removal in ci.yml for the
+          # incident that proved this out). They stay up permanently instead; idle DB/cache
+          # cost is negligible next to the risk of an unrecoverable staging DB.
           declare -A SERVICES=(
             [dashboard-backend]="d20f24b5-6c3f-4732-a9b8-de13486db754"
             [dashboard-frontend]="54f665be-c49e-407e-bf23-e414587b9984"
@@ -44,8 +49,6 @@ jobs:
             [scrape-and-analyze]="84433f38-f9e9-4082-bd2e-2af327e3ba69"
             [chatbot-plugin]="e3a28eae-2765-456e-822c-841598fcf1c2"
             [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
-            [postgres]="c11d60e9-9bb3-450d-8a78-98f85ba4e890"
-            [redis]="ac3aa7a4-c431-4d43-9827-f493dad682df"
             [weekly-report]="0b2a6997-6401-4f6e-91d8-ba1abe34ea46"
             [refresh-metrics]="a8d5fa77-7498-4447-843f-f328d6d595a5"
           )
