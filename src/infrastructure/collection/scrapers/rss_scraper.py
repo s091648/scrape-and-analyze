@@ -7,6 +7,7 @@ from src.infrastructure.collection.clients.rss_client import RssClient
 from src.infrastructure.collection.parsers.sanitize_service import SanitizeService
 from src.infrastructure.collection.scrapers.base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
+from src.modules.collection.domain.exceptions import ArticleFetchError
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.infrastructure.collection.parsers import HtmlArticleParser
 
@@ -72,6 +73,7 @@ class RssScraper(BaseScraper):
                 metadata={
                     "title": entry.title,
                     "description": entry.description,
+                    "content": entry.content,
                     "author": entry.author,
                     "published": entry.published,
                 },
@@ -80,9 +82,19 @@ class RssScraper(BaseScraper):
         return jobs
 
     def fetch(self, job: ScrapeJob) -> Optional[ScrapedArticle]:
-        """Fetch and parse an RSS article page into a ScrapedArticle."""
-        fallback = SanitizeService.sanitize_content(job.metadata.get("description"))
-        content = self._html_parser.fetch_and_parse(job.url, fallback=fallback)
+        """Fetch and parse an RSS article page into a ScrapedArticle.
+
+        Prefers the feed's own <content:encoded> body (when the publisher
+        includes it) as the degraded-mode fallback over the short
+        <description> excerpt — it's the full article, not just a preview.
+        """
+        fallback_source = job.metadata.get("content") or job.metadata.get("description")
+        fallback = SanitizeService.sanitize_content(fallback_source)
+        try:
+            content = self._html_parser.fetch_and_parse(job.url, fallback=fallback)
+        except ArticleFetchError as e:
+            logger.error("rss_article_fetch_failed", url=job.url, source=self._source, error=str(e))
+            content = fallback
         return ScrapedArticle(
             url=job.url,
             title=job.metadata.get("title", ""),

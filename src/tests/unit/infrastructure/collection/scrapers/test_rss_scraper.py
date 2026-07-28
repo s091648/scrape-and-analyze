@@ -119,6 +119,57 @@ def test_discover_accepts_all_when_keywords_empty_list():
     assert len(jobs) == 2  # all entries accepted, no keyword filter
 
 
+@responses.activate
+def test_fetch_falls_back_to_feed_content_encoded_on_transport_failure():
+    """When the live page fetch fails, fall back to the feed's own full
+    <content:encoded> body instead of the short <description> excerpt."""
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
+
+    rss = '''<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+    <channel>
+      <item>
+        <title>Digital Twin Deep Dive</title>
+        <link>https://this-domain-does-not-exist-xyz.invalid/article</link>
+        <description>Short teaser about digital twins […]</description>
+        <content:encoded><![CDATA[<p>Short teaser about digital twins and a lot more full detail that never made it into the RSS description excerpt.</p>]]></content:encoded>
+        <pubDate>Tue, 15 Jan 2024 10:00:00 GMT</pubDate>
+      </item>
+    </channel></rss>'''
+    responses.add(responses.GET, "https://example.com/feed", body=rss, status=200)
+    # No responses.add() for the article URL — @responses.activate raises
+    # ConnectionError for unregistered URLs, simulating a real fetch failure.
+
+    scraper = RssScraper(url="https://example.com/feed", source="test")
+    jobs = scraper.discover()
+    article = scraper.fetch(jobs[0])
+
+    assert "a lot more full detail" in article.content
+    assert article.content != "Short teaser about digital twins […]"
+
+
+@responses.activate
+def test_fetch_falls_back_to_description_when_no_content_encoded():
+    """Without a <content:encoded> element, degrade to the <description> excerpt."""
+    from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
+
+    rss = '''<?xml version="1.0"?>
+    <rss version="2.0"><channel>
+      <item>
+        <title>Digital Twin Article</title>
+        <link>https://this-domain-does-not-exist-xyz.invalid/article2</link>
+        <description>Only a short description is available.</description>
+      </item>
+    </channel></rss>'''
+    responses.add(responses.GET, "https://example.com/feed", body=rss, status=200)
+
+    scraper = RssScraper(url="https://example.com/feed", source="test")
+    jobs = scraper.discover()
+    article = scraper.fetch(jobs[0])
+
+    assert article.content == "Only a short description is available."
+
+
 def test_matches_digital_twins_variants():
     from src.infrastructure.collection.scrapers.rss_scraper import RssScraper
     s = RssScraper(url="https://example.com/feed", source="test")

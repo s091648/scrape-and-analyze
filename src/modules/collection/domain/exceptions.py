@@ -1,8 +1,12 @@
-from shared.domain.exceptions import DomainError, ValidationError
+from shared.domain.exceptions import DomainError, ExternalDependencyError, ValidationError
 
 
 class CollectionDomainError(DomainError):
     """Root of the collection bounded context's domain exceptions."""
+
+
+class ArticleFetchError(ExternalDependencyError, CollectionDomainError):
+    """Raised when fetching an article's full HTML body fails (network error, timeout, non-2xx after retries)."""
 
 
 class InvalidUrlHashError(ValidationError, CollectionDomainError):
