@@ -25,8 +25,9 @@ from sqlalchemy import text
 
 from src.config.settings import SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
-from src.infrastructure.shared.logging import configure_logging
+from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
+from src.infrastructure.shared.observability import init_run_context
 
 
 if SENTRY_DSN:
@@ -60,6 +61,10 @@ _STALE_ARTICLES_QUERY = text(
 
 def main() -> None:
     """CLI entry point: refreshes catalog-defined metrics for stale articles."""
+    from opentelemetry import trace as otel_trace
+    from src.infrastructure.shared.observability import get_tracer, shutdown_tracing
+    from shared.enums.observability import SpanName, SpanAttribute
+
     parser = argparse.ArgumentParser(description="Refresh recommendation-signal metrics (citation_count, etc.)")
     parser.add_argument("--limit", type=int, default=200, help="Max number of articles to refresh per run")
     args = parser.parse_args()
@@ -68,46 +73,63 @@ def main() -> None:
     configure_logging()
     init_default_client(HttpClient.build_default())
 
-    from src.bootstrap import build_metrics_refresh_pipeline
-    metrics_service, metrics_repo, session = build_metrics_refresh_pipeline()
+    run_id, correlation_id = init_run_context()
+    bind_correlation_id(correlation_id)
 
+    tracer = get_tracer()
     try:
-        enabled_metric_keys = metrics_service.tracked_metric_keys
-        if not enabled_metric_keys:
-            logger.warning("no_enabled_metric_definitions")
-            print("No enabled metric definitions found — nothing to refresh")
-            return
+        with tracer.start_as_current_span(SpanName.REFRESH_METRICS_RUN) as span:
+            span.set_attribute(SpanAttribute.RUN_ID, run_id)
+            span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
-        rows = session.execute(
-            _STALE_ARTICLES_QUERY,
-            {"metric_keys": enabled_metric_keys, "limit": args.limit},
-        ).fetchall()
-        logger.info("stale_articles_found", count=len(rows), metric_keys=enabled_metric_keys)
-
-        refreshed = 0
-        failed = 0
-        for row in rows:
-            article_id, metadata = row.id, row.metadata or {}
-            identifiers = {
-                k: v for k, v in {"doi": metadata.get("doi"), "arxiv_id": metadata.get("arxiv_id")}.items()
-                if v
-            }
-            if not identifiers:
-                continue
+            session = None
             try:
-                metrics = metrics_service.fetch_all(identifiers)
-                if metrics:
-                    metrics_repo.upsert(article_id, metrics)
-                    refreshed += 1
-                    logger.info("article_metrics_refreshed", article_id=str(article_id), metrics=list(metrics.keys()))
-            except Exception as e:
-                failed += 1
-                logger.warning("article_metrics_refresh_failed", article_id=str(article_id), error=str(e))
+                from src.bootstrap import build_metrics_refresh_pipeline
+                metrics_service, metrics_repo, session = build_metrics_refresh_pipeline()
 
-        logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
-        print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
+                enabled_metric_keys = metrics_service.tracked_metric_keys
+                if not enabled_metric_keys:
+                    logger.warning("no_enabled_metric_definitions")
+                    print("No enabled metric definitions found — nothing to refresh")
+                    return
+
+                rows = session.execute(
+                    _STALE_ARTICLES_QUERY,
+                    {"metric_keys": enabled_metric_keys, "limit": args.limit},
+                ).fetchall()
+                logger.info("stale_articles_found", count=len(rows), metric_keys=enabled_metric_keys)
+
+                refreshed = 0
+                failed = 0
+                for row in rows:
+                    article_id, metadata = row.id, row.metadata or {}
+                    identifiers = {
+                        k: v for k, v in {"doi": metadata.get("doi"), "arxiv_id": metadata.get("arxiv_id")}.items()
+                        if v
+                    }
+                    if not identifiers:
+                        continue
+                    try:
+                        metrics = metrics_service.fetch_all(identifiers)
+                        if metrics:
+                            metrics_repo.upsert(article_id, metrics)
+                            refreshed += 1
+                            logger.info("article_metrics_refreshed", article_id=str(article_id), metrics=list(metrics.keys()))
+                    except Exception as e:
+                        failed += 1
+                        logger.warning("article_metrics_refresh_failed", article_id=str(article_id), error=str(e))
+
+                logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
+                print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(otel_trace.StatusCode.ERROR, str(e))
+                raise
+            finally:
+                if session is not None:
+                    session.close()
     finally:
-        session.close()
+        shutdown_tracing()
 
 
 if __name__ == "__main__":
