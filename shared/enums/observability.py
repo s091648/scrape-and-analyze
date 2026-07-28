@@ -104,6 +104,8 @@ class SpanName(StrEnum):
     WEEKLY_REPORT_IMAGE = "weekly_report.image"
     WEEKLY_REPORT_TRANSLATE = "weekly_report.translate"
     WEEKLY_REPORT_NOTIFY = "weekly_report.notify"
+    REFRESH_METRICS_RUN = "refresh_metrics.run"
+    DEDUP_RECONCILE_RUN = "dedup_reconcile.run"
 
 
 # ── Span attributes ──────────────────────────────────────────────────────────

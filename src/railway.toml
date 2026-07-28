@@ -29,6 +29,16 @@
 #                    Redis flush — keeps citation_count (and future catalog metrics)
 #                    fresh for previously-scraped articles. See research.md §9b, §9f
 #                    in specs/014-article-recommendation-weekly-report/.
+#   dedup-reconcile → Config File Path: src/railway.toml (reuses this same build)
+#                    Start Command:   /app/.venv/bin/python -m src.entrypoints.cli.dedup_reconcile
+#                    Cron Schedule:   0 4 * * *  (daily, 04:00 UTC — after refresh-metrics)
+#                    Restart Policy:  never
+#                    UV_GROUPS:       "http-clients"
+#                    Detects OpenAlex works that were deduped after we'd already
+#                    scraped both sides of a duplicate, and merges them by
+#                    tombstoning the loser via `articles.merged_into_id` —
+#                    never deletes a row (see 25_add_article_merge_tombstone
+#                    migration for why).
 #   backend        → Dockerfile Path: backend/Dockerfile
 #                    Start Command:   (empty — use Dockerfile CMD)
 #                    Restart Policy:  on_failure

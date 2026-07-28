@@ -625,3 +625,24 @@ def build_metrics_refresh_pipeline():
 
     logger.info("metrics_refresh_bootstrap_complete", metric_definitions_count=len(metric_definitions))
     return metrics_service, metrics_repo, session
+
+
+# ---------------------------------------------------------------------------
+# Dedup Reconciliation Pipeline：偵測並合併 OpenAlex 事後才 dedup 完成的重複文章
+# ---------------------------------------------------------------------------
+
+def build_dedup_reconciliation_pipeline():
+    """Assemble (OpenAlexClient, ArticleDedupRepository, session) for the
+    dedup-reconciliation cron job. Independent of build_collection_pipeline —
+    this only re-checks work_ids OpenAlex previously assigned us, no scraping."""
+    from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
+    from src.infrastructure.persistence.collection.article_dedup_repo_impl import SqlAlchemyArticleDedupRepository
+
+    init_db()
+    session = get_session()
+
+    client = OpenAlexClient()
+    dedup_repo = SqlAlchemyArticleDedupRepository(session=session)
+
+    logger.info("dedup_reconciliation_bootstrap_complete")
+    return client, dedup_repo, session

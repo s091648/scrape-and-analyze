@@ -63,7 +63,7 @@ def get_articles_paginated(
         UserArticleFavorite,
         (UserArticleFavorite.article_id == Article.id) & (UserArticleFavorite.user_id == user_id)
         if user_id else (UserArticleFavorite.article_id == None),
-    )
+    ).filter(Article.merged_into_id.is_(None))
 
     if favorites_only and user_id:
         query = query.filter(UserArticleFavorite.user_id == user_id)
@@ -158,8 +158,14 @@ def get_articles_paginated(
 
 
 def get_article_by_id(db: Session, article_id: UUID):
+    """Look up an article by id, transparently following a merge tombstone to
+    the surviving article (a stale link to a since-merged duplicate should
+    still resolve, like the OpenAlex redirect it mirrors)."""
     from models.article import Article
-    return db.query(Article).filter(Article.id == article_id).first()
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if article and article.merged_into_id:
+        return db.query(Article).filter(Article.id == article.merged_into_id).first()
+    return article
 
 
 def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") -> list:

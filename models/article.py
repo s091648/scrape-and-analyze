@@ -23,6 +23,13 @@ class Article(Base):
     topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id'), nullable=True)
     original_source = Column(String(200), nullable=True)
     has_vectors = Column(Boolean, nullable=False, server_default='false')
+    # Tombstone fields for upstream (e.g. OpenAlex) dedup reconciliation — never
+    # delete a duplicate article, since several FKs into this table (analyses,
+    # article_tags, failed_tasks) have no ON DELETE action. merged_into_id set
+    # means this row is a "loser" whose content lives on in the survivor.
+    merged_into_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id'), nullable=True)
+    merged_at = Column(DateTime(timezone=True), nullable=True)
+    last_reconciled_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index('idx_articles_url_hash', 'url_hash'),
@@ -30,5 +37,6 @@ class Article(Base):
         Index('idx_articles_scraped_at', 'scraped_at'),
         Index('idx_articles_topic_id', 'topic_id'),
         Index('idx_articles_original_source', 'original_source'),
+        Index('idx_articles_merged_into_id', 'merged_into_id'),
         {'schema': DbSchema.CORE.value},
     )

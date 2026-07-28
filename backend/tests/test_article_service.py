@@ -229,6 +229,78 @@ def test_get_articles_paginated_view_count_sort_uses_nullslast_asc():
         q.order_by.assert_called_once_with(nullslast_result)
 
 
+def test_get_articles_paginated_excludes_merged_articles():
+    """Tombstoned duplicates (merged_into_id set) must never appear in listings."""
+    from backend.services.article_service import get_articles_paginated
+
+    db = MagicMock()
+    query_chain = MagicMock()
+    db.query.return_value = query_chain
+    query_chain.outerjoin.return_value = query_chain
+    query_chain.filter.return_value = query_chain
+    query_chain.order_by.return_value = query_chain
+    query_chain.offset.return_value.limit.return_value.all.return_value = []
+    query_chain.count.return_value = 0
+
+    with patch("models.article.Article") as MockArticle:
+        merged_filter = MagicMock()
+        MockArticle.merged_into_id.is_.return_value = merged_filter
+
+        col = MagicMock()
+        col.asc.return_value = col
+        col.desc.return_value = col
+        type(MockArticle).scraped_at = col
+
+        get_articles_paginated(db, "scraped_at", "desc", 1, 10)
+
+        MockArticle.merged_into_id.is_.assert_called_once_with(None)
+        query_chain.filter.assert_any_call(merged_filter)
+
+
+# ---------------------------------------------------------------------------
+# get_article_by_id — follows a merge tombstone to the surviving article
+# ---------------------------------------------------------------------------
+
+def test_get_article_by_id_returns_article_when_not_merged():
+    from backend.services.article_service import get_article_by_id
+
+    db = MagicMock()
+    article = MagicMock()
+    article.merged_into_id = None
+    db.query.return_value.filter.return_value.first.return_value = article
+
+    result = get_article_by_id(db, uuid.uuid4())
+
+    assert result is article
+
+
+def test_get_article_by_id_follows_merge_tombstone_to_survivor():
+    from backend.services.article_service import get_article_by_id
+
+    db = MagicMock()
+    survivor_id = uuid.uuid4()
+    loser = MagicMock()
+    loser.merged_into_id = survivor_id
+    survivor = MagicMock()
+    survivor.merged_into_id = None
+    db.query.return_value.filter.return_value.first.side_effect = [loser, survivor]
+
+    result = get_article_by_id(db, uuid.uuid4())
+
+    assert result is survivor
+
+
+def test_get_article_by_id_returns_none_when_not_found():
+    from backend.services.article_service import get_article_by_id
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    result = get_article_by_id(db, uuid.uuid4())
+
+    assert result is None
+
+
 # ---------------------------------------------------------------------------
 # get_tag_groups_for_article — English path
 # ---------------------------------------------------------------------------
