@@ -15,6 +15,7 @@ import sys
 
 import structlog
 
+from shared.observability.traceback_filter import format_filtered_traceback
 from backend.config import (
     GRAFANA_API_KEY,
     GRAFANA_LOKI_URL,
@@ -22,6 +23,20 @@ from backend.config import (
     GRAFANA_OTLP_ENDPOINT,
     GRAFANA_OTLP_USER,
 )
+
+
+class _StructlogMessageFormatter(logging.Formatter):
+    """structlog's JSONRenderer already produces the complete, self-contained
+    log line (including a filtered traceback under "exception" when relevant
+    — see shared/observability/traceback_filter.py). Without this, the
+    stdlib logging.Handler default Formatter would append a second, raw,
+    unfiltered traceback whenever record.exc_info is set — which happens
+    even when we never passed exc_info ourselves, because structlog's
+    logger.exception() calls the underlying logging.Logger.exception(),
+    whose own signature hardcodes exc_info=True."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return record.getMessage()
 
 
 def _add_otel_context(logger, method_name, event_dict):
@@ -48,6 +63,7 @@ def configure_logging(app_env: str) -> None:
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
+    stdout_handler.setFormatter(_StructlogMessageFormatter())
     root_logger.addHandler(stdout_handler)
 
     if all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_API_KEY]):
@@ -60,6 +76,7 @@ def configure_logging(app_env: str) -> None:
                 version="1",
             )
             loki_handler.setLevel(logging.INFO)
+            loki_handler.setFormatter(_StructlogMessageFormatter())
             root_logger.addHandler(loki_handler)
         except Exception as e:
             print(f"Loki handler setup failed: {e}", file=sys.stdout)
@@ -69,6 +86,7 @@ def configure_logging(app_env: str) -> None:
             structlog.stdlib.add_log_level,
             _add_otel_context,
             structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.ExceptionRenderer(exception_formatter=format_filtered_traceback),
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,

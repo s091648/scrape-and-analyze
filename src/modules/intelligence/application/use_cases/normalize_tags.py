@@ -1,8 +1,8 @@
-import traceback as tb
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
+from shared.observability.traceback_filter import format_filtered_exc
 from src.modules.intelligence.domain.services import EmbeddingService
 from src.modules.intelligence.domain.repositories import TagRepository
 from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
@@ -57,7 +57,7 @@ class NormalizeTagsUseCase:
                 article_id=article_id,
                 exception_type=type(e).__name__,
                 exception_message=str(e),
-                traceback=tb.format_exc(),
+                traceback=format_filtered_exc(e),
             )
 
     def _process(

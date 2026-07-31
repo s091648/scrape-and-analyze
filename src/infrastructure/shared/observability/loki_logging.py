@@ -27,6 +27,20 @@ from src.config.settings import APP_ENV
 
 # --- SDK JSON formatter (reads correlation_id from the ContextVar) ------------------
 
+class _StructlogMessageFormatter(logging.Formatter):
+    """structlog's JSONRenderer already produces the complete, self-contained
+    log line (including a filtered traceback under "exception" when relevant
+    — see shared/observability/traceback_filter.py). Without this, the
+    stdlib logging.Handler default Formatter would append a second, raw,
+    unfiltered traceback whenever record.exc_info is set — which happens
+    even when we never passed exc_info ourselves, because structlog's
+    logger.exception() calls the underlying logging.Logger.exception(),
+    whose own signature hardcodes exc_info=True."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return record.getMessage()
+
+
 class _SdkJsonFormatter(logging.Formatter):
     """Formats stdlib LogRecord from chatbot_plugin_sdk as a JSON line matching
     the main app's structlog output shape."""
@@ -90,6 +104,7 @@ def configure_loki() -> None:
     # Always attach stdout so structlog messages appear in container logs
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
+    stdout_handler.setFormatter(_StructlogMessageFormatter())
     root_logger.addHandler(stdout_handler)
 
     loki_handler: logging.Handler | None = None
@@ -105,6 +120,7 @@ def configure_loki() -> None:
                 version="1",
             )
             loki_handler.setLevel(logging.INFO)
+            loki_handler.setFormatter(_StructlogMessageFormatter())
             root_logger.addHandler(loki_handler)
         except Exception as e:
             print(f"Loki handler setup failed: {e}", file=sys.stdout)
