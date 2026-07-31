@@ -23,7 +23,7 @@ import argparse
 
 from sqlalchemy import text
 
-from src.config.settings import SENTRY_DSN, validate_config
+from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
@@ -32,7 +32,7 @@ from src.infrastructure.shared.observability import init_run_context
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=0.1, include_local_variables=False)
+    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, traces_sample_rate=0.1, include_local_variables=False)
 
 logger = get_logger(__name__)
 

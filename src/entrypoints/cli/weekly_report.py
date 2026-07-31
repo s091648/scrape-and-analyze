@@ -42,7 +42,7 @@ from src.infrastructure.shared.observability import init_run_context, get_run_id
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, include_local_variables=False)
+    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, include_local_variables=False)
 
 logger = get_logger(__name__)
 

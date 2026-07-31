@@ -30,7 +30,7 @@ from backend.observability import configure_logging, setup_tracing
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, include_local_variables=False)
+    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, include_local_variables=False)
 
 configure_logging(APP_ENV)
 _tracer_provider = setup_tracing(APP_ENV)
