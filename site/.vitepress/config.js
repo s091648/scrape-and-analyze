@@ -249,6 +249,19 @@ export default defineConfig({
           { text: 'Contract: Guest Token', link: '/specs/018-public-api-auth/contracts/guest-token' },
         ],
       },
+      {
+        text: '019 · Cicd Data Migrations',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/019-cicd-data-migrations/spec' },
+          { text: 'Plan', link: '/specs/019-cicd-data-migrations/plan' },
+          { text: 'Data Model', link: '/specs/019-cicd-data-migrations/data-model' },
+          { text: 'Tasks', link: '/specs/019-cicd-data-migrations/tasks' },
+          { text: 'Research', link: '/specs/019-cicd-data-migrations/research' },
+          { text: 'Quick Start', link: '/specs/019-cicd-data-migrations/quickstart' },
+          { text: 'Requirements', link: '/specs/019-cicd-data-migrations/checklists/requirements' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },

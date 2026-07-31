@@ -1,6 +1,28 @@
 {
   "exceptions": [
     {
+      "name": "ArticleFetchError",
+      "category": "custom",
+      "bases": [
+        "ExternalDependencyError",
+        "CollectionDomainError"
+      ],
+      "docstring": "Raised when fetching an article's full HTML body fails (network error, timeout, non-2xx after retries).",
+      "defined_at": {
+        "file": "src/modules/collection/domain/exceptions.py",
+        "line": 8
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/parsers/html_parser.py",
+          "line": 54,
+          "function": "HtmlArticleParser.fetch_and_parse",
+          "snippet": "raise ArticleFetchError(f\"Failed to fetch article body from {url}: {e}\") from e",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "ArxivRateLimitedError",
       "category": "custom",
       "bases": [
@@ -43,34 +65,34 @@
       ],
       "docstring": "The requested operation conflicts with existing state (e.g. a uniqueness violation).",
       "defined_at": {
-        "file": "src/shared/domain/exceptions.py",
+        "file": "shared/domain/exceptions.py",
         "line": 13
       },
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 74,
+          "line": 80,
           "function": "register",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 86,
+          "line": 91,
           "function": "google_authorize",
           "snippet": "raise ConflictError(\"Google account not linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 111,
+          "line": 116,
           "function": "admin_create_user",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 189,
+          "line": 193,
           "function": "link_google",
           "snippet": "raise ConflictError(\"Google account already in use\")",
           "status_code": null
@@ -99,15 +121,22 @@
       "defined_at": null,
       "raise_sites": [
         {
-          "file": "backend/routers/auth.py",
-          "line": 112,
-          "function": "admin_create_user",
+          "file": "src/entrypoints/cli/dedup_reconcile.py",
+          "line": 136,
+          "function": "main",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/entrypoints/cli/main.py",
           "line": 98,
+          "function": "main",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/entrypoints/cli/refresh_metrics.py",
+          "line": 127,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -142,7 +171,7 @@
         },
         {
           "file": "src/infrastructure/persistence/collection/scraper_setting_repo_impl.py",
-          "line": 60,
+          "line": 73,
           "function": "SqlAlchemyScraperSettingRepository.mark_scraped",
           "snippet": "raise",
           "status_code": null
@@ -227,7 +256,7 @@
       ],
       "docstring": "The caller is authenticated but not authorized to perform this action.",
       "defined_at": {
-        "file": "src/shared/domain/exceptions.py",
+        "file": "shared/domain/exceptions.py",
         "line": 21
       },
       "raise_sites": [
@@ -240,14 +269,14 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 50,
+          "line": 52,
           "function": "verify_credentials",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 84,
+          "line": 89,
           "function": "google_authorize",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
@@ -279,7 +308,7 @@
       "raise_sites": [
         {
           "file": "backend/routers/chat.py",
-          "line": 67,
+          "line": 83,
           "function": "chat_completions",
           "snippet": "raise HTTPException(",
           "status_code": 429
@@ -352,7 +381,7 @@
       "docstring": "Raised when a ScraperSetting's interval_hours is not a positive number.",
       "defined_at": {
         "file": "src/modules/collection/domain/exceptions.py",
-        "line": 20
+        "line": 24
       },
       "raise_sites": [
         {
@@ -374,7 +403,7 @@
       "docstring": "Raised when a scraper keyword's type does not match any known ScraperKeywordVO variant.",
       "defined_at": {
         "file": "src/modules/collection/domain/exceptions.py",
-        "line": 12
+        "line": 16
       },
       "raise_sites": [
         {
@@ -440,7 +469,7 @@
       "docstring": "Raised when a UrlHash value is not a valid 64-char hex SHA-256 digest.",
       "defined_at": {
         "file": "src/modules/collection/domain/exceptions.py",
-        "line": 8
+        "line": 12
       },
       "raise_sites": [
         {
@@ -552,7 +581,7 @@
       ],
       "docstring": "A requested resource does not exist.",
       "defined_at": {
-        "file": "src/shared/domain/exceptions.py",
+        "file": "shared/domain/exceptions.py",
         "line": 9
       },
       "raise_sites": [
@@ -565,63 +594,63 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 82,
+          "line": 87,
           "function": "google_authorize",
           "snippet": "raise NotFoundError(\"Email not registered\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 120,
+          "line": 124,
           "function": "update_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 128,
+          "line": 132,
           "function": "delete_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 137,
+          "line": 141,
           "function": "get_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 146,
+          "line": 150,
           "function": "update_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 160,
+          "line": 164,
           "function": "change_password",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 175,
+          "line": 179,
           "function": "delete_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 185,
+          "line": 189,
           "function": "link_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 198,
+          "line": 202,
           "function": "unlink_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
@@ -754,7 +783,14 @@
         },
         {
           "file": "src/infrastructure/collection/clients/openalex_client.py",
-          "line": 239,
+          "line": 227,
+          "function": "OpenAlexClient.fetch_by_id",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 275,
           "function": "OpenAlexClient.fetch_papers",
           "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
           "status_code": null
@@ -913,7 +949,7 @@
       ],
       "docstring": "The caller's authentication is missing, invalid, or expired.",
       "defined_at": {
-        "file": "src/shared/domain/exceptions.py",
+        "file": "shared/domain/exceptions.py",
         "line": 17
       },
       "raise_sites": [
@@ -1017,14 +1053,14 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 46,
+          "line": 48,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 48,
+          "line": 50,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
@@ -1069,7 +1105,7 @@
       "docstring": "Raised when a ScraperSetting's source_type cannot be resolved to a scraper implementation.",
       "defined_at": {
         "file": "src/modules/collection/domain/exceptions.py",
-        "line": 16
+        "line": 20
       },
       "raise_sites": [
         {
@@ -1089,48 +1125,48 @@
       ],
       "docstring": "A domain-layer invariant was violated (business-rule validation, not request-shape validation).",
       "defined_at": {
-        "file": "src/shared/domain/exceptions.py",
+        "file": "shared/domain/exceptions.py",
         "line": 5
       },
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 75,
+          "line": 65,
           "function": "register",
           "snippet": "raise ValidationError(str(e))",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 99,
+          "line": 104,
           "function": "admin_create_user",
           "snippet": "raise ValidationError(\"email or username required\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 162,
+          "line": 166,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Password change not available for this account\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 164,
+          "line": 168,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Current password incorrect\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 187,
+          "line": 191,
           "function": "link_google",
           "snippet": "raise ValidationError(\"Google account already linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 200,
+          "line": 204,
           "function": "unlink_google",
           "snippet": "raise ValidationError(\"Cannot unlink Google from a Google-only account\")",
           "status_code": null
@@ -1140,6 +1176,13 @@
           "line": 36,
           "function": "reorder",
           "snippet": "raise ValidationError(\"Duplicate provider IDs in reorder request\")",
+          "status_code": null
+        },
+        {
+          "file": "shared/selector_config.py",
+          "line": 111,
+          "function": "build_selector_config",
+          "snippet": "raise ValidationError(f\"Invalid selector_config for source_type={source_type!r}: {e}\") from e",
           "status_code": null
         }
       ]
@@ -1205,6 +1248,13 @@
           "line": 80,
           "function": "SqlAlchemyTagRepository.save",
           "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
+          "status_code": null
+        },
+        {
+          "file": "shared/selector_config.py",
+          "line": 24,
+          "function": "BlogConfig._require_links_selector",
+          "snippet": "raise ValueError(\"selectors must include a non-empty 'links' selector\")",
           "status_code": null
         }
       ]

@@ -624,7 +624,8 @@
   "lib/providers/session-provider.tsx": [],
   "lib/providers/theme-provider.tsx": [],
   "lib/providers/topic-provider.tsx": [
-    "lib/api/topics.ts"
+    "lib/api/topics.ts",
+    "lib/providers/auth-token-provider.tsx"
   ],
   "lib/providers/tutorial-provider.tsx": [
     "components/features/tutorial/tutorial-registry.ts",

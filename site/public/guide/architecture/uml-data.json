@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-23T11:35:34.874417+00:00",
+  "generated_at": "2026-07-30T12:22:15.634743+00:00",
   "layers": [
     "application",
     "domain",
@@ -659,6 +659,45 @@
       "context": "intelligence"
     },
     {
+      "id": "repositories.article_dedup_repository.ArticleDedupRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ArticleDedupRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.article_dedup_repository",
+      "class_name": "ArticleDedupRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/article_dedup_repository/ArticleDedupRepository.py",
+      "docstring": "Reconciles articles against upstream (OpenAlex) merge decisions made\nafter we'd already scraped one or both sides of a duplicate.\n\nMerging never deletes a row — the losing article is tombstoned…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "find_by_work_id(work_id: str) → Optional[UUID]",
+          "doc": "Return the id of the (non-tombstoned) article with this OpenAlex work_id, or None."
+        },
+        {
+          "sig": "heal_identifiers(article_id: UUID, work_id: str, doi: Optional[str]) → None",
+          "doc": "Update this article's own metadata to OpenAlex's now-canonical work_id/doi.\n\nUsed when OpenAlex merged this article's work_id away but we never\nscraped the…"
+        },
+        {
+          "sig": "merge(loser_id: UUID, survivor_id: UUID) → None",
+          "doc": "Tombstone `loser_id` into `survivor_id`: roll up view_count, union\ntags, and mark `loser_id.merged_into_id = survivor_id`."
+        },
+        {
+          "sig": "mark_reconciled(article_id: UUID) → None",
+          "doc": "Record that this article's work_id was checked and is still canonical."
+        }
+      ],
+      "source_file": "src/modules/collection/domain/repositories/article_dedup_repository.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
       "id": "repositories.article_metrics_repository.ArticleMetricsRepository",
       "color": "black",
       "fontcolor": "black",
@@ -710,21 +749,21 @@
       "context": "collection"
     },
     {
-      "id": "events.article_processed.ArticleProcessedEvent",
+      "id": "application.events.article_processed.ArticleProcessedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleProcessedEvent|article",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "shared-application",
+      "layer": "application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "events.article_processed",
+      "module": "application.events.article_processed",
       "class_name": "ArticleProcessedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/events/article_processed/ArticleProcessedEvent.py",
+      "full_path": "src/application/events/article_processed/ArticleProcessedEvent.py",
       "docstring": "Event emitted after an article has been successfully processed and persisted.",
       "typed_attrs": [
         "article: Article",
@@ -1674,30 +1713,6 @@
       "context": "collection"
     },
     {
-      "id": "exceptions.ConflictError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{ConflictError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "ConflictError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/ConflictError.py",
-      "docstring": "The requested operation conflicts with existing state (e.g. a uniqueness violation).",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
       "id": "services.dedup_service.DedupService",
       "color": "black",
       "fontcolor": "black",
@@ -1804,30 +1819,6 @@
       "context": "collection"
     },
     {
-      "id": "exceptions.DomainError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{DomainError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "DomainError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/DomainError.py",
-      "docstring": "Root of the domain exception hierarchy shared by all bounded contexts.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
       "id": "notifications.weekly_report_email_message_builder.EmailMessage",
       "color": "black",
       "fontcolor": "black",
@@ -1923,19 +1914,19 @@
       "context": "intelligence"
     },
     {
-      "id": "ports.event_bus.EventBus",
+      "id": "application.ports.event_bus.EventBus",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EventBus|<br",
       "ALIGN": "LEFT",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
+      "layer": "application",
+      "ca_layer": "application",
       "subgroup": "ports",
-      "module": "ports.event_bus",
+      "module": "application.ports.event_bus",
       "class_name": "EventBus",
       "attributes": [],
       "methods": [],
-      "full_path": "src/ports/event_bus/EventBus.py",
+      "full_path": "src/application/ports/event_bus/EventBus.py",
       "docstring": "Protocol for a publish-subscribe event bus used to decouple pipeline stages.",
       "typed_attrs": [],
       "typed_methods": [
@@ -1954,42 +1945,18 @@
       "context": "shared"
     },
     {
-      "id": "exceptions.ExternalDependencyError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{ExternalDependencyError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "ExternalDependencyError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/ExternalDependencyError.py",
-      "docstring": "A required external dependency (LLM provider, metrics API, etc.) failed or was exhausted.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
-      "id": "events.failed_event.FailedEvent",
+      "id": "application.events.failed_event.FailedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedEvent|analysis_id",
-      "layer": "shared-application",
+      "layer": "application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "events.failed_event",
+      "module": "application.events.failed_event",
       "class_name": "FailedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/events/failed_event/FailedEvent.py",
+      "full_path": "src/application/events/failed_event/FailedEvent.py",
       "docstring": "Protocol for events representing a failed pipeline task with error context.",
       "typed_attrs": [
         "task_type: str",
@@ -2138,30 +2105,6 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
-    },
-    {
-      "id": "exceptions.ForbiddenError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{ForbiddenError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "ForbiddenError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/ForbiddenError.py",
-      "docstring": "The caller is authenticated but not authorized to perform this action.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
     },
     {
       "id": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
@@ -2447,7 +2390,7 @@
         },
         {
           "sig": "fetch_and_parse(url: str, fallback: str) → str",
-          "doc": "HTTP GET the URL then parse. Returns fallback on any failure."
+          "doc": "HTTP GET the URL then parse.\n\nRaises ArticleFetchError on transport failure (network error, timeout,\nnon-2xx after retries) — the caller decides whether/how to…"
         }
       ],
       "source_file": "src/infrastructure/collection/parsers/html_parser.py",
@@ -2633,6 +2576,102 @@
         }
       ],
       "source_file": "src/modules/intelligence/application/use_cases/ingest_article_for_rag.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.IntelligenceDomainError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{IntelligenceDomainError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "IntelligenceDomainError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/IntelligenceDomainError.py",
+      "docstring": "Root of the intelligence bounded context's domain exceptions.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidSimilarityScoreError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidSimilarityScoreError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidSimilarityScoreError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidSimilarityScoreError.py",
+      "docstring": "Raised when a TagNormalizationSuggestion's similarity_score is outside [0.0, 1.0].",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidSuggestionStatusError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidSuggestionStatusError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidSuggestionStatusError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidSuggestionStatusError.py",
+      "docstring": "Raised when a TagNormalizationSuggestion's status is not pending/approved/rejected.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "exceptions.InvalidWeeklyReportStatusError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{InvalidWeeklyReportStatusError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "exceptions",
+      "class_name": "InvalidWeeklyReportStatusError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/exceptions/InvalidWeeklyReportStatusError.py",
+      "docstring": "Raised when a WeeklyReport's status is not pending/completed/failed.",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/domain/exceptions.py",
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
@@ -2875,30 +2914,6 @@
       "context": "intelligence"
     },
     {
-      "id": "exceptions.NotFoundError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{NotFoundError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "NotFoundError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/NotFoundError.py",
-      "docstring": "A requested resource does not exist.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
       "id": "notifications.notification_service.NotificationHandler",
       "color": "black",
       "fontcolor": "black",
@@ -2961,6 +2976,10 @@
         {
           "sig": "fetch_by_doi(doi: str) → Optional[dict]",
           "doc": "Fetch a single work by DOI. Returns the raw parsed JSON dict (not an\nOpenAlexEntry) so metric extractors can evaluate JMESPath expressions\nagainst OpenAlex's…"
+        },
+        {
+          "sig": "fetch_by_id(work_id: str) → Optional[dict]",
+          "doc": "Fetch a single work by its OpenAlex ID (accepts either the full URL\nform 'https://openalex.org/W123' or the bare 'W123'). Returns the raw\nparsed JSON…"
         },
         {
           "sig": "fetch_papers(query: str, max_results: int, days_back: Optional[int]) → List[OpenAlexEntry]",
@@ -3981,7 +4000,8 @@
         "title: str",
         "description: str",
         "published: str",
-        "author: Optional[str]"
+        "author: Optional[str]",
+        "content: Optional[str]"
       ],
       "typed_methods": [],
       "source_file": "src/infrastructure/collection/clients/rss_client.py",
@@ -4049,7 +4069,7 @@
         },
         {
           "sig": "fetch(job: ScrapeJob) → Optional[ScrapedArticle]",
-          "doc": "Fetch and parse an RSS article page into a ScrapedArticle."
+          "doc": "Fetch and parse an RSS article page into a ScrapedArticle.\n\nPrefers the feed's own <content:encoded> body (when the publisher\nincludes it) as the degraded-mode…"
         },
         {
           "sig": "_matches(text: str) → bool",
@@ -4771,6 +4791,51 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
+    },
+    {
+      "id": "persistence.collection.article_dedup_repo_impl.SqlAlchemyArticleDedupRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SqlAlchemyArticleDedupRepository|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "persistence.collection.article_dedup_repo_impl",
+      "class_name": "SqlAlchemyArticleDedupRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/persistence/collection/article_dedup_repo_impl/SqlAlchemyArticleDedupRepository.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "find_by_work_id(work_id: str) → Optional[UUID]",
+          "doc": ""
+        },
+        {
+          "sig": "heal_identifiers(article_id: UUID, work_id: str, doi: Optional[str]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "merge(loser_id: UUID, survivor_id: UUID) → None",
+          "doc": ""
+        },
+        {
+          "sig": "mark_reconciled(article_id: UUID) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/collection/article_dedup_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
     },
     {
       "id": "persistence.collection.article_metrics_repo_impl.SqlAlchemyArticleMetricsRepository",
@@ -5952,30 +6017,6 @@
       "context": "intelligence"
     },
     {
-      "id": "exceptions.UnauthorizedError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{UnauthorizedError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "UnauthorizedError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/UnauthorizedError.py",
-      "docstring": "The caller's authentication is missing, invalid, or expired.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
       "id": "value_objects.url.UrlHash",
       "color": "black",
       "fontcolor": "black",
@@ -6013,30 +6054,6 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
-    },
-    {
-      "id": "exceptions.ValidationError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{ValidationError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "exceptions",
-      "class_name": "ValidationError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/exceptions/ValidationError.py",
-      "docstring": "A domain-layer invariant was violated (business-rule validation, not request-shape validation).",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
     },
     {
       "id": "entities.weekly_report.WeeklyReport",
@@ -6555,43 +6572,22 @@
   ],
   "edges": [
     {
-      "source": "exceptions.ConflictError",
-      "target": "exceptions.DomainError",
+      "source": "exceptions.InvalidSimilarityScoreError",
+      "target": "exceptions.IntelligenceDomainError",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
     },
     {
-      "source": "exceptions.ExternalDependencyError",
-      "target": "exceptions.DomainError",
+      "source": "exceptions.InvalidSuggestionStatusError",
+      "target": "exceptions.IntelligenceDomainError",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
     },
     {
-      "source": "exceptions.ForbiddenError",
-      "target": "exceptions.DomainError",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "exceptions.NotFoundError",
-      "target": "exceptions.DomainError",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "exceptions.UnauthorizedError",
-      "target": "exceptions.DomainError",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "exceptions.ValidationError",
-      "target": "exceptions.DomainError",
+      "source": "exceptions.InvalidWeeklyReportStatusError",
+      "target": "exceptions.IntelligenceDomainError",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -6792,16 +6788,16 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 80,
+      "count": 76,
       "subgroups": [
-        {
-          "id": "other",
-          "label": "Other",
-          "count": 17
-        },
         {
           "id": "llm",
           "label": "LLM Providers",
+          "count": 14
+        },
+        {
+          "id": "other",
+          "label": "Other",
           "count": 14
         },
         {
@@ -6850,11 +6846,6 @@
           "count": 1
         },
         {
-          "id": "ports",
-          "label": "Ports",
-          "count": 1
-        },
-        {
           "id": "event_handlers",
           "label": "Event Handlers",
           "count": 1
@@ -6869,17 +6860,17 @@
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 22
-        },
-        {
-          "id": "shared",
-          "label": "Shared",
-          "count": 10
+          "count": 26
         },
         {
           "id": "notifications",
           "label": "Notifications",
           "count": 9
+        },
+        {
+          "id": "shared",
+          "label": "Shared",
+          "count": 2
         },
         {
           "id": "other",
@@ -6892,12 +6883,12 @@
       "id": "adapters",
       "label": "Interface Adapters",
       "color": "#EEDD88",
-      "count": 13,
+      "count": 14,
       "subgroups": [
         {
           "id": "persistence",
           "label": "Persistence",
-          "count": 13
+          "count": 14
         }
       ],
       "context_subgroups": [
@@ -6907,14 +6898,14 @@
           "count": 8
         },
         {
-          "id": "shared",
-          "label": "Shared",
+          "id": "collection",
+          "label": "Collection",
           "count": 3
         },
         {
-          "id": "collection",
-          "label": "Collection",
-          "count": 2
+          "id": "shared",
+          "label": "Shared",
+          "count": 3
         }
       ]
     },
@@ -6922,7 +6913,7 @@
       "id": "application",
       "label": "Application",
       "color": "#44BB99",
-      "count": 29,
+      "count": 30,
       "subgroups": [
         {
           "id": "use_cases",
@@ -6938,6 +6929,11 @@
           "id": "event_handlers",
           "label": "Event Handlers",
           "count": 7
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "count": 1
         }
       ],
       "context_subgroups": [
@@ -6954,7 +6950,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 2
+          "count": 3
         }
       ]
     },
@@ -6962,7 +6958,7 @@
       "id": "entities",
       "label": "Domain / Entities",
       "color": "#77AADD",
-      "count": 64,
+      "count": 65,
       "subgroups": [
         {
           "id": "value_objects",
@@ -6972,7 +6968,7 @@
         {
           "id": "repositories",
           "label": "Repositories",
-          "count": 15
+          "count": 16
         },
         {
           "id": "entities",
@@ -6994,7 +6990,7 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 16
+          "count": 17
         },
         {
           "id": "shared",
