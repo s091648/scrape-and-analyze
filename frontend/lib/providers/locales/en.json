@@ -462,6 +462,7 @@
     "logFieldEvent": "Event",
     "viewInTrace": "View in trace",
     "logExtraFields": "Details",
+    "logFieldException": "Traceback",
     "logFieldName": {
       "url": "URL",
       "source": "Source",

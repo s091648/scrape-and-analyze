@@ -33,16 +33,18 @@ export function parseLogFields(raw: string): {
   event?: string
   traceId?: string
   spanId?: string
+  exception?: string
 } {
   let fields: Record<string, unknown> = {}
   try { fields = JSON.parse(raw) } catch { return { fields } }
-  const { level, severity, event, message, msg, trace_id, span_id, ...rest } = fields as Record<string, unknown>
+  const { level, severity, event, message, msg, trace_id, span_id, exception, ...rest } = fields as Record<string, unknown>
   void level; void severity; void message; void msg
   return {
     fields: rest,
     event: event != null ? String(event) : undefined,
     traceId: trace_id != null ? String(trace_id) : undefined,
     spanId:  span_id  != null ? String(span_id)  : undefined,
+    exception: exception != null ? String(exception) : undefined,
   }
 }
 
@@ -62,12 +64,12 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
   const { t } = useI18n()
   if (!entry) return null
 
-  const { fields, event, traceId, spanId } = parseLogFields(entry.raw)
+  const { fields, event, traceId, spanId, exception } = parseLogFields(entry.raw)
   const extraEntries = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== '')
 
   return (
     <Dialog open={!!entry} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className={cn(exception ? 'max-w-2xl' : 'max-w-lg', 'max-h-[85vh] overflow-y-auto')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <span className={cn('font-mono font-bold shrink-0', LEVEL_COLORS[entry.level])}>{entry.level.toUpperCase()}</span>
@@ -119,6 +121,15 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
                   </Fragment>
                 ))}
               </div>
+            </div>
+          )}
+
+          {exception && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{t('admin.logFieldException')}</p>
+              <pre className="rounded border border-border bg-muted/30 p-2.5 font-mono text-[11px] leading-snug whitespace-pre-wrap break-words text-foreground/80">
+                {exception}
+              </pre>
             </div>
           )}
 

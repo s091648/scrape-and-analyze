@@ -462,6 +462,7 @@
     "logFieldEvent": "事件",
     "viewInTrace": "查看 Trace",
     "logExtraFields": "詳細資訊",
+    "logFieldException": "Traceback",
     "logFieldName": {
       "url": "URL",
       "source": "來源",
