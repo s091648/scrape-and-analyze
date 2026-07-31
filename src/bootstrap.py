@@ -134,7 +134,7 @@ def build_rag_ingestion_service():
             VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
             RAG_DENSE_PROVIDER, RAG_DENSE_MODEL, RAG_DENSE_DIMENSION,
             RAG_DENSE_API_KEY_ENV, RAG_DENSE_ENDPOINT_URL,
-            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
+            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD, RAG_DENSE_SPLIT_BATCH_ON_TPM,
             RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
             RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD, RAG_SPARSE_TIMEOUT,
             RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
@@ -150,6 +150,7 @@ def build_rag_ingestion_service():
             "rpm": RAG_DENSE_RPM,
             "tpm": RAG_DENSE_TPM,
             "rpd": RAG_DENSE_RPD,
+            "split_batch_on_tpm": RAG_DENSE_SPLIT_BATCH_ON_TPM,
         }) if RAG_DENSE_PROVIDER else None
 
         sparse_provider = build_sparse_provider({
