@@ -59,6 +59,10 @@ function ArticlesPageContent() {
     p.delete('article')
     // Favorites-only is applied client-side below (see displayedArticles), not re-fetched.
     p.delete('favorites_only')
+    // topic is already tracked via selectedTopicId below; TopicUrlSync writing
+    // it back into the URL after selection shouldn't itself trigger a second,
+    // redundant fetch with identical params.
+    p.delete('topic')
     return p.toString()
   }, [searchParams])
 
