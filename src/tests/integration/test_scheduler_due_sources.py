@@ -31,6 +31,8 @@ _TEST_SOURCE_NAMES = [
     "within-tolerance",
     "inactive-source",
     "mark-scraped-test",
+    "selector-config-valid",
+    "selector-config-invalid",
 ]
 
 
@@ -56,6 +58,7 @@ def _make_setting(
     frequency=4,
     is_active=True,
     last_scraped_at=None,
+    selector_config=None,
 ):
     """Helper to create a ScraperSetting ORM row for tests."""
     return ScraperSettingModel(
@@ -66,6 +69,7 @@ def _make_setting(
         is_active=is_active,
         last_scraped_at=last_scraped_at,
         topic_id=topic_id,
+        selector_config=selector_config,
     )
 
 
@@ -202,6 +206,42 @@ def test_mark_scraped_sets_timestamp(db_session, test_topic):
     )
     assert refreshed.last_scraped_at is not None
     assert before <= refreshed.last_scraped_at <= after
+
+
+# ---------------------------------------------------------------------------
+# T030: A row with an invalid selector_config is skipped, not fatal
+# (b7bcc18 — get_active_due() must not let one bad row abort the whole scan)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_get_active_due_skips_row_with_invalid_selector_config(db_session, test_topic):
+    """A blog source whose selector_config is missing the required 'links'
+    selector must be skipped (logged, not raised) while every other due
+    source in the same scan is still returned."""
+    invalid = _make_setting(
+        topic_id=test_topic,
+        source="selector-config-invalid",
+        source_type="blog",
+        last_scraped_at=None,
+        selector_config={"selectors": {"title": "h2"}},  # no 'links' — invalid
+    )
+    valid = _make_setting(
+        topic_id=test_topic,
+        source="selector-config-valid",
+        source_type="blog",
+        last_scraped_at=None,
+        selector_config={"selectors": {"links": "a.article", "title": "h2"}},
+    )
+    db_session.add_all([invalid, valid])
+    db_session.commit()
+
+    repo = SqlAlchemyScraperSettingRepository(session=db_session)
+    due = repo.get_active_due()  # must not raise
+
+    due_sources = [s.source for s in due]
+    assert "selector-config-valid" in due_sources
+    assert "selector-config-invalid" not in due_sources
 
 
 # ---------------------------------------------------------------------------
