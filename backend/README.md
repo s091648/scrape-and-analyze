@@ -238,7 +238,7 @@ All `require_admin`. Each returns `503 {"error": "not_configured"}` if the relev
 |--------|------|------|-------------|
 | `GET` | `/health` | — | DB connectivity check (`{"status": "ok", "db": "ok"}`, 503 on failure) |
 | `GET` | `/languages` | any token | Resolve client language from IP via GeoIP2 |
-| `GET` | `/failed-tasks` | — (no guard) | Paginated failed pipeline tasks |
+| `GET` | `/failed-tasks` | admin | Paginated failed pipeline tasks |
 
 ## Observability
 
