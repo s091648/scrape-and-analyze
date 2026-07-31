@@ -102,9 +102,15 @@ export async function mockApiRoutes(page: Page) {
   const proxyPrefix = (prefix: string) => (url: URL) =>
     url.pathname.startsWith(`/api/proxy/${prefix}`)
 
-  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
+  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend.
+  // Shaped like the backend's real central exception handler response
+  // (backend/schemas/error.py::ErrorResponse) so apiFetch's error parsing path
+  // (frontend/lib/api/client.ts) is exercised the same way it is in production.
   await page.route((url: URL) => url.pathname.startsWith('/api/proxy/'), route =>
-    route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
+    route.fulfill({
+      status: 404,
+      json: { error: { code: 'not_found', message: 'not found (test mock catch-all)', request_id: 'test-catch-all' } },
+    })
   )
 
   // Guest token bootstrap — AuthTokenProvider calls this unauthenticated (test.use({
