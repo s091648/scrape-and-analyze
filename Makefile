@@ -7,7 +7,7 @@
 	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
 	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
-	data-migrate data-migrate-list data-migrate-down \
+	data-migrate data-migrate-list data-migrate-one data-migrate-down \
 	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
@@ -115,6 +115,13 @@ data-migrate:
 
 data-migrate-list:
 	docker compose run --rm job_service python /app/scripts/run_data_migrations.py --list
+
+# Run one specific pending data migration by name, skipping every other pending
+# one — useful for testing a migration you're actively writing without also
+# triggering unrelated ones. Usage: make data-migrate-one NAME=002_backfill_arxiv_id
+data-migrate-one:
+	@test -n "$(NAME)" || (echo "NAME must be set (e.g. NAME=002_backfill_arxiv_id)"; exit 1)
+	docker compose run --rm job_service python /app/scripts/run_data_migrations.py --name $(NAME)
 
 data-migrate-down:
 	@test -n "$(NAME)" || (echo "NAME must be set (e.g. NAME=001_backfill_tag_group_definitions)"; exit 1)
