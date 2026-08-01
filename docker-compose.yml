@@ -46,6 +46,11 @@ services:
       - ./pytest.ini:/app/pytest.ini
       - ./.coveragerc:/app/.coveragerc
       - fastembed_cache:/app/.fastembed_cache
+      # LOCAL DEV ONLY — testing unreleased chatbot-plugin-sdk changes before a tagged
+      # release. Remove once done (git checkout -- docker-compose.yml), or `uv pip
+      # install -e /opt/chatbot-plugin-sdk` inside a `docker compose run` invocation
+      # to override the image's git-pinned install for that one container.
+      - ../chatbot-plugin-sdk:/opt/chatbot-plugin-sdk
     env_file:
       - .env
     depends_on:
@@ -160,6 +165,8 @@ services:
     volumes:
       - ./chatbot-plugin/src:/app/src
       - chatbot_fastembed_cache:/app/.fastembed_cache
+      # LOCAL DEV ONLY — see the matching comment on the `app` service's volumes.
+      - ../chatbot-plugin-sdk:/opt/chatbot-plugin-sdk
     ports:
       - "8001:8000"
     env_file:
@@ -169,6 +176,11 @@ services:
         condition: service_healthy
       fastembed:
         condition: service_healthy
+    # LOCAL DEV ONLY — installs the mounted local chatbot-plugin-sdk in editable mode
+    # before starting, overriding the image's git-pinned install. Editable install +
+    # --reload means later SDK source edits apply without restarting this container.
+    # Revert to the default Dockerfile CMD (remove this override) once done testing.
+    command: sh -c "uv pip install -e /opt/chatbot-plugin-sdk && uvicorn chatbot_plugin.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload"
 
   # Job service — 一次性工具容器，需加 --profile tools 才會啟動
   job_service:
