@@ -72,6 +72,12 @@ NextAuth v4 (JWT strategy) on frontend → `jose` signs HS256 JWT with `sub` (us
 
 Root layout wraps: `SessionProviderWrapper > TopicProvider > I18nProvider > ErrorBoundary > NavBar`. State uses React Context (`TopicContext` with localStorage persistence) — Zustand is a dependency but no stores exist yet. Routes: `/` (home), `/graph` (force-graph), `/login`, `/register`, `/settings`, `/admin/*` (monitoring, scraper-settings, topics, user-management).
 
+**`page.tsx` vs `xxx-page-content.tsx` split** — a route's `page.tsx` stays a thin wrapper (import + return only) and the real component moves to a sibling `xxx-page-content.tsx` file whenever either applies:
+- The page reads `useSearchParams()` (or another hook requiring a Suspense boundary) — `page.tsx` wraps `<XxxPageContent />` in `<Suspense>`. See `app/login/`, `app/register/`, `app/settings/`, `app/settings/notifications/`, `app/articles/`, `app/page.tsx`.
+- The page needs server-only data (`getServerSession`, non-`NEXT_PUBLIC_` env vars) before the client component renders — `page.tsx` is an `async` server component that fetches the data and passes it as props. See `app/admin/monitoring/`.
+
+Routes needing neither (no `useSearchParams`, no server-only session/env fetch) stay a single-file `page.tsx` — don't split for its own sake (e.g. `app/admin/llm-providers/`, `app/admin/scraper-settings/`, `app/graph/`, `app/tags/`).
+
 ### Backend Routers
 
 | Router | Prefix | Auth |
