@@ -18,8 +18,27 @@ Architecture:
       ArticleMetricsRepository.upsert().
     - Bootstrap: build_metrics_refresh_pipeline() reads the metric_definitions
       catalog from DB and wires the fetcher registry.
+
+Concurrency:
+    Each article's fetch_all() call is wrapped as a coroutine and run via
+    asyncio.gather() under a semaphore (--concurrency, default 5). The actual
+    HTTP call is still the synchronous, blocking ResilientMetricsService /
+    HttpClient stack, so each one runs inside asyncio.to_thread() rather than
+    truly asynchronously — this doesn't bypass the per-domain rate limiter in
+    src/infrastructure/shared/http/rate_limiter.py (api.semanticscholar.org
+    is capped at 1 RPM there deliberately, to stay under its unauthenticated
+    daily quota — see that module's docstring), so articles resolved via that
+    single provider still queue up at ~1/min regardless of concurrency. What
+    concurrency *does* buy: articles going through a different, less-limited
+    provider/domain (e.g. api.openalex.org at 5 RPM) are no longer blocked
+    behind a whole fetch+DB round trip for an unrelated article stuck waiting
+    on the semantic_scholar bucket. The DB upsert per article is deliberately
+    left as a plain synchronous call (not offloaded to a thread) so it never
+    executes concurrently with another article's upsert on the one shared,
+    non-thread-safe SQLAlchemy session from build_metrics_refresh_pipeline().
 """
 import argparse
+import asyncio
 
 from sqlalchemy import text
 
@@ -59,6 +78,56 @@ _STALE_ARTICLES_QUERY = text(
 )
 
 
+async def _refresh_one(row, metrics_service, metrics_repo, semaphore: asyncio.Semaphore) -> bool | None:
+    """Refresh metrics for one article. Returns True (refreshed), False (fetch or
+    upsert raised), or None (no identifiers to look up, or the provider chain
+    found nothing — neither counts as a failure, matching prior behavior)."""
+    article_id, metadata = row.id, row.metadata or {}
+    identifiers = {
+        k: v for k, v in {"doi": metadata.get("doi"), "arxiv_id": metadata.get("arxiv_id")}.items()
+        if v
+    }
+    if not identifiers:
+        return None
+
+    async with semaphore:
+        try:
+            # fetch_all() is the synchronous, rate-limited HTTP stack — offload to a
+            # worker thread so other articles' fetches can run while this one is
+            # blocked in the per-domain rate limiter's token-bucket wait.
+            metrics = await asyncio.to_thread(metrics_service.fetch_all, identifiers)
+        except Exception as e:
+            logger.warning("article_metrics_refresh_failed", article_id=str(article_id), error=str(e))
+            return False
+
+    if not metrics:
+        return None
+
+    try:
+        # Deliberately NOT offloaded to a thread — see module docstring: this keeps
+        # every upsert on the event-loop thread, so the one shared, non-thread-safe
+        # SQLAlchemy session is never touched by two articles at once.
+        metrics_repo.upsert(article_id, metrics)
+    except Exception as e:
+        logger.warning("article_metrics_refresh_failed", article_id=str(article_id), error=str(e))
+        return False
+
+    logger.info("article_metrics_refreshed", article_id=str(article_id), metrics=list(metrics.keys()))
+    return True
+
+
+async def _refresh_all(rows, metrics_service, metrics_repo, concurrency: int) -> tuple[int, int]:
+    """Refresh metrics for all rows concurrently (bounded by `concurrency`) and
+    return (refreshed_count, failed_count)."""
+    semaphore = asyncio.Semaphore(concurrency)
+    results = await asyncio.gather(*(
+        _refresh_one(row, metrics_service, metrics_repo, semaphore) for row in rows
+    ))
+    refreshed = sum(1 for r in results if r is True)
+    failed = sum(1 for r in results if r is False)
+    return refreshed, failed
+
+
 def main() -> None:
     """CLI entry point: refreshes catalog-defined metrics for stale articles."""
     from opentelemetry import trace as otel_trace
@@ -67,6 +136,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Refresh recommendation-signal metrics (citation_count, etc.)")
     parser.add_argument("--limit", type=int, default=200, help="Max number of articles to refresh per run")
+    parser.add_argument("--concurrency", type=int, default=5,
+                         help="Max number of articles refreshed concurrently (default 5; see module docstring)")
     args = parser.parse_args()
 
     validate_config()
@@ -99,25 +170,9 @@ def main() -> None:
                 ).fetchall()
                 logger.info("stale_articles_found", count=len(rows), metric_keys=enabled_metric_keys)
 
-                refreshed = 0
-                failed = 0
-                for row in rows:
-                    article_id, metadata = row.id, row.metadata or {}
-                    identifiers = {
-                        k: v for k, v in {"doi": metadata.get("doi"), "arxiv_id": metadata.get("arxiv_id")}.items()
-                        if v
-                    }
-                    if not identifiers:
-                        continue
-                    try:
-                        metrics = metrics_service.fetch_all(identifiers)
-                        if metrics:
-                            metrics_repo.upsert(article_id, metrics)
-                            refreshed += 1
-                            logger.info("article_metrics_refreshed", article_id=str(article_id), metrics=list(metrics.keys()))
-                    except Exception as e:
-                        failed += 1
-                        logger.warning("article_metrics_refresh_failed", article_id=str(article_id), error=str(e))
+                refreshed, failed = asyncio.run(
+                    _refresh_all(rows, metrics_service, metrics_repo, args.concurrency)
+                )
 
                 logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
                 print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
