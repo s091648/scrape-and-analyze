@@ -23,6 +23,7 @@ export default defineConfig({
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
+          { text: 'Deployment & Multi-Service Releases', link: '/guide/deployment' },
         ],
       },
       {
@@ -33,7 +34,6 @@ export default defineConfig({
           { text: 'DB Schema', link: '/guide/architecture/db-schema' },
           { text: 'API Docs', link: '/guide/architecture/api-docs' },
           { text: 'Exceptions', link: '/guide/architecture/exceptions' },
-          { text: 'Deployment & Multi-Service Releases', link: '/guide/architecture/deployment' },
         ],
       },
       {
