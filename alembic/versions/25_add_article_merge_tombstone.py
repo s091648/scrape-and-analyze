@@ -28,14 +28,17 @@ def upgrade() -> None:
     op.add_column(
         "articles",
         sa.Column("merged_into_id", UUID(as_uuid=True), sa.ForeignKey("core.articles.id"), nullable=True),
+        schema="core",
     )
-    op.add_column("articles", sa.Column("merged_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("articles", sa.Column("last_reconciled_at", sa.DateTime(timezone=True), nullable=True))
-    op.create_index("idx_articles_merged_into_id", "articles", ["merged_into_id"])
+    op.add_column("articles", sa.Column("merged_at", sa.DateTime(timezone=True), nullable=True), schema="core")
+    op.add_column(
+        "articles", sa.Column("last_reconciled_at", sa.DateTime(timezone=True), nullable=True), schema="core"
+    )
+    op.create_index("idx_articles_merged_into_id", "articles", ["merged_into_id"], schema="core")
 
 
 def downgrade() -> None:
-    op.drop_index("idx_articles_merged_into_id", table_name="articles")
-    op.drop_column("articles", "last_reconciled_at")
-    op.drop_column("articles", "merged_at")
-    op.drop_column("articles", "merged_into_id")
+    op.drop_index("idx_articles_merged_into_id", table_name="articles", schema="core")
+    op.drop_column("articles", "last_reconciled_at", schema="core")
+    op.drop_column("articles", "merged_at", schema="core")
+    op.drop_column("articles", "merged_into_id", schema="core")

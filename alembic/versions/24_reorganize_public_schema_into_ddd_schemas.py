@@ -73,10 +73,17 @@ def upgrade() -> None:
     # the database-level default search_path so unqualified references keep
     # finding the moved tables without touching every raw-SQL call site.
     db_name = op.get_bind().engine.url.database
-    op.execute(
-        f'ALTER DATABASE "{db_name}" SET search_path TO '
-        "core, collection, intelligence, ai_infra, user_prefs, public"
-    )
+    search_path = "core, collection, intelligence, ai_infra, user_prefs, public"
+    op.execute(f'ALTER DATABASE "{db_name}" SET search_path TO {search_path}')
+    # ALTER DATABASE only changes the default for *new* connections — it does
+    # not retroactively apply to the session already running this migration.
+    # `alembic upgrade head` runs the whole chain on one connection, so later
+    # migrations in the same run (e.g. 25_add_article_merge_tombstone.py's
+    # unqualified `articles`) would otherwise still resolve against the old
+    # `public` search_path and fail with "relation does not exist" on a
+    # from-scratch database (exactly what CI's ephemeral test DB is). Apply it
+    # to the current session too so the rest of this run sees it immediately.
+    op.execute(f"SET search_path TO {search_path}")
 
 
 def downgrade() -> None:
