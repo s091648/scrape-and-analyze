@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+DEFAULT_TOPIC_ID = uuid.uuid4()
+
+
 def _mock_setting(**kwargs):
     s = MagicMock()
     s.id = kwargs.get("id", uuid.uuid4())
@@ -14,8 +17,18 @@ def _mock_setting(**kwargs):
     s.url = kwargs.get("url", "https://example.com/feed")
     s.is_active = kwargs.get("is_active", True)
     s.selector_config = kwargs.get("selector_config", None)
+    s.topic_id = kwargs.get("topic_id", DEFAULT_TOPIC_ID)
     s.activity = None
     return s
+
+
+def _activity_row(**kwargs):
+    row = MagicMock()
+    row.topic_id = kwargs.get("topic_id", DEFAULT_TOPIC_ID)
+    row.source = kwargs.get("source", "test-source")
+    row.day = kwargs.get("day", date.today())
+    row.cnt = kwargs.get("cnt", 1)
+    return row
 
 
 def _make_db(all_return=None, first_return=None):
@@ -71,9 +84,7 @@ def test_get_all_settings_maps_activity_rows():
     setting = _mock_setting(name="source-x")
     db, q = _make_db(all_return=[setting])
 
-    row = MagicMock()
-    row.source = "source-x"
-    row.day = today  # offset = (today - cutoff).days = 13
+    row = _activity_row(source="source-x", day=today)  # offset = (today - cutoff).days = 13
     row.cnt = 42
     db.execute.return_value = [row]
 
@@ -90,16 +101,53 @@ def test_get_all_settings_ignores_unknown_source_in_activity():
     setting = _mock_setting(name="known-source")
     db, q = _make_db(all_return=[setting])
 
-    row = MagicMock()
-    row.source = "other-source"  # not in settings
-    row.day = date.today()
-    row.cnt = 99
+    row = _activity_row(source="other-source", cnt=99)  # not in settings
     db.execute.return_value = [row]
 
     with patch("models.scraper_setting.ScraperSetting"):
         get_all_settings(db)
 
     assert setting.activity == [0] * 14  # unchanged
+
+
+def test_get_all_settings_matches_singleton_source_types_by_source_type_not_name():
+    """arxiv/semantic_scholar/openalex scrapers write a fixed literal to articles.source,
+    independent of the setting's user-editable display name — the join must use source_type."""
+    from backend.services.scraper_settings_service import get_all_settings
+
+    today = date.today()
+    setting = _mock_setting(name="My Custom arXiv Feed", source_type="arxiv")
+    db, q = _make_db(all_return=[setting])
+
+    row = _activity_row(source="arxiv", day=today, cnt=7)
+    db.execute.return_value = [row]
+
+    with patch("models.scraper_setting.ScraperSetting"):
+        get_all_settings(db)
+
+    assert setting.activity[13] == 7
+
+
+def test_get_all_settings_scopes_singleton_source_types_by_topic():
+    """Two topics each with their own arxiv setting must not see each other's activity,
+    since both write the same literal "arxiv" to articles.source."""
+    from backend.services.scraper_settings_service import get_all_settings
+
+    today = date.today()
+    topic_a = uuid.uuid4()
+    topic_b = uuid.uuid4()
+    setting_a = _mock_setting(name="arXiv", source_type="arxiv", topic_id=topic_a)
+    setting_b = _mock_setting(name="arXiv", source_type="arxiv", topic_id=topic_b)
+    db, q = _make_db(all_return=[setting_a, setting_b])
+
+    row_a = _activity_row(source="arxiv", day=today, cnt=5, topic_id=topic_a)
+    db.execute.return_value = [row_a]
+
+    with patch("models.scraper_setting.ScraperSetting"):
+        get_all_settings(db)
+
+    assert setting_a.activity[13] == 5
+    assert setting_b.activity == [0] * 14
 
 
 # ---------------------------------------------------------------------------
