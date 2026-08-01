@@ -11,7 +11,11 @@ the main app's structlog JSON.
 To normalise them, ``_configure_sdk_logging()`` attaches a dedicated ``_SdkJsonFormatter``
 to a named handler on ``logging.getLogger("chatbot_plugin_sdk")``.
 ``propagate=False`` prevents the plain-text root handler from duplicating the record;
-the LokiHandler is added directly to the SDK logger instead so records still reach Loki.
+a separate LokiHandler instance (own connection, ``_SdkJsonFormatter``) is added
+directly to the SDK logger so records still reach Loki with the correct level —
+reusing the app's LokiHandler would apply ``_StructlogMessageFormatter`` instead,
+which assumes the message is already a structlog-rendered JSON line and silently
+drops the SDK record's real level.
 
 In Grafana / Loki, filter SDK records with:
     ``{app="scraper"} | json | logger =~ "chatbot_plugin_sdk.*"``
@@ -107,22 +111,39 @@ def configure_loki() -> None:
     stdout_handler.setFormatter(_StructlogMessageFormatter())
     root_logger.addHandler(stdout_handler)
 
-    loki_handler: logging.Handler | None = None
+    sdk_loki_handler: logging.Handler | None = None
     if all([url, user, key]):
         try:
             from logging_loki import LokiHandler
             from shared.enums.observability import LokiLabel, LokiAppValue
             app_env = APP_ENV.strip()
+            tags = {LokiLabel.APP: LokiAppValue.SCRAPER, LokiLabel.ENV: app_env}
+
             loki_handler = LokiHandler(
                 url=f"{url.rstrip('/')}/push",
                 auth=(user, key),
-                tags={LokiLabel.APP: LokiAppValue.SCRAPER, LokiLabel.ENV: app_env},
+                tags=tags,
                 version="1",
             )
             loki_handler.setLevel(logging.INFO)
             loki_handler.setFormatter(_StructlogMessageFormatter())
             root_logger.addHandler(loki_handler)
+
+            # A distinct handler instance for the SDK logger: _StructlogMessageFormatter
+            # assumes record.getMessage() is already a full JSON line rendered by
+            # structlog (true for the app's own logger, not for the SDK's raw stdlib
+            # records) — reusing the same handler object would push SDK records as
+            # plain, level-less text, which Loki/the dashboard then falls back to
+            # displaying as INFO regardless of the actual logger.error/.warning() level.
+            sdk_loki_handler = LokiHandler(
+                url=f"{url.rstrip('/')}/push",
+                auth=(user, key),
+                tags=tags,
+                version="1",
+            )
+            sdk_loki_handler.setLevel(logging.DEBUG)
+            sdk_loki_handler.setFormatter(_SdkJsonFormatter())
         except Exception as e:
             print(f"Loki handler setup failed: {e}", file=sys.stdout)
 
-    _configure_sdk_logging(loki_handler)
+    _configure_sdk_logging(sdk_loki_handler)
