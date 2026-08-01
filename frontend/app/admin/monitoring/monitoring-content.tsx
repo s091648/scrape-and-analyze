@@ -191,7 +191,7 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 
 // ── Operations batch hook ──────────────────────────────────────────────────
 
-function useOperationsBatch(startSec: number, endSec: number, environment: Environment) {
+function useOperationsBatch(startSec: number, endSec: number, environment: Environment, enabled: boolean) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
@@ -240,7 +240,7 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
     }
   }, [startSec, endSec, rangeVec, env, environment])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (enabled) fetchAll() }, [fetchAll, enabled])
 
   return { statValues, chartData, loading, refresh: fetchAll }
 }
@@ -249,7 +249,7 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
 
 const LOGS_NUM_METRIC = 1 + LOGS_STAT_PANELS.length
 
-function useLogsBatch(startSec: number, endSec: number, environment: Environment) {
+function useLogsBatch(startSec: number, endSec: number, environment: Environment, enabled: boolean) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
@@ -288,14 +288,14 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
     }
   }, [startSec, endSec, rangeVec, env, environment])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (enabled) fetchAll() }, [fetchAll, enabled])
 
   return { metricData, logsData, loading, refresh: fetchAll }
 }
 
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
-function useTracesBatch(startSec: number, endSec: number, environment: Environment) {
+function useTracesBatch(startSec: number, endSec: number, environment: Environment, enabled: boolean) {
   const rangeVec = fullRangeVec(endSec - startSec)
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
@@ -332,7 +332,7 @@ function useTracesBatch(startSec: number, endSec: number, environment: Environme
     }
   }, [startSec, endSec, rangeVec, environment, traceQuery])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (enabled) fetchAll() }, [fetchAll, enabled])
 
   return { statValues, chartData, tracesData, loading, refresh: fetchAll }
 }
@@ -507,6 +507,11 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
   const [filters, setFilters] = useState<MonitoringFilters>(DEFAULT_FILTERS)
   // refreshKey increments on manual Refresh so startSec/endSec update to current time
   const [refreshKey, setRefreshKey] = useState(0)
+  // Only the active tab's hook actually fetches — each tab's batch endpoint fans out into
+  // several concurrent upstream Grafana queries, so fetching all three tabs at once (regardless
+  // of which one is visible) multiplies that fan-out and made the dashboard prone to 503s from
+  // Grafana Cloud rate limiting.
+  const [activeTab, setActiveTab] = useState('operations')
 
   const timeRangeSeconds = TIME_RANGE_SECONDS[filters.timeRange]
   const rangeLabel = filters.timeRange
@@ -518,13 +523,14 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRangeSeconds, refreshKey])
 
-  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv)
-  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv)
-  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv)
+  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv, activeTab === 'operations')
+  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, activeTab === 'logs')
+  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv, activeTab === 'traces')
 
-  const isLoading = opsLoading.some(Boolean) || logsLoading.some(Boolean) || tracesLoading.some(Boolean)
+  const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
+  const isLoading = activeLoading.some(Boolean)
 
-  // Incrementing refreshKey updates startSec/endSec → hooks re-fetch with current time
+  // Incrementing refreshKey updates startSec/endSec → only the active tab's hook re-fetches
   function handleRefresh() { setRefreshKey(k => k + 1) }
 
   return (
@@ -540,7 +546,7 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
 
         <FilterBar filters={filters} onChange={setFilters} appEnv={appEnv} />
 
-        <Tabs defaultValue="operations">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="operations">{t('admin.operations')}</TabsTrigger>
             <TabsTrigger value="logs">{t('admin.logs')}</TabsTrigger>
