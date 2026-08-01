@@ -32,7 +32,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: master
           submodules: recursive
@@ -155,11 +155,11 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -192,11 +192,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -212,7 +212,7 @@ jobs:
         run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov=shared --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: unit
@@ -299,11 +299,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -327,7 +327,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Upload backend-unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-backend.xml
           flags: backend-unit
@@ -422,11 +422,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -450,7 +450,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
 
       - name: Upload backend-integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-backend-integration.xml
           flags: backend-integration
@@ -540,11 +540,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -570,7 +570,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-integration.xml
           flags: integration
@@ -640,11 +640,11 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -663,7 +663,7 @@ jobs:
         run: sed -i 's|SF:|SF:frontend/|g' coverage/lcov.info
 
       - name: Upload frontend-unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         if: always()
         with:
           files: ./frontend/coverage/lcov.info
@@ -721,11 +721,11 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -804,7 +804,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -832,7 +832,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -860,7 +860,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -888,7 +888,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -915,7 +915,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -942,7 +942,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -973,7 +973,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -1004,7 +1004,7 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -1038,11 +1038,11 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
