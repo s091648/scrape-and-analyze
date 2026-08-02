@@ -61,6 +61,16 @@ def configure_logging(app_env: str) -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
 
+    # httpx (used by backend/services/grafana_service.py to proxy Grafana Cloud
+    # queries) logs an INFO line per outbound request by default — e.g. "HTTP
+    # Request: GET .../query_range ... 200 OK". Since root is at INFO, every one
+    # of those propagates through and gets shipped to Loki as a backend log line,
+    # burying real application logs under transport-layer noise. Raise both
+    # loggers (httpcore is httpx's own transport dependency) to WARNING so only
+    # actual connection problems still surface.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.setLevel(logging.INFO)
     stdout_handler.setFormatter(_StructlogMessageFormatter())

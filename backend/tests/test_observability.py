@@ -83,6 +83,23 @@ def test_loki_handler_attached_with_env():
         _restore_root_handlers(original)
 
 
+def test_httpx_and_httpcore_loggers_raised_to_warning():
+    """httpx logs an INFO line per outbound request (e.g. proxying Grafana queries);
+    configure_logging() must silence that noise so it doesn't bury real app logs
+    in Loki, without touching its own WARNING+ output."""
+    from backend.observability import configure_logging
+    original = _clear_root_handlers()
+    try:
+        with patch("backend.observability.GRAFANA_LOKI_URL", ""), \
+             patch("backend.observability.GRAFANA_LOKI_USER", ""), \
+             patch("backend.observability.GRAFANA_API_KEY", ""):
+            configure_logging("local")
+        assert logging.getLogger("httpx").level == logging.WARNING
+        assert logging.getLogger("httpcore").level == logging.WARNING
+    finally:
+        _restore_root_handlers(original)
+
+
 def test_loki_setup_failure_is_swallowed():
     """If LokiHandler() raises, configure_logging() does not raise and stdout still works."""
     from backend.observability import configure_logging
