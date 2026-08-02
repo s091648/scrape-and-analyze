@@ -32,7 +32,9 @@ interface MetricsChartProps {
   className?: string
   tooltip?: string
   timeRangeSeconds?: number
-  externalData?: PrometheusResponse
+  /** null means "controlled mode, data pending" — distinct from undefined ("self-fetch mode"),
+   * so a parent batch-hook's initial not-yet-loaded state doesn't get misread as "please self-fetch". */
+  externalData?: PrometheusResponse | null
   externalLoading?: boolean
   onRefresh?: () => Promise<void>
   seriesColors?: Record<string, string>
@@ -192,7 +194,7 @@ export function MetricsChart({
 
   // Controlled mode: process externalData when it arrives/changes
   useEffect(() => {
-    if (externalData === undefined) return
+    if (externalData == null) return
     const now = Math.floor(Date.now() / 1000)
     const startTs = timeRangeSeconds ? now - timeRangeSeconds : undefined
     const result = processResponse(externalData, step, startTs, startTs !== undefined ? now : undefined)

@@ -23,7 +23,9 @@ interface LogsTableProps {
   refreshInterval?: number
   className?: string
   tooltip?: string
-  externalData?: LokiResponse
+  /** null means "controlled mode, data pending" — distinct from undefined ("self-fetch mode"),
+   * so a parent batch-hook's initial not-yet-loaded state doesn't get misread as "please self-fetch". */
+  externalData?: LokiResponse | null
   onRefresh?: () => Promise<void>
   forcedLevel?: string
 }
@@ -187,7 +189,7 @@ export function LogsTable({
   }, [query, from, to, limit, externalData])
 
   useEffect(() => {
-    if (externalData === undefined) return
+    if (externalData == null) return
     if ('error' in externalData && (externalData as { error: string }).error === 'not_configured') {
       setNotConfigured(true)
       setLoading(false)

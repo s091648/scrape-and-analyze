@@ -300,6 +300,18 @@ describe('LogsTable with externalData', () => {
       expect(screen.getAllByText('click_me').length).toBeGreaterThan(1)
     })
   })
+
+  it('does not call fetch with the placeholder query while externalData is null (pending)', async () => {
+    // Regression test: a parent batch hook's initial "not loaded yet" state is
+    // externalData={null} (not undefined) precisely so this component can tell
+    // "controlled mode, still loading" apart from "no externalData prop at all,
+    // please self-fetch" — self-fetching here would send the literal placeholder
+    // query="unused" to Grafana and come back 400 Bad Request.
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Pending" query="unused" refreshInterval={0} externalData={null} />)
+    await waitFor(() => expect(screen.getByText('Pending')).toBeDefined())
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
 })
 
 // ── Self-fetch mode ───────────────────────────────────────────────────────────

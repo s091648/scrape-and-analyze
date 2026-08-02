@@ -633,4 +633,17 @@ describe('TracesTable self-fetch mode', () => {
       expect(screen.getByText('admin.failedToLoadTraces')).toBeDefined()
     })
   })
+
+  it('does not call queryTraces with the placeholder query while externalData is null (pending)', async () => {
+    // Regression test: a parent batch hook's initial "not loaded yet" state is
+    // externalData={null} (not undefined) precisely so this component can tell
+    // "controlled mode, still loading" apart from "no externalData prop at all,
+    // please self-fetch" — self-fetching here would send the literal placeholder
+    // query="unused" to Grafana Tempo and come back 400 Bad Request.
+    const { queryTraces } = await import('@/lib/api/grafana') as any
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Pending" query="unused" refreshInterval={0} externalData={null} />)
+    await waitFor(() => expect(screen.getByText('Pending')).toBeDefined())
+    expect(queryTraces).not.toHaveBeenCalled()
+  })
 })

@@ -230,7 +230,7 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
   const rangeVec = fullRangeVec(endSec - startSec)
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(OPS_STATS.length).fill(undefined))
-  const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(OPS_CHARTS.length).fill(undefined))
+  const [chartData, setChartData] = useState<(PrometheusResponse | null)[]>(Array(OPS_CHARTS.length).fill(null))
   const [loading, setLoading] = useState<boolean[]>(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
 
   const fetchAll = useCallback(async () => {
@@ -261,7 +261,7 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
           ? extractLastValue(lokiResults[li++] as PrometheusResponse)
           : extractLastValue(promResults[pi++])
       }
-      const newChartData: (PrometheusResponse | undefined)[] = []
+      const newChartData: (PrometheusResponse | null)[] = []
       for (let i = 0; i < OPS_CHARTS.length; i++) {
         newChartData.push(OPS_CHARTS[i].queryType === 'loki'
           ? lokiResults[li++] as PrometheusResponse
@@ -287,8 +287,8 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
-  const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(LOGS_NUM_METRIC).fill(undefined))
-  const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(LOGS_TABLE_PANELS.length).fill(undefined))
+  const [metricData, setMetricData] = useState<(PrometheusResponse | null)[]>(Array(LOGS_NUM_METRIC).fill(null))
+  const [logsData, setLogsData] = useState<(LokiResponse | null)[]>(Array(LOGS_TABLE_PANELS.length).fill(null))
   const [loading, setLoading] = useState<boolean[]>(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
 
   const fetchAll = useCallback(async () => {
@@ -333,8 +333,8 @@ function useTracesBatch(startSec: number, endSec: number, environment: Environme
   const rangeVec = fullRangeVec(endSec - startSec)
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
-  const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
-  const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
+  const [chartData, setChartData] = useState<PrometheusResponse | null>(null)
+  const [tracesData, setTracesData] = useState<TempoResponse | null>(null)
   const [loading, setLoading] = useState<boolean[]>(Array(TRACES_STATS.length + 2).fill(true))
 
   const traceQuery = traceQLServiceMatch(environment === 'all' ? undefined : environment, APP_SERVICE_NAME[app])
@@ -377,7 +377,7 @@ function OperationsTab({
   statValues: sv, chartData: cd, loading, timeRangeSeconds, rangeLabel,
 }: {
   statValues: (string | undefined)[]
-  chartData: (PrometheusResponse | undefined)[]
+  chartData: (PrometheusResponse | null)[]
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
@@ -420,8 +420,8 @@ function OperationsTab({
 function LogsTab({
   metricData: md, logsData: ld, loading, timeRangeSeconds, rangeLabel,
 }: {
-  metricData: (PrometheusResponse | undefined)[]
-  logsData: (LokiResponse | undefined)[]
+  metricData: (PrometheusResponse | null)[]
+  logsData: (LokiResponse | null)[]
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
@@ -457,8 +457,8 @@ function TracesTab({
 }: {
   grafanaUrl?: string
   statValues: (string | undefined)[]
-  chartData: PrometheusResponse | undefined
-  tracesData: TempoResponse | undefined
+  chartData: PrometheusResponse | null
+  tracesData: TempoResponse | null
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string

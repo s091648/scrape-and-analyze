@@ -90,6 +90,19 @@ describe('MetricsChart controlled mode', () => {
     await waitFor(() => expect(global.fetch).not.toHaveBeenCalled())
   })
 
+  it('does not call fetch with the placeholder query while externalData is null (pending)', async () => {
+    // Regression test: a parent batch hook's initial "not loaded yet" state is
+    // externalData={null} (not undefined) precisely so this component can tell
+    // "controlled mode, still loading" apart from "no externalData prop at all,
+    // please self-fetch" — self-fetching here would send the literal placeholder
+    // query="unused" to Grafana and come back 400 Bad Request.
+    const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
+    render(<MetricsChart title="Pending" query="unused" externalData={null} refreshInterval={0} />)
+
+    await waitFor(() => expect(screen.getByText('Pending')).toBeDefined())
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
   it('shows refresh icon when onRefresh is provided', async () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined)
     const { MetricsChart } = await import('@/components/features/monitoring/metrics-chart')
