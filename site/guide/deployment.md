@@ -23,7 +23,7 @@ aside: false
 
 | 服務 | 對應原始碼 | Staging（`ci.yml`） | Production（`release.yml`） |
 |---|---|---|---|
-| `dashboard-backend` | `backend/` | `backend-unit` + `backend-integration` 通過後，`deploy-staging-backend` 部署 PR 分支（`ref: ${{ github.head_ref }}`） | `release` job 對打 tag 的 `master` commit 無條件部署 |
+| `dashboard-backend` | `backend/` | `backend-unit` + `backend-integration` 通過後，`deploy-staging-backend` 部署 PR 分支（<code v-pre>ref: ${{ github.head_ref }}</code>） | `release` job 對打 tag 的 `master` commit 無條件部署 |
 | `dashboard-frontend` | `frontend/` | `frontend-unit` + `frontend-e2e` 通過後，`deploy-staging-frontend` 部署 PR 分支 | 無條件部署 |
 | `storybook` | `frontend/`（Storybook build） | 同樣依賴 `frontend-unit` + `frontend-e2e`，由 `deploy-staging-storybook` 部署 | 無條件部署 |
 | `scrape-and-analyze` | `src/`（主 worker，`docker-compose.yml` 的 `app`） | `src-unit-test` + `src-integration-test` 通過後，`deploy-staging-src` 部署 | 無條件部署 |
