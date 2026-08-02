@@ -8,6 +8,7 @@
 // ── Service identity ─────────────────────────────────────────────────────────
 
 export const SERVICE_NAME = 'scrape-analyzer' as const
+export const SERVICE_NAME_BACKEND = 'scrape-analyzer-backend' as const
 
 // ── Metric names ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ export const LokiLabel = {
 
 export const LokiAppValue = {
   SCRAPER: 'scraper',
+  BACKEND: 'backend',
 } as const
 
 export const LokiEnvValue = {
@@ -122,10 +124,10 @@ export function lokiStreamSelector(extra?: Record<string, string>): string {
   return `{${pairs.join(', ')}}`
 }
 
-/** Build a TraceQL resource match with optional environment filter */
-export function traceQLServiceMatch(env?: string): string {
+/** Build a TraceQL resource match with optional environment filter and service name override */
+export function traceQLServiceMatch(env?: string, serviceName: string = SERVICE_NAME): string {
   const envClause = env ? ` && ${TraceQLResource.DEPLOYMENT_ENVIRONMENT} = "${env}"` : ''
-  return `{ ${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
+  return `{ ${TraceQLResource.SERVICE_NAME} = "${serviceName}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
 }
 
 /** Build a PromQL increase expression with optional by clause */

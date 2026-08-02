@@ -453,6 +453,7 @@
     "noArticlesInRun": "此次執行無文章被處理",
     "viewArticlePipeline": "查看流程",
     "filterTimeRange": "時間範圍",
+    "filterApp": "服務",
     "filterEnvironment": "環境",
     "filterAll": "全部",
     "refreshPage": "重整",
