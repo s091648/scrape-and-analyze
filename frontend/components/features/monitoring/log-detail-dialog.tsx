@@ -69,15 +69,15 @@ export function LogDetailDialog({ entry, onClose, onOpenTrace }: LogDetailDialog
 
   return (
     <Dialog open={!!entry} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className={cn(exception ? 'max-w-2xl' : 'max-w-lg', 'max-h-[85vh] overflow-y-auto')}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
+      <DialogContent className={cn(exception ? 'max-w-2xl' : 'max-w-lg', 'max-h-[85vh] flex flex-col')}>
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-sm pr-6">
             <span className={cn('font-mono font-bold shrink-0', LEVEL_COLORS[entry.level])}>{entry.level.toUpperCase()}</span>
             <span className="text-muted-foreground font-normal truncate">{entry.message}</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 text-xs">
+        <div className="space-y-3 text-xs overflow-y-auto themed-scrollbar flex-1 min-h-0 pr-1">
           {/* Metadata */}
           <div className={cn('rounded border p-2.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1', LEVEL_BG[entry.level] ?? 'bg-muted/30 border-border')}>
             <span className="text-muted-foreground">{t('admin.logFieldTime')}</span>
