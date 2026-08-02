@@ -83,6 +83,7 @@ def configure_logging(app_env: str) -> None:
 
     structlog.configure(
         processors=[
+            structlog.contextvars.merge_contextvars,
             structlog.stdlib.add_log_level,
             _add_otel_context,
             structlog.processors.TimeStamper(fmt="iso"),
