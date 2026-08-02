@@ -31,12 +31,12 @@
       "docstring": "arXiv API returned HTTP 429. Signals callers to abort remaining arxiv tasks for this run.",
       "defined_at": {
         "file": "src/infrastructure/collection/clients/arxiv_client.py",
-        "line": 27
+        "line": 28
       },
       "raise_sites": [
         {
           "file": "src/infrastructure/collection/clients/arxiv_client.py",
-          "line": 92,
+          "line": 102,
           "function": "ArxivClient.fetch_entries",
           "snippet": "raise ArxivRateLimitedError(str(exc)) from exc",
           "status_code": null
@@ -136,7 +136,7 @@
         },
         {
           "file": "src/entrypoints/cli/refresh_metrics.py",
-          "line": 127,
+          "line": 182,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -1224,14 +1224,14 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 493,
+          "line": 494,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
         },
         {
           "file": "src/config/settings.py",
-          "line": 150,
+          "line": 154,
           "function": "validate_config",
           "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
           "status_code": null

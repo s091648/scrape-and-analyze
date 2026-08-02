@@ -89,7 +89,7 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
-  "app/articles/page.tsx": [
+  "app/articles/articles-page-content.tsx": [
     "components/features/articles/article-card.tsx",
     "components/features/articles/filter-bar.tsx",
     "components/features/articles/sort-select.tsx",
@@ -98,10 +98,18 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
+  "app/articles/page.tsx": [
+    "app/articles/articles-page-content.tsx"
+  ],
   "app/globals.css": [],
   "app/graph/page.tsx": [
     "components/features/graph/knowledge-graph.tsx",
     "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/home-page-content.tsx": [
+    "components/features/chat/InlineQABarWrapper.tsx",
+    "components/features/weekly-report/weekly-report-widget.tsx",
     "lib/providers/index.tsx"
   ],
   "app/layout-shell.tsx": [
@@ -123,9 +131,7 @@
     "app/login/login-page-content.tsx"
   ],
   "app/page.tsx": [
-    "components/features/chat/InlineQABarWrapper.tsx",
-    "components/features/weekly-report/weekly-report-widget.tsx",
-    "lib/providers/index.tsx"
+    "app/home-page-content.tsx"
   ],
   "app/register/page.tsx": [
     "app/register/register-page-content.tsx"

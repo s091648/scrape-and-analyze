@@ -248,7 +248,9 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
         promItems.length > 0 ? queryMetricsBatch(promItems) : Promise.resolve([]),
         lokiItems.length > 0 ? queryLokiMetricsBatch(lokiItems) : Promise.resolve([]),
       ])
-      if (promItems.length > 0 && 'error' in promResults[0] && (promResults[0] as { error: string }).error === 'not_configured') {
+      const promNotConfigured = promItems.length > 0 && 'error' in promResults[0] && (promResults[0] as { error: string }).error === 'not_configured'
+      const lokiNotConfigured = lokiItems.length > 0 && 'error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured'
+      if (promNotConfigured || lokiNotConfigured) {
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         setChartData(Array(OPS_CHARTS.length).fill(err))
         setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))

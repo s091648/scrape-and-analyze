@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-30T12:22:15.634743+00:00",
+  "generated_at": "2026-08-02T14:25:15.737334+00:00",
   "layers": [
     "application",
     "domain",
@@ -1287,19 +1287,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "id": "embedding.base_embedding_provider.BaseEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseEmbeddingProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.embedding.base_embedding_provider",
+      "subgroup": "other",
+      "module": "embedding.base_embedding_provider",
       "class_name": "BaseEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
+      "full_path": "src/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
       "docstring": "Infrastructure base for all embedding providers.\n\nImplements EmbeddingService.embed() and embed_batch() as templates:\n  1. Split into chunks of _BATCH_SIZE.\n  2. Call _call_embed() with…",
       "typed_attrs": [
         "_model",
@@ -1370,19 +1370,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.providers.base_provider.BaseProvider",
+      "id": "providers.base_provider.BaseProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.base_provider",
+      "subgroup": "other",
+      "module": "providers.base_provider",
       "class_name": "BaseProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/base_provider/BaseProvider.py",
+      "full_path": "src/providers/base_provider/BaseProvider.py",
       "docstring": "Infrastructure base for all LLM providers.\n\nImplements LLMService.analyze() as a template:\n  1. Call _call_api() with exponential-backoff retry (transient errors only).\n  2. Validate required fields…",
       "typed_attrs": [
         "_model",
@@ -1549,21 +1549,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.providers.claude_provider.ClaudeProvider",
+      "id": "providers.claude_provider.ClaudeProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ClaudeProvider|_client",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.claude_provider",
+      "subgroup": "other",
+      "module": "providers.claude_provider",
       "class_name": "ClaudeProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/claude_provider/ClaudeProvider.py",
+      "full_path": "src/providers/claude_provider/ClaudeProvider.py",
       "docstring": "Anthropic Claude LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -1846,19 +1846,19 @@
       "context": "notifications"
     },
     {
-      "id": "llm.resilient_llm_service.EmbeddingProviderHandler",
+      "id": "resilient_llm_service.EmbeddingProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EmbeddingProviderHandler|_can_count_tokens",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "EmbeddingProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/EmbeddingProviderHandler.py",
+      "full_path": "src/resilient_llm_service/EmbeddingProviderHandler.py",
       "docstring": "Wraps any EmbeddingService with quota management — mirrors the\nacquire → call → record_usage pattern used by ProviderHandler in the LLM stack.",
       "typed_attrs": [
         "provider: BaseEmbeddingProvider",
@@ -2107,19 +2107,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "id": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiEmbeddingProvider|_client",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.embedding.gemini_embedding_provider",
+      "subgroup": "other",
+      "module": "embedding.gemini_embedding_provider",
       "class_name": "GeminiEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
+      "full_path": "src/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
       "docstring": "Google Gemini embedding provider with configurable output dimensionality.",
       "typed_attrs": [
         "_output_dimensionality",
@@ -2181,21 +2181,21 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.providers.gemini_provider.GeminiProvider",
+      "id": "providers.gemini_provider.GeminiProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiProvider|_client",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.gemini_provider",
+      "subgroup": "other",
+      "module": "providers.gemini_provider",
       "class_name": "GeminiProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/gemini_provider/GeminiProvider.py",
+      "full_path": "src/providers/gemini_provider/GeminiProvider.py",
       "docstring": "Google Gemini LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -2583,7 +2583,7 @@
     {
       "id": "exceptions.IntelligenceDomainError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{IntelligenceDomainError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2607,7 +2607,7 @@
     {
       "id": "exceptions.InvalidSimilarityScoreError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSimilarityScoreError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2631,7 +2631,7 @@
     {
       "id": "exceptions.InvalidSuggestionStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSuggestionStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2655,7 +2655,7 @@
     {
       "id": "exceptions.InvalidWeeklyReportStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidWeeklyReportStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2804,21 +2804,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.rate_limit.no_op_strategy.NoOpStrategy",
+      "id": "rate_limit.no_op_strategy.NoOpStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{NoOpStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.no_op_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.no_op_strategy",
       "class_name": "NoOpStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/no_op_strategy/NoOpStrategy.py",
+      "full_path": "src/rate_limit/no_op_strategy/NoOpStrategy.py",
       "docstring": "Quota strategy that performs no rate limiting; all calls pass through immediately.",
       "typed_attrs": [],
       "typed_methods": [
@@ -3130,21 +3130,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.providers.openrouter_provider.OpenRouterProvider",
+      "id": "providers.openrouter_provider.OpenRouterProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{OpenRouterProvider|_api_key",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.providers.openrouter_provider",
+      "subgroup": "other",
+      "module": "providers.openrouter_provider",
       "class_name": "OpenRouterProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/providers/openrouter_provider/OpenRouterProvider.py",
+      "full_path": "src/providers/openrouter_provider/OpenRouterProvider.py",
       "docstring": "OpenRouter LLM provider implementing the BaseProvider interface via chat completions API.",
       "typed_attrs": [
         "_api_key"
@@ -3426,19 +3426,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ProviderHandler",
+      "id": "resilient_llm_service.ProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ProviderHandler|name",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ProviderHandler.py",
+      "full_path": "src/resilient_llm_service/ProviderHandler.py",
       "docstring": "Pairs a provider with its quota management strategy.",
       "typed_attrs": [
         "provider: BaseProvider",
@@ -3534,21 +3534,21 @@
       "context": "collection"
     },
     {
-      "id": "llm.rate_limit.quota_strategy.QuotaStrategy",
+      "id": "rate_limit.quota_strategy.QuotaStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{QuotaStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.quota_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.quota_strategy",
       "class_name": "QuotaStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/quota_strategy/QuotaStrategy.py",
+      "full_path": "src/rate_limit/quota_strategy/QuotaStrategy.py",
       "docstring": "Abstract base for LLM API quota/rate-limit strategies.",
       "typed_attrs": [],
       "typed_methods": [
@@ -3774,21 +3774,21 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.rate_limit.sliding_window_strategy.RateLimitExhausted",
+      "id": "rate_limit.sliding_window_strategy.RateLimitExhausted",
       "color": "black",
       "fontcolor": "red",
       "label": "<{RateLimitExhausted|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.sliding_window_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.sliding_window_strategy",
       "class_name": "RateLimitExhausted",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
+      "full_path": "src/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
       "docstring": "Raised when a provider's daily request cap is reached and no more calls should be made.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -3798,19 +3798,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ResilientEmbeddingService",
+      "id": "resilient_llm_service.ResilientEmbeddingService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientEmbeddingService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ResilientEmbeddingService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ResilientEmbeddingService.py",
+      "full_path": "src/resilient_llm_service/ResilientEmbeddingService.py",
       "docstring": "Composite EmbeddingService that tries multiple providers in order.",
       "typed_attrs": [
         "_handlers"
@@ -3835,19 +3835,19 @@
       "context": "intelligence"
     },
     {
-      "id": "llm.resilient_llm_service.ResilientLLMService",
+      "id": "resilient_llm_service.ResilientLLMService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientLLMService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.resilient_llm_service",
+      "subgroup": "other",
+      "module": "resilient_llm_service",
       "class_name": "ResilientLLMService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/resilient_llm_service/ResilientLLMService.py",
+      "full_path": "src/resilient_llm_service/ResilientLLMService.py",
       "docstring": "Composite LLMService that walks an ordered list of ProviderHandlers.\nFalls back to the next provider on rate limit or failure.",
       "typed_attrs": [
         "_handlers"
@@ -4612,19 +4612,19 @@
       "context": "collection"
     },
     {
-      "id": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "id": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SlidingWindowStrategy|_WINDOW",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-intelligence",
+      "layer": "unknown",
       "ca_layer": "infrastructure",
-      "subgroup": "llm",
-      "module": "llm.rate_limit.sliding_window_strategy",
+      "subgroup": "other",
+      "module": "rate_limit.sliding_window_strategy",
       "class_name": "SlidingWindowStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/llm/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
+      "full_path": "src/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
       "docstring": "Sliding-window rate limiter for LLM API quota management.\n\nTracks requests and token usage within a rolling 60-second window,\nblocking until capacity is available. Also enforces a hard daily cap…",
       "typed_attrs": [
         "rpm",
@@ -6568,9 +6568,45 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "shared"
+    },
+    {
+      "id": "observability.loki_logging._StructlogMessageFormatter",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{_StructlogMessageFormatter|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "observability.loki_logging",
+      "class_name": "_StructlogMessageFormatter",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/observability/loki_logging/_StructlogMessageFormatter.py",
+      "docstring": "structlog's JSONRenderer already produces the complete, self-contained\nlog line (including a filtered traceback under \"exception\" when relevant\n— see shared/observability/traceback_filter.py).…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "format(record: logging.LogRecord) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/shared/observability/loki_logging.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
     }
   ],
   "edges": [
+    {
+      "source": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "target": "embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
     {
       "source": "exceptions.InvalidSimilarityScoreError",
       "target": "exceptions.IntelligenceDomainError",
@@ -6607,48 +6643,6 @@
       "arrowtail": "none"
     },
     {
-      "source": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
-      "target": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.claude_provider.ClaudeProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.gemini_provider.GeminiProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.providers.openrouter_provider.OpenRouterProvider",
-      "target": "llm.providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.rate_limit.no_op_strategy.NoOpStrategy",
-      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
-      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
       "source": "parsers.html_parser.HtmlArticleParser",
       "target": "parsers.base_parser.BaseContentParser",
       "type": "inheritance",
@@ -6658,6 +6652,41 @@
     {
       "source": "parsers.pdf_parser.PdfParser",
       "target": "parsers.base_parser.BaseContentParser",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.claude_provider.ClaudeProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.gemini_provider.GeminiProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "providers.openrouter_provider.OpenRouterProvider",
+      "target": "providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "rate_limit.no_op_strategy.NoOpStrategy",
+      "target": "rate_limit.quota_strategy.QuotaStrategy",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "target": "rate_limit.quota_strategy.QuotaStrategy",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -6788,17 +6817,12 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 76,
+      "count": 77,
       "subgroups": [
-        {
-          "id": "llm",
-          "label": "LLM Providers",
-          "count": 14
-        },
         {
           "id": "other",
           "label": "Other",
-          "count": 14
+          "count": 29
         },
         {
           "id": "clients",
@@ -6870,7 +6894,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 2
+          "count": 3
         },
         {
           "id": "other",
