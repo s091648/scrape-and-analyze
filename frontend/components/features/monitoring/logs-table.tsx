@@ -64,8 +64,27 @@ function parseLevel(line: string): string {
     const obj = JSON.parse(line)
     return String(obj.level ?? obj.severity ?? 'info').toLowerCase()
   } catch {
-    if (/error/i.test(line)) return 'error'
-    if (/warn/i.test(line)) return 'warning'
+    // Conventional "LEVEL: message" / "LEVEL - message" prefix used by plain-text logs.
+    const prefixMatch = line.match(/^\s*(ERROR|WARN(?:ING)?|INFO)\b/i)
+    if (prefixMatch) {
+      const lvl = prefixMatch[1].toUpperCase()
+      if (lvl === 'ERROR') return 'error'
+      if (lvl.startsWith('WARN')) return 'warning'
+      return 'info'
+    }
+    // httpx's own request tracing (`HTTP Request: GET ... "HTTP/1.1 200 OK"`) has no
+    // level prefix at all — searching the whole line for "error"/"warn" anywhere
+    // false-positives on request URLs that embed those words as query values (e.g.
+    // this dashboard querying detected_level="warn" shows up as a WARNING line even
+    // though the request itself succeeded). The HTTP status code is the only real
+    // signal these lines carry, so derive the level from that instead.
+    const statusMatch = line.match(/HTTP\/\d\.\d\s+(\d{3})/)
+    if (statusMatch) {
+      const status = Number(statusMatch[1])
+      if (status >= 500) return 'error'
+      if (status >= 400) return 'warning'
+      return 'info'
+    }
     return 'info'
   }
 }
