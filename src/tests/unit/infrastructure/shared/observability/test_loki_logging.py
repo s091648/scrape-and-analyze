@@ -134,7 +134,7 @@ def test_sdk_json_formatter_includes_extra_fields():
     assert data["duration"] == 42
 
 
-def test_sdk_json_formatter_includes_exc_info():
+def test_sdk_json_formatter_includes_exception():
     from src.infrastructure.shared.observability.loki_logging import _SdkJsonFormatter
     formatter = _SdkJsonFormatter()
     try:
@@ -147,8 +147,8 @@ def test_sdk_json_formatter_includes_exc_info():
     )
     output = formatter.format(record)
     data = json.loads(output)
-    assert "exc_info" in data
-    assert "ValueError" in data["exc_info"]
+    assert "exception" in data
+    assert "ValueError" in data["exception"]
 
 
 def test_sdk_json_formatter_omits_correlation_id_when_not_set(monkeypatch):

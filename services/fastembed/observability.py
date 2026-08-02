@@ -84,7 +84,7 @@ class _JsonFormatter(logging.Formatter):
             if key not in _STANDARD_RECORD_KEYS and not key.startswith("_"):
                 payload[key] = val
         if record.exc_info:
-            payload["exc_info"] = _format_filtered_exception(record.exc_info)
+            payload["exception"] = _format_filtered_exception(record.exc_info)
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 

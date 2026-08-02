@@ -69,7 +69,7 @@ class _SdkJsonFormatter(logging.Formatter):
         if extra:
             payload.update(extra)
         if record.exc_info:
-            payload["exc_info"] = self.formatException(record.exc_info)
+            payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 
