@@ -10,12 +10,52 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from src.infrastructure.persistence.collection.article_dedup_repo_impl import SqlAlchemyArticleDedupRepository
+from src.modules.collection.domain.repositories.article_dedup_repository import PendingReconciliation
 
 
 def _make_tag_row(tag_id):
     row = MagicMock()
     row.tag_id = tag_id
     return row
+
+
+# ---------------------------------------------------------------------------
+# find_pending_reconciliation
+# ---------------------------------------------------------------------------
+
+def test_find_pending_reconciliation_maps_rows_to_dataclasses():
+    session = MagicMock()
+    article_id = uuid4()
+    row = MagicMock()
+    row.id = article_id
+    row.work_id = "https://openalex.org/W1"
+    session.execute.return_value.fetchall.return_value = [row]
+
+    repo = SqlAlchemyArticleDedupRepository(session=session)
+    result = repo.find_pending_reconciliation(limit=100)
+
+    assert result == [PendingReconciliation(article_id=article_id, work_id="https://openalex.org/W1")]
+
+
+def test_find_pending_reconciliation_passes_limit_param():
+    session = MagicMock()
+    session.execute.return_value.fetchall.return_value = []
+
+    repo = SqlAlchemyArticleDedupRepository(session=session)
+    repo.find_pending_reconciliation(limit=42)
+
+    args, kwargs = session.execute.call_args
+    assert args[1]["limit"] == 42
+
+
+def test_find_pending_reconciliation_returns_empty_list_when_no_candidates():
+    session = MagicMock()
+    session.execute.return_value.fetchall.return_value = []
+
+    repo = SqlAlchemyArticleDedupRepository(session=session)
+    result = repo.find_pending_reconciliation(limit=100)
+
+    assert result == []
 
 
 def _mock_merge_queries(session, loser_metrics=None, loser_tag_ids=(), survivor_tag_ids=()):

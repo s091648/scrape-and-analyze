@@ -25,8 +25,6 @@ How it works:
 """
 import argparse
 
-from sqlalchemy import text
-
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
@@ -39,20 +37,6 @@ if SENTRY_DSN:
     sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, traces_sample_rate=0.1, include_local_variables=False)
 
 logger = get_logger(__name__)
-
-# Openalex-sourced articles not yet re-checked in the last week — OpenAlex's
-# own dedup typically resolves within days of a work being indexed, but there's
-# no hard SLA, so we keep re-checking weekly rather than giving up after once.
-_PENDING_RECONCILIATION_QUERY = text(
-    """
-    SELECT a.id, a.metadata->>'work_id' AS work_id
-    FROM articles a
-    WHERE a.metadata->>'work_id' IS NOT NULL
-      AND a.merged_into_id IS NULL
-      AND (a.last_reconciled_at IS NULL OR a.last_reconciled_at < now() - interval '7 days')
-    LIMIT :limit
-    """
-)
 
 
 def main() -> None:
@@ -83,14 +67,14 @@ def main() -> None:
                 from src.bootstrap import build_dedup_reconciliation_pipeline
                 client, dedup_repo, session = build_dedup_reconciliation_pipeline()
 
-                rows = session.execute(_PENDING_RECONCILIATION_QUERY, {"limit": args.limit}).fetchall()
-                logger.info("dedup_reconcile_candidates_found", count=len(rows))
+                candidates = dedup_repo.find_pending_reconciliation(args.limit)
+                logger.info("dedup_reconcile_candidates_found", count=len(candidates))
 
                 healed = 0
                 merged = 0
                 failed = 0
-                for row in rows:
-                    article_id, work_id = row.id, row.work_id
+                for candidate in candidates:
+                    article_id, work_id = candidate.article_id, candidate.work_id
                     try:
                         raw = client.fetch_by_id(work_id)
                         if raw is None:
@@ -128,8 +112,8 @@ def main() -> None:
                         failed += 1
                         logger.warning("dedup_reconcile_failed", article_id=str(article_id), error=str(e))
 
-                logger.info("dedup_reconcile_completed", total=len(rows), healed=healed, merged=merged, failed=failed)
-                print(f"Dedup reconciliation complete: {healed} healed, {merged} merged, {failed} failed (of {len(rows)} checked)")
+                logger.info("dedup_reconcile_completed", total=len(candidates), healed=healed, merged=merged, failed=failed)
+                print(f"Dedup reconciliation complete: {healed} healed, {merged} merged, {failed} failed (of {len(candidates)} checked)")
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))

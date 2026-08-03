@@ -1,6 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from dataclasses import dataclass
+from typing import List, Optional
 from uuid import UUID
+
+
+@dataclass(frozen=True)
+class PendingReconciliation:
+    """One openalex-sourced article due for a reconciliation check."""
+    article_id: UUID
+    work_id: str
 
 
 class ArticleDedupRepository(ABC):
@@ -11,6 +19,13 @@ class ArticleDedupRepository(ABC):
     `merged_into_id` so nothing downstream (tags, analyses, favorites,
     failed_tasks) needs cascading cleanup.
     """
+
+    @abstractmethod
+    def find_pending_reconciliation(self, limit: int) -> List[PendingReconciliation]:
+        """Openalex-sourced, non-tombstoned articles not reconciled in the last
+        7 days — OpenAlex's own dedup typically resolves within days of a work
+        being indexed, but there's no hard SLA, so candidates keep getting
+        re-checked weekly rather than giving up after once."""
 
     @abstractmethod
     def find_by_work_id(self, work_id: str) -> Optional[UUID]:

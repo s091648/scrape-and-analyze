@@ -9,7 +9,7 @@ from uuid import uuid4
 
 def _mock_row(article_id, work_id):
     row = MagicMock()
-    row.id = article_id
+    row.article_id = article_id
     row.work_id = work_id
     return row
 
@@ -21,8 +21,8 @@ def _mock_row(article_id, work_id):
 def test_no_candidates_skips_everything(mock_validate, mock_logging, mock_http, mock_pipeline):
     client = MagicMock()
     dedup_repo = MagicMock()
+    dedup_repo.find_pending_reconciliation.return_value = []
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = []
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -40,17 +40,15 @@ def test_no_candidates_skips_everything(mock_validate, mock_logging, mock_http, 
 def test_limit_arg_passed_to_query(mock_validate, mock_logging, mock_http, mock_pipeline):
     client = MagicMock()
     dedup_repo = MagicMock()
+    dedup_repo.find_pending_reconciliation.return_value = []
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = []
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile", "--limit", "50"]):
         from src.entrypoints.cli.dedup_reconcile import main
         main()
 
-    args, kwargs = session.execute.call_args
-    params = args[1]
-    assert params["limit"] == 50
+    dedup_repo.find_pending_reconciliation.assert_called_once_with(50)
 
 
 @patch("src.bootstrap.build_dedup_reconciliation_pipeline")
@@ -63,7 +61,7 @@ def test_unchanged_work_id_marks_reconciled_only(mock_validate, mock_logging, mo
     client.fetch_by_id.return_value = {"id": "https://openalex.org/W1"}
     dedup_repo = MagicMock()
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
+    dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -91,7 +89,7 @@ def test_merged_work_id_without_local_survivor_heals_identifiers(mock_validate, 
     dedup_repo = MagicMock()
     dedup_repo.find_by_work_id.return_value = None
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
+    dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -114,7 +112,7 @@ def test_merged_work_id_with_local_survivor_triggers_merge(mock_validate, mock_l
     dedup_repo = MagicMock()
     dedup_repo.find_by_work_id.return_value = survivor_id
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [_mock_row(loser_id, "https://openalex.org/W1")]
+    dedup_repo.find_pending_reconciliation.return_value = [_mock_row(loser_id, "https://openalex.org/W1")]
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -135,7 +133,7 @@ def test_fetch_failure_is_skipped_without_repo_calls(mock_validate, mock_logging
     client.fetch_by_id.return_value = None
     dedup_repo = MagicMock()
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
+    dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -158,7 +156,7 @@ def test_one_article_failure_does_not_abort_the_run(mock_validate, mock_logging,
     client.fetch_by_id.side_effect = [Exception("network error"), {"id": "https://openalex.org/W-ok"}]
     dedup_repo = MagicMock()
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [
+    dedup_repo.find_pending_reconciliation.return_value = [
         _mock_row(failing_article, "https://openalex.org/W-fail"),
         _mock_row(ok_article, "https://openalex.org/W-ok"),
     ]
@@ -179,7 +177,7 @@ def test_session_closed_after_run(mock_validate, mock_logging, mock_http, mock_p
     client = MagicMock()
     dedup_repo = MagicMock()
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = []
+    dedup_repo.find_pending_reconciliation.return_value = []
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):
@@ -198,7 +196,7 @@ def test_session_closed_even_when_an_article_raises(mock_validate, mock_logging,
     client.fetch_by_id.side_effect = Exception("boom")
     dedup_repo = MagicMock()
     session = MagicMock()
-    session.execute.return_value.fetchall.return_value = [_mock_row(uuid4(), "https://openalex.org/W1")]
+    dedup_repo.find_pending_reconciliation.return_value = [_mock_row(uuid4(), "https://openalex.org/W1")]
     mock_pipeline.return_value = (client, dedup_repo, session)
 
     with patch("sys.argv", ["dedup_reconcile"]):

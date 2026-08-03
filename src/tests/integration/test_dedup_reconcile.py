@@ -1,13 +1,13 @@
 """
 Integration tests for ArticleDedupRepository (SqlAlchemyArticleDedupRepository)
-and the dedup_reconcile CLI's own pending-reconciliation query.
+and its find_pending_reconciliation() candidate query.
 
 src/tests/unit/infrastructure/persistence/collection/test_article_dedup_repo_impl.py
 mocks the session entirely — it can't catch a wrong ON CONFLICT DO UPDATE
 arithmetic expression, a JSONB operator typo, or the raw SQL in
-dedup_reconcile.py's _PENDING_RECONCILIATION_QUERY drifting out of sync with
-the real `articles` table. These tests exercise all of that against a real
-PostgreSQL database instead.
+_PENDING_RECONCILIATION_QUERY drifting out of sync with the real `articles`
+table. These tests exercise all of that against a real PostgreSQL database
+instead.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -251,13 +251,11 @@ def test_mark_reconciled_sets_timestamp(db_session):
 
 
 # ---------------------------------------------------------------------------
-# dedup_reconcile CLI's own pending-reconciliation query
+# find_pending_reconciliation
 # ---------------------------------------------------------------------------
 
 @pytest.mark.integration
-def test_pending_reconciliation_query_selects_the_right_candidates(db_session):
-    from src.entrypoints.cli.dedup_reconcile import _PENDING_RECONCILIATION_QUERY
-
+def test_find_pending_reconciliation_selects_the_right_candidates(db_session):
     now = datetime.now(timezone.utc)
     never_checked = _make_article(db_session, work_id="PENDING-NEVER-CHECKED")
     stale = _make_article(db_session, work_id="PENDING-STALE",
@@ -268,8 +266,9 @@ def test_pending_reconciliation_query_selects_the_right_candidates(db_session):
                                     merged_into_id=never_checked.id)
     no_work_id = _make_article(db_session)
 
-    rows = db_session.execute(_PENDING_RECONCILIATION_QUERY, {"limit": 100}).fetchall()
-    ids = {row.id for row in rows}
+    repo = _make_repo(db_session)
+    candidates = repo.find_pending_reconciliation(limit=100)
+    ids = {c.article_id for c in candidates}
 
     assert never_checked.id in ids
     assert stale.id in ids
@@ -279,11 +278,10 @@ def test_pending_reconciliation_query_selects_the_right_candidates(db_session):
 
 
 @pytest.mark.integration
-def test_pending_reconciliation_query_respects_limit(db_session):
-    from src.entrypoints.cli.dedup_reconcile import _PENDING_RECONCILIATION_QUERY
-
+def test_find_pending_reconciliation_respects_limit(db_session):
     for i in range(3):
         _make_article(db_session, work_id=f"LIMIT-TEST-{i}")
 
-    rows = db_session.execute(_PENDING_RECONCILIATION_QUERY, {"limit": 2}).fetchall()
-    assert len(rows) == 2
+    repo = _make_repo(db_session)
+    candidates = repo.find_pending_reconciliation(limit=2)
+    assert len(candidates) == 2

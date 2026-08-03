@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import text
@@ -9,15 +9,36 @@ from sqlalchemy.dialects.postgresql import insert
 from models.article import Article
 from models.article_metrics import ArticleMetrics
 from models.tag import article_tags
-from src.modules.collection.domain.repositories.article_dedup_repository import ArticleDedupRepository
+from src.modules.collection.domain.repositories.article_dedup_repository import (
+    ArticleDedupRepository,
+    PendingReconciliation,
+)
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Openalex-sourced articles not yet re-checked in the last week — OpenAlex's
+# own dedup typically resolves within days of a work being indexed, but there's
+# no hard SLA, so we keep re-checking weekly rather than giving up after once.
+_PENDING_RECONCILIATION_QUERY = text(
+    """
+    SELECT a.id, a.metadata->>'work_id' AS work_id
+    FROM articles a
+    WHERE a.metadata->>'work_id' IS NOT NULL
+      AND a.merged_into_id IS NULL
+      AND (a.last_reconciled_at IS NULL OR a.last_reconciled_at < now() - interval '7 days')
+    LIMIT :limit
+    """
+)
 
 
 class SqlAlchemyArticleDedupRepository(ArticleDedupRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def find_pending_reconciliation(self, limit: int) -> List[PendingReconciliation]:
+        rows = self._session.execute(_PENDING_RECONCILIATION_QUERY, {"limit": limit}).fetchall()
+        return [PendingReconciliation(article_id=row.id, work_id=row.work_id) for row in rows]
 
     def find_by_work_id(self, work_id: str) -> Optional[UUID]:
         row = self._session.execute(

@@ -2,6 +2,51 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
+from src.modules.collection.domain.repositories.article_metrics_repository import StaleArticle
+
+
+# ---------------------------------------------------------------------------
+# find_stale
+# ---------------------------------------------------------------------------
+
+def test_find_stale_maps_rows_to_dataclasses():
+    session = MagicMock()
+    article_id = uuid4()
+    row = MagicMock()
+    row.id = article_id
+    row.metadata = {"doi": "10.1234/a"}
+    session.execute.return_value.fetchall.return_value = [row]
+
+    repo = SqlAlchemyArticleMetricsRepository(session=session)
+    result = repo.find_stale(["citation_count"], limit=100)
+
+    assert result == [StaleArticle(article_id=article_id, metadata={"doi": "10.1234/a"})]
+
+
+def test_find_stale_passes_metric_keys_and_limit_params():
+    session = MagicMock()
+    session.execute.return_value.fetchall.return_value = []
+
+    repo = SqlAlchemyArticleMetricsRepository(session=session)
+    repo.find_stale(["citation_count", "impact_factor"], limit=42)
+
+    args, kwargs = session.execute.call_args
+    assert args[1]["metric_keys"] == ["citation_count", "impact_factor"]
+    assert args[1]["limit"] == 42
+
+
+def test_find_stale_defaults_null_metadata_to_empty_dict():
+    session = MagicMock()
+    article_id = uuid4()
+    row = MagicMock()
+    row.id = article_id
+    row.metadata = None
+    session.execute.return_value.fetchall.return_value = [row]
+
+    repo = SqlAlchemyArticleMetricsRepository(session=session)
+    result = repo.find_stale(["citation_count"], limit=100)
+
+    assert result == [StaleArticle(article_id=article_id, metadata={})]
 
 
 def test_upsert_always_ensures_article_metrics_row():

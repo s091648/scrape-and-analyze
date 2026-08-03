@@ -40,8 +40,6 @@ Concurrency:
 import argparse
 import asyncio
 
-from sqlalchemy import text
-
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
@@ -55,34 +53,12 @@ if SENTRY_DSN:
 
 logger = get_logger(__name__)
 
-# Articles missing (or with a stale) article_metric_values row for any enabled
-# metric_key, restricted to articles that actually carry a DOI/arxiv_id (the
-# only identifiers current metric providers can look up by) — see
-# research.md §9e for the expression indexes this query relies on.
-_STALE_ARTICLES_QUERY = text(
-    """
-    SELECT a.id, a.metadata
-    FROM articles a
-    WHERE (a.metadata->>'doi' IS NOT NULL OR a.metadata->>'arxiv_id' IS NOT NULL)
-      AND EXISTS (
-          SELECT 1 FROM unnest(:metric_keys) AS mk(metric_key)
-          WHERE NOT EXISTS (
-              SELECT 1 FROM article_metric_values amv
-              WHERE amv.article_id = a.id
-                AND amv.metric_key = mk.metric_key
-                AND amv.last_flushed_at >= now() - interval '1 day'
-          )
-      )
-    LIMIT :limit
-    """
-)
-
 
 async def _refresh_one(row, metrics_service, metrics_repo, semaphore: asyncio.Semaphore) -> bool | None:
     """Refresh metrics for one article. Returns True (refreshed), False (fetch or
     upsert raised), or None (no identifiers to look up, or the provider chain
     found nothing — neither counts as a failure, matching prior behavior)."""
-    article_id, metadata = row.id, row.metadata or {}
+    article_id, metadata = row.article_id, row.metadata or {}
     identifiers = {
         k: v for k, v in {"doi": metadata.get("doi"), "arxiv_id": metadata.get("arxiv_id")}.items()
         if v
@@ -164,10 +140,7 @@ def main() -> None:
                     print("No enabled metric definitions found — nothing to refresh")
                     return
 
-                rows = session.execute(
-                    _STALE_ARTICLES_QUERY,
-                    {"metric_keys": enabled_metric_keys, "limit": args.limit},
-                ).fetchall()
+                rows = metrics_repo.find_stale(enabled_metric_keys, args.limit)
                 logger.info("stale_articles_found", count=len(rows), metric_keys=enabled_metric_keys)
 
                 refreshed, failed = asyncio.run(
