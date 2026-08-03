@@ -35,9 +35,10 @@ interface PinnedArticleContextValue {
   removeGroup: (groupId: string) => void
 }
 
-const PinnedArticleContext = createContext<PinnedArticleContextValue | null>(null)
-
-export function PinnedArticleProvider({ children }: { children: React.ReactNode }) {
+/** Shared store logic behind both pin contexts below — kept as a single hook so the two contexts
+ * (per-article chat vs. weekly-report chat, which must NOT share pinned state, see index.tsx) don't
+ * duplicate this reducer twice. */
+function usePinnedArticleStore(): PinnedArticleContextValue {
   const [pinnedArticles, setPinnedArticles] = useState<PinnedArticle[]>([])
   const [pinnedGroups, setPinnedGroups] = useState<PinnedGroup[]>([])
 
@@ -111,20 +112,31 @@ export function PinnedArticleProvider({ children }: { children: React.ReactNode 
     }
   }, [pinnedGroups])
 
+  return {
+    pinnedArticles,
+    togglePinnedArticle,
+    removePinnedArticle,
+    clearPinnedArticles,
+    isPinned,
+    pinArticles,
+    areAllPinned,
+    pinnedGroups,
+    pinGroup,
+    toggleGroupArticle,
+    removeGroup,
+  }
+}
+
+// Per-article pin context — scoped to a single article's chat (FloatingChatbotWrapper,
+// article-card.tsx's "pin to chat" toggle). Deliberately a separate context instance from
+// PinnedReportContext below so pinning an article for its own chat never leaks into the
+// weekly-report chat's pinned set, and vice versa.
+const PinnedArticleContext = createContext<PinnedArticleContextValue | null>(null)
+
+export function PinnedArticleProvider({ children }: { children: React.ReactNode }) {
+  const store = usePinnedArticleStore()
   return (
-    <PinnedArticleContext.Provider value={{
-      pinnedArticles,
-      togglePinnedArticle,
-      removePinnedArticle,
-      clearPinnedArticles,
-      isPinned,
-      pinArticles,
-      areAllPinned,
-      pinnedGroups,
-      pinGroup,
-      toggleGroupArticle,
-      removeGroup,
-    }}>
+    <PinnedArticleContext.Provider value={store}>
       {children}
     </PinnedArticleContext.Provider>
   )
@@ -133,5 +145,24 @@ export function PinnedArticleProvider({ children }: { children: React.ReactNode 
 export function usePinnedArticle() {
   const ctx = useContext(PinnedArticleContext)
   if (!ctx) throw new Error('usePinnedArticle must be used within PinnedArticleProvider')
+  return ctx
+}
+
+// Weekly-report pin context — scoped to the weekly-report chat (WeeklyReportWidget,
+// InlineQABarWrapper). See PinnedArticleContext above for why this is a separate instance.
+const PinnedReportContext = createContext<PinnedArticleContextValue | null>(null)
+
+export function PinnedReportProvider({ children }: { children: React.ReactNode }) {
+  const store = usePinnedArticleStore()
+  return (
+    <PinnedReportContext.Provider value={store}>
+      {children}
+    </PinnedReportContext.Provider>
+  )
+}
+
+export function usePinnedReport() {
+  const ctx = useContext(PinnedReportContext)
+  if (!ctx) throw new Error('usePinnedReport must be used within PinnedReportProvider')
   return ctx
 }

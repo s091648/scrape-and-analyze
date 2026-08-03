@@ -10,7 +10,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Messag
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
-import { useI18n, usePinnedArticle } from '@/lib/providers'
+import { useI18n, usePinnedReport } from '@/lib/providers'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CitedContent } from '@/components/features/chat/cited-content'
 import { AnswerDisplay } from '@/components/features/chat/AnswerDisplay'
@@ -51,7 +51,7 @@ interface WeeklyReportWidgetProps {
 
 export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
-  const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedArticle()
+  const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedReport()
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

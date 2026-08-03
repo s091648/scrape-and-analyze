@@ -6,7 +6,7 @@ import { AuthTokenProvider } from './auth-token-provider'
 import { TutorialProvider } from './tutorial-provider'
 import { ChatQuotaProvider } from './chat-quota-provider'
 import { ThemeProvider } from './theme-provider'
-import { PinnedArticleProvider } from './pinned-article-provider'
+import { PinnedArticleProvider, PinnedReportProvider } from './pinned-article-provider'
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -17,9 +17,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             <TopicProvider>
               <I18nProvider>
                 <PinnedArticleProvider>
-                  <GuestModeProvider>
-                    <TutorialProvider>{children}</TutorialProvider>
-                  </GuestModeProvider>
+                  <PinnedReportProvider>
+                    <GuestModeProvider>
+                      <TutorialProvider>{children}</TutorialProvider>
+                    </GuestModeProvider>
+                  </PinnedReportProvider>
                 </PinnedArticleProvider>
               </I18nProvider>
             </TopicProvider>
@@ -37,5 +39,5 @@ export { useAuthToken } from './auth-token-provider'
 export { useTutorial } from './tutorial-provider'
 export { useTheme } from './theme-provider'
 export { useChatQuota, type Quota } from './chat-quota-provider'
-export { usePinnedArticle, type PinnedArticle } from './pinned-article-provider'
+export { usePinnedArticle, usePinnedReport, type PinnedArticle } from './pinned-article-provider'
 

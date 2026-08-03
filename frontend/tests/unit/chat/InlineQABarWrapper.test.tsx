@@ -38,7 +38,7 @@ vi.mock('@/lib/providers', () => ({
   useTheme: vi.fn().mockReturnValue({ mode: 'auto', theme: 'light', cycleMode: mockCycleMode, setMode: vi.fn() }),
   useAuthToken: vi.fn().mockReturnValue({ token: undefined, isLoading: false }),
   useChatQuota: vi.fn().mockReturnValue({ quota: null, refreshQuota: vi.fn() }),
-  usePinnedArticle: vi.fn().mockReturnValue({
+  usePinnedReport: vi.fn().mockReturnValue({
     pinnedArticles: [],
     removePinnedArticle: mockRemovePinnedArticle,
     pinnedGroups: [],
@@ -86,8 +86,8 @@ describe('InlineQABarWrapper', () => {
       error: null,
       clearMessages: vi.fn(),
     })
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [],
       removePinnedArticle: mockRemovePinnedArticle,
       pinnedGroups: [],
@@ -438,8 +438,8 @@ describe('InlineQABarWrapper', () => {
   })
 
   it('includes X-Pinned-Article-Ids header built from pinned articles', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
       removePinnedArticle: mockRemovePinnedArticle,
     } as any)
@@ -456,8 +456,8 @@ describe('InlineQABarWrapper', () => {
   })
 
   it('renders a chip for each pinned article and removes it on click', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }],
       removePinnedArticle: mockRemovePinnedArticle,
     } as any)
@@ -479,8 +479,8 @@ describe('InlineQABarWrapper', () => {
   // ── Group pin pills (2026-07-14, US10) ────────────────────────────────────
 
   it('renders one group pill with the live included count instead of one pill per article', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
       removePinnedArticle: mockRemovePinnedArticle,
       pinnedGroups: [{
@@ -501,8 +501,8 @@ describe('InlineQABarWrapper', () => {
   })
 
   it('renders individually-pinned articles alongside a group pill', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a9', title: 'Solo Paper' }],
       removePinnedArticle: mockRemovePinnedArticle,
       pinnedGroups: [{ id: 'report-1', dateLabel: '6/29', articles: [{ id: 'a1', title: 'Paper One' }] }],
@@ -519,8 +519,8 @@ describe('InlineQABarWrapper', () => {
   })
 
   it('removes the whole batch when the group pill\'s remove icon is clicked', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }],
       removePinnedArticle: mockRemovePinnedArticle,
       pinnedGroups: [{ id: 'report-1', dateLabel: '6/29', articles: [{ id: 'a1', title: 'Paper One' }] }],
@@ -537,8 +537,8 @@ describe('InlineQABarWrapper', () => {
   })
 
   it('toggles an article via the edit popover checklist', async () => {
-    const { usePinnedArticle } = await import('@/lib/providers')
-    vi.mocked(usePinnedArticle).mockReturnValue({
+    const { usePinnedReport } = await import('@/lib/providers')
+    vi.mocked(usePinnedReport).mockReturnValue({
       pinnedArticles: [{ id: 'a1', title: 'Paper One' }, { id: 'a2', title: 'Paper Two' }],
       removePinnedArticle: mockRemovePinnedArticle,
       pinnedGroups: [{

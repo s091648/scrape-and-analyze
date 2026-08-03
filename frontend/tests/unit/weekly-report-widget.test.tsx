@@ -48,7 +48,7 @@ vi.mock('@/lib/providers', () => ({
       return map[key] ?? key
     },
   }),
-  usePinnedArticle: () => ({
+  usePinnedReport: () => ({
     pinnedArticles: mockPinnedArticleState.pinnedArticles,
     pinArticles: mockPinArticles,
     pinGroup: mockPinGroup,

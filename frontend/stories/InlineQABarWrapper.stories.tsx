@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import React from 'react'
 import { SessionProvider } from 'next-auth/react'
 import { InlineQABarWrapper } from '../components/features/chat/InlineQABarWrapper'
+import { PinnedReportProvider } from '../lib/providers/pinned-article-provider'
 import { withDarkMode } from './decorators'
 
 const mockSession = {
@@ -15,7 +16,9 @@ const meta: Meta<typeof InlineQABarWrapper> = {
   decorators: [
     (Story) => (
       <SessionProvider session={mockSession}>
-        <Story />
+        <PinnedReportProvider>
+          <Story />
+        </PinnedReportProvider>
       </SessionProvider>
     ),
   ],

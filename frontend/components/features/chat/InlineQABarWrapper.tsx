@@ -5,7 +5,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { AgentInput, openaiAdapter, useChat, type StreamAdapter, type StreamEvent } from '@s091648/chatbot-plugin-ui'
 import { Inbox, Pencil, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle, useAuthToken } from '@/lib/providers'
+import { useI18n, useTopic, useTheme, useChatQuota, usePinnedReport, useAuthToken } from '@/lib/providers'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { ArticleSource, ChatConversationSnapshot, ConversationTurn } from './types'
@@ -29,7 +29,7 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
   const { t } = useI18n()
   const { mode } = useTheme()
   const { quota, refreshQuota } = useChatQuota()
-  const { pinnedArticles, removePinnedArticle, pinnedGroups = [], toggleGroupArticle, removeGroup, isPinned } = usePinnedArticle()
+  const { pinnedArticles, removePinnedArticle, pinnedGroups = [], toggleGroupArticle, removeGroup, isPinned } = usePinnedReport()
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: 'chat-input-dropzone' })
 
   // 018-public-api-auth: /chat/completions now requires a token — useAuthToken()
