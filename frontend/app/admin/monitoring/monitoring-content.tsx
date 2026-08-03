@@ -12,6 +12,16 @@ import {
   queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/api/grafana'
+
+/**
+ * Loki's query_range endpoint (used for both metric-shaped Loki queries and raw log queries)
+ * parses start/end as nanosecond-epoch strings, not unix-second integers — the batch endpoints
+ * must agree on this or a stat count and the log table underneath it can silently query
+ * different time windows despite using the identical LogQL filter.
+ */
+function toNs(sec: number): string {
+  return (sec * 1000).toString() + '000000'
+}
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   LogLevel, LokiLabel, LokiAppValue, SERVICE_NAME, SERVICE_NAME_BACKEND,
@@ -239,9 +249,9 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
       ...OPS_STATS.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(rangeVec, env), start: startSec, end: endSec, step: s.step })),
       ...OPS_CHARTS.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(rangeVec, env), start: startSec, end: endSec, step: c.step })),
     ]
-    const lokiItems: MetricsBatchItem[] = [
-      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: startSec, end: endSec, step: s.step })),
-      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: startSec, end: endSec, step: c.step })),
+    const lokiItems = [
+      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
+      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: c.step })),
     ]
     try {
       const [promResults, lokiResults] = await Promise.all([
@@ -295,14 +305,14 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
 
   const fetchAll = useCallback(async () => {
     setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
-    const startNs = (startSec * 1000).toString() + '000000'
-    const endNs = (endSec * 1000).toString() + '000000'
+    const startNs = toNs(startSec)
+    const endNs = toNs(endSec)
     const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
     try {
       const [metricResults, logsResults] = await Promise.all([
         queryLokiMetricsBatch(allMetricPanels.map(p => ({
           query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment),
-          step: p.step, start: startSec, end: endSec,
+          step: p.step, start: startNs, end: endNs,
         }))),
         queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
           query: applyLokiFilters(p.query, app, environment),
@@ -345,8 +355,8 @@ function useTracesBatch(startSec: number, endSec: number, environment: Environme
     setLoading(Array(TRACES_STATS.length + 2).fill(true))
     try {
       const lokiItems = [
-        ...TRACES_STATS.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: startSec, end: endSec })),
-        { query: applyLokiFilters(TRACES_SPAN_CHART.buildQuery(rangeVec), app, environment), step: TRACES_SPAN_CHART.step, start: startSec, end: endSec },
+        ...TRACES_STATS.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
+        { query: applyLokiFilters(TRACES_SPAN_CHART.buildQuery(rangeVec), app, environment), step: TRACES_SPAN_CHART.step, start: toNs(startSec), end: toNs(endSec) },
       ]
       const [lokiResults, tracesResults] = await Promise.all([
         queryLokiMetricsBatch(lokiItems),

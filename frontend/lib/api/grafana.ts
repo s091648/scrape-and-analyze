@@ -119,6 +119,16 @@ export interface MetricsBatchItem {
   step?: string
 }
 
+// Loki's query_range endpoint (shared by both metric-shaped and raw log queries) expects
+// start/end as nanosecond-epoch strings — see queryLogsBatch below. queryMetricsBatch above
+// talks to Prometheus/Mimir instead, which uses unix-second numbers, so it keeps MetricsBatchItem.
+export interface LokiMetricsBatchItem {
+  query: string
+  start?: string
+  end?: string
+  step?: string
+}
+
 export interface LogsQueryParams {
   query: string
   start?: string // nanosecond timestamp string
@@ -193,7 +203,7 @@ export async function queryMetricsBatch(items: MetricsBatchItem[]): Promise<Prom
   return Array.isArray(json) ? json : [json]
 }
 
-export async function queryLokiMetricsBatch(items: MetricsBatchItem[]): Promise<PrometheusResponse[]> {
+export async function queryLokiMetricsBatch(items: LokiMetricsBatchItem[]): Promise<PrometheusResponse[]> {
   const res = await fetch('/api/proxy/grafana/loki-metrics/batch', {
     method: 'POST',
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },

@@ -18,9 +18,11 @@ class LogsBatchItem(BaseModel):
 
 
 class LokiMetricsBatchItem(BaseModel):
+    """start/end are nanosecond-epoch strings, matching LogsBatchItem — both hit Loki's
+    query_range endpoint, which must see the same time encoding from both call sites."""
     query: str
-    start: Optional[int] = None
-    end: Optional[int] = None
+    start: Optional[str] = None
+    end: Optional[str] = None
     step: str = "60"
 
 

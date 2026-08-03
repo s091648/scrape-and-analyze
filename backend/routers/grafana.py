@@ -118,7 +118,7 @@ async def query_loki_metrics_batch(
     if not url or not user or not api_key:
         return JSONResponse([{"error": "not_configured"}] * len(items), status_code=503)
 
-    now = int(time.time())
+    now_ms = int(time.time() * 1000)
     headers = auth_headers(user, api_key)
 
     async def fetch_one(client: httpx.AsyncClient, item: LokiMetricsBatchItem) -> dict:
@@ -126,8 +126,8 @@ async def query_loki_metrics_batch(
             resp = await client.get(
                 f"{url}/query_range",
                 params={"query": item.query,
-                        "start": (now - 86400) if item.start is None else item.start,
-                        "end": now if item.end is None else item.end,
+                        "start": item.start or f"{now_ms - 86400 * 1000}000000",
+                        "end": item.end or f"{now_ms}000000",
                         "step": item.step},
                 headers=headers,
             )
