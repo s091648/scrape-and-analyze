@@ -1,7 +1,7 @@
 # docker-compose.yml
 #
 # 預設 (docker compose up) 啟動的服務：
-#   postgres, redis, pgadmin, backend, frontend, fastembed, chatbot_plugin
+#   postgres, redis, pgadmin, redisinsight, backend, frontend, fastembed, chatbot_plugin
 #
 # 一次性工具服務 (profile: tools)，不會被 docker compose up 帶起：
 #   app, test_service, job_service
@@ -132,6 +132,22 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    environment:
+      RI_ACCEPT_TERMS_AND_CONDITIONS: "true"  # skip the EULA prompt on first launch
+      # Pre-wires a connection to the `redis` service above so it shows up ready-to-use.
+      RI_REDIS_HOST0: redis
+      RI_REDIS_PORT0: 6379
+      RI_REDIS_ALIAS0: scrape-analyzer
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Test service — 一次性工具容器，需加 --profile tools 才會啟動
   test_service:
     profiles:
@@ -210,6 +226,7 @@ services:
 volumes:
   postgres_data:
   pgadmin_data:
+  redisinsight_data:
   frontend_node_modules:
   playwright_cache:
   fastembed_cache:
