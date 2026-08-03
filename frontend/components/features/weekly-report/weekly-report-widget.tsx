@@ -387,6 +387,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                     currentIndex={chatState.currentIndex}
                     isLoading={chatState.isLoading}
                     error={chatState.error}
+                    hasUnreadResponse={chatState.hasUnreadResponse}
                     onPrevTurn={chatState.onPrevTurn}
                     onNextTurn={chatState.onNextTurn}
                     draggableSources

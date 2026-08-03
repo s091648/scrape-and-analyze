@@ -50,6 +50,9 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
   // "latest sources" value, this survives paging back to an earlier turn (see ConversationTurn).
   const [sourcesByMessageId, setSourcesByMessageId] = useState<Record<string, ArticleSource[]>>({})
   const [currentTurnIndex, setCurrentTurnIndex] = useState(0)
+  // True once a turn has settled while the user was looking at an older one — see
+  // ChatConversationSnapshot.hasUnreadResponse.
+  const [hasUnreadResponse, setHasUnreadResponse] = useState(false)
 
   const customAdapter = useMemo((): StreamAdapter => ({
     ...openaiAdapter,
@@ -106,6 +109,13 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
         pendingUser = undefined
       }
     }
+    // A question was just sent but no reply has come back at all yet (useChat only adds the
+    // assistant message once its fetch() resolves) — surface it as its own turn right away so
+    // the view switches to a "thinking" page the moment the user asks, instead of only once
+    // the first byte of a reply arrives.
+    if (pendingUser) {
+      result.push({ userMessage: pendingUser, assistantMessage: undefined, sources: [] })
+    }
     return result
   }, [messages, sourcesByMessageId, isLoading])
 
@@ -120,16 +130,30 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
       if (justFinished && captured.length > 0) {
         setSourcesByMessageId(prev => ({ ...prev, [justFinished.id]: captured }))
       }
+      // The turn that just settled is always the newest one — if the user had navigated away
+      // to an older turn while it was streaming, flag it unread (mirrors the weekly-report ↔
+      // chat card-swap red dot in weekly-report-widget.tsx).
+      if (currentTurnIndex !== turns.length - 1) {
+        setHasUnreadResponse(true)
+      }
       refreshQuota()
     }
     prevIsLoadingRef.current = isLoading
-  }, [isLoading, messages, refreshQuota])
+  }, [isLoading, messages, refreshQuota, currentTurnIndex, turns.length])
 
-  // A newly-settled turn always becomes the visible one — jumping back to an older turn is a
-  // manual, temporary detour, not a state that should survive the next question being answered.
+  // A newly-asked question always becomes the visible one — jumping back to an older turn is a
+  // manual, temporary detour, not a state that should survive the next question being asked.
   useEffect(() => {
     setCurrentTurnIndex(Math.max(0, turns.length - 1))
   }, [turns.length])
+
+  // "Read" = looking at the newest turn — clears the flag whether the user paged forward
+  // manually or a new question's auto-advance (above) landed them there.
+  useEffect(() => {
+    if (hasUnreadResponse && currentTurnIndex === turns.length - 1) {
+      setHasUnreadResponse(false)
+    }
+  }, [currentTurnIndex, turns.length, hasUnreadResponse])
 
   useEffect(() => {
     if (!isLoading) return
@@ -144,6 +168,7 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
       currentIndex: currentTurnIndex,
       isLoading,
       error,
+      hasUnreadResponse,
       onPrevTurn: () => setCurrentTurnIndex(i => Math.max(0, i - 1)),
       onNextTurn: () => setCurrentTurnIndex(i => Math.min(turns.length - 1, i + 1)),
     })
@@ -151,7 +176,7 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
     // be memoized by the caller — including it would re-report on every parent render for no
     // reason. Every value the snapshot is actually built from is listed below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turns, currentTurnIndex, isLoading, error])
+  }, [turns, currentTurnIndex, isLoading, error, hasUnreadResponse])
 
   const handleSend = useCallback(
     (text: string) => {

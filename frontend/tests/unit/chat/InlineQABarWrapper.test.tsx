@@ -647,4 +647,84 @@ describe('InlineQABarWrapper', () => {
       expect(afterPrev.turns).toHaveLength(2)
     })
   })
+
+  // ── Pending turn + unread response (2026-08-03) ─────────────────────────
+
+  it('opens a new pending turn as soon as a question is sent, before any reply arrives', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [{ id: 'u1', role: 'user', content: 'New question', timestamp: new Date() }],
+      sendMessage: mockSendMessage,
+      isLoading: true,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+    const onConversationChange = vi.fn()
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+
+    const snapshot = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(snapshot?.turns).toHaveLength(1)
+    expect(snapshot?.turns[0].assistantMessage).toBeUndefined()
+    expect(snapshot?.turns[0].userMessage?.content).toBe('New question')
+    expect(snapshot?.currentIndex).toBe(0)
+  })
+
+  it('flags hasUnreadResponse when a turn settles while the user is viewing an older one, without auto-jumping away', async () => {
+    vi.mocked(useChat).mockReturnValue({
+      messages: [
+        { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
+        { id: 'a1', role: 'assistant', content: 'First answer', timestamp: new Date() },
+        { id: 'u2', role: 'user', content: 'Second question', timestamp: new Date() },
+      ],
+      sendMessage: mockSendMessage,
+      isLoading: true,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+    const onConversationChange = vi.fn()
+
+    const { InlineQABarWrapper } = await import('@/components/features/chat/InlineQABarWrapper')
+    const { rerender } = render(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+
+    // Auto-advanced to the new (still-pending) second turn.
+    let latest = onConversationChange.mock.calls.at(-1)?.[0]
+    expect(latest.currentIndex).toBe(1)
+
+    // User manually navigates back to look at the first, already-settled turn.
+    act(() => { latest.onPrevTurn() })
+    await waitFor(() => {
+      latest = onConversationChange.mock.calls.at(-1)?.[0]
+      expect(latest.currentIndex).toBe(0)
+    })
+
+    // The second turn's reply comes back while the user is still looking at the first.
+    vi.mocked(useChat).mockReturnValue({
+      messages: [
+        { id: 'u1', role: 'user', content: 'First question', timestamp: new Date() },
+        { id: 'a1', role: 'assistant', content: 'First answer', timestamp: new Date() },
+        { id: 'u2', role: 'user', content: 'Second question', timestamp: new Date() },
+        { id: 'a2', role: 'assistant', content: 'Second answer', timestamp: new Date() },
+      ],
+      sendMessage: mockSendMessage,
+      isLoading: false,
+      error: null,
+      clearMessages: vi.fn(),
+    } as any)
+    rerender(<InlineQABarWrapper onConversationChange={onConversationChange} />)
+
+    await waitFor(() => {
+      latest = onConversationChange.mock.calls.at(-1)?.[0]
+      expect(latest.hasUnreadResponse).toBe(true)
+      expect(latest.currentIndex).toBe(0) // stays put — no forced jump away from a manual detour
+    })
+
+    // Viewing the newest turn marks it read.
+    act(() => { latest.onNextTurn() })
+    await waitFor(() => {
+      latest = onConversationChange.mock.calls.at(-1)?.[0]
+      expect(latest.currentIndex).toBe(1)
+      expect(latest.hasUnreadResponse).toBe(false)
+    })
+  })
 })

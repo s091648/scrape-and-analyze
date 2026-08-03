@@ -322,11 +322,97 @@ describe('AnswerDisplay', () => {
     expect(onPrevTurn).toHaveBeenCalled()
   })
 
-  it('hides the pager entirely while loading, even with multiple turns', async () => {
+  it('keeps the pager visible and usable while a new turn is streaming, so older turns stay browsable', async () => {
     const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay turns={[makeTurn('First'), makeTurn('Second')]} currentIndex={1} isLoading {...noopPager} />
     )
-    expect(screen.queryByLabelText('上一則問題')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('上一則問題')).toBeInTheDocument()
+    expect(screen.getByLabelText('上一則問題')).not.toBeDisabled()
+  })
+
+  // ── Pending turn (question sent, no reply yet) (2026-08-03) ────────────────
+
+  function makePendingTurn(userContent: string): ConversationTurn {
+    turnCounter += 1
+    return {
+      userMessage: { id: `u-${turnCounter}`, role: 'user', content: userContent, timestamp: new Date() },
+      assistantMessage: undefined,
+      sources: [],
+    }
+  }
+
+  it('shows a thinking page for a turn whose question was sent but has no reply yet', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay turns={[makePendingTurn('What is RAG?')]} currentIndex={0} isLoading {...noopPager} />
+    )
+    expect(screen.getByText('What is RAG?')).toBeInTheDocument()
+    expect(screen.getByText('思考中…')).toBeInTheDocument()
+  })
+
+  it('shows the pending turn immediately alongside older settled turns, with the pager active', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First answer'), makePendingTurn('Second question')]}
+        currentIndex={1}
+        isLoading
+        {...noopPager}
+      />
+    )
+    expect(screen.getByText('Second question')).toBeInTheDocument()
+    expect(screen.getByText('思考中…')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('shows the request error inline on a pending turn that never got a reply', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makePendingTurn('A question')]}
+        currentIndex={0}
+        error={new Error('HTTP 503')}
+        {...noopPager}
+      />
+    )
+    expect(screen.getByText('A question')).toBeInTheDocument()
+    expect(screen.getByText('問答服務暫時無法使用，請稍後再試')).toBeInTheDocument()
+  })
+
+  // ── Unread response red dot (2026-08-03) ────────────────────────────────────
+
+  it('shows a red dot on the next button when a response settled while viewing an older turn', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First'), makeTurn('Second')]}
+        currentIndex={0}
+        hasUnreadResponse
+        {...noopPager}
+      />
+    )
+    expect(document.querySelector('.bg-red-500')).toBeInTheDocument()
+  })
+
+  it('does not show a red dot when already viewing the newest turn', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First'), makeTurn('Second')]}
+        currentIndex={1}
+        hasUnreadResponse
+        {...noopPager}
+      />
+    )
+    expect(document.querySelector('.bg-red-500')).not.toBeInTheDocument()
+  })
+
+  it('does not show a red dot when hasUnreadResponse is false', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay turns={[makeTurn('First'), makeTurn('Second')]} currentIndex={0} {...noopPager} />
+    )
+    expect(document.querySelector('.bg-red-500')).not.toBeInTheDocument()
   })
 })
