@@ -84,6 +84,29 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
     setActiveCard('chat')
   }
 
+  // InlineQABarWrapper's chat state now lives in a provider mounted at the app root (see
+  // lib/providers/inline-chat-provider.tsx), so it survives leaving `/` and coming back — but
+  // hasConversation/activeCard here are still local state, reset on every remount of this widget.
+  // Without this, a resumed non-empty conversation would never activate the card-swap area below
+  // (leaving the restored answer with nowhere to render), and even once it does, activeCard
+  // silently defaulting back to 'report' means the resumed answer stays hidden behind a small,
+  // easy-to-miss toggle button until the user happens to click it.
+  //
+  // setHasConversation's functional-update form is what makes this only fire once, on the actual
+  // false→true transition (i.e. the resume moment) — not on every subsequent snapshot update
+  // while hasConversation is already true, which would otherwise fight the user manually
+  // switching back to the report card while the chat keeps streaming in the background (the
+  // whole point of that feature — see FloatChatProvider/InlineChatProvider).
+  function handleConversationChange(snapshot: ChatConversationSnapshot) {
+    setChatState(snapshot)
+    if (snapshot.turns.length > 0) {
+      setHasConversation(prev => {
+        if (!prev) setActiveCard('chat')
+        return true
+      })
+    }
+  }
+
   useEffect(() => {
     const isLoadingNow = chatState?.isLoading ?? false
     if (prevChatLoadingRef.current && !isLoadingNow && activeCard !== 'chat') {
@@ -359,7 +382,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
             visible below, or an in-flight response gets abandoned and the conversation resets. */}
         {children && (
           <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">
-            {children({ onSend: handleMessageSent, onConversationChange: setChatState })}
+            {children({ onSend: handleMessageSent, onConversationChange: handleConversationChange })}
           </div>
         )}
 

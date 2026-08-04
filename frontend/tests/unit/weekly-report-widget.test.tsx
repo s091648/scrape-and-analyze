@@ -600,4 +600,120 @@ describe('WeeklyReportWidget', () => {
     const switchButton = screen.getByLabelText("View this week's report")
     expect(switchButton.querySelector('.animate-notify-blink')).toBeNull()
   })
+
+  // ── Resumed conversation on (re)mount (regression) ─────────────────────────
+  // InlineQABarWrapper's chat state now survives navigating away from `/` and back (it lives in
+  // a provider mounted at the app root — see lib/providers/inline-chat-provider.tsx). This widget
+  // still resets its own local hasConversation/activeCard state on every remount though, so it
+  // must learn about an already-non-empty conversation from the reported snapshot itself, not
+  // only from the explicit "a message was just sent" callback — otherwise the report/chat
+  // switch button never appears and a resumed conversation has nowhere to render. It must also
+  // default activeCard to 'chat' on that resume (not just make the switch button appear) —
+  // otherwise the resumed answer stays hidden behind a small, easy-to-miss toggle button.
+  it('switches straight to the chat card as soon as a non-empty conversation is reported, without onSend ever firing', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+
+    function FakeChat({ onConversationChange }: any) {
+      return (
+        <button
+          data-testid="resume-conversation"
+          onClick={() => onConversationChange({
+            turns: [{ userMessage: { id: 'u1', role: 'user', content: 'hi' }, assistantMessage: { id: 'a1', role: 'assistant', content: 'hello' }, sources: [] }],
+            currentIndex: 0,
+            isLoading: false,
+            error: null,
+            onPrevTurn: vi.fn(),
+            onNextTurn: vi.fn(),
+          })}
+        >
+          resume
+        </button>
+      )
+    }
+
+    render(
+      <WeeklyReportWidget topicId="topic-1">
+        {(props) => <FakeChat {...props} />}
+      </WeeklyReportWidget>
+    )
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+
+    expect(screen.queryByLabelText('View chat')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("View this week's report")).not.toBeInTheDocument()
+
+    // Simulates InlineQABarWrapper remounting and immediately reporting the conversation it
+    // resumed from the provider — never calling onSend (that's only for a brand-new message).
+    fireEvent.click(screen.getByTestId('resume-conversation'))
+
+    await waitFor(() => {
+      // activeCard defaulted to 'chat' — the toggle now offers to switch back to the report,
+      // not to switch to chat (which is already showing).
+      expect(screen.getByLabelText("View this week's report")).toBeInTheDocument()
+      expect(screen.queryByLabelText('View chat')).not.toBeInTheDocument()
+    })
+  })
+
+  it('does not force activeCard back to chat on every subsequent update once already resumed (must not fight a manual switch to report while streaming continues in the background)', async () => {
+    vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+    vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+    const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+
+    function FakeChat({ onConversationChange }: any) {
+      return (
+        <>
+          <button
+            data-testid="resume-conversation"
+            onClick={() => onConversationChange({
+              turns: [{ userMessage: { id: 'u1', role: 'user', content: 'hi' }, assistantMessage: { id: 'a1', role: 'assistant', content: 'hello' }, sources: [] }],
+              currentIndex: 0,
+              isLoading: true,
+              error: null,
+              onPrevTurn: vi.fn(),
+              onNextTurn: vi.fn(),
+            })}
+          >
+            resume
+          </button>
+          <button
+            data-testid="stream-update"
+            onClick={() => onConversationChange({
+              turns: [{ userMessage: { id: 'u1', role: 'user', content: 'hi' }, assistantMessage: { id: 'a1', role: 'assistant', content: 'hello there, more content' }, sources: [] }],
+              currentIndex: 0,
+              isLoading: false,
+              error: null,
+              onPrevTurn: vi.fn(),
+              onNextTurn: vi.fn(),
+            })}
+          >
+            stream update
+          </button>
+        </>
+      )
+    }
+
+    render(
+      <WeeklyReportWidget topicId="topic-1">
+        {(props) => <FakeChat {...props} />}
+      </WeeklyReportWidget>
+    )
+    await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('resume-conversation'))
+    const toggle = await screen.findByLabelText("View this week's report")
+
+    // User manually switches back to the report card while the answer keeps streaming.
+    fireEvent.click(toggle)
+    await waitFor(() => expect(screen.getByLabelText('View chat')).toBeInTheDocument())
+
+    // The stream produces another update (still isLoading:false, just more content) — this must
+    // not yank the user back to the chat card.
+    fireEvent.click(screen.getByTestId('stream-update'))
+    await waitFor(() => {
+      expect(screen.getByLabelText('View chat')).toBeInTheDocument()
+    })
+  })
 })
