@@ -42,96 +42,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Check each staging service and redeploy REMOVED ones from master
-        run: |
-          set -uo pipefail
-          FAILED=0
-
-          # name -> service ID (must match the deploy-staging-* jobs below)
-          # postgres/redis are intentionally NOT here — see close-staging.yml's SERVICES
-          # comment: they're kept permanently up instead of being torn down/revived per PR,
-          # since Railway's CLI can't reliably revive a fully-removed DB service (proven out
-          # by a `railway redeploy` failure: "No deployment found for service" once a DB's
-          # deployment history is gone).
-          declare -A SERVICES=(
-            [dashboard-backend]="$SERVICE_ID_DASHBOARD_BACKEND"
-            [dashboard-frontend]="$SERVICE_ID_DASHBOARD_FRONTEND"
-            [storybook]="$SERVICE_ID_STORYBOOK"
-            [scrape-and-analyze]="$SERVICE_ID_SCRAPE_AND_ANALYZE"
-            [chatbot-plugin]="$SERVICE_ID_CHATBOT_PLUGIN"
-            [fastembed]="$SERVICE_ID_FASTEMBED"
-            [weekly-report]="$SERVICE_ID_WEEKLY_REPORT"
-            [refresh-metrics]="$SERVICE_ID_REFRESH_METRICS"
-            [rag-backfill]="$SERVICE_ID_RAG_BACKFILL"
-          )
-
-          # Recursively search the CLI's JSON output for the service's status,
-          # since the exact shape of `railway status`/`deployment list --json`
-          # isn't officially documented — this is resilient to minor schema
-          # differences: `railway deployment list --service X` is already
-          # scoped to one service, so a deployment's own `id` field is a
-          # *deployment* ID, not the service ID — there's nothing to match
-          # against. Just take the first (most recent) `status` string found
-          # anywhere in the tree.
-          find_status() {
-            node -e "
-              let data;
-              try { data = JSON.parse(process.argv[1]); } catch { console.log('UNKNOWN'); process.exit(0); }
-              function find(obj) {
-                if (!obj || typeof obj !== 'object') return null;
-                if (Array.isArray(obj)) {
-                  for (const item of obj) { const r = find(item); if (r) return r; }
-                  return null;
-                }
-                if (typeof obj.status === 'string') return obj.status;
-                for (const key of Object.keys(obj)) { const r = find(obj[key]); if (r) return r; }
-                return null;
-              }
-              console.log(find(data) || 'UNKNOWN');
-            " "$1"
-          }
-
-          for name in "${!SERVICES[@]}"; do
-            id="${SERVICES[$name]}"
-            echo "::group::Checking $name ($id)"
-
-            CLI_OK=1
-            if ! JSON=$(railway deployment list --service "$id" --environment staging --json 2>&1); then
-              CLI_OK=0
-            fi
-            STATUS=$(find_status "$JSON")
-            if [ "$STATUS" = "UNKNOWN" ] && [ "$CLI_OK" = "1" ]; then
-              if ! JSON=$(railway status --service "$id" --environment staging --json 2>&1); then
-                CLI_OK=0
-              fi
-              STATUS=$(find_status "$JSON")
-            fi
-            echo "Latest deployment status for $name: $STATUS"
-
-            if [ "$CLI_OK" = "0" ]; then
-              echo "::error::Railway CLI call failed for $name — treating as a failure rather than assuming healthy"
-              FAILED=1
-            elif [ "$STATUS" = "REMOVED" ]; then
-              echo "$name is REMOVED — redeploying from master"
-              if [ "$name" = "chatbot-plugin" ]; then
-                if ! (cd chatbot-plugin && railway up --detach --service "$id" --environment staging); then
-                  echo "::error::Failed to redeploy $name"
-                  FAILED=1
-                fi
-              else
-                if ! railway up --detach --service "$id" --environment staging; then
-                  echo "::error::Failed to redeploy $name"
-                  FAILED=1
-                fi
-              fi
-            elif [ "$STATUS" = "UNKNOWN" ]; then
-              echo "::warning::Could not determine deployment status for $name — skipping redeploy (assumed healthy)."
-            else
-              echo "$name is healthy ($STATUS) — no action needed"
-            fi
-            echo "::endgroup::"
-          done
-
-          exit $FAILED
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/check-staging-deployments.sh"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
@@ -240,26 +151,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -355,26 +252,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -478,26 +361,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -598,26 +467,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -683,29 +538,7 @@ jobs:
       - name: Compute pass rate
         id: passrate
         if: always()
-        run: |
-          PASSED=$(node -e "
-            const r = require('./test-results.json');
-            console.log(r.numPassedTests ?? 0);
-          " 2>/dev/null || echo 0)
-          TOTAL=$(node -e "
-            const r = require('./test-results.json');
-            console.log((r.numPassedTests ?? 0) + (r.numFailedTests ?? 0));
-          " 2>/dev/null || echo 0)
-          FAILED=$((TOTAL - PASSED))
-          if [ "$TOTAL" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ "$FAILED" -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TOTAL} passed"
-          elif [ $((PASSED * 100 / TOTAL)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TOTAL} passed"
-          elif [ $((PASSED * 100 / TOTAL)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TOTAL} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TOTAL} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/compute-vitest-pass-rate.sh"
 
       - name: Update frontend unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -766,27 +599,7 @@ jobs:
       - name: Compute e2e pass rate
         id: passrate
         if: always()
-        run: |
-          if [ -f playwright-results.xml ]; then
-            TOTAL=$(grep -oP 'tests="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            FAILED=$(grep -oP 'failures="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            ERRORS=$(grep -oP 'errors="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            TOTAL=${TOTAL:-0}; FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}
-            PASSED=$((TOTAL - FAILED - ERRORS))
-            if [ "$TOTAL" -eq 0 ]; then
-              COLOR="lightgrey"; MSG="no tests"
-            elif [ $((FAILED + ERRORS)) -eq 0 ]; then
-              COLOR="brightgreen"; MSG="${PASSED}/${TOTAL} passed"
-            elif [ $((PASSED * 100 / TOTAL)) -ge 90 ]; then
-              COLOR="green"; MSG="${PASSED}/${TOTAL} passed"
-            else
-              COLOR="red"; MSG="${PASSED}/${TOTAL} passed"
-            fi
-          else
-            COLOR="lightgrey"; MSG="no results"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/compute-playwright-pass-rate.sh"
 
       - name: Update frontend e2e pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'

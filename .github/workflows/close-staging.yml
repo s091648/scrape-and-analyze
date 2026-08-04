@@ -32,39 +32,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Remove each staging service's deployment now that the PR is merged
-        run: |
-          set -uo pipefail
-          FAILED=0
-
-          # name -> service ID (must match check-staging-deployments/deploy-staging-* in ci.yml)
-          # postgres/redis are intentionally NOT here: Railway's CLI has no reliable way to
-          # revive a fully-removed DB service (no deployment/image snapshot left to redeploy
-          # from — see check-staging-deployments' postgres/redis removal in ci.yml for the
-          # incident that proved this out). They stay up permanently instead; idle DB/cache
-          # cost is negligible next to the risk of an unrecoverable staging DB.
-          declare -A SERVICES=(
-            [dashboard-backend]="$SERVICE_ID_DASHBOARD_BACKEND"
-            [dashboard-frontend]="$SERVICE_ID_DASHBOARD_FRONTEND"
-            [storybook]="$SERVICE_ID_STORYBOOK"
-            [scrape-and-analyze]="$SERVICE_ID_SCRAPE_AND_ANALYZE"
-            [chatbot-plugin]="$SERVICE_ID_CHATBOT_PLUGIN"
-            [fastembed]="$SERVICE_ID_FASTEMBED"
-            [weekly-report]="$SERVICE_ID_WEEKLY_REPORT"
-            [refresh-metrics]="$SERVICE_ID_REFRESH_METRICS"
-            [rag-backfill]="$SERVICE_ID_RAG_BACKFILL"
-          )
-
-          for name in "${!SERVICES[@]}"; do
-            id="${SERVICES[$name]}"
-            echo "::group::Removing $name ($id)"
-            if ! railway down --yes --service "$id" --environment staging; then
-              echo "::error::Failed to remove staging deployment for $name"
-              FAILED=1
-            fi
-            echo "::endgroup::"
-          done
-
-          exit $FAILED
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/close-staging-deployments.sh"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}

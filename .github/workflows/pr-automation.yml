@@ -43,26 +43,11 @@ jobs:
         working-directory: site
 
       - name: Commit generated config to PR branch
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add site/.vitepress/config.js site/index.md
-          if git diff --cached --quiet; then
-            echo "No vitepress config changes to commit"
-            exit 0
-          fi
-          git commit -m "🤖 [CHORE] auto-update vitepress config from specs"
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          for attempt in 1 2 3 4 5; do
-            if git push origin "HEAD:$BRANCH"; then
-              exit 0
-            fi
-            echo "Push rejected (branch moved since checkout) — rebasing and retrying (attempt $attempt)"
-            git fetch origin "$BRANCH"
-            git rebase "origin/$BRANCH"
-          done
-          echo "::error::Failed to push vitepress config commit after retries"
-          exit 1
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/git-commit-and-push.sh"
+          "🤖 [CHORE] auto-update vitepress config from specs"
+          "No vitepress config changes to commit"
+          site/.vitepress/config.js site/index.md
 
   # ---------------------------------------------------------------------------
   # Job 2: Generate release notes via LLM (runs after Job 1 to avoid push races)
@@ -111,23 +96,8 @@ jobs:
           PYTHONPATH: .
 
       - name: Commit release notes to PR branch
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/public/release-notes.json
-          if git diff --cached --quiet; then
-            echo "No release notes changes to commit"
-            exit 0
-          fi
-          git commit -m "🤖 [CHORE] auto-generate release notes"
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          for attempt in 1 2 3 4 5; do
-            if git push origin "HEAD:$BRANCH"; then
-              exit 0
-            fi
-            echo "Push rejected (branch moved since checkout) — rebasing and retrying (attempt $attempt)"
-            git fetch origin "$BRANCH"
-            git rebase "origin/$BRANCH"
-          done
-          echo "::error::Failed to push release notes commit after retries"
-          exit 1
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/git-commit-and-push.sh"
+          "🤖 [CHORE] auto-generate release notes"
+          "No release notes changes to commit"
+          frontend/public/release-notes.json

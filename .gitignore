@@ -32,6 +32,7 @@ eggs/
 lib/
 lib64/
 !frontend/lib/
+!.github/scripts/lib/
 parts/
 sdist/
 var/
