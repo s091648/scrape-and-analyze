@@ -17,6 +17,9 @@ export interface ConversationTurn {
   userMessage?: Message
   assistantMessage?: Message
   sources: ArticleSource[]
+  /** role:'tool' messages belonging to this turn (between its user message and the next one) —
+   * optional/defaults to [] so existing turn fixtures that predate tool-call display keep working. */
+  toolCalls?: Message[]
 }
 
 /** Everything AnswerDisplay needs, reported upward by InlineQABarWrapper (which owns the actual

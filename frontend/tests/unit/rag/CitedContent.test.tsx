@@ -124,6 +124,23 @@ describe('CitedContent', () => {
     expect(chip).toHaveAttribute('aria-roledescription', 'draggable')
   })
 
+  // Regression: a source with no public_article_id has nothing valid to pin — `src.id` is
+  // chatbot-plugin's own internal vector-DB row id, meaningless in the main app's article
+  // space. Dragging it used to pin that internal id anyway, silently producing a pin that could
+  // never resolve to any RAG content (the chat would just report "no article content provided").
+  it('does not mark a source pill as draggable when it has no public_article_id, even with draggableSources set', async () => {
+    const { CitedContent } = await import('@/components/features/chat/cited-content')
+    render(
+      <CitedContent
+        text="See [1] for details."
+        sources={[makeSource({ public_article_id: null })]}
+        draggableSources
+      />
+    )
+    const chip = screen.getByText('Cited Paper').closest('a, button')!
+    expect(chip).not.toHaveAttribute('aria-roledescription')
+  })
+
   // ── Reveal + highlight on inline-citation click (2026-07-14) ──────────────
 
   it('calls onRefClick with the 0-indexed source position when a [N] marker is clicked', async () => {

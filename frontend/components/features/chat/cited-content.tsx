@@ -41,21 +41,27 @@ function SourceChip({
   refCallback: (el: HTMLElement | null) => void
   onOpen: () => void
 }) {
+  // `src.id` is chatbot-plugin's own internal vector-DB row id — meaningless outside that
+  // service. Pinning (like opening the article dialog below) needs `public_article_id`, the id
+  // that actually resolves back to a row in the main `core.articles` table; a source with none
+  // has nothing valid to pin, so dragging is disabled entirely for it rather than silently
+  // pinning an id nothing can ever match (see InlineQABarWrapper's pinned-article investigation).
+  const isDraggable = draggable && !!src.public_article_id
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `source-${src.id}`,
-    data: { article: { id: src.id, title: src.title ?? src.url } },
-    disabled: !draggable,
+    data: { article: { id: src.public_article_id ?? '', title: src.title ?? src.url } },
+    disabled: !isDraggable,
   })
   const setRefs = useCallback((el: HTMLElement | null) => {
     refCallback(el)
     setNodeRef(el)
   }, [refCallback, setNodeRef])
-  const dragProps = draggable ? { ...listeners, ...attributes } : {}
+  const dragProps = isDraggable ? { ...listeners, ...attributes } : {}
   // The dragged pill itself just dims in place — the floating copy that actually follows the
   // cursor is a <DragOverlay> rendered by the DndContext owner (weekly-report-widget.tsx),
   // same convention as tag-group-card.tsx's draggable tags.
   const className = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-background border text-[11px] text-muted-foreground hover:text-foreground transition-all duration-300 ${
-    draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+    isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
   } ${isDragging ? 'opacity-40' : ''} ${
     highlighted
       ? 'border-blue-500 ring-2 ring-blue-400 text-blue-600 dark:text-blue-400'
