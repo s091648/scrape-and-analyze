@@ -51,6 +51,7 @@ jobs:
             [fastembed]="$SERVICE_ID_FASTEMBED"
             [weekly-report]="$SERVICE_ID_WEEKLY_REPORT"
             [refresh-metrics]="$SERVICE_ID_REFRESH_METRICS"
+            [rag-backfill]="$SERVICE_ID_RAG_BACKFILL"
           )
 
           for name in "${!SERVICES[@]}"; do
@@ -74,3 +75,4 @@ jobs:
           SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
           SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
           SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}

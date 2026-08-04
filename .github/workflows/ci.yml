@@ -61,6 +61,7 @@ jobs:
             [fastembed]="$SERVICE_ID_FASTEMBED"
             [weekly-report]="$SERVICE_ID_WEEKLY_REPORT"
             [refresh-metrics]="$SERVICE_ID_REFRESH_METRICS"
+            [rag-backfill]="$SERVICE_ID_RAG_BACKFILL"
           )
 
           # Recursively search the CLI's JSON output for the service's status,
@@ -141,6 +142,7 @@ jobs:
           SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
           SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
           SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
 
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
@@ -1022,6 +1024,37 @@ jobs:
 
       - name: Deploy refresh-metrics to Railway (staging)
         run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }} --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4h: Deploy RAG Backfill to Staging (PR only)
+  # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
+  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # this a distinct Railway service from the main worker.
+  # -----------------------------------------------
+  deploy-staging-rag-backfill:
+    name: Deploy RAG Backfill to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy rag-backfill to Railway (staging)
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 

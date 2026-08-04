@@ -185,6 +185,7 @@ jobs:
           railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}  # fastembed
           railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}  # weekly-report
           railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}  # refresh-metrics
+          railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}  # rag-backfill
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
