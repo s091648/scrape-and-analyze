@@ -1,5 +1,43 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Added typewriter-style animations for chat responses and new visual cards for tool calls"
+      },
+      {
+        "type": "fix",
+        "description": "Resolved an issue where weekly reports failed to resume correctly within active chat conversations"
+      },
+      {
+        "type": "feat",
+        "description": "Improved content management by separating pinned articles between the weekly report and general article views"
+      },
+      {
+        "type": "feat",
+        "description": "Added an application filter to the monitoring dashboard to streamline data viewing"
+      },
+      {
+        "type": "fix",
+        "description": "Fixed the close button on log detail dialogs so it remains visible while scrolling through content"
+      },
+      {
+        "type": "feat",
+        "description": "Introduced themed scrollbars and improved error reporting via on-screen notification toasts"
+      },
+      {
+        "type": "chore",
+        "description": "Cleaned up the settings interface by removing the non-functional email notification toggle"
+      },
+      {
+        "type": "fix",
+        "description": "Optimized performance by eliminating duplicate data fetching and synchronization issues in the article list"
+      }
+    ]
+  },
+  {
     "version": "v1.3.0",
     "date": "2026-07-18",
     "changes": [
