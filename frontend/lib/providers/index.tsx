@@ -7,6 +7,8 @@ import { TutorialProvider } from './tutorial-provider'
 import { ChatQuotaProvider } from './chat-quota-provider'
 import { ThemeProvider } from './theme-provider'
 import { PinnedArticleProvider, PinnedReportProvider } from './pinned-article-provider'
+import { FloatChatProvider } from './float-chat-provider'
+import { InlineChatProvider } from './inline-chat-provider'
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -18,9 +20,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               <I18nProvider>
                 <PinnedArticleProvider>
                   <PinnedReportProvider>
-                    <GuestModeProvider>
-                      <TutorialProvider>{children}</TutorialProvider>
-                    </GuestModeProvider>
+                    {/* Mounted at the app root (not inside the chat components themselves) so an
+                        in-flight stream survives route changes instead of being abandoned when
+                        FloatingChatbotWrapper/InlineQABarWrapper unmount — see float-chat-provider.tsx. */}
+                    <FloatChatProvider>
+                      <InlineChatProvider>
+                        <GuestModeProvider>
+                          <TutorialProvider>{children}</TutorialProvider>
+                        </GuestModeProvider>
+                      </InlineChatProvider>
+                    </FloatChatProvider>
                   </PinnedReportProvider>
                 </PinnedArticleProvider>
               </I18nProvider>
@@ -40,4 +49,6 @@ export { useTutorial } from './tutorial-provider'
 export { useTheme } from './theme-provider'
 export { useChatQuota, type Quota } from './chat-quota-provider'
 export { usePinnedArticle, usePinnedReport, type PinnedArticle } from './pinned-article-provider'
+export { useFloatChat } from './float-chat-provider'
+export { useInlineChat } from './inline-chat-provider'
 

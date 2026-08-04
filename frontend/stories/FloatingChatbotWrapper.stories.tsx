@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import React from 'react'
 import { SessionProvider } from 'next-auth/react'
 import { PinnedArticleProvider } from '../lib/providers/pinned-article-provider'
+import { FloatChatProvider } from '../lib/providers/float-chat-provider'
 import { FloatingChatbotWrapper } from '../components/features/chat/FloatingChatbotWrapper'
 import { withDarkMode } from './decorators'
 
@@ -17,7 +18,9 @@ const meta: Meta<typeof FloatingChatbotWrapper> = {
     (Story) => (
       <SessionProvider session={mockSession}>
         <PinnedArticleProvider>
-          <Story />
+          <FloatChatProvider>
+            <Story />
+          </FloatChatProvider>
         </PinnedArticleProvider>
       </SessionProvider>
     ),

@@ -40,6 +40,16 @@ vi.mock('@/lib/providers/auth-token-provider', () => ({
   useAuthToken: vi.fn().mockReturnValue({ token: undefined, isLoading: false }),
 }))
 
+vi.mock('@/lib/providers/float-chat-provider', () => ({
+  FloatChatProvider: ({ children }: any) => <>{children}</>,
+  useFloatChat: vi.fn(),
+}))
+
+vi.mock('@/lib/providers/inline-chat-provider', () => ({
+  InlineChatProvider: ({ children }: any) => <>{children}</>,
+  useInlineChat: vi.fn(),
+}))
+
 describe('AppProviders', () => {
   it('renders children inside all providers', async () => {
     const { AppProviders } = await import('@/lib/providers')
@@ -99,5 +109,15 @@ describe('providers re-exports', () => {
   it('exports useAuthToken hook', async () => {
     const { useAuthToken } = await import('@/lib/providers')
     expect(typeof useAuthToken).toBe('function')
+  })
+
+  it('exports useFloatChat hook', async () => {
+    const { useFloatChat } = await import('@/lib/providers')
+    expect(typeof useFloatChat).toBe('function')
+  })
+
+  it('exports useInlineChat hook', async () => {
+    const { useInlineChat } = await import('@/lib/providers')
+    expect(typeof useInlineChat).toBe('function')
   })
 })

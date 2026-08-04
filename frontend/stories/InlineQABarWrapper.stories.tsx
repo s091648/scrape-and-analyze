@@ -3,6 +3,7 @@ import React from 'react'
 import { SessionProvider } from 'next-auth/react'
 import { InlineQABarWrapper } from '../components/features/chat/InlineQABarWrapper'
 import { PinnedReportProvider } from '../lib/providers/pinned-article-provider'
+import { InlineChatProvider } from '../lib/providers/inline-chat-provider'
 import { withDarkMode } from './decorators'
 
 const mockSession = {
@@ -17,7 +18,9 @@ const meta: Meta<typeof InlineQABarWrapper> = {
     (Story) => (
       <SessionProvider session={mockSession}>
         <PinnedReportProvider>
-          <Story />
+          <InlineChatProvider>
+            <Story />
+          </InlineChatProvider>
         </PinnedReportProvider>
       </SessionProvider>
     ),
