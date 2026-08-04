@@ -647,3 +647,29 @@ def build_dedup_reconciliation_pipeline():
 
     logger.info("dedup_reconciliation_bootstrap_complete")
     return client, dedup_repo, session
+
+
+# ---------------------------------------------------------------------------
+# RAG Backfill Pipeline：為既有文章補做向量化，補齊 has_vectors = FALSE 的缺口
+# ---------------------------------------------------------------------------
+
+def build_rag_backfill_pipeline():
+    """Assemble (IngestArticleForRagUseCase | None, RagBackfillRepository, session)
+    for the RAG-backfill cron job. Reuses build_rag_ingestion_service() — the
+    same RagSdkIngestionService construction the live scrape pipeline uses via
+    build_collection_pipeline() — so backfilled articles are chunked/embedded
+    identically to freshly-scraped ones. The use_case is None (same contract
+    as build_rag_ingestion_service()) when RAG is disabled or misconfigured;
+    callers must check for that before use."""
+    from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
+    from src.infrastructure.persistence.intelligence.rag_backfill_repo_impl import SqlAlchemyRagBackfillRepository
+
+    init_db()
+    session = get_session()
+
+    rag_service, _ = build_rag_ingestion_service()
+    use_case = IngestArticleForRagUseCase(rag_service) if rag_service is not None else None
+    backfill_repo = SqlAlchemyRagBackfillRepository(session=session)
+
+    logger.info("rag_backfill_bootstrap_complete", rag_enabled=use_case is not None)
+    return use_case, backfill_repo, session

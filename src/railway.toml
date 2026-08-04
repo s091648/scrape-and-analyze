@@ -39,6 +39,19 @@
 #                    tombstoning the loser via `articles.merged_into_id` —
 #                    never deletes a row (see 25_add_article_merge_tombstone
 #                    migration for why).
+#   rag-backfill   → Config File Path: src/railway.toml (reuses this same build)
+#                    Start Command:   /app/.venv/bin/python -m src.entrypoints.cli.backfill_rag
+#                    Cron Schedule:   0 5 * * *  (daily, 05:00 UTC — after dedup-reconcile)
+#                    Restart Policy:  never
+#                    UV_GROUPS:       "scraper http-clients"
+#                    (needs the "scraper" group for chatbot-plugin-sdk — the RAG
+#                    SDK dependency lives there, not in a dedicated group, since
+#                    only the worker needed it before this service existed)
+#                    Ingests articles.has_vectors = FALSE rows into the vector
+#                    store via the same RagSdkIngestionService/IngestArticleForRagUseCase
+#                    the live scrape pipeline uses — catches articles that
+#                    predate the RAG feature or failed ingestion at scrape time.
+#                    Independent of refresh-metrics and dedup-reconcile.
 #   backend        → Dockerfile Path: backend/Dockerfile
 #                    Start Command:   (empty — use Dockerfile CMD)
 #                    Restart Policy:  on_failure

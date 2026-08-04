@@ -106,6 +106,7 @@ class SpanName(StrEnum):
     WEEKLY_REPORT_NOTIFY = "weekly_report.notify"
     REFRESH_METRICS_RUN = "refresh_metrics.run"
     DEDUP_RECONCILE_RUN = "dedup_reconcile.run"
+    RAG_BACKFILL_RUN = "rag_backfill.run"
 
 
 # ── Span attributes ──────────────────────────────────────────────────────────
