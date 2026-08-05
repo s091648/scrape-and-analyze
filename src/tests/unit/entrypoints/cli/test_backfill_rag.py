@@ -52,6 +52,27 @@ def test_find_pending_called_with_limit_arg(mock_validate, mock_logging, mock_ht
 @patch("src.entrypoints.cli.backfill_rag.init_default_client")
 @patch("src.entrypoints.cli.backfill_rag.configure_logging")
 @patch("src.entrypoints.cli.backfill_rag.validate_config")
+def test_limit_arg_defaults_to_twenty(mock_validate, mock_logging, mock_http, mock_pipeline):
+    """Kept low (not refresh_metrics' 200) since RAG's dense embedding provider
+    has no multi-provider rate-limit fallback and shares its daily quota with
+    main.py's real-time ingestion — see module docstring."""
+    use_case = MagicMock()
+    backfill_repo = MagicMock()
+    backfill_repo.find_pending.return_value = []
+    session = MagicMock()
+    mock_pipeline.return_value = (use_case, backfill_repo, session)
+
+    with patch("sys.argv", ["backfill_rag"]):
+        from src.entrypoints.cli.backfill_rag import main
+        main()
+
+    backfill_repo.find_pending.assert_called_once_with(20)
+
+
+@patch("src.bootstrap.build_rag_backfill_pipeline")
+@patch("src.entrypoints.cli.backfill_rag.init_default_client")
+@patch("src.entrypoints.cli.backfill_rag.configure_logging")
+@patch("src.entrypoints.cli.backfill_rag.validate_config")
 def test_ingests_every_candidate_article(mock_validate, mock_logging, mock_http, mock_pipeline):
     article_a = _mock_article()
     article_b = _mock_article()

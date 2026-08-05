@@ -43,6 +43,20 @@ Concurrency:
     asyncio.run() internally), so it's offloaded to a worker thread and
     bounded by --concurrency (default 5) to cap concurrent embedding-API
     calls without blocking unrelated articles behind one slow request.
+
+Quota sharing with main.py:
+    Unlike the LLM analysis chain (ResilientLLMService) or tag embeddings
+    (ResilientEmbeddingService, backfill_tag_embeddings.py), RAG's dense
+    embedding provider (build_rag_ingestion_service() in src/bootstrap.py)
+    is a single, fixed provider read from env vars — no multi-provider
+    rate-limit fallback. Its RPD is also tracked independently per process,
+    but both this script and main.py's real-time RagIngestionHandler draw
+    against the same underlying provider-side daily quota. --limit therefore
+    defaults conservatively (20) so one backfill run can't starve same-day
+    real-time ingestion — tune up once real-world quota headroom across
+    both is confirmed. Worst case either way is self-healing regardless:
+    an article that fails ingestion (real-time or backfill) just stays
+    has_vectors = FALSE and is retried on the next backfill run.
 """
 import argparse
 import asyncio
@@ -97,7 +111,11 @@ def main() -> None:
     from shared.enums.observability import SpanName, SpanAttribute
 
     parser = argparse.ArgumentParser(description="Backfill RAG vector-store ingestion for existing articles")
-    parser.add_argument("--limit", type=int, default=200, help="Max number of articles to backfill per run")
+    parser.add_argument("--limit", type=int, default=20,
+                         help="Max number of articles to backfill per run (default 20 — kept low since RAG's "
+                              "dense embedding provider has no multi-provider rate-limit fallback like the LLM "
+                              "chain does, and shares its daily quota with main.py's real-time ingestion; tune up "
+                              "once real-world quota headroom is confirmed)")
     parser.add_argument("--concurrency", type=int, default=5,
                          help="Max number of articles ingested concurrently (default 5; see module docstring)")
     args = parser.parse_args()
