@@ -5,6 +5,13 @@ export interface ArticleSource {
   title: string | null
   url: string
   public_article_id: string | null
+  /** 1-based index of this source's [N] citation marker in the original LLM context — chat's
+   * backend narrows `sources` down to only the cited articles, which can leave gaps (e.g. only
+   * [1] and [3] cited out of four), so this must be used to resolve a [N] marker instead of the
+   * array position. Weekly-report sources don't set this (their list is never narrowed, so
+   * position already lines up with the marker) — CitedContent falls back to positional lookup
+   * when it's absent. */
+  number?: number
 }
 
 /** One question+answer exchange — paired up from useChat()'s flat `messages` array so

@@ -69,7 +69,7 @@ function SourceChip({
   }`
   const content = (
     <>
-      <span className="shrink-0 text-[10px] font-bold text-blue-500">{idx + 1}</span>
+      <span className="shrink-0 text-[10px] font-bold text-blue-500">{src.number ?? idx + 1}</span>
       <ExternalLink className="h-2.5 w-2.5 shrink-0" />
       <span className="truncate max-w-[200px]">{src.title ?? src.url}</span>
     </>
@@ -91,6 +91,18 @@ function SourceChip({
       {content}
     </a>
   )
+}
+
+// Resolves a literal [N] marker to its index in `sources`. Chat's `sources` is narrowed down to
+// only the cited articles server-side and can be non-contiguous (e.g. only [1] and [3] cited out
+// of four) — for those, `number` (the marker's original context index) must be used instead of
+// array position. Weekly-report `sources` never narrows and doesn't set `number`, so it falls
+// back to the old positional bounds-check.
+function resolveSourceIndex(sources: ArticleSource[], num: number): number {
+  if (sources.some(s => s.number != null)) {
+    return sources.findIndex(s => s.number === num)
+  }
+  return num >= 1 && num <= sources.length ? num - 1 : -1
 }
 
 export function parseInline(
@@ -136,16 +148,27 @@ export function parseInline(
         }
         // [N] or [N, M, ...] citation reference — LLMs sometimes group multiple sources into
         // one bracket instead of repeating "[N][M]"; render one pill per number either way.
+        //
+        // Models occasionally invent numbers beyond the real source count (e.g. a pinned
+        // article's several paragraphs get mistaken for several distinct sources), producing
+        // groups like "[1, 3]" where only 1 is real, or "[9]" where nothing is. Each number is
+        // resolved independently: real ones become a pill, invented ones are silently dropped
+        // rather than left in as broken-looking literal "[9]" text — the backend already can't
+        // tell which real article an invented number was "supposed" to mean, so there's nothing
+        // useful to show for it.
         if (/^\d+(\s*,\s*\d+)*$/.test(inner) && sources?.length) {
           const nums = inner.split(',').map(n => parseInt(n.trim(), 10))
-          if (nums.every(n => n >= 1 && n <= sources.length)) {
+          const resolved = nums
+            .map(num => ({ num, idx: resolveSourceIndex(sources, num) }))
+            .filter(r => r.idx !== -1)
+          if (resolved.length > 0) {
             if (buf) { parts.push(buf); buf = '' }
-            for (const num of nums) {
-              const src = sources[num - 1]
+            for (const { num, idx } of resolved) {
+              const src = sources[idx]
               parts.push(
                 <button
                   key={`${i}-${num}`}
-                  onClick={() => onRefClick?.(num - 1)}
+                  onClick={() => onRefClick?.(idx)}
                   title={src.title ?? src.url}
                   className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] rounded-full bg-blue-100 text-blue-600 text-[9px] font-bold hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-400 mx-0.5 align-middle cursor-pointer"
                 >
@@ -156,6 +179,10 @@ export function parseInline(
             i = closeBracket + 1
             continue
           }
+          // No number in the group resolved to a real source — a fully invented citation.
+          // Drop it entirely rather than falling through to show the literal "[9]" text below.
+          i = closeBracket + 1
+          continue
         }
       }
     }
