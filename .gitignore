@@ -133,6 +133,12 @@ site/constitution.md
 site/.vitepress/cache/
 
 # -----------------------------
+# Speckit local-only planning artifacts (not committed)
+# -----------------------------
+specs/*/research.md
+specs/*/quickstart.md
+
+# -----------------------------
 # Local development files
 # -----------------------------
 db_dumps/

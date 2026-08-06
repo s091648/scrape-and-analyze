@@ -1,10 +1,29 @@
 import { defineConfig } from 'vitepress'
 
+// Spec markdown is plain GFM and may legitimately contain literal "{{ }}" (e.g. GitHub
+// Actions expression syntax like ${{ vars.BACKEND_URL }}) inside inline code spans.
+// VitePress compiles markdown output as a Vue SFC template; unlike fenced code blocks,
+// inline code spans are NOT wrapped in v-pre, so a raw "{{ }}" there gets parsed as a
+// real Vue mustache interpolation and crashes the build. Escape braces as HTML entities
+// in the rendered <code> output instead of requiring spec authors to hand-write Vue
+// escaping (<code v-pre>) in their markdown.
+function escapeMustache(md) {
+  const renderInlineCode = md.renderer.rules.code_inline
+  md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+    return renderInlineCode(tokens, idx, options, env, self)
+      .replace(/\{\{/g, '&#123;&#123;')
+      .replace(/\}\}/g, '&#125;&#125;')
+  }
+}
+
 export default defineConfig({
   title: 'Article Analyzer',
   description: 'Speckit SDD specification documentation',
   base: process.env.VITEPRESS_BASE || '/',
   ignoreDeadLinks: [/localhost/, /^\.?\/?research\/?$/],
+  markdown: {
+    config: escapeMustache,
+  },
   themeConfig: {
     storybookUrl: process.env.STORYBOOK_URL || '',
     backendUrl: process.env.BACKEND_URL || '',
