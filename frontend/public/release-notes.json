@@ -1,5 +1,23 @@
 [
   {
+    "version": "v1.4.1",
+    "date": "2026-08-06",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Fixed a rendering issue where template characters were not properly escaped in the documentation site."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the release documentation for the version 1.4.0 release."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the application's internal version to 1.4.0."
+      }
+    ]
+  },
+  {
     "version": "v1.4.0",
     "date": "2026-08-06",
     "changes": [
