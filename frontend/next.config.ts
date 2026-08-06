@@ -6,6 +6,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   env: {
     APP_ENV: process.env.APP_ENV,
+    // Sentry DSNs aren't secrets (they only submit events, under rate limits) —
+    // no need for a separate NEXT_PUBLIC_ var duplicating the backend's value.
+    SENTRY_DSN: process.env.SENTRY_DSN,
   },
 };
 

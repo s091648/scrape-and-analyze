@@ -56,7 +56,7 @@ describe('llm-providers API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/llm-providers', expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
-      }))
+      }), undefined, { silent: true })
       expect(result.id).toBe('p2')
     })
 
@@ -77,7 +77,7 @@ describe('llm-providers API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/llm-providers/p1', expect.objectContaining({
         method: 'PATCH',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
       expect(result.model).toBe('gemini-4')
     })
 
@@ -96,7 +96,7 @@ describe('llm-providers API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/llm-providers/p1', expect.objectContaining({
         method: 'DELETE',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
     })
 
     it('throws on HTTP error', async () => {
@@ -117,7 +117,7 @@ describe('llm-providers API', () => {
         method: 'PUT',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify({ order }),
-      }))
+      }), undefined, { silent: true })
       expect(result).toHaveLength(2)
     })
 

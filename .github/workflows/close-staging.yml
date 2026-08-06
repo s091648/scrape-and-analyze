@@ -32,34 +32,15 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Remove each staging service's deployment now that the PR is merged
-        run: |
-          set -uo pipefail
-          FAILED=0
-
-          # name -> service ID (must match check-staging-deployments/deploy-staging-* in ci.yml)
-          declare -A SERVICES=(
-            [dashboard-backend]="d20f24b5-6c3f-4732-a9b8-de13486db754"
-            [dashboard-frontend]="54f665be-c49e-407e-bf23-e414587b9984"
-            [storybook]="3880b0e2-2c02-429f-892c-814a02379e35"
-            [scrape-and-analyze]="84433f38-f9e9-4082-bd2e-2af327e3ba69"
-            [chatbot-plugin]="e3a28eae-2765-456e-822c-841598fcf1c2"
-            [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
-            [postgres]="c11d60e9-9bb3-450d-8a78-98f85ba4e890"
-            [redis]="ac3aa7a4-c431-4d43-9827-f493dad682df"
-            [weekly-report]="0b2a6997-6401-4f6e-91d8-ba1abe34ea46"
-            [refresh-metrics]="a8d5fa77-7498-4447-843f-f328d6d595a5"
-          )
-
-          for name in "${!SERVICES[@]}"; do
-            id="${SERVICES[$name]}"
-            echo "::group::Removing $name ($id)"
-            if ! railway down --yes --service "$id" --environment staging; then
-              echo "::error::Failed to remove staging deployment for $name"
-              FAILED=1
-            fi
-            echo "::endgroup::"
-          done
-
-          exit $FAILED
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/close-staging-deployments.sh"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
+          SERVICE_ID_DASHBOARD_FRONTEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
+          SERVICE_ID_STORYBOOK: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
+          SERVICE_ID_SCRAPE_AND_ANALYZE: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
+          SERVICE_ID_CHATBOT_PLUGIN: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
+          SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
+          SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
+          SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}

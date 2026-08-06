@@ -158,7 +158,7 @@ export function RunWaterfallDialog({
           </p>
         </DialogHeader>
 
-        <div className="overflow-auto flex-1">
+        <div className="themed-scrollbar overflow-auto flex-1">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 bg-background border-b border-border">
               <tr>

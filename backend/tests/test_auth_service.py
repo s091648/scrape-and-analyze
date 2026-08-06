@@ -4,11 +4,17 @@ Unit tests for backend/services/auth_service.py.
 Existing test_auth.py tests the router layer with mocked services.
 These tests call service functions directly with a mock DB session.
 """
+import os
+import time
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+from jose import jwt
+
+os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
+SECRET = os.environ["NEXTAUTH_SECRET"]
 
 
 # ---------------------------------------------------------------------------
@@ -338,3 +344,83 @@ def test_verify_password_empty_string():
 
     hashed = hash_password("non-empty")
     assert verify_password("", hashed) is False
+
+
+# ---------------------------------------------------------------------------
+# compute_guest_id / create_guest_access_token / create_guest_refresh_token
+# (018-public-api-auth)
+# ---------------------------------------------------------------------------
+
+def _make_request(ip="1.2.3.4", user_agent="pytest-agent", forwarded_for=None):
+    request = MagicMock()
+    headers = {"user-agent": user_agent}
+    if forwarded_for:
+        headers["x-forwarded-for"] = forwarded_for
+    request.headers = headers
+    request.client.host = ip
+    return request
+
+
+def test_compute_guest_id_is_deterministic_for_same_ip_and_ua():
+    from backend.services.auth_service import compute_guest_id
+
+    assert compute_guest_id(_make_request()) == compute_guest_id(_make_request())
+
+
+def test_compute_guest_id_differs_for_different_ip():
+    from backend.services.auth_service import compute_guest_id
+
+    id_a = compute_guest_id(_make_request(ip="1.2.3.4"))
+    id_b = compute_guest_id(_make_request(ip="5.6.7.8"))
+    assert id_a != id_b
+
+
+def test_compute_guest_id_differs_for_different_user_agent():
+    from backend.services.auth_service import compute_guest_id
+
+    id_a = compute_guest_id(_make_request(user_agent="agent-a"))
+    id_b = compute_guest_id(_make_request(user_agent="agent-b"))
+    assert id_a != id_b
+
+
+def test_compute_guest_id_prefers_x_forwarded_for():
+    from backend.services.auth_service import compute_guest_id
+
+    via_proxy = _make_request(ip="1.2.3.4", forwarded_for="9.9.9.9, 1.2.3.4")
+    direct = _make_request(ip="9.9.9.9")
+    assert compute_guest_id(via_proxy) == compute_guest_id(direct)
+
+
+def test_create_guest_access_token_has_1h_expiry_and_correct_claims():
+    from backend.services.auth_service import create_guest_access_token
+
+    before = int(time.time())
+    token = create_guest_access_token("guest-id-123")
+    payload = jwt.decode(token, SECRET, algorithms=["HS256"])
+
+    assert payload["tier"] == "guest"
+    assert payload["guest_id"] == "guest-id-123"
+    assert payload["token_use"] == "access"
+    assert 3595 <= payload["exp"] - before <= 3605
+
+
+def test_create_guest_refresh_token_has_30d_expiry_and_correct_claims():
+    from backend.services.auth_service import create_guest_refresh_token
+
+    before = int(time.time())
+    token = create_guest_refresh_token("guest-id-123")
+    payload = jwt.decode(token, SECRET, algorithms=["HS256"])
+
+    assert payload["tier"] == "guest"
+    assert payload["guest_id"] == "guest-id-123"
+    assert payload["token_use"] == "refresh"
+    thirty_days = 30 * 24 * 60 * 60
+    assert thirty_days - 5 <= payload["exp"] - before <= thirty_days + 5
+
+
+def test_access_and_refresh_tokens_share_same_guest_id():
+    from backend.services.auth_service import create_guest_access_token, create_guest_refresh_token
+
+    access = jwt.decode(create_guest_access_token("shared-id"), SECRET, algorithms=["HS256"])
+    refresh = jwt.decode(create_guest_refresh_token("shared-id"), SECRET, algorithms=["HS256"])
+    assert access["guest_id"] == refresh["guest_id"] == "shared-id"

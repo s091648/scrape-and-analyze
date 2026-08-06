@@ -56,7 +56,7 @@ export async function updateMetricDefinition(
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify(data),
-    }),
+    }, undefined, { silent: true }),
   )
   return res.json()
 }

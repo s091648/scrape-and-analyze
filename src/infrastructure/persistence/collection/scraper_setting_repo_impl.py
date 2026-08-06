@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
+from shared.domain.exceptions import ValidationError
 from src.modules.collection.domain.entities import ScraperSetting
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.shared.logging import get_logger
@@ -43,7 +44,19 @@ class SqlAlchemyScraperSettingRepository(ScraperSettingRepository):
             .all()
         )
 
-        return [self._to_entity(row) for row in rows]
+        # A single row with an invalid selector_config must not abort the whole
+        # run — every other due source should still be scraped this cycle.
+        settings = []
+        for row in rows:
+            try:
+                settings.append(self._to_entity(row))
+            except ValidationError as e:
+                logger.error(
+                    "invalid_selector_config_skipped",
+                    setting_id=str(row.id), source=row.name,
+                    source_type=row.source_type, error=str(e),
+                )
+        return settings
 
     def mark_scraped(self, setting_id: UUID) -> None:
         """Set last_scraped_at to now and commit for the given scraper setting."""

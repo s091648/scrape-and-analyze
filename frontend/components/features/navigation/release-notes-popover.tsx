@@ -125,7 +125,7 @@ export function ReleaseNotesPopover({ disableTutorialTargetId = false }: { disab
             <div className="px-4 py-3 border-b border-border shrink-0">
               <p className="font-semibold text-sm">Release Notes</p>
             </div>
-            <div className="overflow-y-auto flex-1">
+            <div className="themed-scrollbar overflow-y-auto flex-1">
               {loading && (
                 <div className="px-4 py-6 text-sm text-muted-foreground text-center">Loading…</div>
               )}

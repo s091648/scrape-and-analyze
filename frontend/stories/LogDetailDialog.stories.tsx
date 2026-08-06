@@ -95,6 +95,28 @@ export const NonJsonRaw: Story = {
   },
 }
 
+export const WithException: Story = {
+  name: 'Error — with exception traceback',
+  args: {
+    entry: makeEntry({
+      level: 'error',
+      message: 'unhandled exception during article analysis',
+      raw: JSON.stringify({
+        level: 'error',
+        event: 'article_analysis_crashed',
+        article_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        exception:
+          'Traceback (most recent call last):\n' +
+          '  File "src/modules/intelligence/application/use_cases/analyze_article.py", line 42, in execute\n' +
+          '    result = self._llm_service.analyze(article)\n' +
+          '  File "src/infrastructure/intelligence/llm/resilient_llm_service.py", line 88, in analyze\n' +
+          '    raise AllProvidersExhaustedError(article_id)\n' +
+          'shared.domain.exceptions.ExternalDependencyError: all LLM providers exhausted',
+      }),
+    }),
+  },
+}
+
 export const NoExtraFields: Story = {
   name: 'No extra fields',
   args: {

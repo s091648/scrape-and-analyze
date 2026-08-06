@@ -26,7 +26,7 @@ describe('tags API', () => {
       mockOk(group)
       const { fetchTagGroup } = await import('@/lib/api/tags')
       const result = await fetchTagGroup('g1')
-      expect(mockApiFetch).toHaveBeenCalledWith('/tag-groups/g1')
+      expect(mockApiFetch).toHaveBeenCalledWith('/tag-groups/g1', {}, undefined, { silent: true })
       expect(result.name).toBe('ai')
     })
 
@@ -71,7 +71,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tag-groups', expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
       expect(result.name).toBe('ml')
     })
 
@@ -92,7 +92,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tag-groups/g1', expect.objectContaining({
         method: 'PUT',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
       expect(result.name).toBe('ai_v2')
     })
 
@@ -111,7 +111,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tag-groups/g1', expect.objectContaining({
         method: 'DELETE',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
     })
 
     it('throws on failure', async () => {
@@ -130,7 +130,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tags/t1', expect.objectContaining({
         method: 'PUT',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
       expect(result.name).toBe('new-name')
     })
 
@@ -149,7 +149,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tags/t1', expect.objectContaining({
         method: 'DELETE',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
-      }))
+      }), undefined, { silent: true })
     })
 
     it('throws on failure', async () => {
@@ -168,7 +168,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tags/t1', expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({ tag_group_id: 'g2' }),
-      }))
+      }), undefined, { silent: true })
       expect(result.id).toBe('t1')
     })
 
@@ -190,7 +190,7 @@ describe('tags API', () => {
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(moves),
-      }))
+      }), undefined, { silent: true })
       expect(result.succeeded).toEqual(['t1'])
     })
 
@@ -212,7 +212,7 @@ describe('tags API', () => {
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(body),
-      }))
+      }), undefined, { silent: true })
       expect(result.name).toBe('merged')
     })
 
@@ -234,7 +234,7 @@ describe('tags API', () => {
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(items),
-      }))
+      }), undefined, { silent: true })
     })
 
     it('throws on failure', async () => {
@@ -310,7 +310,7 @@ describe('tags API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/tags/t1', expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify({ ungroup: true }),
-      }))
+      }), undefined, { silent: true })
     })
   })
 })

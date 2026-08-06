@@ -32,6 +32,7 @@ eggs/
 lib/
 lib64/
 !frontend/lib/
+!.github/scripts/lib/
 parts/
 sdist/
 var/
@@ -136,3 +137,6 @@ site/.vitepress/cache/
 # -----------------------------
 db_dumps/
 migrations/
+
+# Playwright MCP browser-testing artifacts (screenshots, snapshots, console logs)
+.playwright-mcp/

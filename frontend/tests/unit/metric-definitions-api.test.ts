@@ -72,7 +72,7 @@ describe('metric-definitions API', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ icon_name: 'trophy' }),
-      })
+      }, undefined, { silent: true })
       expect(result).toEqual(updated)
     })
 

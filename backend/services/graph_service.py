@@ -49,7 +49,11 @@ def query_analyses(
 ) -> list:
     from models.analysis import Analysis
     from models.article import Article
-    query = db.query(Analysis).join(Article, Article.id == Analysis.article_id)
+    query = (
+        db.query(Analysis)
+        .join(Article, Article.id == Analysis.article_id)
+        .filter(Article.merged_into_id.is_(None))
+    )
     if topic_id:
         query = query.filter(Article.topic_id == topic_id)
     if published_after:
@@ -99,6 +103,7 @@ def query_group_articles(
         .join(Tag, Tag.id == at.c.tag_id)
         .join(TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id)
         .filter(TagGroupDefinition.name == group_name)
+        .filter(Article.merged_into_id.is_(None))
         .distinct()
     )
     if topic_id:

@@ -22,6 +22,9 @@ const zhTW: Record<string, string> = {
   'rag.genericError': '發生錯誤，請稍後再試',
   'rag.previousTurn': '上一則問題',
   'rag.nextTurn': '下一則問題',
+  'rag.toolStatusRunning': '執行中',
+  'rag.toolStatusDone': '完成',
+  'rag.toolStatusError': '錯誤',
 }
 
 vi.mock('@/lib/providers', () => ({
@@ -29,7 +32,7 @@ vi.mock('@/lib/providers', () => ({
 }))
 
 let turnCounter = 0
-function makeTurn(content: string, opts: { thinking?: string; sources?: any[]; userContent?: string } = {}): ConversationTurn {
+function makeTurn(content: string, opts: { thinking?: string; sources?: any[]; userContent?: string; toolCalls?: any[] } = {}): ConversationTurn {
   turnCounter += 1
   const id = `a-${turnCounter}`
   return {
@@ -38,6 +41,7 @@ function makeTurn(content: string, opts: { thinking?: string; sources?: any[]; u
       : undefined,
     assistantMessage: { id, role: 'assistant', content, thinking: opts.thinking, timestamp: new Date() },
     sources: opts.sources ?? [],
+    toolCalls: opts.toolCalls,
   }
 }
 
@@ -271,6 +275,124 @@ describe('AnswerDisplay', () => {
     expect(screen.queryByRole('button', { name: /思考過程/ })).not.toBeInTheDocument()
   })
 
+  // ── Live-streaming thinking (regression) ────────────────────────────────────
+  // Previously always collapsed by default: nothing was visibly wrong (the `thinking` prop
+  // really was growing chunk-by-chunk in state), but nobody could ever watch it grow without
+  // first clicking it open — by the time anyone did, generation had usually already finished,
+  // making it look like the whole thing "burst" into view at once rather than streamed in.
+
+  it('renders the thinking block already open for the turn currently streaming', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('Partial answer so far', { thinking: 'Reasoning as it streams in' })]}
+        currentIndex={0}
+        isLoading
+        {...noopPager}
+      />
+    )
+    expect(screen.getByText('Reasoning as it streams in')).toBeInTheDocument()
+  })
+
+  it('renders the thinking block collapsed for a settled (non-live) turn', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('Final answer', { thinking: 'Already-finished reasoning' })]}
+        currentIndex={0}
+        isLoading={false}
+        {...noopPager}
+      />
+    )
+    expect(screen.queryByText('Already-finished reasoning')).not.toBeInTheDocument()
+  })
+
+  it('renders the thinking block collapsed when viewing an older turn while a newer one streams', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[
+          makeTurn('Old answer', { thinking: 'Old reasoning' }),
+          makeTurn('New partial answer', { thinking: 'New reasoning' }),
+        ]}
+        currentIndex={0}
+        isLoading
+        {...noopPager}
+      />
+    )
+    expect(screen.queryByText('Old reasoning')).not.toBeInTheDocument()
+  })
+
+  it('renders the thinking block inside the same content bubble as the answer, not as a separate box above it', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('The answer text', { thinking: 'Some reasoning' })]}
+        currentIndex={0}
+        {...noopPager}
+      />
+    )
+    const toggle = screen.getByRole('button', { name: /思考過程/ })
+    const bubble = toggle.closest('.bg-white\\/55')
+    expect(bubble).not.toBeNull()
+    expect(bubble?.textContent).toContain('The answer text')
+  })
+
+  // ── Tool call display (moved here from AgentInput's own uncollapsible card — see
+  // InlineQABarWrapper.tsx and ToolCallBlock in AnswerDisplay.tsx) ─────────────────────────────
+
+  it('shows a running status badge for a tool call with no result yet', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(<AnswerDisplay turns={[makeTurn('Answer', {
+      toolCalls: [{ id: 't1', role: 'tool', content: '', toolCall: { id: 'c1', name: 'search_articles', arguments: { query: 'AWS IoT' } } }],
+    })]} currentIndex={0} {...noopPager} />)
+    expect(screen.getByText('search_articles')).toBeInTheDocument()
+    expect(screen.getByText('執行中')).toBeInTheDocument()
+  })
+
+  it('shows a done status badge once the tool call has a non-error result', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(<AnswerDisplay turns={[makeTurn('Answer', {
+      toolCalls: [{
+        id: 't1', role: 'tool', content: '',
+        toolCall: { id: 'c1', name: 'search_articles', arguments: { query: 'AWS IoT' } },
+        toolResult: { toolCallId: 'c1', content: 'some huge result text'.repeat(500), isError: false },
+      }],
+    })]} currentIndex={0} {...noopPager} />)
+    expect(screen.getByText('完成')).toBeInTheDocument()
+  })
+
+  it('shows an error status badge when the tool result is an error', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(<AnswerDisplay turns={[makeTurn('Answer', {
+      toolCalls: [{
+        id: 't1', role: 'tool', content: '',
+        toolCall: { id: 'c1', name: 'search_articles', arguments: {} },
+        toolResult: { toolCallId: 'c1', content: 'failed', isError: true },
+      }],
+    })]} currentIndex={0} {...noopPager} />)
+    expect(screen.getByText('錯誤')).toBeInTheDocument()
+  })
+
+  it('never renders the raw toolResult.content (that stays as proper citations via CitedContent)', async () => {
+    const hugeResult = 'x'.repeat(5000)
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(<AnswerDisplay turns={[makeTurn('Answer', {
+      toolCalls: [{
+        id: 't1', role: 'tool', content: '',
+        toolCall: { id: 'c1', name: 'search_articles', arguments: { query: 'x' } },
+        toolResult: { toolCallId: 'c1', content: hugeResult, isError: false },
+      }],
+    })]} currentIndex={0} {...noopPager} />)
+    expect(screen.queryByText(hugeResult)).not.toBeInTheDocument()
+  })
+
+  it('renders no tool-call block when the turn has none', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(<AnswerDisplay turns={[makeTurn('Normal answer')]} currentIndex={0} {...noopPager} />)
+    expect(screen.queryByText('search_articles')).not.toBeInTheDocument()
+  })
+
   // ── Turn pager (2026-07-14) ────────────────────────────────────────────
 
   it('shows the paired user question above the answer', async () => {
@@ -322,11 +444,97 @@ describe('AnswerDisplay', () => {
     expect(onPrevTurn).toHaveBeenCalled()
   })
 
-  it('hides the pager entirely while loading, even with multiple turns', async () => {
+  it('keeps the pager visible and usable while a new turn is streaming, so older turns stay browsable', async () => {
     const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
     render(
       <AnswerDisplay turns={[makeTurn('First'), makeTurn('Second')]} currentIndex={1} isLoading {...noopPager} />
     )
-    expect(screen.queryByLabelText('上一則問題')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('上一則問題')).toBeInTheDocument()
+    expect(screen.getByLabelText('上一則問題')).not.toBeDisabled()
+  })
+
+  // ── Pending turn (question sent, no reply yet) (2026-08-03) ────────────────
+
+  function makePendingTurn(userContent: string): ConversationTurn {
+    turnCounter += 1
+    return {
+      userMessage: { id: `u-${turnCounter}`, role: 'user', content: userContent, timestamp: new Date() },
+      assistantMessage: undefined,
+      sources: [],
+    }
+  }
+
+  it('shows a thinking page for a turn whose question was sent but has no reply yet', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay turns={[makePendingTurn('What is RAG?')]} currentIndex={0} isLoading {...noopPager} />
+    )
+    expect(screen.getByText('What is RAG?')).toBeInTheDocument()
+    expect(screen.getByText('思考中…')).toBeInTheDocument()
+  })
+
+  it('shows the pending turn immediately alongside older settled turns, with the pager active', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First answer'), makePendingTurn('Second question')]}
+        currentIndex={1}
+        isLoading
+        {...noopPager}
+      />
+    )
+    expect(screen.getByText('Second question')).toBeInTheDocument()
+    expect(screen.getByText('思考中…')).toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('shows the request error inline on a pending turn that never got a reply', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makePendingTurn('A question')]}
+        currentIndex={0}
+        error={new Error('HTTP 503')}
+        {...noopPager}
+      />
+    )
+    expect(screen.getByText('A question')).toBeInTheDocument()
+    expect(screen.getByText('問答服務暫時無法使用，請稍後再試')).toBeInTheDocument()
+  })
+
+  // ── Unread response red dot (2026-08-03) ────────────────────────────────────
+
+  it('shows a red dot on the next button when a response settled while viewing an older turn', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First'), makeTurn('Second')]}
+        currentIndex={0}
+        hasUnreadResponse
+        {...noopPager}
+      />
+    )
+    expect(document.querySelector('.bg-red-500')).toBeInTheDocument()
+  })
+
+  it('does not show a red dot when already viewing the newest turn', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay
+        turns={[makeTurn('First'), makeTurn('Second')]}
+        currentIndex={1}
+        hasUnreadResponse
+        {...noopPager}
+      />
+    )
+    expect(document.querySelector('.bg-red-500')).not.toBeInTheDocument()
+  })
+
+  it('does not show a red dot when hasUnreadResponse is false', async () => {
+    const { AnswerDisplay } = await import('@/components/features/chat/AnswerDisplay')
+    render(
+      <AnswerDisplay turns={[makeTurn('First'), makeTurn('Second')]} currentIndex={0} {...noopPager} />
+    )
+    expect(document.querySelector('.bg-red-500')).not.toBeInTheDocument()
   })
 })

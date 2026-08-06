@@ -1,15 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
-import { useSession } from 'next-auth/react'
+import { useEffect, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
-import { AgentInput, openaiAdapter, useChat, type StreamAdapter, type StreamEvent } from '@s091648/chatbot-plugin-ui'
+import { AgentInput } from '@s091648/chatbot-plugin-ui'
 import { Inbox, Pencil, Sparkles, X } from 'lucide-react'
-import { toast } from 'sonner'
-import { useI18n, useTopic, useTheme, useChatQuota, usePinnedArticle } from '@/lib/providers'
+import { useI18n, useTheme, useChatQuota, usePinnedReport, useInlineChat } from '@/lib/providers'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
-import type { ArticleSource, ChatConversationSnapshot, ConversationTurn } from './types'
+import type { ChatConversationSnapshot } from './types'
 
 interface InlineQABarWrapperProps {
   placeholder?: string
@@ -23,113 +21,36 @@ interface InlineQABarWrapperProps {
   onConversationChange?: (snapshot: ChatConversationSnapshot) => void
 }
 
-const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
-
 export function InlineQABarWrapper({ placeholder, className, onMessageSent, onConversationChange }: InlineQABarWrapperProps) {
-  const { data: session } = useSession()
-  const { selectedTopicId } = useTopic()
   const { t } = useI18n()
   const { mode } = useTheme()
-  const { quota, refreshQuota } = useChatQuota()
-  const { pinnedArticles, removePinnedArticle, pinnedGroups = [], toggleGroupArticle, removeGroup, isPinned } = usePinnedArticle()
+  const { quota } = useChatQuota()
+  const { pinnedArticles, removePinnedArticle, pinnedGroups = [], toggleGroupArticle, removeGroup, isPinned } = usePinnedReport()
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: 'chat-input-dropzone' })
 
-  const token = (session as any)?.accessToken as string | undefined
-  const headers: Record<string, string> = {}
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  if (selectedTopicId) headers['X-Topic-Id'] = selectedTopicId
-  if (pinnedArticles.length > 0) headers['X-Pinned-Article-Ids'] = pinnedArticles.map(a => a.id).join(',')
+  const {
+    messages,
+    turns,
+    currentTurnIndex,
+    isLoading,
+    error,
+    hasUnreadResponse,
+    onPrevTurn,
+    onNextTurn,
+    onSend: sendMessage,
+    onAbort: abort,
+  } = useInlineChat()
 
   // Articles pinned individually (not part of a weekly-report batch) still render as their own pill.
   const groupedArticleIds = new Set(pinnedGroups.flatMap(g => g.articles.map(a => a.id)))
   const individualPills = pinnedArticles.filter(a => !groupedArticleIds.has(a.id))
 
-  const pendingSourcesRef = useRef<ArticleSource[]>([])
-  const prevIsLoadingRef = useRef(false)
-  // Sources for every settled turn, keyed by that turn's assistant message id — unlike a single
-  // "latest sources" value, this survives paging back to an earlier turn (see ConversationTurn).
-  const [sourcesByMessageId, setSourcesByMessageId] = useState<Record<string, ArticleSource[]>>({})
-  const [currentTurnIndex, setCurrentTurnIndex] = useState(0)
-
-  const customAdapter = useMemo((): StreamAdapter => ({
-    ...openaiAdapter,
-    parse(line: string): StreamEvent | null {
-      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-        try {
-          const json = JSON.parse(line.slice(6).trim())
-          if (Array.isArray(json.sources)) {
-            pendingSourcesRef.current = json.sources
-            return null
-          }
-          if (typeof json.thinking === 'string') {
-            return { type: 'thinking_delta', content: json.thinking }
-          }
-        } catch {}
-      }
-      return openaiAdapter.parse(line)
-    },
-  }), [])
-
-  const { messages, sendMessage, isLoading, error, abort } = useChat({
-    endpoint: CHAT_ENDPOINT,
-    streamAdapter: customAdapter,
-    headers,
-    onError: (err) => {
-      if (err.message.includes('429')) {
-        toast.warning(t('rag.rateLimitError'))
-        refreshQuota()
-      } else if (err.message.includes('503')) {
-        toast.error(t('rag.serviceUnavailable'))
-      } else {
-        toast.error(t('rag.genericError'))
-      }
-    },
-  })
-
-  // Every user/assistant message pair, oldest first — lets AnswerDisplay page back through
-  // settled turns instead of only ever showing the latest one. The still-streaming message (if
-  // any) falls back to pendingSourcesRef directly: sourcesByMessageId only gets a message's
-  // entry once its response fully settles, but the backend sends sources early in the stream
-  // (retrieval happens before generation), so inline [N] citations can — and should — already be
-  // clickable while the answer is still typing in, not just after it finishes.
-  const turns = useMemo((): ConversationTurn[] => {
-    const result: ConversationTurn[] = []
-    let pendingUser: typeof messages[number] | undefined
-    for (let i = 0; i < messages.length; i++) {
-      const m = messages[i]
-      if (m.role === 'user') {
-        pendingUser = m
-      } else if (m.role === 'assistant') {
-        const isLiveMessage = isLoading && i === messages.length - 1
-        const sources = sourcesByMessageId[m.id] ?? (isLiveMessage ? pendingSourcesRef.current : [])
-        result.push({ userMessage: pendingUser, assistantMessage: m, sources })
-        pendingUser = undefined
-      }
-    }
-    return result
-  }, [messages, sourcesByMessageId, isLoading])
-
-  useEffect(() => {
-    if (prevIsLoadingRef.current && !isLoading) {
-      // Capture BEFORE clearing — the functional updater passed to setSourcesByMessageId runs
-      // during the next render, by which point pendingSourcesRef.current would already be [] if
-      // we cleared it first. Same fix applied in FloatingChatbotWrapper.tsx.
-      const captured = pendingSourcesRef.current
-      pendingSourcesRef.current = []
-      const justFinished = [...messages].reverse().find(m => m.role === 'assistant')
-      if (justFinished && captured.length > 0) {
-        setSourcesByMessageId(prev => ({ ...prev, [justFinished.id]: captured }))
-      }
-      refreshQuota()
-    }
-    prevIsLoadingRef.current = isLoading
-  }, [isLoading, messages, refreshQuota])
-
-  // A newly-settled turn always becomes the visible one — jumping back to an older turn is a
-  // manual, temporary detour, not a state that should survive the next question being answered.
-  useEffect(() => {
-    setCurrentTurnIndex(Math.max(0, turns.length - 1))
-  }, [turns.length])
+  // AgentInput's only use of `messages` is rendering every role:'tool' entry as an always-expanded
+  // card (raw JSON args + full result, no collapse control of its own) in its own small
+  // toolCallsArea — which is what used to blow out this input bar's height. Tool-call activity now
+  // renders properly (scoped per-turn, with a status badge, no raw result dump) inside AnswerDisplay
+  // instead — see ToolCallBlock in AnswerDisplay.tsx — so AgentInput no longer needs to see them at all.
+  const agentInputMessages = useMemo(() => messages.filter(m => m.role !== 'tool'), [messages])
 
   useEffect(() => {
     if (!isLoading) return
@@ -144,23 +65,21 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
       currentIndex: currentTurnIndex,
       isLoading,
       error,
-      onPrevTurn: () => setCurrentTurnIndex(i => Math.max(0, i - 1)),
-      onNextTurn: () => setCurrentTurnIndex(i => Math.min(turns.length - 1, i + 1)),
+      hasUnreadResponse,
+      onPrevTurn,
+      onNextTurn,
     })
     // onConversationChange intentionally excluded: it's a plain callback prop, not expected to
     // be memoized by the caller — including it would re-report on every parent render for no
     // reason. Every value the snapshot is actually built from is listed below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turns, currentTurnIndex, isLoading, error])
+  }, [turns, currentTurnIndex, isLoading, error, hasUnreadResponse])
 
-  const handleSend = useCallback(
-    (text: string) => {
-      if (!text.trim()) return
-      onMessageSent?.()
-      sendMessage(text)
-    },
-    [sendMessage, onMessageSent]
-  )
+  const handleSend = (text: string) => {
+    if (!text.trim()) return
+    onMessageSent?.()
+    sendMessage(text)
+  }
 
   const quotaText = quota && quota.remaining >= 0
     ? `${quota.remaining} / ${quota.limit} ${t('rag.remainingRequests')}`
@@ -178,18 +97,13 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
           theme={mode}
           onSend={handleSend}
           isLoading={isLoading}
-          messages={messages}
+          messages={agentInputMessages}
           placeholder={placeholder ?? t('rag.placeholder')}
           labels={{
             inputAriaLabel: t('rag.agentInputAriaLabel'),
             sendAriaLabel: t('rag.agentSendAriaLabel'),
             send: t('rag.agentSend'),
             sendLoading: t('rag.agentSendLoading'),
-            toolCallCard: {
-              statusRunning: t('rag.toolStatusRunning'),
-              statusDone: t('rag.toolStatusDone'),
-              statusError: t('rag.toolStatusError'),
-            },
           }}
         />
         {isOver && (
@@ -224,7 +138,7 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
                     </PopoverTrigger>
                     <PopoverContent className="w-64">
                       <p className="mb-2 text-xs font-medium">{t('rag.groupArticlesPopoverTitle')}</p>
-                      <div className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
+                      <div className="themed-scrollbar flex max-h-56 flex-col gap-1.5 overflow-y-auto">
                         {group.articles.map((article, idx) => (
                           <label key={article.id} className="flex cursor-pointer items-center gap-2 text-xs">
                             <Checkbox

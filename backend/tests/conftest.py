@@ -9,6 +9,21 @@ os.environ["NEXTAUTH_SECRET"] = "test-secret"
 # time in unit tests that don't have a real database available.
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/testdb")
 
+# backend/main.py unconditionally calls sentry_sdk.init() and configure_logging()/
+# setup_tracing() at import time whenever these are set. A dev .env (loaded into the
+# test container via docker-compose's env_file) has real Grafana Cloud / Sentry
+# credentials, which would otherwise make every test that hits the app through
+# TestClient — via RequestLoggingMiddleware's per-request `logger.info("request", ...)`
+# — perform a real synchronous HTTP POST to Grafana Loki (logging_loki.LokiHandler.emit
+# is synchronous, not queued), plus real Sentry/OTel client setup. That's on the order of
+# 1-1.5s of real network latency per test across the whole suite. Force these off for
+# the test session regardless of what's in the process env.
+os.environ["SENTRY_DSN"] = ""
+os.environ["GRAFANA_OTLP_USER"] = ""
+os.environ["GRAFANA_OTLP_ENDPOINT"] = ""
+os.environ["GRAFANA_LOKI_URL"] = ""
+os.environ["GRAFANA_LOKI_USER"] = ""
+
 SECRET = os.environ["NEXTAUTH_SECRET"]
 
 
@@ -27,6 +42,13 @@ def make_user_token():
     from jose import jwt
     payload = {"sub": "user", "role": "user", "exp": int(time.time()) + 3600}
     return jwt.encode(payload, SECRET, algorithm="HS256")
+
+
+def make_guest_token(guest_id="test-guest-id"):
+    """Create a guest access token (018-public-api-auth) — every endpoint that used
+    to require no auth at all now requires at least a guest token."""
+    from backend.services.auth_service import create_guest_access_token
+    return create_guest_access_token(guest_id)
 
 
 # ── ORM mock factories ──────────────────────────────────────────────────────

@@ -180,6 +180,91 @@ def test_fetch_papers_sends_mailto_in_user_agent():
     assert "mailto:user@example.com" in headers.get("User-Agent", "")
 
 
+# ---------------------------------------------------------------------------
+# fetch_by_id — used by dedup_reconcile.py to detect upstream (OpenAlex) merges
+# ---------------------------------------------------------------------------
+
+def test_fetch_by_id_returns_raw_dict():
+    client, mock_http = _make_client(SAMPLE_WORK)
+    result = client.fetch_by_id("https://openalex.org/W123456")
+
+    assert result == SAMPLE_WORK
+
+
+def test_fetch_by_id_strips_full_url_to_short_id():
+    client, mock_http = _make_client(SAMPLE_WORK)
+    client.fetch_by_id("https://openalex.org/W123456")
+
+    url = mock_http.get.call_args[0][0]
+    assert url.endswith("/W123456")
+    assert url.count("W123456") == 1  # not double-appended
+
+
+def test_fetch_by_id_accepts_bare_short_id():
+    client, mock_http = _make_client(SAMPLE_WORK)
+    client.fetch_by_id("W123456")
+
+    url = mock_http.get.call_args[0][0]
+    assert url.endswith("/W123456")
+
+
+def test_fetch_by_id_returns_merged_survivor_when_redirected():
+    """The mechanism dedup_reconcile.py relies on: OpenAlex transparently
+    redirects a merged-away work_id, so `requests` (followed by default)
+    returns the survivor's data — whose `id` differs from what was requested."""
+    survivor = dict(SAMPLE_WORK_NO_ARXIV)  # id: W999999
+    client, _ = _make_client(survivor)
+
+    result = client.fetch_by_id("https://openalex.org/W123456")  # requested a different, merged-away id
+
+    assert result["id"] == "https://openalex.org/W999999"
+
+
+def test_fetch_by_id_rate_limit_raises():
+    from src.infrastructure.collection.clients.openalex_client import (
+        OpenAlexClient,
+        OpenAlexRateLimitedError,
+    )
+
+    mock_http = MagicMock()
+    mock_response_429 = Mock()
+    mock_response_429.status_code = 429
+    exc = requests.exceptions.HTTPError("429 Too Many Requests")
+    exc.response = mock_response_429
+    mock_http.get.side_effect = exc
+
+    client = OpenAlexClient(mailto=None, http_client=mock_http)
+
+    with pytest.raises(OpenAlexRateLimitedError):
+        client.fetch_by_id("W123456")
+
+
+def test_fetch_by_id_network_error_returns_none():
+    from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
+
+    mock_http = MagicMock()
+    mock_http.get.side_effect = Exception("Network failure")
+
+    client = OpenAlexClient(mailto=None, http_client=mock_http)
+    result = client.fetch_by_id("W123456")
+
+    assert result is None
+
+
+def test_fetch_by_id_bad_json_returns_none():
+    from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
+
+    mock_response = MagicMock()
+    mock_response.json.side_effect = ValueError("not json")
+    mock_http = MagicMock()
+    mock_http.get.return_value = mock_response
+
+    client = OpenAlexClient(mailto=None, http_client=mock_http)
+    result = client.fetch_by_id("W123456")
+
+    assert result is None
+
+
 def test_reconstruct_abstract_ordering():
     from src.infrastructure.collection.clients.openalex_client import _reconstruct_abstract
 

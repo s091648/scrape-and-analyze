@@ -58,6 +58,46 @@ def test_loki_handler_attached_with_env(monkeypatch):
         root.addHandler(h)
 
 
+def test_sdk_logger_gets_its_own_loki_handler_with_json_formatter(monkeypatch):
+    """The SDK logger must get a distinct LokiHandler instance formatted with
+    _SdkJsonFormatter, not the app's LokiHandler (which uses _StructlogMessageFormatter
+    and would silently drop the SDK record's real level — see module docstring)."""
+    monkeypatch.setenv("GRAFANA_LOKI_URL", "http://loki:3100/loki/api/v1/push")
+    monkeypatch.setenv("GRAFANA_LOKI_USER", "user")
+    monkeypatch.setenv("GRAFANA_API_KEY", "key")
+    root = logging.getLogger()
+    initial_root_handlers = root.handlers[:]
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+    sdk_logger = logging.getLogger("chatbot_plugin_sdk")
+    initial_sdk_handlers = sdk_logger.handlers[:]
+    sdk_logger.handlers.clear()
+
+    created_handlers = [MagicMock(), MagicMock()]
+    mock_loki_module = MagicMock()
+    mock_loki_module.LokiHandler.side_effect = created_handlers
+    with patch.dict("sys.modules", {"logging_loki": mock_loki_module}):
+        from src.infrastructure.shared.observability.loki_logging import configure_loki
+        configure_loki()
+
+    from src.infrastructure.shared.observability.loki_logging import _SdkJsonFormatter, _StructlogMessageFormatter
+    app_handler, sdk_handler = created_handlers
+    assert mock_loki_module.LokiHandler.call_count == 2
+    assert app_handler in root.handlers
+    assert sdk_handler not in root.handlers
+    assert sdk_handler in sdk_logger.handlers
+    assert isinstance(app_handler.setFormatter.call_args.args[0], _StructlogMessageFormatter)
+    assert isinstance(sdk_handler.setFormatter.call_args.args[0], _SdkJsonFormatter)
+
+    for h in root.handlers[:]:
+        root.removeHandler(h)
+    for h in initial_root_handlers:
+        root.addHandler(h)
+    sdk_logger.handlers.clear()
+    for h in initial_sdk_handlers:
+        sdk_logger.addHandler(h)
+
+
 # ---------------------------------------------------------------------------
 # _SdkJsonFormatter
 # ---------------------------------------------------------------------------
@@ -94,7 +134,7 @@ def test_sdk_json_formatter_includes_extra_fields():
     assert data["duration"] == 42
 
 
-def test_sdk_json_formatter_includes_exc_info():
+def test_sdk_json_formatter_includes_exception():
     from src.infrastructure.shared.observability.loki_logging import _SdkJsonFormatter
     formatter = _SdkJsonFormatter()
     try:
@@ -107,8 +147,8 @@ def test_sdk_json_formatter_includes_exc_info():
     )
     output = formatter.format(record)
     data = json.loads(output)
-    assert "exc_info" in data
-    assert "ValueError" in data["exc_info"]
+    assert "exception" in data
+    assert "ValueError" in data["exception"]
 
 
 def test_sdk_json_formatter_omits_correlation_id_when_not_set(monkeypatch):

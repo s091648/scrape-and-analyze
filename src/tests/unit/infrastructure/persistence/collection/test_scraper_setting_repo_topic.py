@@ -96,3 +96,27 @@ def test_get_active_due_includes_prompt_override():
         results = repo.get_active_due()
 
     assert results[0].prompt_override == expected_prompt
+
+
+def test_get_active_due_skips_row_with_invalid_selector_config():
+    """A blog row with no 'links' selector must not abort the whole run —
+    other due sources (e.g. this rss row) still come back."""
+    from src.infrastructure.persistence.collection.scraper_setting_repo_impl import (
+        SqlAlchemyScraperSettingRepository,
+    )
+
+    good_row = _make_setting_row(source_type="rss")
+    good_row.topic_id = None
+    bad_row = _make_setting_row(source_type="blog")
+    bad_row.topic_id = None
+    bad_row.selector_config = {"title": "h1"}  # missing required 'links' selector
+
+    session = MagicMock()
+    session.query.return_value.filter.return_value.all.return_value = [good_row, bad_row]
+    session.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = []
+
+    repo = SqlAlchemyScraperSettingRepository(session=session)
+    results = repo.get_active_due()
+
+    assert len(results) == 1
+    assert results[0].source_type == "rss"

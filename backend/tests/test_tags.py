@@ -14,6 +14,13 @@ def make_admin_token():
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
+def make_guest_token():
+    import os
+    os.environ.setdefault("NEXTAUTH_SECRET", SECRET)
+    from backend.services.auth_service import create_guest_access_token
+    return create_guest_access_token("test-guest-id")
+
+
 def make_mock_tag(name="Transformer", group="research"):
     tag = MagicMock()
     tag.id = uuid.uuid4()
@@ -143,7 +150,7 @@ def test_list_tag_groups_with_topic_id_excludes_zero_count_tags():
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
-        response = client.get(f"/tag-groups?topic_id={topic_id}")
+        response = client.get(f"/tag-groups?topic_id={topic_id}", headers={"Authorization": f"Bearer {make_guest_token()}"})
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -179,7 +186,7 @@ def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
-        response = client.get(f"/tag-groups?topic_id={topic_id}")
+        response = client.get(f"/tag-groups?topic_id={topic_id}", headers={"Authorization": f"Bearer {make_guest_token()}"})
         assert response.status_code == 200
         data = response.json()
         assert len(data[0]["tags"]) == 1
@@ -249,7 +256,10 @@ def test_list_tag_groups_include_similarity_returns_similar_groups():
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
-        response = client.get(f"/tag-groups?topic_id={topic_id}&include_similarity=true")
+        response = client.get(
+            f"/tag-groups?topic_id={topic_id}&include_similarity=true",
+            headers={"Authorization": f"Bearer {make_guest_token()}"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert len(data[0]["similar_groups"]) == 1

@@ -1,13 +1,15 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import func, distinct, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from shared.domain.exceptions import NotFoundError, ConflictError
 from backend.database import get_db
-from backend.auth.guards import require_admin, require_user
+from backend.auth.guards import require_admin, require_user, require_any_token
+from backend.schemas.error import error_responses
 from backend.schemas.tag import (
     TagOut,
     TagGroupOut,
@@ -28,14 +30,15 @@ from backend.services.tag_service import (
     merge_tag_groups,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["tags"])
 
 
-@router.get("/tag-groups", response_model=List[TagGroupOut])
+@router.get("/tag-groups", response_model=List[TagGroupOut], responses=error_responses(401))
 def list_tag_groups(
     topic_id: Optional[UUID] = Query(default=None),
     include_similarity: bool = Query(default=False),
     db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
 ):
     from models.tag_group import TagGroupDefinition
 
@@ -71,7 +74,7 @@ def list_tag_groups(
     return result
 
 
-@router.post("/tag-groups", response_model=TagGroupOut, status_code=201)
+@router.post("/tag-groups", response_model=TagGroupOut, status_code=201, responses=error_responses(401, 403))
 def create_tag_group(
     body: TagGroupCreate,
     db: Session = Depends(get_db),
@@ -101,7 +104,7 @@ def create_tag_group(
     )
 
 
-@router.post("/tag-groups/merge", response_model=TagGroupOut)
+@router.post("/tag-groups/merge", response_model=TagGroupOut, responses=error_responses(401, 403))
 def merge_tag_groups_endpoint(
     body: TagGroupMergeRequest,
     db: Session = Depends(get_db),
@@ -121,7 +124,7 @@ def merge_tag_groups_endpoint(
     )
 
 
-@router.post("/tag-groups/reorder", status_code=204)
+@router.post("/tag-groups/reorder", status_code=204, responses=error_responses(401, 403))
 def reorder_tag_groups(
     body: List[TagGroupReorderItem],
     db: Session = Depends(get_db),
@@ -133,12 +136,12 @@ def reorder_tag_groups(
     db.commit()
 
 
-@router.get("/tag-groups/{group_id}", response_model=TagGroupOut)
-def get_tag_group(group_id: UUID, db: Session = Depends(get_db)):
+@router.get("/tag-groups/{group_id}", response_model=TagGroupOut, responses=error_responses(401, 404))
+def get_tag_group(group_id: UUID, db: Session = Depends(get_db), _token: dict = Depends(require_any_token)):
     from models.tag_group import TagGroupDefinition
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
-        raise HTTPException(status_code=404, detail="Tag group not found")
+        raise NotFoundError("Tag group not found")
     return TagGroupOut(
         id=grp.id, name=grp.name, display_name=grp.display_name,
         description=grp.description, color_hex=grp.color_hex,
@@ -146,7 +149,7 @@ def get_tag_group(group_id: UUID, db: Session = Depends(get_db)):
     )
 
 
-@router.put("/tag-groups/{group_id}", response_model=TagGroupOut)
+@router.put("/tag-groups/{group_id}", response_model=TagGroupOut, responses=error_responses(401, 403, 404, 409))
 def update_tag_group(
     group_id: UUID,
     body: TagGroupUpdate,
@@ -156,13 +159,13 @@ def update_tag_group(
     from models.tag_group import TagGroupDefinition
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
-        raise HTTPException(status_code=404, detail="Tag group not found")
+        raise NotFoundError("Tag group not found")
     if body.name is not None and body.name != grp.name:
         existing = db.query(TagGroupDefinition).filter_by(
             name=body.name, topic_id=grp.topic_id
         ).first()
         if existing:
-            raise HTTPException(status_code=409, detail="A tag group with this name already exists in this topic")
+            raise ConflictError("A tag group with this name already exists in this topic")
     for field, val in body.model_dump(exclude_none=True).items():
         setattr(grp, field, val)
     db.commit()
@@ -174,7 +177,7 @@ def update_tag_group(
     )
 
 
-@router.delete("/tag-groups/{group_id}", status_code=204)
+@router.delete("/tag-groups/{group_id}", status_code=204, responses=error_responses(401, 403, 404))
 def delete_tag_group(
     group_id: UUID,
     db: Session = Depends(get_db),
@@ -183,12 +186,12 @@ def delete_tag_group(
     from models.tag_group import TagGroupDefinition
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
     if not grp:
-        raise HTTPException(status_code=404, detail="Tag group not found")
+        raise NotFoundError("Tag group not found")
     db.delete(grp)
     db.commit()
 
 
-@router.put("/tags/{tag_id}", response_model=TagOut)
+@router.put("/tags/{tag_id}", response_model=TagOut, responses=error_responses(401, 403, 404, 409))
 def rename_tag(
     tag_id: UUID,
     body: TagUpdate,
@@ -198,7 +201,7 @@ def rename_tag(
     from models.tag import Tag, article_tags as article_tags_table
     tag = db.query(Tag).filter_by(id=tag_id).first()
     if not tag:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise NotFoundError("Tag not found")
     if body.name is not None:
         tag.name = body.name
     if body.ungroup:
@@ -209,7 +212,7 @@ def rename_tag(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Tag name already exists in target group")
+        raise ConflictError("Tag name already exists in target group")
     db.refresh(tag)
     count = (
         db.query(func.count(distinct(article_tags_table.c.article_id)))
@@ -219,7 +222,7 @@ def rename_tag(
     return TagOut(id=tag.id, name=tag.name, article_count=count)
 
 
-@router.delete("/tags/{tag_id}", status_code=204)
+@router.delete("/tags/{tag_id}", status_code=204, responses=error_responses(401, 403, 404))
 def delete_tag(
     tag_id: UUID,
     db: Session = Depends(get_db),
@@ -228,13 +231,13 @@ def delete_tag(
     from models.tag import Tag
     tag = db.query(Tag).filter_by(id=tag_id).first()
     if not tag:
-        raise HTTPException(status_code=404, detail="Tag not found")
+        raise NotFoundError("Tag not found")
     db.execute(text("DELETE FROM article_tags WHERE tag_id = :id"), {"id": str(tag_id)})
     db.delete(tag)
     db.commit()
 
 
-@router.post("/tags/batch-move", response_model=BatchMoveResult)
+@router.post("/tags/batch-move", response_model=BatchMoveResult, responses=error_responses(401, 403))
 def batch_move_tags(
     body: List[TagMoveItem],
     db: Session = Depends(get_db),
@@ -258,7 +261,7 @@ def batch_move_tags(
     return BatchMoveResult(succeeded=succeeded, failed=failed)
 
 
-@router.get("/tag-normalization-suggestions", response_model=List[SuggestionOut])
+@router.get("/tag-normalization-suggestions", response_model=List[SuggestionOut], responses=error_responses(401, 403))
 def list_suggestions(
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
@@ -282,7 +285,7 @@ def list_suggestions(
     return result
 
 
-@router.post("/tag-normalization-suggestions/{suggestion_id}/approve", status_code=200)
+@router.post("/tag-normalization-suggestions/{suggestion_id}/approve", status_code=200, responses=error_responses(401, 403, 404))
 def approve_suggestion(
     suggestion_id: UUID,
     db: Session = Depends(get_db),
@@ -291,7 +294,7 @@ def approve_suggestion(
     from models.tag_normalization_suggestion import TagNormalizationSuggestion
     suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
     if not suggestion:
-        raise HTTPException(status_code=404, detail="Suggestion not found")
+        raise NotFoundError("Suggestion not found")
 
     new_tag_id = str(suggestion.new_tag_id)
     existing_tag_id = str(suggestion.existing_tag_id)
@@ -312,7 +315,7 @@ def approve_suggestion(
     return {"status": "approved"}
 
 
-@router.post("/tag-normalization-suggestions/{suggestion_id}/reject", status_code=200)
+@router.post("/tag-normalization-suggestions/{suggestion_id}/reject", status_code=200, responses=error_responses(401, 403, 404))
 def reject_suggestion(
     suggestion_id: UUID,
     db: Session = Depends(get_db),
@@ -322,7 +325,7 @@ def reject_suggestion(
     from models.tag_normalization_suggestion import TagNormalizationSuggestion
     suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
     if not suggestion:
-        raise HTTPException(status_code=404, detail="Suggestion not found")
+        raise NotFoundError("Suggestion not found")
     suggestion.status = "rejected"
     suggestion.resolved_at = datetime.now(timezone.utc)
     suggestion.resolved_by = UUID(admin["sub"])

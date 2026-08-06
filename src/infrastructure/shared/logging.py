@@ -17,6 +17,8 @@ import structlog
 from contextvars import ContextVar
 from typing import Any
 
+from shared.observability.traceback_filter import format_filtered_traceback
+
 _correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 _topic_id_var: ContextVar[str] = ContextVar("topic_id", default="")
 
@@ -81,6 +83,7 @@ def configure_logging() -> None:
             _add_topic_id,
             _add_otel_context,
             structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.ExceptionRenderer(exception_formatter=format_filtered_traceback),
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,

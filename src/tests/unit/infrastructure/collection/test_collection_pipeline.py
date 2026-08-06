@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from src.infrastructure.collection.collection_pipeline import CollectionPipeline
 from src.modules.collection.application.use_cases import PipelineStats
@@ -114,3 +114,78 @@ def test_post_fetch_dedup_removes_duplicate_urls():
         if isinstance(c.args[0], ArticleScrapedEvent)
     )
     assert article_publishes == 2
+
+
+def test_intra_batch_dedup_logs_article_duplicate_skipped():
+    """Duplicates caught within the same fetch batch must emit the same
+    'article_duplicate_skipped' event the frontend's Duplicate Articles chart
+    queries — previously only ArticleScrapedHandler logged it, which never fires
+    for URLs deduped upstream in the pipeline (the common case)."""
+    from src.modules.collection.domain.value_objects import ScrapedArticle
+
+    mock_setting_repo = MagicMock()
+    setting = MagicMock(id="id-1", source_type="rss", url="https://example.com/feed")
+    mock_setting_repo.get_active_due.return_value = [setting]
+
+    mock_article_repo = MagicMock()
+    mock_article_repo.find_analyzed_url_hashes.return_value = set()
+
+    article1 = ScrapedArticle(title="A1", url="https://example.com/dup", source="rss", content="c1", published_at=None)
+    article2 = ScrapedArticle(title="A2", url="https://example.com/dup", source="rss", content="c2", published_at=None)
+
+    mock_executor = MagicMock()
+    mock_executor.run_discover.return_value = [MagicMock(), MagicMock()]
+    def fetch_with_dupes(fetch_tasks, on_result):
+        on_result(article1)
+        on_result(article2)
+    mock_executor.run_fetch_only.side_effect = fetch_with_dupes
+
+    pipeline = _make_pipeline(
+        setting_repo=mock_setting_repo,
+        article_repo=mock_article_repo,
+        executor=mock_executor,
+    )
+
+    with patch("src.infrastructure.collection.collection_pipeline.logger") as mock_logger:
+        pipeline.run()
+
+    mock_logger.info.assert_any_call(
+        "article_duplicate_skipped", url="https://example.com/dup", source="rss", original_source=None,
+    )
+
+
+def test_post_fetch_dedup_logs_article_duplicate_skipped():
+    """Duplicates caught by the post-fetch already-analyzed check must also emit
+    'article_duplicate_skipped', matching what ArticleScrapedHandler logs for the
+    (rarer) duplicate detected inside ProcessScrapedArticleUseCase."""
+    from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
+
+    mock_setting_repo = MagicMock()
+    setting = MagicMock(id="id-1", source_type="rss", url="https://example.com/feed")
+    mock_setting_repo.get_active_due.return_value = [setting]
+
+    article = ScrapedArticle(title="A1", url="https://example.com/already-analyzed", source="rss", content="c1", published_at=None)
+    analyzed_hash = UrlHash.from_url(article.url).value
+
+    mock_article_repo = MagicMock()
+    mock_article_repo.find_analyzed_url_hashes.return_value = {analyzed_hash}
+
+    mock_executor = MagicMock()
+    mock_executor.run_discover.return_value = [MagicMock()]
+    def fetch_one(fetch_tasks, on_result):
+        on_result(article)
+    mock_executor.run_fetch_only.side_effect = fetch_one
+
+    pipeline = _make_pipeline(
+        setting_repo=mock_setting_repo,
+        article_repo=mock_article_repo,
+        executor=mock_executor,
+    )
+
+    with patch("src.infrastructure.collection.collection_pipeline.logger") as mock_logger:
+        result = pipeline.run()
+
+    assert result == 0
+    mock_logger.info.assert_any_call(
+        "article_duplicate_skipped", url=article.url, source="rss", original_source=None,
+    )

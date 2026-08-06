@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useI18n } from '@/lib/providers'
 import { StatCard } from '@/components/features/monitoring/stat-card'
@@ -12,9 +12,19 @@ import {
   queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/api/grafana'
+
+/**
+ * Loki's query_range endpoint (used for both metric-shaped Loki queries and raw log queries)
+ * parses start/end as nanosecond-epoch strings, not unix-second integers — the batch endpoints
+ * must agree on this or a stat count and the log table underneath it can silently query
+ * different time windows despite using the identical LogQL filter.
+ */
+function toNs(sec: number): string {
+  return (sec * 1000).toString() + '000000'
+}
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
-  LogLevel, LokiLabel,
+  LogLevel, LokiLabel, LokiAppValue, SERVICE_NAME, SERVICE_NAME_BACKEND,
   lokiStreamSelector, traceQLServiceMatch,
 } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
@@ -25,11 +35,19 @@ import { RotateCw } from 'lucide-react'
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Environment = 'all' | 'local' | 'production' | string
+type AppValue = typeof LokiAppValue[keyof typeof LokiAppValue]
 type TimeRange = '6h' | '24h' | '3d' | '7d'
 
 interface MonitoringFilters {
   timeRange: TimeRange
   environment: Environment
+  app: AppValue
+}
+
+/** Resource service.name to filter Tempo traces by, per selected app. */
+const APP_SERVICE_NAME: Record<AppValue, string> = {
+  [LokiAppValue.SCRAPER]: SERVICE_NAME,
+  [LokiAppValue.BACKEND]: SERVICE_NAME_BACKEND,
 }
 
 const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
@@ -51,14 +69,26 @@ function fullRangeVec(seconds: number): string {
 const DEFAULT_FILTERS: MonitoringFilters = {
   timeRange: '24h',
   environment: 'all',
+  app: LokiAppValue.SCRAPER,
+}
+
+/** Swap the app="scraper" label baked into lokiStreamSelector() for the selected app. */
+function applyAppToLokiQuery(query: string, app: AppValue): string {
+  if (app === LokiAppValue.SCRAPER) return query
+  return query.replace(/app="scraper"/g, `app="${app}"`)
 }
 
 function applyEnvToLokiQuery(query: string, environment: Environment): string {
   if (environment === 'all') return query
   const envLabel = `${LokiLabel.ENV}="${environment}"`
   return query
-    .replace(/\{app="scraper"\}/g, `{app="scraper", ${envLabel}}`)
-    .replace(/\{app="scraper", (?!env=)/g, `{app="scraper", ${envLabel}, `)
+    .replace(/\{app="[^"]+"\}/g, m => `${m.slice(0, -1)}, ${envLabel}}`)
+    .replace(/\{app="[^"]+", (?!env=)/g, m => `${m}${envLabel}, `)
+}
+
+/** Swap in the selected app, then layer the environment filter on top. */
+function applyLokiFilters(query: string, app: AppValue, environment: Environment): string {
+  return applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
 }
 
 interface MonitoringContentProps {
@@ -97,7 +127,6 @@ interface LogTablePanelDef {
 
 interface TracesTablePanelDef {
   titleKey: string
-  traceQuery: string
   height: number
   tooltipKey: string
 }
@@ -173,12 +202,27 @@ const TRACES_SPAN_CHART: ChartPanelDef = {
 
 const TRACES_TABLE_PANEL: TracesTablePanelDef = {
   titleKey: 'admin.recentTraces',
-  traceQuery: traceQLServiceMatch(),
   height: 400,
   tooltipKey: 'admin.recentTracesTooltip',
 }
 
 // ── Shared helper ──────────────────────────────────────────────────────────
+
+/**
+ * Fetches once per distinct `fetchAll` identity while the tab is active, instead of
+ * refetching every time the tab merely becomes active again. `fetchAll` is a
+ * useCallback keyed on the query params (time range, environment, app), so its
+ * identity only actually changes when those params (or a manual Refresh) change —
+ * switching tabs back and forth with unchanged filters becomes a no-op.
+ */
+function useFetchOnceWhenActive(fetchAll: () => Promise<void>, enabled: boolean) {
+  const fetchedForRef = useRef<typeof fetchAll | null>(null)
+  useEffect(() => {
+    if (!enabled || fetchedForRef.current === fetchAll) return
+    fetchedForRef.current = fetchAll
+    fetchAll()
+  }, [fetchAll, enabled])
+}
 
 function extractLastValue(res: PrometheusResponse): string | undefined {
   if ('error' in res) return undefined
@@ -191,12 +235,12 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 
 // ── Operations batch hook ──────────────────────────────────────────────────
 
-function useOperationsBatch(startSec: number, endSec: number, environment: Environment) {
+function useOperationsBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(OPS_STATS.length).fill(undefined))
-  const [chartData, setChartData] = useState<(PrometheusResponse | undefined)[]>(Array(OPS_CHARTS.length).fill(undefined))
+  const [chartData, setChartData] = useState<(PrometheusResponse | null)[]>(Array(OPS_CHARTS.length).fill(null))
   const [loading, setLoading] = useState<boolean[]>(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
 
   const fetchAll = useCallback(async () => {
@@ -205,16 +249,18 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
       ...OPS_STATS.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(rangeVec, env), start: startSec, end: endSec, step: s.step })),
       ...OPS_CHARTS.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(rangeVec, env), start: startSec, end: endSec, step: c.step })),
     ]
-    const lokiItems: MetricsBatchItem[] = [
-      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyEnvToLokiQuery(s.buildQuery(rangeVec), environment), start: startSec, end: endSec, step: s.step })),
-      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyEnvToLokiQuery(c.buildQuery(rangeVec), environment), start: startSec, end: endSec, step: c.step })),
+    const lokiItems = [
+      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
+      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: c.step })),
     ]
     try {
       const [promResults, lokiResults] = await Promise.all([
         promItems.length > 0 ? queryMetricsBatch(promItems) : Promise.resolve([]),
         lokiItems.length > 0 ? queryLokiMetricsBatch(lokiItems) : Promise.resolve([]),
       ])
-      if (promItems.length > 0 && 'error' in promResults[0] && (promResults[0] as { error: string }).error === 'not_configured') {
+      const promNotConfigured = promItems.length > 0 && 'error' in promResults[0] && (promResults[0] as { error: string }).error === 'not_configured'
+      const lokiNotConfigured = lokiItems.length > 0 && 'error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured'
+      if (promNotConfigured || lokiNotConfigured) {
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         setChartData(Array(OPS_CHARTS.length).fill(err))
         setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
@@ -227,7 +273,7 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
           ? extractLastValue(lokiResults[li++] as PrometheusResponse)
           : extractLastValue(promResults[pi++])
       }
-      const newChartData: (PrometheusResponse | undefined)[] = []
+      const newChartData: (PrometheusResponse | null)[] = []
       for (let i = 0; i < OPS_CHARTS.length; i++) {
         newChartData.push(OPS_CHARTS[i].queryType === 'loki'
           ? lokiResults[li++] as PrometheusResponse
@@ -238,9 +284,9 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
     } catch { /* keep previous data */ } finally {
       setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
     }
-  }, [startSec, endSec, rangeVec, env, environment])
+  }, [startSec, endSec, rangeVec, env, environment, app])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useFetchOnceWhenActive(fetchAll, enabled)
 
   return { statValues, chartData, loading, refresh: fetchAll }
 }
@@ -249,27 +295,27 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
 
 const LOGS_NUM_METRIC = 1 + LOGS_STAT_PANELS.length
 
-function useLogsBatch(startSec: number, endSec: number, environment: Environment) {
+function useLogsBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
-  const [metricData, setMetricData] = useState<(PrometheusResponse | undefined)[]>(Array(LOGS_NUM_METRIC).fill(undefined))
-  const [logsData, setLogsData] = useState<(LokiResponse | undefined)[]>(Array(LOGS_TABLE_PANELS.length).fill(undefined))
+  const [metricData, setMetricData] = useState<(PrometheusResponse | null)[]>(Array(LOGS_NUM_METRIC).fill(null))
+  const [logsData, setLogsData] = useState<(LokiResponse | null)[]>(Array(LOGS_TABLE_PANELS.length).fill(null))
   const [loading, setLoading] = useState<boolean[]>(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
 
   const fetchAll = useCallback(async () => {
     setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
-    const startNs = (startSec * 1000).toString() + '000000'
-    const endNs = (endSec * 1000).toString() + '000000'
+    const startNs = toNs(startSec)
+    const endNs = toNs(endSec)
     const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
     try {
       const [metricResults, logsResults] = await Promise.all([
         queryLokiMetricsBatch(allMetricPanels.map(p => ({
-          query: applyEnvToLokiQuery(p.buildQuery(rangeVec, env), environment),
-          step: p.step, start: startSec, end: endSec,
+          query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment),
+          step: p.step, start: startNs, end: endNs,
         }))),
         queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
-          query: applyEnvToLokiQuery(p.query, environment),
+          query: applyLokiFilters(p.query, app, environment),
           start: startNs, end: endNs, limit: 500,
         }))),
       ])
@@ -286,31 +332,31 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
     } catch { /* keep previous data */ } finally {
       setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(false))
     }
-  }, [startSec, endSec, rangeVec, env, environment])
+  }, [startSec, endSec, rangeVec, env, environment, app])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useFetchOnceWhenActive(fetchAll, enabled)
 
   return { metricData, logsData, loading, refresh: fetchAll }
 }
 
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
-function useTracesBatch(startSec: number, endSec: number, environment: Environment) {
+function useTracesBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
   const rangeVec = fullRangeVec(endSec - startSec)
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
-  const [chartData, setChartData] = useState<PrometheusResponse | undefined>(undefined)
-  const [tracesData, setTracesData] = useState<TempoResponse | undefined>(undefined)
+  const [chartData, setChartData] = useState<PrometheusResponse | null>(null)
+  const [tracesData, setTracesData] = useState<TempoResponse | null>(null)
   const [loading, setLoading] = useState<boolean[]>(Array(TRACES_STATS.length + 2).fill(true))
 
-  const traceQuery = environment === 'all' ? TRACES_TABLE_PANEL.traceQuery : traceQLServiceMatch(environment)
+  const traceQuery = traceQLServiceMatch(environment === 'all' ? undefined : environment, APP_SERVICE_NAME[app])
 
   const fetchAll = useCallback(async () => {
     setLoading(Array(TRACES_STATS.length + 2).fill(true))
     try {
       const lokiItems = [
-        ...TRACES_STATS.map(s => ({ query: applyEnvToLokiQuery(s.buildQuery(rangeVec), environment), step: s.step, start: startSec, end: endSec })),
-        { query: applyEnvToLokiQuery(TRACES_SPAN_CHART.buildQuery(rangeVec), environment), step: TRACES_SPAN_CHART.step, start: startSec, end: endSec },
+        ...TRACES_STATS.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
+        { query: applyLokiFilters(TRACES_SPAN_CHART.buildQuery(rangeVec), app, environment), step: TRACES_SPAN_CHART.step, start: toNs(startSec), end: toNs(endSec) },
       ]
       const [lokiResults, tracesResults] = await Promise.all([
         queryLokiMetricsBatch(lokiItems),
@@ -330,9 +376,9 @@ function useTracesBatch(startSec: number, endSec: number, environment: Environme
     } catch { /* keep previous data */ } finally {
       setLoading(Array(TRACES_STATS.length + 2).fill(false))
     }
-  }, [startSec, endSec, rangeVec, environment, traceQuery])
+  }, [startSec, endSec, rangeVec, environment, app, traceQuery])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useFetchOnceWhenActive(fetchAll, enabled)
 
   return { statValues, chartData, tracesData, loading, refresh: fetchAll }
 }
@@ -343,7 +389,7 @@ function OperationsTab({
   statValues: sv, chartData: cd, loading, timeRangeSeconds, rangeLabel,
 }: {
   statValues: (string | undefined)[]
-  chartData: (PrometheusResponse | undefined)[]
+  chartData: (PrometheusResponse | null)[]
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
@@ -386,8 +432,8 @@ function OperationsTab({
 function LogsTab({
   metricData: md, logsData: ld, loading, timeRangeSeconds, rangeLabel,
 }: {
-  metricData: (PrometheusResponse | undefined)[]
-  logsData: (LokiResponse | undefined)[]
+  metricData: (PrometheusResponse | null)[]
+  logsData: (LokiResponse | null)[]
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
@@ -423,8 +469,8 @@ function TracesTab({
 }: {
   grafanaUrl?: string
   statValues: (string | undefined)[]
-  chartData: PrometheusResponse | undefined
-  tracesData: TempoResponse | undefined
+  chartData: PrometheusResponse | null
+  tracesData: TempoResponse | null
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
@@ -480,6 +526,18 @@ function FilterBar({
           ))}
         </div>
       </div>
+      <div className="flex items-center gap-1.5 text-xs">
+        <span className="text-muted-foreground">{t('admin.filterApp')}:</span>
+        <Dropdown
+          size="sm"
+          value={filters.app}
+          onChange={v => onChange({ ...filters, app: v as AppValue })}
+          options={[
+            { value: LokiAppValue.SCRAPER, label: 'Scraper' },
+            { value: LokiAppValue.BACKEND, label: 'Backend' },
+          ]}
+        />
+      </div>
       {appEnv === 'local' && (
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">{t('admin.filterEnvironment')}:</span>
@@ -507,6 +565,11 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
   const [filters, setFilters] = useState<MonitoringFilters>(DEFAULT_FILTERS)
   // refreshKey increments on manual Refresh so startSec/endSec update to current time
   const [refreshKey, setRefreshKey] = useState(0)
+  // Only the active tab's hook actually fetches — each tab's batch endpoint fans out into
+  // several concurrent upstream Grafana queries, so fetching all three tabs at once (regardless
+  // of which one is visible) multiplies that fan-out and made the dashboard prone to 503s from
+  // Grafana Cloud rate limiting.
+  const [activeTab, setActiveTab] = useState('operations')
 
   const timeRangeSeconds = TIME_RANGE_SECONDS[filters.timeRange]
   const rangeLabel = filters.timeRange
@@ -518,13 +581,14 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRangeSeconds, refreshKey])
 
-  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv)
-  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv)
-  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv)
+  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'operations')
+  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'logs')
+  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'traces')
 
-  const isLoading = opsLoading.some(Boolean) || logsLoading.some(Boolean) || tracesLoading.some(Boolean)
+  const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
+  const isLoading = activeLoading.some(Boolean)
 
-  // Incrementing refreshKey updates startSec/endSec → hooks re-fetch with current time
+  // Incrementing refreshKey updates startSec/endSec → only the active tab's hook re-fetches
   function handleRefresh() { setRefreshKey(k => k + 1) }
 
   return (
@@ -540,7 +604,7 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
 
         <FilterBar filters={filters} onChange={setFilters} appEnv={appEnv} />
 
-        <Tabs defaultValue="operations">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="operations">{t('admin.operations')}</TabsTrigger>
             <TabsTrigger value="logs">{t('admin.logs')}</TabsTrigger>

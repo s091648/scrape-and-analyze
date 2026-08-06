@@ -16,6 +16,7 @@ COPY pyproject.toml uv.lock ./
 #   worker          → (unset; default below) "scraper llm http-clients"
 #   weekly-report   → "llm http-clients"
 #   refresh-metrics → "http-clients metrics"
+#   dedup-reconcile → "http-clients"
 ARG UV_GROUPS="scraper llm http-clients"
 RUN set -eu; \
     GROUP_FLAGS=""; \

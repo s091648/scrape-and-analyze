@@ -6,6 +6,7 @@ from .tag_group_definition_repository import TagGroupDefinitionRepository, TagGr
 from .article_translation_repository import ArticleTranslationRepository
 from .weekly_report_repository import WeeklyReportRepository
 from .weekly_report_translation_repository import WeeklyReportTranslationRepository
+from .rag_backfill_repository import RagBackfillRepository
 
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "ArticleTranslationRepository",
     "WeeklyReportRepository",
     "WeeklyReportTranslationRepository",
+    "RagBackfillRepository",
 ]

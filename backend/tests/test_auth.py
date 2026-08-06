@@ -27,32 +27,29 @@ def test_valid_admin_token_passes():
 
 def test_expired_token_returns_401():
     from backend.auth.guards import require_admin
-    from fastapi import HTTPException
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(exp_offset=-10)  # already expired
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(UnauthorizedError):
         require_admin.impl(token=HTTPAuthorizationCredentials(scheme="Bearer", credentials=token))
-    assert exc.value.status_code == 401
 
 
 def test_missing_exp_claim_returns_401():
     from backend.auth.guards import require_admin
-    from fastapi import HTTPException
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(include_exp=False)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(UnauthorizedError):
         require_admin.impl(token=HTTPAuthorizationCredentials(scheme="Bearer", credentials=token))
-    assert exc.value.status_code == 401
 
 
 def test_viewer_role_returns_403():
     from backend.auth.guards import require_admin
-    from fastapi import HTTPException
+    from shared.domain.exceptions import ForbiddenError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(role="viewer")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ForbiddenError):
         require_admin.impl(token=HTTPAuthorizationCredentials(scheme="Bearer", credentials=token))
-    assert exc.value.status_code == 403
 
 
 def test_verify_disabled_user_returns_403():
@@ -124,9 +121,10 @@ def test_register_google_returns_201():
 def test_register_duplicate_email_returns_409():
     from backend.main import app
     from unittest.mock import patch
+    from sqlalchemy.exc import IntegrityError
     client = TestClient(app)
     with patch("backend.routers.auth._create_user",
-               side_effect=Exception("duplicate key value violates unique constraint")):
+               side_effect=IntegrityError("INSERT", {}, Exception("duplicate key value violates unique constraint"))):
         response = client.post("/auth/register", json={
             "username": "dup", "password": "pass", "email": "dup@test.com"
         })
@@ -295,13 +293,12 @@ def test_require_user_accepts_admin():
 
 def test_require_user_rejects_expired():
     from backend.auth import guards
-    from fastapi import HTTPException
+    from shared.domain.exceptions import UnauthorizedError
     from fastapi.security import HTTPAuthorizationCredentials
     token = make_token(role="user", exp_offset=-1)
     creds = _make_creds(token)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(UnauthorizedError):
         guards.require_user.impl(creds)
-    assert exc.value.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -605,3 +602,78 @@ def test_unlink_google_no_username_returns_400():
             headers={"Authorization": f"Bearer {token}"},
         )
     assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/guest, POST /auth/guest/refresh (018-public-api-auth)
+# ---------------------------------------------------------------------------
+
+def test_issue_guest_token_returns_200_with_pair():
+    from backend.main import app
+    client = TestClient(app)
+    response = client.post("/auth/guest")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"access_token", "refresh_token", "expires_in"}
+    assert body["expires_in"] == 3600
+
+
+def test_issue_guest_token_access_and_refresh_share_guest_id():
+    from backend.main import app
+    client = TestClient(app)
+    body = client.post("/auth/guest").json()
+    access_payload = jwt.decode(body["access_token"], SECRET, algorithms=["HS256"])
+    refresh_payload = jwt.decode(body["refresh_token"], SECRET, algorithms=["HS256"])
+    assert access_payload["tier"] == "guest"
+    assert access_payload["token_use"] == "access"
+    assert refresh_payload["token_use"] == "refresh"
+    assert access_payload["guest_id"] == refresh_payload["guest_id"]
+
+
+def test_issue_guest_token_requires_no_authorization_header():
+    from backend.main import app
+    client = TestClient(app)
+    # No Authorization header at all — must still succeed (this is the bootstrap endpoint).
+    response = client.post("/auth/guest")
+    assert response.status_code == 200
+
+
+def test_refresh_guest_token_returns_new_access_token_with_same_guest_id():
+    from backend.main import app
+    client = TestClient(app)
+    pair = client.post("/auth/guest").json()
+    response = client.post("/auth/guest/refresh", json={"refresh_token": pair["refresh_token"]})
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"access_token", "expires_in"}
+    new_payload = jwt.decode(body["access_token"], SECRET, algorithms=["HS256"])
+    old_payload = jwt.decode(pair["access_token"], SECRET, algorithms=["HS256"])
+    assert new_payload["guest_id"] == old_payload["guest_id"]
+    assert new_payload["token_use"] == "access"
+
+
+def test_refresh_guest_token_rejects_expired_refresh_token():
+    from backend.main import app
+    client = TestClient(app)
+    expired = jwt.encode(
+        {"tier": "guest", "guest_id": "x", "token_use": "refresh", "exp": int(time.time()) - 10},
+        SECRET, algorithm="HS256",
+    )
+    response = client.post("/auth/guest/refresh", json={"refresh_token": expired})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_refresh_guest_token_rejects_malformed_token():
+    from backend.main import app
+    client = TestClient(app)
+    response = client.post("/auth/guest/refresh", json={"refresh_token": "not-a-jwt"})
+    assert response.status_code == 401
+
+
+def test_refresh_guest_token_rejects_access_token_used_as_refresh():
+    from backend.main import app
+    client = TestClient(app)
+    pair = client.post("/auth/guest").json()
+    response = client.post("/auth/guest/refresh", json={"refresh_token": pair["access_token"]})
+    assert response.status_code == 401

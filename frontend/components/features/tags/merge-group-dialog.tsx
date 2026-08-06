@@ -97,7 +97,7 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
         {/* Body */}
         <div className="flex flex-1 min-h-0 divide-x divide-border overflow-hidden">
           {/* Left: form */}
-          <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+          <div className="themed-scrollbar flex-1 p-5 space-y-4 overflow-y-auto">
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">Quick fill from</p>
               <div className="flex gap-2">
@@ -174,7 +174,7 @@ export function MergeGroupDialog({ groupA, groupB, token, onMerged, onClose }: P
           </div>
 
           {/* Right: live preview */}
-          <div className="flex-1 p-5 space-y-3 overflow-y-auto bg-muted/20">
+          <div className="themed-scrollbar flex-1 p-5 space-y-3 overflow-y-auto bg-muted/20">
             <p className="text-xs text-muted-foreground font-medium">Preview</p>
             <div
               className="rounded-xl border border-border bg-card p-4 space-y-3"

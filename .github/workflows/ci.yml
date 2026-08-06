@@ -22,139 +22,82 @@ jobs:
   check-staging-deployments:
     name: Check & Revive Staging Deployments
     runs-on: ubuntu-latest
+    # PR-review context only. A push to master is always a post-merge push (branch
+    # protection forbids direct pushes), which fires at the same time as
+    # close-staging.yml's `pull_request: closed` — racing against it to revive
+    # deployments close-staging is concurrently tearing down. Nothing here is needed
+    # once the PR is merged.
+    if: github.event_name == 'pull_request'
     timeout-minutes: 15
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: master
           submodules: recursive
           persist-credentials: false
 
+      # `railway up` deploys whatever is in the working directory, so the
+      # checkout above is deliberately pinned to master — reviving a REMOVED
+      # service must redeploy known-good master code, never this PR's
+      # untested branch. But that also means .github/scripts/ here is
+      # master's copy, which doesn't yet include changes this very PR makes
+      # to these scripts. Overlay just the CI script tree from the ref this
+      # workflow is actually running as (the PR's merge preview, or master
+      # itself on a push) into a separate directory so a PR editing these
+      # scripts can still test itself before merging — without touching what
+      # gets redeployed.
+      - name: Checkout current ref's CI scripts
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            .github/scripts
+          path: _ci-scripts
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
       - name: Check each staging service and redeploy REMOVED ones from master
-        run: |
-          set -uo pipefail
-          FAILED=0
-
-          # name -> service ID (must match the deploy-staging-* jobs below)
-          declare -A SERVICES=(
-            [dashboard-backend]="d20f24b5-6c3f-4732-a9b8-de13486db754"
-            [dashboard-frontend]="54f665be-c49e-407e-bf23-e414587b9984"
-            [storybook]="3880b0e2-2c02-429f-892c-814a02379e35"
-            [scrape-and-analyze]="84433f38-f9e9-4082-bd2e-2af327e3ba69"
-            [chatbot-plugin]="e3a28eae-2765-456e-822c-841598fcf1c2"
-            [fastembed]="c97be150-c9cc-42d0-a23e-04406573ee93"
-            [postgres]="c11d60e9-9bb3-450d-8a78-98f85ba4e890"
-            [redis]="ac3aa7a4-c431-4d43-9827-f493dad682df"
-            [weekly-report]="0b2a6997-6401-4f6e-91d8-ba1abe34ea46"
-            [refresh-metrics]="a8d5fa77-7498-4447-843f-f328d6d595a5"
-          )
-
-          # Recursively search the CLI's JSON output for the service's status,
-          # since the exact shape of `railway status`/`deployment list --json`
-          # isn't officially documented — this is resilient to minor schema
-          # differences: `railway deployment list --service X` is already
-          # scoped to one service, so a deployment's own `id` field is a
-          # *deployment* ID, not the service ID — there's nothing to match
-          # against. Just take the first (most recent) `status` string found
-          # anywhere in the tree.
-          find_status() {
-            node -e "
-              let data;
-              try { data = JSON.parse(process.argv[1]); } catch { console.log('UNKNOWN'); process.exit(0); }
-              function find(obj) {
-                if (!obj || typeof obj !== 'object') return null;
-                if (Array.isArray(obj)) {
-                  for (const item of obj) { const r = find(item); if (r) return r; }
-                  return null;
-                }
-                if (typeof obj.status === 'string') return obj.status;
-                for (const key of Object.keys(obj)) { const r = find(obj[key]); if (r) return r; }
-                return null;
-              }
-              console.log(find(data) || 'UNKNOWN');
-            " "$1"
-          }
-
-          for name in "${!SERVICES[@]}"; do
-            id="${SERVICES[$name]}"
-            echo "::group::Checking $name ($id)"
-
-            CLI_OK=1
-            if ! JSON=$(railway deployment list --service "$id" --environment staging --json 2>&1); then
-              CLI_OK=0
-            fi
-            STATUS=$(find_status "$JSON")
-            if [ "$STATUS" = "UNKNOWN" ] && [ "$CLI_OK" = "1" ]; then
-              if ! JSON=$(railway status --service "$id" --environment staging --json 2>&1); then
-                CLI_OK=0
-              fi
-              STATUS=$(find_status "$JSON")
-            fi
-            echo "Latest deployment status for $name: $STATUS"
-
-            if [ "$CLI_OK" = "0" ]; then
-              echo "::error::Railway CLI call failed for $name — treating as a failure rather than assuming healthy"
-              FAILED=1
-            elif [ "$STATUS" = "REMOVED" ]; then
-              echo "$name is REMOVED — redeploying from master"
-              if [ "$name" = "postgres" ] || [ "$name" = "redis" ]; then
-                # Database services are provisioned from Railway's official image/template,
-                # not built from repo source — `railway up` would incorrectly push repo
-                # contents as a build. Use `redeploy` instead, which reuses the service's
-                # last known deployment/image. Note: this only works if a deployment
-                # record still exists; a fully REMOVED database with no deployment
-                # history can't be recovered this way and needs manual recreation
-                # (Dashboard "New" → Database, or `railway add --database <name>`) —
-                # which provisions a new service/volume and does not restore old data.
-                if ! railway redeploy --service "$id" --environment staging --yes; then
-                  echo "::error::Failed to redeploy $name — this database service likely has no deployment history left to redeploy from. It needs to be manually recreated (Railway Dashboard \"New\" -> Database, or 'railway add --database $name'); note this provisions a new service/volume and does not restore prior data."
-                  FAILED=1
-                fi
-              elif [ "$name" = "chatbot-plugin" ]; then
-                if ! (cd chatbot-plugin && railway up --detach --service "$id" --environment staging); then
-                  echo "::error::Failed to redeploy $name"
-                  FAILED=1
-                fi
-              else
-                if ! railway up --detach --service "$id" --environment staging; then
-                  echo "::error::Failed to redeploy $name"
-                  FAILED=1
-                fi
-              fi
-            elif [ "$STATUS" = "UNKNOWN" ]; then
-              echo "::warning::Could not determine deployment status for $name — skipping redeploy (assumed healthy)."
-            else
-              echo "$name is healthy ($STATUS) — no action needed"
-            fi
-            echo "::endgroup::"
-          done
-
-          exit $FAILED
+        run: bash "$GITHUB_WORKSPACE/_ci-scripts/.github/scripts/check-staging-deployments.sh"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
+          SERVICE_ID_DASHBOARD_FRONTEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
+          SERVICE_ID_STORYBOOK: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
+          SERVICE_ID_SCRAPE_AND_ANALYZE: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
+          SERVICE_ID_CHATBOT_PLUGIN: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
+          SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
+          SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
+          SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
 
   # -----------------------------------------------
-  # Stage 0: DB Migration (push to master AND PR)
+  # Stage 0: DB Migration (PR only)
+  # push-to-master (post-merge) skips this: it would race close-staging.yml's
+  # `railway down` on the same staging postgres (fired by the same merge's
+  # `pull_request: closed` event), and it isn't needed there anyway — the
+  # next PR to revive staging brings it to its own head, which already
+  # includes this merge's migrations. Downstream jobs already treat
+  # migrate's `skipped` result the same as `success`.
   # -----------------------------------------------
   migrate:
     name: DB Migration
     runs-on: ubuntu-latest
     needs: [check-staging-deployments]
-    if: needs.check-staging-deployments.result == 'success'
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      (needs.check-staging-deployments.result == 'success' || needs.check-staging-deployments.result == 'skipped')
     timeout-minutes: 10
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -171,6 +114,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Run data migrations
+        run: uv run python scripts/run_data_migrations.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
   # -----------------------------------------------
   # Stage 1: Src Unit Tests (no external dependencies)
   # -----------------------------------------------
@@ -182,11 +130,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -202,7 +150,7 @@ jobs:
         run: uv run pytest src/tests/unit/ -v --tb=short --cov=src --cov=shared --cov-report=xml:coverage.xml --junitxml=pytest.xml
 
       - name: Upload unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: unit
@@ -220,26 +168,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -289,11 +223,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -317,7 +251,7 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Upload backend-unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-backend.xml
           flags: backend-unit
@@ -335,26 +269,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -412,11 +332,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -440,7 +360,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
 
       - name: Upload backend-integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-backend-integration.xml
           flags: backend-integration
@@ -458,26 +378,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -530,11 +436,11 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -560,7 +466,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Upload integration coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-integration.xml
           flags: integration
@@ -578,26 +484,12 @@ jobs:
 
       - name: Compute pass rate
         id: passrate
-        run: |
-          TESTS="${{ steps.coverage.outputs.tests }}"
-          FAILURES="${{ steps.coverage.outputs.failures }}"
-          ERRORS="${{ steps.coverage.outputs.errors }}"
-          SKIPPED="${{ steps.coverage.outputs.skipped }}"
-          TESTS=${TESTS:-0}; FAILURES=${FAILURES:-0}; ERRORS=${ERRORS:-0}; SKIPPED=${SKIPPED:-0}
-          PASSED=$((TESTS - FAILURES - ERRORS - SKIPPED))
-          if [ "$TESTS" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ $((FAILURES + ERRORS)) -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TESTS} passed"
-          elif [ $((PASSED * 100 / TESTS)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TESTS} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TESTS} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
 
       - name: Write coverage to job summary
         if: always()
@@ -630,11 +522,11 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -653,7 +545,7 @@ jobs:
         run: sed -i 's|SF:|SF:frontend/|g' coverage/lcov.info
 
       - name: Upload frontend-unit coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         if: always()
         with:
           files: ./frontend/coverage/lcov.info
@@ -663,29 +555,7 @@ jobs:
       - name: Compute pass rate
         id: passrate
         if: always()
-        run: |
-          PASSED=$(node -e "
-            const r = require('./test-results.json');
-            console.log(r.numPassedTests ?? 0);
-          " 2>/dev/null || echo 0)
-          TOTAL=$(node -e "
-            const r = require('./test-results.json');
-            console.log((r.numPassedTests ?? 0) + (r.numFailedTests ?? 0));
-          " 2>/dev/null || echo 0)
-          FAILED=$((TOTAL - PASSED))
-          if [ "$TOTAL" -eq 0 ]; then
-            COLOR="lightgrey"; MSG="no tests"
-          elif [ "$FAILED" -eq 0 ]; then
-            COLOR="brightgreen"; MSG="${PASSED}/${TOTAL} passed"
-          elif [ $((PASSED * 100 / TOTAL)) -ge 90 ]; then
-            COLOR="green"; MSG="${PASSED}/${TOTAL} passed"
-          elif [ $((PASSED * 100 / TOTAL)) -ge 75 ]; then
-            COLOR="yellow"; MSG="${PASSED}/${TOTAL} passed"
-          else
-            COLOR="red"; MSG="${PASSED}/${TOTAL} passed"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/compute-vitest-pass-rate.sh"
 
       - name: Update frontend unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -711,11 +581,11 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -746,27 +616,7 @@ jobs:
       - name: Compute e2e pass rate
         id: passrate
         if: always()
-        run: |
-          if [ -f playwright-results.xml ]; then
-            TOTAL=$(grep -oP 'tests="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            FAILED=$(grep -oP 'failures="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            ERRORS=$(grep -oP 'errors="\K[0-9]+' playwright-results.xml | head -1 || echo 0)
-            TOTAL=${TOTAL:-0}; FAILED=${FAILED:-0}; ERRORS=${ERRORS:-0}
-            PASSED=$((TOTAL - FAILED - ERRORS))
-            if [ "$TOTAL" -eq 0 ]; then
-              COLOR="lightgrey"; MSG="no tests"
-            elif [ $((FAILED + ERRORS)) -eq 0 ]; then
-              COLOR="brightgreen"; MSG="${PASSED}/${TOTAL} passed"
-            elif [ $((PASSED * 100 / TOTAL)) -ge 90 ]; then
-              COLOR="green"; MSG="${PASSED}/${TOTAL} passed"
-            else
-              COLOR="red"; MSG="${PASSED}/${TOTAL} passed"
-            fi
-          else
-            COLOR="lightgrey"; MSG="no results"
-          fi
-          echo "msg=${MSG}" >> $GITHUB_OUTPUT
-          echo "color=${COLOR}" >> $GITHUB_OUTPUT
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/compute-playwright-pass-rate.sh"
 
       - name: Update frontend e2e pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -786,13 +636,15 @@ jobs:
     name: Deploy Backend to Staging
     runs-on: ubuntu-latest
     needs: [backend-unit, backend-integration]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.backend-unit.result == 'success' &&
       needs.backend-integration.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -801,7 +653,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy dashboard-backend to Railway (staging)
-        run: railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -812,13 +664,15 @@ jobs:
     name: Deploy Frontend to Staging
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -827,7 +681,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy dashboard-frontend to Railway (staging)
-        run: railway up --detach --service 54f665be-c49e-407e-bf23-e414587b9984 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -838,13 +692,15 @@ jobs:
     name: Deploy Storybook to Staging
     runs-on: ubuntu-latest
     needs: [frontend-unit, frontend-e2e]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -853,7 +709,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy storybook to Railway (staging)
-        run: railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -864,13 +720,15 @@ jobs:
     name: Deploy Scrape-Analyzer to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -879,7 +737,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy scrape-and-analyze to Railway (staging)
-        run: railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -890,12 +748,14 @@ jobs:
     name: Deploy Chatbot Plugin to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -904,7 +764,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy chatbot-plugin to Railway (staging)
-        run: (cd chatbot-plugin && railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2 --environment staging)
+        run: (cd chatbot-plugin && railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }} --environment staging)
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -915,12 +775,14 @@ jobs:
     name: Deploy Fastembed to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -929,7 +791,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy fastembed to Railway (staging)
-        run: railway up --detach --service c97be150-c9cc-42d0-a23e-04406573ee93 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -943,13 +805,15 @@ jobs:
     name: Deploy Weekly Report to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -958,7 +822,7 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy weekly-report to Railway (staging)
-        run: railway up --detach --service 0b2a6997-6401-4f6e-91d8-ba1abe34ea46 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -972,13 +836,15 @@ jobs:
     name: Deploy Refresh Metrics to Staging
     runs-on: ubuntu-latest
     needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
     if: |
+      github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
@@ -987,7 +853,38 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy refresh-metrics to Railway (staging)
-        run: railway up --detach --service a8d5fa77-7498-4447-843f-f328d6d595a5 --environment staging
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }} --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4h: Deploy RAG Backfill to Staging (PR only)
+  # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
+  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # this a distinct Railway service from the main worker.
+  # -----------------------------------------------
+  deploy-staging-rag-backfill:
+    name: Deploy RAG Backfill to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy rag-backfill to Railway (staging)
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -1012,11 +909,11 @@ jobs:
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip

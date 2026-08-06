@@ -1,7 +1,6 @@
-import traceback as _tb_module
-
 from opentelemetry import trace as _otel_trace
 
+from shared.observability.traceback_filter import format_filtered_exc
 from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
 from src.modules.intelligence.application.events.rag_ingestion_failed import RagIngestionFailedEvent
 from src.shared.logging import get_logger
@@ -55,6 +54,6 @@ class RagIngestionHandler:
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
                     context={"span": "article.rag_ingest", "content_chars": content_chars},
-                    traceback=_tb_module.format_exc(),
+                    traceback=format_filtered_exc(exc),
                     correlation_id=get_correlation_id() or None,
                 ))

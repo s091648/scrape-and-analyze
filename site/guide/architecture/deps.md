@@ -5,7 +5,7 @@ aside: false
 
 # Frontend Architecture
 
-Two views of the frontend architecture:
+前端架構的兩種視角：
 
 **Module Graph** — 左側選擇模組類型（app / components / lib），點擊節點查看 imports 與 imported-by。切換 File / Directory 層級。循環依賴紅色標示，方向違規（如 lib import app）橘色虛線。
 

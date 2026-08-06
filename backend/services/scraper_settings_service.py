@@ -9,11 +9,23 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend.schemas.scraper_setting import ScraperSettingCreate, ScraperSettingUpdate
 
 _ACTIVITY_SQL = text("""
-    SELECT source, DATE(scraped_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
+    SELECT topic_id, source, DATE(scraped_at AT TIME ZONE 'UTC') AS day, COUNT(*) AS cnt
     FROM articles
     WHERE scraped_at >= NOW() - INTERVAL '14 days'
-    GROUP BY source, day
+    GROUP BY topic_id, source, day
 """)
+
+# These scrapers write a fixed literal to articles.source regardless of the
+# ScraperSetting's (user-editable) display name, and each topic has at most one
+# setting of each type — so the activity join must key on source_type, not name.
+# RSS/Blog settings write setting.name as articles.source instead (one row per
+# distinct feed), so those must keep keying on name.
+_SINGLETON_SOURCE_TYPES = {'arxiv', 'semantic_scholar', 'openalex'}
+
+
+def _activity_key(setting) -> tuple:
+    join_value = setting.source_type if setting.source_type in _SINGLETON_SOURCE_TYPES else setting.name
+    return (setting.topic_id, join_value)
 
 
 def get_all_settings(db: Session, topic_id: Optional[UUID] = None):
@@ -26,16 +38,17 @@ def get_all_settings(db: Session, topic_id: Optional[UUID] = None):
 
     today = datetime.now(timezone.utc).date()
     cutoff = today - timedelta(days=13)
-    activity_map: dict[str, list[int]] = {s.name: [0] * 14 for s in settings}
+    activity_map: dict[tuple, list[int]] = {_activity_key(s): [0] * 14 for s in settings}
 
     for row in db.execute(_ACTIVITY_SQL):
-        if row.source in activity_map:
+        key = (row.topic_id, row.source)
+        if key in activity_map:
             offset = (row.day - cutoff).days
             if 0 <= offset <= 13:
-                activity_map[row.source][offset] = int(row.cnt)
+                activity_map[key][offset] = int(row.cnt)
 
     for s in settings:
-        s.activity = activity_map.get(s.name, [0] * 14)
+        s.activity = activity_map.get(_activity_key(s), [0] * 14)
 
     return settings
 

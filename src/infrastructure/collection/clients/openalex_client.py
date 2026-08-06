@@ -201,6 +201,42 @@ class OpenAlexClient:
             logger.error("openalex_fetch_by_doi_failed", doi=doi, error=str(e))
             return None
 
+    def fetch_by_id(self, work_id: str) -> Optional[dict]:
+        """Fetch a single work by its OpenAlex ID (accepts either the full URL
+        form 'https://openalex.org/W123' or the bare 'W123'). Returns the raw
+        parsed JSON dict.
+
+        Used by dedup_reconcile.py to detect upstream merges: OpenAlex
+        transparently 301-redirects a work_id that's been merged away to the
+        surviving work, and `requests` follows that redirect by default — so
+        a returned `id` that differs from the requested `work_id` means this
+        work_id is no longer canonical.
+        """
+        short_id = work_id.rsplit("/", 1)[-1]
+        ua_suffix = f" (mailto:{self._mailto})" if self._mailto else ""
+        headers = {"User-Agent": f"scrape-analyzer/1.0{ua_suffix}"}
+        try:
+            response = self._http.get(
+                f"{OPENALEX_API_URL}/{short_id}",
+                headers=headers,
+                timeout=30,
+            )
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 429:
+                logger.warning("openalex_rate_limited", url=OPENALEX_API_URL)
+                raise OpenAlexRateLimitedError(str(exc)) from exc
+            logger.error("openalex_fetch_by_id_failed", work_id=work_id, error=str(exc))
+            return None
+        except Exception as e:
+            logger.error("openalex_fetch_by_id_failed", work_id=work_id, error=str(e))
+            return None
+
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error("openalex_fetch_by_id_failed", work_id=work_id, error=str(e))
+            return None
+
     def fetch_papers(
         self,
         query: str,

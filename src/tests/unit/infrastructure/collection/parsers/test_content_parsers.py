@@ -69,13 +69,27 @@ def test_html_parser_custom_selectors_take_priority():
 
 
 @_responses.activate
-def test_html_parser_fetch_and_parse_returns_fallback_on_error():
-    from  src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
+def test_html_parser_fetch_and_parse_raises_on_transport_failure():
+    from src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
+    from src.modules.collection.domain.exceptions import ArticleFetchError
 
     # @responses.activate raises ConnectionError immediately for unregistered URLs
     # (no real DNS query) so the test doesn't wait for a network timeout.
     parser = HtmlArticleParser()
-    result = parser.fetch_and_parse('https://this-domain-does-not-exist-xyz.invalid/article', fallback='fallback text')
+    with pytest.raises(ArticleFetchError):
+        parser.fetch_and_parse('https://this-domain-does-not-exist-xyz.invalid/article', fallback='fallback text')
+
+
+@_responses.activate
+def test_html_parser_fetch_and_parse_returns_fallback_on_no_selector_match():
+    from src.infrastructure.collection.parsers.html_parser import HtmlArticleParser
+
+    _responses.add(
+        _responses.GET, "https://example.com/no-match-article",
+        body='<html><body><div class="sidebar">ads</div></body></html>', status=200,
+    )
+    parser = HtmlArticleParser()
+    result = parser.fetch_and_parse('https://example.com/no-match-article', fallback='fallback text')
     assert result == 'fallback text'
 
 

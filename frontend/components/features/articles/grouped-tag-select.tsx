@@ -101,7 +101,7 @@ export function GroupedTagSelect({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div className="max-h-72 overflow-y-auto py-1">
+        <div className="themed-scrollbar max-h-72 overflow-y-auto py-1">
           {visibleGroups.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-4">{emptyText}</p>
           )}

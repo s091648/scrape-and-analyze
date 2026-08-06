@@ -156,4 +156,31 @@ test.describe('RAG chatbot — InlineQABar on the homepage', () => {
     // The message renders both inline (AnswerDisplay) and as a toast — assert the first match.
     await expect(page.getByText(/temporarily unavailable/i).first()).toBeVisible()
   })
+
+  test('shows a rate-limit warning and re-fetches quota when the daily question limit is hit', async ({ page }) => {
+    await page.route((url: URL) => url.pathname === '/api/proxy/chat/completions', route =>
+      route.fulfill({
+        status: 429,
+        json: { detail: { detail: '每日問答次數已達上限（訪客：10次/天）', limit: 10 } },
+      })
+    )
+
+    let quotaCallCount = 0
+    await page.route((url: URL) => url.pathname === '/api/proxy/chat/quota', route => {
+      quotaCallCount++
+      return route.fulfill({ json: { tier: 'guest', remaining: 5, limit: 10, guest_daily_limit: 10, member_daily_limit: 30 } })
+    })
+
+    await page.goto('/')
+    // Wait for ChatQuotaProvider's own mount-time fetch before triggering the 429,
+    // otherwise the post-error assertion below could be satisfied by that initial call.
+    await expect.poll(() => quotaCallCount).toBeGreaterThanOrEqual(1)
+
+    await page.getByLabel('Agent input').fill('Anything?')
+    await page.getByRole('button', { name: 'Send' }).click()
+
+    // The message renders both inline (AnswerDisplay) and as a toast — assert the first match.
+    await expect(page.getByText(/daily question limit reached/i).first()).toBeVisible()
+    await expect.poll(() => quotaCallCount).toBeGreaterThanOrEqual(2)
+  })
 })

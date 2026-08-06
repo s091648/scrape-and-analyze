@@ -60,18 +60,10 @@ jobs:
           sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
 
       - name: Commit pyproject.toml version bump
-        run: |
-          FILE="pyproject.toml"
-          if git diff --quiet "$FILE"; then
-            echo "No changes to commit."
-          else
-            SHA=$(gh api "/repos/${{ github.repository }}/contents/$FILE" --jq '.sha')
-            gh api --method PUT "/repos/${{ github.repository }}/contents/$FILE" \
-              --field message="🔖 [CHORE] bump pyproject.toml version to ${{ github.ref_name }} [skip ci]" \
-              --field content="$(base64 -w 0 < "$FILE")" \
-              --field sha="$SHA" \
-              --field branch=master
-          fi
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/commit-file-via-api.sh"
+          "pyproject.toml" "${{ github.repository }}" "master"
+          "🔖 [CHORE] bump pyproject.toml version to ${{ github.ref_name }} [skip ci]"
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
 
@@ -95,18 +87,7 @@ jobs:
       # -------------------------------------------------------------------
       - name: Generate release notes (hotfix fallback)
         if: steps.check_stamped.outputs.already_stamped != 'true'
-        run: |
-          if grep -q '{{NEWEST_VERSION}}' frontend/public/release-notes.json; then
-            echo "Placeholder found — PR flow, skipping generation."
-          else
-            echo "No placeholder — hotfix flow, generating via LLM."
-            PREV=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -1)
-            if [ -n "$PREV" ]; then
-              uv run python scripts/release/generate_release_notes.py --from-tag "$PREV"
-            else
-              uv run python scripts/release/generate_release_notes.py
-            fi
-          fi
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/generate-release-notes-fallback.sh" "${{ github.ref_name }}"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -128,18 +109,10 @@ jobs:
 
       - name: Commit release notes
         if: steps.check_stamped.outputs.already_stamped != 'true'
-        run: |
-          FILE="frontend/public/release-notes.json"
-          if git diff --quiet "$FILE"; then
-            echo "No changes to commit."
-          else
-            SHA=$(gh api "/repos/${{ github.repository }}/contents/$FILE" --jq '.sha')
-            gh api --method PUT "/repos/${{ github.repository }}/contents/$FILE" \
-              --field message="🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]" \
-              --field content="$(base64 -w 0 < "$FILE")" \
-              --field sha="$SHA" \
-              --field branch=master
-          fi
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/commit-file-via-api.sh"
+          "frontend/public/release-notes.json" "${{ github.repository }}" "master"
+          "🚀 [RELEASE] stamp ${{ github.ref_name }} in release notes [skip ci]"
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
 
@@ -151,6 +124,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Run data migrations on production DB
+        run: uv run python scripts/run_data_migrations.py
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       # -------------------------------------------------------------------
       # Deploy to Railway production
       # -------------------------------------------------------------------
@@ -158,17 +136,18 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway (production)
-        run: |
-          railway up --detach --service 54f665be-c49e-407e-bf23-e414587b9984  # dashboard-frontend
-          railway up --detach --service d20f24b5-6c3f-4732-a9b8-de13486db754  # dashboard-backend
-          railway up --detach --service 3880b0e2-2c02-429f-892c-814a02379e35  # storybook UI
-          railway up --detach --service 84433f38-f9e9-4082-bd2e-2af327e3ba69  # scrape-and-analyze
-          (cd chatbot-plugin && railway up --detach --service e3a28eae-2765-456e-822c-841598fcf1c2)  # chatbot-plugin
-          railway up --detach --service c97be150-c9cc-42d0-a23e-04406573ee93  # fastembed
-          railway up --detach --service 0b2a6997-6401-4f6e-91d8-ba1abe34ea46  # weekly-report
-          railway up --detach --service a8d5fa77-7498-4447-843f-f328d6d595a5  # refresh-metrics
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/deploy-production.sh"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID_DASHBOARD_FRONTEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
+          SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
+          SERVICE_ID_STORYBOOK: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
+          SERVICE_ID_SCRAPE_AND_ANALYZE: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
+          SERVICE_ID_CHATBOT_PLUGIN: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
+          SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
+          SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
+          SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
 
       # -------------------------------------------------------------------
       # Create GitHub Release with the stamped notes as body

@@ -150,6 +150,7 @@ export default defineConfig({
           { text: 'Speckit SDD Guide', link: '/guide/speckit' },
           { text: 'Codespaces 開發環境', link: '/guide/codespaces' },
           { text: 'Constitution', link: '/constitution' },
+          { text: 'Deployment & Multi-Service Releases', link: '/guide/deployment' },
         ],
       },
       {

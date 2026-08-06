@@ -134,7 +134,7 @@ def build_rag_ingestion_service():
             VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
             RAG_DENSE_PROVIDER, RAG_DENSE_MODEL, RAG_DENSE_DIMENSION,
             RAG_DENSE_API_KEY_ENV, RAG_DENSE_ENDPOINT_URL,
-            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD,
+            RAG_DENSE_RPM, RAG_DENSE_TPM, RAG_DENSE_RPD, RAG_DENSE_SPLIT_BATCH_ON_TPM,
             RAG_SPARSE_PROVIDER, RAG_SPARSE_MODEL, RAG_SPARSE_DIMENSION,
             RAG_SPARSE_ENDPOINT_URL, RAG_SPARSE_RPM, RAG_SPARSE_TPM, RAG_SPARSE_RPD, RAG_SPARSE_TIMEOUT,
             RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
@@ -150,6 +150,7 @@ def build_rag_ingestion_service():
             "rpm": RAG_DENSE_RPM,
             "tpm": RAG_DENSE_TPM,
             "rpd": RAG_DENSE_RPD,
+            "split_batch_on_tpm": RAG_DENSE_SPLIT_BATCH_ON_TPM,
         }) if RAG_DENSE_PROVIDER else None
 
         sparse_provider = build_sparse_provider({
@@ -625,3 +626,50 @@ def build_metrics_refresh_pipeline():
 
     logger.info("metrics_refresh_bootstrap_complete", metric_definitions_count=len(metric_definitions))
     return metrics_service, metrics_repo, session
+
+
+# ---------------------------------------------------------------------------
+# Dedup Reconciliation Pipeline：偵測並合併 OpenAlex 事後才 dedup 完成的重複文章
+# ---------------------------------------------------------------------------
+
+def build_dedup_reconciliation_pipeline():
+    """Assemble (OpenAlexClient, ArticleDedupRepository, session) for the
+    dedup-reconciliation cron job. Independent of build_collection_pipeline —
+    this only re-checks work_ids OpenAlex previously assigned us, no scraping."""
+    from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
+    from src.infrastructure.persistence.collection.article_dedup_repo_impl import SqlAlchemyArticleDedupRepository
+
+    init_db()
+    session = get_session()
+
+    client = OpenAlexClient()
+    dedup_repo = SqlAlchemyArticleDedupRepository(session=session)
+
+    logger.info("dedup_reconciliation_bootstrap_complete")
+    return client, dedup_repo, session
+
+
+# ---------------------------------------------------------------------------
+# RAG Backfill Pipeline：為既有文章補做向量化，補齊 has_vectors = FALSE 的缺口
+# ---------------------------------------------------------------------------
+
+def build_rag_backfill_pipeline():
+    """Assemble (IngestArticleForRagUseCase | None, RagBackfillRepository, session)
+    for the RAG-backfill cron job. Reuses build_rag_ingestion_service() — the
+    same RagSdkIngestionService construction the live scrape pipeline uses via
+    build_collection_pipeline() — so backfilled articles are chunked/embedded
+    identically to freshly-scraped ones. The use_case is None (same contract
+    as build_rag_ingestion_service()) when RAG is disabled or misconfigured;
+    callers must check for that before use."""
+    from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
+    from src.infrastructure.persistence.intelligence.rag_backfill_repo_impl import SqlAlchemyRagBackfillRepository
+
+    init_db()
+    session = get_session()
+
+    rag_service, _ = build_rag_ingestion_service()
+    use_case = IngestArticleForRagUseCase(rag_service) if rag_service is not None else None
+    backfill_repo = SqlAlchemyRagBackfillRepository(session=session)
+
+    logger.info("rag_backfill_bootstrap_complete", rag_enabled=use_case is not None)
+    return use_case, backfill_repo, session

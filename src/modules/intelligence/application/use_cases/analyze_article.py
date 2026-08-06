@@ -94,6 +94,7 @@ class AnalyzeArticleUseCase:
         logger.info(
             "analysis_completed",
             article_id=str(article.id),
+            source=article.source,
             model=analysis_metadata.model_used,
             input_tokens=analysis_metadata.input_tokens,
             output_tokens=analysis_metadata.output_tokens,

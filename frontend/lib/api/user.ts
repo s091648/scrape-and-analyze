@@ -51,7 +51,7 @@ export async function updateNotificationSettings(settings: Partial<NotificationS
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(settings),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error(`${res.status}`)
   return res.json()
 }

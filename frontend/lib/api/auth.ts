@@ -27,7 +27,7 @@ export function authHeaders(token: string): Record<string, string> {
 }
 
 export async function fetchMe(token: string, locale?: string): Promise<UserProfile | null> {
-  const res = await apiFetch('/auth/me', { headers: authHeaders(token) }, locale)
+  const res = await apiFetch('/auth/me', { headers: authHeaders(token) }, locale, { silent: true })
   if (!res.ok) return null
   return res.json()
 }
@@ -41,7 +41,7 @@ export async function updateMe(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(body),
-  }, locale)
+  }, locale, { silent: true })
 }
 
 export async function changePassword(
@@ -53,15 +53,15 @@ export async function changePassword(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify(body),
-  }, locale)
+  }, locale, { silent: true })
 }
 
 export async function deleteMe(token: string, locale?: string): Promise<Response> {
-  return apiFetch('/auth/me', { method: 'DELETE', headers: authHeaders(token) }, locale)
+  return apiFetch('/auth/me', { method: 'DELETE', headers: authHeaders(token) }, locale, { silent: true })
 }
 
 export async function unlinkGoogle(token: string, locale?: string): Promise<Response> {
-  return apiFetch('/auth/me/link-google', { method: 'DELETE', headers: authHeaders(token) }, locale)
+  return apiFetch('/auth/me/link-google', { method: 'DELETE', headers: authHeaders(token) }, locale, { silent: true })
 }
 
 export async function registerUser(
@@ -72,7 +72,7 @@ export async function registerUser(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  }, locale)
+  }, locale, { silent: true })
 }
 
 export async function fetchUsers(token: string, locale?: string): Promise<AdminUser[]> {

@@ -453,6 +453,7 @@
     "noArticlesInRun": "No articles processed in this run",
     "viewArticlePipeline": "View pipeline",
     "filterTimeRange": "Time Range",
+    "filterApp": "App",
     "filterEnvironment": "Environment",
     "filterAll": "All",
     "refreshPage": "Refresh",
@@ -462,6 +463,7 @@
     "logFieldEvent": "Event",
     "viewInTrace": "View in trace",
     "logExtraFields": "Details",
+    "logFieldException": "Traceback",
     "logFieldName": {
       "url": "URL",
       "source": "Source",

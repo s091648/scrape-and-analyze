@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { fn } from 'storybook/test'
-import { PinnedArticleProvider } from '../lib/providers/pinned-article-provider'
+import { PinnedReportProvider } from '../lib/providers/pinned-article-provider'
 
 const mockReport = {
   id: 'report-uuid-1',
@@ -32,9 +32,9 @@ const meta: Meta<typeof WeeklyReportWidget> = {
   component: WeeklyReportWidget,
   decorators: [
     (Story) => (
-      <PinnedArticleProvider>
+      <PinnedReportProvider>
         <Story />
-      </PinnedArticleProvider>
+      </PinnedReportProvider>
     ),
   ],
   parameters: {

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-21T08:26:37.135Z",
+  "generated_at": "2026-08-02T14:26:20.929Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 22,
+      "consumerCount": 21,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -63,7 +63,7 @@
       "sites": [
         {
           "file": "app/admin/llm-providers/page.tsx",
-          "line": 494,
+          "line": 496,
           "destructured": "{ data: session, status }"
         },
         {
@@ -92,7 +92,7 @@
           "destructured": "{ status }"
         },
         {
-          "file": "app/articles/page.tsx",
+          "file": "app/articles/articles-page-content.tsx",
           "line": 32,
           "destructured": "{ data: session, status }"
         },
@@ -147,11 +147,6 @@
           "destructured": "{ data: session, status }"
         },
         {
-          "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 29,
-          "destructured": "{ data: session }"
-        },
-        {
           "file": "components/features/graph/knowledge-graph.tsx",
           "line": 105,
           "destructured": "{ status }"
@@ -162,8 +157,8 @@
           "destructured": "{ data: session }"
         },
         {
-          "file": "lib/providers/chat-quota-provider.tsx",
-          "line": 24,
+          "file": "lib/providers/auth-token-provider.tsx",
+          "line": 105,
           "destructured": "{ data: session, status }"
         },
         {
@@ -208,7 +203,7 @@
           "destructured": "{ refresh: refreshTopicContext }"
         },
         {
-          "file": "app/articles/page.tsx",
+          "file": "app/articles/articles-page-content.tsx",
           "line": 52,
           "destructured": "{ selectedTopicId }"
         },
@@ -218,7 +213,7 @@
           "destructured": "{ selectedTopicId }"
         },
         {
-          "file": "app/page.tsx",
+          "file": "app/home-page-content.tsx",
           "line": 10,
           "destructured": "{ selectedTopicId }"
         },
@@ -249,7 +244,7 @@
         },
         {
           "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 30,
+          "line": 28,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -275,12 +270,12 @@
         },
         {
           "file": "app/admin/llm-providers/page.tsx",
-          "line": 276,
+          "line": 278,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/llm-providers/page.tsx",
-          "line": 492,
+          "line": 494,
           "destructured": "{ t }"
         },
         {
@@ -290,27 +285,27 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 351,
+          "line": 385,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 395,
+          "line": 429,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 432,
+          "line": 466,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 461,
+          "line": 495,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 506,
+          "line": 552,
           "destructured": "{ t }"
         },
         {
@@ -379,7 +374,7 @@
           "destructured": "{ locale, t }"
         },
         {
-          "file": "app/articles/page.tsx",
+          "file": "app/articles/articles-page-content.tsx",
           "line": 38,
           "destructured": "{ t, locale }"
         },
@@ -460,7 +455,7 @@
         },
         {
           "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 31,
+          "line": 29,
           "destructured": "{ t }"
         },
         {
@@ -480,12 +475,12 @@
         },
         {
           "file": "components/features/monitoring/log-detail-dialog.tsx",
-          "line": 62,
+          "line": 64,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/logs-table.tsx",
-          "line": 140,
+          "line": 161,
           "destructured": "{ t }"
         },
         {
@@ -505,7 +500,7 @@
         },
         {
           "file": "components/features/monitoring/traces-table.tsx",
-          "line": 246,
+          "line": 248,
           "destructured": "{ t }"
         },
         {
@@ -605,7 +600,7 @@
       "hookName": "useGuestMode",
       "sites": [
         {
-          "file": "app/articles/page.tsx",
+          "file": "app/articles/articles-page-content.tsx",
           "line": 34,
           "destructured": "{ isGuestMode }"
         },
@@ -676,7 +671,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 116,
+    "totalConsumerSites": 115,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

@@ -28,16 +28,19 @@ def test_creates_definitions_with_unsupervised_display_name():
     session.execute.side_effect = [
         MagicMock(first=lambda: col_exists_row),  # column check
         MagicMock(fetchall=lambda: [row]),         # missing pairs query
+        MagicMock(),                                # INSERT for the one row above
     ]
 
-    with patch("scripts.backfill_tag_group_definitions.init_db"):
-        with patch("scripts.backfill_tag_group_definitions.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["backfill_tag_group_definitions.py"])
                 main()
 
     # Should have executed INSERT with display_name = "digital_twin_unsupervised"
-    insert_calls = [c for c in session.execute.call_args_list if "INSERT" in str(c)]
+    # (str(call(...)) doesn't stringify the TextClause's SQL — str() each call's
+    # first positional arg directly, which does compile to the raw SQL text)
+    insert_calls = [c for c in session.execute.call_args_list if "INSERT" in str(c.args[0])]
     assert len(insert_calls) >= 1
 
 
@@ -57,8 +60,8 @@ def test_dry_run_prints_without_inserting():
         MagicMock(fetchall=lambda: [row]),         # missing pairs query
     ]
 
-    with patch("scripts.backfill_tag_group_definitions.init_db"):
-        with patch("scripts.backfill_tag_group_definitions.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["backfill_tag_group_definitions.py", "--dry-run"])
                 main()
@@ -73,8 +76,8 @@ def test_skips_when_column_dropped():
     session = MagicMock()
     session.execute.return_value.first.return_value = None  # column check fails
 
-    with patch("scripts.backfill_tag_group_definitions.init_db"):
-        with patch("scripts.backfill_tag_group_definitions.get_session", return_value=session):
+    with patch("src.infrastructure.persistence.database.init_db"):
+        with patch("src.infrastructure.persistence.database.get_session", return_value=session):
             with pytest.MonkeyPatch().context() as mp:
                 mp.setattr("sys.argv", ["backfill_tag_group_definitions.py"])
                 main()

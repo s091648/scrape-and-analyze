@@ -8,6 +8,7 @@ Those decisions stay in ArxivScraper (ingestion bounded context).
 Accepts an HttpClient so rate limiting, retry, and single-connection
 semaphore are handled transparently by the shared infrastructure.
 """
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,15 @@ ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
 class ArxivRateLimitedError(Exception):
     """arXiv API returned HTTP 429. Signals callers to abort remaining arxiv tasks for this run."""
+
+
+def normalize_arxiv_id(raw: str) -> str:
+    """Strip arXiv's URL form (e.g. "http://arxiv.org/abs/2606.29232v1") and any
+    trailing version suffix down to the bare id ("2606.29232") external lookups
+    like Semantic Scholar's paper/ARXIV:<id> require. Already-bare ids pass
+    through unchanged. Shared with scripts/data/versions/ backfill migrations
+    that clean up rows persisted before this normalization existed."""
+    return re.sub(r"v\d+$", "", raw.rsplit("/abs/", 1)[-1])
 
 
 @dataclass
@@ -142,7 +152,10 @@ class ArxivClient:
         summary_elem = elem.find(f"{ATOM_NS}summary")
         published_elem = elem.find(f"{ATOM_NS}published")
 
-        arxiv_id = (id_elem.text or "").strip() if id_elem is not None else ""
+        raw_id = (id_elem.text or "").strip() if id_elem is not None else ""
+        # arXiv's Atom <id> is a URL, not a bare identifier — keep raw_id below for
+        # url/pdf_url, which do need the full URL form; normalize arxiv_id itself.
+        arxiv_id = normalize_arxiv_id(raw_id)
         title = (title_elem.text or "").strip() if title_elem is not None else ""
         abstract = (summary_elem.text or "").strip() if summary_elem is not None else ""
         published = (published_elem.text or "").strip() if published_elem is not None else ""
@@ -160,13 +173,13 @@ class ArxivClient:
                 for link in elem.findall(f"{ATOM_NS}link")
                 if link.get("rel") == "alternate"
             ),
-            arxiv_id,
+            raw_id,
         )
-        pdf_url = arxiv_id.replace("/abs/", "/pdf/") if "/abs/" in arxiv_id else ""
+        pdf_url = raw_id.replace("/abs/", "/pdf/") if "/abs/" in raw_id else ""
 
         return ArxivEntry(
             arxiv_id=arxiv_id,
-            url=url or arxiv_id,
+            url=url or raw_id,
             pdf_url=pdf_url,
             title=title,
             abstract=abstract,

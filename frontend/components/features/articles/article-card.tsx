@@ -70,7 +70,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         tags = detail.tags
       } else {
         try {
-          const fetched = await fetchArticleById(id, locale)
+          const fetched = await fetchArticleById(id, locale, true)
           tags = fetched.tags || []
         } catch {}
       }

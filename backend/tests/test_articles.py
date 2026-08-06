@@ -1,7 +1,15 @@
+import os
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
+
+os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
+
+
+def _guest_headers():
+    from backend.services.auth_service import create_guest_access_token
+    return {"Authorization": f"Bearer {create_guest_access_token('test-guest-id')}"}
 
 
 def make_mock_article():
@@ -24,7 +32,7 @@ def test_articles_returns_paginated_envelope():
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])):
-        response = client.get("/articles")
+        response = client.get("/articles", headers=_guest_headers())
     assert response.status_code == 200
     data = response.json()
     assert "items" in data
@@ -33,11 +41,21 @@ def test_articles_returns_paginated_envelope():
     assert "size" in data
 
 
-def test_articles_no_auth_required():
+def test_articles_requires_at_least_a_guest_token():
+    """018-public-api-auth: no longer fully public — a guest token (not a real
+    login) is sufficient, but *some* valid token is now required."""
     from backend.main import app
     client = TestClient(app)
     with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
         response = client.get("/articles")
+    assert response.status_code == 401
+
+
+def test_articles_guest_token_is_sufficient():
+    from backend.main import app
+    client = TestClient(app)
+    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+        response = client.get("/articles", headers=_guest_headers())
     assert response.status_code == 200
 
 
@@ -77,7 +95,7 @@ def test_article_detail_returns_full_data():
          patch("backend.routers.articles.get_tag_groups_for_article", return_value=[]):
         app.dependency_overrides[get_db] = override_get_db
         try:
-            response = client.get(f"/articles/{article_id}?lang=en")
+            response = client.get(f"/articles/{article_id}?lang=en", headers=_guest_headers())
         finally:
             app.dependency_overrides.pop(get_db, None)
     assert response.status_code == 200
@@ -104,7 +122,7 @@ def test_article_detail_tag_groups_structure():
         with patch("backend.routers.articles.get_tag_groups_for_article",
                    return_value=[{"group_name": "digital_twin", "display_name": "Digital Twin",
                                   "color": "#3b82f6", "tags": ["digital twin"]}]):
-            response = client.get(f"/articles/{article_id}")
+            response = client.get(f"/articles/{article_id}", headers=_guest_headers())
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data["tag_groups"], list)
@@ -114,7 +132,7 @@ def test_article_detail_unknown_id_returns_404():
     from backend.main import app
     client = TestClient(app)
     with patch("backend.routers.articles.get_article_by_id", return_value=None):
-        response = client.get(f"/articles/{uuid.uuid4()}")
+        response = client.get(f"/articles/{uuid.uuid4()}", headers=_guest_headers())
     assert response.status_code == 404
 
 
@@ -124,7 +142,7 @@ def test_articles_aggregator_filter_passed_to_query():
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])) as mock_query:
-        response = client.get("/articles?aggregator=semantic_scholar&aggregator=openalex")
+        response = client.get("/articles?aggregator=semantic_scholar&aggregator=openalex", headers=_guest_headers())
     assert response.status_code == 200
     kwargs = mock_query.call_args.kwargs
     assert kwargs.get("aggregators") == ["semantic_scholar", "openalex"]
@@ -136,7 +154,7 @@ def test_articles_original_source_filter_passed_to_query():
     mock_article = make_mock_article()
     with patch("backend.routers.articles.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])) as mock_query:
-        response = client.get("/articles?original_source=rss")
+        response = client.get("/articles?original_source=rss", headers=_guest_headers())
     assert response.status_code == 200
     kwargs = mock_query.call_args.kwargs
     assert kwargs.get("original_sources") == ["rss"]

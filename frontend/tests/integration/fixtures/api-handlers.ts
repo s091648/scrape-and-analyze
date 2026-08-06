@@ -102,9 +102,24 @@ export async function mockApiRoutes(page: Page) {
   const proxyPrefix = (prefix: string) => (url: URL) =>
     url.pathname.startsWith(`/api/proxy/${prefix}`)
 
-  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend
+  // Catch-all: any unmocked /api/proxy/** route returns 404 instead of hitting the real backend.
+  // Shaped like the backend's real central exception handler response
+  // (backend/schemas/error.py::ErrorResponse) so apiFetch's error parsing path
+  // (frontend/lib/api/client.ts) is exercised the same way it is in production.
   await page.route((url: URL) => url.pathname.startsWith('/api/proxy/'), route =>
-    route.fulfill({ status: 404, json: { detail: 'not found (test mock catch-all)' } })
+    route.fulfill({
+      status: 404,
+      json: { error: { code: 'not_found', message: 'not found (test mock catch-all)', request_id: 'test-catch-all' } },
+    })
+  )
+
+  // Guest token bootstrap — AuthTokenProvider calls this unauthenticated (test.use({
+  // storageState: { cookies: [], origins: [] } })) to get a token before ANYTHING else
+  // that depends on it (e.g. I18nProvider's /languages fetch, gated on `token` being
+  // truthy) can proceed. Without this mock it falls through to the 404 catch-all above,
+  // silently stranding those callers forever.
+  await page.route((url: URL) => url.pathname === '/api/proxy/auth/guest', route =>
+    route.fulfill({ json: { access_token: 'test-guest-access-token', refresh_token: 'test-guest-refresh-token', expires_in: 3600 } })
   )
 
   // Generic routes (registered before specifics — lower priority in LIFO)

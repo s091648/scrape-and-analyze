@@ -82,7 +82,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <main className="flex-1 px-10 py-8 overflow-auto">
+      <main className="themed-scrollbar flex-1 px-10 py-8 overflow-auto">
         {children}
       </main>
     </div>

@@ -48,6 +48,12 @@ describe('traceQLServiceMatch', () => {
     const result = traceQLServiceMatch('staging')
     expect(result).toContain(`${TraceQLResource.DEPLOYMENT_ENVIRONMENT} = "staging"`)
   })
+
+  it('uses the provided serviceName override instead of SERVICE_NAME', () => {
+    const result = traceQLServiceMatch(undefined, 'scrape-analyzer-backend')
+    expect(result).toContain(`${TraceQLResource.SERVICE_NAME} = "scrape-analyzer-backend"`)
+    expect(result).not.toContain(`${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}"`)
+  })
 })
 
 describe('promqlIncrease', () => {

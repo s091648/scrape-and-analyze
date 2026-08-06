@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -102,3 +104,81 @@ def test_middleware_sets_valid_uuid4_request_id():
     request_id = response.headers.get("x-request-id", "")
     parsed = uuid.UUID(request_id, version=4)
     assert str(parsed) == request_id
+
+
+# ── Streaming pass-through (regression) ─────────────────────────────────────────
+# This middleware is deliberately pure ASGI, not starlette.middleware.base.BaseHTTPMiddleware —
+# BaseHTTPMiddleware relays the downstream response through an internal buffer to hand dispatch()
+# a single Response object, which collapses a StreamingResponse (see /chat/completions) into one
+# burst delivered only once generation has fully finished, instead of the client watching content
+# arrive live as the LLM streams it. These tests exercise the ASGI interface directly (no
+# TestClient, which itself doesn't distinguish incremental vs. buffered delivery) to prove each
+# chunk is forwarded through `send` as the downstream app produces it.
+
+@pytest.mark.asyncio
+async def test_middleware_forwards_streamed_chunks_as_they_are_produced():
+    from backend.middleware.logging import RequestLoggingMiddleware
+
+    progress: list[str] = []
+
+    async def streaming_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        for i in range(3):
+            progress.append(f"producing-{i}")
+            await send({"type": "http.response.body", "body": f"chunk-{i}".encode(), "more_body": True})
+            progress.append(f"produced-{i}")
+            await asyncio.sleep(0)  # yields control, as real async work between chunks would
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+    middleware = RequestLoggingMiddleware(streaming_app)
+
+    received: list[bytes] = []
+
+    async def fake_send(message):
+        if message["type"] == "http.response.body" and message.get("body"):
+            received.append(message["body"])
+            # The middleware forwards this chunk synchronously, inline with the app's own
+            # `await send(...)` call — so at the moment it's observed here, the app hasn't even
+            # reached its own "produced-N" bookkeeping yet (the next line after that await).
+            # Proves each chunk reaches the client as it's made, not batched until the app —
+            # and by extension the whole LLM generation — finishes (which "produced-2" already
+            # being in `progress` by the time chunk 0 is observed here would indicate).
+            assert progress[-1] == f"producing-{len(received) - 1}"
+
+    async def fake_receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    scope = {"type": "http", "method": "GET", "path": "/", "headers": [], "client": ("127.0.0.1", 1234)}
+
+    with patch("shared.utils.geoip.get_geo", return_value={}):
+        await middleware(scope, fake_receive, fake_send)
+
+    assert received == [b"chunk-0", b"chunk-1", b"chunk-2"]
+
+
+@pytest.mark.asyncio
+async def test_middleware_still_adds_request_id_header_for_streaming_responses():
+    from backend.middleware.logging import RequestLoggingMiddleware
+
+    async def streaming_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"chunk", "more_body": True})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+    middleware = RequestLoggingMiddleware(streaming_app)
+    start_message = {}
+
+    async def fake_send(message):
+        if message["type"] == "http.response.start":
+            start_message.update(message)
+
+    async def fake_receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    scope = {"type": "http", "method": "GET", "path": "/", "headers": [], "client": ("127.0.0.1", 1234)}
+
+    with patch("shared.utils.geoip.get_geo", return_value={}):
+        await middleware(scope, fake_receive, fake_send)
+
+    header_names = [k for k, _ in start_message.get("headers", [])]
+    assert b"x-request-id" in header_names

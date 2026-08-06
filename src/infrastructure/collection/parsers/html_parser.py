@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from .base_parser import BaseContentParser
 from src.infrastructure.collection.parsers.sanitize_service import SanitizeService
+from src.modules.collection.domain.exceptions import ArticleFetchError
 from src.shared.logging import get_logger
 from src.infrastructure.shared.http import get_default_client
 
@@ -37,14 +38,20 @@ class HtmlArticleParser(BaseContentParser):
         return ''
 
     def fetch_and_parse(self, url: str, fallback: str = '') -> str:
-        """HTTP GET the URL then parse. Returns fallback on any failure."""
+        """HTTP GET the URL then parse.
+
+        Raises ArticleFetchError on transport failure (network error, timeout,
+        non-2xx after retries) — the caller decides whether/how to degrade,
+        instead of this silently masking the failure as a successful fetch.
+        Returns fallback only for the distinct case of a successful fetch
+        whose HTML doesn't match any known content selector.
+        """
         if not url:
             return fallback
         try:
             response = get_default_client().get(url, timeout=30)
         except Exception as e:
-            logger.warning('html_fetch_failed', url=url, error=str(e))
-            return fallback
+            raise ArticleFetchError(f"Failed to fetch article body from {url}: {e}") from e
         result = self.parse(response.text)
         if not result:
             logger.warning('html_no_body_found', url=url)

@@ -303,7 +303,7 @@ export function NavBar() {
       {mobileMenuOpen && (
         <div
           ref={mobileMenuRef}
-          className="md:hidden border-t border-border bg-background max-h-[calc(100vh-4rem)] overflow-y-auto"
+          className="themed-scrollbar md:hidden border-t border-border bg-background max-h-[calc(100vh-4rem)] overflow-y-auto"
         >
           <div className="container mx-auto px-6 py-4 flex flex-col gap-4">
             {!topicsLoading && topics.length > 0 && (

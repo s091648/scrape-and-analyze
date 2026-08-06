@@ -14,6 +14,7 @@ from enum import StrEnum
 # ── Service identity ──────────────────────────────────────────────────────────
 
 SERVICE_NAME = "scrape-analyzer"
+SERVICE_NAME_BACKEND = "scrape-analyzer-backend"
 
 
 # ── OTel Resource ────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ class LokiLabel(StrEnum):
 
 class LokiAppValue(StrEnum):
     SCRAPER = "scraper"
+    BACKEND = "backend"
 
 
 class LokiEnvValue(StrEnum):
@@ -102,6 +104,9 @@ class SpanName(StrEnum):
     WEEKLY_REPORT_IMAGE = "weekly_report.image"
     WEEKLY_REPORT_TRANSLATE = "weekly_report.translate"
     WEEKLY_REPORT_NOTIFY = "weekly_report.notify"
+    REFRESH_METRICS_RUN = "refresh_metrics.run"
+    DEDUP_RECONCILE_RUN = "dedup_reconcile.run"
+    RAG_BACKFILL_RUN = "rag_backfill.run"
 
 
 # ── Span attributes ──────────────────────────────────────────────────────────

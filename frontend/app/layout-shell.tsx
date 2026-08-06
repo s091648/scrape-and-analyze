@@ -1,6 +1,5 @@
 "use client";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { NavBar } from "@/components/features/navigation/nav-bar";
 import { ErrorBoundary } from "@/components/common/error-boundary";
 import { FloatingChatbotWrapper } from "@/components/features/chat/FloatingChatbotWrapper";
@@ -8,13 +7,9 @@ import { TutorialOverlay } from "@/components/features/tutorial/tutorial-overlay
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { data: session, status } = useSession();
   const isStandalone = pathname.startsWith("/articles/");
   const isFullBleed = pathname === '/'
   const isChatPath = ["/articles", "/graph", "/tags"].includes(pathname);
-  // Remount the chatbot when the logged-in user changes so memory/localStorage
-  // from a previous session is never visible to the next user.
-  const chatKey = status === "loading" ? "loading" : ((session?.user as any)?.id ?? "guest");
 
   const mainClassName = isStandalone
     ? 'min-h-screen flex items-center justify-center p-6'
@@ -29,7 +24,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       <main className={mainClassName}>
         {children}
       </main>
-      {isChatPath && <FloatingChatbotWrapper key={chatKey} />}
+      {isChatPath && <FloatingChatbotWrapper />}
     </ErrorBoundary>
   );
 }

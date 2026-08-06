@@ -1,17 +1,19 @@
 <!--
 Sync Impact Report:
-- Version change: 1.4.0 → 1.5.0 (MINOR: expanded Principle I with a domain-layer
-  dataclass-vs-Pydantic rule, formalizing a pre-existing but previously
-  undocumented codebase convention discovered during a code review)
+- Version change: 1.7.0 → 1.8.0 (MINOR: documented the new automatic
+  data-migration CI/CD step added by 019-cicd-data-migrations — a purely
+  additive behavior description, no existing principle rewritten or removed.)
 - Modified principles:
-  - I. Domain-Driven Design: added a sub-bullet under the Domain layer entry
-    requiring stdlib `@dataclass` by default for entities/value objects, with
-    Pydantic `BaseModel` permitted only for a genuinely Pydantic-specific
-    capability (documented exception: `ScraperKeywordVO`'s discriminated union)
+  - V. Added a new "Data migrations run alongside schema migrations" bullet
+    describing the `scripts/run_data_migrations.py` step now added
+    immediately after `alembic upgrade head` in both `ci.yml`'s `migrate`
+    job and `release.yml`, its exclusion from the three ephemeral-test-DB
+    jobs, its `requires_api` gating, and its transactional fail-fast/
+    non-rollback-of-schema failure semantics.
 - Added sections: None
 - Removed sections: None
 - Templates requiring updates:
-  - .specify/templates/tasks-template.md: ✅ compatible (no dataclass/Pydantic references)
+  - .specify/templates/tasks-template.md: ✅ compatible (no deployment references)
   - .specify/templates/plan-template.md: ✅ compatible
   - .specify/templates/spec-template.md: ✅ compatible
 - Follow-up TODOs: None
@@ -150,24 +152,72 @@ Rationale: Docker-first eliminates "works on my machine" issues and
 ensures parity between developer environments and CI service
 containers.
 
-### V. CI-Only Deployment Boundary
+### V. Explicit CI/CD Deployment Boundary
 
-- **GitHub Actions** performs CI only: lint, test, coverage, and
-  auto-migration on push to `master`. It MUST NOT build or deploy
-  artifacts.
-- **Railway** handles CD: continuous deployment from the `master`
-  branch. Railway is the single source of production truth.
+- **GitHub Actions performs both CI and explicit CD** via the Railway
+  CLI (`railway up --detach --service <id>`) — it is not CI-only.
+  Deploys are gated on tests passing and only fire on two specific
+  triggers, never on a bare merge to `master`:
+  - **Staging** (`.github/workflows/ci.yml`, `deploy-staging-*` jobs):
+    fires only on `pull_request` events, after the relevant test jobs
+    succeed. Deploys the PR's checked-out commit to each service's
+    Railway *staging* environment.
+  - **Production** (`.github/workflows/release.yml`): fires only on
+    pushing a `v*` tag, after stamping the version and running
+    `alembic upgrade head` against production. Deploys every service
+    to Railway *production*.
+  - A plain push to `master` (post-merge) runs migration + tests +
+    the `rollback` safety net only — it does not deploy anything.
+- **Exception — `chatbot-plugin`**: this service has its own standalone
+  GitHub repo (`github.com/s091648/chatbot-plugin`), own CI
+  (`chatbot-plugin/.github/workflows/ci.yml`, gated by that repo's own
+  branch protection on `master`), and own semver `v*` release tags
+  (`chatbot-plugin/.github/workflows/release.yml`). Railway's native
+  Git integration for this service is intentionally NOT connected —
+  it is deployed only via this monorepo's `railway up` calls, using
+  whatever commit the `chatbot-plugin` submodule pointer has checked
+  out. The two monorepo triggers apply asymmetrically to it:
+  - **Staging** deploys the submodule pointer's current commit as-is,
+    tagged or not — staging is a preview environment, not a release.
+  - **Production** deploys it only if that exact commit carries a `v*`
+    tag in `chatbot-plugin`'s own repo (verified by `release.yml`
+    before the `railway up` call); an untagged commit is skipped with
+    a loud warning rather than silently deployed. This mirrors a
+    build-once/tag-then-promote pattern (the `chatbot-plugin` repo is
+    the "build once, test, tag" stage; this monorepo just pins and
+    promotes an already-tagged reference to production) without
+    needing a container registry.
 - **Migration safety**: On push to master, CI runs
   `alembic upgrade head` against the production DB. If any downstream
   test stage fails, the `rollback` job runs `alembic downgrade -1` on
   production automatically.
+- **Data migrations run alongside schema migrations**: Immediately after
+  each `alembic upgrade head` step in `ci.yml`'s `migrate` job (staging)
+  and `release.yml` (production), a second step runs
+  `scripts/run_data_migrations.py` to apply any pending standalone data
+  migration from `scripts/data/versions/` (the `data_migrations`-table-
+  tracked, Alembic-analogous framework for one-off data fixes that aren't
+  tied to a schema change). It is deliberately not run against the three
+  ephemeral-per-job test databases. `requires_api=True` migrations are
+  always skipped by these automatic runs (manual-only, via
+  `make data-migrate --include-api`). A migration's `up()` runs in its own
+  transaction; on failure it rolls back, is not recorded, halts the rest
+  of that run's chain, and fails the containing CI job — without
+  reversing an already-successful schema migration from the same run.
 - **No direct production access**: Migrations and retries against
   production MUST go through Makefile targets (`make migrate-remote`,
   `make retry-failed-remote`) that use `REMOTE_RAILWAY_DB_URL`.
 
-Rationale: Separating CI from CD prevents accidental production
-deployments from PR branches and ensures Railway is the authoritative
-deployment pipeline.
+Rationale: Gating deploys on explicit CI triggers (PR review for
+staging, version tags for production) instead of Railway's own
+branch-watching auto-deploy prevents unreviewed or untested commits
+from reaching a live environment. `chatbot-plugin` previously also had
+Railway's own Git integration watching its standalone repo directly,
+deploying on every push independent of (and untested by) either repo's
+CI — that auto-deploy has been removed in favor of the tag-gated
+promotion described above, so a production deploy of that service now
+always traces back to a commit that passed its own CI and was
+deliberately released.
 
 ### VI. Observability as a First-Class Concern
 
@@ -406,4 +456,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.5.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-21
+**Version**: 1.8.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-26

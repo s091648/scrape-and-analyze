@@ -10,7 +10,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Messag
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
 import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
-import { useI18n, usePinnedArticle } from '@/lib/providers'
+import { useI18n, usePinnedReport } from '@/lib/providers'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CitedContent } from '@/components/features/chat/cited-content'
 import { AnswerDisplay } from '@/components/features/chat/AnswerDisplay'
@@ -51,7 +51,7 @@ interface WeeklyReportWidgetProps {
 
 export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
-  const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedArticle()
+  const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedReport()
   const [reports, setReports] = useState<WeeklyReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -82,6 +82,29 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   function handleMessageSent() {
     setHasConversation(true)
     setActiveCard('chat')
+  }
+
+  // InlineQABarWrapper's chat state now lives in a provider mounted at the app root (see
+  // lib/providers/inline-chat-provider.tsx), so it survives leaving `/` and coming back — but
+  // hasConversation/activeCard here are still local state, reset on every remount of this widget.
+  // Without this, a resumed non-empty conversation would never activate the card-swap area below
+  // (leaving the restored answer with nowhere to render), and even once it does, activeCard
+  // silently defaulting back to 'report' means the resumed answer stays hidden behind a small,
+  // easy-to-miss toggle button until the user happens to click it.
+  //
+  // setHasConversation's functional-update form is what makes this only fire once, on the actual
+  // false→true transition (i.e. the resume moment) — not on every subsequent snapshot update
+  // while hasConversation is already true, which would otherwise fight the user manually
+  // switching back to the report card while the chat keeps streaming in the background (the
+  // whole point of that feature — see FloatChatProvider/InlineChatProvider).
+  function handleConversationChange(snapshot: ChatConversationSnapshot) {
+    setChatState(snapshot)
+    if (snapshot.turns.length > 0) {
+      setHasConversation(prev => {
+        if (!prev) setActiveCard('chat')
+        return true
+      })
+    }
   }
 
   useEffect(() => {
@@ -229,7 +252,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
             exit={{ rotateY: 90, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}
             style={{ transformOrigin: 'left center', backfaceVisibility: 'hidden' }}
-            className="h-full overflow-y-auto"
+            className="weekly-stepper-scroll h-full overflow-y-auto"
           >
             <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-600 mb-1">
               {new Date(selected.week_start_date).toLocaleDateString(locale === 'zh-TW' ? 'zh-TW' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -352,14 +375,14 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
         animate={collapsed ? { opacity: 0, x: 24 } : { opacity: 1, x: 0 }}
         transition={{ duration: 0.25, ease: 'easeInOut' }}
         style={{ pointerEvents: collapsed ? 'none' : 'auto' }}
-        className="relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
+        className="weekly-stepper-scroll relative h-full overflow-y-auto flex flex-col items-center justify-center gap-4 px-4 py-6"
       >
         {/* The chat child (and its useChat() request) stays mounted here for the widget's whole
             lifetime — it must never unmount just because the report card is what's currently
             visible below, or an in-flight response gets abandoned and the conversation resets. */}
         {children && (
           <div className="w-[80%] max-w-6xl shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm p-3">
-            {children({ onSend: handleMessageSent, onConversationChange: setChatState })}
+            {children({ onSend: handleMessageSent, onConversationChange: handleConversationChange })}
           </div>
         )}
 
@@ -387,6 +410,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
                     currentIndex={chatState.currentIndex}
                     isLoading={chatState.isLoading}
                     error={chatState.error}
+                    hasUnreadResponse={chatState.hasUnreadResponse}
                     onPrevTurn={chatState.onPrevTurn}
                     onNextTurn={chatState.onNextTurn}
                     draggableSources

@@ -104,6 +104,7 @@ class CollectionPipeline:
             skipped_tasks = [t for h, t in hashes.items() if h in analyzed]
             for t in skipped_tasks:
                 self._pipeline_stats.record(t.source, ArticleOutcome.DUPLICATE)
+                logger.info("article_duplicate_skipped", url=t.url, source=t.source)
             if skipped_tasks:
                 logger.info("pre_fetch_dedup_filtered", skipped=len(skipped_tasks), remaining=len(kept))
             return kept
@@ -143,6 +144,8 @@ class CollectionPipeline:
                     h = UrlHash.from_url(a.url).value
                     if h in url_hashes:
                         self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                        logger.info("article_duplicate_skipped", url=a.url, source=a.source,
+                                    original_source=a.extra.get("original_source"))
                     else:
                         url_hashes[h] = a
                 results = list(url_hashes.values())
@@ -155,6 +158,8 @@ class CollectionPipeline:
                             (skipped if h in analyzed else kept).append(a)
                         for a in skipped:
                             self._pipeline_stats.record(a.source, ArticleOutcome.DUPLICATE)
+                            logger.info("article_duplicate_skipped", url=a.url, source=a.source,
+                                        original_source=a.extra.get("original_source"))
                         results = kept
                         logger.info(
                             "post_dedup_filtered",

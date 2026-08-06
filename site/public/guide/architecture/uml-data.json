@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-21T08:26:04.425034+00:00",
+  "generated_at": "2026-08-02T14:25:15.737334+00:00",
   "layers": [
     "application",
     "domain",
@@ -530,7 +530,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.entities.article.Article",
+      "id": "entities.article.Article",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Article|content",
@@ -538,11 +538,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "domain.entities.article",
+      "module": "entities.article",
       "class_name": "Article",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/entities/article/Article.py",
+      "full_path": "src/entities/article/Article.py",
       "docstring": "Domain entity representing a scraped article with URL, content, and metadata.",
       "typed_attrs": [
         "url: str",
@@ -659,6 +659,45 @@
       "context": "intelligence"
     },
     {
+      "id": "repositories.article_dedup_repository.ArticleDedupRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ArticleDedupRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.article_dedup_repository",
+      "class_name": "ArticleDedupRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/article_dedup_repository/ArticleDedupRepository.py",
+      "docstring": "Reconciles articles against upstream (OpenAlex) merge decisions made\nafter we'd already scraped one or both sides of a duplicate.\n\nMerging never deletes a row — the losing article is tombstoned…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "find_by_work_id(work_id: str) → Optional[UUID]",
+          "doc": "Return the id of the (non-tombstoned) article with this OpenAlex work_id, or None."
+        },
+        {
+          "sig": "heal_identifiers(article_id: UUID, work_id: str, doi: Optional[str]) → None",
+          "doc": "Update this article's own metadata to OpenAlex's now-canonical work_id/doi.\n\nUsed when OpenAlex merged this article's work_id away but we never\nscraped the…"
+        },
+        {
+          "sig": "merge(loser_id: UUID, survivor_id: UUID) → None",
+          "doc": "Tombstone `loser_id` into `survivor_id`: roll up view_count, union\ntags, and mark `loser_id.merged_into_id = survivor_id`."
+        },
+        {
+          "sig": "mark_reconciled(article_id: UUID) → None",
+          "doc": "Record that this article's work_id was checked and is still canonical."
+        }
+      ],
+      "source_file": "src/modules/collection/domain/repositories/article_dedup_repository.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
       "id": "repositories.article_metrics_repository.ArticleMetricsRepository",
       "color": "black",
       "fontcolor": "black",
@@ -773,7 +812,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.article_repository.ArticleRepository",
+      "id": "repositories.article_repository.ArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleRepository|<br",
@@ -781,11 +820,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.article_repository",
+      "module": "repositories.article_repository",
       "class_name": "ArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/article_repository/ArticleRepository.py",
+      "full_path": "src/repositories/article_repository/ArticleRepository.py",
       "docstring": "Abstract repository interface for Article persistence operations.",
       "typed_attrs": [],
       "typed_methods": [
@@ -1421,7 +1460,7 @@
       "context": "collection"
     },
     {
-      "id": "domain.services.blob_storage_service.BlobStorageService",
+      "id": "services.blob_storage_service.BlobStorageService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BlobStorageService|<br",
@@ -1431,11 +1470,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "domain.services.blob_storage_service",
+      "module": "services.blob_storage_service",
       "class_name": "BlobStorageService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/services/blob_storage_service/BlobStorageService.py",
+      "full_path": "src/services/blob_storage_service/BlobStorageService.py",
       "docstring": "",
       "typed_attrs": [],
       "typed_methods": [
@@ -1780,30 +1819,6 @@
       "context": "collection"
     },
     {
-      "id": "domain.exceptions.DomainError",
-      "color": "black",
-      "fontcolor": "red",
-      "label": "<{DomainError|<br",
-      "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "domain.exceptions",
-      "class_name": "DomainError",
-      "attributes": [],
-      "methods": [],
-      "full_path": "src/domain/exceptions/DomainError.py",
-      "docstring": "Root of the domain exception hierarchy shared by all bounded contexts.",
-      "typed_attrs": [],
-      "typed_methods": [],
-      "source_file": "src/shared/domain/exceptions.py",
-      "is_abstract": false,
-      "is_protocol": false,
-      "context": "shared"
-    },
-    {
       "id": "notifications.weekly_report_email_message_builder.EmailMessage",
       "color": "black",
       "fontcolor": "black",
@@ -2030,7 +2045,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.failed_task_repository.FailedTaskRepository",
+      "id": "repositories.failed_task_repository.FailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedTaskRepository|<br",
@@ -2040,11 +2055,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.failed_task_repository",
+      "module": "repositories.failed_task_repository",
       "class_name": "FailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/failed_task_repository/FailedTaskRepository.py",
+      "full_path": "src/repositories/failed_task_repository/FailedTaskRepository.py",
       "docstring": "Abstract repository interface for persisting FailedTask records.",
       "typed_attrs": [],
       "typed_methods": [
@@ -2375,7 +2390,7 @@
         },
         {
           "sig": "fetch_and_parse(url: str, fallback: str) → str",
-          "doc": "HTTP GET the URL then parse. Returns fallback on any failure."
+          "doc": "HTTP GET the URL then parse.\n\nRaises ArticleFetchError on transport failure (network error, timeout,\nnon-2xx after retries) — the caller decides whether/how to…"
         }
       ],
       "source_file": "src/infrastructure/collection/parsers/html_parser.py",
@@ -2568,7 +2583,7 @@
     {
       "id": "exceptions.IntelligenceDomainError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{IntelligenceDomainError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2592,7 +2607,7 @@
     {
       "id": "exceptions.InvalidSimilarityScoreError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSimilarityScoreError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2616,7 +2631,7 @@
     {
       "id": "exceptions.InvalidSuggestionStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSuggestionStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2640,7 +2655,7 @@
     {
       "id": "exceptions.InvalidWeeklyReportStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidWeeklyReportStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2961,6 +2976,10 @@
         {
           "sig": "fetch_by_doi(doi: str) → Optional[dict]",
           "doc": "Fetch a single work by DOI. Returns the raw parsed JSON dict (not an\nOpenAlexEntry) so metric extractors can evaluate JMESPath expressions\nagainst OpenAlex's…"
+        },
+        {
+          "sig": "fetch_by_id(work_id: str) → Optional[dict]",
+          "doc": "Fetch a single work by its OpenAlex ID (accepts either the full URL\nform 'https://openalex.org/W123' or the bare 'W123'). Returns the raw\nparsed JSON…"
         },
         {
           "sig": "fetch_papers(query: str, max_results: int, days_back: Optional[int]) → List[OpenAlexEntry]",
@@ -3981,7 +4000,8 @@
         "title: str",
         "description: str",
         "published: str",
-        "author: Optional[str]"
+        "author: Optional[str]",
+        "content: Optional[str]"
       ],
       "typed_methods": [],
       "source_file": "src/infrastructure/collection/clients/rss_client.py",
@@ -4049,7 +4069,7 @@
         },
         {
           "sig": "fetch(job: ScrapeJob) → Optional[ScrapedArticle]",
-          "doc": "Fetch and parse an RSS article page into a ScrapedArticle."
+          "doc": "Fetch and parse an RSS article page into a ScrapedArticle.\n\nPrefers the feed's own <content:encoded> body (when the publisher\nincludes it) as the degraded-mode…"
         },
         {
           "sig": "_matches(text: str) → bool",
@@ -4381,6 +4401,39 @@
       "context": "collection"
     },
     {
+      "id": "persistence.types.SelectorConfigColumn",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SelectorConfigColumn|cache_ok",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "persistence.types",
+      "class_name": "SelectorConfigColumn",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/persistence/types/SelectorConfigColumn.py",
+      "docstring": "Maps JSONB ↔ typed SelectorConfig Pydantic models.\n\nWrite path: serializes to JSON dict including the 'type' discriminator.\nRead path: deserializes when 'type' field is present (new data).\n          …",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "process_bind_param(value, dialect)",
+          "doc": "Serialize a SelectorConfig model to a JSON dict for database storage."
+        },
+        {
+          "sig": "process_result_value(value, dialect)",
+          "doc": "Deserialize a JSON dict back to a typed SelectorConfig model."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/types.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "other"
+    },
+    {
       "id": "clients.semantic_scholar_client.SemanticScholarClient",
       "color": "black",
       "fontcolor": "black",
@@ -4652,7 +4705,7 @@
       "context": "collection"
     },
     {
-      "id": "intelligence.analyses_translation_repo_impl.SqlAlchemyAnalysesTranslationRepository",
+      "id": "persistence.intelligence.analyses_translation_repo_impl.SqlAlchemyAnalysesTranslationRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyAnalysesTranslationRepository|_session<br",
@@ -4660,11 +4713,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.analyses_translation_repo_impl",
+      "module": "persistence.intelligence.analyses_translation_repo_impl",
       "class_name": "SqlAlchemyAnalysesTranslationRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/analyses_translation_repo_impl/SqlAlchemyAnalysesTranslationRepository.py",
+      "full_path": "src/persistence/intelligence/analyses_translation_repo_impl/SqlAlchemyAnalysesTranslationRepository.py",
       "docstring": "SQLAlchemy implementation of AnalysesTranslationRepository.",
       "typed_attrs": [
         "_session"
@@ -4697,7 +4750,7 @@
       "context": "intelligence"
     },
     {
-      "id": "intelligence.analysis_repo_impl.SqlAlchemyAnalysisRepository",
+      "id": "persistence.intelligence.analysis_repo_impl.SqlAlchemyAnalysisRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyAnalysisRepository|_session<br",
@@ -4707,11 +4760,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.analysis_repo_impl",
+      "module": "persistence.intelligence.analysis_repo_impl",
       "class_name": "SqlAlchemyAnalysisRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/analysis_repo_impl/SqlAlchemyAnalysisRepository.py",
+      "full_path": "src/persistence/intelligence/analysis_repo_impl/SqlAlchemyAnalysisRepository.py",
       "docstring": "SQLAlchemy implementation of AnalysisRepository for persisting analysis results.",
       "typed_attrs": [
         "_session"
@@ -4740,19 +4793,64 @@
       "context": "intelligence"
     },
     {
-      "id": "collection.article_metrics_repo_impl.SqlAlchemyArticleMetricsRepository",
+      "id": "persistence.collection.article_dedup_repo_impl.SqlAlchemyArticleDedupRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SqlAlchemyArticleDedupRepository|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "persistence.collection.article_dedup_repo_impl",
+      "class_name": "SqlAlchemyArticleDedupRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/persistence/collection/article_dedup_repo_impl/SqlAlchemyArticleDedupRepository.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "find_by_work_id(work_id: str) → Optional[UUID]",
+          "doc": ""
+        },
+        {
+          "sig": "heal_identifiers(article_id: UUID, work_id: str, doi: Optional[str]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "merge(loser_id: UUID, survivor_id: UUID) → None",
+          "doc": ""
+        },
+        {
+          "sig": "mark_reconciled(article_id: UUID) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/collection/article_dedup_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "persistence.collection.article_metrics_repo_impl.SqlAlchemyArticleMetricsRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyArticleMetricsRepository|_session<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-collection",
-      "ca_layer": "infrastructure",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "collection.article_metrics_repo_impl",
+      "module": "persistence.collection.article_metrics_repo_impl",
       "class_name": "SqlAlchemyArticleMetricsRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/collection/article_metrics_repo_impl/SqlAlchemyArticleMetricsRepository.py",
+      "full_path": "src/persistence/collection/article_metrics_repo_impl/SqlAlchemyArticleMetricsRepository.py",
       "docstring": "",
       "typed_attrs": [
         "_session"
@@ -4773,7 +4871,7 @@
       "context": "collection"
     },
     {
-      "id": "shared.article_repo_impl.SqlAlchemyArticleRepository",
+      "id": "persistence.shared.article_repo_impl.SqlAlchemyArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyArticleRepository|_session<br",
@@ -4781,11 +4879,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "shared.article_repo_impl",
+      "module": "persistence.shared.article_repo_impl",
       "class_name": "SqlAlchemyArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/shared/article_repo_impl/SqlAlchemyArticleRepository.py",
+      "full_path": "src/persistence/shared/article_repo_impl/SqlAlchemyArticleRepository.py",
       "docstring": "SQLAlchemy implementation of the ArticleRepository interface.",
       "typed_attrs": [
         "_session"
@@ -4822,7 +4920,7 @@
       "context": "shared"
     },
     {
-      "id": "intelligence.article_translation_repo_impl.SqlAlchemyArticleTranslationRepository",
+      "id": "persistence.intelligence.article_translation_repo_impl.SqlAlchemyArticleTranslationRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyArticleTranslationRepository|_session<br",
@@ -4830,11 +4928,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.article_translation_repo_impl",
+      "module": "persistence.intelligence.article_translation_repo_impl",
       "class_name": "SqlAlchemyArticleTranslationRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/article_translation_repo_impl/SqlAlchemyArticleTranslationRepository.py",
+      "full_path": "src/persistence/intelligence/article_translation_repo_impl/SqlAlchemyArticleTranslationRepository.py",
       "docstring": "SQLAlchemy implementation of ArticleTranslationRepository.",
       "typed_attrs": [
         "_session"
@@ -4867,7 +4965,7 @@
       "context": "intelligence"
     },
     {
-      "id": "shared.failed_task_repo_impl.SqlAlchemyFailedTaskRepository",
+      "id": "persistence.shared.failed_task_repo_impl.SqlAlchemyFailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyFailedTaskRepository|_session<br",
@@ -4877,11 +4975,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "shared.failed_task_repo_impl",
+      "module": "persistence.shared.failed_task_repo_impl",
       "class_name": "SqlAlchemyFailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/shared/failed_task_repo_impl/SqlAlchemyFailedTaskRepository.py",
+      "full_path": "src/persistence/shared/failed_task_repo_impl/SqlAlchemyFailedTaskRepository.py",
       "docstring": "SQLAlchemy implementation of the FailedTaskRepository interface.",
       "typed_attrs": [
         "_session"
@@ -4906,19 +5004,19 @@
       "context": "shared"
     },
     {
-      "id": "collection.scraper_setting_repo_impl.SqlAlchemyScraperSettingRepository",
+      "id": "persistence.collection.scraper_setting_repo_impl.SqlAlchemyScraperSettingRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyScraperSettingRepository|_session<br",
       "ALIGN": "LEFT",
-      "layer": "infrastructure-collection",
-      "ca_layer": "infrastructure",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "collection.scraper_setting_repo_impl",
+      "module": "persistence.collection.scraper_setting_repo_impl",
       "class_name": "SqlAlchemyScraperSettingRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/collection/scraper_setting_repo_impl/SqlAlchemyScraperSettingRepository.py",
+      "full_path": "src/persistence/collection/scraper_setting_repo_impl/SqlAlchemyScraperSettingRepository.py",
       "docstring": "SQLAlchemy implementation of the ScraperSettingRepository interface.",
       "typed_attrs": [
         "_session"
@@ -4947,7 +5045,7 @@
       "context": "collection"
     },
     {
-      "id": "intelligence.tag_group_definition_repo_impl.SqlAlchemyTagGroupDefinitionRepository",
+      "id": "persistence.intelligence.tag_group_definition_repo_impl.SqlAlchemyTagGroupDefinitionRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyTagGroupDefinitionRepository|_session<br",
@@ -4955,11 +5053,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.tag_group_definition_repo_impl",
+      "module": "persistence.intelligence.tag_group_definition_repo_impl",
       "class_name": "SqlAlchemyTagGroupDefinitionRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/tag_group_definition_repo_impl/SqlAlchemyTagGroupDefinitionRepository.py",
+      "full_path": "src/persistence/intelligence/tag_group_definition_repo_impl/SqlAlchemyTagGroupDefinitionRepository.py",
       "docstring": "SQLAlchemy implementation of TagGroupDefinitionRepository for tag group CRUD.",
       "typed_attrs": [
         "_session"
@@ -4984,7 +5082,7 @@
       "context": "intelligence"
     },
     {
-      "id": "intelligence.tag_repo_impl.SqlAlchemyTagRepository",
+      "id": "persistence.intelligence.tag_repo_impl.SqlAlchemyTagRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyTagRepository|_session<br",
@@ -4992,11 +5090,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.tag_repo_impl",
+      "module": "persistence.intelligence.tag_repo_impl",
       "class_name": "SqlAlchemyTagRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/tag_repo_impl/SqlAlchemyTagRepository.py",
+      "full_path": "src/persistence/intelligence/tag_repo_impl/SqlAlchemyTagRepository.py",
       "docstring": "SQLAlchemy implementation of TagRepository for tag persistence and similarity search.",
       "typed_attrs": [
         "_session"
@@ -5049,7 +5147,7 @@
       "context": "intelligence"
     },
     {
-      "id": "intelligence.tag_translation_repo_impl.SqlAlchemyTagTranslationRepository",
+      "id": "persistence.intelligence.tag_translation_repo_impl.SqlAlchemyTagTranslationRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyTagTranslationRepository|_session<br",
@@ -5057,11 +5155,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.tag_translation_repo_impl",
+      "module": "persistence.intelligence.tag_translation_repo_impl",
       "class_name": "SqlAlchemyTagTranslationRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/tag_translation_repo_impl/SqlAlchemyTagTranslationRepository.py",
+      "full_path": "src/persistence/intelligence/tag_translation_repo_impl/SqlAlchemyTagTranslationRepository.py",
       "docstring": "SQLAlchemy implementation of TagTranslationRepository.",
       "typed_attrs": [
         "_session"
@@ -5094,7 +5192,7 @@
       "context": "intelligence"
     },
     {
-      "id": "shared.topic_repo_impl.SqlAlchemyTopicRepository",
+      "id": "persistence.shared.topic_repo_impl.SqlAlchemyTopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyTopicRepository|_session<br",
@@ -5102,11 +5200,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "shared.topic_repo_impl",
+      "module": "persistence.shared.topic_repo_impl",
       "class_name": "SqlAlchemyTopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/shared/topic_repo_impl/SqlAlchemyTopicRepository.py",
+      "full_path": "src/persistence/shared/topic_repo_impl/SqlAlchemyTopicRepository.py",
       "docstring": "SQLAlchemy implementation of the TopicRepository interface.",
       "typed_attrs": [
         "_session"
@@ -5135,7 +5233,7 @@
       "context": "shared"
     },
     {
-      "id": "intelligence.weekly_report_translation_repo_impl.SqlAlchemyWeeklyReportTranslationRepository",
+      "id": "persistence.intelligence.weekly_report_translation_repo_impl.SqlAlchemyWeeklyReportTranslationRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SqlAlchemyWeeklyReportTranslationRepository|_session<br",
@@ -5143,11 +5241,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.weekly_report_translation_repo_impl",
+      "module": "persistence.intelligence.weekly_report_translation_repo_impl",
       "class_name": "SqlAlchemyWeeklyReportTranslationRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/weekly_report_translation_repo_impl/SqlAlchemyWeeklyReportTranslationRepository.py",
+      "full_path": "src/persistence/intelligence/weekly_report_translation_repo_impl/SqlAlchemyWeeklyReportTranslationRepository.py",
       "docstring": "",
       "typed_attrs": [
         "_session"
@@ -5286,7 +5384,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.value_objects.tag_mode.TagMode",
+      "id": "value_objects.tag_mode.TagMode",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TagMode|name<br",
@@ -5296,11 +5394,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "domain.value_objects.tag_mode",
+      "module": "value_objects.tag_mode",
       "class_name": "TagMode",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/value_objects/tag_mode/TagMode.py",
+      "full_path": "src/value_objects/tag_mode/TagMode.py",
       "docstring": "Enum controlling how tags are assigned: unsupervised, semi-supervised, or supervised.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -5572,7 +5670,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.value_objects.telegram_message.TelegramMessage",
+      "id": "value_objects.telegram_message.TelegramMessage",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramMessage|parse_mode",
@@ -5580,11 +5678,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "domain.value_objects.telegram_message",
+      "module": "value_objects.telegram_message",
       "class_name": "TelegramMessage",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/value_objects/telegram_message/TelegramMessage.py",
+      "full_path": "src/value_objects/telegram_message/TelegramMessage.py",
       "docstring": "Transport-agnostic representation of a Telegram message to be sent.",
       "typed_attrs": [
         "text: str",
@@ -5646,7 +5744,7 @@
       "context": "notifications"
     },
     {
-      "id": "domain.services.telegram_notifier_service.TelegramNotifierService",
+      "id": "services.telegram_notifier_service.TelegramNotifierService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramNotifierService|<br",
@@ -5656,11 +5754,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "domain.services.telegram_notifier_service",
+      "module": "services.telegram_notifier_service",
       "class_name": "TelegramNotifierService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/services/telegram_notifier_service/TelegramNotifierService.py",
+      "full_path": "src/services/telegram_notifier_service/TelegramNotifierService.py",
       "docstring": "Transport-only interface for sending a Telegram message to a chat id.\n\nConcrete implementations live in src/shared/infrastructure/notifications/.\nUse-case-specific content (Markdown formatting,…",
       "typed_attrs": [],
       "typed_methods": [
@@ -5702,18 +5800,18 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.entities.topic.Topic",
+      "id": "entities.topic.Topic",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Topic|color_hex",
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "domain.entities.topic",
+      "module": "entities.topic",
       "class_name": "Topic",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/entities/topic/Topic.py",
+      "full_path": "src/entities/topic/Topic.py",
       "docstring": "Domain entity representing a topic category for article classification.",
       "typed_attrs": [
         "name: str",
@@ -5734,7 +5832,7 @@
       "context": "shared"
     },
     {
-      "id": "domain.repositories.topic_repository.TopicRepository",
+      "id": "repositories.topic_repository.TopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TopicRepository|<br",
@@ -5742,11 +5840,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.topic_repository",
+      "module": "repositories.topic_repository",
       "class_name": "TopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/topic_repository/TopicRepository.py",
+      "full_path": "src/repositories/topic_repository/TopicRepository.py",
       "docstring": "Abstract repository interface for Topic lookup queries.",
       "typed_attrs": [],
       "typed_methods": [
@@ -6159,7 +6257,7 @@
       "context": "intelligence"
     },
     {
-      "id": "intelligence.weekly_report_repo_impl.WeeklyReportRepoImpl",
+      "id": "persistence.intelligence.weekly_report_repo_impl.WeeklyReportRepoImpl",
       "color": "black",
       "fontcolor": "black",
       "label": "<{WeeklyReportRepoImpl|_session<br",
@@ -6167,11 +6265,11 @@
       "layer": "infrastructure-persistence",
       "ca_layer": "adapters",
       "subgroup": "persistence",
-      "module": "intelligence.weekly_report_repo_impl",
+      "module": "persistence.intelligence.weekly_report_repo_impl",
       "class_name": "WeeklyReportRepoImpl",
       "attributes": [],
       "methods": [],
-      "full_path": "src/intelligence/weekly_report_repo_impl/WeeklyReportRepoImpl.py",
+      "full_path": "src/persistence/intelligence/weekly_report_repo_impl/WeeklyReportRepoImpl.py",
       "docstring": "",
       "typed_attrs": [
         "_session"
@@ -6470,6 +6568,35 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "shared"
+    },
+    {
+      "id": "observability.loki_logging._StructlogMessageFormatter",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{_StructlogMessageFormatter|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "observability.loki_logging",
+      "class_name": "_StructlogMessageFormatter",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/observability/loki_logging/_StructlogMessageFormatter.py",
+      "docstring": "structlog's JSONRenderer already produces the complete, self-contained\nlog line (including a filtered traceback under \"exception\" when relevant\n— see shared/observability/traceback_filter.py).…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "format(record: logging.LogRecord) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/shared/observability/loki_logging.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
     }
   ],
   "edges": [
@@ -6690,12 +6817,12 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 78,
+      "count": 77,
       "subgroups": [
         {
           "id": "other",
           "label": "Other",
-          "count": 28
+          "count": 29
         },
         {
           "id": "clients",
@@ -6733,11 +6860,6 @@
           "count": 2
         },
         {
-          "id": "persistence",
-          "label": "Persistence",
-          "count": 2
-        },
-        {
           "id": "collection",
           "label": "Collection",
           "count": 1
@@ -6757,7 +6879,7 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 39
+          "count": 37
         },
         {
           "id": "intelligence",
@@ -6777,7 +6899,7 @@
         {
           "id": "other",
           "label": "Other",
-          "count": 1
+          "count": 2
         }
       ]
     },
@@ -6785,12 +6907,12 @@
       "id": "adapters",
       "label": "Interface Adapters",
       "color": "#EEDD88",
-      "count": 11,
+      "count": 14,
       "subgroups": [
         {
           "id": "persistence",
           "label": "Persistence",
-          "count": 11
+          "count": 14
         }
       ],
       "context_subgroups": [
@@ -6798,6 +6920,11 @@
           "id": "intelligence",
           "label": "Intelligence",
           "count": 8
+        },
+        {
+          "id": "collection",
+          "label": "Collection",
+          "count": 3
         },
         {
           "id": "shared",
@@ -6855,7 +6982,7 @@
       "id": "entities",
       "label": "Domain / Entities",
       "color": "#77AADD",
-      "count": 64,
+      "count": 65,
       "subgroups": [
         {
           "id": "value_objects",
@@ -6865,7 +6992,7 @@
         {
           "id": "repositories",
           "label": "Repositories",
-          "count": 15
+          "count": 16
         },
         {
           "id": "entities",
@@ -6887,7 +7014,7 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 16
+          "count": 17
         },
         {
           "id": "shared",

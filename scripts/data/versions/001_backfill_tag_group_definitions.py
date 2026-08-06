@@ -15,6 +15,7 @@ from sqlalchemy import text
 name = "001_backfill_tag_group_definitions"
 description = "Auto-create missing tag_group_definitions from historical analyses + orphan tags"
 requires_api = False
+down_revision = None  # first migration in the chain — no predecessor
 
 # The Alembic schema revision that introduced the structures this script depends on.
 # Migration 17 added the embedding column to tag_group_definitions and auto_tag_groups

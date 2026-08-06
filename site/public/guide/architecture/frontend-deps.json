@@ -89,7 +89,7 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
-  "app/articles/page.tsx": [
+  "app/articles/articles-page-content.tsx": [
     "components/features/articles/article-card.tsx",
     "components/features/articles/filter-bar.tsx",
     "components/features/articles/sort-select.tsx",
@@ -98,10 +98,18 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
+  "app/articles/page.tsx": [
+    "app/articles/articles-page-content.tsx"
+  ],
   "app/globals.css": [],
   "app/graph/page.tsx": [
     "components/features/graph/knowledge-graph.tsx",
     "lib/api/articles.ts",
+    "lib/providers/index.tsx"
+  ],
+  "app/home-page-content.tsx": [
+    "components/features/chat/InlineQABarWrapper.tsx",
+    "components/features/weekly-report/weekly-report-widget.tsx",
     "lib/providers/index.tsx"
   ],
   "app/layout-shell.tsx": [
@@ -123,9 +131,7 @@
     "app/login/login-page-content.tsx"
   ],
   "app/page.tsx": [
-    "components/features/chat/InlineQABarWrapper.tsx",
-    "components/features/weekly-report/weekly-report-widget.tsx",
-    "lib/providers/index.tsx"
+    "app/home-page-content.tsx"
   ],
   "app/register/page.tsx": [
     "app/register/register-page-content.tsx"
@@ -538,7 +544,9 @@
   "lib/api/auth.ts": [
     "lib/api/client.ts"
   ],
-  "lib/api/client.ts": [],
+  "lib/api/client.ts": [
+    "lib/auth-token-store.ts"
+  ],
   "lib/api/grafana.ts": [],
   "lib/api/graph.ts": [
     "lib/api/client.ts"
@@ -582,6 +590,7 @@
     "components/features/chat/types.ts",
     "lib/api/client.ts"
   ],
+  "lib/auth-token-store.ts": [],
   "lib/auth.ts": [],
   "lib/chat-session.ts": [],
   "lib/loki-logger.ts": [],
@@ -590,14 +599,22 @@
     "lib/api/grafana.ts",
     "lib/observability-constants.ts"
   ],
-  "lib/providers/chat-quota-provider.tsx": [],
+  "lib/providers/auth-token-provider.tsx": [
+    "lib/auth-token-store.ts"
+  ],
+  "lib/providers/chat-quota-provider.tsx": [
+    "lib/api/client.ts",
+    "lib/providers/auth-token-provider.tsx"
+  ],
   "lib/providers/guest-mode-provider.tsx": [],
   "lib/providers/i18n-provider.tsx": [
     "lib/api/client.ts",
+    "lib/providers/auth-token-provider.tsx",
     "lib/providers/locales/en.json",
     "lib/providers/locales/zh-TW.json"
   ],
   "lib/providers/index.tsx": [
+    "lib/providers/auth-token-provider.tsx",
     "lib/providers/chat-quota-provider.tsx",
     "lib/providers/guest-mode-provider.tsx",
     "lib/providers/i18n-provider.tsx",
@@ -613,7 +630,8 @@
   "lib/providers/session-provider.tsx": [],
   "lib/providers/theme-provider.tsx": [],
   "lib/providers/topic-provider.tsx": [
-    "lib/api/topics.ts"
+    "lib/api/topics.ts",
+    "lib/providers/auth-token-provider.tsx"
   ],
   "lib/providers/tutorial-provider.tsx": [
     "components/features/tutorial/tutorial-registry.ts",

@@ -48,7 +48,7 @@ export async function createTopicKeyword(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader(token) },
     body: JSON.stringify(body),
-  }, locale)
+  }, locale, { silent: true })
   return res.json()
 }
 

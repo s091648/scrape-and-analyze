@@ -21,6 +21,10 @@ class RssEntry:
     description: str
     published: str
     author: Optional[str] = None
+    # Full article HTML from the feed's <content:encoded> element, when the
+    # publisher includes it (common on WordPress-based blogs). Far more
+    # reliable than a live page fetch — no selector guessing, no bot-blocking.
+    content: Optional[str] = None
 
 
 class RssClient:
@@ -98,10 +102,12 @@ class RssClient:
     @staticmethod
     def _to_entry(e) -> RssEntry:
         """Convert a feedparser entry dict into an RssEntry."""
+        content_list = e.get("content")
         return RssEntry(
             url=e.get("link", ""),
             title=e.get("title", ""),
             description=e.get("description", "") or e.get("summary", ""),
             published=e.get("published", ""),
             author=e.get("author"),
+            content=content_list[0].get("value") if content_list else None,
         )

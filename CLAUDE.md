@@ -72,20 +72,31 @@ NextAuth v4 (JWT strategy) on frontend → `jose` signs HS256 JWT with `sub` (us
 
 Root layout wraps: `SessionProviderWrapper > TopicProvider > I18nProvider > ErrorBoundary > NavBar`. State uses React Context (`TopicContext` with localStorage persistence) — Zustand is a dependency but no stores exist yet. Routes: `/` (home), `/graph` (force-graph), `/login`, `/register`, `/settings`, `/admin/*` (monitoring, scraper-settings, topics, user-management).
 
+**`page.tsx` vs `xxx-page-content.tsx` split** — a route's `page.tsx` stays a thin wrapper (import + return only) and the real component moves to a sibling `xxx-page-content.tsx` file whenever either applies:
+- The page reads `useSearchParams()` (or another hook requiring a Suspense boundary) — `page.tsx` wraps `<XxxPageContent />` in `<Suspense>`. See `app/login/`, `app/register/`, `app/settings/`, `app/settings/notifications/`, `app/articles/`, `app/page.tsx`.
+- The page needs server-only data (`getServerSession`, non-`NEXT_PUBLIC_` env vars) before the client component renders — `page.tsx` is an `async` server component that fetches the data and passes it as props. See `app/admin/monitoring/`.
+
+Routes needing neither (no `useSearchParams`, no server-only session/env fetch) stay a single-file `page.tsx` — don't split for its own sake (e.g. `app/admin/llm-providers/`, `app/admin/scraper-settings/`, `app/graph/`, `app/tags/`).
+
 ### Backend Routers
 
 | Router | Prefix | Auth |
 |---|---|---|
-| `articles.py` | `/` | Public |
-| `auth.py` | `/auth` | Admin on user mgmt; `require_user` on `/me` |
-| `graph.py` | `/` | Public |
+| `articles.py` | `/` | `require_any_token` (any valid token — guest or logged-in); `POST /admin/articles/flush-view-counts` require_admin |
+| `auth.py` | `/auth` | Admin on user mgmt; `require_user` on `/me`; `POST /guest` and `POST /guest/refresh` unauthenticated (the guest-token bootstrap itself) |
+| `graph.py` | `/` | `require_any_token` |
 | `scraper_settings.py` | `/scraper-settings` | All require_admin |
-| `topics.py` | `/topics` | Write ops require_admin |
+| `topics.py` | `/topics` | `GET` requires `require_any_token`; write ops require_admin |
 | `scraper_keywords.py` | `/scraper-keywords` | All require_admin |
-| `languages.py` | `/api` | Public (resolves language from client IP via GeoIP) |
+| `languages.py` | `/api` | `require_any_token` (resolves language from client IP via GeoIP) |
 | `llm_providers.py` | `/llm-providers` | All require_admin |
 | `metric_definitions.py` | `/` | `GET /metric-definitions` public; `/admin/metric-definitions` (GET, PATCH) require_admin |
-| `weekly_reports.py` | `/weekly-reports` | Public |
+| `weekly_reports.py` | `/weekly-reports` | `require_any_token` |
+| `tags.py` | `/` | `GET /tag-groups`, `GET /tag-groups/{group_id}` require_any_token; all other (write) endpoints require_admin |
+| `chat.py` | `/chat` | `require_any_token` on `/chat/completions` and `/chat/quota` |
+| `monitoring.py` | `/` | `GET /failed-tasks` require_admin |
+
+`require_any_token` (`backend/auth/guards.py`, `018-public-api-auth`) accepts any real user/admin JWT or a guest access token (obtained via `POST /auth/guest`, no credentials required); it never accepts a guest *refresh* token. It is the floor auth requirement for every endpoint above that isn't already gated by `require_admin`/`require_user` — see `site/guide/architecture/exception-handling.md`'s sibling doc for the full guest-token contract in `specs/018-public-api-auth/contracts/guest-token.md`.
 
 ### Scraper Architecture (Hexagonal / DDD)
 
@@ -150,11 +161,13 @@ Custom `I18nProvider` context with locale files in `frontend/i18n/` (English + z
 ### CI/CD
 
 GitHub Actions on push/PR to `master`:
-1. **migrate** — Auto-runs `alembic upgrade head` on production DB on push to master
+1. **migrate** — PR only; runs `alembic upgrade head` against the shared staging DB (skipped on push to master, since that would race `close-staging.yml` tearing the same staging deployments down post-merge — see `migrate` job comment in `ci.yml`)
 2. **unit-test** → **integration-test** — Spins up postgres service container; integration tests need LLM API keys
 3. **frontend-unit** → **frontend-e2e** — Vitest then Playwright (chromium)
-4. **rollback** — If migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on production DB
+4. **rollback** — PR only; if migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on the staging DB
 5. Coverage uploaded to Codecov; pass-rate badges updated via GitHub Gist
+
+Production migration + deploy is a separate flow: `release.yml`, triggered by pushing a `v*` tag, runs `alembic upgrade head` against production DB (`scraper / production` environment) before deploying.
 
 AI PR reviewer (`coderabbitai`) runs on all PRs.
 
@@ -165,9 +178,10 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 - **Dependency management** — `uv` with `uv.lock`, Python 3.11, dependency groups in `pyproject.toml`: core, scraper, backend, observability, dev
 - **Frontend UI** — Shadcn/UI primitives in `components/ui/`, Tailwind CSS v4, Radix UI
 - **Test markers** — `@pytest.mark.integration` for tests requiring postgres; integration test conftest creates `test_integration` schema with per-test rollback
+- **Exception handling** — domain exceptions raised anywhere in `src/`/`backend/` must subclass `DomainError` (`shared/domain/exceptions.py`) via one of its shared categories (`ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `ForbiddenError`, `ExternalDependencyError`); a single central handler (`backend/exceptions/handlers.py`) maps these to HTTP status codes — routers never construct `HTTPException` themselves, with one documented exception: `chat.py`'s 429 rate-limit response, since 429 was never part of the `DomainError` category mapping (`specs/017-exception-handling-guideline/router-audit.md`). Full guideline: `site/guide/architecture/exception-handling.md`.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/016-db-schema-brushup/plan.md`.
+at `specs/019-cicd-data-migrations/plan.md`.
 <!-- SPECKIT END -->

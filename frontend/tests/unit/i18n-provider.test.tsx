@@ -4,6 +4,11 @@ import { I18nProvider, useI18n } from '@/lib/providers/i18n-provider'
 
 const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }))
 vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
+// 018-public-api-auth: I18nProvider now waits for a resolved auth token
+// (real session or guest) before calling /languages.
+vi.mock('@/lib/providers/auth-token-provider', () => ({
+  useAuthToken: () => ({ token: 'test-token', isLoading: false }),
+}))
 
 function mockLanguagesOk(available = [
   { code: 'en', name: 'English', native_name: 'English' },
@@ -45,7 +50,9 @@ describe('I18nProvider', () => {
 
   it('calls apiFetch to resolve available languages on mount', async () => {
     renderProvider()
-    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith('/languages'))
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith('/languages', {}, undefined, { silent: true })
+    )
   })
 
   it('defaults locale to resolved language from API', async () => {

@@ -26,6 +26,7 @@ describe('auth API', () => {
         '/auth/me',
         expect.objectContaining({ headers: { Authorization: `Bearer ${token}` } }),
         undefined,
+        { silent: true },
       )
       expect(result).toEqual(profile)
     })
@@ -41,7 +42,7 @@ describe('auth API', () => {
       mockOk({})
       const { fetchMe } = await import('@/lib/api/auth')
       await fetchMe(token, 'zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object), 'zh-TW')
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object), 'zh-TW', { silent: true })
     })
   })
 
@@ -54,7 +55,7 @@ describe('auth API', () => {
         method: 'PATCH',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify({ name: 'Bob' }),
-      }), undefined)
+      }), undefined, { silent: true })
     })
   })
 
@@ -67,7 +68,7 @@ describe('auth API', () => {
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify({ current_password: 'old', new_password: 'new123' }),
-      }), undefined)
+      }), undefined, { silent: true })
     })
   })
 
@@ -79,7 +80,7 @@ describe('auth API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/auth/me', expect.objectContaining({
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
-      }), undefined)
+      }), undefined, { silent: true })
     })
   })
 
@@ -91,7 +92,7 @@ describe('auth API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/auth/me/link-google', expect.objectContaining({
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
-      }), undefined)
+      }), undefined, { silent: true })
     })
   })
 
@@ -105,7 +106,7 @@ describe('auth API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }), undefined)
+      }), undefined, { silent: true })
     })
 
     it('works without optional name field', async () => {

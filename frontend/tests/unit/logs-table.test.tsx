@@ -181,6 +181,47 @@ describe('LogsTable with externalData', () => {
     })
   })
 
+  it('does not misclassify a successful httpx request line as WARNING just because its URL embeds the word "warn"', async () => {
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000',
+            'HTTP Request: GET https://logs-prod.grafana.net/loki/api/v1/query_range?query=%7Bapp%3D%22scraper%22%7D+%7C+detected_level+%3D+%22warn%22 "HTTP/1.1 200 OK"',
+          ]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+    await waitFor(() => {
+      expect(screen.getByText('INFO')).toBeDefined()
+      expect(screen.queryByText('WARNING')).toBeNull()
+    })
+  })
+
+  it('classifies a failed httpx request line by its HTTP status code', async () => {
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000',
+            'HTTP Request: GET https://tempo-prod.grafana.net/tempo/api/search?q=unused "HTTP/1.1 400 Bad Request"',
+          ]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+    await waitFor(() => {
+      expect(screen.getByText('WARNING')).toBeDefined()
+    })
+  })
+
   it('renders multiple entries sorted by timestamp descending', async () => {
     const external: LokiResponse = {
       status: 'success',
@@ -258,6 +299,18 @@ describe('LogsTable with externalData', () => {
     await waitFor(() => {
       expect(screen.getAllByText('click_me').length).toBeGreaterThan(1)
     })
+  })
+
+  it('does not call fetch with the placeholder query while externalData is null (pending)', async () => {
+    // Regression test: a parent batch hook's initial "not loaded yet" state is
+    // externalData={null} (not undefined) precisely so this component can tell
+    // "controlled mode, still loading" apart from "no externalData prop at all,
+    // please self-fetch" — self-fetching here would send the literal placeholder
+    // query="unused" to Grafana and come back 400 Bad Request.
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Pending" query="unused" refreshInterval={0} externalData={null} />)
+    await waitFor(() => expect(screen.getByText('Pending')).toBeDefined())
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })
 

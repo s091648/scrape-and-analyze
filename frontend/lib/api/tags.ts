@@ -49,7 +49,7 @@ export interface SuggestionOut {
 }
 
 export async function fetchTagGroup(groupId: string): Promise<TagGroupOut> {
-  const res = await apiFetch(`/tag-groups/${groupId}`)
+  const res = await apiFetch(`/tag-groups/${groupId}`, {}, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to fetch tag group')
   return res.json()
 }
@@ -72,7 +72,7 @@ export async function createTagGroup(body: TagGroupCreate, token: string): Promi
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to create tag group')
   return res.json()
 }
@@ -82,7 +82,7 @@ export async function updateTagGroup(groupId: string, body: TagGroupUpdate, toke
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to update tag group')
   return res.json()
 }
@@ -91,7 +91,7 @@ export async function deleteTagGroup(groupId: string, token: string): Promise<vo
   const res = await apiFetch(`/tag-groups/${groupId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to delete tag group')
 }
 
@@ -100,7 +100,7 @@ export async function renameTag(tagId: string, name: string, token: string): Pro
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ name }),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to rename tag')
   return res.json()
 }
@@ -109,7 +109,7 @@ export async function deleteTag(tagId: string, token: string): Promise<void> {
   const res = await apiFetch(`/tags/${tagId}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to delete tag')
 }
 
@@ -119,7 +119,7 @@ export async function moveTag(tagId: string, tagGroupId: string | null, token: s
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to move tag')
   return res.json()
 }
@@ -137,7 +137,7 @@ export async function batchMoveTags(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(moves),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to batch move tags')
   return res.json()
 }
@@ -156,7 +156,7 @@ export async function mergeTagGroups(body: TagGroupMergeRequest, token: string):
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to merge tag groups')
   return res.json()
 }
@@ -169,7 +169,7 @@ export async function reorderTagGroups(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(items),
-  })
+  }, undefined, { silent: true })
   if (!res.ok) throw new Error('Failed to reorder tag groups')
 }
 

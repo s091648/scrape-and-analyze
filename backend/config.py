@@ -13,12 +13,16 @@ SWAGGER_TRY_IT_OUT_ENABLED: bool = os.environ.get("SWAGGER_TRY_IT_OUT_ENABLED", 
 
 NEXTAUTH_SECRET: str = os.environ.get("NEXTAUTH_SECRET", "")
 
+APP_ENV: str = os.environ.get("APP_ENV", "local")
+
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 CHAT_SERVICE_URL: str = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
 CHAT_SERVICE_API_KEY: str = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
 GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
+
+SENTRY_DSN: str = os.environ.get("SENTRY_DSN", "")
 
 # Grafana proxy (routers/grafana.py)
 GRAFANA_PROMETHEUS_URL: str = os.environ.get("GRAFANA_PROMETHEUS_URL", "").rstrip("/")
@@ -28,3 +32,7 @@ GRAFANA_LOKI_URL: str = os.environ.get("GRAFANA_LOKI_URL", "").rstrip("/")
 GRAFANA_LOKI_USER: str = os.environ.get("GRAFANA_LOKI_USER", "")
 GRAFANA_TEMPO_URL: str = os.environ.get("GRAFANA_TEMPO_URL", "").rstrip("/")
 GRAFANA_TEMPO_USER: str = os.environ.get("GRAFANA_TEMPO_USER", "")
+
+# Backend's own log/trace shipping (observability.py)
+GRAFANA_OTLP_ENDPOINT: str = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").rstrip("/")
+GRAFANA_OTLP_USER: str = os.environ.get("GRAFANA_OTLP_USER", "")

@@ -22,7 +22,7 @@ export interface PaginatedWeeklyReports {
 }
 
 export async function fetchLatestWeeklyReport(topicId: string, locale?: string): Promise<WeeklyReport | null> {
-  const res = await apiFetch(`/weekly-reports/latest?topic_id=${topicId}`, {}, locale)
+  const res = await apiFetch(`/weekly-reports/latest?topic_id=${topicId}`, {}, locale, { silent: true })
   if (!res.ok) return null
   const data = await res.json()
   return data ?? null
@@ -36,7 +36,7 @@ export async function fetchWeeklyReports(topicId: string, limit = 10, offset = 0
 
 /** weekStart: any date within the target week (YYYY-MM-DD) — the backend normalizes to that week's Monday. */
 export async function fetchWeeklyReportByWeek(topicId: string, weekStart: string, locale?: string): Promise<WeeklyReport | null> {
-  const res = await apiFetch(`/weekly-reports/by-week?topic_id=${topicId}&week_start=${weekStart}`, {}, locale)
+  const res = await apiFetch(`/weekly-reports/by-week?topic_id=${topicId}&week_start=${weekStart}`, {}, locale, { silent: true })
   if (!res.ok) return null
   const data = await res.json()
   return data ?? null
@@ -44,7 +44,7 @@ export async function fetchWeeklyReportByWeek(topicId: string, weekStart: string
 
 /** week_start_date (YYYY-MM-DD) of every completed report for the topic — drives date-picker availability. */
 export async function fetchWeeklyReportWeeks(topicId: string): Promise<string[]> {
-  const res = await apiFetch(`/weekly-reports/weeks?topic_id=${topicId}`)
+  const res = await apiFetch(`/weekly-reports/weeks?topic_id=${topicId}`, {}, undefined, { silent: true })
   if (!res.ok) return []
   const data = await res.json()
   return data?.weeks ?? []

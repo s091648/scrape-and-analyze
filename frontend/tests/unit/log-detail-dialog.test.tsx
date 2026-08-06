@@ -60,6 +60,13 @@ describe('parseLogFields', () => {
     expect(fields.msg).toBeUndefined()
     expect(fields.extra).toBe('kept')
   })
+
+  it('extracts exception as its own field, not part of fields', () => {
+    const raw = JSON.stringify({ level: 'error', event: 'rag_ingest_failed', exception: 'Traceback (most recent call last):\n  ...' })
+    const { fields, exception } = parseLogFields(raw)
+    expect(exception).toBe('Traceback (most recent call last):\n  ...')
+    expect(fields.exception).toBeUndefined()
+  })
 })
 
 // ── LogDetailDialog ────────────────────────────────────────────────────────
@@ -145,5 +152,19 @@ describe('LogDetailDialog', () => {
   it('shows raw text fallback when raw is not JSON', () => {
     render(<LogDetailDialog entry={makeEntry({ raw: 'plain text log line' })} onClose={() => {}} />)
     expect(screen.getByText('plain text log line')).toBeDefined()
+  })
+
+  it('renders exception in its own labeled section, not in the details grid', () => {
+    const raw = JSON.stringify({ level: 'error', event: 'rag_ingest_failed', article_id: 'abc', exception: 'Traceback (most recent call last):\n  File "x.py", line 1\nValueError: boom' })
+    render(<LogDetailDialog entry={makeEntry({ raw, level: 'error' })} onClose={() => {}} />)
+    expect(screen.getByText('admin.logFieldException')).toBeDefined()
+    expect(screen.getByText(/ValueError: boom/)).toBeDefined()
+    // exception must not also appear as a generic "exception" key/value row
+    expect(screen.queryByText('exception')).toBeNull()
+  })
+
+  it('does not render an exception section when exception is absent', () => {
+    render(<LogDetailDialog entry={makeEntry()} onClose={() => {}} />)
+    expect(screen.queryByText('admin.logFieldException')).toBeNull()
   })
 })

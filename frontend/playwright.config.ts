@@ -14,6 +14,13 @@ export default defineConfig({
   testDir: './tests/integration',
   timeout: 30_000,
   retries: process.env.CI ? 2 : 0,
+  // CI's frontend-e2e job (.github/workflows/ci.yml) runs `npx playwright test`
+  // with no --workers override on a 2-vCPU GitHub Actions runner, which resolves
+  // to Playwright's default of ~half the cores, i.e. 1. Pinning it here keeps
+  // local/docker runs (which otherwise see far more cores and pick a much
+  // higher default) on the same worker count as CI, avoiding failures caused
+  // by request contention against the single Next.js server under webServer.
+  workers: 1,
   globalSetup: './tests/integration/global-setup.ts',
   webServer: process.env.PLAYWRIGHT_TEST_BASE_URL ? undefined : {
     command: 'npm run build && npm run start',

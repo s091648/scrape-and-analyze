@@ -86,6 +86,10 @@ RAG_DENSE_ENDPOINT_URL: str = os.environ.get("RAG_DENSE_ENDPOINT_URL", "")
 RAG_DENSE_RPM: int | None = _int_or_none("RAG_DENSE_RPM")
 RAG_DENSE_TPM: int | None = _int_or_none("RAG_DENSE_TPM")
 RAG_DENSE_RPD: int | None = _int_or_none("RAG_DENSE_RPD")
+# Gemini only: on a per-minute TOKEN quota (TPM) 429, split the batch in half
+# and retry each half instead of just waiting. See chatbot_plugin_sdk's
+# GeminiDenseProvider(split_batch_on_tpm=...) docstring for the rationale.
+RAG_DENSE_SPLIT_BATCH_ON_TPM: bool = _bool("RAG_DENSE_SPLIT_BATCH_ON_TPM")
 
 # RAG embedding provider — sparse
 RAG_SPARSE_PROVIDER: str = os.environ.get("RAG_SPARSE_PROVIDER", "")

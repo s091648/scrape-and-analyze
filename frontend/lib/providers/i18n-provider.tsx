@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { apiFetch } from '@/lib/api/client'
+import { useAuthToken } from './auth-token-provider'
 import en from './locales/en.json'
 import zhTW from './locales/zh-TW.json'
 
@@ -37,9 +38,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   ])
   const [resolvedLanguage, setResolvedLanguage] = useState('en')
   const [isLoading, setIsLoading] = useState(true)
+  // 018-public-api-auth: /languages now requires a token — wait for
+  // AuthTokenProvider to resolve one (real session or guest) before calling,
+  // so this doesn't race the guest-token bootstrap on a fresh anonymous visit.
+  const { token, isLoading: authLoading } = useAuthToken()
 
   useEffect(() => {
-    apiFetch('/languages')
+    if (authLoading || !token) return
+
+    apiFetch('/languages', {}, undefined, { silent: true })
       .then(res => res.json())
       .then(data => {
         setAvailableLanguages(data.available || [])
@@ -52,7 +59,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         setLocaleState('en')
       })
       .finally(() => setIsLoading(false))
-  }, [])
+  }, [authLoading, token])
 
   const setLocale = (newLocale: string) => {
     setLocaleState(newLocale)

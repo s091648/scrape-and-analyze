@@ -210,17 +210,19 @@ function SortableProviderCard({
                   ].filter(Boolean).join(' · ')}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                {t('admin.callsInLast24h', { count: provider.usage_24h })}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <HelpCircle className="h-3 w-3 shrink-0 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {t('admin.callsInLast24hTooltip')}
-                  </TooltipContent>
-                </Tooltip>
-              </p>
+              {(provider.type ?? 'llm') === 'llm' && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  {t('admin.callsInLast24h', { count: provider.usage_24h })}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3 w-3 shrink-0 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {t('admin.callsInLast24hTooltip')}
+                    </TooltipContent>
+                  </Tooltip>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
               <span className="text-xs text-muted-foreground mr-1">p{provider.priority}</span>
