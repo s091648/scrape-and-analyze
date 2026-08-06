@@ -1,7 +1,7 @@
 [
   {
-    "version": "{{NEWEST_VERSION}}",
-    "date": "{{RELEASE_DATE}}",
+    "version": "v1.4.0",
+    "date": "2026-08-06",
     "changes": [
       {
         "type": "feat",
