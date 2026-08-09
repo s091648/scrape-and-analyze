@@ -37,7 +37,7 @@ def _make_uc(
     articles=None,
     llm_response=None,
     image_bytes=b"img",
-    blob_url="https://r2.example.com/img.png",
+    blob_url="https://r2.example.com/img.webp",
     email_notifier=None,
     telegram_notifier=None,
     translation_languages=(),
@@ -95,18 +95,22 @@ def test_execute_calls_image_generation():
 
 
 def test_execute_uploads_image_to_blob_storage():
-    uc, _, _, _, blob, _ = _make_uc(image_bytes=b"png-data")
+    # image_service is a mock here — the use case doesn't re-encode, it trusts that whatever
+    # ImageGenerationService.generate_image() returns is already WebP (every real provider routes
+    # through image_encoding.encode_as_webp before returning; see their own unit tests).
+    uc, _, _, _, blob, _ = _make_uc(image_bytes=b"webp-data")
     uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     blob.upload.assert_called_once()
     args = blob.upload.call_args[0]
-    assert args[0] == b"png-data"
-    assert args[2] == "image/png"
+    assert args[0] == b"webp-data"
+    assert args[1].endswith(".webp")
+    assert args[2] == "image/webp"
 
 
 def test_execute_sets_cover_image_url():
-    uc, _, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.png")
+    uc, _, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.webp")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
-    assert result.cover_image_url == "https://r2.example.com/cover.png"
+    assert result.cover_image_url == "https://r2.example.com/cover.webp"
 
 
 def test_execute_saves_report_with_correct_article_count():

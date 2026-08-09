@@ -154,9 +154,11 @@ class GenerateWeeklyReportUseCase:
                     week_label=week_label,
                     summary_text=summary_text,
                 )
+                # img_bytes is already WebP-encoded, downscaled — every ImageGenerationService
+                # provider routes through image_encoding.encode_as_webp before returning.
                 img_bytes = self._image.generate_image(img_prompt.content)
-                key = f"weekly-reports/{topic_id}/{week_start.isoformat()}.png"
-                cover_image_url = self._blob.upload(img_bytes, key, "image/png")
+                key = f"weekly-reports/{topic_id}/{week_start.isoformat()}.webp"
+                cover_image_url = self._blob.upload(img_bytes, key, "image/webp")
                 sub_span.set_attribute("weekly_report.image.success", True)
             except Exception as e:
                 sub_span.set_attribute("weekly_report.image.success", False)
