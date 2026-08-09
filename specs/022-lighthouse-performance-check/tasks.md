@@ -87,17 +87,17 @@ This is the existing `backend/` + `frontend/` web-app layout (see plan.md Projec
 
 ---
 
-## Phase 5: User Story 3 - 未來 CI 整合 (Priority: P3, deferred)
+## Phase 5: User Story 3 - CI 整合 (Priority: P3) ✅ Implemented
 
 **Goal**: The same check runs unattended from GitHub Actions and its report is retrievable by a reviewer without local reproduction.
 
-**Independent Test**: Trigger the new/updated workflow job and confirm it completes without any manual input, and that the Traditional-Chinese report is downloadable from that run (per quickstart.md §5, once written).
+**Independent Test**: Trigger `lighthouse.yml` via `workflow_dispatch`, or push to a PR and let `ci.yml`'s `lighthouse-check` job run after `deploy-staging-frontend` succeeds; confirm it completes without manual input and that `lighthouse-reports` is downloadable from the run's artifacts.
 
-- [ ] T014 [US3] Add a new job to `.github/workflows/ci.yml` (or a dedicated `lighthouse.yml` workflow — decide per T016) that brings up `postgres`, `redis`, `backend`, and `frontend_prod` via `docker compose`, then runs `make lighthouse-check`
-- [ ] T015 [US3] In that job, upload `lighthouse-reports/` as a workflow artifact via `actions/upload-artifact@v4` so a reviewer can download the report from the run without repo/local access (spec.md SC-005)
-- [ ] T016 [P] [US3] Decide the CI trigger (PR-only, scheduled, or both — left open in spec.md Assumptions) and document it, along with how to find the report from a run, in `specs/022-lighthouse-performance-check/quickstart.md` §5
+- [X] T014 [US3] Add `.github/workflows/lighthouse.yml` as a reusable workflow (`workflow_call` + `workflow_dispatch`) and a `lighthouse-check` job in `.github/workflows/ci.yml` (`needs: deploy-staging-frontend`, PR-only) that invokes it against `vars.FRONTEND_URL` — deviates from the original plan of bringing up `postgres`/`redis`/`backend`/`frontend_prod` via `docker compose` inside the runner; hitting the already-deployed staging frontend directly over the public internet is simpler and more representative (see spec.md Assumptions, "CI target environment")
+- [X] T015 [US3] In that job, upload `lighthouse-reports/` as a workflow artifact via `actions/upload-artifact@v4` so a reviewer can download the report from the run without repo/local access (spec.md SC-005)
+- [X] T016 [P] [US3] CI trigger decided: PR-only (via `ci.yml`'s `lighthouse-check` job, gated on `deploy-staging-frontend`), plus on-demand via `workflow_dispatch` on `lighthouse.yml` directly — not scheduled. Documented in `specs/022-lighthouse-performance-check/quickstart.md` §5.
 
-**Checkpoint**: All three user stories are independently functional. Per plan.md Summary, this phase is intentionally last — it depends on User Stories 1 and 2 already being validated as reliable before being wired into CI.
+**Checkpoint**: All three user stories are independently functional. `vars.FRONTEND_URL` must still be configured manually in repo Settings → Secrets and variables → Actions → Variables before `lighthouse-check` can run on a PR; until then it fails fast with a clear error rather than silently skipping.
 
 ---
 

@@ -33,16 +33,17 @@ const PLAYWRIGHT_INSTALL_HINT =
   'docker compose run --rm frontend node_modules/.bin/playwright install chromium --with-deps'
 
 function parseArgs(argv) {
-  const args = { url: DEFAULT_URL, routes: DEFAULT_ROUTES }
+  const args = { url: DEFAULT_URL, routes: DEFAULT_ROUTES, failOnError: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--url') args.url = argv[++i]
     else if (argv[i] === '--routes') args.routes = argv[++i]
+    else if (argv[i] === '--fail-on-error') args.failOnError = true
   }
   const routes = args.routes
     .split(',')
     .map((r) => r.trim())
     .filter(Boolean)
-  return { baseUrl: args.url.replace(/\/$/, ''), routes }
+  return { baseUrl: args.url.replace(/\/$/, ''), routes, failOnError: args.failOnError }
 }
 
 function decodeGuestId(jwt) {
@@ -153,7 +154,7 @@ function makeRunId(date = new Date()) {
 }
 
 async function main() {
-  const { baseUrl, routes } = parseArgs(process.argv.slice(2))
+  const { baseUrl, routes, failOnError } = parseArgs(process.argv.slice(2))
 
   let accessToken, guestId
   try {
@@ -190,6 +191,14 @@ async function main() {
   await writeFile(reportPath, report, 'utf8')
 
   console.log(`報告已產出：${reportPath}`)
+
+  // --fail-on-error: opt-in, used by CI to gate PR merges on the check actually
+  // running cleanly (Chrome/network/timeout issues), without yet gating on the
+  // Performance/LCP/TBT/CLS numbers themselves (022-lighthouse-performance-check, US3).
+  // Left off by default so local runs stay exploratory per T009's original contract.
+  if (failOnError && routeTargets.some((r) => r.status === 'failed')) {
+    process.exitCode = 1
+  }
 }
 
 main().catch((err) => {

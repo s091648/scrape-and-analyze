@@ -9,8 +9,14 @@ on:
     types: [closed]
     branches: [master]
 
+# Shared group name with ci.yml's staging-touching jobs (check-staging-deployments,
+# migrate, deploy-staging-*, lighthouse-check, rollback) — a merge fires this workflow
+# and a fresh ci.yml push-run at the same instant, and if the PR's own last ci.yml run
+# (from its final commit) is still in flight, teardown here would otherwise race it on
+# the same Railway services. cancel-in-progress: false means this queues behind any
+# still-running job in the group instead of cancelling it or racing it.
 concurrency:
-  group: close-staging-${{ github.event.pull_request.number }}
+  group: staging-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:

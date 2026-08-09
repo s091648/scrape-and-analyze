@@ -30,6 +30,13 @@ jobs:
     if: github.event_name == 'pull_request'
     timeout-minutes: 15
     environment: scraper / staging
+    # Shared with every other staging-touching job below and with close-staging.yml
+    # (same group name) — see that workflow's header comment for why: without this,
+    # a still-in-flight PR run and close-staging.yml's teardown can race on the same
+    # Railway services if the PR is merged before this run finishes.
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -91,6 +98,9 @@ jobs:
       (needs.check-staging-deployments.result == 'success' || needs.check-staging-deployments.result == 'skipped')
     timeout-minutes: 10
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -642,6 +652,9 @@ jobs:
       needs.backend-unit.result == 'success' &&
       needs.backend-integration.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -670,6 +683,9 @@ jobs:
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -686,6 +702,30 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
+  # Stage 4b1: Lighthouse Performance Check (staging, PR only)
+  # Gates PR merge on the check completing without route failures (022-lighthouse-
+  # performance-check, US3) — not yet on the actual Performance/LCP/TBT/CLS numbers.
+  # Runs against vars.FRONTEND_URL (configure in repo Settings → Secrets and
+  # variables → Actions → Variables); to make this a required check, add "Lighthouse
+  # Performance Check / lighthouse-check" in branch protection rules for master.
+  # Can also be run standalone via workflow_dispatch on lighthouse.yml against any URL.
+  # -----------------------------------------------
+  lighthouse-check:
+    name: Lighthouse Performance Check
+    needs: [deploy-staging-frontend]
+    # PR-review context only — see check-staging-deployments for why.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.deploy-staging-frontend.result == 'success'
+    uses: ./.github/workflows/lighthouse.yml
+    with:
+      url: ${{ vars.FRONTEND_URL }}
+    secrets: inherit
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+  # -----------------------------------------------
   # Stage 4b2: Deploy Storybook to Staging (PR only)
   # -----------------------------------------------
   deploy-staging-storybook:
@@ -698,6 +738,9 @@ jobs:
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -726,6 +769,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -753,6 +799,9 @@ jobs:
       github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -780,6 +829,9 @@ jobs:
       github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -811,6 +863,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -842,6 +897,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -873,6 +931,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -907,6 +968,9 @@ jobs:
         needs.frontend-e2e.result == 'failure'
       )
     environment: scraper / staging
+    concurrency:
+      group: staging-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5

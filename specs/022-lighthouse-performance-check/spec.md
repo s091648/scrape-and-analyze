@@ -42,18 +42,20 @@ As a developer/stakeholder reviewing results, I want the performance check to pr
 
 ---
 
-### User Story 3 - Automated check in CI (Priority: P3)
+### User Story 3 - Automated check in CI (Priority: P3) ✅ Implemented
 
-As a maintainer, I want this performance check to eventually run automatically as part of the GitHub Actions workflow (e.g. on pull requests and/or on a schedule), so that performance regressions are caught before/soon after they reach `master`, and results are visible to reviewers (e.g. as a workflow artifact or PR comment) without anyone needing to run the check manually.
+As a maintainer, I want this performance check to run automatically as part of the GitHub Actions workflow on pull requests (once staging is deployed for that PR), and to also be runnable on demand via `workflow_dispatch`, so that a broken/slow route is caught before merge, and results are visible to reviewers as a workflow artifact without anyone needing to run the check manually.
+
+Implemented as a reusable workflow (`.github/workflows/lighthouse.yml`, `workflow_call` + `workflow_dispatch`), invoked as a job in `ci.yml` (`lighthouse-check`, gated on `deploy-staging-frontend` succeeding) against `vars.FRONTEND_URL` — a repo variable that must be configured with the actual staging frontend domain (Settings → Secrets and variables → Actions → Variables). To make this a required check on `master`, add "Lighthouse Performance Check / lighthouse-check" to the branch protection rule's required status checks — this repo setting can't be applied from a code change and must be done manually.
 
 **Why this priority**: This is the stated end-goal, but it depends on User Story 1 and 2 already being solid (a script that reliably runs headlessly and produces a report). It is lower priority because the local script must exist and prove reliable before it's worth wiring into CI.
 
-**Independent Test**: Can be tested independently once User Stories 1–2 exist, by adding a CI job that invokes the same `make` target used locally and uploading/publishing its resulting report, and confirming the job succeeds on a real PR/schedule run.
+**Independent Test**: Trigger `lighthouse.yml` via `workflow_dispatch` against any URL, or open/push to a PR and let `ci.yml`'s `lighthouse-check` job run once `deploy-staging-frontend` succeeds; confirm the job's pass/fail status and that `lighthouse-reports` is downloadable from the run's artifacts.
 
 **Acceptance Scenarios**:
 
-1. **Given** the performance check script works headlessly locally, **When** it is invoked from a GitHub Actions job, **Then** it runs to completion without requiring interactive input and exits with a status reflecting whether the check itself ran successfully (see Assumptions re: pass/fail thresholds).
-2. **Given** the CI job has completed, **When** a reviewer looks at the workflow run (or the PR), **Then** the Traditional-Chinese report is available to them (e.g. as a downloadable artifact and/or inline in the job summary/PR comment).
+1. **Given** the performance check script works headlessly locally, **When** it is invoked from a GitHub Actions job (`lighthouse.yml`'s `lighthouse-check` job, via either trigger), **Then** it runs to completion without requiring interactive input, waits for the target URL to become reachable first (Railway's `railway up --detach` returns before the deploy is actually live), and the job fails if the script exits non-zero — which `--fail-on-error` triggers only when a route's audit itself couldn't complete, not based on its Performance/LCP/TBT/CLS values (see Assumptions re: pass/fail thresholds).
+2. **Given** the CI job has completed, **When** a reviewer looks at the workflow run (or the PR's checks), **Then** the Traditional-Chinese report is available to them as a downloadable `lighthouse-reports` artifact (30-day retention).
 
 ---
 
@@ -96,7 +98,7 @@ As a maintainer, I want this performance check to eventually run automatically a
 - **SC-002**: 100% of configured routes appear in the resulting report — either with metrics or with a clearly stated failure reason — with no route silently missing.
 - **SC-003**: 100% of the report's section headings, labels, and narrative commentary are in Traditional Chinese, verified by inspection of a sample report.
 - **SC-004**: The check can complete a run against 4 key routes (`/`, `/articles`, `/graph`, `/tags`) in under 10 minutes, making it practical to run routinely (locally or in CI) without becoming a bottleneck.
-- **SC-005**: Once CI integration (User Story 3) is added, a reviewer can find that run's Traditional-Chinese report from the workflow run without needing repo/local access to reproduce it themselves.
+- **SC-005**: A reviewer can find a PR's Traditional-Chinese report from the `lighthouse-check` workflow run's artifacts without needing repo/local access to reproduce it themselves.
 
 ## Assumptions
 
@@ -105,6 +107,7 @@ As a maintainer, I want this performance check to eventually run automatically a
 - **Default target environment**: When not overridden, the check targets a locally running stack (frontend at `http://localhost:3000`, proxying to backend at `http://backend:8000`/`http://localhost:8000` as applicable), consistent with how other `make` targets in this repo default to local/dev behavior unless a `REMOTE_URL`/`ENV` override is given.
 - **Guest access mechanism**: "Guest login" means calling the existing `POST /auth/guest` endpoint (see `018-public-api-auth`) to obtain a guest access token, then supplying it to Lighthouse's request so gated pages render as they would for a real guest user — no new auth mechanism is introduced.
 - **Report format**: The consolidated report is a Traditional-Chinese Markdown file (plus the option to retain raw Lighthouse JSON per route alongside it for anyone who needs the underlying data) rather than a new bespoke report viewer/UI.
-- **Pass/fail semantics for v1**: The check is informational for this iteration — it does not enforce hard performance-score thresholds that fail the run/CI job. Turning specific metrics into CI-blocking gates is a possible future enhancement, not part of this spec.
-- **CI integration timing**: Wiring this into `.github/workflows/ci.yml` (or a dedicated workflow) is in-scope for this spec's overall vision (User Story 3) but is explicitly the lowest priority — the local script and report must work and be validated first, per the user's own phrasing ("之後會希望可以...").
+- **Pass/fail semantics for v1**: The CI job gates on the check itself completing (no route erroring out) via `--fail-on-error`; it does not enforce hard performance-score thresholds. Turning specific metrics into CI-blocking gates is a possible future enhancement, not part of this spec.
+- **CI target environment**: Unlike the local default (the Docker-networked `frontend_prod` service), the CI job targets the deployed staging frontend (`vars.FRONTEND_URL`) directly over the public internet — there is no local docker-compose stack running inside the GitHub Actions runner. This also means CI cannot fully guarantee it's auditing *this specific PR's* build rather than whatever was previously live on staging, since `railway up --detach` is fire-and-forget; the job only waits for the URL to become reachable again, not for Railway to confirm the new build specifically is what's serving traffic.
+- **Staging deployment timing**: `deploy-staging-frontend` in `ci.yml` triggers the Railway deploy asynchronously and does not wait for it to finish; `lighthouse-check` depends on it via `needs:` (so it doesn't start before a deploy is at least triggered) but also polls the target URL until it responds before running Lighthouse, to reduce (not eliminate) the chance of auditing a still-building deployment.
 - **Multiple runs**: Each run's report is distinguishable (e.g. by timestamp in the filename), so repeated local runs don't require the developer to manually rename/move prior reports before comparing them.
