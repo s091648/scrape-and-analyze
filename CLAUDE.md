@@ -45,6 +45,12 @@ Run script tests: `uv run pytest scripts/tests/`
 | `cd frontend && npm run lint` | ESLint |
 | `cd frontend && npm run format` | Prettier |
 
+### Performance
+
+| Command | Purpose |
+|---|---|
+| `make lighthouse-check` | Lighthouse performance check across configured routes against `frontend_prod`; supports `LIGHTHOUSE_URL=`, `LIGHTHOUSE_ROUTES=`; produces a Traditional-Chinese report in `lighthouse-reports/<runId>/report.md` (see `specs/022-lighthouse-performance-check/quickstart.md`) |
+
 ### Docker
 
 `docker compose up` — starts postgres (5432), backend (8000), frontend (3000), pgadmin (80), scraper app.
@@ -183,5 +189,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/020-redis-caching-layer/plan.md`.
+at `specs/022-lighthouse-performance-check/plan.md`.
 <!-- SPECKIT END -->

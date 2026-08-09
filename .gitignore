@@ -32,6 +32,7 @@ eggs/
 lib/
 lib64/
 !frontend/lib/
+!frontend/scripts/lib/
 !.github/scripts/lib/
 parts/
 sdist/
@@ -143,6 +144,7 @@ specs/*/quickstart.md
 # -----------------------------
 db_dumps/
 migrations/
+lighthouse-reports/
 
 # Playwright MCP browser-testing artifacts (screenshots, snapshots, console logs)
 .playwright-mcp/
