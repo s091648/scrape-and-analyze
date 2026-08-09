@@ -152,8 +152,10 @@ export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
   // effects call apiFetch — React fires child effects before parent effects, so
   // a parent-level useEffect here would still be racing every descendant that
   // reacts to `token` becoming available in the same commit (topics/languages/
-  // chat-quota all observed 401s from exactly this race).
-  setCurrentToken(token)
+  // chat-quota all observed 401s from exactly this race). apiFetch() additionally
+  // awaits waitForToken() before sending anything, so `isLoading` here is the
+  // authoritative signal that closes the race centrally rather than per call site.
+  setCurrentToken(token, isLoading)
 
   return (
     <AuthTokenContext.Provider value={{ token, isLoading }}>

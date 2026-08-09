@@ -10,6 +10,21 @@ const NEXTAUTH_SECRET =
 // build+start behavior when unset.
 const baseURL = process.env.PLAYWRIGHT_TEST_BASE_URL || 'http://localhost:3000'
 
+// Deliberately hardcoded, NOT process.env.BACKEND_URL — this must stay unreachable from
+// whatever Next.js server this file's own webServer block spins up, in every environment
+// (CI and local `docker compose run --rm frontend npm run test:e2e` alike). Tried wiring
+// this to process.env.BACKEND_URL on 2026-08-09 so local docker runs could reach the real
+// `backend` container; reverted the same day after it broke ~10 pre-existing tests in
+// articles.spec.ts/tags.spec.ts/error-handling.spec.ts. Those tests mock `/api/proxy/articles`
+// etc. via page.route() (browser-side only) and rely on the SSR-seed guard in
+// articles-page-content.tsx/tags-page-content.tsx (021-ssr-public-pages) NEVER firing here —
+// once SSR can reach a real backend, it seeds real DB content server-side, the guard skips the
+// client-side fetch entirely, and page.route()'s mock is never consulted, so real (uncontrolled)
+// DB rows render instead of each test's fixture. Real-backend SSR verification stays a manual
+// quickstart.md exercise (steps 2/4) against `frontend_prod` — see that document's "Known
+// limitation" section — specifically so it never touches this mocked suite's determinism.
+const BACKEND_URL = 'http://localhost:8000'
+
 export default defineConfig({
   testDir: './tests/integration',
   timeout: 30_000,
@@ -30,7 +45,7 @@ export default defineConfig({
     env: {
       NEXTAUTH_SECRET,
       NEXTAUTH_URL: 'http://localhost:3000',
-      BACKEND_URL: 'http://localhost:8000',
+      BACKEND_URL,
     },
   },
   use: {

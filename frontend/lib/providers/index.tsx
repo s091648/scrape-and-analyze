@@ -10,14 +10,23 @@ import { PinnedArticleProvider, PinnedReportProvider } from './pinned-article-pr
 import { FloatChatProvider } from './float-chat-provider'
 import { InlineChatProvider } from './inline-chat-provider'
 
-export function AppProviders({ children }: { children: React.ReactNode }) {
+interface AppProvidersProps {
+  children: React.ReactNode
+  /** Server-resolved topic/locale, from `app/layout.tsx`'s `resolveVisitorTopicAndLocale()` call
+   * — seeds TopicProvider/I18nProvider so their first render already matches what any page's own
+   * SSR data fetch resolved, instead of starting null/'en' (see specs/021-ssr-public-pages). */
+  initialTopicId?: string | null
+  initialLocale?: string
+}
+
+export function AppProviders({ children, initialTopicId, initialLocale }: AppProvidersProps) {
   return (
     <ThemeProvider>
       <SessionProviderWrapper>
         <AuthTokenProvider>
           <ChatQuotaProvider>
-            <TopicProvider>
-              <I18nProvider>
+            <TopicProvider initialTopicId={initialTopicId}>
+              <I18nProvider initialLocale={initialLocale}>
                 <PinnedArticleProvider>
                   <PinnedReportProvider>
                     {/* Mounted at the app root (not inside the chat components themselves) so an

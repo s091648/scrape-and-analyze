@@ -101,7 +101,16 @@ interface GroupArticle {
   innovations: string | null
 }
 
-export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<string> }) {
+interface KnowledgeGraphProps {
+  articleIdFilter?: Set<string>
+  /** Server-rendered graph data for the current topic's default (no extra) filters, seeded from
+   * `app/graph/page.tsx`'s SSR fetch — already confirmed by the caller to match the client's
+   * resolved topic. `undefined` when the server didn't fetch (no session — spec.md User Story 3)
+   * or the fetch failed (FR-007), in which case this behaves exactly as it did pre-SSR. */
+  initialData?: GraphData
+}
+
+export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphProps) {
   const { status } = useSession()
   const { t, locale } = useI18n()
   const { isGuestMode } = useGuestMode()
@@ -113,7 +122,7 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10)
     })(),
   })
-  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] })
+  const [graphData, setGraphData] = useState<GraphData>(initialData ?? { nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedGroupLabel, setExpandedGroupLabel] = useState('')
   const [expandedGroupColor, setExpandedGroupColor] = useState('#6b7280')
@@ -124,7 +133,10 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogDetail, setDialogDetail] = useState<any>(null)
   const [dialogLoading, setDialogLoading] = useState(false)
-  const [graphLoading, setGraphLoading] = useState(true)
+  const [graphLoading, setGraphLoading] = useState(!initialData)
+  // Consumed on the fetch effect's first run that actually reaches the real fetch — skips
+  // exactly the one fetch that would otherwise duplicate the SSR-seeded graphData.
+  const skipNextFetch = useRef(!!initialData)
 
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
@@ -149,6 +161,11 @@ export function KnowledgeGraph({ articleIdFilter }: { articleIdFilter?: Set<stri
       return
     }
     if (!selectedTopicId) return
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false
+      setGraphLoading(false)
+      return
+    }
     setGraphLoading(true)
     fetchAnalysesGraph({ topic_id: selectedTopicId, ...graphFilters }, locale)
       .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))

@@ -1,7 +1,44 @@
 import { getSession, signOut } from 'next-auth/react'
 import { toast } from 'sonner'
 import * as Sentry from '@sentry/browser'
-import { getCurrentToken } from '../auth-token-store'
+import { getCurrentToken, waitForToken } from '../auth-token-store'
+
+// 1 initial attempt + up to 3 retries, exponential backoff with jitter. Retries
+// only network failures and 429/5xx — a 4xx (other than the 401 case handled
+// separately below) is a deterministic rejection a retry can't fix. Note: this
+// applies to every apiFetch call regardless of HTTP method, so a POST/PUT/DELETE
+// whose response is lost after the write actually succeeded server-side could
+// be resent — none of today's call sites are non-idempotent in a way that's
+// unsafe to double-apply (tag/topic writes are idempotent updates, article-view
+// increments already dedupe server-side), but keep that in mind before pointing
+// this at a genuinely non-idempotent endpoint in the future.
+const MAX_ATTEMPTS = 4
+const RETRY_BASE_DELAY_MS = 300
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const isLastAttempt = attempt === MAX_ATTEMPTS - 1
+    try {
+      const response = await fetch(url, init)
+      if (response.ok || !isRetryableStatus(response.status) || isLastAttempt) {
+        return response
+      }
+    } catch (err) {
+      if (isLastAttempt) throw err
+    }
+    await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt + Math.random() * 100)
+  }
+  // Unreachable — the loop always returns or throws on its last attempt.
+  throw new Error('fetchWithRetry: exhausted attempts without returning')
+}
 
 export interface ApiFetchOptions {
   /** Suppress the automatic error toast (e.g. a component renders its own
@@ -35,6 +72,11 @@ export async function apiFetch(
   locale?: string,
   { silent = false }: ApiFetchOptions = {},
 ): Promise<Response> {
+  // Closes the race where a request fires before AuthTokenProvider has resolved
+  // a real session or guest token — see auth-token-store.ts. Resolves immediately
+  // once a token (or "definitely no token") is already known.
+  await waitForToken()
+
   let url = `/api/proxy${path}`
 
   if (locale) {
@@ -53,7 +95,7 @@ export async function apiFetch(
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(url, { ...options, headers })
+  const response = await fetchWithRetry(url, { ...options, headers })
 
   if (response.status === 401) {
     const session = await getSession()

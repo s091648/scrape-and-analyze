@@ -38,6 +38,13 @@ interface WeeklyReportWidgetProps {
   topicId: string | null
   /** Deep-link target week (YYYY-MM-DD, any date within the week) — e.g. from a notification CTA. */
   initialWeek?: string | null
+  /** Server-rendered latest report for `topicId`, seeded from `app/page.tsx`'s SSR fetch —
+   * lets the report card show real content on the very first paint instead of the
+   * "no report yet"/skeleton flash while the client-side fetch below is still in flight.
+   * The full reports list/available-weeks still load normally in the background; this only
+   * avoids a loading flash for the one report that's already known. Ignored when `initialWeek`
+   * requests a different, specific week. */
+  initialReport?: WeeklyReport | null
   /** Render-prop rather than a plain node: the chat child needs to tell this widget when a
    * message is sent (to switch from the stacked layout into report/chat card-swap mode and
    * jump to the chat card) and report its live conversation state (so this widget can render
@@ -49,12 +56,16 @@ interface WeeklyReportWidgetProps {
   }) => ReactNode
 }
 
-export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyReportWidgetProps) {
+export function WeeklyReportWidget({ topicId, initialWeek, initialReport, children }: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
   const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedReport()
-  const [reports, setReports] = useState<WeeklyReport[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [reports, setReports] = useState<WeeklyReport[]>(initialReport ? [initialReport] : [])
+  const [selectedId, setSelectedId] = useState<string | null>(initialReport?.id ?? null)
   const [loading, setLoading] = useState(false)
+  // Consumed on the effect's first run only — suppresses the loading-skeleton flash for a report
+  // we've already been seeded with server-side, while still letting that first run's background
+  // fetch (full reports list, available weeks) proceed normally.
+  const hasSeededReport = useRef(!!initialReport)
   const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
   const [collapsed, setCollapsed] = useState(false)
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
@@ -124,9 +135,13 @@ export function WeeklyReportWidget({ topicId, initialWeek, children }: WeeklyRep
   useEffect(() => {
     if (!topicId) return
     let cancelled = false
+    // Only the very first run of this effect can be a no-flash seeded run, and only when no
+    // specific deep-linked week was requested (that path needs its own fetch regardless).
+    const skipLoadingFlash = hasSeededReport.current && !initialWeek
+    hasSeededReport.current = false
 
     async function load() {
-      setLoading(true)
+      if (!skipLoadingFlash) setLoading(true)
       try {
         const [latestResult, listResult] = await Promise.allSettled([
           fetchLatestWeeklyReport(topicId as string, locale),

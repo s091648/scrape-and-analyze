@@ -6,11 +6,16 @@ vi.mock('@/lib/providers/auth-token-provider', () => ({
 }))
 
 import { useAuthToken } from '@/lib/providers/auth-token-provider'
+import { setCurrentToken } from '@/lib/auth-token-store'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
 
+// apiFetch() awaits the real (unmocked) auth-token-store's waitForToken() internally,
+// independent of ChatQuotaProvider's own useAuthToken()-based gating — keep both in
+// sync so a mocked "ready" state here doesn't leave apiFetch hanging on the real store.
 function makeAuthTokenMock(token: string | undefined, isLoading = false) {
+  setCurrentToken(token, isLoading)
   return { token, isLoading }
 }
 

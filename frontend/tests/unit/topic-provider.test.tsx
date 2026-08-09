@@ -2,9 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { TopicProvider, useTopic } from '@/lib/providers/topic-provider'
+import { TOPIC_COOKIE_NAME } from '@/lib/cookies/constants'
 
 const { mockFetchTopics } = vi.hoisted(() => ({ mockFetchTopics: vi.fn() }))
 vi.mock('@/lib/api/topics', () => ({ fetchTopics: mockFetchTopics }))
+
+// 021-ssr-public-pages: setSelectedTopicId/loadTopics also write a preference cookie
+// (frontend/lib/cookies/set-preference-cookie.ts) alongside localStorage — spy on it directly
+// rather than relying on jsdom's real document.cookie, so a wrong-name/wrong-value write fails
+// loudly instead of silently no-oping.
+const { mockSetPreferenceCookie } = vi.hoisted(() => ({ mockSetPreferenceCookie: vi.fn() }))
+vi.mock('@/lib/cookies/set-preference-cookie', () => ({ setPreferenceCookie: mockSetPreferenceCookie }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -53,6 +61,10 @@ function renderProvider(children?: ReactNode) {
   return render(<TopicProvider>{children ?? <TestConsumer />}</TopicProvider>)
 }
 
+function renderProviderWithInitialTopicId(initialTopicId: string | null) {
+  return render(<TopicProvider initialTopicId={initialTopicId}><TestConsumer /></TopicProvider>)
+}
+
 describe('TopicProvider', () => {
   it('starts in loading state then resolves to ready', async () => {
     mockFetchTopics.mockResolvedValue(sampleTopics)
@@ -96,9 +108,20 @@ describe('TopicProvider', () => {
     mockFetchTopics.mockResolvedValue(sampleTopics)
     renderProvider()
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
+    mockSetPreferenceCookie.mockClear() // drop the on-load backfill call below, isolate the click
     fireEvent.click(screen.getByText('select-t2'))
     await waitFor(() => expect(screen.getByTestId('selected').textContent).toBe('t2'))
     expect(localStorage.getItem('selectedTopicId')).toBe('t2')
+    expect(mockSetPreferenceCookie).toHaveBeenCalledWith(TOPIC_COOKIE_NAME, 't2')
+  })
+
+  it('backfills the preference cookie when a default topic is auto-selected on first load', async () => {
+    // No localStorage value pre-seeded — loadTopics() picks data[0] and must cookie-backfill it,
+    // not just localStorage, so a returning visitor's *next* SSR render sees it too.
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('selected').textContent).toBe('t1'))
+    expect(mockSetPreferenceCookie).toHaveBeenCalledWith(TOPIC_COOKIE_NAME, 't1')
   })
 
   it('refresh calls fetchTopics a second time', async () => {
@@ -131,6 +154,31 @@ describe('TopicProvider', () => {
     renderProvider()
     await new Promise(r => setTimeout(r, 50))
     expect(mockFetchTopics).not.toHaveBeenCalled()
+  })
+
+  // 021-ssr-public-pages: app/layout.tsx passes the server-resolved topic (shared, via
+  // resolveVisitorTopicAndLocale's cache(), with whatever a page's own SSR fetch used) so the
+  // very first render — server AND client hydration — already has a real value instead of null.
+  it('seeds selectedTopicId from initialTopicId before loadTopics() resolves', () => {
+    vi.mocked(useAuthToken).mockReturnValue(makeAuthTokenMock(undefined, true)) // still loading — loadTopics hasn't fired
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProviderWithInitialTopicId('t2')
+    expect(screen.getByTestId('selected').textContent).toBe('t2')
+    expect(mockFetchTopics).not.toHaveBeenCalled()
+  })
+
+  it('keeps the seeded initialTopicId once loadTopics() confirms it is still a real topic', async () => {
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProviderWithInitialTopicId('t2')
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
+    expect(screen.getByTestId('selected').textContent).toBe('t2')
+  })
+
+  it('falls back to the first topic when the seeded initialTopicId no longer exists', async () => {
+    mockFetchTopics.mockResolvedValue(sampleTopics)
+    renderProviderWithInitialTopicId('stale-topic-id')
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
+    expect(screen.getByTestId('selected').textContent).toBe('t1')
   })
 
   it('fetches topics once the auth token resolves', async () => {
