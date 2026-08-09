@@ -60,6 +60,7 @@ Quota sharing with main.py:
 """
 import argparse
 import asyncio
+import time
 
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
@@ -127,6 +128,7 @@ def main() -> None:
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
+    start_time = time.time()
     tracer = get_tracer()
     try:
         with tracer.start_as_current_span(SpanName.RAG_BACKFILL_RUN) as span:
@@ -136,7 +138,7 @@ def main() -> None:
             session = None
             try:
                 from src.bootstrap import build_rag_backfill_pipeline
-                use_case, backfill_repo, session = build_rag_backfill_pipeline()
+                use_case, backfill_repo, session, event_bus = build_rag_backfill_pipeline()
 
                 if use_case is None:
                     logger.warning("rag_backfill_skipped_rag_disabled")
@@ -152,6 +154,12 @@ def main() -> None:
 
                 logger.info("rag_backfill_completed", total=len(articles), succeeded=succeeded, failed=failed)
                 print(f"RAG backfill complete: {succeeded}/{len(articles)} articles ingested ({failed} failed)")
+
+                from src.modules.intelligence.application.events import RagBackfillCompletedEvent
+                event_bus.publish(RagBackfillCompletedEvent(
+                    total=len(articles), succeeded=succeeded, failed=failed,
+                    duration_seconds=time.time() - start_time,
+                ))
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))

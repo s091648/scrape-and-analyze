@@ -1,3 +1,4 @@
 from .pipeline_completed_message_builder import PipelineCompletedMessageBuilder
+from .metrics_refresh_message_builder import MetricsRefreshMessageBuilder
 
-__all__ = ["PipelineCompletedMessageBuilder"]
+__all__ = ["PipelineCompletedMessageBuilder", "MetricsRefreshMessageBuilder"]

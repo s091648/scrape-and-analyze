@@ -11,6 +11,9 @@ from src.infrastructure.intelligence.notifications.weekly_report_email_message_b
 from src.infrastructure.intelligence.notifications.weekly_report_email_notifier import (
     WeeklyReportEmailNotifier,
 )
+from src.infrastructure.intelligence.notifications.rag_backfill_message_builder import (
+    RagBackfillMessageBuilder,
+)
 
 __all__ = [
     "WeeklyReportTelegramMessageBuilder",
@@ -18,4 +21,5 @@ __all__ = [
     "WeeklyReportEmailMessageBuilder",
     "EmailMessage",
     "WeeklyReportEmailNotifier",
+    "RagBackfillMessageBuilder",
 ]

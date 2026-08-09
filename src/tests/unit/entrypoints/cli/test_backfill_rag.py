@@ -21,7 +21,7 @@ def _mock_article(article_id=None):
 def test_rag_disabled_skips_find_pending_entirely(mock_validate, mock_logging, mock_http, mock_pipeline):
     backfill_repo = MagicMock()
     session = MagicMock()
-    mock_pipeline.return_value = (None, backfill_repo, session)
+    mock_pipeline.return_value = (None, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -39,7 +39,7 @@ def test_find_pending_called_with_limit_arg(mock_validate, mock_logging, mock_ht
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag", "--limit", "50"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -60,7 +60,7 @@ def test_limit_arg_defaults_to_twenty(mock_validate, mock_logging, mock_http, mo
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -81,7 +81,7 @@ def test_ingests_every_candidate_article(mock_validate, mock_logging, mock_http,
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = [article_a, article_b]
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -109,7 +109,7 @@ def test_one_article_failure_does_not_abort_the_run(mock_validate, mock_logging,
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = [failing_article, ok_article]
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -127,7 +127,7 @@ def test_session_closed_after_run(mock_validate, mock_logging, mock_http, mock_p
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]):
         from src.entrypoints.cli.backfill_rag import main
@@ -180,7 +180,7 @@ def test_concurrency_arg_defaults_to_five(mock_validate, mock_logging, mock_http
     backfill_repo = MagicMock()
     backfill_repo.find_pending.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (use_case, backfill_repo, session)
+    mock_pipeline.return_value = (use_case, backfill_repo, session, MagicMock())
 
     with patch("sys.argv", ["backfill_rag"]), \
          patch("src.entrypoints.cli.backfill_rag._backfill_all", new_callable=AsyncMock) as mock_backfill_all:
@@ -189,3 +189,65 @@ def test_concurrency_arg_defaults_to_five(mock_validate, mock_logging, mock_http
         main()
 
     assert mock_backfill_all.call_args.args[2] == 5
+
+
+# ── Completion notification (020-redis-caching-layer, US4) ──────────────────
+
+@patch("src.bootstrap.build_rag_backfill_pipeline")
+@patch("src.entrypoints.cli.backfill_rag.init_default_client")
+@patch("src.entrypoints.cli.backfill_rag.configure_logging")
+@patch("src.entrypoints.cli.backfill_rag.validate_config")
+def test_publishes_completion_event_with_correct_counts(mock_validate, mock_logging, mock_http, mock_pipeline):
+    from src.modules.intelligence.application.events import RagBackfillCompletedEvent
+
+    failing_article = _mock_article()
+    ok_article = _mock_article()
+
+    def execute_side_effect(article):
+        if article is failing_article:
+            raise Exception("embedding endpoint error")
+
+    use_case = MagicMock()
+    use_case.execute.side_effect = execute_side_effect
+    backfill_repo = MagicMock()
+    backfill_repo.find_pending.return_value = [failing_article, ok_article]
+    session = MagicMock()
+    event_bus = MagicMock()
+    mock_pipeline.return_value = (use_case, backfill_repo, session, event_bus)
+
+    with patch("sys.argv", ["backfill_rag"]):
+        from src.entrypoints.cli.backfill_rag import main
+        main()
+
+    event_bus.publish.assert_called_once()
+    published = event_bus.publish.call_args.args[0]
+    assert isinstance(published, RagBackfillCompletedEvent)
+    assert published.total == 2
+    assert published.succeeded == 1
+    assert published.failed == 1
+
+
+@patch("src.bootstrap.build_rag_backfill_pipeline")
+@patch("src.entrypoints.cli.backfill_rag.init_default_client")
+@patch("src.entrypoints.cli.backfill_rag.configure_logging")
+@patch("src.entrypoints.cli.backfill_rag.validate_config")
+def test_notification_failure_does_not_fail_the_job(mock_validate, mock_logging, mock_http, mock_pipeline):
+    """FR-012: a notification-sender failure must not raise out of main()."""
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.modules.intelligence.application.events import RagBackfillCompletedEvent
+
+    def _raising_handler(event):
+        raise ConnectionError("telegram is down")
+
+    event_bus = InMemoryEventBus()
+    event_bus.subscribe(RagBackfillCompletedEvent, _raising_handler)
+
+    use_case = MagicMock()
+    backfill_repo = MagicMock()
+    backfill_repo.find_pending.return_value = []
+    session = MagicMock()
+    mock_pipeline.return_value = (use_case, backfill_repo, session, event_bus)
+
+    with patch("sys.argv", ["backfill_rag"]):
+        from src.entrypoints.cli.backfill_rag import main
+        main()  # must not raise

@@ -39,6 +39,7 @@ Concurrency:
 """
 import argparse
 import asyncio
+import time
 
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
@@ -123,6 +124,7 @@ def main() -> None:
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
+    start_time = time.time()
     tracer = get_tracer()
     try:
         with tracer.start_as_current_span(SpanName.REFRESH_METRICS_RUN) as span:
@@ -132,7 +134,7 @@ def main() -> None:
             session = None
             try:
                 from src.bootstrap import build_metrics_refresh_pipeline
-                metrics_service, metrics_repo, session = build_metrics_refresh_pipeline()
+                metrics_service, metrics_repo, session, event_bus = build_metrics_refresh_pipeline()
 
                 enabled_metric_keys = metrics_service.tracked_metric_keys
                 if not enabled_metric_keys:
@@ -149,6 +151,12 @@ def main() -> None:
 
                 logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
                 print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
+
+                from src.modules.collection.application.events import MetricsRefreshCompletedEvent
+                event_bus.publish(MetricsRefreshCompletedEvent(
+                    total=len(rows), refreshed=refreshed, failed=failed,
+                    duration_seconds=time.time() - start_time,
+                ))
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))
