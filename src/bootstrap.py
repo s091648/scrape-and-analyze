@@ -239,6 +239,10 @@ def build_collection_pipeline():
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
     from src.infrastructure.collection.handlers import OtelMetricsHandler
     from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+    from src.modules.collection.application.event_handlers import CacheInvalidationHandler, CacheWarmupHandler
+    from shared.cache import RedisCacheGateway
+    from src.config.settings import CACHE_REDIS_URL, BACKEND_URL
     from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
@@ -408,9 +412,23 @@ def build_collection_pipeline():
     event_bus.subscribe(PipelineCompletedEvent, with_span(
         SpanName.PIPELINE_COMPLETED_HANDLE, otel_handler.handle, _tracer))
 
-    notification_handler = build_notification_handler()
+    notification_handler = build_notification_handler(PipelineCompletedMessageBuilder)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
         SpanName.PIPELINE_COMPLETED_NOTIFY, notification_handler.handle, _tracer))
+
+    # ── Cache invalidation — subscribe to PipelineCompletedEvent ────────────
+    # (020-redis-caching-layer, US3) newly-scraped articles must be visible in the
+    # cached article/graph reads immediately, not after their TTL expires.
+    cache_invalidation_handler = CacheInvalidationHandler(RedisCacheGateway(redis_url=CACHE_REDIS_URL))
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        SpanName.PIPELINE_COMPLETED_HANDLE, cache_invalidation_handler.handle, _tracer))
+
+    # Must subscribe strictly after cache_invalidation_handler above (InMemoryEventBus
+    # dispatches subscribers in subscribe()-call order) — warming has to write into the
+    # *new* namespace version, not the one about to be orphaned by bump_version().
+    cache_warmup_handler = CacheWarmupHandler(backend_url=BACKEND_URL)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        SpanName.PIPELINE_COMPLETED_HANDLE, cache_warmup_handler.handle, _tracer))
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     from datetime import datetime, timezone
@@ -527,6 +545,9 @@ def build_weekly_pipeline():
     # prompt factory path used by every other translation use case.
     prompt_factory = ConcretePromptFactory()
 
+    from shared.cache import RedisCacheGateway
+    from src.config.settings import CACHE_REDIS_URL as _CACHE_REDIS_URL
+
     generate_use_case = GenerateWeeklyReportUseCase(
         report_repo=report_repo,
         llm_service=llm_service,
@@ -537,6 +558,7 @@ def build_weekly_pipeline():
         email_notifier=email_notifier,
         telegram_notifier=telegram_notifier,
         translation_languages=TRANSLATION_LANGUAGES,
+        cache_gateway=RedisCacheGateway(redis_url=_CACHE_REDIS_URL),
     )
     topic_repository = SqlAlchemyTopicRepository(session=session)
 
@@ -609,13 +631,19 @@ def build_translation_pipeline():
 # ---------------------------------------------------------------------------
 
 def build_metrics_refresh_pipeline():
-    """Assemble (ResilientMetricsService, ArticleMetricsRepository, session) from
+    """Assemble (ResilientMetricsService, ArticleMetricsRepository, session, event_bus) from
     the DB-configured metric_definitions catalog. Independent of build_llm_service
     and build_weekly_pipeline — no shared code path with the backend's view_count
-    flush (research.md §9b)."""
+    flush (research.md §9b). event_bus carries a notification handler subscribed to
+    MetricsRefreshCompletedEvent (020-redis-caching-layer, US4) — publish that event
+    after computing refresh stats to send the completion notification."""
     from shared.metric_definition import load_enabled_metric_definitions
     from src.infrastructure.collection.metrics.resilient_metrics_service import build_resilient_metrics_service
     from src.infrastructure.persistence.collection.article_metrics_repo_impl import SqlAlchemyArticleMetricsRepository
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.collection.notifications import MetricsRefreshMessageBuilder
+    from src.modules.collection.application.events import MetricsRefreshCompletedEvent
 
     init_db()
     session = get_session()
@@ -624,8 +652,12 @@ def build_metrics_refresh_pipeline():
     metrics_service = build_resilient_metrics_service(metric_definitions)
     metrics_repo = SqlAlchemyArticleMetricsRepository(session=session)
 
+    event_bus = InMemoryEventBus()
+    notification_handler = build_notification_handler(MetricsRefreshMessageBuilder)
+    event_bus.subscribe(MetricsRefreshCompletedEvent, notification_handler.handle)
+
     logger.info("metrics_refresh_bootstrap_complete", metric_definitions_count=len(metric_definitions))
-    return metrics_service, metrics_repo, session
+    return metrics_service, metrics_repo, session, event_bus
 
 
 # ---------------------------------------------------------------------------
@@ -654,15 +686,21 @@ def build_dedup_reconciliation_pipeline():
 # ---------------------------------------------------------------------------
 
 def build_rag_backfill_pipeline():
-    """Assemble (IngestArticleForRagUseCase | None, RagBackfillRepository, session)
+    """Assemble (IngestArticleForRagUseCase | None, RagBackfillRepository, session, event_bus)
     for the RAG-backfill cron job. Reuses build_rag_ingestion_service() — the
     same RagSdkIngestionService construction the live scrape pipeline uses via
     build_collection_pipeline() — so backfilled articles are chunked/embedded
     identically to freshly-scraped ones. The use_case is None (same contract
     as build_rag_ingestion_service()) when RAG is disabled or misconfigured;
-    callers must check for that before use."""
+    callers must check for that before use. event_bus carries a notification handler
+    subscribed to RagBackfillCompletedEvent (020-redis-caching-layer, US4) — publish
+    that event after computing backfill stats to send the completion notification."""
     from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
     from src.infrastructure.persistence.intelligence.rag_backfill_repo_impl import SqlAlchemyRagBackfillRepository
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.intelligence.notifications import RagBackfillMessageBuilder
+    from src.modules.intelligence.application.events import RagBackfillCompletedEvent
 
     init_db()
     session = get_session()
@@ -671,5 +709,9 @@ def build_rag_backfill_pipeline():
     use_case = IngestArticleForRagUseCase(rag_service) if rag_service is not None else None
     backfill_repo = SqlAlchemyRagBackfillRepository(session=session)
 
+    event_bus = InMemoryEventBus()
+    notification_handler = build_notification_handler(RagBackfillMessageBuilder)
+    event_bus.subscribe(RagBackfillCompletedEvent, notification_handler.handle)
+
     logger.info("rag_backfill_bootstrap_complete", rag_enabled=use_case is not None)
-    return use_case, backfill_repo, session
+    return use_case, backfill_repo, session, event_bus

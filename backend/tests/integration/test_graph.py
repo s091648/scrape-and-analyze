@@ -106,8 +106,8 @@ def _link(db_session, article, tag):
 # ---------------------------------------------------------------------------
 
 def test_graph_empty_returns_empty_graph(api_client):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     r = api_client.get("/analyses/graph")
     assert r.status_code == 200
@@ -121,8 +121,8 @@ def test_graph_empty_returns_empty_graph(api_client):
 # ---------------------------------------------------------------------------
 
 def test_graph_with_data_returns_nodes_and_edges(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="ai-ml")
@@ -139,8 +139,8 @@ def test_graph_with_data_returns_nodes_and_edges(api_client, db_session):
 
 
 def test_graph_node_types_are_correct(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="vision")
@@ -156,8 +156,8 @@ def test_graph_node_types_are_correct(api_client, db_session):
 
 
 def test_graph_group_node_has_color_and_count(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="robotics", color="#ff0000")
@@ -176,8 +176,8 @@ def test_graph_group_node_has_color_and_count(api_client, db_session):
 
 
 def test_graph_article_node_has_label_and_id(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="some-group")
@@ -193,8 +193,8 @@ def test_graph_article_node_has_label_and_id(api_client, db_session):
 
 
 def test_graph_filters_by_topic_id(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic_a = _topic(db_session)
     topic_b = _topic(db_session)
@@ -223,8 +223,8 @@ def test_graph_group_empty_for_unknown_group(api_client):
 
 
 def test_graph_group_returns_articles_for_group(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="nlp-field")
@@ -243,8 +243,8 @@ def test_graph_group_returns_articles_for_group(api_client, db_session):
 
 
 def test_graph_group_item_has_required_fields(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="field-check")
@@ -261,8 +261,8 @@ def test_graph_group_item_has_required_fields(api_client, db_session):
 
 
 def test_graph_group_excerpt_is_max_200_chars(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="truncate-test")
@@ -278,8 +278,8 @@ def test_graph_group_excerpt_is_max_200_chars(api_client, db_session):
 
 
 def test_graph_group_pain_points_none_without_translation(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="notrans-group")
@@ -296,8 +296,8 @@ def test_graph_group_pain_points_none_without_translation(api_client, db_session
 
 
 def test_graph_group_filters_by_aggregator(api_client, db_session):
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.cache import cache_gateway
+    cache_gateway.bump_version("graph")
 
     topic = _topic(db_session)
     grp = _group(db_session, topic, name="agg-filter")
@@ -416,3 +416,65 @@ def test_build_graph_skips_tag_without_group_def():
     assert len(result["nodes"]) == 1  # only article node, no group
     assert result["nodes"][0]["type"] == "article"
     assert result["edges"] == []
+
+
+# ---------------------------------------------------------------------------
+# Cache-aside reads (020-redis-caching-layer, US1) — replaces the old in-process _cache dict
+# ---------------------------------------------------------------------------
+
+def test_repeated_identical_request_is_served_from_cache(api_client, db_session, monkeypatch):
+    from backend.routers import graph as graph_router
+
+    topic = _topic(db_session)
+    article = _article(db_session, topic=topic)
+    _analysis(db_session, article)
+
+    calls = []
+    original = graph_router.query_analyses
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(graph_router, "query_analyses", _spy)
+
+    first = api_client.get(f"/analyses/graph?topic_id={topic.id}")
+    second = api_client.get(f"/analyses/graph?topic_id={topic.id}")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_x_cache_header_is_bypass_when_cache_gateway_unavailable(api_client):
+    """020-redis-caching-layer Post-Ship Addendum (T061): same BYPASS contract as articles.py,
+    verified for /analyses/graph — each router unpacks CacheResult independently."""
+    from backend.main import app
+    from backend.cache import get_cache_gateway
+    from shared.cache import CacheResult
+
+    class _BypassGateway:
+        def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+            return CacheResult(value=loader(), status="BYPASS")
+
+        def bump_version(self, namespace):
+            return 0
+
+    app.dependency_overrides[get_cache_gateway] = lambda: _BypassGateway()
+    try:
+        response = api_client.get("/analyses/graph")
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert response.status_code == 200
+    assert response.headers["X-Cache"] == "BYPASS"
+
+
+def test_in_process_cache_dict_no_longer_exists():
+    """The old per-server dict-based cache (replaced by CacheGateway) must be gone."""
+    from backend.routers import graph as graph_router
+
+    assert not hasattr(graph_router, "_cache")
+    assert not hasattr(graph_router, "CACHE_TTL_SECONDS")

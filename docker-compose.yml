@@ -4,11 +4,12 @@
 #   postgres, redis, pgadmin, redisinsight, backend, frontend, fastembed, chatbot_plugin
 #
 # 一次性工具服務 (profile: tools)，不會被 docker compose up 帶起：
-#   app, test_service, job_service
+#   app, test_service, job_service, frontend_prod
 #   使用方式：
 #     docker compose run --rm job_service make migrate
 #     docker compose run --rm test_service pytest src/tests/unit/
 #     docker compose --profile tools up -d app   # 需要互動式 shell 時
+#     docker compose --profile tools up --build frontend_prod   # production build + next start，量測真實 LCP/Lighthouse 用
 
 services:
   # Fastembed embedding service — SPLADE 模型集中在此，scraper 與 chatbot-plugin 共用
@@ -98,8 +99,41 @@ services:
       - .env
     command: npx next dev
 
+  # Frontend, production build — runs the actual multi-stage frontend/Dockerfile
+  # (npm run build + next start), not the dev server. No source bind-mount: this is
+  # a real, freshly-built image, so it reflects production optimizations (minification,
+  # RSC compilation, no HMR overhead) that `frontend`/Dockerfile.dev never applies.
+  # Not started by `docker compose up` — opt in with --profile tools. Use this (not the
+  # dev `frontend` service) whenever measuring real LCP/Web Vitals or running Lighthouse;
+  # dev-mode numbers are not representative (see specs/020-redis-caching-layer/quickstart.md).
+  frontend_prod:
+    profiles:
+      - tools
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        GITHUB_PACKAGE_TOKEN: ${GITHUB_PACKAGE_TOKEN}
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
+    # 020-redis-caching-layer Post-Ship Addendum: bounds memory + evicts only TTL'd keys
+    # (cache blobs, rate-limit counters, view-dedup keys) under pressure — never the
+    # durable view:{article_id} write-behind buffer or cache:v:{namespace} version
+    # counters, which are intentionally left without a TTL (see research.md). This
+    # only covers local dev/test — production's Railway-hosted redis is a standing
+    # service outside this repo's deploy pipeline and needs the equivalent set via its
+    # own Start Command (see specs/020-redis-caching-layer/research.md, T062a).
+    command: redis-server --maxmemory 256mb --maxmemory-policy volatile-lru
     ports:
       - "6379:6379"
     healthcheck:

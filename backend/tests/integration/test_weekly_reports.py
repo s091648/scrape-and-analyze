@@ -355,3 +355,81 @@ def test_list_weekly_reports_applies_translation_per_item(db_session, api_client
     assert r.status_code == 200
     data = r.json()
     assert data["items"][0]["title"] == "報告一"
+
+
+# ─── Cache-aside reads (020-redis-caching-layer, US1) ────────────────────────
+
+def test_repeated_list_request_is_served_from_cache(db_session, api_client, monkeypatch):
+    from backend.routers import weekly_reports as wr_router
+
+    topic = _topic(db_session)
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 16)))
+    db_session.flush()
+
+    calls = []
+    original = wr_router.get_weekly_reports
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(wr_router, "get_weekly_reports", _spy)
+
+    first = api_client.get(f"/weekly-reports?topic_id={topic.id}")
+    second = api_client.get(f"/weekly-reports?topic_id={topic.id}")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_x_cache_header_is_bypass_when_cache_gateway_unavailable(db_session, api_client):
+    """020-redis-caching-layer Post-Ship Addendum (T061): same BYPASS contract as articles.py,
+    verified for GET /weekly-reports — each router unpacks CacheResult independently."""
+    from backend.main import app
+    from backend.cache import get_cache_gateway
+    from shared.cache import CacheResult
+
+    topic = _topic(db_session)
+
+    class _BypassGateway:
+        def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+            return CacheResult(value=loader(), status="BYPASS")
+
+        def bump_version(self, namespace):
+            return 0
+
+    app.dependency_overrides[get_cache_gateway] = lambda: _BypassGateway()
+    try:
+        response = api_client.get(f"/weekly-reports?topic_id={topic.id}")
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert response.status_code == 200
+    assert response.headers["X-Cache"] == "BYPASS"
+
+
+def test_repeated_latest_request_is_served_from_cache(db_session, api_client, monkeypatch):
+    from backend.routers import weekly_reports as wr_router
+
+    topic = _topic(db_session)
+    db_session.add(_weekly_report(topic.id, date(2026, 6, 16)))
+    db_session.flush()
+
+    calls = []
+    original = wr_router.get_latest_weekly_report
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(wr_router, "get_latest_weekly_report", _spy)
+
+    first = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")
+    second = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1

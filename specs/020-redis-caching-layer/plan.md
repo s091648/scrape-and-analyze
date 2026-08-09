@@ -6,13 +6,13 @@
 
 ## Summary
 
-Add a shared, Redis-backed caching layer (`shared/cache/`) in front of four read-heavy backend endpoints (`/articles`, `/analyses/graph`, `/tag-groups`, `/weekly-reports`) that currently query PostgreSQL on every request, to improve frontend Web Vitals. Cache freshness is maintained by write-through invalidation from two sources: the daily scraper CLI pipeline (on `PipelineCompletedEvent`) and admin write endpoints (topics/tags/scraper-settings, synchronously after `db.commit()`). High-cardinality parameterized reads (article-list filters) use cache-aside with lazy population instead of precomputing every combination. No message queue or separate microservice is introduced — both the CLI process and the backend process call the same shared module directly against the one existing Redis instance. As a related, independently-testable piece of work, two CLI entrypoints that currently finish silently (`refresh_metrics.py`, `backfill_rag.py`) get the same job-completion notification pattern `main.py` already has.
+Add a shared, Redis-backed caching layer (`shared/cache/`) in front of five read-heavy backend endpoints (`/articles` list + `/articles/{id}` detail, `/analyses/graph`, `/tag-groups`, `/weekly-reports`) that currently query PostgreSQL on every request, to improve frontend Web Vitals. Cache freshness is maintained by write-through invalidation from two sources: the daily scraper CLI pipeline (on `PipelineCompletedEvent`) and admin write endpoints (topics/tags/scraper-settings, synchronously after `db.commit()`). High-cardinality parameterized reads (article-list filters) use cache-aside with lazy population instead of precomputing every combination; the scrape pipeline additionally eager-warms the fixed set of default (no-customization) reads right after invalidating them, so only user-customized combinations fall back to lazy population. No message queue or separate microservice is introduced — both the CLI process and the backend process call the same shared module directly against the one existing Redis instance, on its own logical DB (`CACHE_REDIS_URL`) separate from the pre-existing view-count/rate-limit Redis usage (`REDIS_URL`). As a related, independently-testable piece of work, two CLI entrypoints that currently finish silently (`refresh_metrics.py`, `backfill_rag.py`) get the same job-completion notification pattern `main.py` already has.
 
 ## Technical Context
 
 **Language/Version**: Python 3.11 (both `backend/` and `src/`); no frontend code changes required — Web Vitals improve as a side effect of faster API responses through the existing Next.js proxy.
 
-**Primary Dependencies**: FastAPI, SQLAlchemy (unchanged); `redis` (>=5.0, already a dependency — sync `redis.Redis` client, not `redis.asyncio`, see research.md); existing `src/shared/application/ports/event_bus.py` `EventBus` Protocol + `InMemoryEventBus`; existing `NotificationHandler` / `TelegramNotifierClient` infra.
+**Primary Dependencies**: FastAPI, SQLAlchemy (unchanged); `redis` (>=5.0, already a dependency — sync `redis.Redis` client, not `redis.asyncio`, see research.md); existing `src/shared/application/ports/event_bus.py` `EventBus` Protocol + `InMemoryEventBus`; existing `NotificationHandler` / `TelegramNotifierClient` infra; `requests` (already a dependency, used directly — not `src/infrastructure/shared/http`'s `HttpClient`, which is purpose-built for polite external scraping with UA rotation/rate-limiting that doesn't apply to a trusted internal call) for `CacheWarmupHandler`'s self-calls to `backend`.
 
 **Storage**: PostgreSQL (unchanged, remains source of truth) + Redis (already deployed; now used for query-result caching in addition to its existing view-count use in `articles.py`).
 
@@ -26,7 +26,7 @@ Add a shared, Redis-backed caching layer (`shared/cache/`) in front of four read
 
 **Constraints**: Cache staleness after an admin write must be zero by the time that request's response is returned (synchronous invalidation). Cache staleness after the daily pipeline must be zero once `PipelineCompletedEvent` has been handled. If Redis is unavailable, every covered endpoint must still serve correct data from PostgreSQL (graceful degradation, Constitution Principle VI) — no request may fail because of the caching layer.
 
-**Scale/Scope**: 4 read endpoint families; ~5 write call sites (CLI pipeline completion handler + `topics.py`, `tag_service.py`, `scraper_keyword_service.py`, `scraper_settings_service.py`); 2 CLI entrypoints gain notification wiring.
+**Scale/Scope**: 4 read endpoint families + article-detail (`GET /articles/{id}`, static/dynamic field split); ~5 write call sites (CLI pipeline completion handler + `topics.py`, `tag_service.py`, `scraper_keyword_service.py`, `scraper_settings_service.py`); 2 CLI entrypoints gain notification wiring; 1 eager warm-up handler (fixed default-parameter set, 4 endpoint families × topic-less/per-topic).
 
 ## Constitution Check
 
@@ -37,7 +37,7 @@ Add a shared, Redis-backed caching layer (`shared/cache/`) in front of four read
 - **Principle IV (Docker-First)** — PASS. `redis` is already an always-on service; `app`/`job_service`/`test_service`/`backend` already `depends_on: redis` and load `env_file: .env`. No compose changes.
 - **Principle VI (Observability)** — PASS. Cache read/write paths use existing structlog loggers (`get_logger(__name__)`); a Redis-unavailable condition must log a warning and fall through to the DB rather than raise, per the constitution's graceful-degradation rule for observability-adjacent infra. New CLI notification code follows the existing `with_span(...)` wrapping used for `PipelineCompletedEvent` handlers.
 - **Principle VIII (UML Conventions)** — PASS. `CacheInvalidationHandler` follows the naming/`handle()`/`event_bus.subscribe()` convention. The two new CLI notification events (`MetricsRefreshCompletedEvent`, `RagBackfillCompletedEvent`) end in `Event`; their handlers are wired via `event_bus.subscribe()` in `bootstrap.py`, matching `main.py`'s existing pipeline so both jobs render correctly in the auto-generated diagram (see research.md's "Decision: CLI notification extension").
-- **Principle IX (FastAPI Microservice Structure)** — PASS. `RedisCacheGateway` takes `redis_url` via constructor injection rather than reading `os.environ` itself, so `backend/config.py` remains the sole `os.environ` read point on the backend side (its existing `REDIS_URL` constant is reused, passed in at composition time). `src/config/settings.py` gains one new `REDIS_URL` constant (see research.md) to mirror this on the CLI side.
+- **Principle IX (FastAPI Microservice Structure)** — PASS. `RedisCacheGateway` takes `redis_url` via constructor injection rather than reading `os.environ` itself, so `backend/config.py` remains the sole `os.environ` read point on the backend side (its existing `REDIS_URL` constant is reused for view-count/rate-limit state; a new `CACHE_REDIS_URL` constant, same file, is passed in for cache-aside — see research.md's `CACHE_REDIS_URL` decision). `src/config/settings.py` mirrors both (`REDIS_URL`, `CACHE_REDIS_URL`) plus a new `BACKEND_URL` for `CacheWarmupHandler`'s self-calls. `backend/cache.py`'s `cache_gateway` singleton is exposed to routers via a `get_cache_gateway()` `Depends()` accessor rather than a bare module import, matching `database.py`'s `get_db()` seam (see research.md's DI decision).
 
 No violations requiring justification — Complexity Tracking is empty.
 
@@ -67,12 +67,13 @@ shared/
     └── redis_gateway.py        # RedisCacheGateway — sync redis.Redis-backed implementation
 
 backend/
-├── config.py                                    # (existing REDIS_URL, reused)
+├── config.py                                    # existing REDIS_URL (view counts/rate limits) + new CACHE_REDIS_URL (cache-aside)
+├── cache.py                                     # cache_gateway singleton + get_cache_gateway() Depends() accessor
 ├── routers/
-│   ├── articles.py                              # list_articles: cache-aside via CacheGateway
-│   ├── graph.py                                 # get_graph: replace in-process _cache dict
-│   ├── tags.py                                  # list_tag_groups: cache-aside; write endpoints: bump_version
-│   ├── topics.py                                # write endpoints: bump_version after db.commit()
+│   ├── articles.py                              # list_articles + get_article (static/dynamic split): cache-aside via Depends(get_cache_gateway)
+│   ├── graph.py                                 # get_graph: replaced in-process _cache dict
+│   ├── tags.py                                  # list_tag_groups: cache-aside; write endpoints: bump_version(cache_gateway)
+│   ├── topics.py                                # write endpoints: bump_version(cache_gateway) after db.commit()
 │   ├── scraper_keywords.py                      # (unaffected directly — bump via scraper_keyword_service)
 │   └── scraper_settings.py                      # (unaffected directly — bump via scraper_settings_service)
 └── services/
@@ -84,14 +85,17 @@ backend/
     └── scraper_settings_service.py                # bump_version() calls on write functions
 
 src/
-├── config/settings.py                            # + REDIS_URL constant
-├── bootstrap.py                                   # + CacheInvalidationHandler wiring on PipelineCompletedEvent;
-│                                                   #   + event_bus + notification wiring in
+├── config/settings.py                            # + REDIS_URL, CACHE_REDIS_URL, BACKEND_URL constants
+├── bootstrap.py                                   # + CacheInvalidationHandler + CacheWarmupHandler wiring on
+│                                                   #   PipelineCompletedEvent (warmup subscribed strictly after
+│                                                   #   invalidation); + event_bus + notification wiring in
 │                                                   #   build_metrics_refresh_pipeline() / build_rag_backfill_pipeline()
 ├── modules/
 │   ├── collection/application/
 │   │   ├── events/metrics_refresh_completed.py    # new: MetricsRefreshCompletedEvent
-│   │   └── event_handlers/cache_invalidation_handler.py  # new: CacheInvalidationHandler
+│   │   └── event_handlers/
+│   │       ├── cache_invalidation_handler.py       # new: CacheInvalidationHandler
+│   │       └── cache_warmup_handler.py             # new: CacheWarmupHandler (HTTP self-calls to backend)
 │   └── intelligence/application/
 │       └── events/rag_backfill_completed.py       # new: RagBackfillCompletedEvent
 ├── infrastructure/

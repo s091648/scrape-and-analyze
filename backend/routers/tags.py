@@ -7,7 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from shared.domain.exceptions import NotFoundError, ConflictError
+from shared.cache import CacheGateway, DEFAULT_TTL_SECONDS
 from backend.database import get_db
+from backend.cache import get_cache_gateway
 from backend.auth.guards import require_admin, require_user, require_any_token
 from backend.schemas.error import error_responses
 from backend.schemas.tag import (
@@ -33,45 +35,62 @@ from backend.services.tag_service import (
 router = APIRouter(tags=["tags"])
 
 
+def _bump_tag_scoped_caches(cache_gateway: CacheGateway) -> None:
+    """Tag writes scope articles/graph/tag_groups reads. Unlike research.md's assumption,
+    most tag write logic lives directly in this router (not tag_service.py) — mirroring
+    topics.py's style — so the bump call lives here for every write endpoint below."""
+    for namespace in ("articles", "graph", "tag_groups"):
+        cache_gateway.bump_version(namespace)
+
+
 @router.get("/tag-groups", response_model=List[TagGroupOut], responses=error_responses(401))
 def list_tag_groups(
+    response: Response,
     topic_id: Optional[UUID] = Query(default=None),
     include_similarity: bool = Query(default=False),
     db: Session = Depends(get_db),
     _token: dict = Depends(require_any_token),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
-    from models.tag_group import TagGroupDefinition
+    cache_params = {"topic_id": str(topic_id), "include_similarity": include_similarity}
 
-    q = db.query(TagGroupDefinition)
-    if topic_id:
-        q = q.filter(TagGroupDefinition.topic_id == topic_id)
-    groups = q.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.name).all()
+    def _load() -> list:
+        from models.tag_group import TagGroupDefinition
 
-    result = []
-    for grp in groups:
-        similar = (
-            get_similar_groups(db, grp.id, grp.topic_id)
-            if include_similarity and topic_id
-            else []
-        )
-        result.append(TagGroupOut(
-            id=grp.id, name=grp.name, display_name=grp.display_name,
-            description=grp.description, color_hex=grp.color_hex,
-            topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
-            similar_groups=similar,
-        ))
+        q = db.query(TagGroupDefinition)
+        if topic_id:
+            q = q.filter(TagGroupDefinition.topic_id == topic_id)
+        groups = q.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.name).all()
 
-    if topic_id:
-        ungrouped = ungrouped_tag_outs(db, topic_id)
-        if ungrouped:
+        result = []
+        for grp in groups:
+            similar = (
+                get_similar_groups(db, grp.id, grp.topic_id)
+                if include_similarity and topic_id
+                else []
+            )
             result.append(TagGroupOut(
-                id=None, name="ungrouped", display_name="Ungrouped",
-                description=None, color_hex=None,
-                topic_id=topic_id, tags=ungrouped,
-                similar_groups=[],
+                id=grp.id, name=grp.name, display_name=grp.display_name,
+                description=grp.description, color_hex=grp.color_hex,
+                topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
+                similar_groups=similar,
             ))
 
-    return result
+        if topic_id:
+            ungrouped = ungrouped_tag_outs(db, topic_id)
+            if ungrouped:
+                result.append(TagGroupOut(
+                    id=None, name="ungrouped", display_name="Ungrouped",
+                    description=None, color_hex=None,
+                    topic_id=topic_id, tags=ungrouped,
+                    similar_groups=[],
+                ))
+
+        return [g.model_dump(mode="json") for g in result]
+
+    result = cache_gateway.get_or_set("tag_groups", cache_params, DEFAULT_TTL_SECONDS, _load)
+    response.headers["X-Cache"] = result.status
+    return result.value
 
 
 @router.post("/tag-groups", response_model=TagGroupOut, status_code=201, responses=error_responses(401, 403))
@@ -79,6 +98,7 @@ def create_tag_group(
     body: TagGroupCreate,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag_group import TagGroupDefinition
     from sqlalchemy import text as sa_text
@@ -97,6 +117,7 @@ def create_tag_group(
         )
         db.commit()
 
+    _bump_tag_scoped_caches(cache_gateway)
     return TagGroupOut(
         id=grp.id, name=grp.name, display_name=grp.display_name,
         description=grp.description, color_hex=grp.color_hex,
@@ -109,6 +130,7 @@ def merge_tag_groups_endpoint(
     body: TagGroupMergeRequest,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     result_group = merge_tag_groups(
         db,
@@ -116,6 +138,7 @@ def merge_tag_groups_endpoint(
         body.result_name, body.result_display_name,
         body.result_color_hex, body.result_description,
     )
+    _bump_tag_scoped_caches(cache_gateway)
     return TagGroupOut(
         id=result_group.id, name=result_group.name, display_name=result_group.display_name,
         description=result_group.description, color_hex=result_group.color_hex,
@@ -129,24 +152,38 @@ def reorder_tag_groups(
     body: List[TagGroupReorderItem],
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag_group import TagGroupDefinition
     for item in body:
         db.query(TagGroupDefinition).filter_by(id=item.id).update({"sort_order": item.sort_order})
     db.commit()
+    _bump_tag_scoped_caches(cache_gateway)
 
 
 @router.get("/tag-groups/{group_id}", response_model=TagGroupOut, responses=error_responses(401, 404))
-def get_tag_group(group_id: UUID, db: Session = Depends(get_db), _token: dict = Depends(require_any_token)):
+def get_tag_group(
+    group_id: UUID,
+    response: Response,
+    db: Session = Depends(get_db),
+    _token: dict = Depends(require_any_token),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
+):
     from models.tag_group import TagGroupDefinition
-    grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
-    if not grp:
-        raise NotFoundError("Tag group not found")
-    return TagGroupOut(
-        id=grp.id, name=grp.name, display_name=grp.display_name,
-        description=grp.description, color_hex=grp.color_hex,
-        topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
-    )
+
+    def _load() -> dict:
+        grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
+        if not grp:
+            raise NotFoundError("Tag group not found")
+        return TagGroupOut(
+            id=grp.id, name=grp.name, display_name=grp.display_name,
+            description=grp.description, color_hex=grp.color_hex,
+            topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
+        ).model_dump(mode="json")
+
+    result = cache_gateway.get_or_set("tag_groups", {"group_id": str(group_id)}, DEFAULT_TTL_SECONDS, _load)
+    response.headers["X-Cache"] = result.status
+    return result.value
 
 
 @router.put("/tag-groups/{group_id}", response_model=TagGroupOut, responses=error_responses(401, 403, 404, 409))
@@ -155,6 +192,7 @@ def update_tag_group(
     body: TagGroupUpdate,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag_group import TagGroupDefinition
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
@@ -170,6 +208,7 @@ def update_tag_group(
         setattr(grp, field, val)
     db.commit()
     db.refresh(grp)
+    _bump_tag_scoped_caches(cache_gateway)
     return TagGroupOut(
         id=grp.id, name=grp.name, display_name=grp.display_name,
         description=grp.description, color_hex=grp.color_hex,
@@ -182,6 +221,7 @@ def delete_tag_group(
     group_id: UUID,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag_group import TagGroupDefinition
     grp = db.query(TagGroupDefinition).filter_by(id=group_id).first()
@@ -189,6 +229,7 @@ def delete_tag_group(
         raise NotFoundError("Tag group not found")
     db.delete(grp)
     db.commit()
+    _bump_tag_scoped_caches(cache_gateway)
 
 
 @router.put("/tags/{tag_id}", response_model=TagOut, responses=error_responses(401, 403, 404, 409))
@@ -197,6 +238,7 @@ def rename_tag(
     body: TagUpdate,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag import Tag, article_tags as article_tags_table
     tag = db.query(Tag).filter_by(id=tag_id).first()
@@ -214,6 +256,7 @@ def rename_tag(
         db.rollback()
         raise ConflictError("Tag name already exists in target group")
     db.refresh(tag)
+    _bump_tag_scoped_caches(cache_gateway)
     count = (
         db.query(func.count(distinct(article_tags_table.c.article_id)))
         .filter(article_tags_table.c.tag_id == tag.id)
@@ -227,6 +270,7 @@ def delete_tag(
     tag_id: UUID,
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag import Tag
     tag = db.query(Tag).filter_by(id=tag_id).first()
@@ -235,6 +279,7 @@ def delete_tag(
     db.execute(text("DELETE FROM article_tags WHERE tag_id = :id"), {"id": str(tag_id)})
     db.delete(tag)
     db.commit()
+    _bump_tag_scoped_caches(cache_gateway)
 
 
 @router.post("/tags/batch-move", response_model=BatchMoveResult, responses=error_responses(401, 403))
@@ -242,6 +287,7 @@ def batch_move_tags(
     body: List[TagMoveItem],
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag import Tag
     succeeded = []
@@ -258,6 +304,8 @@ def batch_move_tags(
         except Exception as e:
             db.rollback()
             failed.append({"tag_id": str(item.tag_id), "error": str(e)})
+    if succeeded:
+        _bump_tag_scoped_caches(cache_gateway)
     return BatchMoveResult(succeeded=succeeded, failed=failed)
 
 
@@ -290,6 +338,7 @@ def approve_suggestion(
     suggestion_id: UUID,
     db: Session = Depends(get_db),
     admin: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
     from models.tag_normalization_suggestion import TagNormalizationSuggestion
     suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
@@ -312,6 +361,7 @@ def approve_suggestion(
     db.expunge(suggestion)
     db.execute(text("DELETE FROM tags WHERE id = :new_id"), {"new_id": new_tag_id})
     db.commit()
+    _bump_tag_scoped_caches(cache_gateway)
     return {"status": "approved"}
 
 

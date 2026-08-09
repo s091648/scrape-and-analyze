@@ -166,3 +166,41 @@ def test_delete_topic_soft_deletes(api_client, db_session):
 def test_delete_topic_not_found(api_client):
     r = api_client.delete(f"/topics/{uuid.uuid4()}", headers=_ADMIN_HDR)
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Cache write-through (020-redis-caching-layer, US2)
+# ---------------------------------------------------------------------------
+
+def _spy_bump_version(monkeypatch):
+    calls = []
+    from backend.cache import cache_gateway
+
+    original = cache_gateway.bump_version
+
+    def _spy(namespace):
+        calls.append(namespace)
+        return original(namespace)
+
+    monkeypatch.setattr(cache_gateway, "bump_version", _spy)
+    return calls
+
+
+def test_create_topic_bumps_article_scoped_caches(api_client, monkeypatch):
+    calls = _spy_bump_version(monkeypatch)
+    api_client.post("/topics", json=_topic_payload(), headers=_ADMIN_HDR)
+    assert set(calls) == {"articles", "graph", "tag_groups"}
+
+
+def test_update_topic_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
+    t = _seed_topic(db_session, name="cache-bump-topic")
+    calls = _spy_bump_version(monkeypatch)
+    api_client.patch(f"/topics/{t.id}", json={"display_name": "New"}, headers=_ADMIN_HDR)
+    assert set(calls) == {"articles", "graph", "tag_groups"}
+
+
+def test_delete_topic_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
+    t = _seed_topic(db_session, name="cache-bump-delete-topic")
+    calls = _spy_bump_version(monkeypatch)
+    api_client.delete(f"/topics/{t.id}", headers=_ADMIN_HDR)
+    assert set(calls) == {"articles", "graph", "tag_groups"}

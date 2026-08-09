@@ -136,10 +136,30 @@ def test_t020_failed_event_subscriptions():
 
 
 def test_t021_pipeline_completed_event_subscriptions():
-    """PipelineCompletedEvent must have two handlers (OtelMetricsHandler + notification handler)."""
+    """PipelineCompletedEvent must have four handlers (OtelMetricsHandler, notification
+    handler, CacheInvalidationHandler, and CacheWarmupHandler — 020-redis-caching-layer,
+    US3 + eager cache warm-up)."""
     pipeline, *_ = _build_pipeline_with_mocks()
     handlers = pipeline._event_bus._handlers.get(PipelineCompletedEvent, [])
-    assert len(handlers) == 2, f"expected 2 handlers for PipelineCompletedEvent, got {len(handlers)}"
+    assert len(handlers) == 4, f"expected 4 handlers for PipelineCompletedEvent, got {len(handlers)}"
+
+
+def test_cache_invalidation_handler_subscribed_to_pipeline_completed_event():
+    """build_collection_pipeline() must wire CacheInvalidationHandler to PipelineCompletedEvent."""
+    src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
+    assert "CacheInvalidationHandler" in src
+
+
+def test_cache_warmup_handler_subscribed_after_cache_invalidation_handler():
+    """CacheWarmupHandler must be wired to PipelineCompletedEvent, and must be registered
+    strictly after CacheInvalidationHandler — InMemoryEventBus dispatches subscribers in
+    subscribe()-call order, and warming has to target the *new* namespace version that
+    bump_version() just created, not the one it's about to orphan."""
+    src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
+    assert "CacheWarmupHandler" in src
+    assert src.index("cache_invalidation_handler = CacheInvalidationHandler") < src.index(
+        "cache_warmup_handler = CacheWarmupHandler"
+    )
 
 
 # ---------------------------------------------------------------------------

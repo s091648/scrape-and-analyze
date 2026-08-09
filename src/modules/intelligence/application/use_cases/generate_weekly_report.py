@@ -60,6 +60,7 @@ class GenerateWeeklyReportUseCase:
         email_notifier=None,
         telegram_notifier=None,
         translation_languages: Iterable[str] = (),
+        cache_gateway=None,
     ) -> None:
         self._repo = report_repo
         self._llm = llm_service
@@ -70,6 +71,10 @@ class GenerateWeeklyReportUseCase:
         self._email = email_notifier
         self._telegram = telegram_notifier
         self._translation_languages = list(translation_languages)
+        # 020-redis-caching-layer, US3: bumps the "weekly_reports" cache namespace whenever
+        # a report is saved. Optional (defaults to None/no-op) — RedisCacheGateway itself
+        # never raises, so no try/except is needed around bump_version() calls below.
+        self._cache = cache_gateway
 
     def execute(self, topic_id: UUID, topic_name: str, week_start: date, force: bool = False) -> WeeklyReport:
         logger.info("weekly_report_generation_started", topic_id=str(topic_id), week_start=str(week_start))
@@ -104,6 +109,8 @@ class GenerateWeeklyReportUseCase:
                 status="completed",
             )
             saved = self._repo.save(report)
+            if self._cache:
+                self._cache.bump_version("weekly_reports")
             for language in self._translation_languages:
                 self._translate_report(saved, language)
             return saved
@@ -171,6 +178,8 @@ class GenerateWeeklyReportUseCase:
             status="completed",
         )
         saved = self._repo.save(report)
+        if self._cache:
+            self._cache.bump_version("weekly_reports")
         span.set_attribute("weekly_report.outcome", "generated")
 
         for language in self._translation_languages:

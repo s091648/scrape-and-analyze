@@ -7,6 +7,12 @@ This is the one shared interface both `backend/` and `src/` depend on. Every rea
 ## Interface
 
 ```python
+@dataclass(frozen=True)
+class CacheResult:
+    value: Any
+    status: Literal["HIT", "MISS", "BYPASS"]
+
+
 class CacheGateway(Protocol):
     def get_or_set(
         self,
@@ -15,10 +21,12 @@ class CacheGateway(Protocol):
         ttl_seconds: int,
         loader: Callable[[], Any],
         lang: str = "en",
-    ) -> Any:
-        """Cache-aside read. Returns the cached value for (namespace, params, lang) if present
-        and still valid for the namespace's current version; otherwise calls loader(), caches
-        the result under the current version, and returns it."""
+    ) -> CacheResult:
+        """Cache-aside read. Returns a CacheResult wrapping the value for (namespace, params,
+        lang) if present and still valid for the namespace's current version (status="HIT");
+        otherwise calls loader(), caches the result under the current version, and returns it
+        (status="MISS"). If the cache backend is unavailable, calls loader() uncached and
+        returns status="BYPASS" (see Post-Ship Addendum: X-Cache Header below)."""
         ...
 
     def bump_version(self, namespace: str) -> int:
@@ -52,3 +60,15 @@ class CacheGateway(Protocol):
 - weekly report job's existing per-report notification hook point — bumps `weekly_reports`
 - `backend/routers/topics.py` create/update/delete — bumps `articles`, `graph`, `tag_groups`
 - `backend/services/tag_service.py` write functions — bumps `articles`, `graph`, `tag_groups`
+
+## Post-Ship Addendum: `X-Cache` response header
+
+Every router call site above now does:
+
+```python
+result = cache_gateway.get_or_set("articles", cache_params, DEFAULT_TTL_SECONDS, _load, lang=lang)
+response.headers["X-Cache"] = result.status
+return result.value
+```
+
+`response: Response` is added as a route-function parameter (FastAPI's built-in DI) on every route that calls `get_or_set`. `bump_version` call sites are unaffected — no header is set on write endpoints. See research.md "Decision: `X-Cache` response header via `CacheResult`" for rationale.

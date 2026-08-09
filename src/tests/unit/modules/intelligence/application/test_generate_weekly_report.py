@@ -41,6 +41,7 @@ def _make_uc(
     email_notifier=None,
     telegram_notifier=None,
     translation_languages=(),
+    cache_gateway=None,
 ):
     repo = MagicMock()
     repo.fetch_top_articles.return_value = articles if articles is not None else [_summary()]
@@ -69,6 +70,7 @@ def _make_uc(
         email_notifier=email_notifier,
         telegram_notifier=telegram_notifier,
         translation_languages=translation_languages,
+        cache_gateway=cache_gateway,
     )
     return uc, repo, llm, image, blob, translation_repo
 
@@ -310,3 +312,55 @@ def test_translate_report_keeps_translation_when_citations_match():
 
     saved = translation_repo.save.call_args[0][0]
     assert saved.summary_text == translated_summary
+
+
+# ---------------------------------------------------------------------------
+# Cache invalidation (020-redis-caching-layer, US3)
+# ---------------------------------------------------------------------------
+
+def test_execute_bumps_weekly_reports_cache_when_report_saved():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, _, _, _, _, _ = _make_uc(cache_gateway=cache)
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+    cache.bump_version.assert_called_once_with("weekly_reports")
+
+
+def test_execute_bumps_weekly_reports_cache_for_empty_week():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, _, _, _, _, _ = _make_uc(articles=[], cache_gateway=cache)
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+    cache.bump_version.assert_called_once_with("weekly_reports")
+
+
+def test_execute_does_not_bump_cache_when_no_gateway_configured():
+    uc, _, _, _, _, _ = _make_uc(cache_gateway=None)
+    # Should not raise — cache_gateway=None is the default, matching every other
+    # existing test in this file that doesn't pass one.
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+
+def test_execute_does_not_bump_cache_when_regeneration_skipped():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, repo, _, _, _, _ = _make_uc(cache_gateway=cache)
+    existing = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="Existing Title",
+        summary_text="Existing Summary",
+        cover_image_url=None,
+        article_ids=[],
+        article_count=1,
+        status="completed",
+    )
+    repo.find_by_topic_and_week.return_value = existing
+
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+    cache.bump_version.assert_not_called()

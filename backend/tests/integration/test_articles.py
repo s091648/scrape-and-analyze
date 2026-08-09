@@ -50,6 +50,127 @@ def test_articles_empty(api_client):
     assert data["items"] == []
 
 
+# ---------------------------------------------------------------------------
+# Cache-aside reads (020-redis-caching-layer, US1)
+# ---------------------------------------------------------------------------
+
+def test_repeated_identical_request_is_served_from_cache(api_client, db_session, monkeypatch):
+    """A second identical request must not re-run the DB query — cache hit."""
+    from backend.routers import articles as articles_router
+    from models.topic import Topic
+
+    topic_id = uuid.uuid4()  # unique per test run -> guaranteed-fresh cache key
+    db_session.add(Topic(
+        id=topic_id, name=f"t-{topic_id.hex[:6]}", display_name="Test Topic",
+        color_hex="#000000", sort_order=1,
+    ))
+    db_session.flush()  # topic must exist before the article FK references it
+    db_session.add(_article(title="Cached Article", topic_id=topic_id))
+    db_session.flush()
+
+    calls = []
+    original = articles_router.get_articles_paginated
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(articles_router, "get_articles_paginated", _spy)
+
+    first = api_client.get(f"/articles?topic_id={topic_id}")
+    second = api_client.get(f"/articles?topic_id={topic_id}")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_x_cache_header_is_bypass_when_cache_gateway_unavailable(api_client):
+    """020-redis-caching-layer Post-Ship Addendum: a Redis-unavailable gateway must report
+    X-Cache: BYPASS rather than HIT/MISS, so operators can tell a real miss apart from the
+    cache layer not having been consulted at all."""
+    from backend.main import app
+    from backend.cache import get_cache_gateway
+    from shared.cache import CacheResult
+
+    class _BypassGateway:
+        def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+            return CacheResult(value=loader(), status="BYPASS")
+
+        def bump_version(self, namespace):
+            return 0
+
+    app.dependency_overrides[get_cache_gateway] = lambda: _BypassGateway()
+    try:
+        response = api_client.get("/articles")
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert response.status_code == 200
+    assert response.headers["X-Cache"] == "BYPASS"
+
+
+def test_repeated_article_detail_request_is_served_from_cache(api_client, db_session, monkeypatch):
+    """020-redis-caching-layer T050: GET /articles/{id}'s cached static shape must also be a
+    cache hit on repeat, same as the list endpoint above."""
+    from backend.routers import articles as articles_router
+
+    a = _article(title="Detail Cache Article")
+    db_session.add(a)
+    db_session.flush()
+
+    calls = []
+    original = articles_router.get_article_by_id
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(articles_router, "get_article_by_id", _spy)
+
+    first = api_client.get(f"/articles/{a.id}")
+    second = api_client.get(f"/articles/{a.id}")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_x_cache_header_is_bypass_for_article_detail_when_cache_gateway_unavailable(api_client, db_session):
+    """Same BYPASS contract as the list endpoint, verified for the detail endpoint too — the
+    detail route builds its own CacheResult unpack/merge (articles.py's get_article), so it's
+    not guaranteed to inherit the list endpoint's behavior by construction."""
+    from backend.main import app
+    from backend.cache import get_cache_gateway
+    from shared.cache import CacheResult
+
+    a = _article(title="Bypass Detail Article")
+    db_session.add(a)
+    db_session.flush()
+
+    class _BypassGateway:
+        def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+            return CacheResult(value=loader(), status="BYPASS")
+
+        def bump_version(self, namespace):
+            return 0
+
+    app.dependency_overrides[get_cache_gateway] = lambda: _BypassGateway()
+    try:
+        response = api_client.get(f"/articles/{a.id}")
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert response.status_code == 200
+    assert response.headers["X-Cache"] == "BYPASS"
+
+
 def test_articles_pagination_total_and_page_size(db_session, api_client):
     for i in range(5):
         db_session.add(_article(title=f"Art {i}"))

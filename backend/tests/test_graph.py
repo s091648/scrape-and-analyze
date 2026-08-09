@@ -87,8 +87,6 @@ def _mock_group_def(name='digital_twin', display='Digital Twin'):
 
 
 def test_graph_returns_nodes_and_edges():
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
@@ -102,8 +100,6 @@ def test_graph_returns_nodes_and_edges():
 
 
 def test_graph_contains_group_and_article_nodes():
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
@@ -117,8 +113,6 @@ def test_graph_contains_group_and_article_nodes():
 
 
 def test_graph_group_node_has_color_and_count():
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
@@ -132,8 +126,6 @@ def test_graph_group_node_has_color_and_count():
 
 
 def test_graph_different_days_different_cache():
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
@@ -228,16 +220,41 @@ def test_graph_group_requires_at_least_a_guest_token():
     assert response.status_code == 401
 
 
+class _InMemoryFakeCacheGateway:
+    """Minimal in-memory CacheGateway stand-in for hermetic unit tests — real cache-aside
+    behavior (Redis-backed) is covered by backend/tests/integration/test_graph.py; this test
+    only needs to confirm get_graph() actually calls through CacheGateway.get_or_set()."""
+
+    def __init__(self):
+        self._store = {}
+
+    def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+        import json
+        from shared.cache import CacheResult
+        key = (namespace, lang, json.dumps(params, sort_keys=True, default=str))
+        if key not in self._store:
+            self._store[key] = loader()
+            return CacheResult(value=self._store[key], status="MISS")
+        return CacheResult(value=self._store[key], status="HIT")
+
+    def bump_version(self, namespace):
+        return 0
+
+
 def test_graph_cache_hit_avoids_second_query():
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
+    from backend.cache import get_cache_gateway
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
-        client.get('/analyses/graph')
-        client.get('/analyses/graph')  # same params → cache hit
+    fake_gateway = _InMemoryFakeCacheGateway()
+    app.dependency_overrides[get_cache_gateway] = lambda: fake_gateway
+    try:
+        with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
+             patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+            client.get('/analyses/graph')
+            client.get('/analyses/graph')  # same params → cache hit
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
     assert mock_q.call_count == 1
 
 

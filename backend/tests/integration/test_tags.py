@@ -667,3 +667,105 @@ def test_approve_suggestion_merges_tags(api_client, db_session):
     )
     assert r.status_code == 200
     assert r.json()["status"] == "approved"
+
+
+# ---------------------------------------------------------------------------
+# Cache write-through (020-redis-caching-layer, US2)
+# ---------------------------------------------------------------------------
+
+def _spy_bump_version(monkeypatch):
+    calls = []
+    from backend.cache import cache_gateway
+
+    original = cache_gateway.bump_version
+
+    def _spy(namespace):
+        calls.append(namespace)
+        return original(namespace)
+
+    monkeypatch.setattr(cache_gateway, "bump_version", _spy)
+    return calls
+
+
+def test_rename_tag_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
+    tag = _tag(db_session, name="rename-me")
+    calls = _spy_bump_version(monkeypatch)
+    api_client.put(f"/tags/{tag.id}", json={"name": "renamed"}, headers=_ADMIN_HDR)
+    assert set(calls) == {"articles", "graph", "tag_groups"}
+
+
+def test_delete_tag_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
+    tag = _tag(db_session, name="delete-me")
+    calls = _spy_bump_version(monkeypatch)
+    api_client.delete(f"/tags/{tag.id}", headers=_ADMIN_HDR)
+    assert set(calls) == {"articles", "graph", "tag_groups"}
+
+
+def test_repeated_tag_groups_request_is_served_from_cache(api_client, db_session, monkeypatch):
+    from backend.routers import tags as tags_router
+
+    topic = _topic(db_session)
+    _group(db_session, topic, name="cache-hit-group")
+
+    calls = []
+    original = tags_router.tag_outs_for_group
+
+    def _spy(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(tags_router, "tag_outs_for_group", _spy)
+
+    first = api_client.get(f"/tag-groups?topic_id={topic.id}")
+    second = api_client.get(f"/tag-groups?topic_id={topic.id}")
+
+    assert first.status_code == 200
+    assert first.json() == second.json()
+    assert len(calls) == 1
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_x_cache_header_is_bypass_when_cache_gateway_unavailable(api_client):
+    """020-redis-caching-layer Post-Ship Addendum (T061): same BYPASS contract as articles.py,
+    verified for GET /tag-groups — each router unpacks CacheResult independently."""
+    from backend.main import app
+    from backend.cache import get_cache_gateway
+    from shared.cache import CacheResult
+
+    class _BypassGateway:
+        def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+            return CacheResult(value=loader(), status="BYPASS")
+
+        def bump_version(self, namespace):
+            return 0
+
+    app.dependency_overrides[get_cache_gateway] = lambda: _BypassGateway()
+    try:
+        response = api_client.get("/tag-groups")
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert response.status_code == 200
+    assert response.headers["X-Cache"] == "BYPASS"
+
+
+def test_tag_group_rename_reflected_on_next_read(api_client, db_session):
+    """End-to-end: cache tag-groups, rename a group, confirm the very next read reflects it."""
+    topic = _topic(db_session)
+    grp = _group(db_session, topic, name="before-rename", display_name="Before Rename")
+
+    first = api_client.get(f"/tag-groups?topic_id={topic.id}")
+    names = [g["display_name"] for g in first.json()]
+    assert "Before Rename" in names
+
+    api_client.put(
+        f"/tag-groups/{grp.id}",
+        json={"display_name": "After Rename"},
+        headers=_ADMIN_HDR,
+    )
+
+    second = api_client.get(f"/tag-groups?topic_id={topic.id}")
+    names_after = [g["display_name"] for g in second.json()]
+    assert "After Rename" in names_after
+    assert "Before Rename" not in names_after

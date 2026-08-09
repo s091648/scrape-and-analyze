@@ -40,8 +40,24 @@ RESEND_FROM_EMAIL: str = os.environ.get("RESEND_FROM_EMAIL", "")
 TELEGRAM_BOT_TOKEN: str = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID: str = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
+# Redis (mirrors backend/config.py's REDIS_URL constant) — db 0, durable operational
+# state (view-count write-behind buffer, chat rate-limit counters in backend/).
+REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+
+# shared/cache/ cache-aside gateway — db 1, disposable/rebuildable read-cache entries
+# only. Kept on a separate logical DB from REDIS_URL so a FLUSHDB while debugging the
+# cache can never wipe out not-yet-flushed view-count/rate-limit state (mirrors
+# backend/config.py's CACHE_REDIS_URL constant).
+CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
+
 # Web
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "https://example.com")
+
+# Internal Docker/Railway hostname for the backend API (mirrors frontend's own BACKEND_URL,
+# see .env.example) — used by CacheWarmupHandler to re-populate the cache via real HTTP
+# calls to backend's own endpoints after a scrape run, so it never has to duplicate
+# backend's query-building logic.
+BACKEND_URL: str = os.environ.get("BACKEND_URL", "http://backend:8000")
 
 # HTTP — optional proxy + bot UA contact email
 FIXIE_URL: Optional[str] = os.environ.get("FIXIE_URL") or None

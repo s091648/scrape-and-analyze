@@ -89,8 +89,6 @@ def _mock_group_def(name='digital_twin', display='Digital Twin'):
 
 def test_graph_with_tag_filter():
     """Graph endpoint should pass tag filter to query_analyses."""
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
@@ -105,8 +103,6 @@ def test_graph_with_tag_filter():
 
 def test_graph_with_topic_id_filter():
     """Graph endpoint should pass topic_id to query_analyses."""
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
@@ -121,22 +117,25 @@ def test_graph_with_topic_id_filter():
 
 def test_graph_caches_result():
     """Second request with same params should use cache."""
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
+    from backend.tests.test_graph import _InMemoryFakeCacheGateway
     from backend.main import app
+    from backend.cache import get_cache_gateway
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
-        client.get('/analyses/graph?days=30')
-        client.get('/analyses/graph?days=30')
+    fake_gateway = _InMemoryFakeCacheGateway()
+    app.dependency_overrides[get_cache_gateway] = lambda: fake_gateway
+    try:
+        with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
+             patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+            client.get('/analyses/graph?days=30')
+            client.get('/analyses/graph?days=30')
+    finally:
+        app.dependency_overrides.pop(get_cache_gateway, None)
     assert mock_q.call_count == 1
 
 
 def test_graph_multiple_groups_same_article():
     """An article with tags from multiple groups should create edges to each group."""
-    import backend.routers.graph as graph_module
-    graph_module._cache.clear()
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([
