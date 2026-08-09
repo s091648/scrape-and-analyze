@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 19 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 22 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -74,4 +74,13 @@ features:
   - title: '019 · Cicd Data Migrations'
     details: 'Bring the existing scripts/data/versions data-migration framework (analogous to alembic for one-off/backfill data jobs, tracked in the data_migrations table added by alembic migration 18) up to CI/CD parity with alembic itself, since it is currently a manual-only tool (make data-migrate) never invoked by .github/workflows/ci.yml or release.yml. Decided during design discussion: (1) trigger points are exactly ci.yml''s migrate job (staging) and release.yml''s release job (production), immediately after the existing alembic upgrade step, deliberately excluding the three ephemeral-per-job test databases; (2) each migration script declares an explicit predecessor reference (like alembic''s down_revision) instead of relying on numeric filename ordering; (3) each migration script may declare a minimum required schema state, checked as a reachability precondition (not an exact-transition match) before execution, refused loudly if unmet, and not persisted anywhere; (4) a failing migration''s writes are fully rolled back, it is not recorded as executed, no later chained migration runs in that pass, and the pipeline step fails — without reversing an already-successful schema migration in the same run; (5) migrations requiring external API access are always skipped by automatic runs, identical to today''s default manual behavior; (6) no new environment toggle, no new CI job, no change to existing manual invocation. The historical arXiv-ID data-cleanup migration that motivated this work is explicitly out of scope — separate follow-on work built on top of this framework.'
     link: '/specs/019-cicd-data-migrations/spec'
+  - title: '020 · Redis Caching Layer'
+    details: '在 frontend/app 中改善 Web Vitals 效能指標，做法是為現有直接打 DB 的 read API 加上 Redis caching 層，並在每日排程的 scraper pipeline 完成後（以及 admin 後台寫入時）主動維護快取；同時為 refresh_metrics 與 backfill_rag 兩個 CLI entrypoint 加上完成通知'
+    link: '/specs/020-redis-caching-layer/spec'
+  - title: '021 · Ssr Public Pages'
+    details: 'Redis caching (020) sped up backend query responses but did not improve LCP on `/` (home) and `/articles`, because both pages are client-only with zero server-rendered data fetching — the browser has to download/parse/execute the JS bundle, hydrate, then fire two sequential API requests (topics, then articles) before the first meaningful content appears. Convert these pages to Server Components so first-paint data is fetched server-side and shipped with the initial HTML, actually cashing in on the caching work done in 020.'
+    link: '/specs/021-ssr-public-pages/spec'
+  - title: '022 · Lighthouse Performance Check'
+    details: '我希望能夠在 Makefile 跟 scripts/ 裡面加上一個使用 lighthouse CLI 來去做 performance check 的一個腳本，並且最後出具一份report。可能需要涵蓋說我要使用哪個url，用甚麼身分(應該是用 guest)登入，以及指定要測試那些 route。然後出來的 report 希望是以繁體中文彙整。且之後會希望可以把他做在 .github/workflows/ci.yml 或是其他的 action 裡面。'
+    link: '/specs/022-lighthouse-performance-check/spec'
 ---
