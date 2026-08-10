@@ -1,3 +1,5 @@
+from typing import Iterator
+
 import boto3
 
 from src.config import settings
@@ -6,6 +8,13 @@ from src.shared.domain.services.blob_storage_service import BlobStorageService
 
 
 class R2BlobStorageService(BlobStorageService):
+    # Keys are dated (e.g. weekly-reports/<topic_id>/<week_start>.webp) and never overwritten in
+    # normal operation, so a long, immutable TTL is safe — this is what was missing from the
+    # Lighthouse "Use efficient cache lifetimes" finding (the r2.dev cover image had no
+    # Cache-Control at all). Shared by upload() (new objects) and refresh_cache_control() (rewriting
+    # objects uploaded before this existed — see scripts/backfill_r2_cache_control.py).
+    CACHE_CONTROL = "public, max-age=31536000, immutable"
+
     def __init__(
         self,
         account_id: str,
@@ -30,8 +39,32 @@ class R2BlobStorageService(BlobStorageService):
             Key=key,
             Body=data,
             ContentType=content_type,
+            CacheControl=self.CACHE_CONTROL,
         )
         return f"{self._public_url}/{key}"
+
+    def iter_keys(self, prefix: str = "") -> Iterator[str]:
+        """Yield every object key under `prefix` in this bucket (paginated list_objects_v2)."""
+        paginator = self._client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                yield obj["Key"]
+
+    def head_object(self, key: str) -> dict:
+        """Raw object metadata (ContentType, CacheControl, ...) without downloading the body."""
+        return self._client.head_object(Bucket=self._bucket, Key=key)
+
+    def refresh_cache_control(self, key: str, content_type: str) -> None:
+        """Rewrite `key`'s metadata in place (S3 copy-onto-self) to this service's current
+        `CACHE_CONTROL` policy, without re-downloading/re-uploading the object's bytes."""
+        self._client.copy_object(
+            Bucket=self._bucket,
+            Key=key,
+            CopySource={"Bucket": self._bucket, "Key": key},
+            MetadataDirective="REPLACE",
+            ContentType=content_type,
+            CacheControl=self.CACHE_CONTROL,
+        )
 
     @classmethod
     def from_env(cls) -> "R2BlobStorageService":
