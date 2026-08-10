@@ -102,7 +102,10 @@ describe('resolveSsrContext — credential resolution', () => {
     )
     const ctx = await resolveSsrContext({ allowGuestCredential: true })
     expect(ctx.credential).toBe('guest-jwt')
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/auth/guest'), { method: 'POST' })
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/guest'),
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 
   it('still prefers a real session over a guest token when allowGuestCredential is true and a session exists', async () => {

@@ -754,6 +754,11 @@ export default function TagsPageContent({ initialGroups }: TagsPageContentProps)
 
   useEffect(() => {
     if (isGuest) { setLoading(false); return }
+    // Session resolution is itself async (useSession() starts at status: 'loading' with
+    // token: undefined even for an already-signed-in visitor) — waiting for it to settle
+    // before consuming skipNextFetch is what keeps the *real* first fetch (not this
+    // transient one) from being the one that discards the SSR-seeded groups.
+    if (status === 'loading') return
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       setLoading(false)
@@ -767,9 +772,10 @@ export default function TagsPageContent({ initialGroups }: TagsPageContentProps)
       isAdmin && token ? fetchPendingSuggestions(token) : Promise.resolve([]),
     ])
       .then(([g, s]) => { if (!cancelled) { setGroups(g); setSuggestions(s) } })
+      .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [selectedTopic?.id, isAdmin, token, isGuest, showSimilarities])
+  }, [selectedTopic?.id, isAdmin, token, isGuest, showSimilarities, status])
 
   // Cancel merge mode on Escape
   useEffect(() => {

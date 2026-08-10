@@ -14,6 +14,12 @@ import { getCurrentToken, waitForToken } from '../auth-token-store'
 // this at a genuinely non-idempotent endpoint in the future.
 const MAX_ATTEMPTS = 4
 const RETRY_BASE_DELAY_MS = 300
+// No caller currently passes its own AbortSignal (grep confirms zero use of `signal` across
+// lib/api), and nothing routed through apiFetch is a long-lived stream (chat completions use
+// their own raw fetch, not this wrapper) — so a single fixed per-attempt budget is enough. A
+// hung backend would otherwise block the caller indefinitely, same failure mode fixed in
+// lib/server/ssr-fetch.ts.
+const REQUEST_TIMEOUT_MS = 15_000
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -23,15 +29,24 @@ function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500
 }
 
+/** Merges the per-attempt timeout with a caller-supplied signal (if `init.signal` is ever set)
+ * so this wrapper can't silently override a caller's own cancellation. */
+function timeoutSignal(callerSignal: AbortSignal | null | undefined): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  return callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout
+}
+
 async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const isLastAttempt = attempt === MAX_ATTEMPTS - 1
     try {
-      const response = await fetch(url, init)
+      const response = await fetch(url, { ...init, signal: timeoutSignal(init.signal) })
       if (response.ok || !isRetryableStatus(response.status) || isLastAttempt) {
         return response
       }
     } catch (err) {
+      // A caller-initiated cancellation is a deliberate stop, not a failure to retry.
+      if (init.signal?.aborted) throw err
       if (isLastAttempt) throw err
     }
     await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt + Math.random() * 100)

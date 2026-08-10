@@ -148,8 +148,14 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
           fetchWeeklyReports(topicId as string, 10, 0, locale),
         ])
         if (cancelled) return
-        const list = listResult.status === 'fulfilled' ? listResult.value.items : []
-        setReports(list)
+        if (listResult.status === 'fulfilled') {
+          setReports(listResult.value.items)
+        } else if (!initialReport) {
+          setReports([])
+        }
+        // A rejected listResult with an initialReport keeps the seeded report visible
+        // instead of blanking the card to "no report yet" over a transient failure.
+        const list = listResult.status === 'fulfilled' ? listResult.value.items : reports
 
         fetchWeeklyReportWeeks(topicId as string).then(weeks => {
           if (!cancelled) setAvailableWeeks(new Set(weeks.map(w => w.slice(0, 10))))
@@ -178,7 +184,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
 
     void load()
     return () => { cancelled = true }
-  }, [topicId, locale, initialWeek])
+  }, [topicId, locale, initialWeek, initialReport])
 
   async function handleJumpToWeek(monday: Date) {
     if (!topicId) return

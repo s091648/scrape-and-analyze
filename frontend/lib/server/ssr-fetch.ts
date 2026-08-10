@@ -24,6 +24,10 @@
 // token (until the cache is warm) and still needs `GET /topics` (nothing else can tell us which
 // topic to default to). A full multi-device / BFF-aggregation rework that could collapse this
 // further is tracked separately, not part of this feature.
+//
+// Every backend call in this module goes through `ssrFetch()` below — the server-side
+// counterpart of `lib/api/client.ts`'s `apiFetch()` — so timeout/abort, credential attachment,
+// and retry-on-transient-failure live in one place instead of being hand-rolled per call site.
 import { cache } from 'react'
 import { cookies, headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
@@ -36,6 +40,68 @@ import type { WeeklyReport } from '@/lib/api/weekly-reports'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 const SUPPORTED_LANGUAGE_CODES = ['en', 'zh-TW']
+// Every backend call in this module runs on the SSR request path and blocks the HTML
+// response — Node's fetch has no default timeout, so a backend that accepts the TCP
+// connection but never responds would otherwise hang the render until the platform
+// kills it. AbortSignal.timeout() raises, so ssrFetch's own catch (and every caller's
+// existing try/catch) already produce the correct degraded (null/'en') result.
+const SSR_FETCH_TIMEOUT_MS = 3_000
+// Retries are deliberately minimal — unlike lib/api/client.ts's apiFetch (background UI
+// fetches, MAX_ATTEMPTS=4), every attempt here blocks the HTML response, so this trades a
+// little resilience to a transient backend hiccup against not stalling the page load too long.
+const SSR_MAX_ATTEMPTS = 2
+const SSR_RETRY_DELAY_MS = 150
+// selectedTopicId is a plain client-writable cookie (see resolveTopicId's comment on
+// why it's trusted without a GET /topics round trip) — this only guards its shape
+// before it's interpolated into a backend query string, not its validity.
+const TOPIC_ID_PATTERN = /^[0-9a-fA-F-]{1,64}$/
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+/** Plain object (not a `Headers` instance) — every call site here builds its own headers from
+ * scratch rather than forwarding a caller-supplied Authorization, so the extra normalization a
+ * `Headers` instance gives lib/api/client.ts's apiFetch isn't needed on this path. */
+function buildSsrHeaders(init: RequestInit, credential?: string | null): Record<string, string> {
+  const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) }
+  if (credential) headers.Authorization = `Bearer ${credential}`
+  return headers
+}
+
+/** Shared request layer for every backend call in this module — the server-side counterpart of
+ * lib/api/client.ts's `apiFetch()`. Attaches the bearer credential (if given), bounds each
+ * attempt to `timeoutMs` (default `SSR_FETCH_TIMEOUT_MS`), and retries once on a network
+ * failure or a 429/5xx before giving up (`SSR_MAX_ATTEMPTS`). Returns `null` only when every
+ * attempt threw (timeout or network failure); a non-ok Response is returned as-is so each
+ * caller keeps deciding for itself what "not ok" means for its own endpoint. Never throws. */
+async function ssrFetch(
+  url: string,
+  init: RequestInit = {},
+  options: { credential?: string | null; timeoutMs?: number } = {},
+): Promise<Response | null> {
+  const requestHeaders = buildSsrHeaders(init, options.credential)
+  const timeoutMs = options.timeoutMs ?? SSR_FETCH_TIMEOUT_MS
+  for (let attempt = 0; attempt < SSR_MAX_ATTEMPTS; attempt++) {
+    const isLastAttempt = attempt === SSR_MAX_ATTEMPTS - 1
+    try {
+      const res = await fetch(url, {
+        ...init,
+        headers: requestHeaders,
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+      if (res.ok || !isRetryableStatus(res.status) || isLastAttempt) return res
+    } catch {
+      if (isLastAttempt) return null
+    }
+    await sleep(SSR_RETRY_DELAY_MS)
+  }
+  return null
+}
 
 export interface SsrContext {
   /** Bearer token for this render's backend calls — the visitor's reused NextAuth session token,
@@ -91,8 +157,8 @@ async function issueOrReuseGuestToken(): Promise<string | null> {
     return cachedGuestToken.token
   }
   try {
-    const res = await fetch(`${BACKEND_URL}/auth/guest`, { method: 'POST' })
-    if (!res.ok) return null
+    const res = await ssrFetch(`${BACKEND_URL}/auth/guest`, { method: 'POST' })
+    if (!res?.ok) return null
     const data = await res.json()
     if (typeof data.access_token !== 'string') return null
     const expiresInMs = typeof data.expires_in === 'number' ? data.expires_in * 1000 : 3600_000
@@ -128,12 +194,12 @@ async function resolveTopicId(credential: string): Promise<string | null> {
     // `loadTopics()` validation (unchanged) corrects both the in-memory state and the cookie on
     // its next run, so this self-heals within one visit rather than requiring the round trip on
     // every single render. See specs/021-ssr-public-pages research.md's root-cause-1 follow-up.
-    if (cookieTopicId) return cookieTopicId
+    // Still shape-checked (TOPIC_ID_PATTERN) before being trusted — the cookie is client-writable,
+    // and its value flows straight into backend query strings below.
+    if (cookieTopicId && TOPIC_ID_PATTERN.test(cookieTopicId)) return cookieTopicId
 
-    const res = await fetch(`${BACKEND_URL}/topics`, {
-      headers: { Authorization: `Bearer ${credential}` },
-    })
-    if (!res.ok) return null
+    const res = await ssrFetch(`${BACKEND_URL}/topics`, {}, { credential })
+    if (!res?.ok) return null
     const topics = await res.json()
     if (!Array.isArray(topics) || topics.length === 0) return null
     // No cookie at all (true first-time visitor) — GET /topics is unavoidable here, since
@@ -153,11 +219,12 @@ async function resolveLocale(credential: string): Promise<string> {
 
     const headerStore = await headers()
     const forwardedFor = headerStore.get('x-forwarded-for')
-    const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${credential}` }
-    if (forwardedFor) fetchHeaders['X-Forwarded-For'] = forwardedFor
-
-    const res = await fetch(`${BACKEND_URL}/languages`, { headers: fetchHeaders })
-    if (!res.ok) return 'en'
+    const res = await ssrFetch(
+      `${BACKEND_URL}/languages`,
+      forwardedFor ? { headers: { 'X-Forwarded-For': forwardedFor } } : {},
+      { credential },
+    )
+    if (!res?.ok) return 'en'
     const data = await res.json()
     return typeof data.resolved === 'string' ? data.resolved : 'en'
   } catch {
@@ -207,11 +274,12 @@ export async function fetchArticlesListSSR(
     const qs = new URLSearchParams(searchParams)
     if (context.topicId && !qs.has('topic_id')) qs.set('topic_id', context.topicId)
     const separator = qs.toString() ? '&' : ''
-    const res = await fetch(
+    const res = await ssrFetch(
       `${BACKEND_URL}/articles?${qs.toString()}${separator}lang=${context.locale}`,
-      { headers: { Authorization: `Bearer ${context.credential}` } },
+      {},
+      { credential: context.credential },
     )
-    if (!res.ok) return null
+    if (!res?.ok) return null
     return await res.json()
   } catch {
     return null
@@ -234,10 +302,12 @@ export async function fetchGraphSSR(
       lang: context.locale,
       published_after: publishedAfter.toISOString().slice(0, 10),
     })
-    const res = await fetch(`${BACKEND_URL}/analyses/graph?${qs.toString()}`, {
-      headers: { Authorization: `Bearer ${context.credential}` },
-    })
-    if (!res.ok) return null
+    const res = await ssrFetch(
+      `${BACKEND_URL}/analyses/graph?${qs.toString()}`,
+      {},
+      { credential: context.credential },
+    )
+    if (!res?.ok) return null
     return await res.json()
   } catch {
     return null
@@ -251,11 +321,9 @@ export async function fetchTagGroupsSSR(
   const topicId = topicIdOverride ?? context.topicId
   if (!context.credential) return null
   try {
-    const qs = topicId ? `?topic_id=${topicId}` : ''
-    const res = await fetch(`${BACKEND_URL}/tag-groups${qs}`, {
-      headers: { Authorization: `Bearer ${context.credential}` },
-    })
-    if (!res.ok) return null
+    const qs = topicId ? `?${new URLSearchParams({ topic_id: topicId }).toString()}` : ''
+    const res = await ssrFetch(`${BACKEND_URL}/tag-groups${qs}`, {}, { credential: context.credential })
+    if (!res?.ok) return null
     return await res.json()
   } catch {
     return null
@@ -269,11 +337,13 @@ export async function fetchWeeklyReportSSR(
   const topicId = topicIdOverride ?? context.topicId
   if (!context.credential || !topicId) return null
   try {
-    const res = await fetch(
-      `${BACKEND_URL}/weekly-reports/latest?topic_id=${topicId}&lang=${context.locale}`,
-      { headers: { Authorization: `Bearer ${context.credential}` } },
+    const qs = new URLSearchParams({ topic_id: topicId, lang: context.locale })
+    const res = await ssrFetch(
+      `${BACKEND_URL}/weekly-reports/latest?${qs.toString()}`,
+      {},
+      { credential: context.credential },
     )
-    if (!res.ok) return null
+    if (!res?.ok) return null
     return await res.json()
   } catch {
     return null

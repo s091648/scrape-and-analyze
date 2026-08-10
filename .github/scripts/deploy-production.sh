@@ -11,7 +11,7 @@
 #
 # Reads service IDs from SERVICE_ID_* env vars (set by the calling step) and
 # RAILWAY_TOKEN for CLI auth.
-set -uo pipefail
+set -euo pipefail
 
 railway up --detach --service "$SERVICE_ID_DASHBOARD_FRONTEND"  # dashboard-frontend
 railway up --detach --service "$SERVICE_ID_DASHBOARD_BACKEND"  # dashboard-backend

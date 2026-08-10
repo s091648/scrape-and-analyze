@@ -27,8 +27,17 @@ class RedisCacheGateway:
     see research.md "Decision: Redis client — synchronous".
     """
 
-    def __init__(self, redis_url: str) -> None:
-        self._client = redis.Redis.from_url(redis_url)
+    def __init__(
+        self,
+        redis_url: str,
+        socket_timeout: float = 1.0,
+        socket_connect_timeout: float = 1.0,
+    ) -> None:
+        self._client = redis.Redis.from_url(
+            redis_url,
+            socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_connect_timeout,
+        )
 
     def _current_version(self, namespace: str) -> int:
         try:
@@ -36,6 +45,9 @@ class RedisCacheGateway:
             return int(raw) if raw is not None else 1
         except redis.exceptions.RedisError as e:
             logger.warning("cache_version_read_failed", extra={"namespace": namespace, "error": str(e)})
+            return 1
+        except (TypeError, ValueError) as e:
+            logger.warning("cache_version_malformed", extra={"namespace": namespace, "error": str(e)})
             return 1
 
     def _build_key(self, namespace: str, version: int, lang: str, params: dict) -> str:
@@ -53,17 +65,23 @@ class RedisCacheGateway:
             version = self._current_version(namespace)
             key = self._build_key(namespace, version, lang, params)
             cached = self._client.get(key)
-            if cached is not None:
-                return CacheResult(value=json.loads(cached), status="HIT")
         except redis.exceptions.RedisError as e:
             logger.warning("cache_read_failed", extra={"namespace": namespace, "error": str(e)})
             return CacheResult(value=loader(), status="BYPASS")
+
+        if cached is not None:
+            try:
+                return CacheResult(value=json.loads(cached), status="HIT")
+            except ValueError as e:
+                # Poisoned entry (truncated, or written by an incompatible producer):
+                # fall through to loader(), which overwrites it below.
+                logger.warning("cache_decode_failed", extra={"namespace": namespace, "error": str(e)})
 
         value = loader()
 
         try:
             self._client.set(key, json.dumps(value, default=str), ex=ttl_seconds)
-        except redis.exceptions.RedisError as e:
+        except (redis.exceptions.RedisError, ValueError, TypeError, RecursionError) as e:
             logger.warning("cache_write_failed", extra={"namespace": namespace, "error": str(e)})
 
         return CacheResult(value=value, status="MISS")
