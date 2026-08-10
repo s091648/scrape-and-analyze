@@ -30,3 +30,4 @@ railway up --detach --service "$SERVICE_ID_FASTEMBED"  # fastembed
 railway up --detach --service "$SERVICE_ID_WEEKLY_REPORT"  # weekly-report
 railway up --detach --service "$SERVICE_ID_REFRESH_METRICS"  # refresh-metrics
 railway up --detach --service "$SERVICE_ID_RAG_BACKFILL"  # rag-backfill
+railway up --detach --service "$SERVICE_ID_DEDUP_RECONCILE"  # dedup-reconcile

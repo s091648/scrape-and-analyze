@@ -148,6 +148,7 @@ jobs:
           SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
           SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
           SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
+          SERVICE_ID_DEDUP_RECONCILE: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
 
       # -------------------------------------------------------------------
       # Create GitHub Release with the stamped notes as body

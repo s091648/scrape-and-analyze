@@ -65,8 +65,21 @@ jobs:
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Install Playwright Chromium (used as the Lighthouse browser)
-        run: npx playwright install --with-deps chromium
+      # Same caching as ci.yml's frontend-e2e job (see its comment) — only the browser
+      # binary download is worth caching, the OS deps step is fast either way.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright OS dependencies (used as the Lighthouse browser)
+        run: npx playwright install-deps chromium
+
+      - name: Install Playwright Chromium binary (used as the Lighthouse browser)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
 
       - name: Resolve target URL
         id: target

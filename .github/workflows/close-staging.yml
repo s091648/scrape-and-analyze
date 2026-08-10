@@ -1,52 +1,51 @@
-name: Close Staging Deployments
+name: Close Staging Service
 
-# Runs once a PR to master is merged, to remove the staging deployments that
-# were spun up for review during the PR. Counterpart to the
-# check-staging-deployments job in ci.yml, which revives them at PR start.
+# Reusable workflow: tears down ONE staging Railway service's deployment. Called once per
+# service as a job in ci.yml's push-to-master flow (see ci.yml's close-staging-* jobs),
+# mirroring how ci.yml calls lighthouse.yml. Counterpart to check-staging-deployments (in
+# ci.yml), which revives services at PR start.
+#
+# Split per-service (rather than one "close everything" job looping over every Railway
+# service, which is what this used to do) so each service's teardown can carry its own
+# concurrency group scoped to just that service — see ci.yml's deploy-staging-*/
+# close-staging-* `concurrency:` blocks for why: a shared, PR-wide group meant unrelated
+# deploy jobs for the same PR would cancel each other out (only the most-recently-queued
+# survives GitHub's "one pending job per group" rule).
+#
+# Previously triggered directly by `pull_request: closed`, independent of ci.yml. Moved
+# into ci.yml (called only from its push-to-master path, i.e. post-merge) because the two
+# workflows firing at the same instant on merge had no real ordering guarantee relative to
+# each other — folding this in lets each close-staging-* job's `needs:` wait on that same
+# run's own relevant test jobs before tearing anything down, the same guarantee
+# `deploy-staging-*` already had.
+#
+# `railway down` doesn't read repository content (unlike `railway up`, which deploys
+# whatever's checked out), so no checkout step is needed here.
 
 on:
-  pull_request:
-    types: [closed]
-    branches: [master]
-
-# Shared group name with ci.yml's staging-touching jobs (check-staging-deployments,
-# migrate, deploy-staging-*, lighthouse-check, rollback) — a merge fires this workflow
-# and a fresh ci.yml push-run at the same instant, and if the PR's own last ci.yml run
-# (from its final commit) is still in flight, teardown here would otherwise race it on
-# the same Railway services. cancel-in-progress: false means this queues behind any
-# still-running job in the group instead of cancelling it or racing it.
-concurrency:
-  group: staging-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Human-readable service name, for step/job labeling"
+        required: true
+        type: string
+      service_id:
+        description: "Railway service ID to remove the staging deployment for"
+        required: true
+        type: string
 
 jobs:
-  close-staging-deployments:
-    name: Close Staging Deployments
+  close:
+    name: Close ${{ inputs.service_name }}
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
-    timeout-minutes: 15
+    timeout-minutes: 10
     environment: scraper / staging
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: master
-          submodules: recursive
-          persist-credentials: false
-
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Remove each staging service's deployment now that the PR is merged
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/close-staging-deployments.sh"
+      - name: Remove staging deployment for ${{ inputs.service_name }}
+        run: railway down --yes --service "${{ inputs.service_id }}" --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
-          SERVICE_ID_DASHBOARD_FRONTEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
-          SERVICE_ID_STORYBOOK: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
-          SERVICE_ID_SCRAPE_AND_ANALYZE: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
-          SERVICE_ID_CHATBOT_PLUGIN: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
-          SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
-          SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
-          SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
-          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
