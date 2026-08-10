@@ -144,8 +144,27 @@ jobs:
       # updates the same comment (matched by `header`) on every run instead of piling up a new
       # one per push. `ignore_empty` covers the same pre-flight-failure case as the job-summary
       # step above (glob matches nothing).
+      #
+      # continue-on-error + a conditional retry: this step and "Upload Lighthouse report" below
+      # only reach the GitHub API / artifact service, not the actual audit — a transient
+      # "Connect Timeout Error" here (observed in practice; GitHub-hosted runners occasionally
+      # blip connecting to these backends) shouldn't fail the required check when the real
+      # signal (the "Run Lighthouse check" step above, gated by --fail-on-error) already passed.
+      # nick-fields/retry can't wrap a `uses:` step, so retrying means duplicating the step
+      # with `if: steps.<id>.outcome == 'failure'`, per the action's own README guidance.
       - name: Comment report on PR
+        id: lighthouse-comment
         if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: lighthouse-check
+          path: frontend/lighthouse-reports/*/report.md
+          ignore_empty: true
+
+      - name: Retry - Comment report on PR
+        if: always() && github.event_name == 'pull_request' && steps.lighthouse-comment.outcome == 'failure'
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: lighthouse-check
@@ -153,8 +172,19 @@ jobs:
           ignore_empty: true
 
       - name: Upload Lighthouse report
+        id: lighthouse-upload
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          retention-days: 30
+
+      - name: Retry - Upload Lighthouse report
+        if: always() && steps.lighthouse-upload.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: lighthouse-reports
           path: frontend/lighthouse-reports/
