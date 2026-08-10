@@ -733,9 +733,13 @@ jobs:
   # variables → Actions → Variables); to make this a required check, add "Lighthouse
   # Performance Check / lighthouse-check" in branch protection rules for master.
   # Can also be run standalone via workflow_dispatch on lighthouse.yml against any URL.
-  # No concurrency group needed: this only reads the already-deployed frontend (an
-  # audit, not a mutation), so it doesn't need to serialize against deploy-staging-
-  # frontend/close-staging-frontend the way `railway up`/`railway down` calls do.
+  # Joins deploy-staging-frontend/close-staging-frontend's group (`staging-frontend-*`):
+  # it's read-only against Railway (an audit, not a `railway up`/`down` mutation), so it
+  # doesn't need to protect *other* jobs from itself — but it still needs protecting
+  # from *them*, since it audits vars.FRONTEND_URL (the live staging frontend). Without
+  # sharing this group, close-staging-frontend (Stage 6, fires on merge) could tear that
+  # same deployment down mid-audit if this PR's own lighthouse-check run — from the
+  # `pull_request` event — was still in flight when the merge's `push` event fires.
   # -----------------------------------------------
   lighthouse-check:
     name: Lighthouse Performance Check
@@ -748,6 +752,9 @@ jobs:
     with:
       url: ${{ vars.FRONTEND_URL }}
     secrets: inherit
+    concurrency:
+      group: staging-frontend-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
   # -----------------------------------------------
   # Stage 4b2: Deploy Storybook to Staging (PR only)

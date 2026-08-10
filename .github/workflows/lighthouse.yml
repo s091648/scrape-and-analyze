@@ -65,13 +65,25 @@ jobs:
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # lighthouse-check.mjs's resolveChromePath() defaults to /root/.cache/ms-playwright
+      # when PLAYWRIGHT_BROWSERS_PATH isn't set — correct for `make lighthouse-check`
+      # (runs as root inside the frontend Docker image) but wrong here: GitHub-hosted
+      # runners execute as the unprivileged `runner` user (home /home/runner), so that
+      # default silently points at a directory that will never exist. Resolve $HOME into
+      # a real env var via $GITHUB_ENV (plain `env:` values and actions/cache's `path:`
+      # are NOT shell-expanded, so a literal `~` or `$HOME` there would stay unexpanded)
+      # so every step below — the cache, both install steps, and the script itself —
+      # agrees on the same absolute path.
+      - name: Resolve Playwright browsers path
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
+
       # Same caching as ci.yml's frontend-e2e job (see its comment) — only the browser
       # binary download is worth caching, the OS deps step is fast either way.
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
 
       - name: Install Playwright OS dependencies (used as the Lighthouse browser)
