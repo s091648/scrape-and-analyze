@@ -90,11 +90,12 @@ interface TutorialState {
 
 ## Storage Schema
 
-### SessionStorage (existing, unchanged)
+### SessionStorage
 
 | Key | Type | Value | Lifetime |
 |-----|------|-------|----------|
 | `guest_mode` | string | `"true"` | Session (tab) — existing key, not modified |
+| `tutorial_onboarding_dismissed` | string | `"true"` | Session (tab) — cleared when guest mode is exited (so a fresh guest-mode entry, new tab or exit+re-enter, is a new onboarding opportunity) |
 
 ### LocalStorage
 
@@ -109,12 +110,12 @@ interface TutorialState {
 | Role | Guest Onboarding Tour | Feature Spotlight Tour |
 |------|------------------------|--------------------------|
 | 純未登入（paywall） | ❌ Never | ❌ Never |
-| Guest mode | ✅ **Always**, unconditional, on every `enterGuestMode()` | ✅ On first visit to the tour's `route`, if tour id not in `tutorial_seen_tours` |
+| Guest mode | ✅ On every `enterGuestMode()`, unless `tutorial_onboarding_dismissed` is set for this tab session | ✅ On first visit to the tour's `route`, if tour id not in `tutorial_seen_tours` |
 | Member (authenticated) | ❌ Never auto-shows (HelpCircle only) | ✅ On first visit to the tour's `route`, if tour id not in `tutorial_seen_tours` |
 
 **Write conditions**:
 - `tutorial_seen_tours` gets the active tour's id appended when a **spotlight**-kind tour is closed (via completing all steps, Skip, or X) — see FR-018
-- Guest Onboarding Tour (`kind: "onboarding"`) never writes to this key — it is intentionally stateless/repeatable per FR-001
+- Guest Onboarding Tour (`kind: "onboarding"`) never writes to `tutorial_seen_tours`; instead it writes `tutorial_onboarding_dismissed=true` to `sessionStorage` when closed (any method), so it won't re-auto-open on a refresh within the same tab session. That key is cleared whenever guest mode is exited, so the next guest-mode entry (new tab, or exit+re-enter) starts fresh
 
 **Read conditions**:
 - `TutorialProvider`'s route-watching effect reads `tutorial_seen_tours` to decide whether an unvisited spotlight tour should auto-open
@@ -148,7 +149,8 @@ enterGuestMode()  (GuestModeProvider)
                 ▼ (TutorialProvider effect watching isGuestMode)
         openTutorial("guest-onboarding")
                 │
-                └─ ALWAYS → isTutorialOpen=true, activeTourId="guest-onboarding", tutorialStep=0
+                └─ unless tutorial_onboarding_dismissed (sessionStorage) is set for this tab session
+                            → isTutorialOpen=true, activeTourId="guest-onboarding", tutorialStep=0
                             (no tutorial_seen_tours check)
 
 [User navigates to any page]
@@ -170,6 +172,7 @@ enterGuestMode()  (GuestModeProvider)
         ├─ User clicks "Skip", "X", or Escape (spotlight mode)
         │       → isTutorialOpen=false
         │       └─ if activeTour.kind === "spotlight" → tutorial_seen_tours += activeTourId
+        │       └─ if activeTour.kind === "onboarding" → tutorial_onboarding_dismissed=true (sessionStorage)
         ├─ User reaches last (CTA) step as a guest, clicks "Sign In" / "Register"
         │       → isTutorialOpen=false, router.push('/login' | '/register')
         ├─ User reaches last (CTA) step as a guest, clicks "Stay in Guest Mode"
@@ -178,10 +181,12 @@ enterGuestMode()  (GuestModeProvider)
         │       → renders member-variant copy (titleKeyMember/descriptionKeyMember) and a
         │         single "Done" button instead of Sign In/Register/Stay in Guest Mode
         │       → clicking "Done" → isTutorialOpen=false
-        └─ Guest mode exits (user logs in)
+        └─ Guest mode exits (user logs in, or manually)
                 → exitGuestMode() → isTutorialOpen=false (reset)
                 → if a "spotlight" tour was active at that moment, tutorial_seen_tours += activeTourId
                   (onboarding tours still never write to this key)
+                → tutorial_onboarding_dismissed (sessionStorage) is cleared, so the next
+                  guest-mode entry in this tab shows the onboarding tour again
 
 [Tour Closed — NavBar HelpCircle icon visible for guest OR member]
         │

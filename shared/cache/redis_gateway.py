@@ -4,10 +4,16 @@ import logging
 from typing import Any, Callable
 
 import redis
+import structlog
 
 from .gateway import CacheResult
 
 logger = logging.getLogger(__name__)
+# Separate from `logger` above (plain stdlib, used for warnings only): this one is a structlog
+# bound logger so "cache_lookup" gets JSON-rendered with an "event" field, matching the
+# `| json | event = "..."` LogQL pattern the monitoring dashboard's other panels already rely on
+# (backend/observability.py's configure_logging()) — a plain stdlib call wouldn't be structured.
+event_logger = structlog.get_logger(__name__)
 
 _VERSION_KEY_PREFIX = "cache:v:"
 
@@ -60,6 +66,21 @@ class RedisCacheGateway:
         ttl_seconds: int,
         loader: Callable[[], Any],
         lang: str = "en",
+    ) -> CacheResult:
+        result = self._get_or_set(namespace, params, ttl_seconds, loader, lang)
+        # Single structured event per lookup, covering every namespace this gateway serves
+        # (articles/graph/tag_groups/weekly_reports) — see contracts/cache-gateway.md and
+        # monitoring-content.tsx's Operations tab for the "admin.cacheHitRate" panel that reads it.
+        event_logger.info("cache_lookup", namespace=namespace, status=result.status, lang=lang)
+        return result
+
+    def _get_or_set(
+        self,
+        namespace: str,
+        params: dict,
+        ttl_seconds: int,
+        loader: Callable[[], Any],
+        lang: str,
     ) -> CacheResult:
         try:
             version = self._current_version(namespace)

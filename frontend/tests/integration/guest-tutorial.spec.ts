@@ -130,13 +130,27 @@ test.describe("Guest Onboarding Tour", () => {
       await expect(page.getByTestId("tutorial-highlight")).not.toBeVisible();
     });
 
-    test("refreshing the page while still in guest mode reopens the tour", async ({ page }) => {
+    test("refreshing the page after dismissing the tour does not reopen it within the same tab session", async ({
+      page,
+    }) => {
       await enterGuestMode(page);
       await page.getByRole("button", { name: /^skip|略過$/i }).click();
       await expect(page.getByRole("dialog")).not.toBeVisible();
 
-      await page.evaluate(() => sessionStorage.setItem("guest_mode", "true"));
       await page.reload();
+
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+    });
+
+    test("exiting guest mode and re-entering it in the same tab reopens the tour", async ({ page }) => {
+      await enterGuestMode(page);
+      await page.getByRole("button", { name: /^skip|略過$/i }).click();
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+
+      await page.evaluate(() => sessionStorage.removeItem("guest_mode"));
+      await page.goto("/login");
+      await page.getByRole("button", { name: /continue as guest|以訪客身份繼續/i }).click();
+      await page.waitForURL("/");
 
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByText(/welcome to guest mode|歡迎使用訪客模式/i)).toBeVisible();

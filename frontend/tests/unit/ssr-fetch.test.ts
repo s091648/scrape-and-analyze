@@ -23,8 +23,12 @@ import {
   type SsrContext,
 } from '@/lib/server/ssr-fetch'
 
-function jsonResponse(body: unknown, ok = true): Response {
-  return { ok, json: async () => body } as Response
+function jsonResponse(body: unknown, ok = true, cacheStatus: string | null = null): Response {
+  return {
+    ok,
+    json: async () => body,
+    headers: { get: (name: string) => (name === 'X-Cache' ? cacheStatus : null) },
+  } as unknown as Response
 }
 
 const fetchMock = vi.fn()
@@ -312,13 +316,13 @@ describe('fetchXSSR helpers — null-credential and failure fallback (FR-007)', 
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('fetchArticlesListSSR returns parsed data on success, including the context topic_id', async () => {
+  it('fetchArticlesListSSR returns parsed data and the X-Cache status on success, including the context topic_id', async () => {
     fetchMock.mockImplementation((url: string) => {
       expect(url).toContain('topic_id=topic-1')
-      return jsonResponse({ items: [{ id: 'a1' }], total: 1 })
+      return jsonResponse({ items: [{ id: 'a1' }], total: 1 }, true, 'HIT')
     })
     const result = await fetchArticlesListSSR(withCredential, new URLSearchParams())
-    expect(result).toEqual({ items: [{ id: 'a1' }], total: 1 })
+    expect(result).toEqual({ value: { items: [{ id: 'a1' }], total: 1 }, cacheStatus: 'HIT' })
   })
 
   it('fetchArticlesListSSR returns null when the backend call throws', async () => {
@@ -342,10 +346,10 @@ describe('fetchXSSR helpers — null-credential and failure fallback (FR-007)', 
   it('fetchTagGroupsSSR works with no topic filter at all (topic_id omitted)', async () => {
     fetchMock.mockImplementation((url: string) => {
       expect(url).not.toContain('topic_id')
-      return jsonResponse([])
+      return jsonResponse([], true, 'MISS')
     })
     const result = await fetchTagGroupsSSR({ ...withCredential, topicId: null })
-    expect(result).toEqual([])
+    expect(result).toEqual({ value: [], cacheStatus: 'MISS' })
   })
 
   it('fetchWeeklyReportSSR returns null when there is no resolved topic, matching WeeklyReportWidget parity', async () => {
@@ -354,9 +358,9 @@ describe('fetchXSSR helpers — null-credential and failure fallback (FR-007)', 
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('fetchWeeklyReportSSR returns the report on success', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ id: 'wr1' }))
+  it('fetchWeeklyReportSSR returns the report and X-Cache status on success', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'wr1' }, true, 'BYPASS'))
     const result = await fetchWeeklyReportSSR(withCredential)
-    expect(result).toEqual({ id: 'wr1' })
+    expect(result).toEqual({ value: { id: 'wr1' }, cacheStatus: 'BYPASS' })
   })
 })

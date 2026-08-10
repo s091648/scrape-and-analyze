@@ -53,7 +53,11 @@ export default async function ArticlesPage({
 
   return (
     <Suspense fallback={<div />}>
-      <ArticlesPageContent initialArticles={result?.items} initialTotal={result?.total} />
+      <ArticlesPageContent initialArticles={result?.value.items} initialTotal={result?.value.total} />
+      {/* Debug aid (020-redis-caching-layer verification) — this fetch runs server-to-server, so
+          the backend's X-Cache response header never reaches the browser; surfaced here instead so
+          it's inspectable via view-source/DOM after a Lighthouse run. Safe to remove later. */}
+      <span data-ssr-cache-status={result?.cacheStatus ?? 'NONE'} data-ssr-cache-namespace="articles" hidden />
     </Suspense>
   )
 }

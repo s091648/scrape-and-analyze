@@ -265,10 +265,21 @@ export async function resolveSsrContext(
   return { credential, topicId, locale }
 }
 
+/** Wraps an SSR-fetched value with the backend's `X-Cache` status (HIT/MISS/BYPASS). Every call in
+ * this module runs server-to-server, so that header never reaches the browser on its own — callers
+ * surface `cacheStatus` into the rendered page (e.g. a hidden `data-` attribute) instead, purely as
+ * a debugging aid for verifying cache effectiveness (020-redis-caching-layer). `null` means the
+ * fetch never actually reached the backend (no credential, or a caught failure) — see each
+ * `fetchXxxSSR` function's own early-return paths — not a real cache outcome. */
+export interface SsrCachedResult<T> {
+  value: T
+  cacheStatus: string | null
+}
+
 export async function fetchArticlesListSSR(
   context: SsrContext,
   searchParams: URLSearchParams,
-): Promise<{ items: Article[]; total: number } | null> {
+): Promise<SsrCachedResult<{ items: Article[]; total: number }> | null> {
   if (!context.credential) return null
   try {
     const qs = new URLSearchParams(searchParams)
@@ -280,7 +291,7 @@ export async function fetchArticlesListSSR(
       { credential: context.credential },
     )
     if (!res?.ok) return null
-    return await res.json()
+    return { value: await res.json(), cacheStatus: res.headers.get('X-Cache') }
   } catch {
     return null
   }
@@ -289,7 +300,7 @@ export async function fetchArticlesListSSR(
 export async function fetchGraphSSR(
   context: SsrContext,
   topicIdOverride?: string | null,
-): Promise<GraphData | null> {
+): Promise<SsrCachedResult<GraphData> | null> {
   const topicId = topicIdOverride ?? context.topicId
   if (!context.credential || !topicId) return null
   try {
@@ -308,7 +319,7 @@ export async function fetchGraphSSR(
       { credential: context.credential },
     )
     if (!res?.ok) return null
-    return await res.json()
+    return { value: await res.json(), cacheStatus: res.headers.get('X-Cache') }
   } catch {
     return null
   }
@@ -317,14 +328,14 @@ export async function fetchGraphSSR(
 export async function fetchTagGroupsSSR(
   context: SsrContext,
   topicIdOverride?: string | null,
-): Promise<TagGroupOut[] | null> {
+): Promise<SsrCachedResult<TagGroupOut[]> | null> {
   const topicId = topicIdOverride ?? context.topicId
   if (!context.credential) return null
   try {
     const qs = topicId ? `?${new URLSearchParams({ topic_id: topicId }).toString()}` : ''
     const res = await ssrFetch(`${BACKEND_URL}/tag-groups${qs}`, {}, { credential: context.credential })
     if (!res?.ok) return null
-    return await res.json()
+    return { value: await res.json(), cacheStatus: res.headers.get('X-Cache') }
   } catch {
     return null
   }
@@ -333,7 +344,7 @@ export async function fetchTagGroupsSSR(
 export async function fetchWeeklyReportSSR(
   context: SsrContext,
   topicIdOverride?: string | null,
-): Promise<WeeklyReport | null> {
+): Promise<SsrCachedResult<WeeklyReport> | null> {
   const topicId = topicIdOverride ?? context.topicId
   if (!context.credential || !topicId) return null
   try {
@@ -344,7 +355,7 @@ export async function fetchWeeklyReportSSR(
       { credential: context.credential },
     )
     if (!res?.ok) return null
-    return await res.json()
+    return { value: await res.json(), cacheStatus: res.headers.get('X-Cache') }
   } catch {
     return null
   }
