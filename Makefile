@@ -8,6 +8,7 @@
 	backfill-suggestions backfill-suggestions-dry-run \
 	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
 	backfill-webp-covers backfill-webp-covers-dry-run backfill-webp-covers-remote \
+	backfill-r2-cache-control backfill-r2-cache-control-dry-run backfill-r2-cache-control-remote \
 	data-migrate data-migrate-list data-migrate-one data-migrate-down \
 	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
@@ -148,36 +149,6 @@ backfill-rag-remote:
 backfill-rag-remote-production:
 	@test -n "$(REMOTE_RAILWAY_DB_URL)" || (echo "REMOTE_RAILWAY_DB_URL must be set in .env"; exit 1)
 	docker compose run --rm job_service python /app/scripts/backfill_rag_embeddings.py --remote --env production $(_BACKFILL_ARGS)
-
-# Backfill weekly-report cover images from PNG to WebP on R2 (see scripts/backfill_webp_covers.py).
-#
-# Unlike REMOTE_RAILWAY_STAGING_DB_URL / REMOTE_RAILWAY_DB_URL (two separate variables that
-# coexist in the same .env), R2 credentials are the *same* variable names
-# (R2_ACCOUNT_ID/R2_BUCKET_NAME/R2_PUBLIC_URL/...) with *different values* across whole,
-# separate .env / .env.staging / .env.production files — so ENV=<staging|production> here
-# selects which file's R2_* values docker compose layers onto job_service's container
-# environment via --env-from-file (on top of the base .env its env_file: directive already
-# loads), rather than picking a differently-named variable the way REMOTE_URL does for the DB.
-# The plain (local) targets below deliberately ignore ENV and always use the base .env — a
-# local run should never accidentally point at another environment's R2 bucket just because
-# ENV defaults to "staging" elsewhere in this Makefile.
-_R2_REMOTE_ENV_FILE = $(if $(filter production,$(ENV)),.env.production,.env.staging)
-
-backfill-webp-covers:
-	docker compose run --rm job_service python /app/scripts/backfill_webp_covers.py $(_BACKFILL_ARGS)
-
-backfill-webp-covers-dry-run:
-	docker compose run --rm job_service python /app/scripts/backfill_webp_covers.py --dry-run $(_BACKFILL_ARGS)
-
-# Usage:
-#   make backfill-webp-covers-remote                    → staging DB + .env.staging's R2 bucket
-#   make backfill-webp-covers-remote ENV=production      → production DB + .env.production's R2 bucket
-backfill-webp-covers-remote:
-	@test -n "$(if $(filter production,$(ENV)),$(REMOTE_RAILWAY_DB_URL),$(REMOTE_RAILWAY_STAGING_DB_URL))" || \
-		(echo "REMOTE_RAILWAY_STAGING_DB_URL (or REMOTE_RAILWAY_DB_URL for ENV=production) must be set in .env"; exit 1)
-	@echo "Using R2 credentials from $(_R2_REMOTE_ENV_FILE), DB from Railway $(ENV)"
-	docker compose run --rm --env-from-file $(_R2_REMOTE_ENV_FILE) job_service \
-		python /app/scripts/backfill_webp_covers.py --remote --env $(ENV) $(_BACKFILL_ARGS)
 
 # Scrape (and optionally analyze) from a specific source.
 # Usage:
