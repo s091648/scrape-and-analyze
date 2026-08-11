@@ -21,11 +21,16 @@ def build_provider_fetchers() -> Dict[str, Callable[[Dict[str, str]], Optional[d
     the same way LlmProvider.name selects a concrete provider class in
     src/bootstrap.py::build_llm_service.
     """
+    from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
     from src.infrastructure.collection.clients.semantic_scholar_client import SemanticScholarClient
 
-    openalex_client = OpenAlexClient()
-    semantic_scholar_client = SemanticScholarClient()
+    # 429 from these APIs means a quota/pool limit, not a transient blip — retrying
+    # only burns the run's wall-clock time (see scraper_factory.py's identical
+    # with_skip_retry_status treatment for the same two providers at scrape time).
+    no_429_retry_http = get_default_client().with_skip_retry_status(frozenset({429}))
+    openalex_client = OpenAlexClient(http_client=no_429_retry_http)
+    semantic_scholar_client = SemanticScholarClient(http_client=no_429_retry_http)
 
     return {
         "openalex": lambda ids: openalex_client.fetch_by_doi(ids["doi"]) if ids.get("doi") else None,
