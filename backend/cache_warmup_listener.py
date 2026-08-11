@@ -19,6 +19,18 @@ from backend.config import CACHE_REDIS_URL
 logger = structlog.get_logger()
 
 _RECONNECT_DELAY_SECONDS = 5
+# The warmup channel is quiet almost all the time (only published on a scrape-pipeline
+# completion or weekly-report generation), so a plain `pubsub.listen()` sits in a single
+# indefinitely-blocking read with zero traffic for long stretches. Observed in production as a
+# recurring "Timeout reading from redis.railway.internal:6379" / cache_warmup_listener_disconnected
+# warning roughly every ~10s — some idle-connection timeout (Railway's private network and/or the
+# managed Redis server's own idle timeout) kills a pubsub connection that never sends anything.
+# Polling via get_message(timeout=...) instead gives redis-py's own health-check mechanism
+# (health_check_interval) periodic chances to issue a PING and keep the connection demonstrably
+# alive, well before any idle timeout would otherwise fire — the standard fix for long-lived
+# Redis pubsub connections behind a cloud network/NAT (see redis-py's health_check_interval docs).
+_POLL_TIMEOUT_SECONDS = 3
+_HEALTH_CHECK_INTERVAL_SECONDS = 5
 
 
 async def listen_for_warmup_signals() -> None:
@@ -29,11 +41,16 @@ async def listen_for_warmup_signals() -> None:
     while True:
         client = None
         try:
-            client = aioredis.from_url(CACHE_REDIS_URL)
+            client = aioredis.from_url(
+                CACHE_REDIS_URL, health_check_interval=_HEALTH_CHECK_INTERVAL_SECONDS,
+            )
             pubsub = client.pubsub()
             await pubsub.subscribe(WARMUP_CHANNEL)
-            async for message in pubsub.listen():
-                if message.get("type") != "message":
+            while True:
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=_POLL_TIMEOUT_SECONDS,
+                )
+                if message is None or message.get("type") != "message":
                     continue
                 raw_reason = message.get("data")
                 reason = raw_reason.decode() if isinstance(raw_reason, bytes) else str(raw_reason or "")

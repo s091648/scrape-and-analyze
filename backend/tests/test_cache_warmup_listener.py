@@ -20,15 +20,17 @@ async def _run_briefly_then_cancel(coro_factory, delay: float = 0.05):
 async def test_listener_warms_on_message():
     from backend.cache_warmup_listener import listen_for_warmup_signals
 
-    async def _fake_listen():
-        yield {"type": "subscribe", "data": 1}
-        yield {"type": "message", "data": b"scraper_pipeline"}
-        while True:
-            await asyncio.sleep(3600)
+    call_count = {"n": 0}
+
+    async def _fake_get_message(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return {"type": "message", "data": b"scraper_pipeline"}
+        await asyncio.sleep(3600)
 
     mock_pubsub = MagicMock()
     mock_pubsub.subscribe = AsyncMock()
-    mock_pubsub.listen = _fake_listen
+    mock_pubsub.get_message = _fake_get_message
 
     mock_client = MagicMock()
     mock_client.pubsub = MagicMock(return_value=mock_pubsub)
@@ -43,16 +45,18 @@ async def test_listener_warms_on_message():
 
 @pytest.mark.asyncio
 async def test_listener_ignores_non_message_events():
+    """get_message(ignore_subscribe_messages=True, ...) returns None for a subscribe
+    confirmation (and for a plain poll timeout with nothing new) — neither should trigger a
+    warmup run."""
     from backend.cache_warmup_listener import listen_for_warmup_signals
 
-    async def _fake_listen():
-        yield {"type": "subscribe", "data": 1}
-        while True:
-            await asyncio.sleep(3600)
+    async def _fake_get_message(*args, **kwargs):
+        await asyncio.sleep(0)  # yield control each poll cycle, like a real timed-out poll
+        return None
 
     mock_pubsub = MagicMock()
     mock_pubsub.subscribe = AsyncMock()
-    mock_pubsub.listen = _fake_listen
+    mock_pubsub.get_message = _fake_get_message
 
     mock_client = MagicMock()
     mock_client.pubsub = MagicMock(return_value=mock_pubsub)
@@ -71,14 +75,17 @@ async def test_listener_survives_a_failing_warmup_run():
     listening for the next signal."""
     from backend.cache_warmup_listener import listen_for_warmup_signals
 
-    async def _fake_listen():
-        yield {"type": "message", "data": b"scraper_pipeline"}
-        while True:
-            await asyncio.sleep(3600)
+    call_count = {"n": 0}
+
+    async def _fake_get_message(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return {"type": "message", "data": b"scraper_pipeline"}
+        await asyncio.sleep(3600)
 
     mock_pubsub = MagicMock()
     mock_pubsub.subscribe = AsyncMock()
-    mock_pubsub.listen = _fake_listen
+    mock_pubsub.get_message = _fake_get_message
 
     mock_client = MagicMock()
     mock_client.pubsub = MagicMock(return_value=mock_pubsub)
@@ -105,11 +112,9 @@ async def test_listener_reconnects_after_redis_error_without_raising():
         mock_pubsub = MagicMock()
         mock_pubsub.subscribe = AsyncMock()
 
-        async def _hang_listen():
-            yield {"type": "subscribe", "data": 1}
-            while True:
-                await asyncio.sleep(3600)
-        mock_pubsub.listen = _hang_listen
+        async def _hang_get_message(*a, **kw):
+            await asyncio.sleep(3600)
+        mock_pubsub.get_message = _hang_get_message
 
         client = MagicMock()
         client.pubsub = MagicMock(return_value=mock_pubsub)
@@ -122,3 +127,28 @@ async def test_listener_reconnects_after_redis_error_without_raising():
         await _run_briefly_then_cancel(listen_for_warmup_signals)
 
     assert attempt["count"] >= 2  # first attempt failed, loop reconnected at least once
+
+
+@pytest.mark.asyncio
+async def test_listener_passes_health_check_interval_to_from_url():
+    """The whole fix for the ~10s disconnect cycle hinges on redis-py's periodic PING
+    keep-alive being enabled — a regression here would silently reintroduce the bug."""
+    from backend.cache_warmup_listener import listen_for_warmup_signals, _HEALTH_CHECK_INTERVAL_SECONDS
+
+    mock_pubsub = MagicMock()
+    mock_pubsub.subscribe = AsyncMock()
+
+    async def _hang_get_message(*a, **kw):
+        await asyncio.sleep(3600)
+    mock_pubsub.get_message = _hang_get_message
+
+    mock_client = MagicMock()
+    mock_client.pubsub = MagicMock(return_value=mock_pubsub)
+    mock_client.aclose = AsyncMock()
+
+    with patch("redis.asyncio.from_url", return_value=mock_client) as mock_from_url, \
+         patch("backend.cache_warmup_listener.warm_default_reads", new_callable=AsyncMock):
+        await _run_briefly_then_cancel(listen_for_warmup_signals)
+
+    _, kwargs = mock_from_url.call_args
+    assert kwargs.get("health_check_interval") == _HEALTH_CHECK_INTERVAL_SECONDS
