@@ -39,13 +39,14 @@ Concurrency:
 """
 import argparse
 import asyncio
-import time
 
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
-from src.infrastructure.shared.observability import init_run_context
+from src.infrastructure.shared.observability import (
+    init_run_context, log_execution_started, log_execution_completed,
+)
 
 
 if SENTRY_DSN:
@@ -124,7 +125,8 @@ def main() -> None:
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
-    start_time = time.time()
+    started_at, t0 = log_execution_started(logger, run_id=run_id, correlation_id=correlation_id)
+
     tracer = get_tracer()
     try:
         with tracer.start_as_current_span(SpanName.REFRESH_METRICS_RUN) as span:
@@ -134,11 +136,18 @@ def main() -> None:
             session = None
             try:
                 from src.bootstrap import build_metrics_refresh_pipeline
+                from src.modules.collection.application.events import MetricsRefreshCompletedEvent
                 metrics_service, metrics_repo, session, event_bus = build_metrics_refresh_pipeline()
 
                 enabled_metric_keys = metrics_service.tracked_metric_keys
                 if not enabled_metric_keys:
                     logger.warning("no_enabled_metric_definitions")
+                    execution = log_execution_completed(
+                        logger, started_at, t0, run_id=run_id, total=0, refreshed=0, failed=0,
+                    )
+                    event_bus.publish(MetricsRefreshCompletedEvent(
+                        total=0, refreshed=0, failed=0, execution=execution,
+                    ))
                     print("No enabled metric definitions found — nothing to refresh")
                     return
 
@@ -149,13 +158,15 @@ def main() -> None:
                     _refresh_all(rows, metrics_service, metrics_repo, args.concurrency)
                 )
 
-                logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
+                execution = log_execution_completed(
+                    logger, started_at, t0,
+                    run_id=run_id, total=len(rows), refreshed=refreshed, failed=failed,
+                )
                 print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
 
-                from src.modules.collection.application.events import MetricsRefreshCompletedEvent
                 event_bus.publish(MetricsRefreshCompletedEvent(
                     total=len(rows), refreshed=refreshed, failed=failed,
-                    duration_seconds=time.time() - start_time,
+                    execution=execution,
                 ))
             except Exception as e:
                 span.record_exception(e)
