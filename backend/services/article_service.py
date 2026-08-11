@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from backend.schemas.article import ArticleOut
+from backend.schemas.article import ArticleOut, PaginatedArticles
 
 
 def build_article_out(article, translation=None, metrics=None, metric_values: Optional[Dict[str, float]] = None, favorite=None) -> ArticleOut:
@@ -155,6 +155,61 @@ def get_articles_paginated(
         for article, metrics, favorite in page_rows
     ]
     return total, rows  # list of (Article, ArticleMetrics|None, metrics: Dict[str, float], UserArticleFavorite|None)
+
+
+def build_articles_list_payload(
+    db: Session,
+    *,
+    sort: str = "scraped_at",
+    order: str = "desc",
+    page: int = 1,
+    size: int = 20,
+    sources: List[str] | None = None,
+    aggregators: List[str] | None = None,
+    original_sources: List[str] | None = None,
+    tags: List[str] | None = None,
+    tag_ids: List[UUID] | None = None,
+    tag_groups: List[str] | None = None,
+    published_after: Optional[date] = None,
+    published_before: Optional[date] = None,
+    scraped_after: Optional[date] = None,
+    scraped_before: Optional[date] = None,
+    topic_id: Optional[UUID] = None,
+    user_id: Optional[UUID] = None,
+    favorites_only: bool = False,
+    lang: str = "en",
+) -> dict:
+    """The GET /articles response body — extracted from routers/articles.py's list_articles()
+    so backend/cache_warmup.py (020-redis-caching-layer follow-up) can produce the exact same
+    payload a router-served request would, without going through FastAPI/HTTP at all. The
+    router still owns the *cache key* shape (its own cache_params dict) — this only guarantees
+    the *value* can never drift between the two call sites."""
+    total, rows = get_articles_paginated(
+        db, sort, order, page, size,
+        sources=sources, aggregators=aggregators, original_sources=original_sources,
+        tags=tags, tag_ids=tag_ids, tag_groups=tag_groups,
+        published_after=published_after, published_before=published_before,
+        scraped_after=scraped_after, scraped_before=scraped_before,
+        topic_id=topic_id, user_id=user_id, favorites_only=favorites_only,
+    )
+    trans_map: dict = {}
+    if lang != "en" and rows:
+        from models.article_translation import ArticleTranslation
+        article_ids = [r[0].id for r in rows]
+        translations = db.query(ArticleTranslation).filter(
+            ArticleTranslation.article_id.in_(article_ids),
+            ArticleTranslation.language == lang,
+        ).all()
+        trans_map = {t.article_id: t for t in translations}
+    return PaginatedArticles(
+        items=[
+            build_article_out(article, trans_map.get(article.id), metrics, metric_values, favorite)
+            for article, metrics, metric_values, favorite in rows
+        ],
+        total=total,
+        page=page,
+        size=size,
+    ).model_dump(mode="json")
 
 
 def get_article_by_id(db: Session, article_id: UUID):

@@ -30,6 +30,7 @@ from backend.services.tag_service import (
     tag_outs_for_group,
     ungrouped_tag_outs,
     merge_tag_groups,
+    build_tag_groups_payload,
 )
 
 router = APIRouter(tags=["tags"])
@@ -55,38 +56,7 @@ def list_tag_groups(
     cache_params = {"topic_id": str(topic_id), "include_similarity": include_similarity}
 
     def _load() -> list:
-        from models.tag_group import TagGroupDefinition
-
-        q = db.query(TagGroupDefinition)
-        if topic_id:
-            q = q.filter(TagGroupDefinition.topic_id == topic_id)
-        groups = q.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.name).all()
-
-        result = []
-        for grp in groups:
-            similar = (
-                get_similar_groups(db, grp.id, grp.topic_id)
-                if include_similarity and topic_id
-                else []
-            )
-            result.append(TagGroupOut(
-                id=grp.id, name=grp.name, display_name=grp.display_name,
-                description=grp.description, color_hex=grp.color_hex,
-                topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
-                similar_groups=similar,
-            ))
-
-        if topic_id:
-            ungrouped = ungrouped_tag_outs(db, topic_id)
-            if ungrouped:
-                result.append(TagGroupOut(
-                    id=None, name="ungrouped", display_name="Ungrouped",
-                    description=None, color_hex=None,
-                    topic_id=topic_id, tags=ungrouped,
-                    similar_groups=[],
-                ))
-
-        return [g.model_dump(mode="json") for g in result]
+        return build_tag_groups_payload(db, topic_id=topic_id, include_similarity=include_similarity)
 
     result = cache_gateway.get_or_set("tag_groups", cache_params, DEFAULT_TTL_SECONDS, _load)
     response.headers["X-Cache"] = result.status

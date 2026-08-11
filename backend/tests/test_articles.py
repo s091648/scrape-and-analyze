@@ -30,7 +30,7 @@ def test_articles_returns_paginated_envelope():
     from backend.main import app
     client = TestClient(app)
     mock_article = make_mock_article()
-    with patch("backend.routers.articles.get_articles_paginated",
+    with patch("backend.services.article_service.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])):
         response = client.get("/articles", headers=_guest_headers())
     assert response.status_code == 200
@@ -46,7 +46,7 @@ def test_articles_requires_at_least_a_guest_token():
     login) is sufficient, but *some* valid token is now required."""
     from backend.main import app
     client = TestClient(app)
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         response = client.get("/articles")
     assert response.status_code == 401
 
@@ -54,7 +54,7 @@ def test_articles_requires_at_least_a_guest_token():
 def test_articles_guest_token_is_sufficient():
     from backend.main import app
     client = TestClient(app)
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         response = client.get("/articles", headers=_guest_headers())
     assert response.status_code == 200
 
@@ -140,7 +140,7 @@ def test_articles_aggregator_filter_passed_to_query():
     from backend.main import app
     client = TestClient(app)
     mock_article = make_mock_article()
-    with patch("backend.routers.articles.get_articles_paginated",
+    with patch("backend.services.article_service.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])) as mock_query:
         response = client.get("/articles?aggregator=semantic_scholar&aggregator=openalex", headers=_guest_headers())
     assert response.status_code == 200
@@ -152,7 +152,7 @@ def test_articles_original_source_filter_passed_to_query():
     from backend.main import app
     client = TestClient(app)
     mock_article = make_mock_article()
-    with patch("backend.routers.articles.get_articles_paginated",
+    with patch("backend.services.article_service.get_articles_paginated",
                return_value=(1, [(mock_article, None, None, None)])) as mock_query:
         response = client.get("/articles?original_source=rss", headers=_guest_headers())
     assert response.status_code == 200

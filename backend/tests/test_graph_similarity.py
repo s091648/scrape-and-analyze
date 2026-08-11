@@ -92,8 +92,8 @@ def test_graph_with_tag_filter():
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses) as mock_q, \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get('/analyses/graph?tag=llm')
     assert response.status_code == 200
     mock_q.assert_called_once()
@@ -107,8 +107,8 @@ def test_graph_with_topic_id_filter():
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'ai_ml', 'tags': ['llm']}])]
     topic_id = str(uuid.uuid4())
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses) as mock_q, \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get(f'/analyses/graph?topic_id={topic_id}')
     assert response.status_code == 200
     call_kwargs = mock_q.call_args
@@ -125,8 +125,8 @@ def test_graph_caches_result():
     fake_gateway = _InMemoryFakeCacheGateway()
     app.dependency_overrides[get_cache_gateway] = lambda: fake_gateway
     try:
-        with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-             patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+        with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses) as mock_q, \
+             patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
             client.get('/analyses/graph?days=30')
             client.get('/analyses/graph?days=30')
     finally:
@@ -142,8 +142,8 @@ def test_graph_multiple_groups_same_article():
         {'group': 'digital_twin', 'tags': ['virtual replica']},
         {'group': 'ai_ml', 'tags': ['llm']},
     ])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses), \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get('/analyses/graph')
     data = response.json()
     group_nodes = [n for n in data['nodes'] if n['type'] == 'group']
@@ -200,7 +200,7 @@ def test_graph_group_endpoint_with_topic_id():
 
 def test_build_graph_with_missing_group_def():
     """Tags whose group_id is not in group_defs should be silently skipped."""
-    from backend.routers.graph import build_graph
+    from backend.services.graph_service import build_graph
     unknown_uuid = uuid.uuid4()
     tag = MagicMock()
     tag.name = 'orphan'

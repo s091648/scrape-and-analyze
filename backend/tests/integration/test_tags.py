@@ -702,19 +702,19 @@ def test_delete_tag_bumps_article_scoped_caches(api_client, db_session, monkeypa
 
 
 def test_repeated_tag_groups_request_is_served_from_cache(api_client, db_session, monkeypatch):
-    from backend.routers import tags as tags_router
+    from backend.services import tag_service
 
     topic = _topic(db_session)
     _group(db_session, topic, name="cache-hit-group")
 
     calls = []
-    original = tags_router.tag_outs_for_group
+    original = tag_service.tag_outs_for_group
 
     def _spy(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(tags_router, "tag_outs_for_group", _spy)
+    monkeypatch.setattr(tag_service, "tag_outs_for_group", _spy)
 
     first = api_client.get(f"/tag-groups?topic_id={topic.id}")
     second = api_client.get(f"/tag-groups?topic_id={topic.id}")

@@ -90,8 +90,8 @@ def test_graph_returns_nodes_and_edges():
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses), \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get('/analyses/graph?days=30')
     assert response.status_code == 200
     data = response.json()
@@ -103,8 +103,8 @@ def test_graph_contains_group_and_article_nodes():
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses), \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get('/analyses/graph?days=30')
     nodes = response.json()['nodes']
     node_types = {n['type'] for n in nodes}
@@ -116,8 +116,8 @@ def test_graph_group_node_has_color_and_count():
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses), \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses), \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         response = client.get('/analyses/graph?days=30')
     group_nodes = [n for n in response.json()['nodes'] if n['type'] == 'group']
     assert len(group_nodes) == 1
@@ -129,8 +129,8 @@ def test_graph_different_days_different_cache():
     from backend.main import app
     client = _AuthedClient(app)
     mock_analyses = [make_mock_analysis([{'group': 'digital_twin', 'tags': ['virtual replica']}])]
-    with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-         patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+    with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses) as mock_q, \
+         patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
         client.get('/analyses/graph?aggregator=techcrunch')
         client.get('/analyses/graph?aggregator=arxiv')
     assert mock_q.call_count == 2
@@ -249,8 +249,8 @@ def test_graph_cache_hit_avoids_second_query():
     fake_gateway = _InMemoryFakeCacheGateway()
     app.dependency_overrides[get_cache_gateway] = lambda: fake_gateway
     try:
-        with patch('backend.routers.graph.query_analyses', return_value=mock_analyses) as mock_q, \
-             patch('backend.routers.graph.load_group_defs', return_value=_MOCK_GROUP_DEFS):
+        with patch('backend.services.graph_service.query_analyses', return_value=mock_analyses) as mock_q, \
+             patch('backend.services.graph_service.load_group_defs', return_value=_MOCK_GROUP_DEFS):
             client.get('/analyses/graph')
             client.get('/analyses/graph')  # same params → cache hit
     finally:

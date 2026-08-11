@@ -412,20 +412,20 @@ def test_x_cache_header_is_bypass_when_cache_gateway_unavailable(db_session, api
 
 
 def test_repeated_latest_request_is_served_from_cache(db_session, api_client, monkeypatch):
-    from backend.routers import weekly_reports as wr_router
+    from backend.services import weekly_report_service
 
     topic = _topic(db_session)
     db_session.add(_weekly_report(topic.id, date(2026, 6, 16)))
     db_session.flush()
 
     calls = []
-    original = wr_router.get_latest_weekly_report
+    original = weekly_report_service.get_latest_weekly_report
 
     def _spy(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(wr_router, "get_latest_weekly_report", _spy)
+    monkeypatch.setattr(weekly_report_service, "get_latest_weekly_report", _spy)
 
     first = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")
     second = api_client.get(f"/weekly-reports/latest?topic_id={topic.id}")

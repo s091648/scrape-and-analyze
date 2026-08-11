@@ -10,11 +10,9 @@ from backend.cache import get_cache_gateway
 from backend.database import get_db
 from backend.schemas.error import error_responses
 from backend.services.graph_service import (
-    load_group_defs,
     load_group_def,
-    query_analyses,
     query_group_articles,
-    build_graph,
+    build_graph_payload,
 )
 
 router = APIRouter(tags=["graph"])
@@ -46,10 +44,10 @@ def get_graph(
     }
 
     def _load() -> dict:
-        group_defs = load_group_defs(db, lang=lang)
-        analyses = query_analyses(
+        return build_graph_payload(
             db,
             topic_id=topic_id,
+            lang=lang,
             published_after=published_after,
             published_before=published_before,
             scraped_after=scraped_after,
@@ -58,7 +56,6 @@ def get_graph(
             original_sources=original_source or None,
             tags=tag or None,
         )
-        return build_graph(analyses, group_defs)
 
     result = cache_gateway.get_or_set("graph", cache_params, DEFAULT_TTL_SECONDS, _load, lang=lang)
     response.headers["X-Cache"] = result.status

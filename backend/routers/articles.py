@@ -12,8 +12,7 @@ from backend.database import get_db
 from backend.schemas.error import error_responses
 from backend.schemas.article import ArticleOut, PaginatedArticles, ArticleDetailOut
 from backend.services.article_service import (
-    get_articles_paginated,
-    build_article_out,
+    build_articles_list_payload,
     get_article_by_id,
     get_tag_groups_for_article,
     get_filter_sources,
@@ -74,8 +73,8 @@ def list_articles(
     }
 
     def _load() -> dict:
-        total, rows = get_articles_paginated(
-            db, sort, order, page, size,
+        return build_articles_list_payload(
+            db, sort=sort, order=order, page=page, size=size,
             sources=source or None,
             aggregators=aggregator or None,
             original_sources=original_source or None,
@@ -89,25 +88,8 @@ def list_articles(
             topic_id=topic_id,
             user_id=current_user_id,
             favorites_only=favorites_only,
+            lang=lang,
         )
-        trans_map: dict = {}
-        if lang != "en" and rows:
-            from models.article_translation import ArticleTranslation
-            article_ids = [r[0].id for r in rows]
-            translations = db.query(ArticleTranslation).filter(
-                ArticleTranslation.article_id.in_(article_ids),
-                ArticleTranslation.language == lang,
-            ).all()
-            trans_map = {t.article_id: t for t in translations}
-        return PaginatedArticles(
-            items=[
-                build_article_out(article, trans_map.get(article.id), metrics, metric_values, favorite)
-                for article, metrics, metric_values, favorite in rows
-            ],
-            total=total,
-            page=page,
-            size=size,
-        ).model_dump(mode="json")
 
     result = cache_gateway.get_or_set("articles", cache_params, DEFAULT_TTL_SECONDS, _load, lang=lang)
     response.headers["X-Cache"] = result.status

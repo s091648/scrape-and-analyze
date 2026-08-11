@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, distinct, text
 from sqlalchemy.orm import Session
 
-from backend.schemas.tag import TagOut, SimilarGroupOut
+from backend.schemas.tag import TagOut, SimilarGroupOut, TagGroupOut
 from backend.config import GEMINI_API_KEY
 
 
@@ -70,6 +70,48 @@ def ungrouped_tag_outs(db: Session, topic_id: UUID) -> List[TagOut]:
     )
     rows = q.group_by(Tag.id, Tag.name).order_by(Tag.name).all()
     return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+
+
+def build_tag_groups_payload(
+    db: Session,
+    *,
+    topic_id: Optional[UUID] = None,
+    include_similarity: bool = False,
+) -> List[dict]:
+    """The GET /tag-groups response body — extracted from routers/tags.py's list_tag_groups()
+    so backend/cache_warmup.py (020-redis-caching-layer follow-up) can call it directly."""
+    from models.tag_group import TagGroupDefinition
+
+    q = db.query(TagGroupDefinition)
+    if topic_id:
+        q = q.filter(TagGroupDefinition.topic_id == topic_id)
+    groups = q.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.name).all()
+
+    result = []
+    for grp in groups:
+        similar = (
+            get_similar_groups(db, grp.id, grp.topic_id)
+            if include_similarity and topic_id
+            else []
+        )
+        result.append(TagGroupOut(
+            id=grp.id, name=grp.name, display_name=grp.display_name,
+            description=grp.description, color_hex=grp.color_hex,
+            topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
+            similar_groups=similar,
+        ))
+
+    if topic_id:
+        ungrouped = ungrouped_tag_outs(db, topic_id)
+        if ungrouped:
+            result.append(TagGroupOut(
+                id=None, name="ungrouped", display_name="Ungrouped",
+                description=None, color_hex=None,
+                topic_id=topic_id, tags=ungrouped,
+                similar_groups=[],
+            ))
+
+    return [g.model_dump(mode="json") for g in result]
 
 
 def merge_tag_groups(

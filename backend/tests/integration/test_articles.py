@@ -56,7 +56,7 @@ def test_articles_empty(api_client):
 
 def test_repeated_identical_request_is_served_from_cache(api_client, db_session, monkeypatch):
     """A second identical request must not re-run the DB query — cache hit."""
-    from backend.routers import articles as articles_router
+    from backend.services import article_service
     from models.topic import Topic
 
     topic_id = uuid.uuid4()  # unique per test run -> guaranteed-fresh cache key
@@ -69,13 +69,13 @@ def test_repeated_identical_request_is_served_from_cache(api_client, db_session,
     db_session.flush()
 
     calls = []
-    original = articles_router.get_articles_paginated
+    original = article_service.get_articles_paginated
 
     def _spy(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(articles_router, "get_articles_paginated", _spy)
+    monkeypatch.setattr(article_service, "get_articles_paginated", _spy)
 
     first = api_client.get(f"/articles?topic_id={topic_id}")
     second = api_client.get(f"/articles?topic_id={topic_id}")

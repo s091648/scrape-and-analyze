@@ -423,20 +423,20 @@ def test_build_graph_skips_tag_without_group_def():
 # ---------------------------------------------------------------------------
 
 def test_repeated_identical_request_is_served_from_cache(api_client, db_session, monkeypatch):
-    from backend.routers import graph as graph_router
+    from backend.services import graph_service
 
     topic = _topic(db_session)
     article = _article(db_session, topic=topic)
     _analysis(db_session, article)
 
     calls = []
-    original = graph_router.query_analyses
+    original = graph_service.query_analyses
 
     def _spy(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(graph_router, "query_analyses", _spy)
+    monkeypatch.setattr(graph_service, "query_analyses", _spy)
 
     first = api_client.get(f"/analyses/graph?topic_id={topic.id}")
     second = api_client.get(f"/analyses/graph?topic_id={topic.id}")
