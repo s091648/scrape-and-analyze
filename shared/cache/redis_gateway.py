@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 event_logger = structlog.get_logger(__name__)
 
 _VERSION_KEY_PREFIX = "cache:v:"
+WARMUP_CHANNEL = "cache:warmup"
 
 
 def _param_hash(params: dict) -> str:
@@ -121,3 +122,9 @@ class RedisCacheGateway:
         except redis.exceptions.RedisError as e:
             logger.warning("cache_bump_version_failed", extra={"namespace": namespace, "error": str(e)})
             return 0
+
+    def publish_warmup_signal(self, reason: str = "") -> None:
+        try:
+            self._client.publish(WARMUP_CHANNEL, reason)
+        except redis.exceptions.RedisError as e:
+            logger.warning("cache_warmup_publish_failed", extra={"reason": reason, "error": str(e)})

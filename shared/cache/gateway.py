@@ -41,3 +41,14 @@ class CacheGateway(Protocol):
         incrementing its version counter. Returns the new version. Never raises —
         no-ops (logging a warning) if the cache backend is unavailable."""
         ...
+
+    def publish_warmup_signal(self, reason: str = "") -> None:
+        """Fire-and-forget PUBLISH telling backend's cache-warmup listener to re-populate
+        the default (no-customization) reads for every cached namespace — the event-driven
+        replacement for the old HTTP self-call CacheWarmupHandler used (020-redis-caching-layer
+        follow-up). `reason` is a free-text label (e.g. "scraper_pipeline") carried into the
+        listener's log line for observability only — it never changes what gets warmed.
+        Never raises — no-ops (logging a warning) if the cache backend is unavailable, same
+        posture as bump_version(). Missing this signal is never a correctness issue: the next
+        real visitor still gets a correct (if uncached) response via ordinary cache-aside."""
+        ...

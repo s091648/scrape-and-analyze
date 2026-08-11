@@ -99,6 +99,25 @@ def test_bump_version_no_ops_on_redis_error():
     assert result == 0
 
 
+def test_publish_warmup_signal_publishes_on_warmup_channel():
+    from shared.cache import WARMUP_CHANNEL
+
+    client = MagicMock()
+    gateway = _make_gateway(client)
+
+    gateway.publish_warmup_signal(reason="scraper_pipeline")
+
+    client.publish.assert_called_once_with(WARMUP_CHANNEL, "scraper_pipeline")
+
+
+def test_publish_warmup_signal_no_ops_on_redis_error():
+    client = MagicMock()
+    client.publish.side_effect = redis.exceptions.ConnectionError("down")
+    gateway = _make_gateway(client)
+
+    gateway.publish_warmup_signal(reason="scraper_pipeline")  # must not raise
+
+
 def test_bump_version_seeds_missing_key_before_incr():
     """Regression: a bare INCR on a never-bumped namespace's still-missing version key
     would land on 1, coinciding with _current_version()'s default-for-missing-key
