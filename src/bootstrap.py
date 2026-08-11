@@ -246,7 +246,7 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
     from src.modules.collection.application.event_handlers import CacheInvalidationHandler, CacheWarmupHandler
     from shared.cache import RedisCacheGateway
-    from src.config.settings import CACHE_REDIS_URL, BACKEND_URL, APP_ENV
+    from src.config.settings import CACHE_REDIS_URL, APP_ENV
     from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
@@ -423,14 +423,17 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     # ── Cache invalidation — subscribe to PipelineCompletedEvent ────────────
     # (020-redis-caching-layer, US3) newly-scraped articles must be visible in the
     # cached article/graph reads immediately, not after their TTL expires.
-    cache_invalidation_handler = CacheInvalidationHandler(RedisCacheGateway(redis_url=CACHE_REDIS_URL))
+    scraper_cache_gateway = RedisCacheGateway(redis_url=CACHE_REDIS_URL)
+    cache_invalidation_handler = CacheInvalidationHandler(scraper_cache_gateway)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
         SpanName.PIPELINE_COMPLETED_HANDLE, cache_invalidation_handler.handle, _tracer))
 
     # Must subscribe strictly after cache_invalidation_handler above (InMemoryEventBus
     # dispatches subscribers in subscribe()-call order) — warming has to write into the
-    # *new* namespace version, not the one about to be orphaned by bump_version().
-    cache_warmup_handler = CacheWarmupHandler(backend_url=BACKEND_URL)
+    # *new* namespace version, not the one about to be orphaned by bump_version(). Shares
+    # the same RedisCacheGateway/Redis connection above — the warmup signal is just another
+    # PUBLISH on the same CACHE_REDIS_URL, no separate connection needed.
+    cache_warmup_handler = CacheWarmupHandler(scraper_cache_gateway)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
         SpanName.PIPELINE_COMPLETED_HANDLE, cache_warmup_handler.handle, _tracer))
 

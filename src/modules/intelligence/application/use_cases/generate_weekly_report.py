@@ -111,6 +111,7 @@ class GenerateWeeklyReportUseCase:
             saved = self._repo.save(report)
             if self._cache:
                 self._cache.bump_version("weekly_reports")
+                self._cache.publish_warmup_signal(reason="weekly_report")
             for language in self._translation_languages:
                 self._translate_report(saved, language)
             return saved
@@ -182,6 +183,7 @@ class GenerateWeeklyReportUseCase:
         saved = self._repo.save(report)
         if self._cache:
             self._cache.bump_version("weekly_reports")
+            self._cache.publish_warmup_signal(reason="weekly_report")
         span.set_attribute("weekly_report.outcome", "generated")
 
         for language in self._translation_languages:

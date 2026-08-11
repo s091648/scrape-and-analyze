@@ -53,12 +53,6 @@ CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
 # Web
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "https://example.com")
 
-# Internal Docker/Railway hostname for the backend API (mirrors frontend's own BACKEND_URL,
-# see .env.example) — used by CacheWarmupHandler to re-populate the cache via real HTTP
-# calls to backend's own endpoints after a scrape run, so it never has to duplicate
-# backend's query-building logic.
-BACKEND_URL: str = os.environ.get("BACKEND_URL", "http://backend:8000")
-
 # HTTP — optional proxy + bot UA contact email
 FIXIE_URL: Optional[str] = os.environ.get("FIXIE_URL") or None
 CONTACT_EMAIL: str = os.environ.get("CONTACT_EMAIL", "contact@example.com")
