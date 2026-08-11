@@ -213,9 +213,13 @@ def build_rag_ingestion_service():
 # 主組裝函式
 # ---------------------------------------------------------------------------
 
-def build_collection_pipeline():
+def build_collection_pipeline(jitter_seconds: float | None = None):
     """
     組裝完整的 collection → intelligence pipeline。
+
+    jitter_seconds: main.py's pre-run startup-jitter sleep duration (None if skipped via
+    RUN_IMMEDIATELY) — carried into CollectionPipeline so its PipelineCompletedEvent's
+    execution meta can report it alongside app_env (020-redis-caching-layer follow-up).
 
     回傳 CollectionPipeline 實例，呼叫 .run() 即可執行一輪抓取與分析。
 
@@ -242,7 +246,7 @@ def build_collection_pipeline():
     from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
     from src.modules.collection.application.event_handlers import CacheInvalidationHandler, CacheWarmupHandler
     from shared.cache import RedisCacheGateway
-    from src.config.settings import CACHE_REDIS_URL, BACKEND_URL
+    from src.config.settings import CACHE_REDIS_URL, BACKEND_URL, APP_ENV
     from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
@@ -468,6 +472,8 @@ def build_collection_pipeline():
         pipeline_stats=pipeline_stats,
         article_repo=article_repo,
         executor=executor,
+        app_env=APP_ENV,
+        jitter_seconds=jitter_seconds,
     )
 
     logger.info(
@@ -562,7 +568,21 @@ def build_weekly_pipeline():
     )
     topic_repository = SqlAlchemyTopicRepository(session=session)
 
-    return WeeklyReportPipeline(topic_repository=topic_repository, generate_use_case=generate_use_case), session
+    # 020-redis-caching-layer follow-up: job-level operator completion notification —
+    # distinct from the per-report email/telegram notifications above, which go to
+    # subscribers. event_bus carries a notification handler subscribed to
+    # WeeklyReportJobCompletedEvent; publish that event from weekly_report.py after
+    # pipeline.run() finishes.
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.intelligence.notifications import WeeklyReportJobCompletedMessageBuilder
+    from src.modules.intelligence.application.events import WeeklyReportJobCompletedEvent
+
+    event_bus = InMemoryEventBus()
+    notification_handler = build_notification_handler(WeeklyReportJobCompletedMessageBuilder)
+    event_bus.subscribe(WeeklyReportJobCompletedEvent, notification_handler.handle)
+
+    return WeeklyReportPipeline(topic_repository=topic_repository, generate_use_case=generate_use_case), session, event_bus
 
 
 # ---------------------------------------------------------------------------
@@ -665,11 +685,19 @@ def build_metrics_refresh_pipeline():
 # ---------------------------------------------------------------------------
 
 def build_dedup_reconciliation_pipeline():
-    """Assemble (OpenAlexClient, ArticleDedupRepository, session) for the
+    """Assemble (OpenAlexClient, ArticleDedupRepository, session, event_bus) for the
     dedup-reconciliation cron job. Independent of build_collection_pipeline —
-    this only re-checks work_ids OpenAlex previously assigned us, no scraping."""
+    this only re-checks work_ids OpenAlex previously assigned us, no scraping.
+    event_bus carries a notification handler subscribed to DedupReconcileCompletedEvent
+    (originally out of scope per 020-redis-caching-layer's spec.md, added on request when
+    unifying notification format across every scheduled job) — publish that event after
+    computing healed/merged/failed stats to send the completion notification."""
     from src.infrastructure.collection.clients.openalex_client import OpenAlexClient
     from src.infrastructure.persistence.collection.article_dedup_repo_impl import SqlAlchemyArticleDedupRepository
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.infrastructure.shared.notifications import build_notification_handler
+    from src.infrastructure.collection.notifications import DedupReconcileMessageBuilder
+    from src.modules.collection.application.events import DedupReconcileCompletedEvent
 
     init_db()
     session = get_session()
@@ -677,8 +705,12 @@ def build_dedup_reconciliation_pipeline():
     client = OpenAlexClient()
     dedup_repo = SqlAlchemyArticleDedupRepository(session=session)
 
+    event_bus = InMemoryEventBus()
+    notification_handler = build_notification_handler(DedupReconcileMessageBuilder)
+    event_bus.subscribe(DedupReconcileCompletedEvent, notification_handler.handle)
+
     logger.info("dedup_reconciliation_bootstrap_complete")
-    return client, dedup_repo, session
+    return client, dedup_repo, session, event_bus
 
 
 # ---------------------------------------------------------------------------
