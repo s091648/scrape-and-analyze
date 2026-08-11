@@ -118,7 +118,8 @@ def test_sentry_initialized_when_dsn_set():
          patch.object(settings_mod, "SENTRY_DSN", "https://test@sentry.io/123"):
         importlib.reload(main_mod)
         mock_init.assert_called_once_with(
-            dsn="https://test@sentry.io/123", environment=settings_mod.APP_ENV, include_local_variables=False
+            dsn="https://test@sentry.io/123", environment=settings_mod.APP_ENV,
+            traces_sample_rate=0.1, include_local_variables=False,
         )
     importlib.reload(main_mod)
 

@@ -1,9 +1,23 @@
 """Tests for MetricsRefreshMessageBuilder."""
+from datetime import datetime, timezone
+
 from src.modules.collection.application.events import MetricsRefreshCompletedEvent
+from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
+
+
+def _make_execution(duration=5.0):
+    return JobExecutionMeta(
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        duration_seconds=duration,
+        app_env="production",
+    )
 
 
 def _make_event(total=10, refreshed=8, failed=2, duration=5.0):
-    return MetricsRefreshCompletedEvent(total=total, refreshed=refreshed, failed=failed, duration_seconds=duration)
+    return MetricsRefreshCompletedEvent(
+        total=total, refreshed=refreshed, failed=failed, execution=_make_execution(duration=duration),
+    )
 
 
 def test_build_returns_telegram_message_with_markdownv2():

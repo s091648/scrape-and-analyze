@@ -26,7 +26,8 @@ def test_sentry_initialized_with_dsn():
              patch("src.entrypoints.cli.main.configure_logging"):
             importlib.reload(importlib.import_module("src.entrypoints.cli.main"))
         mock_init.assert_called_with(
-            dsn="https://test@sentry.io/123", environment=settings_mod.APP_ENV, include_local_variables=False
+            dsn="https://test@sentry.io/123", environment=settings_mod.APP_ENV,
+            traces_sample_rate=0.1, include_local_variables=False,
         )
 
 

@@ -1,9 +1,23 @@
 """Tests for RagBackfillMessageBuilder."""
+from datetime import datetime, timezone
+
 from src.modules.intelligence.application.events import RagBackfillCompletedEvent
+from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
+
+
+def _make_execution(duration=5.0):
+    return JobExecutionMeta(
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        duration_seconds=duration,
+        app_env="production",
+    )
 
 
 def _make_event(total=10, succeeded=8, failed=2, duration=5.0):
-    return RagBackfillCompletedEvent(total=total, succeeded=succeeded, failed=failed, duration_seconds=duration)
+    return RagBackfillCompletedEvent(
+        total=total, succeeded=succeeded, failed=failed, execution=_make_execution(duration=duration),
+    )
 
 
 def test_build_returns_telegram_message_with_markdownv2():

@@ -23,7 +23,7 @@ def test_no_candidates_skips_everything(mock_validate, mock_logging, mock_http, 
     dedup_repo = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -42,7 +42,7 @@ def test_limit_arg_passed_to_query(mock_validate, mock_logging, mock_http, mock_
     dedup_repo = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = []
     session = MagicMock()
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile", "--limit", "50"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -62,7 +62,7 @@ def test_unchanged_work_id_marks_reconciled_only(mock_validate, mock_logging, mo
     dedup_repo = MagicMock()
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -90,7 +90,7 @@ def test_merged_work_id_without_local_survivor_heals_identifiers(mock_validate, 
     dedup_repo.find_by_work_id.return_value = None
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -113,7 +113,7 @@ def test_merged_work_id_with_local_survivor_triggers_merge(mock_validate, mock_l
     dedup_repo.find_by_work_id.return_value = survivor_id
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = [_mock_row(loser_id, "https://openalex.org/W1")]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -134,7 +134,7 @@ def test_fetch_failure_is_skipped_without_repo_calls(mock_validate, mock_logging
     dedup_repo = MagicMock()
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = [_mock_row(article_id, "https://openalex.org/W1")]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -160,7 +160,7 @@ def test_one_article_failure_does_not_abort_the_run(mock_validate, mock_logging,
         _mock_row(failing_article, "https://openalex.org/W-fail"),
         _mock_row(ok_article, "https://openalex.org/W-ok"),
     ]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -178,7 +178,7 @@ def test_session_closed_after_run(mock_validate, mock_logging, mock_http, mock_p
     dedup_repo = MagicMock()
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = []
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
@@ -197,10 +197,81 @@ def test_session_closed_even_when_an_article_raises(mock_validate, mock_logging,
     dedup_repo = MagicMock()
     session = MagicMock()
     dedup_repo.find_pending_reconciliation.return_value = [_mock_row(uuid4(), "https://openalex.org/W1")]
-    mock_pipeline.return_value = (client, dedup_repo, session)
+    mock_pipeline.return_value = (client, dedup_repo, session, MagicMock())
 
     with patch("sys.argv", ["dedup_reconcile"]):
         from src.entrypoints.cli.dedup_reconcile import main
         main()
 
     session.close.assert_called_once()
+
+
+# ── Completion notification (added when unifying notification format across all
+#    five scheduled jobs — originally out of scope per 020-redis-caching-layer spec.md) ──
+
+@patch("src.bootstrap.build_dedup_reconciliation_pipeline")
+@patch("src.entrypoints.cli.dedup_reconcile.init_default_client")
+@patch("src.entrypoints.cli.dedup_reconcile.configure_logging")
+@patch("src.entrypoints.cli.dedup_reconcile.validate_config")
+def test_publishes_completion_event_with_correct_counts(mock_validate, mock_logging, mock_http, mock_pipeline):
+    from src.modules.collection.application.events import DedupReconcileCompletedEvent
+
+    healed_article = uuid4()
+    merged_loser = uuid4()
+    failing_article = uuid4()
+    survivor_id = uuid4()
+
+    client = MagicMock()
+    client.fetch_by_id.side_effect = [
+        {"id": "https://openalex.org/W-healed"},
+        {"id": "https://openalex.org/W-merged"},
+        Exception("network error"),
+    ]
+    dedup_repo = MagicMock()
+    dedup_repo.find_by_work_id.side_effect = [None, survivor_id]
+    dedup_repo.find_pending_reconciliation.return_value = [
+        _mock_row(healed_article, "https://openalex.org/W1"),
+        _mock_row(merged_loser, "https://openalex.org/W2"),
+        _mock_row(failing_article, "https://openalex.org/W3"),
+    ]
+    session = MagicMock()
+    event_bus = MagicMock()
+    mock_pipeline.return_value = (client, dedup_repo, session, event_bus)
+
+    with patch("sys.argv", ["dedup_reconcile"]):
+        from src.entrypoints.cli.dedup_reconcile import main
+        main()
+
+    event_bus.publish.assert_called_once()
+    published = event_bus.publish.call_args.args[0]
+    assert isinstance(published, DedupReconcileCompletedEvent)
+    assert published.total == 3
+    assert published.healed == 1
+    assert published.merged == 1
+    assert published.failed == 1
+
+
+@patch("src.bootstrap.build_dedup_reconciliation_pipeline")
+@patch("src.entrypoints.cli.dedup_reconcile.init_default_client")
+@patch("src.entrypoints.cli.dedup_reconcile.configure_logging")
+@patch("src.entrypoints.cli.dedup_reconcile.validate_config")
+def test_notification_failure_does_not_fail_the_job(mock_validate, mock_logging, mock_http, mock_pipeline):
+    """FR-012: a notification-sender failure must not raise out of main()."""
+    from src.infrastructure.shared.events import InMemoryEventBus
+    from src.modules.collection.application.events import DedupReconcileCompletedEvent
+
+    def _raising_handler(event):
+        raise ConnectionError("telegram is down")
+
+    event_bus = InMemoryEventBus()
+    event_bus.subscribe(DedupReconcileCompletedEvent, _raising_handler)
+
+    client = MagicMock()
+    dedup_repo = MagicMock()
+    dedup_repo.find_pending_reconciliation.return_value = []
+    session = MagicMock()
+    mock_pipeline.return_value = (client, dedup_repo, session, event_bus)
+
+    with patch("sys.argv", ["dedup_reconcile"]):
+        from src.entrypoints.cli.dedup_reconcile import main
+        main()  # must not raise

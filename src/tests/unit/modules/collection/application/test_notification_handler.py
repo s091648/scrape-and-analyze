@@ -1,14 +1,21 @@
 """Tests for NotificationHandler dispatching pipeline events to sender callables."""
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import SourceStats
+from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
 
 
 def _make_event():
     return PipelineCompletedEvent(
         stats=[SourceStats(source="arxiv", new=1, duplicate=0, failed=0)],
-        duration_seconds=5.0,
+        execution=JobExecutionMeta(
+            started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            completed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            duration_seconds=5.0,
+            app_env="production",
+        ),
     )
 
 
