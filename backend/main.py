@@ -51,9 +51,12 @@ async def _periodic_view_flush():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from backend.cache_warmup_listener import listen_for_warmup_signals
     task = asyncio.create_task(_periodic_view_flush())
+    warmup_task = asyncio.create_task(listen_for_warmup_signals())
     yield
     task.cancel()
+    warmup_task.cancel()
     if _tracer_provider:
         _tracer_provider.shutdown()
 

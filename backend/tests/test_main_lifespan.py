@@ -74,19 +74,25 @@ async def test_periodic_view_flush_closes_db_even_on_exception():
 
 @pytest.mark.asyncio
 async def test_lifespan_starts_and_cancels_background_task():
+    """lifespan() now starts two background tasks: the periodic view-count flush (unchanged)
+    and the cache-warmup Pub/Sub listener (020-redis-caching-layer follow-up)."""
     from backend.main import lifespan, app
 
-    fake_task = MagicMock()
+    fake_tasks = [MagicMock(), MagicMock()]
+    created = []
 
     def fake_create_task(coro):
         coro.close()  # avoid "coroutine was never awaited" warning; we don't run it here
-        return fake_task
+        task = fake_tasks[len(created)]
+        created.append(task)
+        return task
 
     with patch("asyncio.create_task", side_effect=fake_create_task) as mock_create_task:
         async with lifespan(app):
-            mock_create_task.assert_called_once()
+            assert mock_create_task.call_count == 2
 
-    fake_task.cancel.assert_called_once()
+    for task in fake_tasks:
+        task.cancel.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
