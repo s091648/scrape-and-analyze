@@ -9,7 +9,10 @@ import { resolveVisitorTopicAndLocale } from '@/lib/server/ssr-fetch'
 
 const rethinkSans = Rethink_Sans({ subsets: ['latin'], variable: '--font-rethink' })
 
-export const metadata: Metadata = { title: 'Article Analyzer' }
+export const metadata: Metadata = {
+  title: 'Article Analyzer',
+  description: 'AI-powered analysis and tagging of the latest AI/ML research and tech articles, with topic-based browsing, a knowledge graph, and weekly summary reports.',
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Seeds TopicProvider/I18nProvider so their first render (server AND client hydration) already
