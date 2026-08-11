@@ -8,5 +8,5 @@ class OtelMetricsHandler:
     def handle(self, event: PipelineCompletedEvent) -> None:
         """Attach pipeline duration and source count as attributes on the current OTel span."""
         span = _otel_trace.get_current_span()
-        span.set_attribute("pipeline.duration_seconds", event.duration_seconds)
+        span.set_attribute("pipeline.duration_seconds", event.execution.duration_seconds)
         span.set_attribute("pipeline.sources_count", len(event.stats))

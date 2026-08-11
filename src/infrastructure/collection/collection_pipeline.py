@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import urlparse
 
@@ -13,6 +14,7 @@ from src.modules.collection.application.events import ArticleScrapedEvent, Pipel
 from src.modules.collection.application.use_cases import PipelineStats, ArticleOutcome
 from src.shared.application.ports import EventBus
 from src.shared.domain.repositories import ArticleRepository
+from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
 
 logger = get_logger(__name__)
 
@@ -36,6 +38,8 @@ class CollectionPipeline:
         pipeline_stats: PipelineStats,
         executor: Optional[ScrapeExecutor] = None,
         article_repo: Optional[ArticleRepository] = None,
+        app_env: str = "unknown",
+        jitter_seconds: Optional[float] = None,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -43,10 +47,25 @@ class CollectionPipeline:
         self._pipeline_stats = pipeline_stats
         self._executor = executor or ScrapeExecutor()
         self._article_repo = article_repo
+        # 020-redis-caching-layer follow-up: carried into every PipelineCompletedEvent's
+        # execution meta so the Telegram notification can show a non-production env badge
+        # and the startup jitter main.py slept before this pipeline was even built.
+        self._app_env = app_env
+        self._jitter_seconds = jitter_seconds
+
+    def _build_execution_meta(self, started_at: datetime, start: float) -> JobExecutionMeta:
+        return JobExecutionMeta(
+            started_at=started_at,
+            completed_at=datetime.now(timezone.utc),
+            duration_seconds=time.time() - start,
+            app_env=self._app_env,
+            jitter_seconds=self._jitter_seconds,
+        )
 
     def run(self) -> int:
         """Execute the full pipeline for all due sources and return the number of articles published."""
         tracer = get_tracer()
+        started_at = datetime.now(timezone.utc)
         start = time.time()
         due_settings = self._setting_repo.get_active_due()
 
@@ -54,7 +73,7 @@ class CollectionPipeline:
             logger.info("no_sources_due")
             self._event_bus.publish(PipelineCompletedEvent(
                 stats=[],
-                duration_seconds=time.time() - start,
+                execution=self._build_execution_meta(started_at, start),
             ))
             return 0
 
@@ -183,7 +202,7 @@ class CollectionPipeline:
         stats = self._pipeline_stats.get_results()
         self._event_bus.publish(PipelineCompletedEvent(
             stats=stats,
-            duration_seconds=duration,
+            execution=self._build_execution_meta(started_at, start),
         ))
 
         logger.info(

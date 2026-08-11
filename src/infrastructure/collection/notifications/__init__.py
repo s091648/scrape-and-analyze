@@ -1,4 +1,5 @@
 from .pipeline_completed_message_builder import PipelineCompletedMessageBuilder
 from .metrics_refresh_message_builder import MetricsRefreshMessageBuilder
+from .dedup_reconcile_message_builder import DedupReconcileMessageBuilder
 
-__all__ = ["PipelineCompletedMessageBuilder", "MetricsRefreshMessageBuilder"]
+__all__ = ["PipelineCompletedMessageBuilder", "MetricsRefreshMessageBuilder", "DedupReconcileMessageBuilder"]
