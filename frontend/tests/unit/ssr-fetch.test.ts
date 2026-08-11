@@ -222,11 +222,13 @@ describe('resolveSsrContext — topic resolution', () => {
   // all — rather than validated first. This is what actually collapses the SSR fetch chain for
   // returning visitors.
   it('trusts a present cookie directly, without calling GET /topics', async () => {
+    // Must match TOPIC_ID_PATTERN (hex + hyphen, like a real UUID) — a non-matching fixture
+    // would fall through to the GET /topics path this test is asserting never happens.
     mockCookiesGet.mockImplementation((name: string) =>
-      name === 'selectedTopicId' ? { value: 'topic-2' } : undefined,
+      name === 'selectedTopicId' ? { value: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } : undefined,
     )
     const ctx = await resolveSsrContext()
-    expect(ctx.topicId).toBe('topic-2')
+    expect(ctx.topicId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/topics'), expect.anything())
   })
 
@@ -236,11 +238,12 @@ describe('resolveSsrContext — topic resolution', () => {
   // client-side loadTopics() validation (unchanged) corrects the cookie on its next run, so this
   // self-heals within one visit rather than paying a GET /topics round trip on every render.
   it('trusts a stale/deleted-topic cookie too, rather than validating it', async () => {
+    // Must match TOPIC_ID_PATTERN (hex + hyphen, like a real UUID) — see comment above.
     mockCookiesGet.mockImplementation((name: string) =>
-      name === 'selectedTopicId' ? { value: 'stale-topic' } : undefined,
+      name === 'selectedTopicId' ? { value: 'deadbeef-dead-beef-dead-beefdeadbeef' } : undefined,
     )
     const ctx = await resolveSsrContext()
-    expect(ctx.topicId).toBe('stale-topic')
+    expect(ctx.topicId).toBe('deadbeef-dead-beef-dead-beefdeadbeef')
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/topics'), expect.anything())
   })
 

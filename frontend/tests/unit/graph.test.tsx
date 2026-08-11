@@ -142,8 +142,13 @@ describe('KnowledgeGraph initialData seeding', () => {
     const { render, screen } = await import('@testing-library/react')
     render(<KnowledgeGraph initialData={seededData as any} />)
 
-    expect(screen.getByTestId('graph-canvas').textContent).toContain('Seeded Group')
-    expect(mockApiFetch).not.toHaveBeenCalled()
+    // Other tests in this file leave their own rendered trees in the document (no cleanup
+    // between tests), so this instance's canvas is the last match, not the only one.
+    const canvases = screen.getAllByTestId('graph-canvas')
+    expect(canvases[canvases.length - 1].textContent).toContain('Seeded Group')
+    // FilterBar fetches its own filter-option lists on mount regardless of graph seeding —
+    // only the graph endpoint itself must stay unfetched.
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
   })
 
   it('fetches normally (no seed) when initialData is not provided', async () => {
@@ -157,12 +162,15 @@ describe('KnowledgeGraph initialData seeding', () => {
   it('still fetches on a later filter change after a seeded mount', async () => {
     const { render, screen, fireEvent } = await import('@testing-library/react')
     render(<KnowledgeGraph initialData={seededData as any} />)
-    expect(mockApiFetch).not.toHaveBeenCalled()
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
 
-    const allComboboxes = screen.queryAllByRole('combobox')
-    const daysSelect = allComboboxes.find(el => el.querySelector('option[value="7"]'))
-    expect(daysSelect).toBeTruthy()
-    fireEvent.change(daysSelect!, { target: { value: '7' } })
+    // The FilterBar UI has no native <select> — filters live behind a toggled panel with an
+    // Apply button. Other renders in this file leave stale trees in the document (no cleanup
+    // between tests), so target the just-rendered (last) instance's controls.
+    const filterToggles = screen.getAllByRole('button', { name: /filterBar\.filters/ })
+    fireEvent.click(filterToggles[filterToggles.length - 1])
+    const applyButtons = screen.getAllByText('filterBar.apply')
+    fireEvent.click(applyButtons[applyButtons.length - 1])
 
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())

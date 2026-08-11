@@ -48,6 +48,19 @@ test.describe("Guest Onboarding Tour", () => {
     test.beforeEach(async ({ page }) => {
       await mockApiRoutes(page);
       await mockLanguages(page);
+      // Isolate the guest-onboarding tour from the unrelated feature spotlight
+      // tours (e.g. "New: Weekly Reports", which also targets "/") — without
+      // this, a fresh mount on "/" (a reload, or a fresh guest-mode entry)
+      // auto-opens whichever spotlight tour is still unseen, which is a
+      // different dialog than the one these onboarding-specific tests assert
+      // on. Mirrors the same isolation pattern used below for the Feature
+      // Chat Spotlight Tour tests.
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "tutorial_seen_tours",
+          JSON.stringify(["feature-chat-2026-07", "feature-weekly-report-2026-07", "feature-articles-stats-2026-07"]),
+        );
+      });
     });
 
     test('auto-appears as a centered card after clicking "Continue as Guest"', async ({ page }) => {
@@ -147,7 +160,17 @@ test.describe("Guest Onboarding Tour", () => {
       await page.getByRole("button", { name: /^skip|略過$/i }).click();
       await expect(page.getByRole("dialog")).not.toBeVisible();
 
-      await page.evaluate(() => sessionStorage.removeItem("guest_mode"));
+      // Simulates exitGuestMode() fully, not just its "guest_mode" key — there's
+      // no real "Exit Guest Mode" UI control to click, so this reproduces what
+      // that transition does in-app: guest-mode-provider.tsx clears its own
+      // key, and tutorial-provider.tsx's own isGuestMode-turned-off effect
+      // clears the onboarding-dismissed key (see its "fresh guest-mode entry
+      // is a new onboarding opportunity" comment). Clearing only "guest_mode"
+      // would leave the dismissal behind and the tour would stay closed below.
+      await page.evaluate(() => {
+        sessionStorage.removeItem("guest_mode");
+        sessionStorage.removeItem("tutorial_onboarding_dismissed");
+      });
       await page.goto("/login");
       await page.getByRole("button", { name: /continue as guest|以訪客身份繼續/i }).click();
       await page.waitForURL("/");
