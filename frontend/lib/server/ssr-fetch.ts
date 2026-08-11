@@ -14,16 +14,19 @@
 // own `resolveSsrContext()` call had resolved (or vice versa), so TopicProvider's initial state
 // and a page's server-fetched data could disagree even within the same request.
 //
-// Two further optimizations (021-ssr-public-pages, "root cause 1" follow-up — the original SSR
-// fetch chain was guest-token -> GET /topics + GET /languages -> the page's own data fetch, all
-// sequential, blocking the whole HTML response): `issueOrReuseGuestToken()` caches a guest token
-// across many different visitors' requests (guest identity is anonymous, so this is safe), and
-// `resolveTopicId()` skips the `GET /topics` round trip entirely when a `selectedTopicId` cookie
-// already exists (trusts it optimistically instead of validating first). Neither optimization
-// helps a true first-time visitor with no cookie at all — that visitor still needs a fresh guest
-// token (until the cache is warm) and still needs `GET /topics` (nothing else can tell us which
-// topic to default to). A full multi-device / BFF-aggregation rework that could collapse this
-// further is tracked separately, not part of this feature.
+// Several further optimizations (021-ssr-public-pages, "root cause 1" follow-up — the original
+// SSR fetch chain was guest-token -> GET /topics + GET /languages -> the page's own data fetch,
+// all sequential, blocking the whole HTML response): `issueOrReuseGuestToken()` caches a guest
+// token across many different visitors' requests (guest identity is anonymous, so this is safe);
+// `resolveVisitorTopicAndLocale()` skips any backend round trip entirely when both the
+// `selectedTopicId` and `locale` cookies already exist (trusts them optimistically instead of
+// validating first); and when a backend call *is* needed, `POST /bootstrap` collapses what used
+// to be "mint a guest token, then GET /topics + GET /languages" into a single unauthenticated
+// round trip (`fetchBootstrap()` below) instead of two serial ones. None of this helps a true
+// first-time visitor with no cookie at all — that visitor still needs the one `/bootstrap` round
+// trip (nothing else can tell us which topic to default to or which locale to resolve). A full
+// multi-device / BFF-aggregation rework that could collapse this further is tracked separately,
+// not part of this feature.
 //
 // Every backend call in this module goes through `ssrFetch()` below — the server-side
 // counterpart of `lib/api/client.ts`'s `apiFetch()` — so timeout/abort, credential attachment,
@@ -51,9 +54,9 @@ const SSR_FETCH_TIMEOUT_MS = 3_000
 // little resilience to a transient backend hiccup against not stalling the page load too long.
 const SSR_MAX_ATTEMPTS = 2
 const SSR_RETRY_DELAY_MS = 150
-// selectedTopicId is a plain client-writable cookie (see resolveTopicId's comment on
-// why it's trusted without a GET /topics round trip) — this only guards its shape
-// before it's interpolated into a backend query string, not its validity.
+// selectedTopicId is a plain client-writable cookie (see resolveVisitorTopicAndLocale's
+// comment on why it's trusted without a /bootstrap round trip) — this only guards its
+// shape before it's interpolated into a backend query string, not its validity.
 const TOPIC_ID_PATTERN = /^[0-9a-fA-F-]{1,64}$/
 
 function sleep(ms: number): Promise<void> {
@@ -121,12 +124,13 @@ export interface SsrContext {
    * since knowing "which topic tab is selected" isn't sensitive/paywalled content by itself. */
   credential: string | null
   /** Resolved from the `selectedTopicId` cookie if present (trusted optimistically, NOT validated
-   * against a live topic list — see `resolveTopicId`'s comment for why), else the first topic
-   * from `GET /topics` (matching `topic-provider.tsx`'s own no-stored-preference default) — or
-   * `null` if there are no topics at all. Always resolved (via `resolveVisitorTopicAndLocale`,
-   * shared with `app/layout.tsx`), independent of whether `credential` above is null. */
+   * against a live topic list — see `resolveVisitorTopicAndLocale`'s comment for why), else the
+   * first topic from `POST /bootstrap` (matching `topic-provider.tsx`'s own no-stored-preference
+   * default) — or `null` if there are no topics at all. Always resolved (via
+   * `resolveVisitorTopicAndLocale`, shared with `app/layout.tsx`), independent of whether
+   * `credential` above is null. */
   topicId: string | null
-  /** Resolved from the `locale` cookie, or geo-IP via `GET /languages` when absent/unsupported.
+  /** Resolved from the `locale` cookie, or geo-IP via `POST /bootstrap` when absent/unsupported.
    * Always resolved, independent of `credential` — see `topicId` above. */
   locale: string
 }
@@ -137,9 +141,13 @@ export interface SsrContext {
 // lifetime. Guest tokens are anonymous (never tied to a specific visitor), so reusing one across
 // unrelated visitors' SSR renders is safe and eliminates the `POST /auth/guest` round trip for
 // the vast majority of anonymous SSR renders — previously every single anonymous render paid for
-// its own fresh token. A benign race (two concurrent requests both seeing an expired/absent
-// cache and each issuing their own token) is possible right at cold-start/expiry and is left
-// unguarded — it costs one extra `POST /auth/guest`, not a correctness issue. If this frontend
+// its own fresh token. `fetchBootstrap()` below also opportunistically populates this same cache
+// from `POST /bootstrap`'s own minted token (that endpoint always mints one, whether or not the
+// caller ends up using it) — a plain unconditional overwrite, since guest tokens are anonymous
+// and interchangeable, so there's no "wrong" token to protect against clobbering. A benign race
+// (two concurrent requests both seeing an expired/absent cache and each issuing their own token)
+// is possible right at cold-start/expiry and is left unguarded — it costs one extra token mint,
+// not a correctness issue. If this frontend
 // ever scales to multiple replicas, each replica keeps its own independent cache — still a large
 // win over no caching, though not perfectly shared; moving this to the existing Redis
 // (`CACHE_REDIS_URL`, from 020-redis-caching-layer) would be the next step if that matters.
@@ -182,70 +190,74 @@ const resolveCredential = cache(async (allowGuestCredential: boolean): Promise<s
   return issueOrReuseGuestToken()
 })
 
-async function resolveTopicId(credential: string): Promise<string | null> {
+/** Calls the unauthenticated `POST /bootstrap` (no credential needed — see that endpoint's own
+ * doc comment) to resolve a default topic + locale in one round trip, and opportunistically
+ * feeds its always-minted guest token into `cachedGuestToken` (see that variable's doc comment).
+ * Never throws — degrades to `{ topicId: null, locale: 'en' }` on any failure, matching the
+ * degraded defaults `resolveVisitorTopicAndLocale` promises below. */
+async function fetchBootstrap(): Promise<{ topicId: string | null; locale: string }> {
   try {
-    const cookieStore = await cookies()
-    const cookieTopicId = cookieStore.get(TOPIC_COOKIE_NAME)?.value
-    // Optimistic trust: skip the GET /topics round trip entirely when a cookie already names a
-    // topic — this is what actually collapses the SSR fetch chain for returning visitors. If the
-    // cookie names a topic that's since been deleted/deactivated, that one render's data fetch
-    // (weekly-report/articles/graph/tags) will just come back empty for it, exactly like today's
-    // fallback path returning nothing found — and topic-provider.tsx's own client-side
-    // `loadTopics()` validation (unchanged) corrects both the in-memory state and the cookie on
-    // its next run, so this self-heals within one visit rather than requiring the round trip on
-    // every single render. See specs/021-ssr-public-pages research.md's root-cause-1 follow-up.
-    // Still shape-checked (TOPIC_ID_PATTERN) before being trusted — the cookie is client-writable,
-    // and its value flows straight into backend query strings below.
-    if (cookieTopicId && TOPIC_ID_PATTERN.test(cookieTopicId)) return cookieTopicId
-
-    const res = await ssrFetch(`${BACKEND_URL}/topics`, {}, { credential })
-    if (!res?.ok) return null
-    const topics = await res.json()
-    if (!Array.isArray(topics) || topics.length === 0) return null
-    // No cookie at all (true first-time visitor) — GET /topics is unavoidable here, since
-    // nothing else can tell us which topic to default to. Mirrors topic-provider.tsx's
-    // loadTopics() default for a visitor with no stored preference.
-    return topics[0]?.id ?? null
-  } catch {
-    return null
-  }
-}
-
-async function resolveLocale(credential: string): Promise<string> {
-  try {
-    const cookieStore = await cookies()
-    const cookieLocale = cookieStore.get(LOCALE_COOKIE_NAME)?.value
-    if (cookieLocale && SUPPORTED_LANGUAGE_CODES.includes(cookieLocale)) return cookieLocale
-
     const headerStore = await headers()
     const forwardedFor = headerStore.get('x-forwarded-for')
-    const res = await ssrFetch(
-      `${BACKEND_URL}/languages`,
-      forwardedFor ? { headers: { 'X-Forwarded-For': forwardedFor } } : {},
-      { credential },
-    )
-    if (!res?.ok) return 'en'
+    const res = await ssrFetch(`${BACKEND_URL}/bootstrap`, {
+      method: 'POST',
+      headers: forwardedFor ? { 'X-Forwarded-For': forwardedFor } : {},
+    })
+    if (!res?.ok) return { topicId: null, locale: 'en' }
     const data = await res.json()
-    return typeof data.resolved === 'string' ? data.resolved : 'en'
+    if (typeof data.access_token === 'string') {
+      const expiresInMs = typeof data.expires_in === 'number' ? data.expires_in * 1000 : 3600_000
+      cachedGuestToken = { token: data.access_token, expiresAt: Date.now() + expiresInMs }
+    }
+    const topics = Array.isArray(data.topics) ? data.topics : []
+    // Mirrors topic-provider.tsx's loadTopics() default for a visitor with no stored preference:
+    // no preference at all → first topic, not "no filter".
+    const topicId = typeof topics[0]?.id === 'string' ? topics[0].id : null
+    const locale = typeof data.languages?.resolved === 'string' ? data.languages.resolved : 'en'
+    return { topicId, locale }
   } catch {
-    return 'en'
+    return { topicId: null, locale: 'en' }
   }
 }
 
 /** Resolves the visitor's topic/language for this request — never throws, degrades to
- * `{ topicId: null, locale: 'en' }` on failure, per FR-007. Deliberately always uses a guest
- * credential fallback (`resolveCredential(true)`) regardless of caller, since knowing which
- * topic tab is selected isn't sensitive/paywalled content — unlike `resolveSsrContext`'s own
- * `credential`, which stays paywall-aware per caller.
+ * `{ topicId: null, locale: 'en' }` on failure, per FR-007. Independent of `resolveSsrContext`'s
+ * own `credential` (which stays paywall-aware per caller) since knowing which topic tab is
+ * selected isn't sensitive/paywalled content.
  *
  * `cache()`-wrapped with no arguments, so every caller within one request — `app/layout.tsx`
  * (seeding TopicProvider/I18nProvider) and every page's own `resolveSsrContext()` call below —
  * shares one resolution. This is what keeps them from disagreeing with each other. */
 export const resolveVisitorTopicAndLocale = cache(async (): Promise<{ topicId: string | null; locale: string }> => {
-  const credential = await resolveCredential(true)
-  if (!credential) return { topicId: null, locale: 'en' }
-  const [topicId, locale] = await Promise.all([resolveTopicId(credential), resolveLocale(credential)])
-  return { topicId, locale }
+  const cookieStore = await cookies()
+  const cookieTopicId = cookieStore.get(TOPIC_COOKIE_NAME)?.value
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE_NAME)?.value
+  // Optimistic trust: a cookie already naming a topic/locale is used directly, without
+  // validation — this is what actually collapses the SSR fetch chain for returning visitors. A
+  // topicId cookie naming a topic that's since been deleted/deactivated is trusted anyway; that
+  // one render's data fetch (weekly-report/articles/graph/tags) just comes back empty for it,
+  // exactly like today's "nothing found" fallback — topic-provider.tsx's own client-side
+  // `loadTopics()` validation (unchanged) corrects both the in-memory state and the cookie on its
+  // next run, so this self-heals within one visit. See specs/021-ssr-public-pages research.md's
+  // root-cause-1 follow-up. Still shape/allowlist-checked (TOPIC_ID_PATTERN /
+  // SUPPORTED_LANGUAGE_CODES) before being trusted — both cookies are client-writable, and
+  // topicId flows straight into backend query strings elsewhere in this module.
+  const topicIdFromCookie = cookieTopicId && TOPIC_ID_PATTERN.test(cookieTopicId) ? cookieTopicId : null
+  const localeFromCookie = cookieLocale && SUPPORTED_LANGUAGE_CODES.includes(cookieLocale) ? cookieLocale : null
+
+  // Both already known — skip the /bootstrap round trip entirely (returning visitor).
+  if (topicIdFromCookie && localeFromCookie) {
+    return { topicId: topicIdFromCookie, locale: localeFromCookie }
+  }
+
+  // At least one is missing (true first-time visitor, or only one of the two cookies is set) —
+  // /bootstrap resolves both at once; whichever one was already known from a cookie takes
+  // priority over its bootstrap-resolved counterpart.
+  const bootstrap = await fetchBootstrap()
+  return {
+    topicId: topicIdFromCookie ?? bootstrap.topicId,
+    locale: localeFromCookie ?? bootstrap.locale,
+  }
 })
 
 /** Resolves this render's full context: a paywall-aware `credential` (see `SsrContext`'s doc

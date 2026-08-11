@@ -31,6 +31,16 @@ function jsonResponse(body: unknown, ok = true, cacheStatus: string | null = nul
   } as unknown as Response
 }
 
+function bootstrapResponse(overrides: Record<string, unknown> = {}) {
+  return jsonResponse({
+    access_token: 'bootstrap-guest-jwt',
+    expires_in: 3600,
+    topics: [{ id: 'topic-1' }],
+    languages: { available: [], resolved: 'en' },
+    ...overrides,
+  })
+}
+
 const fetchMock = vi.fn()
 
 beforeEach(() => {
@@ -48,7 +58,7 @@ beforeEach(() => {
 describe('resolveSsrContext — credential resolution', () => {
   it('reuses the NextAuth session token when a session exists', async () => {
     mockGetServerSession.mockResolvedValue({ accessToken: 'session-jwt' })
-    fetchMock.mockResolvedValue(jsonResponse([]))
+    fetchMock.mockResolvedValue(bootstrapResponse())
     const ctx = await resolveSsrContext()
     expect(ctx.credential).toBe('session-jwt')
   })
@@ -57,42 +67,38 @@ describe('resolveSsrContext — credential resolution', () => {
   // this page's own real-data fetch) stays null — POST /auth/guest is never called *for that
   // purpose*, since doing so would bypass the paywall on /articles, /graph, /tags (see
   // SsrContext's doc comment). Note this is now independent of topic/locale resolution below,
-  // which always uses its own internal guest fallback regardless of this page-level setting.
+  // which always resolves via its own POST /bootstrap call regardless of this page-level setting.
   it('resolves a null page credential when there is no session and allowGuestCredential is not set', async () => {
     mockGetServerSession.mockResolvedValue(null)
-    fetchMock.mockResolvedValue(jsonResponse([]))
+    fetchMock.mockResolvedValue(bootstrapResponse())
     const ctx = await resolveSsrContext()
     expect(ctx.credential).toBeNull()
   })
 
   it('resolves a null page credential when getServerSession itself throws and allowGuestCredential is not set', async () => {
     mockGetServerSession.mockRejectedValue(new Error('session lookup failed'))
-    fetchMock.mockResolvedValue(jsonResponse([]))
+    fetchMock.mockResolvedValue(bootstrapResponse())
     const ctx = await resolveSsrContext()
     expect(ctx.credential).toBeNull()
   })
 
-  // topicId/locale are resolved via resolveVisitorTopicAndLocale's own internal guest-credential
-  // fallback — always, regardless of the calling page's allowGuestCredential setting — since
-  // knowing "which topic is selected" isn't paywalled content (see module doc comment). This is
-  // what lets app/layout.tsx and every page share one answer within a request.
-  it('still resolves topic/locale via its own guest fallback even when the page credential is null', async () => {
+  // topicId/locale are resolved via resolveVisitorTopicAndLocale's own unauthenticated
+  // POST /bootstrap call — always, regardless of the calling page's allowGuestCredential
+  // setting — since knowing "which topic is selected" isn't paywalled content (see module doc
+  // comment). This is what lets app/layout.tsx and every page share one answer within a request.
+  it('still resolves topic/locale via its own /bootstrap call even when the page credential is null', async () => {
     mockGetServerSession.mockResolvedValue(null)
-    fetchMock.mockImplementation((url: string) => {
-      if (url.includes('/auth/guest')) return jsonResponse({ access_token: 'guest-jwt' })
-      if (url.includes('/topics')) return jsonResponse([{ id: 'topic-1' }])
-      return jsonResponse({ available: [], resolved: 'en' })
-    })
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/bootstrap') ? bootstrapResponse() : jsonResponse({}, false),
+    )
     const ctx = await resolveSsrContext()
     expect(ctx.credential).toBeNull()
     expect(ctx.topicId).toBe('topic-1')
   })
 
-  it('degrades topic/locale to their null/"en" defaults when even the guest-fallback credential cannot be obtained', async () => {
+  it('degrades topic/locale to their null/"en" defaults when /bootstrap fails', async () => {
     mockGetServerSession.mockResolvedValue(null)
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/auth/guest') ? jsonResponse({}, false) : jsonResponse([]),
-    )
+    fetchMock.mockResolvedValue(jsonResponse({}, false))
     const ctx = await resolveSsrContext()
     expect(ctx.topicId).toBeNull()
     expect(ctx.locale).toBe('en')
@@ -102,7 +108,7 @@ describe('resolveSsrContext — credential resolution', () => {
   it('issues a one-time guest token when allowGuestCredential is true and there is no session', async () => {
     mockGetServerSession.mockResolvedValue(null)
     fetchMock.mockImplementation((url: string) =>
-      url.includes('/auth/guest') ? jsonResponse({ access_token: 'guest-jwt' }) : jsonResponse([]),
+      url.includes('/auth/guest') ? jsonResponse({ access_token: 'guest-jwt' }) : bootstrapResponse(),
     )
     const ctx = await resolveSsrContext({ allowGuestCredential: true })
     expect(ctx.credential).toBe('guest-jwt')
@@ -114,7 +120,7 @@ describe('resolveSsrContext — credential resolution', () => {
 
   it('still prefers a real session over a guest token when allowGuestCredential is true and a session exists', async () => {
     mockGetServerSession.mockResolvedValue({ accessToken: 'session-jwt' })
-    fetchMock.mockResolvedValue(jsonResponse([]))
+    fetchMock.mockResolvedValue(bootstrapResponse())
     const ctx = await resolveSsrContext({ allowGuestCredential: true })
     expect(ctx.credential).toBe('session-jwt')
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/auth/guest'), expect.anything())
@@ -123,7 +129,7 @@ describe('resolveSsrContext — credential resolution', () => {
   it('degrades to a null credential when allowGuestCredential is true but guest-token issuance fails', async () => {
     mockGetServerSession.mockResolvedValue(null)
     fetchMock.mockImplementation((url: string) =>
-      url.includes('/auth/guest') ? jsonResponse({}, false) : jsonResponse([]),
+      url.includes('/auth/guest') ? jsonResponse({}, false) : bootstrapResponse(),
     )
     const ctx = await resolveSsrContext({ allowGuestCredential: true })
     expect(ctx.credential).toBeNull()
@@ -142,6 +148,8 @@ describe('guest-token caching (root-cause-1 follow-up — reused across differen
   // only affects call *count* for a request that was always going to need a token either way).
   // What these tests verify instead — the property that actually matters for root cause 1 across
   // *different* visitors' renders — is the module-level cache itself: once warm, it doesn't grow.
+  // Every test in this block deliberately makes /bootstrap return no access_token, so the
+  // module-level cache is populated exclusively by /auth/guest here.
   it('reuses a cached guest token across separate resolveSsrContext() calls instead of re-issuing one indefinitely', async () => {
     let guestTokenCalls = 0
     fetchMock.mockImplementation((url: string) => {
@@ -149,7 +157,7 @@ describe('guest-token caching (root-cause-1 follow-up — reused across differen
         guestTokenCalls += 1
         return jsonResponse({ access_token: 'guest-jwt', expires_in: 3600 })
       }
-      return jsonResponse([])
+      return jsonResponse({ topics: [], languages: { available: [], resolved: 'en' } })
     })
 
     await resolveSsrContext({ allowGuestCredential: true })
@@ -168,7 +176,7 @@ describe('guest-token caching (root-cause-1 follow-up — reused across differen
         // expires_in: 30s — already inside the 60s refresh margin, so it's never treated as fresh.
         return jsonResponse({ access_token: `guest-jwt-${issuedCount}`, expires_in: 30 })
       }
-      return jsonResponse([])
+      return jsonResponse({ topics: [], languages: { available: [], resolved: 'en' } })
     })
 
     await resolveSsrContext({ allowGuestCredential: true })
@@ -191,7 +199,7 @@ describe('guest-token caching (root-cause-1 follow-up — reused across differen
         attempts += 1
         return attempts === 1 ? jsonResponse({}, false) : jsonResponse({ access_token: 'guest-jwt', expires_in: 3600 })
       }
-      return jsonResponse([])
+      return jsonResponse({ topics: [], languages: { available: [], resolved: 'en' } })
     })
 
     const first = await resolveSsrContext({ allowGuestCredential: true })
@@ -201,9 +209,36 @@ describe('guest-token caching (root-cause-1 follow-up — reused across differen
     expect(second.credential).toBe('guest-jwt')
     expect(attempts).toBe(2)
   })
+
+  // /bootstrap always mints its own guest token too (backend/routers/bootstrap.py) — this
+  // opportunistically warms the same module-level cache, so a page needing its own guest
+  // credential (allowGuestCredential: true) can end up reusing a token that /bootstrap supplied
+  // rather than issuing a separate /auth/guest call at all.
+  it('opportunistically reuses a guest token that /bootstrap already minted, skipping /auth/guest entirely', async () => {
+    mockCookiesGet.mockReturnValue(undefined)
+    let authGuestCalls = 0
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/bootstrap')) return bootstrapResponse({ access_token: 'from-bootstrap', expires_in: 3600 })
+      if (url.includes('/auth/guest')) {
+        authGuestCalls += 1
+        return jsonResponse({ access_token: 'from-auth-guest', expires_in: 3600 })
+      }
+      return jsonResponse({}, false)
+    })
+
+    // First call warms the cache via /bootstrap (topic/locale resolution runs regardless of
+    // allowGuestCredential, so this alone is enough to populate cachedGuestToken).
+    await resolveSsrContext({ allowGuestCredential: false })
+    // Second call's own credential resolution (allowGuestCredential: true) should find the
+    // cache already warm from the first call's /bootstrap response.
+    const second = await resolveSsrContext({ allowGuestCredential: true })
+
+    expect(second.credential).toBe('from-bootstrap')
+    expect(authGuestCalls).toBe(0)
+  })
 })
 
-describe('resolveSsrContext — topic resolution', () => {
+describe('resolveSsrContext — topic and locale resolution (via POST /bootstrap)', () => {
   beforeEach(() => {
     mockGetServerSession.mockResolvedValue({ accessToken: 'session-jwt' })
   })
@@ -211,101 +246,104 @@ describe('resolveSsrContext — topic resolution', () => {
   // Mirrors topic-provider.tsx's loadTopics(): no stored preference → first topic, not "no
   // filter" — a first-time visitor (no cookie yet) still gets a real, seeded default topic's
   // content server-side, same as their first client-side render would resolve to.
-  it('falls back to the first topic when the cookie is absent', async () => {
+  it('falls back to the first topic and resolved locale when neither cookie is present', async () => {
     mockCookiesGet.mockReturnValue(undefined)
-    fetchMock.mockResolvedValue(jsonResponse([{ id: 'topic-1' }, { id: 'topic-2' }]))
-    const ctx = await resolveSsrContext()
-    expect(ctx.topicId).toBe('topic-1')
-  })
-
-  // Root-cause-1 follow-up: a present cookie is trusted directly — no GET /topics round trip at
-  // all — rather than validated first. This is what actually collapses the SSR fetch chain for
-  // returning visitors.
-  it('trusts a present cookie directly, without calling GET /topics', async () => {
-    // Must match TOPIC_ID_PATTERN (hex + hyphen, like a real UUID) — a non-matching fixture
-    // would fall through to the GET /topics path this test is asserting never happens.
-    mockCookiesGet.mockImplementation((name: string) =>
-      name === 'selectedTopicId' ? { value: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } : undefined,
+    fetchMock.mockResolvedValue(
+      bootstrapResponse({ topics: [{ id: 'topic-1' }, { id: 'topic-2' }], languages: { available: [], resolved: 'zh-TW' } }),
     )
     const ctx = await resolveSsrContext()
+    expect(ctx.topicId).toBe('topic-1')
+    expect(ctx.locale).toBe('zh-TW')
+  })
+
+  // Root-cause-1 follow-up: cookies naming both are trusted directly — no /bootstrap round trip
+  // at all — rather than validated first. This is what actually collapses the SSR fetch chain
+  // for returning visitors.
+  it('trusts both cookies directly, without calling /bootstrap at all', async () => {
+    mockCookiesGet.mockImplementation((name: string) => {
+      if (name === 'selectedTopicId') return { value: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }
+      if (name === 'locale') return { value: 'zh-TW' }
+      return undefined
+    })
+    const ctx = await resolveSsrContext()
     expect(ctx.topicId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/topics'), expect.anything())
+    expect(ctx.locale).toBe('zh-TW')
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/bootstrap'), expect.anything())
   })
 
   // A cookie naming a deleted/deactivated topic (spec Edge Cases) is trusted anyway for this one
-  // render — no longer validated/corrected server-side. The actual data fetch for that topic_id
-  // just comes back empty, same as any other "no results" case; topic-provider.tsx's own
-  // client-side loadTopics() validation (unchanged) corrects the cookie on its next run, so this
-  // self-heals within one visit rather than paying a GET /topics round trip on every render.
+  // render — no longer validated/corrected server-side. topic-provider.tsx's own client-side
+  // loadTopics() validation (unchanged) corrects the cookie on its next run.
   it('trusts a stale/deleted-topic cookie too, rather than validating it', async () => {
-    // Must match TOPIC_ID_PATTERN (hex + hyphen, like a real UUID) — see comment above.
-    mockCookiesGet.mockImplementation((name: string) =>
-      name === 'selectedTopicId' ? { value: 'deadbeef-dead-beef-dead-beefdeadbeef' } : undefined,
-    )
+    mockCookiesGet.mockImplementation((name: string) => {
+      if (name === 'selectedTopicId') return { value: 'deadbeef-dead-beef-dead-beefdeadbeef' }
+      if (name === 'locale') return { value: 'en' }
+      return undefined
+    })
     const ctx = await resolveSsrContext()
     expect(ctx.topicId).toBe('deadbeef-dead-beef-dead-beefdeadbeef')
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/topics'), expect.anything())
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/bootstrap'), expect.anything())
   })
 
-  it('resolves null when there are no topics at all', async () => {
-    mockCookiesGet.mockReturnValue(undefined)
-    fetchMock.mockResolvedValue(jsonResponse([]))
-    const ctx = await resolveSsrContext()
-    expect(ctx.topicId).toBeNull()
-  })
-
-  it('falls back to null when GET /topics fails (no-cookie path — GET /topics is unavoidable here)', async () => {
-    mockCookiesGet.mockReturnValue(undefined)
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/topics') ? jsonResponse({}, false) : jsonResponse({}),
+  // Only the topic cookie is present — /bootstrap is still called (locale is unresolved), but
+  // its own topics answer must be ignored in favor of the cookie's value.
+  it('still calls /bootstrap when only the topic cookie is present, but keeps the cookie topicId', async () => {
+    mockCookiesGet.mockImplementation((name: string) =>
+      name === 'selectedTopicId' ? { value: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } : undefined,
+    )
+    fetchMock.mockResolvedValue(
+      bootstrapResponse({ topics: [{ id: 'bootstrap-topic' }], languages: { available: [], resolved: 'zh-TW' } }),
     )
     const ctx = await resolveSsrContext()
+    expect(ctx.topicId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+    expect(ctx.locale).toBe('zh-TW')
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/bootstrap'), expect.anything())
+  })
+
+  // Only the locale cookie is present — /bootstrap is still called (topic is unresolved), but
+  // its own languages answer must be ignored in favor of the cookie's value.
+  it('still calls /bootstrap when only the locale cookie is present, but keeps the cookie locale', async () => {
+    mockCookiesGet.mockImplementation((name: string) => (name === 'locale' ? { value: 'zh-TW' } : undefined))
+    fetchMock.mockResolvedValue(
+      bootstrapResponse({ topics: [{ id: 'bootstrap-topic' }], languages: { available: [], resolved: 'en' } }),
+    )
+    const ctx = await resolveSsrContext()
+    expect(ctx.topicId).toBe('bootstrap-topic')
+    expect(ctx.locale).toBe('zh-TW')
+  })
+
+  it('falls through to /bootstrap when the locale cookie value is unsupported', async () => {
+    mockCookiesGet.mockImplementation((name: string) => (name === 'locale' ? { value: 'fr' } : undefined))
+    fetchMock.mockResolvedValue(bootstrapResponse({ languages: { available: [], resolved: 'en' } }))
+    const ctx = await resolveSsrContext()
+    expect(ctx.locale).toBe('en')
+  })
+
+  it('resolves a null topicId when /bootstrap returns no topics at all', async () => {
+    mockCookiesGet.mockReturnValue(undefined)
+    fetchMock.mockResolvedValue(bootstrapResponse({ topics: [] }))
+    const ctx = await resolveSsrContext()
     expect(ctx.topicId).toBeNull()
   })
-})
 
-describe('resolveSsrContext — locale resolution', () => {
-  beforeEach(() => {
-    mockGetServerSession.mockResolvedValue({ accessToken: 'session-jwt' })
-  })
-
-  it('uses a supported locale cookie directly, without calling GET /languages', async () => {
-    mockCookiesGet.mockImplementation((name: string) => (name === 'locale' ? { value: 'zh-TW' } : undefined))
+  it('falls back to null/"en" when /bootstrap fails (no cookies — the round trip is unavoidable here)', async () => {
+    mockCookiesGet.mockReturnValue(undefined)
+    fetchMock.mockResolvedValue(jsonResponse({}, false))
     const ctx = await resolveSsrContext()
-    expect(ctx.locale).toBe('zh-TW')
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/languages'), expect.anything())
+    expect(ctx.topicId).toBeNull()
+    expect(ctx.locale).toBe('en')
   })
 
-  it('geo-IP resolves via GET /languages, forwarding X-Forwarded-For, when the cookie is absent', async () => {
+  it('forwards X-Forwarded-For to /bootstrap for geo-IP locale resolution', async () => {
     mockCookiesGet.mockReturnValue(undefined)
     mockHeadersGet.mockImplementation((name: string) => (name === 'x-forwarded-for' ? '203.0.113.1' : null))
     fetchMock.mockImplementation((url: string, init?: RequestInit) => {
-      if (url.includes('/languages')) {
-        expect((init?.headers as Record<string, string>)?.['X-Forwarded-For']).toBe('203.0.113.1')
-        return jsonResponse({ available: [], resolved: 'zh-TW' })
-      }
-      return jsonResponse([])
+      expect(url).toContain('/bootstrap')
+      expect((init?.headers as Record<string, string>)?.['X-Forwarded-For']).toBe('203.0.113.1')
+      return bootstrapResponse({ languages: { available: [], resolved: 'zh-TW' } })
     })
     const ctx = await resolveSsrContext()
     expect(ctx.locale).toBe('zh-TW')
-  })
-
-  it('geo-IP resolves via GET /languages when the cookie value is unsupported', async () => {
-    mockCookiesGet.mockImplementation((name: string) => (name === 'locale' ? { value: 'fr' } : undefined))
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/languages') ? jsonResponse({ available: [], resolved: 'en' }) : jsonResponse([]),
-    )
-    const ctx = await resolveSsrContext()
-    expect(ctx.locale).toBe('en')
-  })
-
-  it('falls back to "en" when GET /languages fails', async () => {
-    mockCookiesGet.mockReturnValue(undefined)
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/languages') ? jsonResponse({}, false) : jsonResponse([]),
-    )
-    const ctx = await resolveSsrContext()
-    expect(ctx.locale).toBe('en')
   })
 })
 

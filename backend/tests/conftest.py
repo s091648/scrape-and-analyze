@@ -123,7 +123,7 @@ def _no_cache_by_default(request):
     exactly as they would in production — just guaranteed isolated *across* tests)."""
     if request.node.get_closest_marker("integration"):
         from backend.cache import cache_gateway
-        for namespace in ("articles", "graph", "tag_groups", "weekly_reports"):
+        for namespace in ("articles", "graph", "tag_groups", "weekly_reports", "topics"):
             cache_gateway.bump_version(namespace)
         yield
         return

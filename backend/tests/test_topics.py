@@ -245,6 +245,75 @@ def test_delete_topic_not_found_returns_404():
     assert response.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# GET /topics — caching (020-redis-caching-layer)
+# ---------------------------------------------------------------------------
+
+def test_list_topics_sets_x_cache_header():
+    from backend.main import app
+    from backend.database import get_db
+
+    mock_topic = _mock_topic()
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [mock_topic]
+
+    app.dependency_overrides[get_db] = _override_db(mock_db)
+    try:
+        client = TestClient(app)
+        response = client.get("/topics", headers={"Authorization": f"Bearer {_guest_token()}"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert "X-Cache" in response.headers
+
+
+class _InMemoryFakeCacheGateway:
+    """Minimal in-memory CacheGateway stand-in — mirrors test_graph.py's version. Real
+    cache-aside behavior is covered by backend/tests/integration/test_topics.py; this
+    only confirms list_topics() actually calls through CacheGateway.get_or_set()."""
+
+    def __init__(self):
+        self._store = {}
+
+    def get_or_set(self, namespace, params, ttl_seconds, loader, lang="en"):
+        import json
+        from shared.cache import CacheResult
+        key = (namespace, lang, json.dumps(params, sort_keys=True, default=str))
+        if key not in self._store:
+            self._store[key] = loader()
+            return CacheResult(value=self._store[key], status="MISS")
+        return CacheResult(value=self._store[key], status="HIT")
+
+    def bump_version(self, namespace):
+        return 0
+
+
+def test_list_topics_cache_hit_avoids_second_query():
+    from backend.main import app
+    from backend.database import get_db
+    from backend.cache import get_cache_gateway
+
+    mock_topic = _mock_topic()
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter_by.return_value.order_by.return_value.all.return_value = [mock_topic]
+    fake_gateway = _InMemoryFakeCacheGateway()
+
+    app.dependency_overrides[get_db] = _override_db(mock_db)
+    app.dependency_overrides[get_cache_gateway] = lambda: fake_gateway
+    try:
+        client = TestClient(app)
+        first = client.get("/topics", headers={"Authorization": f"Bearer {_guest_token()}"})
+        second = client.get("/topics", headers={"Authorization": f"Bearer {_guest_token()}"})
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_cache_gateway, None)
+
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+    assert mock_db.query.return_value.filter_by.return_value.order_by.return_value.all.call_count == 1
+
+
 def test_delete_topic_soft_deletes_returns_204():
     from backend.main import app
     from backend.database import get_db

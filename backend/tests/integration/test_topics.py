@@ -189,18 +189,51 @@ def _spy_bump_version(monkeypatch):
 def test_create_topic_bumps_article_scoped_caches(api_client, monkeypatch):
     calls = _spy_bump_version(monkeypatch)
     api_client.post("/topics", json=_topic_payload(), headers=_ADMIN_HDR)
-    assert set(calls) == {"articles", "graph", "tag_groups"}
+    assert set(calls) == {"articles", "graph", "tag_groups", "topics"}
 
 
 def test_update_topic_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
     t = _seed_topic(db_session, name="cache-bump-topic")
     calls = _spy_bump_version(monkeypatch)
     api_client.patch(f"/topics/{t.id}", json={"display_name": "New"}, headers=_ADMIN_HDR)
-    assert set(calls) == {"articles", "graph", "tag_groups"}
+    assert set(calls) == {"articles", "graph", "tag_groups", "topics"}
 
 
 def test_delete_topic_bumps_article_scoped_caches(api_client, db_session, monkeypatch):
     t = _seed_topic(db_session, name="cache-bump-delete-topic")
     calls = _spy_bump_version(monkeypatch)
     api_client.delete(f"/topics/{t.id}", headers=_ADMIN_HDR)
-    assert set(calls) == {"articles", "graph", "tag_groups"}
+    assert set(calls) == {"articles", "graph", "tag_groups", "topics"}
+
+
+def test_get_topics_second_call_is_cache_hit(api_client, db_session):
+    _seed_topic(db_session, name="cache-hit-topic")
+    first = api_client.get("/topics")
+    second = api_client.get("/topics")
+    assert first.headers["X-Cache"] == "MISS"
+    assert second.headers["X-Cache"] == "HIT"
+
+
+def test_get_topics_include_inactive_uses_a_separate_cache_entry(api_client, db_session):
+    """include_inactive is part of the cache key — an admin view must never serve a
+    cached response meant for the public (active-only) view or vice versa."""
+    _seed_topic(db_session, name="separate-cache-active", is_active=True)
+    _seed_topic(db_session, name="separate-cache-inactive", is_active=False)
+    public = api_client.get("/topics")
+    admin = api_client.get("/topics?include_inactive=true")
+    assert public.headers["X-Cache"] == "MISS"
+    assert admin.headers["X-Cache"] == "MISS"
+    public_names = [t["name"] for t in public.json()]
+    admin_names = [t["name"] for t in admin.json()]
+    assert "separate-cache-inactive" not in public_names
+    assert "separate-cache-inactive" in admin_names
+
+
+def test_update_topic_invalidates_get_topics_cache(api_client, db_session):
+    t = _seed_topic(db_session, name="stale-before-update")
+    first = api_client.get("/topics")
+    assert first.headers["X-Cache"] == "MISS"
+    api_client.patch(f"/topics/{t.id}", json={"display_name": "Updated Live"}, headers=_ADMIN_HDR)
+    second = api_client.get("/topics")
+    assert second.headers["X-Cache"] == "MISS"
+    assert next(x["display_name"] for x in second.json() if x["name"] == "stale-before-update") == "Updated Live"
