@@ -64,16 +64,27 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
         const resolved = data.resolved || 'en'
         setResolvedLanguage(resolved)
         const stored = localStorage.getItem('locale')
+        const preferred = stored || resolved
         if (!stored) {
           // Backfills the cookie for a true first-ever visitor, so their *next* visit's SSR
           // render (021-ssr-public-pages) already knows their geo-resolved language instead of
           // re-resolving from scratch — localStorage semantics here are otherwise unchanged.
           setPreferenceCookie(LOCALE_COOKIE_NAME, resolved)
+        } else if (stored !== initialLocale) {
+          // The visitor's stored preference disagrees with the locale cookie SSR just trusted
+          // (e.g. it expired, or was cleared by browser privacy settings, while localStorage
+          // persisted) — resync the cookie so the *next* SSR render already picks it up.
+          setPreferenceCookie(LOCALE_COOKIE_NAME, stored)
         }
-        setLocaleState(stored || resolved)
+        // Only apply the client-resolved value when there was no SSR seed to protect, or it
+        // agrees with what's already rendered — flipping it here otherwise would be exactly the
+        // post-hydration flash 021-ssr-public-pages' SSR seeding was meant to avoid. A genuine
+        // mismatch (rare: stale/cleared locale cookie) self-heals via the cookie resync above on
+        // the visitor's next navigation instead of flashing mid-visit.
+        if (!initialLocale || preferred === initialLocale) setLocaleState(preferred)
       })
       .catch(() => {
-        setLocaleState('en')
+        if (!initialLocale) setLocaleState('en')
       })
       .finally(() => setIsLoading(false))
   }, [authLoading, token])

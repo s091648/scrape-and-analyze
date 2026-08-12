@@ -94,6 +94,11 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
   useEffect(() => {
     if (isPaywall) { setIsLoading(false); return }
     if (!selectedTopicId) return
+    // Session resolution is itself async (useSession() starts at status: 'loading' with
+    // token: undefined even for an already-signed-in visitor) — waiting for it to settle
+    // before consuming skipNextFetch is what keeps the *real* first fetch (not this
+    // transient one) from being the one that discards the SSR-seeded articles.
+    if (status === 'loading') return
     if (skipNextFetch.current) {
       skipNextFetch.current = false
       setIsLoading(false)
@@ -121,7 +126,7 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
     )
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale, token])
+  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale, token, status])
 
   // Favorites-only is a display filter over the already-fetched page — toggling it
   // doesn't need a new API round trip, just a re-render.
