@@ -1,29 +1,26 @@
-import time
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
+from shared.cache import CacheGateway, DEFAULT_TTL_SECONDS
 from backend.auth.guards import require_any_token
+from backend.cache import get_cache_gateway
 from backend.database import get_db
 from backend.schemas.error import error_responses
 from backend.services.graph_service import (
-    load_group_defs,
     load_group_def,
-    query_analyses,
     query_group_articles,
-    build_graph,
+    build_graph_payload,
 )
 
 router = APIRouter(tags=["graph"])
 
-_cache: dict[tuple, tuple[Any, float]] = {}
-CACHE_TTL_SECONDS = 300
-
 
 @router.get('/analyses/graph', responses=error_responses(401))
 def get_graph(
+    response: Response,
     topic_id: Optional[UUID] = Query(default=None),
     lang: str = Query(default="en"),
     published_after: Optional[datetime] = Query(default=None),
@@ -35,36 +32,34 @@ def get_graph(
     tag: Optional[List[str]] = Query(default=None),
     db: Session = Depends(get_db),
     _token: dict = Depends(require_any_token),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
-    cache_key = (
-        str(topic_id), lang,
-        str(published_after), str(published_before),
-        str(scraped_after), str(scraped_before),
-        tuple(sorted(aggregator or [])),
-        tuple(sorted(original_source or [])),
-        tuple(sorted(tag or [])),
-    )
-    now = time.time()
-    if cache_key in _cache:
-        result, expires_at = _cache[cache_key]
-        if now < expires_at:
-            return result
+    cache_params = {
+        "topic_id": str(topic_id),
+        "published_after": str(published_after), "published_before": str(published_before),
+        "scraped_after": str(scraped_after), "scraped_before": str(scraped_before),
+        "aggregator": sorted(aggregator or []),
+        "original_source": sorted(original_source or []),
+        "tag": sorted(tag or []),
+    }
 
-    group_defs = load_group_defs(db, lang=lang)
-    analyses = query_analyses(
-        db,
-        topic_id=topic_id,
-        published_after=published_after,
-        published_before=published_before,
-        scraped_after=scraped_after,
-        scraped_before=scraped_before,
-        aggregators=aggregator or None,
-        original_sources=original_source or None,
-        tags=tag or None,
-    )
-    result = build_graph(analyses, group_defs)
-    _cache[cache_key] = (result, now + CACHE_TTL_SECONDS)
-    return result
+    def _load() -> dict:
+        return build_graph_payload(
+            db,
+            topic_id=topic_id,
+            lang=lang,
+            published_after=published_after,
+            published_before=published_before,
+            scraped_after=scraped_after,
+            scraped_before=scraped_before,
+            aggregators=aggregator or None,
+            original_sources=original_source or None,
+            tags=tag or None,
+        )
+
+    result = cache_gateway.get_or_set("graph", cache_params, DEFAULT_TTL_SECONDS, _load, lang=lang)
+    response.headers["X-Cache"] = result.status
+    return result.value
 
 
 @router.get('/analyses/graph/group/{group_name}', responses=error_responses(401))

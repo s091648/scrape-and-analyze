@@ -18,12 +18,14 @@ from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
-from src.infrastructure.shared.observability import init_run_context, get_run_id
+from src.infrastructure.shared.observability import (
+    init_run_context, get_run_id, log_execution_started, log_execution_completed,
+)
 
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, include_local_variables=False)
+    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, traces_sample_rate=0.1, include_local_variables=False)
 
 logger = get_logger(__name__)
 
@@ -62,10 +64,11 @@ def main() -> None:
     # alongside other cron jobs. Skipped when RUN_IMMEDIATELY is set (manual triggers).
     # Read directly from os.environ (not the frozen settings constant) so tests
     # that set/unset the env var per-case take effect without a module reload.
+    jitter_seconds = None
     if not os.environ.get("RUN_IMMEDIATELY", "").strip():
-        _jitter = random.uniform(0, 180)  # 0–3 minutes
-        logger.info("startup_jitter_sleep", seconds=round(_jitter))
-        time.sleep(_jitter)
+        jitter_seconds = random.uniform(0, 180)  # 0–3 minutes
+        logger.info("startup_jitter_sleep", seconds=round(jitter_seconds))
+        time.sleep(jitter_seconds)
 
     init_default_client(HttpClient.build_default())
 
@@ -75,10 +78,9 @@ def main() -> None:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    env = APP_ENV
-    logger.info("execution_started", run_id=run_id, correlation_id=correlation_id, env=env)
-
-    start_time = time.time()
+    started_at, t0 = log_execution_started(
+        logger, run_id=run_id, correlation_id=correlation_id, jitter_seconds=jitter_seconds,
+    )
 
     tracer = get_tracer()
     from shared.enums.observability import SpanName, SpanAttribute
@@ -88,7 +90,7 @@ def main() -> None:
             span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
             try:
-                pipeline, pipeline_stats = build_collection_pipeline()
+                pipeline, pipeline_stats = build_collection_pipeline(jitter_seconds=jitter_seconds)
                 pipeline.run()
 
             except Exception as e:
@@ -97,16 +99,14 @@ def main() -> None:
                 logger.error("execution_failed", error=str(e), error_type=type(e).__name__)
                 raise
             finally:
-                duration = time.time() - start_time
                 stats = pipeline_stats.get_results()
                 total_new = sum(s.new for s in stats)
                 total_dup = sum(s.duplicate for s in stats)
                 total_fail = sum(s.failed for s in stats)
                 per_source = {s.source: {"new": s.new, "duplicate": s.duplicate, "failed": s.failed} for s in stats}
-                logger.info(
-                    "execution_completed",
+                log_execution_completed(
+                    logger, started_at, t0,
                     run_id=get_run_id(),
-                    duration_seconds=round(duration, 2),
                     articles_new=total_new,
                     articles_duplicate=total_dup,
                     articles_failed=total_fail,

@@ -116,10 +116,11 @@ interface TutorialContextType {
 
 | Action | Pre-condition | State change | Side effect |
 |--------|--------------|--------------|-------------|
-| (internal) `isGuestMode` becomes `true` | — | `openTutorial("guest-onboarding")` | — |
+| (internal) `isGuestMode` becomes `true` | `sessionStorage['tutorial_onboarding_dismissed']` not set | `openTutorial("guest-onboarding")` | — |
+| (internal) `isGuestMode` becomes `false` | — | — | Clears `sessionStorage['tutorial_onboarding_dismissed']` |
 | (internal) pathname changes | some `kind:"spotlight"` tour matches route + unseen + role + `!isTutorialOpen` | `openTutorial(tour.id)` | — |
-| `openTutorial(tourId?)` | `isGuestMode=true` OR `status==='authenticated'` | `isTutorialOpen=true`, `activeTourId=tourId ?? "guest-onboarding"`, `tutorialStep=0` | — |
-| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | If active tour `kind==="spotlight"`, append its id to `localStorage['tutorial_seen_tours']` |
+| `openTutorial(tourId?)` | `isGuestMode=true` OR `status==='authenticated'` | `isTutorialOpen=true`, `activeTourId=tourId ?? "guest-onboarding"`, `tutorialStep=0` | — (bypasses the `tutorial_onboarding_dismissed` check — manual reopen always works) |
+| `closeTutorial()` | `isTutorialOpen=true` | `isTutorialOpen=false` | If active tour `kind==="spotlight"`, append its id to `localStorage['tutorial_seen_tours']`; if `kind==="onboarding"`, set `sessionStorage['tutorial_onboarding_dismissed']='true'` |
 | `nextTutorialStep()` | `tutorialStep < activeTour.steps.length - 1` | `tutorialStep++` | — (route sync happens in `TutorialOverlay`, not here) |
 | `prevTutorialStep()` | `tutorialStep > 0` | `tutorialStep--` | — |
 

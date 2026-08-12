@@ -45,13 +45,13 @@ def _get(url):
 
 
 def test_sort_citation_count_is_accepted():
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         r = _get("/articles?sort=citation_count&order=desc")
     assert r.status_code == 200
 
 
 def test_sort_view_count_is_accepted():
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         r = _get("/articles?sort=view_count&order=asc")
     assert r.status_code == 200
 
@@ -59,7 +59,7 @@ def test_sort_view_count_is_accepted():
 def test_sort_arbitrary_metric_key_is_accepted():
     """2026-07-12: sort is no longer a fixed Literal — any catalog metric_key is a valid value,
     since the set of enabled metrics is deployment-defined, not known at the API-schema level."""
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         r = _get("/articles?sort=impact_factor&order=desc")
     assert r.status_code == 200
 
@@ -67,13 +67,13 @@ def test_sort_arbitrary_metric_key_is_accepted():
 def test_sort_unrecognized_value_does_not_error():
     """An unrecognized sort value degrades gracefully (no-op ordering), not a 422 — the API can no
     longer distinguish "invalid" from "a metric_key it doesn't know about yet" at request time."""
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])):
         r = _get("/articles?sort=totally_not_a_thing")
     assert r.status_code == 200
 
 
 def test_sort_citation_count_passes_correct_arg_to_service():
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])) as mock_svc:
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])) as mock_svc:
         _get("/articles?sort=citation_count&order=desc")
     call_kwargs = mock_svc.call_args
     positional = call_kwargs[0]
@@ -82,7 +82,7 @@ def test_sort_citation_count_passes_correct_arg_to_service():
 
 
 def test_sort_view_count_passes_correct_arg_to_service():
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(0, [])) as mock_svc:
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(0, [])) as mock_svc:
         _get("/articles?sort=view_count&order=asc")
     call_kwargs = mock_svc.call_args
     positional = call_kwargs[0]
@@ -92,7 +92,7 @@ def test_sort_view_count_passes_correct_arg_to_service():
 
 def test_citation_count_included_in_response():
     rows = [_row("Paper A", citation=150, views=10)]
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(1, rows)):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(1, rows)):
         r = _get("/articles?sort=citation_count&order=desc")
     assert r.status_code == 200
     item = r.json()["items"][0]
@@ -103,7 +103,7 @@ def test_citation_count_included_in_response():
 def test_articles_response_includes_arbitrary_catalog_metrics():
     """2026-07-12: `metrics` is a generic map, not limited to citation_count."""
     row = (_mock_article("Multi-metric"), _mock_metrics(5), {"citation_count": 10, "impact_factor": 3.5}, None)
-    with patch("backend.routers.articles.get_articles_paginated", return_value=(1, [row])):
+    with patch("backend.services.article_service.get_articles_paginated", return_value=(1, [row])):
         r = _get("/articles")
     item = r.json()["items"][0]
     assert item["metrics"] == {"citation_count": 10, "impact_factor": 3.5}

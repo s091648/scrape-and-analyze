@@ -142,6 +142,10 @@ const OPS_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.articlesFound',     buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event =~ "analysis_completed|article_duplicate_skipped" [${rv}]))`,               step: '3600', tooltipKey: 'admin.articlesFoundTooltip' },
   { queryType: 'loki', titleKey: 'admin.recentRunDurationP100', buildQuery: rv => `max(max_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
   { queryType: 'loki', titleKey: 'admin.avgDurationP50',        buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
+  // 020-redis-caching-layer verification: shared/cache/redis_gateway.py emits one
+  // "cache_lookup" event per get_or_set() call (namespace/status/lang), covering every
+  // cached endpoint (articles/graph/tag_groups/weekly_reports) from a single choke point.
+  { queryType: 'loki', titleKey: 'admin.cacheHitRate', buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.cacheHitRateTooltip' },
 ]
 
 const OPS_CHARTS: ChartPanelDef[] = [
@@ -151,6 +155,7 @@ const OPS_CHARTS: ChartPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: _rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: _rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [1d]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart', buildQuery: _rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d]))`,                                                              step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
 ]
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch
 from src.infrastructure.collection.clients.openalex_client import (
     OpenAlexEntry,
@@ -93,16 +94,18 @@ def test_discover_no_keywords_returns_empty():
     mock_client.fetch_papers.assert_not_called()
 
 
-def test_discover_rate_limited_returns_empty():
+def test_discover_rate_limited_reraises():
+    """discover() must re-raise OpenAlexRateLimitedError (not swallow it) so
+    ScrapeExecutor can abort remaining same-host discovers for this run —
+    matches ArxivScraper's existing behavior (see rate_limit_errors.py)."""
     from src.infrastructure.collection.scrapers.openalex_scraper import OpenAlexScraper
 
     mock_client = MagicMock()
     mock_client.fetch_papers.side_effect = OpenAlexRateLimitedError("429")
 
     scraper = OpenAlexScraper(keywords=["digital twin"], client=mock_client, fetch_pdf=False)
-    jobs = scraper.discover()
-
-    assert jobs == []
+    with pytest.raises(OpenAlexRateLimitedError):
+        scraper.discover()
 
 
 def test_discover_keywords_joined_as_query():

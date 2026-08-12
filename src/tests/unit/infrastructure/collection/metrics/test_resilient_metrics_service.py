@@ -6,6 +6,7 @@ from src.infrastructure.collection.metrics.resilient_metrics_service import (
     build_resilient_metrics_service,
     build_provider_fetchers,
 )
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 
 
 def _handler(metric_key, provider_name, priority, fetch_return, extract_return):
@@ -71,6 +72,69 @@ def test_fetch_all_handles_multiple_independent_metric_keys():
     result = service.fetch_all({"doi": "10.1234/x"})
 
     assert result == {"citation_count": 10, "impact_factor": 4.5}
+
+
+# ── run-scoped provider exhaustion (avoids grinding through remaining
+# articles once a provider has already 429'd this run — see refresh_metrics.py
+# production log evidence, 2026-08-12) ──────────────────────────────────────
+
+def test_fetch_all_falls_back_within_same_call_when_provider_rate_limited():
+    h1 = _handler("citation_count", "openalex", 1, None, None)
+    h1.extractor.fetch.side_effect = ProviderRateLimitedError("429")
+    h2 = _handler("citation_count", "semantic_scholar", 2, {"citationCount": 3}, 3)
+
+    service = ResilientMetricsService(handlers=[h1, h2])
+    result = service.fetch_all({"doi": "10.1234/x"})
+
+    assert result == {"citation_count": 3}
+
+
+def test_fetch_all_skips_exhausted_provider_on_later_call_without_invoking_fetch():
+    """Once a provider has raised ProviderRateLimitedError once, later fetch_all()
+    calls (for different articles, same service instance = same run) must skip
+    it outright — not call .fetch() again just to hit the same wall."""
+    h1 = _handler("citation_count", "openalex", 1, None, None)
+    h1.extractor.fetch.side_effect = ProviderRateLimitedError("429")
+
+    service = ResilientMetricsService(handlers=[h1])
+    first = service.fetch_all({"doi": "10.1234/a"})
+    assert first == {}
+    assert h1.extractor.fetch.call_count == 1
+
+    second = service.fetch_all({"doi": "10.1234/b"})
+    assert second == {}
+    assert h1.extractor.fetch.call_count == 1  # not called again — skipped
+
+
+def test_fetch_all_does_not_mark_provider_exhausted_on_generic_exception():
+    """A plain (non-rate-limit) exception is per-article transient — must not
+    poison the provider for the rest of the run."""
+    h1 = _handler("citation_count", "openalex", 1, None, None)
+    h1.extractor.fetch.side_effect = Exception("transient network blip")
+
+    service = ResilientMetricsService(handlers=[h1])
+    service.fetch_all({"doi": "10.1234/a"})
+    service.fetch_all({"doi": "10.1234/b"})
+
+    assert h1.extractor.fetch.call_count == 2  # retried, not skipped
+
+
+def test_exhausted_providers_empty_before_any_rate_limit():
+    h1 = _handler("citation_count", "openalex", 1, {"cited_by_count": 10}, 10)
+    service = ResilientMetricsService(handlers=[h1])
+    service.fetch_all({"doi": "10.1234/x"})
+
+    assert service.exhausted_providers == []
+
+
+def test_exhausted_providers_reports_provider_after_rate_limit():
+    h1 = _handler("citation_count", "openalex", 1, None, None)
+    h1.extractor.fetch.side_effect = ProviderRateLimitedError("429")
+
+    service = ResilientMetricsService(handlers=[h1])
+    service.fetch_all({"doi": "10.1234/a"})
+
+    assert service.exhausted_providers == ["openalex"]
 
 
 def test_tracked_metric_keys_reflects_configured_handlers():

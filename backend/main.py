@@ -24,6 +24,7 @@ from backend.routers.chat import router as chat_router
 from backend.routers.user import router as user_router
 from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
+from backend.routers.bootstrap import router as bootstrap_router
 from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV
 from backend.schemas.error import error_responses
 from backend.observability import configure_logging, setup_tracing
@@ -51,9 +52,12 @@ async def _periodic_view_flush():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from backend.cache_warmup_listener import listen_for_warmup_signals
     task = asyncio.create_task(_periodic_view_flush())
+    warmup_task = asyncio.create_task(listen_for_warmup_signals())
     yield
     task.cancel()
+    warmup_task.cancel()
     if _tracer_provider:
         _tracer_provider.shutdown()
 
@@ -98,6 +102,7 @@ app.include_router(chat_router)
 app.include_router(user_router)
 app.include_router(weekly_reports_router)
 app.include_router(metric_definitions_router)
+app.include_router(bootstrap_router)
 
 
 @app.get("/health", tags=["health"])

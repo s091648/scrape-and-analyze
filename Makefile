@@ -7,12 +7,15 @@
 	audit-tag-groups \
 	backfill-suggestions backfill-suggestions-dry-run \
 	backfill-rag backfill-rag-dry-run backfill-rag-remote backfill-rag-remote-production \
+	backfill-webp-covers backfill-webp-covers-dry-run backfill-webp-covers-remote \
+	backfill-r2-cache-control backfill-r2-cache-control-dry-run backfill-r2-cache-control-remote \
 	data-migrate data-migrate-list data-migrate-one data-migrate-down \
 	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
+	lighthouse-check \
 	site-preview uml uml-backend uml-db-schema uml-exceptions uml-frontend uml-frontend-deps uml-frontend-context
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
@@ -268,6 +271,28 @@ test-frontend-cov:
 
 test-frontend-e2e:
 	docker compose run --rm frontend npm run test:e2e
+
+# ─── lighthouse performance check ──────────────────────────────────────────────
+
+# Run a Lighthouse performance check across configured routes and produce a
+# consolidated, Traditional-Chinese Markdown report (specs/022-lighthouse-performance-check).
+# Defaults to the frontend_prod service — the production-build frontend — since dev-mode
+# numbers are not representative of real LCP/Web Vitals (see docker-compose.yml comments).
+# Usage:
+#   make lighthouse-check
+#   make lighthouse-check LIGHTHOUSE_URL=http://frontend_prod:3000
+#   make lighthouse-check LIGHTHOUSE_ROUTES="/,/articles"
+# Prerequisites: postgres, redis, backend, and frontend_prod must already be running
+# (docker compose up -d postgres redis backend && docker compose --profile tools up -d --build frontend_prod).
+# MSYS_NO_PATHCONV=1: on Windows + Git Bash, MSYS auto-converts a bare "/" argument into a
+# Windows path (e.g. "C:/Program Files/Git/"), silently corrupting the root route. This env
+# var disables that conversion; it's a no-op on Linux/Mac.
+LIGHTHOUSE_URL ?= http://frontend_prod:3000
+LIGHTHOUSE_ROUTES ?= /,/articles,/graph,/tags
+
+lighthouse-check:
+	MSYS_NO_PATHCONV=1 docker compose run --rm -v "$(CURDIR)/lighthouse-reports:/app/lighthouse-reports" frontend \
+		node scripts/lighthouse-check.mjs --url "$(LIGHTHOUSE_URL)" --routes "$(LIGHTHOUSE_ROUTES)"
 
 # ─── storybook ────────────────────────────────────────────────────────────────
 

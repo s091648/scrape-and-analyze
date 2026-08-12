@@ -124,6 +124,12 @@ class HttpClient:
                             self._ua_pool.rotate(domain)
                         last_403_exc = exc
                         continue
+                    if status_code == 429:
+                        # Real external quota exhaustion (daily/pool limit) doesn't clear
+                        # within a run — trip the circuit so callers to this domain fail
+                        # fast instead of pacing out more doomed requests. See
+                        # DomainCircuitOpenError docstring.
+                        self._rate_limiter.note_rate_limited(domain)
                 raise
 
         logger.error("http_403_exhausted", url=url)

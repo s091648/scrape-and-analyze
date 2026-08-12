@@ -14,7 +14,8 @@ from .queue_selector import (
     QueueSelector,
     WeightedRoundRobinQueueSelector,
 )
-from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
+from src.infrastructure.shared.rate_limit_tracker import RateLimitedProviderTracker
 from src.shared.logging import get_logger
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
@@ -70,8 +71,14 @@ class ScrapeExecutor:
         self._discover_delays = discover_delays if discover_delays is not None else _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
         self._on_discover_failed = on_discover_failed
-        self._aborted_hosts: set[str] = set()
-        self._abort_lock = threading.Lock()
+        self._rate_limit_tracker = RateLimitedProviderTracker()
+
+    @property
+    def exhausted_hosts(self) -> List[str]:
+        """Hostnames that hit ProviderRateLimitedError during discover this run —
+        surfaced so callers (main.py) can report it in the pipeline completion
+        notification alongside LLM-provider rate limits."""
+        return self._rate_limit_tracker.exhausted
 
     def run(
         self,
@@ -280,8 +287,7 @@ class ScrapeExecutor:
                 if isinstance(task, DiscoverTask):
                     host = self._host_for_queue(host_queue_map, claimed_idx)
 
-                    with self._abort_lock:
-                        is_aborted = host in self._aborted_hosts
+                    is_aborted = self._rate_limit_tracker.is_exhausted(host)
 
                     if is_aborted:
                         logger.warning(
@@ -292,7 +298,7 @@ class ScrapeExecutor:
                         if self._on_discover_failed is not None:
                             self._on_discover_failed(
                                 task,
-                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                                ProviderRateLimitedError("Skipped: host previously rate-limited this run"),
                             )
                         on_discover_complete()
                     else:
@@ -309,9 +315,8 @@ class ScrapeExecutor:
                                     host=task.host,
                                     count=len(fetch_tasks),
                                 )
-                        except ArxivRateLimitedError as exc:
-                            with self._abort_lock:
-                                self._aborted_hosts.add(host)
+                        except ProviderRateLimitedError as exc:
+                            self._rate_limit_tracker.mark_exhausted(host)
                             logger.warning(
                                 "discover_rate_limited_host_aborted",
                                 host=host,
@@ -479,8 +484,7 @@ class ScrapeExecutor:
                 if isinstance(task, DiscoverTask):
                     host = self._host_for_queue(host_queue_map, claimed_idx)
 
-                    with self._abort_lock:
-                        is_aborted = host in self._aborted_hosts
+                    is_aborted = self._rate_limit_tracker.is_exhausted(host)
 
                     if is_aborted:
                         # A prior discover for this host returned 429 — skip without hitting the API.
@@ -492,7 +496,7 @@ class ScrapeExecutor:
                         if self._on_discover_failed is not None:
                             self._on_discover_failed(
                                 task,
-                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                                ProviderRateLimitedError("Skipped: host previously rate-limited this run"),
                             )
                         on_discover_complete()
                         # executed_discover stays False → no cooldown, semaphore released by outer finally
@@ -513,10 +517,9 @@ class ScrapeExecutor:
                                     host=task.host,
                                     count=len(fetch_tasks),
                                 )
-                        except ArxivRateLimitedError as exc:
+                        except ProviderRateLimitedError as exc:
                             # First 429 for this host — abort all remaining discovers this run.
-                            with self._abort_lock:
-                                self._aborted_hosts.add(host)
+                            self._rate_limit_tracker.mark_exhausted(host)
                             logger.warning(
                                 "discover_rate_limited_host_aborted",
                                 host=host,

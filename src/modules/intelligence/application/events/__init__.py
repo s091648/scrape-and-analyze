@@ -5,6 +5,8 @@ from .tag_normalization_failed import TagNormalizationFailedEvent
 from .translation_failed import TranslationFailedEvent
 from .rag_ingestion_failed import RagIngestionFailedEvent
 from .rag_config_failed import RagConfigFailedEvent
+from .rag_backfill_completed import RagBackfillCompletedEvent
+from .weekly_report_job_completed import WeeklyReportJobCompletedEvent
 
 __all__ = [
     'AnalysisFailedEvent',
@@ -14,4 +16,6 @@ __all__ = [
     'TranslationFailedEvent',
     'RagIngestionFailedEvent',
     'RagConfigFailedEvent',
+    'RagBackfillCompletedEvent',
+    'WeeklyReportJobCompletedEvent',
 ]

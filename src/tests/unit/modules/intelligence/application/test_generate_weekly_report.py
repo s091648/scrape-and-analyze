@@ -37,10 +37,11 @@ def _make_uc(
     articles=None,
     llm_response=None,
     image_bytes=b"img",
-    blob_url="https://r2.example.com/img.png",
+    blob_url="https://r2.example.com/img.webp",
     email_notifier=None,
     telegram_notifier=None,
     translation_languages=(),
+    cache_gateway=None,
 ):
     repo = MagicMock()
     repo.fetch_top_articles.return_value = articles if articles is not None else [_summary()]
@@ -69,6 +70,7 @@ def _make_uc(
         email_notifier=email_notifier,
         telegram_notifier=telegram_notifier,
         translation_languages=translation_languages,
+        cache_gateway=cache_gateway,
     )
     return uc, repo, llm, image, blob, translation_repo
 
@@ -93,18 +95,22 @@ def test_execute_calls_image_generation():
 
 
 def test_execute_uploads_image_to_blob_storage():
-    uc, _, _, _, blob, _ = _make_uc(image_bytes=b"png-data")
+    # image_service is a mock here — the use case doesn't re-encode, it trusts that whatever
+    # ImageGenerationService.generate_image() returns is already WebP (every real provider routes
+    # through image_encoding.encode_as_webp before returning; see their own unit tests).
+    uc, _, _, _, blob, _ = _make_uc(image_bytes=b"webp-data")
     uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
     blob.upload.assert_called_once()
     args = blob.upload.call_args[0]
-    assert args[0] == b"png-data"
-    assert args[2] == "image/png"
+    assert args[0] == b"webp-data"
+    assert args[1].endswith(".webp")
+    assert args[2] == "image/webp"
 
 
 def test_execute_sets_cover_image_url():
-    uc, _, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.png")
+    uc, _, _, _, _, _ = _make_uc(blob_url="https://r2.example.com/cover.webp")
     result = uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
-    assert result.cover_image_url == "https://r2.example.com/cover.png"
+    assert result.cover_image_url == "https://r2.example.com/cover.webp"
 
 
 def test_execute_saves_report_with_correct_article_count():
@@ -310,3 +316,58 @@ def test_translate_report_keeps_translation_when_citations_match():
 
     saved = translation_repo.save.call_args[0][0]
     assert saved.summary_text == translated_summary
+
+
+# ---------------------------------------------------------------------------
+# Cache invalidation (020-redis-caching-layer, US3)
+# ---------------------------------------------------------------------------
+
+def test_execute_bumps_weekly_reports_cache_when_report_saved():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, _, _, _, _, _ = _make_uc(cache_gateway=cache)
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+    cache.bump_version.assert_called_once_with("weekly_reports")
+    cache.publish_warmup_signal.assert_called_once_with(reason="weekly_report")
+
+
+def test_execute_bumps_weekly_reports_cache_for_empty_week():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, _, _, _, _, _ = _make_uc(articles=[], cache_gateway=cache)
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+    cache.bump_version.assert_called_once_with("weekly_reports")
+    cache.publish_warmup_signal.assert_called_once_with(reason="weekly_report")
+
+
+def test_execute_does_not_bump_cache_when_no_gateway_configured():
+    uc, _, _, _, _, _ = _make_uc(cache_gateway=None)
+    # Should not raise — cache_gateway=None is the default, matching every other
+    # existing test in this file that doesn't pass one.
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+
+def test_execute_does_not_bump_cache_when_regeneration_skipped():
+    from unittest.mock import MagicMock
+
+    cache = MagicMock()
+    uc, repo, _, _, _, _ = _make_uc(cache_gateway=cache)
+    existing = WeeklyReport(
+        id=uuid.uuid4(),
+        topic_id=TOPIC_ID,
+        week_start_date=WEEK_START,
+        title="Existing Title",
+        summary_text="Existing Summary",
+        cover_image_url=None,
+        article_ids=[],
+        article_count=1,
+        status="completed",
+    )
+    repo.find_by_topic_and_week.return_value = existing
+
+    uc.execute(TOPIC_ID, TOPIC_NAME, WEEK_START)
+
+    cache.bump_version.assert_not_called()
+    cache.publish_warmup_signal.assert_not_called()

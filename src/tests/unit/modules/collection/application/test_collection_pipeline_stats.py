@@ -63,4 +63,4 @@ def test_pipeline_publishes_pipeline_completed_event():
         if isinstance(call.args[0], PipelineCompletedEvent)
     ]
     assert len(published_events) == 1
-    assert published_events[0].duration_seconds >= 0
+    assert published_events[0].execution.duration_seconds >= 0

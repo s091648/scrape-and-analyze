@@ -109,6 +109,25 @@ describe("TutorialProvider — Guest Onboarding", () => {
     expect(screen.getByTestId("active-tour").textContent).toBe("guest-onboarding");
   });
 
+  it("does not reopen the onboarding tour on a refresh within the same tab session after it was dismissed", () => {
+    sessionStorage.setItem("guest_mode", "true");
+    sessionStorage.setItem("tutorial_onboarding_dismissed", "true");
+    renderWithProviders();
+    expect(screen.getByTestId("tutorial-status").textContent).toBe("closed");
+  });
+
+  it("reopens the onboarding tour on a fresh guest-mode entry after exiting and re-entering in the same tab", async () => {
+    renderWithProviders();
+    await userEvent.click(screen.getByText("enter"));
+    await userEvent.click(screen.getByText("close-tutorial"));
+    expect(screen.getByTestId("tutorial-status").textContent).toBe("closed");
+
+    await userEvent.click(screen.getByText("exit"));
+    await userEvent.click(screen.getByText("enter"));
+    expect(screen.getByTestId("tutorial-status").textContent).toBe("open");
+    expect(screen.getByTestId("active-tour").textContent).toBe("guest-onboarding");
+  });
+
   it("exitGuestMode closes the tutorial and resets step/active tour", async () => {
     renderWithProviders();
     await userEvent.click(screen.getByText("enter"));
@@ -119,11 +138,12 @@ describe("TutorialProvider — Guest Onboarding", () => {
     expect(screen.getByTestId("tutorial-step").textContent).toBe("0");
   });
 
-  it("closeTutorial does not write guest-onboarding to tutorial_seen_tours", async () => {
+  it("closeTutorial does not write guest-onboarding to tutorial_seen_tours, but marks it dismissed for this tab session", async () => {
     renderWithProviders();
     await userEvent.click(screen.getByText("enter"));
     await userEvent.click(screen.getByText("close-tutorial"));
     expect(localStorage.getItem("tutorial_seen_tours")).toBeNull();
+    expect(sessionStorage.getItem("tutorial_onboarding_dismissed")).toBe("true");
   });
 
   it("nextTutorialStep/prevTutorialStep stay within the active tour's bounds (4 steps)", async () => {

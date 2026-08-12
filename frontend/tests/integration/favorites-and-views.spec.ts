@@ -76,6 +76,16 @@ test.describe('Favorites — guest mode (not authenticated)', () => {
   test.beforeEach(async ({ page }) => {
     await mockApiRoutes(page)
     await mockArticleList(page, [unfavoritedArticle])
+    // Guest mode on /articles can auto-open two different tour dialogs that are unrelated to
+    // this test — the guest onboarding tour (see guest-tutorial.spec.ts) and, once that's
+    // suppressed, the still-unseen "New: AI Chat Assistant" feature-spotlight tour (also
+    // targets /articles) right behind it. Either one sits on top of the Filters button and
+    // blocks the click for the full 30s timeout. Suppress both outright, same as the other
+    // describes in this file already do via dismissFeatureSpotlights.
+    await dismissFeatureSpotlights(page)
+    await page.addInitScript(() => {
+      sessionStorage.setItem('tutorial_onboarding_dismissed', 'true')
+    })
   })
 
   test('no heart icon and no Favorites filter are shown to guests', async ({ page }) => {
@@ -85,8 +95,6 @@ test.describe('Favorites — guest mode (not authenticated)', () => {
     await page.evaluate(() => sessionStorage.setItem('guest_mode', 'true'))
 
     await page.goto('/articles')
-    const skipBtn = page.getByRole('button', { name: /^skip$|^略過$/i })
-    if (await skipBtn.count() > 0) await skipBtn.click()
 
     await expect(page.getByText('Plain Paper')).toBeVisible()
     await expect(page.getByRole('button', { name: /add to favorites|remove from favorites/i })).not.toBeVisible()

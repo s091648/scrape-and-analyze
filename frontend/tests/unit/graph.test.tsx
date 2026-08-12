@@ -125,6 +125,59 @@ describe('Knowledge Graph', () => {
 
 })
 
+// ── SSR seed (021-ssr-public-pages) ─────────────────────────────────────────
+
+describe('KnowledgeGraph initialData seeding', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+  })
+
+  const seededData = {
+    nodes: [{ id: 'g1', type: 'group', label: 'Seeded Group', groupName: 'seeded', color: '#6366f1' }],
+    edges: [],
+  }
+
+  it('renders the seeded graph immediately without fetching', async () => {
+    const { render, screen } = await import('@testing-library/react')
+    render(<KnowledgeGraph initialData={seededData as any} />)
+
+    // Other tests in this file leave their own rendered trees in the document (no cleanup
+    // between tests), so this instance's canvas is the last match, not the only one.
+    const canvases = screen.getAllByTestId('graph-canvas')
+    expect(canvases[canvases.length - 1].textContent).toContain('Seeded Group')
+    // FilterBar fetches its own filter-option lists on mount regardless of graph seeding —
+    // only the graph endpoint itself must stay unfetched.
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
+  })
+
+  it('fetches normally (no seed) when initialData is not provided', async () => {
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalled()
+    })
+  })
+
+  it('still fetches on a later filter change after a seeded mount', async () => {
+    const { render, screen, fireEvent } = await import('@testing-library/react')
+    render(<KnowledgeGraph initialData={seededData as any} />)
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
+
+    // The FilterBar UI has no native <select> — filters live behind a toggled panel with an
+    // Apply button. Other renders in this file leave stale trees in the document (no cleanup
+    // between tests), so target the just-rendered (last) instance's controls.
+    const filterToggles = screen.getAllByRole('button', { name: /filterBar\.filters/ })
+    fireEvent.click(filterToggles[filterToggles.length - 1])
+    const applyButtons = screen.getAllByText('filterBar.apply')
+    fireEvent.click(applyButtons[applyButtons.length - 1])
+
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
+    })
+  })
+})
+
 describe('applyArticleFilter', () => {
   it('empty Set filter removes all nodes', () => {
     const data = {

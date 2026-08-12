@@ -1,0 +1,191 @@
+name: Lighthouse Performance Check
+
+# Reusable workflow (022-lighthouse-performance-check, US3): audits configured routes with
+# Lighthouse and uploads the Traditional-Chinese Markdown report as a workflow artifact.
+#
+# Two ways to run it:
+#   1. workflow_dispatch — manual, from the Actions tab, against any URL (defaults to the
+#      staging frontend). Useful for spot-checking without opening a PR.
+#   2. workflow_call — invoked as a job from ci.yml against the staging frontend once it's
+#      actually live for a PR (after deploy-staging-frontend succeeds). See ci.yml's
+#      lighthouse-check job for the gating logic.
+#
+# Fails the job (via --fail-on-error) if the check itself couldn't complete for a route
+# (Chrome crash, timeout, network error) — it does NOT yet fail on the actual Performance/
+# LCP/TBT/CLS numbers themselves; that's a possible future addition once baseline numbers
+# from real usage exist (spec.md Assumptions).
+
+on:
+  workflow_call:
+    inputs:
+      url:
+        description: "Base URL to audit"
+        required: true
+        type: string
+      routes:
+        description: "Comma-separated routes to audit"
+        required: false
+        type: string
+        default: "/,/articles,/graph,/tags"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Base URL to audit (defaults to the staging frontend — vars.FRONTEND_URL)"
+        required: false
+        type: string
+      routes:
+        description: "Comma-separated routes to audit"
+        required: false
+        type: string
+        default: "/,/articles,/graph,/tags"
+
+jobs:
+  lighthouse-check:
+    name: Lighthouse Performance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # lighthouse-check.mjs's resolveChromePath() defaults to /root/.cache/ms-playwright
+      # when PLAYWRIGHT_BROWSERS_PATH isn't set — correct for `make lighthouse-check`
+      # (runs as root inside the frontend Docker image) but wrong here: GitHub-hosted
+      # runners execute as the unprivileged `runner` user (home /home/runner), so that
+      # default silently points at a directory that will never exist. Resolve $HOME into
+      # a real env var via $GITHUB_ENV (plain `env:` values and actions/cache's `path:`
+      # are NOT shell-expanded, so a literal `~` or `$HOME` there would stay unexpanded)
+      # so every step below — the cache, both install steps, and the script itself —
+      # agrees on the same absolute path.
+      - name: Resolve Playwright browsers path
+        run: echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
+
+      # Same caching as ci.yml's frontend-e2e job (see its comment) — only the browser
+      # binary download is worth caching, the OS deps step is fast either way.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright OS dependencies (used as the Lighthouse browser)
+        run: npx playwright install-deps chromium
+
+      - name: Install Playwright Chromium binary (used as the Lighthouse browser)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Resolve target URL
+        id: target
+        run: |
+          URL="${{ inputs.url }}"
+          if [ -z "$URL" ]; then
+            URL="${{ vars.FRONTEND_URL }}"
+          fi
+          if [ -z "$URL" ]; then
+            echo "::error::No URL provided and vars.FRONTEND_URL is not set. Configure it in repo Settings → Secrets and variables → Actions → Variables, or supply the url input."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      # `railway up --detach` (ci.yml's deploy-staging-frontend) returns as soon as the deploy
+      # is *triggered*, not once it's live — so this job's `needs:` only guarantees a deploy
+      # was kicked off, not that it has finished building/booting yet. Poll until the target
+      # actually responds before handing it to Lighthouse, to avoid a false failure against a
+      # still-building deployment (does not guarantee it's *this* PR's build specifically vs.
+      # whatever was previously live — see the caveat in ci.yml's lighthouse-check job).
+      - name: Wait for target to be reachable
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          for i in $(seq 1 20); do
+            if curl -sf -o /dev/null "$URL"; then
+              echo "$URL is reachable"
+              exit 0
+            fi
+            echo "Waiting for $URL to respond (attempt $i/20)..."
+            sleep 15
+          done
+          echo "::error::$URL did not become reachable in time"
+          exit 1
+
+      - name: Run Lighthouse check
+        run: node scripts/lighthouse-check.mjs --url "${{ steps.target.outputs.url }}" --routes "${{ inputs.routes }}" --fail-on-error
+
+      # Same $GITHUB_STEP_SUMMARY pattern ci.yml's other jobs use for coverage
+      # (e.g. backend-unit's "Write coverage to job summary") — report.md is
+      # already plain Markdown, so no extra rendering is needed. Guarded so a
+      # pre-flight failure (no report.md ever produced) doesn't error the step.
+      - name: Write report to job summary
+        if: always()
+        run: |
+          for f in lighthouse-reports/*/report.md; do
+            [ -f "$f" ] && cat "$f" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      # PR-only: workflow_dispatch runs have no PR to comment on. sticky-pull-request-comment
+      # updates the same comment (matched by `header`) on every run instead of piling up a new
+      # one per push. `ignore_empty` covers the same pre-flight-failure case as the job-summary
+      # step above (glob matches nothing).
+      #
+      # continue-on-error + a conditional retry: this step and "Upload Lighthouse report" below
+      # only reach the GitHub API / artifact service, not the actual audit — a transient
+      # "Connect Timeout Error" here (observed in practice; GitHub-hosted runners occasionally
+      # blip connecting to these backends) shouldn't fail the required check when the real
+      # signal (the "Run Lighthouse check" step above, gated by --fail-on-error) already passed.
+      # nick-fields/retry can't wrap a `uses:` step, so retrying means duplicating the step
+      # with `if: steps.<id>.outcome == 'failure'`, per the action's own README guidance.
+      - name: Comment report on PR
+        id: lighthouse-comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: lighthouse-check
+          path: frontend/lighthouse-reports/*/report.md
+          ignore_empty: true
+
+      - name: Retry - Comment report on PR
+        if: always() && github.event_name == 'pull_request' && steps.lighthouse-comment.outcome == 'failure'
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: lighthouse-check
+          path: frontend/lighthouse-reports/*/report.md
+          ignore_empty: true
+
+      - name: Upload Lighthouse report
+        id: lighthouse-upload
+        uses: actions/upload-artifact@v4
+        if: always()
+        continue-on-error: true
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          retention-days: 30
+
+      - name: Retry - Upload Lighthouse report
+        if: always() && steps.lighthouse-upload.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: frontend/lighthouse-reports/
+          retention-days: 30

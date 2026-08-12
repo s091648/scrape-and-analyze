@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useState, ReactNode, Suspense } f
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { fetchTopics } from '@/lib/api/topics'
 import { useAuthToken } from './auth-token-provider'
+import { setPreferenceCookie } from '@/lib/cookies/set-preference-cookie'
+import { TOPIC_COOKIE_NAME } from '@/lib/cookies/constants'
 
 export type TagMode = 'unsupervised' | 'semi_supervised' | 'supervised'
 
@@ -86,14 +88,24 @@ function TopicUrlSync({
   return null
 }
 
-export function TopicProvider({ children }: { children: ReactNode }) {
+interface TopicProviderProps {
+  children: ReactNode
+  /** Server-resolved default topic id (`lib/server/ssr-fetch.ts`'s `resolveVisitorTopicAndLocale`,
+   * called from `app/layout.tsx`) — seeds `selectedTopicId` so the very first render (server AND
+   * client hydration) already has a real value instead of `null`, which previously meant any
+   * page's SSR-seeded initial data got silently discarded (021-ssr-public-pages). `loadTopics()`
+   * below still runs afterward to fetch the full topics list and validate/refresh this value. */
+  initialTopicId?: string | null
+}
+
+export function TopicProvider({ children, initialTopicId }: TopicProviderProps) {
   // 018-public-api-auth: /topics now requires a token — wait for AuthTokenProvider
   // to resolve one (real session or guest) before calling, so this doesn't race
   // the guest-token bootstrap on a fresh anonymous visit.
   const { token, isLoading: authLoading } = useAuthToken()
 
   const [topics, setTopics] = useState<Topic[]>([])
-  const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(null)
+  const [selectedTopicId, setSelectedTopicIdState] = useState<string | null>(initialTopicId ?? null)
   const [initialized, setInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -105,7 +117,13 @@ export function TopicProvider({ children }: { children: ReactNode }) {
     const initial = valid ? stored : (data[0]?.id ?? null)
     setSelectedTopicIdState(prev => {
       if (prev && data.find(t => t.id === prev)) return prev
-      if (initial) localStorage.setItem(STORAGE_KEY, initial)
+      if (initial) {
+        localStorage.setItem(STORAGE_KEY, initial)
+        // Backfills the cookie for visitors who already had a localStorage value before this
+        // cookie existed, so the next SSR render (021-ssr-public-pages) picks it up too — not
+        // just future explicit topic changes via setSelectedTopicId below.
+        setPreferenceCookie(TOPIC_COOKIE_NAME, initial)
+      }
       return initial
     })
     setInitialized(true)
@@ -120,6 +138,7 @@ export function TopicProvider({ children }: { children: ReactNode }) {
   function setSelectedTopicId(id: string) {
     setSelectedTopicIdState(id)
     localStorage.setItem(STORAGE_KEY, id)
+    setPreferenceCookie(TOPIC_COOKIE_NAME, id)
   }
 
   async function refresh() {

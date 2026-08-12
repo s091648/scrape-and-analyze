@@ -23,13 +23,26 @@ jobs:
     name: Check & Revive Staging Deployments
     runs-on: ubuntu-latest
     # PR-review context only. A push to master is always a post-merge push (branch
-    # protection forbids direct pushes), which fires at the same time as
-    # close-staging.yml's `pull_request: closed` — racing against it to revive
-    # deployments close-staging is concurrently tearing down. Nothing here is needed
-    # once the PR is merged.
+    # protection forbids direct pushes), which fires this same workflow's
+    # close-staging-* jobs (see "Stage 6" below) at the same instant — racing against
+    # them to revive deployments they're concurrently tearing down. Nothing here is
+    # needed once the PR is merged.
     if: github.event_name == 'pull_request'
     timeout-minutes: 15
     environment: scraper / staging
+    # Shares migrate/rollback's group rather than getting a per-service one like
+    # deploy-staging-*/close-staging-* below: this job loops over *every* staging
+    # service in one shot (railway-services.sh), so it can't cleanly join just one
+    # service's group without still leaving the other nine services it also touches
+    # unprotected. Splitting this into one job per service (mirroring deploy-staging-*)
+    # would close that gap but is a separate refactor — for now it only serializes
+    # against the DB-focused jobs it happens to share a group with, not per-service
+    # against close-staging-*. In practice this is low-risk: it only runs early in a
+    # PR's own run (gated on nothing else), well before that same PR could have a
+    # push-triggered close-staging-* run in flight.
+    concurrency:
+      group: staging-db-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -71,15 +84,15 @@ jobs:
           SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
           SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
           SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
+          SERVICE_ID_DEDUP_RECONCILE: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
 
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
-  # push-to-master (post-merge) skips this: it would race close-staging.yml's
-  # `railway down` on the same staging postgres (fired by the same merge's
-  # `pull_request: closed` event), and it isn't needed there anyway — the
-  # next PR to revive staging brings it to its own head, which already
-  # includes this merge's migrations. Downstream jobs already treat
-  # migrate's `skipped` result the same as `success`.
+  # push-to-master (post-merge) skips this: it would race the staging DB
+  # against itself if a still-in-flight PR run's migrate overlapped, and it
+  # isn't needed there anyway — the next PR to revive staging brings it to
+  # its own head, which already includes this merge's migrations. Downstream
+  # jobs already treat migrate's `skipped` result the same as `success`.
   # -----------------------------------------------
   migrate:
     name: DB Migration
@@ -91,6 +104,9 @@ jobs:
       (needs.check-staging-deployments.result == 'success' || needs.check-staging-deployments.result == 'skipped')
     timeout-minutes: 10
     environment: scraper / staging
+    concurrency:
+      group: staging-db-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -358,6 +374,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           REDIS_URL: redis://localhost:6379/0
+          CACHE_REDIS_URL: redis://localhost:6379/1
 
       - name: Upload backend-integration coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -596,8 +613,25 @@ jobs:
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      # Only the ~280MB browser binary download is worth caching — the `--with-deps`
+      # apt packages below are mostly already baked into the runner image (see the
+      # "already the newest version" lines a cold run logs for nearly all of them) and
+      # the image itself is freshly provisioned per job, so there's nothing for
+      # actions/cache to save there. Keyed on package-lock.json so a Playwright version
+      # bump naturally invalidates the cache instead of running a mismatched browser.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Playwright OS dependencies
+        run: npx playwright install-deps chromium
+
+      - name: Install Playwright browser binary
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
 
       - name: Run Playwright tests
         run: npx playwright test
@@ -642,6 +676,9 @@ jobs:
       needs.backend-unit.result == 'success' &&
       needs.backend-integration.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-backend-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -670,6 +707,9 @@ jobs:
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-frontend-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -686,6 +726,37 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
+  # Stage 4b1: Lighthouse Performance Check (staging, PR only)
+  # Gates PR merge on the check completing without route failures (022-lighthouse-
+  # performance-check, US3) — not yet on the actual Performance/LCP/TBT/CLS numbers.
+  # Runs against vars.FRONTEND_URL (configure in repo Settings → Secrets and
+  # variables → Actions → Variables); to make this a required check, add "Lighthouse
+  # Performance Check / lighthouse-check" in branch protection rules for master.
+  # Can also be run standalone via workflow_dispatch on lighthouse.yml against any URL.
+  # Joins deploy-staging-frontend/close-staging-frontend's group (`staging-frontend-*`):
+  # it's read-only against Railway (an audit, not a `railway up`/`down` mutation), so it
+  # doesn't need to protect *other* jobs from itself — but it still needs protecting
+  # from *them*, since it audits vars.FRONTEND_URL (the live staging frontend). Without
+  # sharing this group, close-staging-frontend (Stage 6, fires on merge) could tear that
+  # same deployment down mid-audit if this PR's own lighthouse-check run — from the
+  # `pull_request` event — was still in flight when the merge's `push` event fires.
+  # -----------------------------------------------
+  lighthouse-check:
+    name: Lighthouse Performance Check
+    needs: [deploy-staging-frontend]
+    # PR-review context only — see check-staging-deployments for why.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.deploy-staging-frontend.result == 'success'
+    uses: ./.github/workflows/lighthouse.yml
+    with:
+      url: ${{ vars.FRONTEND_URL }}
+    secrets: inherit
+    concurrency:
+      group: staging-frontend-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+  # -----------------------------------------------
   # Stage 4b2: Deploy Storybook to Staging (PR only)
   # -----------------------------------------------
   deploy-staging-storybook:
@@ -698,6 +769,9 @@ jobs:
       needs.frontend-unit.result == 'success' &&
       needs.frontend-e2e.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-storybook-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -726,6 +800,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-src-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -753,6 +830,9 @@ jobs:
       github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-chatbot-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -780,6 +860,9 @@ jobs:
       github.event_name == 'pull_request' &&
       needs.src-unit-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-fastembed-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -811,6 +894,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-weekly-report-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -842,6 +928,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-refresh-metrics-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -873,6 +962,9 @@ jobs:
       needs.src-unit-test.result == 'success' &&
       needs.src-integration-test.result == 'success'
     environment: scraper / staging
+    concurrency:
+      group: staging-rag-backfill-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -885,6 +977,40 @@ jobs:
 
       - name: Deploy rag-backfill to Railway (staging)
         run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }} --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4i: Deploy Dedup Reconcile to Staging (PR only)
+  # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
+  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # this a distinct Railway service from the main worker.
+  # -----------------------------------------------
+  deploy-staging-dedup-reconcile:
+    name: Deploy Dedup Reconcile to Staging
+    runs-on: ubuntu-latest
+    needs: [src-unit-test, src-integration-test]
+    # PR-review context only — see check-staging-deployments for why.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.src-unit-test.result == 'success' &&
+      needs.src-integration-test.result == 'success'
+    environment: scraper / staging
+    concurrency:
+      group: staging-dedup-reconcile-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy dedup-reconcile to Railway (staging)
+        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
@@ -907,6 +1033,9 @@ jobs:
         needs.frontend-e2e.result == 'failure'
       )
     environment: scraper / staging
+    concurrency:
+      group: staging-db-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v5
@@ -929,3 +1058,170 @@ jobs:
         run: uv run alembic downgrade -1
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # -----------------------------------------------
+  # Stage 6: Close Staging Deployments (post-merge only)
+  # push-to-master only fires post-merge (branch protection forbids direct pushes), so
+  # this whole stage is the merged-PR teardown path — the counterpart to
+  # check-staging-deployments (Stage -1), which revives services at PR start. Replaces
+  # the old separate close-staging.yml (triggered directly by `pull_request: closed`,
+  # racing this workflow with no real ordering guarantee) — folding it in here lets each
+  # close-staging-* job's `needs:` wait on this run's own relevant test jobs first, same
+  # as deploy-staging-* already does.
+  # -----------------------------------------------
+
+  # A push event has no `github.event.pull_request` context, so the PR number that
+  # deploy-staging-*'s concurrency groups were keyed on isn't directly available —
+  # resolve it from the merge commit via the GitHub API so close-staging-* below can
+  # join the *same* group its corresponding deploy-staging-* job used, and correctly
+  # queue behind a still-in-flight deploy for that same PR/service instead of racing it.
+  resolve-merged-pr:
+    name: Resolve Merged PR Number
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    timeout-minutes: 5
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+
+    steps:
+      - name: Look up the merged PR number for this commit
+        id: resolve
+        run: |
+          NUMBER=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq '.[0].number')
+          if [ -z "$NUMBER" ] || [ "$NUMBER" = "null" ]; then
+            echo "::error::Could not resolve a merged PR number for commit ${{ github.sha }} — skipping staging teardown"
+            exit 1
+          fi
+          echo "pr_number=$NUMBER" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  close-staging-backend:
+    name: Close Backend Staging Deployment
+    needs: [resolve-merged-pr, backend-unit, backend-integration]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: dashboard-backend
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
+    secrets: inherit
+    concurrency:
+      group: staging-backend-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-frontend:
+    name: Close Frontend Staging Deployment
+    needs: [resolve-merged-pr, frontend-unit, frontend-e2e]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: dashboard-frontend
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
+    secrets: inherit
+    concurrency:
+      group: staging-frontend-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-storybook:
+    name: Close Storybook Staging Deployment
+    needs: [resolve-merged-pr, frontend-unit, frontend-e2e]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: storybook
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
+    secrets: inherit
+    concurrency:
+      group: staging-storybook-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-src:
+    name: Close Scrape-Analyzer Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test, src-integration-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: scrape-and-analyze
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
+    secrets: inherit
+    concurrency:
+      group: staging-src-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-chatbot:
+    name: Close Chatbot Plugin Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: chatbot-plugin
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
+    secrets: inherit
+    concurrency:
+      group: staging-chatbot-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-fastembed:
+    name: Close Fastembed Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: fastembed
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
+    secrets: inherit
+    concurrency:
+      group: staging-fastembed-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-weekly-report:
+    name: Close Weekly Report Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test, src-integration-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: weekly-report
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
+    secrets: inherit
+    concurrency:
+      group: staging-weekly-report-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-refresh-metrics:
+    name: Close Refresh Metrics Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test, src-integration-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: refresh-metrics
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+    secrets: inherit
+    concurrency:
+      group: staging-refresh-metrics-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-rag-backfill:
+    name: Close RAG Backfill Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test, src-integration-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: rag-backfill
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
+    secrets: inherit
+    concurrency:
+      group: staging-rag-backfill-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false
+
+  close-staging-dedup-reconcile:
+    name: Close Dedup Reconcile Staging Deployment
+    needs: [resolve-merged-pr, src-unit-test, src-integration-test]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
+    uses: ./.github/workflows/close-staging.yml
+    with:
+      service_name: dedup-reconcile
+      service_id: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
+    secrets: inherit
+    concurrency:
+      group: staging-dedup-reconcile-${{ needs.resolve-merged-pr.outputs.pr_number }}
+      cancel-in-progress: false

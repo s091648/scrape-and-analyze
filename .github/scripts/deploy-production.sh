@@ -11,7 +11,7 @@
 #
 # Reads service IDs from SERVICE_ID_* env vars (set by the calling step) and
 # RAILWAY_TOKEN for CLI auth.
-set -uo pipefail
+set -euo pipefail
 
 railway up --detach --service "$SERVICE_ID_DASHBOARD_FRONTEND"  # dashboard-frontend
 railway up --detach --service "$SERVICE_ID_DASHBOARD_BACKEND"  # dashboard-backend
@@ -30,3 +30,4 @@ railway up --detach --service "$SERVICE_ID_FASTEMBED"  # fastembed
 railway up --detach --service "$SERVICE_ID_WEEKLY_REPORT"  # weekly-report
 railway up --detach --service "$SERVICE_ID_REFRESH_METRICS"  # refresh-metrics
 railway up --detach --service "$SERVICE_ID_RAG_BACKFILL"  # rag-backfill
+railway up --detach --service "$SERVICE_ID_DEDUP_RECONCILE"  # dedup-reconcile

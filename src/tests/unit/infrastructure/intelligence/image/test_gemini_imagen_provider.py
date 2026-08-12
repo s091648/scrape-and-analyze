@@ -1,7 +1,9 @@
 """Unit tests for GeminiImagenProvider."""
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from src.infrastructure.intelligence.image.gemini_imagen_provider import GeminiImagenProvider
 
@@ -10,7 +12,15 @@ def _make_provider(model="gemini-3.1-flash-image", api_key="test-key"):
     return GeminiImagenProvider(model=model, api_key=api_key)
 
 
-def _make_genai_response(image_bytes=b"fake-png"):
+def _make_png_bytes(width=20, height=10) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color=(255, 0, 0)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _make_genai_response(image_bytes=None):
+    if image_bytes is None:
+        image_bytes = _make_png_bytes()
     part = MagicMock()
     part.inline_data.data = image_bytes
 
@@ -25,9 +35,10 @@ def _make_genai_response(image_bytes=b"fake-png"):
     return response
 
 
-def test_generate_image_returns_bytes():
+def test_generate_image_returns_webp_encoded_bytes():
     provider = _make_provider()
-    fake_response = _make_genai_response(b"png-bytes")
+    original_png = _make_png_bytes(width=2000, height=1000)  # wider than DEFAULT_MAX_WIDTH
+    fake_response = _make_genai_response(original_png)
 
     with patch("google.genai.Client") as MockClient:
         mock_client = MockClient.return_value
@@ -35,7 +46,13 @@ def test_generate_image_returns_bytes():
 
         result = provider.generate_image("a futuristic visualization")
 
-    assert result == b"png-bytes"
+    # Not a passthrough — every provider's raw output is re-encoded via encode_as_webp()
+    # (downscaled + converted), so the result must differ from and be smaller than the input.
+    assert result != original_png
+    assert len(result) < len(original_png)
+    decoded = Image.open(io.BytesIO(result))
+    assert decoded.format == "WEBP"
+    assert decoded.width <= 1600
 
 
 def test_generate_image_passes_prompt_to_api():

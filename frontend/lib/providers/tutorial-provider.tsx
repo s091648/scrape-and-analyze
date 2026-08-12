@@ -6,6 +6,10 @@ import { useGuestMode } from "@/lib/providers/guest-mode-provider";
 import { getTour, getSpotlightTours } from "@/components/features/tutorial/tutorial-registry";
 
 const SEEN_TOURS_KEY = "tutorial_seen_tours";
+// sessionStorage (not localStorage): the onboarding tour should reappear on a
+// fresh guest-mode entry (new tab, or exit+re-enter) but not on every refresh
+// within the same tab session once dismissed.
+const ONBOARDING_DISMISSED_KEY = "tutorial_onboarding_dismissed";
 const DEFAULT_TOUR_ID = "guest-onboarding";
 
 interface TutorialContextType {
@@ -45,6 +49,15 @@ function markTourSeen(tourId: string) {
   }
 }
 
+function isOnboardingDismissed(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(ONBOARDING_DISMISSED_KEY) === "true";
+}
+
+function markOnboardingDismissed() {
+  sessionStorage.setItem(ONBOARDING_DISMISSED_KEY, "true");
+}
+
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const { isGuestMode } = useGuestMode();
   const { status } = useSession();
@@ -71,8 +84,11 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   }
 
   function closeTutorial() {
-    if (activeTourId && getTour(activeTourId)?.kind === "spotlight") {
+    const closedTourKind = activeTourId ? getTour(activeTourId)?.kind : undefined;
+    if (activeTourId && closedTourKind === "spotlight") {
       markTourSeen(activeTourId);
+    } else if (activeTourId && closedTourKind === "onboarding") {
+      markOnboardingDismissed();
     }
     const [nextTourId, ...rest] = spotlightQueue;
     setSpotlightQueue(rest);
@@ -102,22 +118,28 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   // both firing together in login-page-content.tsx.
   let effectiveIsTutorialOpen = isTutorialOpen;
 
-  // Guest Onboarding Tour: unconditional auto-open whenever guest mode turns
-  // on (including on first render, e.g. after a page refresh while already in
-  // guest mode), and auto-close when guest mode turns off (FR-001, FR-011).
+  // Guest Onboarding Tour: auto-open whenever guest mode turns on (including
+  // on first render, e.g. after a page refresh while already in guest mode),
+  // unless it was already dismissed this tab session; auto-close when guest
+  // mode turns off (FR-001, FR-011).
   const [prevIsGuestMode, setPrevIsGuestMode] = useState(false);
   if (isGuestMode !== prevIsGuestMode) {
     setPrevIsGuestMode(isGuestMode);
     if (isGuestMode) {
       setSpotlightQueue([]);
-      setActiveTourId(DEFAULT_TOUR_ID);
-      setIsTutorialOpen(true);
-      setTutorialStep(0);
-      effectiveIsTutorialOpen = true;
+      if (!isOnboardingDismissed()) {
+        setActiveTourId(DEFAULT_TOUR_ID);
+        setIsTutorialOpen(true);
+        setTutorialStep(0);
+        effectiveIsTutorialOpen = true;
+      }
     } else {
       if (activeTourId && getTour(activeTourId)?.kind === "spotlight") {
         markTourSeen(activeTourId);
       }
+      // A fresh guest-mode entry (new tab, or exit+re-enter) is a new
+      // onboarding opportunity, so clear this tab session's dismissal.
+      sessionStorage.removeItem(ONBOARDING_DISMISSED_KEY);
       setIsTutorialOpen(false);
       setActiveTourId(null);
       setTutorialStep(0);

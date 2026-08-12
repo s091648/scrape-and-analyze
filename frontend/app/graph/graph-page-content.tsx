@@ -1,0 +1,81 @@
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { KnowledgeGraph } from '@/components/features/graph/knowledge-graph'
+import type { GraphData } from '@/lib/api/graph'
+import { Lock, Network } from 'lucide-react'
+import { useI18n, useGuestMode, useTopic } from '@/lib/providers'
+import { fetchArticles } from '@/lib/api/articles'
+
+interface GraphPageContentProps {
+  /** Server-rendered graph data for the topic the server resolved, seeded from
+   * `app/graph/page.tsx`'s SSR fetch. `undefined` when the server didn't fetch (no session —
+   * spec.md User Story 3) or the fetch failed (FR-007). Trusted directly — `app/layout.tsx`
+   * seeds TopicProvider from the exact same `cache()`-shared topic resolution `app/graph/page.tsx`
+   * used to fetch this, so they can't disagree within one request. */
+  initialData?: GraphData
+}
+
+export default function GraphPageContent({ initialData }: GraphPageContentProps) {
+  const { status } = useSession()
+  const { t } = useI18n()
+  const { isGuestMode } = useGuestMode()
+  const { selectedTopicId } = useTopic()
+  const isPaywall = status === 'unauthenticated' && !isGuestMode
+
+  const [firstPageArticleIds, setFirstPageArticleIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    let cancelled = false
+    if (!isGuestMode || !selectedTopicId) {
+      setFirstPageArticleIds(new Set())
+      return
+    }
+    fetchArticles({ page: 1, topic_id: selectedTopicId })
+      .then(data => {
+        if (!cancelled) setFirstPageArticleIds(new Set(data.items.map(a => a.id)))
+      })
+    return () => { cancelled = true }
+  }, [isGuestMode, selectedTopicId])
+
+  return (
+    <div className="flex flex-col gap-6 h-full">
+      <div className="flex items-center gap-3 border-b border-border pb-6">
+        <Network className="h-5 w-5 text-primary" />
+        <h1 className="text-2xl font-bold leading-none">{t('graph.title')}</h1>
+      </div>
+
+      {isGuestMode && (
+        <p className="text-sm text-muted-foreground">
+          {t('guest.graphLimitedPreview')}{' '}
+          <Link href="/login" className="font-medium text-primary underline underline-offset-4">
+            {t('login.signIn')}
+          </Link>
+        </p>
+      )}
+
+      <div className="relative flex-1">
+        <KnowledgeGraph
+          articleIdFilter={isGuestMode ? firstPageArticleIds : undefined}
+          initialData={initialData}
+        />
+
+        {isPaywall && (
+          <div className="absolute inset-0 backdrop-blur-sm bg-background/60 flex flex-col items-center justify-center gap-4 rounded-xl">
+            <div className="flex items-center justify-center h-14 w-14 rounded-full border border-border bg-background shadow-sm">
+              <Lock className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <p className="text-sm font-medium">{t('graph.signInToExplore')}</p>
+              <p className="text-sm text-muted-foreground">
+                <Link href="/login" className="font-medium text-primary underline underline-offset-4">{t('login.signIn')}</Link>
+                {' '}{t('graph.signInToAccess')}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

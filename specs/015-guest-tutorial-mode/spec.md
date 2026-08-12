@@ -40,7 +40,7 @@ Guest Mode（spec 009）已實作完成：使用者可從 `/login` 點擊「以�
 3. **Given** 導覽進行至 Graph 步驟，**When** 使用者點擊「Back」，**Then** 頁面導覽回 `/articles`，highlight 回到 Articles 連結
 4. **Given** 導覽已開啟，**When** 使用者點擊「X」或「Skip」，**Then** 導覽關閉，不會再自動彈出（同一次 guest mode session 內）
 5. **Given** 使用者完成所有步驟並點擊「Sign In」或「Register」，**When** 最後一步完成，**Then** 導覽關閉並導向對應頁面
-6. **Given** 使用者重新整理頁面（仍在 guest mode），**When** 頁面重載，**Then** Guest Onboarding Tour **再次**自動顯示（guest mode 每次都顯示）
+6. **Given** 使用者重新整理頁面（仍在 guest mode，且尚未關閉過本次分頁 session 內的導覽），**When** 頁面重載，**Then** Guest Onboarding Tour **再次**自動顯示；**若已在本次分頁 session 內關閉過**，**Then** 重新整理不再自動顯示（見 FR-001、FR-012）
 7. **Given** highlight 目標元素（例如 Articles 連結）此刻正被 highlight，**When** 使用者嘗試點擊該元素，**Then** 點擊被攔截（僅視覺標示，不可互動）
 
 ---
@@ -116,7 +116,7 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 
 ### Edge Cases
 
-- 使用者在導覽開啟時直接關閉瀏覽器分頁 → sessionStorage 清除，下次進入 guest mode 時 Guest Onboarding Tour 重新顯示（符合預期）；Feature Spotlight 的已讀狀態存 localStorage，不受分頁關閉影響
+- 使用者在導覽開啟時直接關閉瀏覽器分頁 → sessionStorage（含 `guest_mode` 與 `tutorial_onboarding_dismissed`）清除，下次（新分頁）進入 guest mode 時 Guest Onboarding Tour 重新顯示（符合預期）；Feature Spotlight 的已讀狀態存 localStorage，不受分頁關閉影響
 - 導覽開啟時螢幕尺寸極小（mobile width，< 768px）→ 不進行 highlight 定位計算，所有步驟一律退回置中卡片顯示，不超出視窗
 - Guest mode 被外部事件清除（如登入完成）→ Guest Onboarding Tour 立即關閉
 - 使用者快速連按「Next」→ 不應出現重複渲染或步驟跳過問題
@@ -127,7 +127,7 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 
 ### Functional Requirements
 
-- **FR-001**: 系統 MUST 在使用者每次進入 guest mode 時**無條件**自動開始 Guest Onboarding Tour（不做任何 storage 檢查）
+- **FR-001**: 系統 MUST 在使用者進入 guest mode 時自動開始 Guest Onboarding Tour，除非該分頁 session 內已被關閉過（見 FR-012 的 `sessionStorage` 已讀狀態）
 - **FR-002**: 系統 MUST NOT 在 member（已登入）的任何頁面載入時自動顯示 Guest Onboarding Tour；member 只能透過 HelpCircle 手動開啟
 - **FR-003**: Guest Onboarding Tour MUST 包含至少 4 個步驟：Welcome（無 highlight）、Articles（highlight NavBar 連結）、Graph（highlight NavBar 連結）、Sign Up CTA（highlight 登入按鈕）。目前實作共 10 個步驟，額外涵蓋 Tags、語言切換、淺色/深色模式、GitHub 原始碼、規格文件、Release Notes，皆 highlight 對應的 NavBar 元素
 - **FR-004**: 使用者 MUST 能夠透過「X」或「Skip」在任意步驟關閉導覽
@@ -140,7 +140,7 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 - **FR-009**: 純未登入使用者（paywall 狀態）MUST NOT 看到任何 Tour（Guest Onboarding 或 Feature Spotlight）的入口或內容
 - **FR-010**: Tutorial 所有文字內容 MUST 支援 i18n（en + zh-TW）
 - **FR-011**: 導覽 MUST 在 guest mode 被清除（如登入完成）時自動關閉
-- **FR-012**: 系統 MUST 使用 `localStorage`（key: `tutorial_seen_tours`，JSON `string[]`）記錄使用者已看過／已關閉的 Feature Spotlight Tour id；Guest Onboarding Tour 的自動觸發不依賴此清單
+- **FR-012**: 系統 MUST 使用 `localStorage`（key: `tutorial_seen_tours`，JSON `string[]`）記錄使用者已看過／已關閉的 Feature Spotlight Tour id；Guest Onboarding Tour 的自動觸發不依賴此清單，而是使用獨立的 `sessionStorage`（key: `tutorial_onboarding_dismissed`）記錄「本次分頁 session 是否已關閉過」——分頁關閉、或使用者離開再重新進入 guest mode 時清除，因此每次「新的 guest mode session」都會重新顯示，但同一 session 內 refresh 不會重複彈出
 - **FR-013**: 被 highlight 的目標元素 MUST 僅作視覺標示，期間 MUST NOT 可被點擊互動（遮罩需攔截該區域的點擊事件）
 - **FR-014**: 系統 MUST 提供通用的 highlight 定位機制，支援任意頁面內容元素（含會隨頁面捲動、換頁/非同步載入後才掛載的元素），而非僅限於常駐的 NavBar 元素
 - **FR-015**: 若 highlight 目標元素在 3 秒內未能於 DOM 中找到，系統 MUST 將該步驟自動退回置中卡片顯示，不得阻塞導覽流程
@@ -170,7 +170,7 @@ Tutorial 內容（含 Guest Onboarding 與 Feature Spotlight）支援中英雙�
 
 ## Assumptions
 
-- Tutorial 為純前端功能，不需要後端 API 變更；已讀狀態一律存 `localStorage`，不落地到資料庫（guest 使用者本來就沒有帳號，member 換裝置頂多重看一次，不值得為此開後端戰線；詳見決策記錄於 `plan.md`）
+- Tutorial 為純前端功能，不需要後端 API 變更；已讀狀態不落地到資料庫（guest 使用者本來就沒有帳號，member 換裝置頂多重看一次，不值得為此開後端戰線；詳見決策記錄於 `plan.md`）。Feature Spotlight 用 `localStorage`（跨分頁、永久）；Guest Onboarding 用 `sessionStorage`（僅限本次分頁 session，關閉分頁或重新進入 guest mode 即清除）
 - 現有 Shadcn/UI `Popover`（`PopoverAnchor` + `virtualRef`）與 Tailwind box-shadow 技巧足以實作 highlight + 定位；不引入第三方 onboarding library（如 react-joyride、driver.js）
 - Mobile（< 768px）一律退回置中卡片顯示，不做響應式 spotlight 定位
 - 本 feature 不改動 guest mode 的 `sessionStorage` key（`guest_mode`）

@@ -5,6 +5,8 @@ from typing import List, Optional
 import requests
 
 from src.config.settings import CONTACT_EMAIL
+from src.infrastructure.shared.http import DomainCircuitOpenError
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +22,7 @@ OPENALEX_SELECT_FIELDS = ",".join([
 _BASE_FILTERS = ["type:article", "has_abstract:true", "is_retracted:false"]
 
 
-class OpenAlexRateLimitedError(Exception):
+class OpenAlexRateLimitedError(ProviderRateLimitedError):
     """OpenAlex API returned HTTP 429."""
 
 
@@ -185,6 +187,9 @@ class OpenAlexClient:
                 headers=headers,
                 timeout=30,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("openalex_rate_limited", url=OPENALEX_API_URL, circuit_open=True)
+            raise OpenAlexRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("openalex_rate_limited", url=OPENALEX_API_URL)
@@ -221,6 +226,9 @@ class OpenAlexClient:
                 headers=headers,
                 timeout=30,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("openalex_rate_limited", url=OPENALEX_API_URL, circuit_open=True)
+            raise OpenAlexRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("openalex_rate_limited", url=OPENALEX_API_URL)
@@ -269,6 +277,9 @@ class OpenAlexClient:
                 headers=headers,
                 timeout=60,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("openalex_rate_limited", url=OPENALEX_API_URL, circuit_open=True)
+            raise OpenAlexRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("openalex_rate_limited", url=OPENALEX_API_URL)

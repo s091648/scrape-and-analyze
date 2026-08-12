@@ -17,6 +17,12 @@ APP_ENV: str = os.environ.get("APP_ENV", "local")
 
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
+# Separate logical DB from REDIS_URL (db 0): REDIS_URL holds durable operational state
+# (view-count write-behind buffer, chat rate-limit counters) that must survive a FLUSHDB
+# run while debugging the cache. CACHE_REDIS_URL (db 1) holds only disposable, rebuildable
+# cache-aside entries (shared/cache/) — safe to FLUSHDB anytime.
+CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
+
 CHAT_SERVICE_URL: str = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
 CHAT_SERVICE_API_KEY: str = os.environ.get("CHAT_SERVICE_API_KEY", "")
 

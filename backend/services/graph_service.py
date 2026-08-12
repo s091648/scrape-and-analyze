@@ -131,6 +131,36 @@ def query_group_articles(
     return query.all()
 
 
+def build_graph_payload(
+    db: Session,
+    *,
+    topic_id=None,
+    lang: str = "en",
+    published_after: Optional[datetime] = None,
+    published_before: Optional[datetime] = None,
+    scraped_after: Optional[datetime] = None,
+    scraped_before: Optional[datetime] = None,
+    aggregators: Optional[List[str]] = None,
+    original_sources: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> dict:
+    """The GET /analyses/graph response body — extracted from routers/graph.py's get_graph()
+    so backend/cache_warmup.py (020-redis-caching-layer follow-up) can call it directly."""
+    group_defs = load_group_defs(db, lang=lang)
+    analyses = query_analyses(
+        db,
+        topic_id=topic_id,
+        published_after=published_after,
+        published_before=published_before,
+        scraped_after=scraped_after,
+        scraped_before=scraped_before,
+        aggregators=aggregators,
+        original_sources=original_sources,
+        tags=tags,
+    )
+    return build_graph(analyses, group_defs)
+
+
 def build_graph(analyses: list, group_defs: dict) -> dict:
     nodes = []
     edges = []

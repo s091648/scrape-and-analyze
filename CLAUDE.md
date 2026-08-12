@@ -45,6 +45,12 @@ Run script tests: `uv run pytest scripts/tests/`
 | `cd frontend && npm run lint` | ESLint |
 | `cd frontend && npm run format` | Prettier |
 
+### Performance
+
+| Command | Purpose |
+|---|---|
+| `make lighthouse-check` | Lighthouse performance check across configured routes against `frontend_prod`; supports `LIGHTHOUSE_URL=`, `LIGHTHOUSE_ROUTES=`; produces a Traditional-Chinese report in `lighthouse-reports/<runId>/report.md` (see `specs/022-lighthouse-performance-check/quickstart.md`) |
+
 ### Docker
 
 `docker compose up` — starts postgres (5432), backend (8000), frontend (3000), pgadmin (80), scraper app.
@@ -164,8 +170,9 @@ GitHub Actions on push/PR to `master`:
 1. **migrate** — PR only; runs `alembic upgrade head` against the shared staging DB (skipped on push to master, since that would race `close-staging.yml` tearing the same staging deployments down post-merge — see `migrate` job comment in `ci.yml`)
 2. **unit-test** → **integration-test** — Spins up postgres service container; integration tests need LLM API keys
 3. **frontend-unit** → **frontend-e2e** — Vitest then Playwright (chromium)
-4. **rollback** — PR only; if migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on the staging DB
-5. Coverage uploaded to Codecov; pass-rate badges updated via GitHub Gist
+4. **lighthouse-check** — PR only; runs after `deploy-staging-frontend` succeeds, invoking the reusable `.github/workflows/lighthouse.yml` against `vars.FRONTEND_URL`; fails only if a route's audit itself errored (not on Performance/LCP/TBT/CLS values) — see `specs/022-lighthouse-performance-check/quickstart.md` §5. Also runnable standalone via `workflow_dispatch` on `lighthouse.yml`.
+5. **rollback** — PR only; if migrate succeeded but tests fail, auto-runs `alembic downgrade -1` on the staging DB
+6. Coverage uploaded to Codecov; pass-rate badges updated via GitHub Gist
 
 Production migration + deploy is a separate flow: `release.yml`, triggered by pushing a `v*` tag, runs `alembic upgrade head` against production DB (`scraper / production` environment) before deploying.
 
@@ -183,5 +190,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/019-cicd-data-migrations/plan.md`.
+at `specs/022-lighthouse-performance-check/plan.md`.
 <!-- SPECKIT END -->

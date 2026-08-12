@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import SourceStats
+from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
 
 
 def _make_event(stats=None, duration=8.0):
@@ -9,7 +11,12 @@ def _make_event(stats=None, duration=8.0):
             SourceStats(source="arxiv", new=3, duplicate=1, failed=0),
             SourceStats(source="rss", new=0, duplicate=0, failed=2),
         ] if stats is None else stats,
-        duration_seconds=duration,
+        execution=JobExecutionMeta(
+            started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            completed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            duration_seconds=duration,
+            app_env="production",
+        ),
     )
 
 

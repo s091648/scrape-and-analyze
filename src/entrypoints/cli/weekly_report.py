@@ -30,19 +30,20 @@ content builders.
 """
 import argparse
 import signal
-import time
 from datetime import date, timedelta
 from uuid import UUID
 
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
-from src.infrastructure.shared.observability import init_run_context, get_run_id
+from src.infrastructure.shared.observability import (
+    init_run_context, get_run_id, log_execution_started, log_execution_completed,
+)
 
 
 if SENTRY_DSN:
     import sentry_sdk
-    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, include_local_variables=False)
+    sentry_sdk.init(dsn=SENTRY_DSN, environment=APP_ENV, traces_sample_rate=0.1, include_local_variables=False)
 
 logger = get_logger(__name__)
 
@@ -94,16 +95,10 @@ def main() -> None:
     )
     topic_id = UUID(args.topic_id) if args.topic_id else None
 
-    env = APP_ENV
-    logger.info(
-        "execution_started",
-        run_id=run_id,
-        correlation_id=correlation_id,
-        env=env,
-        week_start=str(week_start),
+    started_at, t0 = log_execution_started(
+        logger, run_id=run_id, correlation_id=correlation_id, week_start=str(week_start),
     )
 
-    start_time = time.time()
     tracer = get_tracer()
     try:
         with tracer.start_as_current_span(SpanName.WEEKLY_REPORT_RUN) as span:
@@ -111,24 +106,39 @@ def main() -> None:
             span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
             session = None
+            event_bus = None
+            llm_service = None
             reports = []
+            total_topics = 0
             try:
                 from src.bootstrap import build_weekly_pipeline
-                pipeline, session = build_weekly_pipeline()
-                reports = pipeline.run(week_start=week_start, topic_id=topic_id, force=args.force)
+                pipeline, session, event_bus, llm_service = build_weekly_pipeline()
+                reports, total_topics = pipeline.run(week_start=week_start, topic_id=topic_id, force=args.force)
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))
                 logger.error("execution_failed", error=str(e), error_type=type(e).__name__)
                 raise
             finally:
-                duration = time.time() - start_time
-                logger.info(
-                    "execution_completed",
-                    run_id=get_run_id(),
-                    duration_seconds=round(duration, 2),
-                    reports_generated=len(reports),
+                failed = total_topics - len(reports)
+                rate_limited_providers = tuple(
+                    getattr(llm_service, "exhausted_providers", []) if llm_service is not None else []
                 )
+                execution = log_execution_completed(
+                    logger, started_at, t0,
+                    run_id=get_run_id(),
+                    reports_generated=len(reports),
+                    topics_processed=total_topics,
+                    topics_failed=failed,
+                    rate_limited_providers=rate_limited_providers,
+                )
+                if event_bus is not None:
+                    from src.modules.intelligence.application.events import WeeklyReportJobCompletedEvent
+                    event_bus.publish(WeeklyReportJobCompletedEvent(
+                        total_topics=total_topics, generated=len(reports), failed=failed,
+                        execution=execution,
+                        rate_limited_providers=rate_limited_providers,
+                    ))
                 if session is not None:
                     session.close()
         # with block exits here → span.end() is called → queued for export

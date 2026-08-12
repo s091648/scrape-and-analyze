@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { I18nProvider, useI18n } from '@/lib/providers/i18n-provider'
+import { LOCALE_COOKIE_NAME } from '@/lib/cookies/constants'
 
 const { mockApiFetch } = vi.hoisted(() => ({ mockApiFetch: vi.fn() }))
 vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
+
+// 021-ssr-public-pages: setLocale and the first-ever geo-IP-resolution effect also write a
+// preference cookie (frontend/lib/cookies/set-preference-cookie.ts) alongside localStorage —
+// spy on it directly so a wrong-name/wrong-value write fails loudly instead of silently no-oping.
+const { mockSetPreferenceCookie } = vi.hoisted(() => ({ mockSetPreferenceCookie: vi.fn() }))
+vi.mock('@/lib/cookies/set-preference-cookie', () => ({ setPreferenceCookie: mockSetPreferenceCookie }))
 // 018-public-api-auth: I18nProvider now waits for a resolved auth token
 // (real session or guest) before calling /languages.
 vi.mock('@/lib/providers/auth-token-provider', () => ({
@@ -42,6 +49,10 @@ function renderProvider() {
   return render(<I18nProvider><TestConsumer /></I18nProvider>)
 }
 
+function renderProviderWithInitialLocale(initialLocale: string) {
+  return render(<I18nProvider initialLocale={initialLocale}><TestConsumer /></I18nProvider>)
+}
+
 describe('I18nProvider', () => {
   it('starts loading and resolves to ready', async () => {
     renderProvider()
@@ -75,9 +86,26 @@ describe('I18nProvider', () => {
   it('setLocale updates locale state and persists to localStorage', async () => {
     renderProvider()
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
+    mockSetPreferenceCookie.mockClear() // drop any on-mount backfill call, isolate the click
     fireEvent.click(screen.getByText('set-zh-TW'))
     await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('zh-TW'))
     expect(localStorage.getItem('locale')).toBe('zh-TW')
+    expect(mockSetPreferenceCookie).toHaveBeenCalledWith(LOCALE_COOKIE_NAME, 'zh-TW')
+  })
+
+  it('backfills the preference cookie for a first-time visitor (no prior localStorage value)', async () => {
+    mockLanguagesOk(undefined, 'zh-TW')
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('zh-TW'))
+    expect(mockSetPreferenceCookie).toHaveBeenCalledWith(LOCALE_COOKIE_NAME, 'zh-TW')
+  })
+
+  it('does not backfill the cookie when a localStorage value already existed', async () => {
+    localStorage.setItem('locale', 'zh-TW')
+    mockLanguagesOk(undefined, 'en') // geo-resolved differs, but stored value wins and is not a "first-ever" visit
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('locale').textContent).toBe('zh-TW'))
+    expect(mockSetPreferenceCookie).not.toHaveBeenCalled()
   })
 
   it('t() returns a translated string for a known key', async () => {
@@ -117,6 +145,23 @@ describe('I18nProvider', () => {
     renderProvider()
     await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('ready'))
     expect(screen.getByTestId('locale').textContent).toBe('en')
+  })
+
+  // 021-ssr-public-pages: app/layout.tsx passes the server-resolved locale (shared, via
+  // resolveVisitorTopicAndLocale's cache(), with whatever a page's own SSR fetch used) so the
+  // very first render — server AND client hydration — already shows translated text instead of
+  // always starting 'en'.
+  it('seeds locale from initialLocale immediately, before the /languages call resolves', async () => {
+    renderProviderWithInitialLocale('zh-TW')
+    expect(screen.getByTestId('locale').textContent).toBe('zh-TW')
+    expect(screen.getByTestId('loading').textContent).toBe('ready')
+    // Let the background /languages effect settle so it doesn't leak into the next test.
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalled())
+  })
+
+  it('still resolves availableLanguages/isLoading normally once seeded', async () => {
+    renderProviderWithInitialLocale('en')
+    await waitFor(() => expect(screen.getByTestId('lang-count').textContent).toBe('2'))
   })
 
   it('useI18n throws when used outside I18nProvider', () => {

@@ -13,6 +13,7 @@ import io
 
 from huggingface_hub import InferenceClient
 
+from src.infrastructure.intelligence.image.image_encoding import encode_as_webp
 from src.modules.intelligence.domain.services.image_generation_service import ImageGenerationService
 
 
@@ -21,9 +22,10 @@ class HuggingFaceImageProvider(ImageGenerationService):
 
     The provider is stateless: every call opens a short-lived
     ``InferenceClient`` (cheap to construct) and decodes the returned
-    ``PIL.Image`` to PNG bytes. The DB contract expects raw image bytes
-    regardless of provider, so callers do not need to know which backend
-    produced them.
+    ``PIL.Image``, downscales, and re-encodes as WebP via
+    ``image_encoding.encode_as_webp`` (same post-processing every provider's
+    output goes through). The DB contract expects raw image bytes regardless
+    of provider, so callers do not need to know which backend produced them.
     """
 
     def __init__(self, model: str, api_key: str, timeout: float = 60.0) -> None:
@@ -36,4 +38,4 @@ class HuggingFaceImageProvider(ImageGenerationService):
         image = client.text_to_image(prompt, model=self._model)
         buf = io.BytesIO()
         image.save(buf, format="PNG")
-        return buf.getvalue()
+        return encode_as_webp(buf.getvalue())

@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { apiFetch } from '@/lib/api/client'
 import { useAuthToken } from './auth-token-provider'
+import { setPreferenceCookie } from '@/lib/cookies/set-preference-cookie'
+import { LOCALE_COOKIE_NAME } from '@/lib/cookies/constants'
 import en from './locales/en.json'
 import zhTW from './locales/zh-TW.json'
 
@@ -30,14 +32,23 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null)
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState('en')
+interface I18nProviderProps {
+  children: ReactNode
+  /** Server-resolved locale (`lib/server/ssr-fetch.ts`'s `resolveVisitorTopicAndLocale`, called
+   * from `app/layout.tsx`) — seeds `locale` so the very first render (server AND client
+   * hydration) already shows translated text in the right language instead of always starting
+   * 'en' and correcting after a client-side geo-IP/cookie fetch (021-ssr-public-pages). */
+  initialLocale?: string
+}
+
+export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
+  const [locale, setLocaleState] = useState(initialLocale || 'en')
   const [availableLanguages, setAvailableLanguages] = useState<LanguageInfo[]>([
     { code: 'en', name: 'English', native_name: 'English' },
     { code: 'zh-TW', name: 'Traditional Chinese', native_name: '繁體中文' },
   ])
-  const [resolvedLanguage, setResolvedLanguage] = useState('en')
-  const [isLoading, setIsLoading] = useState(true)
+  const [resolvedLanguage, setResolvedLanguage] = useState(initialLocale || 'en')
+  const [isLoading, setIsLoading] = useState(!initialLocale)
   // 018-public-api-auth: /languages now requires a token — wait for
   // AuthTokenProvider to resolve one (real session or guest) before calling,
   // so this doesn't race the guest-token bootstrap on a fresh anonymous visit.
@@ -53,6 +64,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         const resolved = data.resolved || 'en'
         setResolvedLanguage(resolved)
         const stored = localStorage.getItem('locale')
+        if (!stored) {
+          // Backfills the cookie for a true first-ever visitor, so their *next* visit's SSR
+          // render (021-ssr-public-pages) already knows their geo-resolved language instead of
+          // re-resolving from scratch — localStorage semantics here are otherwise unchanged.
+          setPreferenceCookie(LOCALE_COOKIE_NAME, resolved)
+        }
         setLocaleState(stored || resolved)
       })
       .catch(() => {
@@ -64,6 +81,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const setLocale = (newLocale: string) => {
     setLocaleState(newLocale)
     localStorage.setItem('locale', newLocale)
+    setPreferenceCookie(LOCALE_COOKIE_NAME, newLocale)
   }
 
   const t = (key: string, params?: Record<string, string | number>): string => {

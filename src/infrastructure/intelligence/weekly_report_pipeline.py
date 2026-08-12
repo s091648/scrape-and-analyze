@@ -25,20 +25,23 @@ class WeeklyReportPipeline:
         self._topic_repository = topic_repository
         self._generate_use_case = generate_use_case
 
-    def run(self, week_start: date, topic_id: Optional[UUID] = None, force: bool = False) -> List[WeeklyReport]:
-        """Generate weekly reports for the given topic (or all active topics)."""
+    def run(self, week_start: date, topic_id: Optional[UUID] = None, force: bool = False) -> tuple[List[WeeklyReport], int]:
+        """Generate weekly reports for the given topic (or all active topics). Returns
+        (reports, total_topics) — total_topics is the number of topics attempted, so
+        callers can derive a failed count (total_topics - len(reports)) for their own
+        job-level completion notification."""
         if topic_id is not None:
             topic = self._topic_repository.find_by_id(topic_id)
             if topic is None:
                 logger.error("topic_not_found", topic_id=str(topic_id))
-                return []
+                return [], 0
             topics = [topic]
         else:
             topics = self._topic_repository.list_active()
 
         if not topics:
             logger.warning("no_active_topics_found")
-            return []
+            return [], 0
 
         tracer = get_tracer()
         reports: List[WeeklyReport] = []
@@ -65,4 +68,4 @@ class WeeklyReportPipeline:
                     span.set_status(_otel.StatusCode.ERROR, str(e))
                     logger.exception("weekly_report_failed", topic=topic.name)
 
-        return reports
+        return reports, len(topics)

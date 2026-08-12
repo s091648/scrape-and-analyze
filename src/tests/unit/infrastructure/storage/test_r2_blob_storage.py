@@ -36,6 +36,7 @@ def test_upload_calls_put_object():
         Key="reports/img.png",
         Body=b"data",
         ContentType="image/png",
+        CacheControl=R2BlobStorageService.CACHE_CONTROL,
     )
 
 
@@ -98,3 +99,59 @@ def test_from_env_raises_when_settings_incomplete(monkeypatch):
 
     with pytest.raises(MissingR2ConfigError, match="R2_ACCOUNT_ID"):
         R2BlobStorageService.from_env()
+
+
+def test_iter_keys_paginates_list_objects_v2():
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [
+        {"Contents": [{"Key": "a"}, {"Key": "b"}]},
+        {"Contents": [{"Key": "c"}]},
+    ]
+    with patch("boto3.client") as MockClient:
+        mock_s3 = MockClient.return_value
+        mock_s3.get_paginator.return_value = mock_paginator
+        svc = R2BlobStorageService("id", "key", "secret", "bucket", "https://cdn.example.com")
+        keys = list(svc.iter_keys("weekly-reports/"))
+
+    mock_s3.get_paginator.assert_called_once_with("list_objects_v2")
+    mock_paginator.paginate.assert_called_once_with(Bucket="bucket", Prefix="weekly-reports/")
+    assert keys == ["a", "b", "c"]
+
+
+def test_iter_keys_skips_empty_pages():
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [{}]
+    with patch("boto3.client") as MockClient:
+        mock_s3 = MockClient.return_value
+        mock_s3.get_paginator.return_value = mock_paginator
+        svc = R2BlobStorageService("id", "key", "secret", "bucket", "https://cdn.example.com")
+        keys = list(svc.iter_keys())
+
+    assert keys == []
+
+
+def test_head_object_returns_raw_metadata():
+    with patch("boto3.client") as MockClient:
+        mock_s3 = MockClient.return_value
+        mock_s3.head_object.return_value = {"CacheControl": "no-cache", "ContentType": "image/webp"}
+        svc = R2BlobStorageService("id", "key", "secret", "bucket", "https://cdn.example.com")
+        meta = svc.head_object("weekly-reports/t/2026-07-27.webp")
+
+    mock_s3.head_object.assert_called_once_with(Bucket="bucket", Key="weekly-reports/t/2026-07-27.webp")
+    assert meta == {"CacheControl": "no-cache", "ContentType": "image/webp"}
+
+
+def test_refresh_cache_control_copies_object_onto_itself():
+    with patch("boto3.client") as MockClient:
+        mock_s3 = MockClient.return_value
+        svc = R2BlobStorageService("id", "key", "secret", "bucket", "https://cdn.example.com")
+        svc.refresh_cache_control("weekly-reports/t/2026-07-27.webp", "image/webp")
+
+    mock_s3.copy_object.assert_called_once_with(
+        Bucket="bucket",
+        Key="weekly-reports/t/2026-07-27.webp",
+        CopySource={"Bucket": "bucket", "Key": "weekly-reports/t/2026-07-27.webp"},
+        MetadataDirective="REPLACE",
+        ContentType="image/webp",
+        CacheControl=R2BlobStorageService.CACHE_CONTROL,
+    )

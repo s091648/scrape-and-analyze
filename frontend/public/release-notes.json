@@ -1,5 +1,31 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Improved page load speeds by converting cover images to the WebP format."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced SEO and initial page load performance by implementing server-side rendering for public pages."
+      },
+      {
+        "type": "feat",
+        "description": "Improved application responsiveness with the addition of a new high-speed caching layer for data retrieval."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the integrated chatbot plugin to the latest version for improved stability."
+      },
+      {
+        "type": "feat",
+        "description": "Added the ability to receive status notifications via Telegram for background data processing tasks."
+      }
+    ]
+  },
+  {
     "version": "v1.4.1",
     "date": "2026-08-06",
     "changes": [

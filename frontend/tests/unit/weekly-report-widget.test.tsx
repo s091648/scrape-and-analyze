@@ -716,4 +716,61 @@ describe('WeeklyReportWidget', () => {
       expect(screen.getByLabelText('View chat')).toBeInTheDocument()
     })
   })
+
+  // ── SSR seed (021-ssr-public-pages) ───────────────────────────────────────
+
+  describe('initialReport seeding', () => {
+    it('renders the seeded report synchronously, with no loading-skeleton flash', async () => {
+      // Never resolves during this test — if the widget had to wait on this fetch before
+      // showing anything, the report title would never appear.
+      vi.mocked(fetchLatestWeeklyReport).mockReturnValue(new Promise(() => {}))
+      vi.mocked(fetchWeeklyReports).mockReturnValue(new Promise(() => {}))
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
+
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+      expect(screen.getByText('A great week in AI research.')).toBeInTheDocument()
+    })
+
+    it('still shows the loading skeleton (not the seeded report) when unseeded', async () => {
+      vi.mocked(fetchLatestWeeklyReport).mockReturnValue(new Promise(() => {}))
+      vi.mocked(fetchWeeklyReports).mockReturnValue(new Promise(() => {}))
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      render(<WeeklyReportWidget topicId="topic-1" />)
+
+      expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
+      expect(screen.queryByText(/no report for this week yet/i)).not.toBeInTheDocument()
+    })
+
+    it('still runs the background fetch when seeded, and replaces the seed once it resolves', async () => {
+      const updatedReport = { ...mockReport, title: 'Updated After Fetch' }
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(updatedReport)
+      vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [updatedReport], total: 1, page: 1, size: 10 })
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
+
+      // Seeded value is visible immediately...
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+      // ...but the background fetch still fires and its result supersedes the seed.
+      await waitFor(() => {
+        expect(screen.getByText('Updated After Fetch')).toBeInTheDocument()
+      })
+    })
+
+    it('shows the loading skeleton for a deep-linked initialWeek even when a different report is seeded', async () => {
+      // initialWeek forces its own fetch regardless of seeding (skipLoadingFlash requires
+      // !initialWeek) — a never-resolving promise here means the skeleton must still appear.
+      vi.mocked(fetchLatestWeeklyReport).mockReturnValue(new Promise(() => {}))
+      vi.mocked(fetchWeeklyReports).mockReturnValue(new Promise(() => {}))
+      vi.mocked(fetchWeeklyReportByWeek).mockReturnValue(new Promise(() => {}))
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} initialWeek="2026-05-01" />)
+
+      expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
+    })
+  })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -28,7 +28,16 @@ const GUEST_PLACEHOLDER_ARTICLES: Article[] = Array.from({ length: 6 }, (_, i) =
   view_count: 0,
 }))
 
-export default function ArticlesPageContent() {
+interface ArticlesPageContentProps {
+  /** Server-rendered first page of results for the current URL's params, seeded from
+   * `app/articles/page.tsx`'s SSR fetch. `undefined` when the server didn't fetch (no session —
+   * see spec.md User Story 3) or the fetch failed (FR-007) — in that case this component behaves
+   * exactly as it did pre-SSR, fetching client-side on mount. */
+  initialArticles?: Article[]
+  initialTotal?: number
+}
+
+export default function ArticlesPageContent({ initialArticles, initialTotal }: ArticlesPageContentProps) {
   const { data: session, status } = useSession()
   const token = (session as { accessToken?: string } | null)?.accessToken
   const { isGuestMode } = useGuestMode()
@@ -42,13 +51,18 @@ export default function ArticlesPageContent() {
     publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
     activeFilterCount,
   } = usePagination()
-  const [articles, setArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<Article[]>(initialArticles ?? [])
   const firstVectorArticleId = useMemo(
     () => articles.find(a => a.has_vectors)?.id,
     [articles]
   )
-  const [total, setTotal] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const [total, setTotal] = useState(initialTotal ?? 0)
+  const [isLoading, setIsLoading] = useState(initialArticles === undefined)
+  // Consumed on the first effect run that actually reaches the fetch below (i.e. once
+  // selectedTopicId has resolved) — skips exactly the one fetch that would otherwise duplicate
+  // the SSR-seeded data for the current URL, while every subsequent params change still fetches
+  // normally (FR-003/SC-004).
+  const skipNextFetch = useRef(initialArticles !== undefined)
   const { selectedTopicId } = useTopic()
   const [openArticleId, setOpenArticleId] = useState<string | null>(
     () => searchParams.get('article')
@@ -80,6 +94,16 @@ export default function ArticlesPageContent() {
   useEffect(() => {
     if (isPaywall) { setIsLoading(false); return }
     if (!selectedTopicId) return
+    // Session resolution is itself async (useSession() starts at status: 'loading' with
+    // token: undefined even for an already-signed-in visitor) — waiting for it to settle
+    // before consuming skipNextFetch is what keeps the *real* first fetch (not this
+    // transient one) from being the one that discards the SSR-seeded articles.
+    if (status === 'loading') return
+    if (skipNextFetch.current) {
+      skipNextFetch.current = false
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
 
     fetchArticles(
@@ -102,7 +126,7 @@ export default function ArticlesPageContent() {
     )
       .then(data => { setArticles(data.items); setTotal(data.total) })
       .finally(() => setIsLoading(false))
-  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale, token])
+  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale, token, status])
 
   // Favorites-only is a display filter over the already-fetched page — toggling it
   // doesn't need a new API round trip, just a re-render.

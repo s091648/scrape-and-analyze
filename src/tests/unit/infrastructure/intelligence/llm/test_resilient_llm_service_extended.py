@@ -110,6 +110,19 @@ class TestResilientLLMServiceAnalyze:
         assert service._handlers[0].name == 'p2'
         assert service._handlers[1].name == 'p1'
 
+    def test_exhausted_providers_reports_rate_limited_provider(self):
+        """Surfaced so callers (main.py, weekly_report.py) can report it in
+        their completion notification — see resilient_metrics_service.py's
+        equivalent, added first for refresh_metrics.py."""
+        from src.infrastructure.intelligence.llm.resilient_llm_service import ResilientLLMService
+        h1 = _make_handler(name='p1', priority=1, analyze_side_effect=RateLimitExhausted("limit"))
+        h2 = _make_handler(name='p2', priority=2, analyze_return=_make_result())
+        service = ResilientLLMService([h1, h2])
+
+        assert service.exhausted_providers == []
+        service.analyze("content", "prompt")
+        assert service.exhausted_providers == ['p1']
+
     def test_handlers_sorted_by_priority(self):
         from src.infrastructure.intelligence.llm.resilient_llm_service import ResilientLLMService
         h2 = _make_handler(name='p2', priority=2)
@@ -224,6 +237,21 @@ class TestResilientEmbeddingService:
         service = ResilientEmbeddingService([h1, h2])
         result = service.embed("hello")
         assert result == [0.2] * 768
+
+    def test_exhausted_providers_reports_rate_limited_provider(self):
+        from src.infrastructure.intelligence.llm.resilient_llm_service import ResilientEmbeddingService, EmbeddingProviderHandler
+        h1_provider = MagicMock()
+        h1_provider.embed.side_effect = RateLimitExhausted("limit")
+        h1 = EmbeddingProviderHandler(provider=h1_provider, strategy=MagicMock(), priority=1, name='p1')
+        h2_provider = MagicMock()
+        h2_provider.embed.return_value = [0.2] * 768
+        h2_provider.count_tokens.return_value = 5
+        h2 = EmbeddingProviderHandler(provider=h2_provider, strategy=MagicMock(), priority=2, name='p2')
+        service = ResilientEmbeddingService([h1, h2])
+
+        assert service.exhausted_providers == []
+        service.embed("hello")
+        assert service.exhausted_providers == ['p1']
 
     def test_embed_batch_returns_first_success(self):
         from src.infrastructure.intelligence.llm.resilient_llm_service import ResilientEmbeddingService, EmbeddingProviderHandler

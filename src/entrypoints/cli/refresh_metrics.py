@@ -44,7 +44,9 @@ from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
-from src.infrastructure.shared.observability import init_run_context
+from src.infrastructure.shared.observability import (
+    init_run_context, log_execution_started, log_execution_completed,
+)
 
 
 if SENTRY_DSN:
@@ -123,6 +125,8 @@ def main() -> None:
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
 
+    started_at, t0 = log_execution_started(logger, run_id=run_id, correlation_id=correlation_id)
+
     tracer = get_tracer()
     try:
         with tracer.start_as_current_span(SpanName.REFRESH_METRICS_RUN) as span:
@@ -132,11 +136,18 @@ def main() -> None:
             session = None
             try:
                 from src.bootstrap import build_metrics_refresh_pipeline
-                metrics_service, metrics_repo, session = build_metrics_refresh_pipeline()
+                from src.modules.collection.application.events import MetricsRefreshCompletedEvent
+                metrics_service, metrics_repo, session, event_bus = build_metrics_refresh_pipeline()
 
                 enabled_metric_keys = metrics_service.tracked_metric_keys
                 if not enabled_metric_keys:
                     logger.warning("no_enabled_metric_definitions")
+                    execution = log_execution_completed(
+                        logger, started_at, t0, run_id=run_id, total=0, refreshed=0, failed=0,
+                    )
+                    event_bus.publish(MetricsRefreshCompletedEvent(
+                        total=0, refreshed=0, failed=0, execution=execution,
+                    ))
                     print("No enabled metric definitions found — nothing to refresh")
                     return
 
@@ -146,9 +157,23 @@ def main() -> None:
                 refreshed, failed = asyncio.run(
                     _refresh_all(rows, metrics_service, metrics_repo, args.concurrency)
                 )
+                rate_limited_providers = metrics_service.exhausted_providers
 
-                logger.info("metrics_refresh_completed", total=len(rows), refreshed=refreshed, failed=failed)
+                execution = log_execution_completed(
+                    logger, started_at, t0,
+                    run_id=run_id, total=len(rows), refreshed=refreshed, failed=failed,
+                    rate_limited_providers=rate_limited_providers,
+                )
                 print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
+                if rate_limited_providers:
+                    print(f"  Rate-limited this run (articles needing them were skipped): "
+                          f"{', '.join(rate_limited_providers)}")
+
+                event_bus.publish(MetricsRefreshCompletedEvent(
+                    total=len(rows), refreshed=refreshed, failed=failed,
+                    execution=execution,
+                    rate_limited_providers=tuple(rate_limited_providers),
+                ))
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(otel_trace.StatusCode.ERROR, str(e))
