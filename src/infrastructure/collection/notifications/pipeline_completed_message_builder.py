@@ -31,5 +31,10 @@ class PipelineCompletedMessageBuilder(JobCompletionMessageBuilder):
         total_row = f"{'合計':<{col_w}} {total_new:>5} {total_dup:>5} {total_failed:>5}"
         table = "\n".join([header, sep] + rows + [sep, total_row])
 
-        plain = cls._esc(f"📦 來源數：{len(results)}")
+        plain_lines = [f"📦 來源數：{len(results)}"]
+        if event.rate_limited_hosts:
+            plain_lines.append(f"🚫 爬蟲來源已限流本次略過：{'、'.join(event.rate_limited_hosts)}")
+        if event.rate_limited_llm_providers:
+            plain_lines.append(f"🚫 LLM provider 已限流：{'、'.join(event.rate_limited_llm_providers)}")
+        plain = cls._esc("\n".join(plain_lines))
         return f"{plain}\n\n```\n{table}\n```"

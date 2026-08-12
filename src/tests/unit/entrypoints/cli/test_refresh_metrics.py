@@ -299,6 +299,36 @@ def test_publishes_completion_event_with_correct_counts(mock_validate, mock_logg
 @patch("src.entrypoints.cli.refresh_metrics.init_default_client")
 @patch("src.entrypoints.cli.refresh_metrics.configure_logging")
 @patch("src.entrypoints.cli.refresh_metrics.validate_config")
+def test_completion_event_reports_rate_limited_providers(mock_validate, mock_logging, mock_http, mock_pipeline):
+    """A run where every article was skipped due to a rate-limited provider must
+    surface that in the published event — not look identical to a run where
+    nothing needed updating (both otherwise show refreshed=0, failed=0)."""
+    from src.modules.collection.application.events import MetricsRefreshCompletedEvent
+
+    metrics_service = MagicMock()
+    metrics_service.tracked_metric_keys = ["citation_count"]
+    metrics_service.fetch_all.return_value = {}
+    metrics_service.exhausted_providers = ["semantic_scholar_arxiv"]
+
+    metrics_repo = MagicMock()
+    metrics_repo.find_stale.return_value = [_mock_row(uuid4(), {"arxiv_id": "2501.00001"})]
+    session = MagicMock()
+    event_bus = MagicMock()
+    mock_pipeline.return_value = (metrics_service, metrics_repo, session, event_bus)
+
+    with patch("sys.argv", ["refresh_metrics"]):
+        from src.entrypoints.cli.refresh_metrics import main
+        main()
+
+    published = event_bus.publish.call_args.args[0]
+    assert isinstance(published, MetricsRefreshCompletedEvent)
+    assert published.rate_limited_providers == ("semantic_scholar_arxiv",)
+
+
+@patch("src.bootstrap.build_metrics_refresh_pipeline")
+@patch("src.entrypoints.cli.refresh_metrics.init_default_client")
+@patch("src.entrypoints.cli.refresh_metrics.configure_logging")
+@patch("src.entrypoints.cli.refresh_metrics.validate_config")
 def test_notification_failure_does_not_fail_the_job(mock_validate, mock_logging, mock_http, mock_pipeline):
     """FR-012: a notification-sender failure must not raise out of main() — InMemoryEventBus
     and NotificationHandler both already swallow handler exceptions internally."""

@@ -15,8 +15,12 @@ class MetricsRefreshMessageBuilder(JobCompletionMessageBuilder):
 
     @classmethod
     def _render_body(cls, event: MetricsRefreshCompletedEvent) -> str:
-        return cls._esc(
-            f"📦 目標文章數：{event.total}\n"
-            f"✅ 更新成功：{event.refreshed}\n"
-            f"❌ 更新失敗：{event.failed}"
-        )
+        lines = [
+            f"📦 目標文章數：{event.total}",
+            f"✅ 更新成功：{event.refreshed}",
+            f"❌ 更新失敗：{event.failed}",
+        ]
+        if event.rate_limited_providers:
+            providers = "、".join(event.rate_limited_providers)
+            lines.append(f"🚫 Provider 已限流本次略過：{providers}")
+        return cls._esc("\n".join(lines))

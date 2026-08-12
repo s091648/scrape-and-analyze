@@ -7,6 +7,7 @@ from src.modules.intelligence.domain.value_objects import AnalysisContent, Analy
 from src.infrastructure.intelligence.llm.embedding import BaseEmbeddingProvider
 from src.infrastructure.intelligence.llm.providers import BaseProvider
 from src.infrastructure.intelligence.llm.rate_limit import QuotaStrategy, RateLimitExhausted
+from src.infrastructure.shared.rate_limit_tracker import RateLimitedProviderTracker
 
 logger = get_logger(__name__)
 
@@ -68,6 +69,15 @@ class ResilientLLMService(LLMService, TextGenerationService):
 
     def __init__(self, handlers: List[ProviderHandler]) -> None:
         self._handlers = sorted(handlers, key=lambda h: h.priority)
+        self._rate_limit_tracker = RateLimitedProviderTracker()
+
+    @property
+    def exhausted_providers(self) -> List[str]:
+        """provider names that raised RateLimitExhausted at least once this run —
+        surfaced so callers (main.py, weekly_report.py) can report it in their
+        completion notification instead of a rate-limited run looking identical
+        to one where every provider just happened to return None."""
+        return self._rate_limit_tracker.exhausted
 
     def analyze(
         self,
@@ -91,6 +101,7 @@ class ResilientLLMService(LLMService, TextGenerationService):
                 )
 
             except RateLimitExhausted:
+                self._rate_limit_tracker.mark_exhausted(handler.name)
                 logger.warning(
                     "provider_daily_limit_reached",
                     provider=handler.name,
@@ -136,6 +147,7 @@ class ResilientLLMService(LLMService, TextGenerationService):
                 )
 
             except RateLimitExhausted:
+                self._rate_limit_tracker.mark_exhausted(handler.name)
                 logger.warning(
                     "provider_daily_limit_reached",
                     provider=handler.name,
@@ -180,6 +192,7 @@ class ResilientLLMService(LLMService, TextGenerationService):
                 )
 
             except RateLimitExhausted:
+                self._rate_limit_tracker.mark_exhausted(handler.name)
                 logger.warning(
                     "provider_daily_limit_reached",
                     provider=handler.name,
@@ -261,6 +274,12 @@ class ResilientEmbeddingService(EmbeddingService):
 
     def __init__(self, handlers: List[EmbeddingProviderHandler]) -> None:
         self._handlers = sorted(handlers, key=lambda h: h.priority)
+        self._rate_limit_tracker = RateLimitedProviderTracker()
+
+    @property
+    def exhausted_providers(self) -> List[str]:
+        """provider names that raised RateLimitExhausted at least once this run."""
+        return self._rate_limit_tracker.exhausted
 
     def embed(self, text: str) -> Optional[List[float]]:
         """Try each embedding handler in priority order, falling back on rate-limit or failure."""
@@ -280,6 +299,7 @@ class ResilientEmbeddingService(EmbeddingService):
                 )
 
             except RateLimitExhausted:
+                self._rate_limit_tracker.mark_exhausted(handler.name)
                 logger.warning(
                     "embedding_provider_daily_limit_reached",
                     provider=handler.name,
@@ -324,6 +344,7 @@ class ResilientEmbeddingService(EmbeddingService):
                 )
 
             except RateLimitExhausted:
+                self._rate_limit_tracker.mark_exhausted(handler.name)
                 logger.warning(
                     "embedding_provider_daily_limit_reached",
                     provider=handler.name,

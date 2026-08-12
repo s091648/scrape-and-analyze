@@ -18,8 +18,12 @@ class WeeklyReportJobCompletedMessageBuilder(JobCompletionMessageBuilder):
 
     @classmethod
     def _render_body(cls, event: WeeklyReportJobCompletedEvent) -> str:
-        return cls._esc(
-            f"📦 處理 topic 數：{event.total_topics}\n"
-            f"✅ 生成成功：{event.generated}\n"
-            f"❌ 生成失敗：{event.failed}"
-        )
+        lines = [
+            f"📦 處理 topic 數：{event.total_topics}",
+            f"✅ 生成成功：{event.generated}",
+            f"❌ 生成失敗：{event.failed}",
+        ]
+        if event.rate_limited_providers:
+            providers = "、".join(event.rate_limited_providers)
+            lines.append(f"🚫 LLM provider 已限流：{providers}")
+        return cls._esc("\n".join(lines))

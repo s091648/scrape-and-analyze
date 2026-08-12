@@ -107,11 +107,12 @@ def main() -> None:
 
             session = None
             event_bus = None
+            llm_service = None
             reports = []
             total_topics = 0
             try:
                 from src.bootstrap import build_weekly_pipeline
-                pipeline, session, event_bus = build_weekly_pipeline()
+                pipeline, session, event_bus, llm_service = build_weekly_pipeline()
                 reports, total_topics = pipeline.run(week_start=week_start, topic_id=topic_id, force=args.force)
             except Exception as e:
                 span.record_exception(e)
@@ -120,18 +121,23 @@ def main() -> None:
                 raise
             finally:
                 failed = total_topics - len(reports)
+                rate_limited_providers = tuple(
+                    getattr(llm_service, "exhausted_providers", []) if llm_service is not None else []
+                )
                 execution = log_execution_completed(
                     logger, started_at, t0,
                     run_id=get_run_id(),
                     reports_generated=len(reports),
                     topics_processed=total_topics,
                     topics_failed=failed,
+                    rate_limited_providers=rate_limited_providers,
                 )
                 if event_bus is not None:
                     from src.modules.intelligence.application.events import WeeklyReportJobCompletedEvent
                     event_bus.publish(WeeklyReportJobCompletedEvent(
                         total_topics=total_topics, generated=len(reports), failed=failed,
                         execution=execution,
+                        rate_limited_providers=rate_limited_providers,
                     ))
                 if session is not None:
                     session.close()

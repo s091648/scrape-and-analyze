@@ -119,6 +119,24 @@ def test_fetch_all_does_not_mark_provider_exhausted_on_generic_exception():
     assert h1.extractor.fetch.call_count == 2  # retried, not skipped
 
 
+def test_exhausted_providers_empty_before_any_rate_limit():
+    h1 = _handler("citation_count", "openalex", 1, {"cited_by_count": 10}, 10)
+    service = ResilientMetricsService(handlers=[h1])
+    service.fetch_all({"doi": "10.1234/x"})
+
+    assert service.exhausted_providers == []
+
+
+def test_exhausted_providers_reports_provider_after_rate_limit():
+    h1 = _handler("citation_count", "openalex", 1, None, None)
+    h1.extractor.fetch.side_effect = ProviderRateLimitedError("429")
+
+    service = ResilientMetricsService(handlers=[h1])
+    service.fetch_all({"doi": "10.1234/a"})
+
+    assert service.exhausted_providers == ["openalex"]
+
+
 def test_tracked_metric_keys_reflects_configured_handlers():
     h1 = _handler("citation_count", "openalex", 1, None, None)
     service = ResilientMetricsService(handlers=[h1])

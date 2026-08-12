@@ -157,16 +157,22 @@ def main() -> None:
                 refreshed, failed = asyncio.run(
                     _refresh_all(rows, metrics_service, metrics_repo, args.concurrency)
                 )
+                rate_limited_providers = metrics_service.exhausted_providers
 
                 execution = log_execution_completed(
                     logger, started_at, t0,
                     run_id=run_id, total=len(rows), refreshed=refreshed, failed=failed,
+                    rate_limited_providers=rate_limited_providers,
                 )
                 print(f"Metrics refresh complete: {refreshed}/{len(rows)} articles refreshed ({failed} failed)")
+                if rate_limited_providers:
+                    print(f"  Rate-limited this run (articles needing them were skipped): "
+                          f"{', '.join(rate_limited_providers)}")
 
                 event_bus.publish(MetricsRefreshCompletedEvent(
                     total=len(rows), refreshed=refreshed, failed=failed,
                     execution=execution,
+                    rate_limited_providers=tuple(rate_limited_providers),
                 ))
             except Exception as e:
                 span.record_exception(e)

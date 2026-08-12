@@ -82,3 +82,29 @@ def test_build_includes_jitter_when_present():
     )
     msg = PipelineCompletedMessageBuilder.build(event)
     assert "jitter" in msg.text.replace("\\", "")
+
+
+def test_build_surfaces_rate_limited_hosts_and_llm_providers():
+    """A run where a scrape source and/or LLM provider got rate-limited must be
+    visible — the two ID spaces (hostname vs LLM provider_name) are reported
+    as separate lines rather than merged into one list."""
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    event = PipelineCompletedEvent(
+        stats=[SourceStats(source="arxiv", new=1, duplicate=0, failed=0)],
+        execution=_make_execution(),
+        rate_limited_hosts=("export.arxiv.org",),
+        rate_limited_llm_providers=("gemini",),
+    )
+    msg = PipelineCompletedMessageBuilder.build(event)
+    text = msg.text.replace("\\", "")
+    assert "export.arxiv.org" in text
+    assert "gemini" in text
+    assert "限流" in text
+
+
+def test_build_omits_rate_limited_lines_when_none():
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    msg = PipelineCompletedMessageBuilder.build(_make_event())
+    assert "限流" not in msg.text.replace("\\", "")

@@ -10,6 +10,7 @@ from src.shared.logging import get_logger
 from src.modules.collection.domain.services import MetricExtractor
 from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.infrastructure.collection.metrics.json_path_extractor import JsonPathMetricExtractor
+from src.infrastructure.shared.rate_limit_tracker import RateLimitedProviderTracker
 
 logger = get_logger(__name__)
 
@@ -70,18 +71,27 @@ class ResilientMetricsService:
         for h in sorted(handlers, key=lambda handler: handler.priority):
             self._by_metric_key.setdefault(h.metric_key, []).append(h)
         # Run-scoped memory of providers that have already raised
-        # ProviderRateLimitedError once — mirrors ScrapeExecutor._aborted_hosts.
+        # ProviderRateLimitedError once — mirrors ScrapeExecutor.exhausted_hosts.
         # DomainRateLimiter's circuit breaker (shared/http/rate_limiter.py) already
         # stops real HTTP calls to the domain, but this instance has no equivalent
         # of ScrapeExecutor to skip calling fetch() at all for the remaining
         # articles in a refresh_metrics run — without this, every subsequent
         # article still pays a thread hop + two log lines per exhausted provider.
-        self._exhausted_providers: set[str] = set()
+        self._rate_limit_tracker = RateLimitedProviderTracker()
 
     @property
     def tracked_metric_keys(self) -> List[str]:
         """The metric_keys this service has at least one enabled provider for."""
         return list(self._by_metric_key.keys())
+
+    @property
+    def exhausted_providers(self) -> List[str]:
+        """provider_names that raised ProviderRateLimitedError at least once this
+        run — surfaced so callers (refresh_metrics.py) can report "N articles
+        skipped because provider X is rate-limited" instead of that looking
+        identical to "nothing needed updating" (both otherwise show up as
+        refreshed=0, failed=0)."""
+        return self._rate_limit_tracker.exhausted
 
     def fetch_all(self, article_identifiers: Dict[str, str]) -> Dict[str, Any]:
         """For each tracked metric_key, try each provider in priority order until
@@ -90,7 +100,7 @@ class ResilientMetricsService:
         results: Dict[str, Any] = {}
         for metric_key, handlers in self._by_metric_key.items():
             for handler in handlers:
-                if handler.provider_name in self._exhausted_providers:
+                if self._rate_limit_tracker.is_exhausted(handler.provider_name):
                     continue
                 try:
                     raw = handler.extractor.fetch(article_identifiers)
@@ -101,7 +111,7 @@ class ResilientMetricsService:
                         results[metric_key] = value
                         break
                 except ProviderRateLimitedError as e:
-                    self._exhausted_providers.add(handler.provider_name)
+                    self._rate_limit_tracker.mark_exhausted(handler.provider_name)
                     logger.warning(
                         "metric_provider_exhausted_for_run",
                         metric_key=metric_key,

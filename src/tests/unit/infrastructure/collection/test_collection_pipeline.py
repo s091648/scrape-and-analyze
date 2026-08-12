@@ -154,6 +154,57 @@ def test_intra_batch_dedup_logs_article_duplicate_skipped():
     )
 
 
+def test_run_publishes_rate_limited_hosts_and_llm_providers():
+    """PipelineCompletedEvent must report ScrapeExecutor.exhausted_hosts and
+    llm_service.exhausted_providers when the pipeline was given an llm_service —
+    otherwise a rate-limited run looks identical to a clean one."""
+    from src.modules.collection.application.events import PipelineCompletedEvent
+
+    mock_setting_repo = MagicMock()
+    mock_setting_repo.get_active_due.return_value = []
+
+    mock_executor = MagicMock()
+    mock_executor.exhausted_hosts = ["export.arxiv.org"]
+
+    mock_llm_service = MagicMock()
+    mock_llm_service.exhausted_providers = ["gemini"]
+
+    mock_event_bus = MagicMock()
+    pipeline = CollectionPipeline(
+        setting_repo=mock_setting_repo,
+        scraper_factory=MagicMock(),
+        event_bus=mock_event_bus,
+        pipeline_stats=PipelineStats(),
+        executor=mock_executor,
+        llm_service=mock_llm_service,
+    )
+    pipeline.run()
+
+    published = mock_event_bus.publish.call_args.args[0]
+    assert isinstance(published, PipelineCompletedEvent)
+    assert published.rate_limited_hosts == ("export.arxiv.org",)
+    assert published.rate_limited_llm_providers == ("gemini",)
+
+
+def test_run_reports_no_rate_limited_llm_providers_when_not_wired():
+    """CollectionPipeline built without an llm_service (e.g. an older caller)
+    must not blow up reading .exhausted_providers — just report none."""
+    from src.modules.collection.application.events import PipelineCompletedEvent
+
+    mock_setting_repo = MagicMock()
+    mock_setting_repo.get_active_due.return_value = []
+    mock_executor = MagicMock()
+    mock_executor.exhausted_hosts = []
+    mock_event_bus = MagicMock()
+
+    pipeline = _make_pipeline(setting_repo=mock_setting_repo, event_bus=mock_event_bus, executor=mock_executor)
+    pipeline.run()
+
+    published = mock_event_bus.publish.call_args.args[0]
+    assert isinstance(published, PipelineCompletedEvent)
+    assert published.rate_limited_llm_providers == ()
+
+
 def test_post_fetch_dedup_logs_article_duplicate_skipped():
     """Duplicates caught by the post-fetch already-analyzed check must also emit
     'article_duplicate_skipped', matching what ArticleScrapedHandler logs for the

@@ -483,6 +483,7 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
         executor=executor,
         app_env=APP_ENV,
         jitter_seconds=jitter_seconds,
+        llm_service=llm_service,
     )
 
     logger.info(
@@ -591,7 +592,17 @@ def build_weekly_pipeline():
     notification_handler = build_notification_handler(WeeklyReportJobCompletedMessageBuilder)
     event_bus.subscribe(WeeklyReportJobCompletedEvent, notification_handler.handle)
 
-    return WeeklyReportPipeline(topic_repository=topic_repository, generate_use_case=generate_use_case), session, event_bus
+    # llm_service returned alongside the pipeline (not threaded into
+    # WeeklyReportPipeline itself) so weekly_report.py can read
+    # llm_service.exhausted_providers after pipeline.run() — mirrors
+    # CollectionPipeline, but WeeklyReportJobCompletedEvent is built externally
+    # in the CLI entrypoint, not inside the pipeline.
+    return (
+        WeeklyReportPipeline(topic_repository=topic_repository, generate_use_case=generate_use_case),
+        session,
+        event_bus,
+        llm_service,
+    )
 
 
 # ---------------------------------------------------------------------------

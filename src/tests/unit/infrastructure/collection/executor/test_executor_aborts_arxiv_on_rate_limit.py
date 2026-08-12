@@ -39,12 +39,14 @@ def test_executor_aborts_remaining_arxiv_discovers_after_429():
     )
     executor.run_streaming([task1, task2], on_result=lambda _: None)
 
-    # Second scraper must never be invoked — host is in _aborted_hosts
+    # Second scraper must never be invoked — host is in the rate-limit tracker
     scraper2.discover.assert_not_called()
     # Both tasks reported as failed (first: real 429; second: skipped)
     assert len(failed_tasks) == 2
     assert "arxiv-a" in failed_tasks
     assert "arxiv-b" in failed_tasks
+    # Surfaced publicly so callers (main.py) can report it in the completion notification
+    assert executor.exhausted_hosts == ["export.arxiv.org"]
 
 
 def test_executor_non_arxiv_source_unaffected_by_arxiv_429():

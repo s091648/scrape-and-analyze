@@ -1,6 +1,6 @@
 import time
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from opentelemetry import trace as _otel
@@ -40,6 +40,7 @@ class CollectionPipeline:
         article_repo: Optional[ArticleRepository] = None,
         app_env: str = "unknown",
         jitter_seconds: Optional[float] = None,
+        llm_service: Optional[Any] = None,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -52,6 +53,12 @@ class CollectionPipeline:
         # and the startup jitter main.py slept before this pipeline was even built.
         self._app_env = app_env
         self._jitter_seconds = jitter_seconds
+        # Same ResilientLLMService instance analyze/translate use cases share for the
+        # whole run (wired via event handlers, not called directly here) — held only so
+        # PipelineCompletedEvent can report which LLM providers got rate-limited. Typed
+        # loosely (Any, not ResilientLLMService) so this stays a notification-only concern
+        # and doesn't force LLMService's abstract interface to promise exhausted_providers.
+        self._llm_service = llm_service
 
     def _build_execution_meta(self, started_at: datetime, start: float) -> JobExecutionMeta:
         return JobExecutionMeta(
@@ -61,6 +68,14 @@ class CollectionPipeline:
             app_env=self._app_env,
             jitter_seconds=self._jitter_seconds,
         )
+
+    def _rate_limited_llm_providers(self) -> Tuple[str, ...]:
+        """LLM provider names that hit RateLimitExhausted this run, if the
+        pipeline was given the same ResilientLLMService instance the analyze/
+        translate use cases share — empty tuple if not wired or none hit it."""
+        if self._llm_service is None:
+            return ()
+        return tuple(getattr(self._llm_service, "exhausted_providers", []))
 
     def run(self) -> int:
         """Execute the full pipeline for all due sources and return the number of articles published."""
@@ -74,6 +89,8 @@ class CollectionPipeline:
             self._event_bus.publish(PipelineCompletedEvent(
                 stats=[],
                 execution=self._build_execution_meta(started_at, start),
+                rate_limited_hosts=tuple(self._executor.exhausted_hosts),
+                rate_limited_llm_providers=self._rate_limited_llm_providers(),
             ))
             return 0
 
@@ -203,6 +220,8 @@ class CollectionPipeline:
         self._event_bus.publish(PipelineCompletedEvent(
             stats=stats,
             execution=self._build_execution_meta(started_at, start),
+            rate_limited_hosts=tuple(self._executor.exhausted_hosts),
+            rate_limited_llm_providers=self._rate_limited_llm_providers(),
         ))
 
         logger.info(

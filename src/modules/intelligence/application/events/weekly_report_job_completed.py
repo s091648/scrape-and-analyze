@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Tuple
 
 from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
 
@@ -16,3 +17,7 @@ class WeeklyReportJobCompletedEvent:
     generated: int
     failed: int
     execution: JobExecutionMeta
+    # LLM provider_names that hit RateLimitExhausted this run (ResilientLLMService.
+    # exhausted_providers) — without this, a run where summaries failed because the
+    # LLM chain is rate-limited looks identical to "nothing was due".
+    rate_limited_providers: Tuple[str, ...] = field(default_factory=tuple)

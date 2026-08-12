@@ -16,7 +16,9 @@ def test_publishes_completion_event_with_correct_counts(mock_validate, mock_logg
     pipeline.run.return_value = ([MagicMock(), MagicMock()], 3)  # 2 generated, 3 topics attempted
     session = MagicMock()
     event_bus = MagicMock()
-    mock_pipeline.return_value = (pipeline, session, event_bus)
+    llm_service = MagicMock()
+    llm_service.exhausted_providers = []
+    mock_pipeline.return_value = (pipeline, session, event_bus, llm_service)
 
     with patch("sys.argv", ["weekly_report"]):
         from src.entrypoints.cli.weekly_report import main
@@ -47,11 +49,39 @@ def test_notification_failure_does_not_fail_the_job(mock_validate, mock_logging,
     pipeline = MagicMock()
     pipeline.run.return_value = ([], 0)
     session = MagicMock()
-    mock_pipeline.return_value = (pipeline, session, event_bus)
+    llm_service = MagicMock()
+    llm_service.exhausted_providers = []
+    mock_pipeline.return_value = (pipeline, session, event_bus, llm_service)
 
     with patch("sys.argv", ["weekly_report"]):
         from src.entrypoints.cli.weekly_report import main
         main()  # must not raise
+
+
+@patch("src.bootstrap.build_weekly_pipeline")
+@patch("src.entrypoints.cli.weekly_report.configure_logging")
+@patch("src.entrypoints.cli.weekly_report.validate_config")
+def test_completion_event_reports_rate_limited_llm_providers(mock_validate, mock_logging, mock_pipeline):
+    """A run where summary generation failed because the LLM chain is
+    rate-limited must surface that in the published event — not look
+    identical to a run where nothing was due."""
+    from src.modules.intelligence.application.events import WeeklyReportJobCompletedEvent
+
+    pipeline = MagicMock()
+    pipeline.run.return_value = ([], 1)
+    session = MagicMock()
+    event_bus = MagicMock()
+    llm_service = MagicMock()
+    llm_service.exhausted_providers = ["gemini"]
+    mock_pipeline.return_value = (pipeline, session, event_bus, llm_service)
+
+    with patch("sys.argv", ["weekly_report"]):
+        from src.entrypoints.cli.weekly_report import main
+        main()
+
+    published = event_bus.publish.call_args.args[0]
+    assert isinstance(published, WeeklyReportJobCompletedEvent)
+    assert published.rate_limited_providers == ("gemini",)
 
 
 @patch("src.bootstrap.build_weekly_pipeline")
@@ -62,7 +92,9 @@ def test_session_closed_after_run(mock_validate, mock_logging, mock_pipeline):
     pipeline.run.return_value = ([], 0)
     session = MagicMock()
     event_bus = MagicMock()
-    mock_pipeline.return_value = (pipeline, session, event_bus)
+    llm_service = MagicMock()
+    llm_service.exhausted_providers = []
+    mock_pipeline.return_value = (pipeline, session, event_bus, llm_service)
 
     with patch("sys.argv", ["weekly_report"]):
         from src.entrypoints.cli.weekly_report import main
