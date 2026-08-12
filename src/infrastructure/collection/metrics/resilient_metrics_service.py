@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from src.shared.logging import get_logger
 from src.modules.collection.domain.services import MetricExtractor
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.infrastructure.collection.metrics.json_path_extractor import JsonPathMetricExtractor
 
 logger = get_logger(__name__)
@@ -68,6 +69,14 @@ class ResilientMetricsService:
         self._by_metric_key: Dict[str, List[MetricHandler]] = {}
         for h in sorted(handlers, key=lambda handler: handler.priority):
             self._by_metric_key.setdefault(h.metric_key, []).append(h)
+        # Run-scoped memory of providers that have already raised
+        # ProviderRateLimitedError once — mirrors ScrapeExecutor._aborted_hosts.
+        # DomainRateLimiter's circuit breaker (shared/http/rate_limiter.py) already
+        # stops real HTTP calls to the domain, but this instance has no equivalent
+        # of ScrapeExecutor to skip calling fetch() at all for the remaining
+        # articles in a refresh_metrics run — without this, every subsequent
+        # article still pays a thread hop + two log lines per exhausted provider.
+        self._exhausted_providers: set[str] = set()
 
     @property
     def tracked_metric_keys(self) -> List[str]:
@@ -81,6 +90,8 @@ class ResilientMetricsService:
         results: Dict[str, Any] = {}
         for metric_key, handlers in self._by_metric_key.items():
             for handler in handlers:
+                if handler.provider_name in self._exhausted_providers:
+                    continue
                 try:
                     raw = handler.extractor.fetch(article_identifiers)
                     if raw is None:
@@ -89,6 +100,14 @@ class ResilientMetricsService:
                     if value is not None:
                         results[metric_key] = value
                         break
+                except ProviderRateLimitedError as e:
+                    self._exhausted_providers.add(handler.provider_name)
+                    logger.warning(
+                        "metric_provider_exhausted_for_run",
+                        metric_key=metric_key,
+                        provider=handler.provider_name,
+                        error=str(e),
+                    )
                 except Exception as e:
                     logger.warning(
                         "metric_extractor_failed",
