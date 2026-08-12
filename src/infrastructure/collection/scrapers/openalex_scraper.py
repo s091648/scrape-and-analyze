@@ -46,7 +46,7 @@ class OpenAlexScraper(BaseScraper):
             )
         except OpenAlexRateLimitedError as e:
             logger.warning("openalex_rate_limited", message=str(e))
-            return []
+            raise
         jobs = []
         for e in entries:
             jobs.append(ScrapeJob(

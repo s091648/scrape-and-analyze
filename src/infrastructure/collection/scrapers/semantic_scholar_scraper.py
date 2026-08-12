@@ -45,7 +45,7 @@ class SemanticScholarScraper(BaseScraper):
             )
         except SemanticScholarRateLimitedError as e:
             logger.warning("semantic_scholar_rate_limited", message=str(e))
-            return []
+            raise
         jobs = []
         for e in entries:
             jobs.append(ScrapeJob(

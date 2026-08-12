@@ -74,18 +74,99 @@ def test_gemini_provider_strips_markdown_code_block_before_parsing():
 # ── Daily quota detection ─────────────────────────────────────────────────────
 
 def test_gemini_provider_detects_daily_quota_exhaustion_and_raises():
+    """The SDK raises a typed ClientError (google.genai.errors) on 4xx, not a
+    bare Exception — code=429 + status="RESOURCE_EXHAUSTED" + a quota-id
+    naming "PerDay" is what a real daily-quota 429 looks like."""
+    from google.genai.errors import ClientError
     from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
 
     with patch("src.infrastructure.intelligence.llm.providers.gemini_provider.genai") as mock_genai:
         from src.infrastructure.intelligence.llm.providers.gemini_provider import GeminiProvider
-        mock_genai.Client.return_value.models.generate_content.side_effect = Exception(
-            "RESOURCE_EXHAUSTED: PerDay quota exceeded"
+        quota_error = ClientError(
+            code=429,
+            response_json={
+                "status": "RESOURCE_EXHAUSTED",
+                "message": "Quota exceeded",
+                "details": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}],
+            },
         )
+        mock_genai.Client.return_value.models.generate_content.side_effect = quota_error
         provider = GeminiProvider(api_key="test-key", model="gemini-3-flash-preview")
 
         import pytest
         with pytest.raises(RateLimitExhausted):
             provider.analyze("content", "prompt")
+
+
+def test_gemini_provider_retries_when_retry_info_delay_is_short_despite_perday_quota_id():
+    """Regression test for a real 429 observed against the live API
+    (scripts/verify_gemini_rate_limit_classification.py, 2026-08-12): quotaId
+    said "...PerDay..." but the response also carried a
+    google.rpc.RetryInfo.retryDelay of "26s" — the quota is a rolling/leaky
+    bucket that clears in seconds, not a hard midnight reset. RetryInfo must
+    win over the quota-id label, so this should retry, not abort."""
+    from google.genai.errors import ClientError
+
+    with patch("src.infrastructure.intelligence.llm.providers.gemini_provider.genai") as mock_genai:
+        from src.infrastructure.intelligence.llm.providers.gemini_provider import GeminiProvider
+        real_world_error = ClientError(
+            code=429,
+            response_json={
+                "error": {
+                    "code": 429,
+                    "message": (
+                        "You exceeded your current quota... "
+                        "Please retry in 26.996214407s."
+                    ),
+                    "status": "RESOURCE_EXHAUSTED",
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                            "violations": [{
+                                "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                                "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                                "quotaValue": "20",
+                            }],
+                        },
+                        {
+                            "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                            "retryDelay": "26s",
+                        },
+                    ],
+                },
+            },
+        )
+        ok_response = _make_mock_response(_make_valid_payload())
+        mock_genai.Client.return_value.models.generate_content.side_effect = [real_world_error, ok_response]
+        provider = GeminiProvider(api_key="test-key", model="gemini-3-flash-preview")
+        result = provider.analyze("content", "prompt")
+
+    assert result is not None
+    assert mock_genai.Client.return_value.models.generate_content.call_count == 2
+
+
+def test_gemini_provider_retries_on_rpm_quota_error():
+    """A RESOURCE_EXHAUSTED 429 whose quota-id has no PerDay/Token marker (a
+    plain per-minute request quota) should retry, not abort immediately."""
+    from google.genai.errors import ClientError
+
+    with patch("src.infrastructure.intelligence.llm.providers.gemini_provider.genai") as mock_genai:
+        from src.infrastructure.intelligence.llm.providers.gemini_provider import GeminiProvider
+        rpm_error = ClientError(
+            code=429,
+            response_json={
+                "status": "RESOURCE_EXHAUSTED",
+                "message": "Quota exceeded",
+                "details": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}],
+            },
+        )
+        ok_response = _make_mock_response(_make_valid_payload())
+        mock_genai.Client.return_value.models.generate_content.side_effect = [rpm_error, ok_response]
+        provider = GeminiProvider(api_key="test-key", model="gemini-3-flash-preview")
+        result = provider.analyze("content", "prompt")
+
+    assert result is not None
+    assert mock_genai.Client.return_value.models.generate_content.call_count == 2
 
 
 # ── Token tracking ────────────────────────────────────────────────────────────

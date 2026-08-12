@@ -37,6 +37,13 @@ _SINGLE_CONNECTION_DOMAINS: frozenset[str] = frozenset({
 })
 
 
+class DomainCircuitOpenError(Exception):
+    """Raised when a domain already returned 429 earlier in this run. External
+    APIs' 429s (daily/pool quota exhaustion) don't clear within a single run,
+    so further requests are short-circuited locally instead of pacing out more
+    doomed calls — callers should treat this the same as a fresh 429."""
+
+
 class _TokenBucket:
     """Single-domain token bucket. NOT thread-safe on its own; lock is held by caller."""
 
@@ -83,10 +90,27 @@ class DomainRateLimiter:
         self._rpm_map: dict[str, float] = {**_BUILTIN_OVERRIDES, **(overrides or {})}
         self._buckets: dict[str, _TokenBucket] = {}
         self._semaphores: dict[str, threading.Semaphore] = {}
+        self._tripped_domains: set[str] = set()
         self._lock = threading.Lock()
 
+    def note_rate_limited(self, domain: str) -> None:
+        """Trip the circuit for *domain*: further acquire()/connection() calls
+        raise DomainCircuitOpenError immediately for the rest of this process,
+        instead of waiting out the token bucket to send another request that's
+        very likely to also 429."""
+        with self._lock:
+            self._tripped_domains.add(domain)
+
     def acquire(self, domain: str) -> None:
-        """Block until a request token is available for *domain*."""
+        """Block until a request token is available for *domain*.
+
+        Raises DomainCircuitOpenError immediately (no wait, no request) if a
+        prior call to this domain already recorded a 429 via note_rate_limited().
+        """
+        with self._lock:
+            tripped = domain in self._tripped_domains
+        if tripped:
+            raise DomainCircuitOpenError(domain)
         bucket = self._get_or_create(domain)
         bucket.acquire()
 

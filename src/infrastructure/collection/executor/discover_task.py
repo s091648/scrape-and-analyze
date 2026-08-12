@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, List
 
 from .fetch_task import FetchTask
-from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -29,7 +29,7 @@ class DiscoverTask:
         """Run scraper.discover() and return the resulting FetchTask list; empty list on failure."""
         try:
             jobs = self.scraper.discover()
-        except ArxivRateLimitedError:
+        except ProviderRateLimitedError:
             raise
         except Exception as e:
             logger.error(

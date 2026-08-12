@@ -8,7 +8,7 @@ from src.shared.logging import get_logger
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.intelligence.domain.value_objects.analysis_tag_group import AnalysisTagGroup
 from src.modules.intelligence.domain.services import LLMService, TextGenerationService
-from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
+from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted, RateLimitKind
 
 logger = get_logger(__name__)
 
@@ -36,16 +36,6 @@ def _to_str(val) -> str:
     return val or ""
 
 
-def _is_retryable(exc: BaseException) -> bool:
-    """Retry on transient API / network errors; never retry on parse failures."""
-    return not isinstance(exc, _NON_RETRYABLE)
-
-
-def _is_translate_retryable(exc: BaseException) -> bool:
-    """For translate(), retry on most errors (no JSON parsing to fail on)."""
-    return not isinstance(exc, _TRANSLATE_NON_RETRYABLE)
-
-
 class BaseProvider(LLMService, TextGenerationService, ABC):
     """
     Infrastructure base for all LLM providers.
@@ -64,17 +54,41 @@ class BaseProvider(LLMService, TextGenerationService, ABC):
     def __init__(self, model: str) -> None:
         self._model = model
         self._retry = tenacity.Retrying(
-            retry=tenacity.retry_if_exception(_is_retryable),
+            retry=tenacity.retry_if_exception(self._is_retryable),
             wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
             stop=tenacity.stop_after_attempt(3),
             reraise=True,
         )
         self._translate_retry = tenacity.Retrying(
-            retry=tenacity.retry_if_exception(_is_translate_retryable),
+            retry=tenacity.retry_if_exception(self._is_translate_retryable),
             wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
             stop=tenacity.stop_after_attempt(3),
             reraise=True,
         )
+
+    def _classify_rate_limit(self, exc: BaseException) -> Optional[RateLimitKind]:
+        """Classify a rate-limit-shaped error as RPM/TPM (retry with backoff) or
+        RPD (abort this provider for the rest of this run). Returns None if `exc`
+        isn't a rate-limit signal this provider recognizes at all — the default,
+        for providers that don't override it, preserving today's behavior of
+        treating every non-RateLimitExhausted error as a plain retryable failure.
+        Subclasses inspect their own SDK's exception/response shape to answer this."""
+        return None
+
+    def _is_retryable(self, exc: BaseException) -> bool:
+        """Retry on transient API / network errors; never retry on parse failures
+        or a rate limit classified as RPD (retrying it would just burn attempts —
+        it gets escalated to RateLimitExhausted instead, see analyze()/translate())."""
+        if isinstance(exc, _NON_RETRYABLE):
+            return False
+        return self._classify_rate_limit(exc) is not RateLimitKind.RPD
+
+    def _is_translate_retryable(self, exc: BaseException) -> bool:
+        """For translate()/generate(), retry on most errors (no JSON parsing to
+        fail on) except a rate limit classified as RPD — see _is_retryable()."""
+        if isinstance(exc, _TRANSLATE_NON_RETRYABLE):
+            return False
+        return self._classify_rate_limit(exc) is not RateLimitKind.RPD
 
     @abstractmethod
     def _call_api(self, content: str, prompt: str) -> dict:
@@ -128,6 +142,8 @@ class BaseProvider(LLMService, TextGenerationService, ABC):
         except RateLimitExhausted:
             raise
         except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
             logger.warning("provider_analyze_failed", model=self._model, error=str(e))
             return None
 
@@ -154,6 +170,8 @@ class BaseProvider(LLMService, TextGenerationService, ABC):
         except RateLimitExhausted:
             raise
         except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
             logger.warning("provider_translate_failed", model=self._model, error=str(e))
             return None
 
@@ -175,6 +193,8 @@ class BaseProvider(LLMService, TextGenerationService, ABC):
         except RateLimitExhausted:
             raise
         except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
             logger.warning("provider_generate_failed", model=self._model, error=str(e))
             return None
 

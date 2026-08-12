@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch, Mock
 from src.infrastructure.collection.clients.semantic_scholar_client import (
     SemanticScholarEntry,
@@ -94,7 +95,10 @@ def test_discover_no_keywords_returns_empty():
     mock_client.fetch_papers.assert_not_called()
 
 
-def test_discover_rate_limited_returns_empty():
+def test_discover_rate_limited_reraises():
+    """discover() must re-raise SemanticScholarRateLimitedError (not swallow it) so
+    ScrapeExecutor can abort remaining same-host discovers for this run —
+    matches ArxivScraper's existing behavior (see rate_limit_errors.py)."""
     from src.infrastructure.collection.scrapers.semantic_scholar_scraper import SemanticScholarScraper
 
     mock_client = MagicMock()
@@ -105,9 +109,8 @@ def test_discover_rate_limited_returns_empty():
         client=mock_client,
         fetch_pdf=False,
     )
-    jobs = scraper.discover()
-
-    assert jobs == []
+    with pytest.raises(SemanticScholarRateLimitedError):
+        scraper.discover()
 
 
 def test_discover_arxiv_url_in_scrape_job():

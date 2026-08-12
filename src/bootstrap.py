@@ -446,22 +446,28 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     # feature branch, replace this direct repo.save() with:
     #   event_bus.publish(DiscoverFailedEvent(source=task.setting.source, ...))
     def _on_discover_failed(task, exc) -> None:
-        """Record a discover-phase failure as a FailedTask and emit an OTel error span."""
+        """Record a discover-phase failure as a FailedTask and emit an OTel error span.
+
+        task_type is derived from the actual source (not hardcoded) — this callback
+        now fires for any provider's rate-limit abort (arxiv/openalex/semantic_scholar),
+        not just arxiv, since ScrapeExecutor catches the shared ProviderRateLimitedError base.
+        """
+        source = getattr(getattr(task, "setting", None), "source", "unknown")
+        task_type = f"{source}_discover"
         with _tracer.start_as_current_span("scraper.discover_failed") as span:
-            span.set_attribute("task.type", "arxiv_discover")
+            span.set_attribute("task.type", task_type)
             span.set_attribute("task.exception_type", type(exc).__name__)
-            source = getattr(getattr(task, "setting", None), "source", "unknown")
             span.set_attribute("article.source", source)
             span.set_status(_StatusCode.ERROR, type(exc).__name__)
             failed = FailedTask(
-                task_type="arxiv_discover",
+                task_type=task_type,
                 exception_type=type(exc).__name__,
                 exception_message=str(exc),
                 failed_at=datetime.now(timezone.utc),
             )
             try:
                 failed_task_repo.save(failed)
-                logger.info("arxiv_discover_failure_recorded", source=source)
+                logger.info("discover_failure_recorded", source=source)
             except Exception as e:
                 logger.error("failed_task_save_error", source=source, error=str(e))
 

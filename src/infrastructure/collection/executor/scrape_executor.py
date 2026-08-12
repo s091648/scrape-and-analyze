@@ -14,7 +14,7 @@ from .queue_selector import (
     QueueSelector,
     WeightedRoundRobinQueueSelector,
 )
-from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.shared.logging import get_logger
 from src.modules.collection.domain.value_objects import ScrapedArticle
 
@@ -292,7 +292,7 @@ class ScrapeExecutor:
                         if self._on_discover_failed is not None:
                             self._on_discover_failed(
                                 task,
-                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                                ProviderRateLimitedError("Skipped: host previously rate-limited this run"),
                             )
                         on_discover_complete()
                     else:
@@ -309,7 +309,7 @@ class ScrapeExecutor:
                                     host=task.host,
                                     count=len(fetch_tasks),
                                 )
-                        except ArxivRateLimitedError as exc:
+                        except ProviderRateLimitedError as exc:
                             with self._abort_lock:
                                 self._aborted_hosts.add(host)
                             logger.warning(
@@ -492,7 +492,7 @@ class ScrapeExecutor:
                         if self._on_discover_failed is not None:
                             self._on_discover_failed(
                                 task,
-                                ArxivRateLimitedError("Skipped: host previously rate-limited this run"),
+                                ProviderRateLimitedError("Skipped: host previously rate-limited this run"),
                             )
                         on_discover_complete()
                         # executed_discover stays False → no cooldown, semaphore released by outer finally
@@ -513,7 +513,7 @@ class ScrapeExecutor:
                                     host=task.host,
                                     count=len(fetch_tasks),
                                 )
-                        except ArxivRateLimitedError as exc:
+                        except ProviderRateLimitedError as exc:
                             # First 429 for this host — abort all remaining discovers this run.
                             with self._abort_lock:
                                 self._aborted_hosts.add(host)

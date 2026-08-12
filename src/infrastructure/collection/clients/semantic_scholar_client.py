@@ -15,6 +15,8 @@ from typing import List, Optional
 import requests
 
 from src.config.settings import SEMANTIC_SCHOLAR_API_KEY
+from src.infrastructure.shared.http import DomainCircuitOpenError
+from src.infrastructure.collection.clients.rate_limit_errors import ProviderRateLimitedError
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +28,7 @@ SEMANTIC_SCHOLAR_FIELDS = (
 )
 
 
-class SemanticScholarRateLimitedError(Exception):
+class SemanticScholarRateLimitedError(ProviderRateLimitedError):
     """Semantic Scholar API returned HTTP 429. Signals callers to abort remaining tasks for this run."""
 
 
@@ -75,6 +77,9 @@ class SemanticScholarClient:
                 headers=headers,
                 timeout=30,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("semantic_scholar_rate_limited", url="paper/DOI:" + doi, circuit_open=True)
+            raise SemanticScholarRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("semantic_scholar_rate_limited", url="paper/DOI:" + doi)
@@ -103,6 +108,9 @@ class SemanticScholarClient:
                 headers=headers,
                 timeout=30,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("semantic_scholar_rate_limited", url="paper/ARXIV:" + arxiv_id, circuit_open=True)
+            raise SemanticScholarRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("semantic_scholar_rate_limited", url="paper/ARXIV:" + arxiv_id)
@@ -155,6 +163,9 @@ class SemanticScholarClient:
                 headers=headers,
                 timeout=60,
             )
+        except DomainCircuitOpenError as exc:
+            logger.warning("semantic_scholar_rate_limited", url=SEMANTIC_SCHOLAR_API_URL, circuit_open=True)
+            raise SemanticScholarRateLimitedError(str(exc)) from exc
         except requests.exceptions.HTTPError as exc:
             if exc.response is not None and exc.response.status_code == 429:
                 logger.warning("semantic_scholar_rate_limited", url=SEMANTIC_SCHOLAR_API_URL)
