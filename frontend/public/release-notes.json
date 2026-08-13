@@ -10,6 +10,24 @@
     ]
   },
   {
+    "version": "v1.5.1",
+    "date": "2026-08-13",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Expanded the data retrieval limits for research queries to allow for larger result sets."
+      },
+      {
+        "type": "feat",
+        "description": "Improved system performance and responsiveness by upgrading the core service integration."
+      },
+      {
+        "type": "chore",
+        "description": "Released version 1.5.0 featuring various platform-wide optimizations and updates."
+      }
+    ]
+  },
+  {
     "version": "v1.5.0",
     "date": "2026-08-12",
     "changes": [
