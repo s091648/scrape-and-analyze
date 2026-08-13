@@ -1,5 +1,23 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Improved application performance and loading speeds by implementing a new frontend caching system."
+      },
+      {
+        "type": "fix",
+        "description": "Optimized article browsing and navigation to ensure a faster and more responsive user experience."
+      },
+      {
+        "type": "chore",
+        "description": "Introduced automated release notes to provide users with consistent and clear updates on application changes."
+      }
+    ]
+  },
+  {
     "version": "v1.5.1",
     "date": "2026-08-13",
     "changes": [

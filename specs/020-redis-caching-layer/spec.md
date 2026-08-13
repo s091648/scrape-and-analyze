@@ -120,4 +120,14 @@ Operators already get a completion notification when the main scraping pipeline 
 - The daily scraping pipeline and the admin write endpoints (topics, tags, scraper settings) are the only write paths that need to trigger cache freshness for the views in scope; no other write path bypasses them for this data.
 - "Operators" and the notification channel/format in FR-010/FR-011 refer to the same audience and mechanism already used for the main scraping pipeline's and weekly report job's completion notifications — no new notification channel is introduced.
 - The `translate` and `dedup_reconcile` scheduled jobs are explicitly out of scope for the notification extension (User Story 4) in this feature.
-- Frontend-side Web Vitals levers other than API response caching (bundle size, image optimization, etc.) are out of scope for this feature.
+- Frontend-side Web Vitals levers other than API response caching (bundle size, image optimization, etc.) are out of scope for this feature, with one narrow exception carved out post-launch — see the Addendum below.
+
+## Addendum: Frontend Article-Detail Session Cache (2026-08-13)
+
+Added after initial launch, in response to a real usage report: repeatedly opening the same article's detail dialog within one browsing session re-fetched `GET /articles/{id}` every time, even though the article had just been viewed. This is a client-side, in-memory complement to the backend Redis cache above — it does not touch Redis, PostgreSQL, or any backend code, and does not change the freshness guarantees FR-001–FR-009 make about what the *backend* serves.
+
+**Behavior**: The frontend keeps an in-memory LRU cache (capacity 10, keyed by `locale:article_id`) of `GET /articles/{id}` responses, scoped to the current browser tab session (a page reload clears it — no `sessionStorage`/`localStorage` persistence). Re-opening an already-cached article's detail dialog is served from this cache instead of issuing a new request.
+
+**Deliberate scope decision — `view_count`/`metrics` staleness**: Unlike the backend cache (which excludes `view_count`/`metrics` from what it caches specifically so they stay live per-request — see `backend/routers/articles.py`), the frontend cache stores the entire response, including those two fields. Re-opening the same article within one session can therefore show a `view_count`/`metrics` snapshot that's a few minutes stale. This is accepted as out of scope for correctness: the staleness window is bounded to one tab's session, and the two extra DB queries this would otherwise force on every dialog re-open aren't worth paying just to keep a view counter live to the second for a browsing session's own repeat views.
+
+**Implementation**: `frontend/lib/cache/lru-cache.ts` (generic `LRUCache<K, V>`, `Map`-backed — insertion-order iteration gives O(1) recency tracking and eviction without a hand-rolled linked list), wired into `frontend/lib/api/articles.ts::fetchArticleById()`.
