@@ -1,5 +1,15 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Increased API rate limits for improved data processing performance."
+      }
+    ]
+  },
+  {
     "version": "v1.5.0",
     "date": "2026-08-12",
     "changes": [
