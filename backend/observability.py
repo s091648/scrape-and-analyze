@@ -78,8 +78,19 @@ def configure_logging(app_env: str) -> None:
 
     if all([GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_API_KEY]):
         try:
-            from logging_loki import LokiHandler
-            loki_handler = LokiHandler(
+            import queue
+            from logging_loki import LokiQueueHandler
+            # LokiQueueHandler (not the plain LokiHandler) — plain LokiHandler.emit() does a
+            # synchronous requests.post() to Grafana Cloud on every single log line, on whatever
+            # thread called logger.info(). RequestLoggingMiddleware calls it directly on the
+            # asyncio event loop (it's pure ASGI, not run in a threadpool), so that one HTTP
+            # round-trip blocked the entire process from making progress on any other in-flight
+            # request until it returned — measured adding ~0.5-0.6s to every request (cache HIT
+            # or MISS) and compounding under concurrent load. LokiQueueHandler hands the record to
+            # a stdlib logging.handlers.QueueListener running on its own background thread, so the
+            # actual HTTP POST never blocks the caller.
+            loki_handler = LokiQueueHandler(
+                queue.Queue(-1),
                 url=f"{GRAFANA_LOKI_URL.rstrip('/')}/push",
                 auth=(GRAFANA_LOKI_USER, GRAFANA_API_KEY),
                 tags={LokiLabel.APP: LokiAppValue.BACKEND, LokiLabel.ENV: app_env},

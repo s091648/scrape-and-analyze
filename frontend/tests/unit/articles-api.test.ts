@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockApiFetch = vi.fn()
 vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(async () => {
+  vi.clearAllMocks()
+  const { __resetArticleDetailCacheForTests, __resetViewedThisSessionForTests } = await import('@/lib/api/articles')
+  __resetArticleDetailCacheForTests()
+  __resetViewedThisSessionForTests()
+})
 
 describe('articles API', () => {
   function mockOk(data: any) {
@@ -127,6 +132,47 @@ describe('articles API', () => {
       await fetchArticleById('a1', 'zh-TW')
       expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, 'zh-TW', { silent: undefined })
     })
+
+    it('serves a repeat call for the same id+locale from cache, without calling apiFetch again', async () => {
+      const article = { id: 'a1', title: 'T', tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null }
+      mockOk(article)
+      const { fetchArticleById } = await import('@/lib/api/articles')
+      const first = await fetchArticleById('a1', 'zh-TW')
+      const second = await fetchArticleById('a1', 'zh-TW')
+      expect(mockApiFetch).toHaveBeenCalledTimes(1)
+      expect(second).toEqual(first)
+    })
+
+    it('treats the same id under a different locale as a separate cache entry', async () => {
+      const article = { id: 'a1', title: 'T', tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null }
+      mockOk(article)
+      const { fetchArticleById } = await import('@/lib/api/articles')
+      await fetchArticleById('a1', 'en')
+      await fetchArticleById('a1', 'zh-TW')
+      expect(mockApiFetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('evicts the least-recently-used entry once the cache exceeds 10 articles', async () => {
+      const { fetchArticleById } = await import('@/lib/api/articles')
+      const articleFor = (id: string) => ({ id, title: id, tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null })
+
+      for (let i = 0; i < 11; i++) {
+        mockOk(articleFor(`a${i}`))
+        await fetchArticleById(`a${i}`)
+      }
+      expect(mockApiFetch).toHaveBeenCalledTimes(11)
+
+      // a0 was the first inserted and never re-touched, so it's the LRU victim once a10 pushed
+      // the cache past capacity 10 — refetching it must hit the network again.
+      mockOk(articleFor('a0'))
+      await fetchArticleById('a0')
+      expect(mockApiFetch).toHaveBeenCalledTimes(12)
+
+      // a10 (most recently inserted) should still be cached.
+      mockApiFetch.mockClear()
+      await fetchArticleById('a10')
+      expect(mockApiFetch).not.toHaveBeenCalled()
+    })
   })
 
   describe('fetchArticleFilterSources', () => {
@@ -177,6 +223,52 @@ describe('articles API', () => {
       const { fetchArticleFilterTags } = await import('@/lib/api/articles')
       await fetchArticleFilterTags('zh-TW')
       expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/tags', {}, 'zh-TW')
+    })
+  })
+
+  describe('recordArticleView', () => {
+    function flushMicrotasks() {
+      return new Promise(resolve => setTimeout(resolve, 0))
+    }
+
+    it('posts a view on the first call for an article id', async () => {
+      mockApiFetch.mockResolvedValue({ ok: true })
+      const { recordArticleView } = await import('@/lib/api/articles')
+      recordArticleView('a1')
+      await flushMicrotasks()
+      expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1/view', { method: 'POST' }, undefined, { silent: true })
+    })
+
+    it('does not post again for the same id within the same session', async () => {
+      mockApiFetch.mockResolvedValue({ ok: true })
+      const { recordArticleView } = await import('@/lib/api/articles')
+      recordArticleView('a1')
+      await flushMicrotasks()
+      recordArticleView('a1')
+      await flushMicrotasks()
+      expect(mockApiFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('posts separately for a different article id', async () => {
+      mockApiFetch.mockResolvedValue({ ok: true })
+      const { recordArticleView } = await import('@/lib/api/articles')
+      recordArticleView('a1')
+      recordArticleView('a2')
+      await flushMicrotasks()
+      expect(mockApiFetch).toHaveBeenCalledTimes(2)
+    })
+
+    it('retries on the next call if the POST failed', async () => {
+      mockApiFetch.mockRejectedValueOnce(new Error('network error'))
+      const { recordArticleView } = await import('@/lib/api/articles')
+      recordArticleView('a1')
+      await flushMicrotasks()
+      expect(mockApiFetch).toHaveBeenCalledTimes(1)
+
+      mockApiFetch.mockResolvedValueOnce({ ok: true })
+      recordArticleView('a1')
+      await flushMicrotasks()
+      expect(mockApiFetch).toHaveBeenCalledTimes(2)
     })
   })
 })

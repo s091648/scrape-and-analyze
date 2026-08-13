@@ -57,17 +57,20 @@ def test_loki_handler_not_attached_without_env():
              patch("backend.observability.GRAFANA_API_KEY", ""):
             configure_logging("local")
         handler_types = [type(h).__name__ for h in logging.getLogger().handlers]
-        assert "LokiHandler" not in handler_types
+        assert "LokiQueueHandler" not in handler_types
     finally:
         _restore_root_handlers(original)
 
 
 def test_loki_handler_attached_with_env():
+    """Uses LokiQueueHandler (queue + background thread), not the plain LokiHandler — the
+    plain handler does a synchronous requests.post() to Grafana Cloud on every logger.info()
+    call, which measurably blocked every request (see backend/observability.py comment)."""
     from backend.observability import configure_logging
     original = _clear_root_handlers()
     mock_loki_handler = MagicMock()
     mock_loki_module = MagicMock()
-    mock_loki_module.LokiHandler.return_value = mock_loki_handler
+    mock_loki_module.LokiQueueHandler.return_value = mock_loki_handler
     try:
         with patch("backend.observability.GRAFANA_LOKI_URL", "https://loki.example.com"), \
              patch("backend.observability.GRAFANA_LOKI_USER", "loki-user"), \
@@ -75,8 +78,8 @@ def test_loki_handler_attached_with_env():
              patch.dict("sys.modules", {"logging_loki": mock_loki_module}):
             configure_logging("production")
         assert mock_loki_handler in logging.getLogger().handlers
-        mock_loki_module.LokiHandler.assert_called_once()
-        _, kwargs = mock_loki_module.LokiHandler.call_args
+        mock_loki_module.LokiQueueHandler.assert_called_once()
+        _, kwargs = mock_loki_module.LokiQueueHandler.call_args
         assert kwargs["url"] == "https://loki.example.com/push"
         assert kwargs["auth"] == ("loki-user", "api-key")
     finally:
@@ -101,11 +104,11 @@ def test_httpx_and_httpcore_loggers_raised_to_warning():
 
 
 def test_loki_setup_failure_is_swallowed():
-    """If LokiHandler() raises, configure_logging() does not raise and stdout still works."""
+    """If LokiQueueHandler() raises, configure_logging() does not raise and stdout still works."""
     from backend.observability import configure_logging
     original = _clear_root_handlers()
     mock_loki_module = MagicMock()
-    mock_loki_module.LokiHandler.side_effect = Exception("Connection refused")
+    mock_loki_module.LokiQueueHandler.side_effect = Exception("Connection refused")
     try:
         with patch("backend.observability.GRAFANA_LOKI_URL", "https://loki.example.com"), \
              patch("backend.observability.GRAFANA_LOKI_USER", "loki-user"), \

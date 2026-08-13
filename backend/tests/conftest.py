@@ -16,10 +16,8 @@ os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost/testdb")
 # test container via docker-compose's env_file) has real Grafana Cloud / Sentry
 # credentials, which would otherwise make every test that hits the app through
 # TestClient — via RequestLoggingMiddleware's per-request `logger.info("request", ...)`
-# — perform a real synchronous HTTP POST to Grafana Loki (logging_loki.LokiHandler.emit
-# is synchronous, not queued), plus real Sentry/OTel client setup. That's on the order of
-# 1-1.5s of real network latency per test across the whole suite. Force these off for
-# the test session regardless of what's in the process env.
+# — spin up a real LokiQueueHandler background thread and Sentry/OTel client. Force
+# these off for the test session regardless of what's in the process env.
 os.environ["SENTRY_DSN"] = ""
 os.environ["GRAFANA_OTLP_USER"] = ""
 os.environ["GRAFANA_OTLP_ENDPOINT"] = ""
