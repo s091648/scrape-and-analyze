@@ -4,8 +4,16 @@
     "date": "{{RELEASE_DATE}}",
     "changes": [
       {
-        "type": "feat",
-        "description": "Increased API rate limits for improved data processing performance."
+        "type": "fix",
+        "description": "Improved application performance and loading speeds by implementing a new frontend caching system."
+      },
+      {
+        "type": "fix",
+        "description": "Optimized article browsing and navigation to ensure a faster and more responsive user experience."
+      },
+      {
+        "type": "chore",
+        "description": "Introduced automated release notes to provide users with consistent and clear updates on application changes."
       }
     ]
   },
