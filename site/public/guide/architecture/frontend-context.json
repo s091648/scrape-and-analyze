@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-02T14:26:20.929Z",
+  "generated_at": "2026-08-16T11:51:57.833Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 21,
+      "consumerCount": 24,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -40,7 +40,7 @@
       "children": [
         "guestMode"
       ],
-      "consumerCount": 66,
+      "consumerCount": 70,
       "description": "Locale, translations, t(), localStorage"
     },
     {
@@ -93,18 +93,18 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 32,
+          "line": 43,
           "destructured": "{ data: session, status }"
         },
         {
-          "file": "app/graph/page.tsx",
-          "line": 11,
+          "file": "app/articles/articles-page-content.tsx",
+          "line": 100,
+          "destructured": ""
+        },
+        {
+          "file": "app/graph/graph-page-content.tsx",
+          "line": 21,
           "destructured": "{ status }"
-        },
-        {
-          "file": "app/layout-shell.tsx",
-          "line": 11,
-          "destructured": "{ data: session, status }"
         },
         {
           "file": "app/login/login-page-content.tsx",
@@ -127,9 +127,14 @@
           "destructured": "{ data: session }"
         },
         {
-          "file": "app/tags/page.tsx",
-          "line": 408,
+          "file": "app/tags/tags-page-content.tsx",
+          "line": 417,
           "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "app/tags/tags-page-content.tsx",
+          "line": 757,
+          "destructured": ""
         },
         {
           "file": "components/features/articles/article-card.tsx",
@@ -143,12 +148,12 @@
         },
         {
           "file": "components/features/chat/FloatingChatbotWrapper.tsx",
-          "line": 37,
-          "destructured": "{ data: session, status }"
+          "line": 8,
+          "destructured": "{ status }"
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 105,
+          "line": 114,
           "destructured": "{ status }"
         },
         {
@@ -162,8 +167,18 @@
           "destructured": "{ data: session, status }"
         },
         {
+          "file": "lib/providers/float-chat-provider.tsx",
+          "line": 37,
+          "destructured": "{ data: session, status }"
+        },
+        {
+          "file": "lib/providers/inline-chat-provider.tsx",
+          "line": 40,
+          "destructured": "{ data: session, status }"
+        },
+        {
           "file": "lib/providers/tutorial-provider.tsx",
-          "line": 50,
+          "line": 63,
           "destructured": "{ status }"
         }
       ]
@@ -204,17 +219,17 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 52,
+          "line": 68,
           "destructured": "{ selectedTopicId }"
         },
         {
-          "file": "app/graph/page.tsx",
-          "line": 14,
+          "file": "app/graph/graph-page-content.tsx",
+          "line": 24,
           "destructured": "{ selectedTopicId }"
         },
         {
           "file": "app/home-page-content.tsx",
-          "line": 10,
+          "line": 20,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -223,8 +238,8 @@
           "destructured": "{ selectedTopic }"
         },
         {
-          "file": "app/tags/page.tsx",
-          "line": 411,
+          "file": "app/tags/tags-page-content.tsx",
+          "line": 420,
           "destructured": "{ selectedTopic, refresh: refreshTopics }"
         },
         {
@@ -238,24 +253,24 @@
           "destructured": "{ selectedTopicId }"
         },
         {
-          "file": "components/features/chat/FloatingChatbotWrapper.tsx",
-          "line": 38,
-          "destructured": "{ selectedTopicId }"
-        },
-        {
-          "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 28,
-          "destructured": "{ selectedTopicId }"
-        },
-        {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 109,
+          "line": 118,
           "destructured": "{ selectedTopicId }"
         },
         {
           "file": "components/features/navigation/nav-bar.tsx",
           "line": 46,
           "destructured": "{ topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading }"
+        },
+        {
+          "file": "lib/providers/float-chat-provider.tsx",
+          "line": 38,
+          "destructured": "{ selectedTopicId }"
+        },
+        {
+          "file": "lib/providers/inline-chat-provider.tsx",
+          "line": 41,
+          "destructured": "{ selectedTopicId }"
         }
       ]
     },
@@ -285,27 +300,27 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 385,
+          "line": 402,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 429,
+          "line": 446,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 466,
+          "line": 483,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 495,
+          "line": 512,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 552,
+          "line": 569,
           "destructured": "{ t }"
         },
         {
@@ -375,12 +390,12 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 38,
+          "line": 49,
           "destructured": "{ t, locale }"
         },
         {
-          "file": "app/graph/page.tsx",
-          "line": 12,
+          "file": "app/graph/graph-page-content.tsx",
+          "line": 22,
           "destructured": "{ t }"
         },
         {
@@ -409,13 +424,13 @@
           "destructured": "{ t }"
         },
         {
-          "file": "app/tags/page.tsx",
+          "file": "app/tags/tags-page-content.tsx",
           "line": 82,
           "destructured": "{ t }"
         },
         {
-          "file": "app/tags/page.tsx",
-          "line": 412,
+          "file": "app/tags/tags-page-content.tsx",
+          "line": 421,
           "destructured": "{ t }"
         },
         {
@@ -429,9 +444,19 @@
           "destructured": "{ t, locale }"
         },
         {
+          "file": "components/features/articles/autocomplete-dropdown.tsx",
+          "line": 17,
+          "destructured": "{ t }"
+        },
+        {
           "file": "components/features/articles/filter-bar.tsx",
           "line": 50,
           "destructured": "{ t, locale }"
+        },
+        {
+          "file": "components/features/articles/search-bar.tsx",
+          "line": 25,
+          "destructured": "{ t }"
         },
         {
           "file": "components/features/articles/sort-select.tsx",
@@ -440,7 +465,7 @@
         },
         {
           "file": "components/features/chat/AnswerDisplay.tsx",
-          "line": 45,
+          "line": 92,
           "destructured": "{ t }"
         },
         {
@@ -450,22 +475,22 @@
         },
         {
           "file": "components/features/chat/FloatingChatbotWrapper.tsx",
-          "line": 39,
+          "line": 9,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/chat/InlineQABarWrapper.tsx",
-          "line": 29,
+          "line": 25,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/chat/cited-content.tsx",
-          "line": 196,
+          "line": 229,
           "destructured": "{ locale }"
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 106,
+          "line": 115,
           "destructured": "{ t, locale }"
         },
         {
@@ -590,8 +615,18 @@
         },
         {
           "file": "components/features/weekly-report/weekly-report-widget.tsx",
-          "line": 53,
+          "line": 60,
           "destructured": "{ t, locale }"
+        },
+        {
+          "file": "lib/providers/float-chat-provider.tsx",
+          "line": 39,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "lib/providers/inline-chat-provider.tsx",
+          "line": 42,
+          "destructured": "{ t }"
         }
       ]
     },
@@ -601,12 +636,12 @@
       "sites": [
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 34,
+          "line": 45,
           "destructured": "{ isGuestMode }"
         },
         {
-          "file": "app/graph/page.tsx",
-          "line": 13,
+          "file": "app/graph/graph-page-content.tsx",
+          "line": 23,
           "destructured": "{ isGuestMode }"
         },
         {
@@ -631,12 +666,12 @@
         },
         {
           "file": "components/features/chat/FloatingChatbotWrapper.tsx",
-          "line": 41,
+          "line": 11,
           "destructured": "{ isGuestMode }"
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 107,
+          "line": 116,
           "destructured": "{ isGuestMode }"
         },
         {
@@ -651,7 +686,7 @@
         },
         {
           "file": "lib/providers/tutorial-provider.tsx",
-          "line": 49,
+          "line": 62,
           "destructured": "{ isGuestMode }"
         }
       ]
@@ -671,7 +706,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 115,
+    "totalConsumerSites": 122,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-07T08:50:28.975958+00:00",
+  "generated_at": "2026-08-16T11:51:40.208962+00:00",
   "layers": [
     "application",
     "domain",
@@ -1295,19 +1295,19 @@
       "context": "collection"
     },
     {
-      "id": "embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "id": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseEmbeddingProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "embedding.base_embedding_provider",
+      "subgroup": "llm",
+      "module": "llm.embedding.base_embedding_provider",
       "class_name": "BaseEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
+      "full_path": "src/llm/embedding/base_embedding_provider/BaseEmbeddingProvider.py",
       "docstring": "Infrastructure base for all embedding providers.\n\nImplements EmbeddingService.embed() and embed_batch() as templates:\n  1. Split into chunks of _BATCH_SIZE.\n  2. Call _call_embed() with…",
       "typed_attrs": [
         "_model",
@@ -1378,19 +1378,19 @@
       "context": "intelligence"
     },
     {
-      "id": "providers.base_provider.BaseProvider",
+      "id": "llm.providers.base_provider.BaseProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BaseProvider|_model",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "providers.base_provider",
+      "subgroup": "llm",
+      "module": "llm.providers.base_provider",
       "class_name": "BaseProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/providers/base_provider/BaseProvider.py",
+      "full_path": "src/llm/providers/base_provider/BaseProvider.py",
       "docstring": "Infrastructure base for all LLM providers.\n\nImplements LLMService.analyze() as a template:\n  1. Call _call_api() with exponential-backoff retry (transient errors only).\n  2. Validate required fields…",
       "typed_attrs": [
         "_model",
@@ -1401,6 +1401,18 @@
         {
           "sig": "__init__(model: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "Classify a rate-limit-shaped error as RPM/TPM (retry with backoff) or\nRPD (abort this provider for the rest of this run). Returns None if `exc`\nisn't a…"
+        },
+        {
+          "sig": "_is_retryable(exc: BaseException) → bool",
+          "doc": "Retry on transient API / network errors; never retry on parse failures\nor a rate limit classified as RPD (retrying it would just burn attempts —\nit gets…"
+        },
+        {
+          "sig": "_is_translate_retryable(exc: BaseException) → bool",
+          "doc": "For translate()/generate(), retry on most errors (no JSON parsing to\nfail on) except a rate limit classified as RPD — see _is_retryable()."
         },
         {
           "sig": "_call_api(content: str, prompt: str) → dict",
@@ -1595,8 +1607,10 @@
       "id": "event_handlers.cache_warmup_handler.CacheWarmupHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CacheWarmupHandler|_backend_url<br",
+      "label": "<{CacheWarmupHandler|_cache<br",
       "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
       "layer": "application",
       "ca_layer": "application",
       "subgroup": "event_handlers",
@@ -1605,33 +1619,17 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/event_handlers/cache_warmup_handler/CacheWarmupHandler.py",
-      "docstring": "Re-populates the default (no-customization) reads right after CacheInvalidationHandler\nbumps their namespace versions, so the first visitor after a scrape run doesn't pay a\ncache-miss cost — only…",
+      "docstring": "Signals backend's cache-warmup listener to re-populate the default (no-customization)\nreads right after CacheInvalidationHandler bumps their namespace versions, so the first\nvisitor after a scrape…",
       "typed_attrs": [
-        "_backend_url"
+        "_cache"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(backend_url: str) → None",
+          "sig": "__init__(cache_gateway: CacheGateway) → None",
           "doc": ""
         },
         {
           "sig": "handle(event: PipelineCompletedEvent) → None",
-          "doc": ""
-        },
-        {
-          "sig": "_warm_default_reads(headers: dict, params: dict | None) → None",
-          "doc": ""
-        },
-        {
-          "sig": "_get_guest_token() → str",
-          "doc": ""
-        },
-        {
-          "sig": "_get_active_topic_ids(headers: dict) → list[str]",
-          "doc": ""
-        },
-        {
-          "sig": "_get(path: str, headers: dict, params: dict | None) → None",
           "doc": ""
         }
       ],
@@ -1641,21 +1639,19 @@
       "context": "collection"
     },
     {
-      "id": "providers.claude_provider.ClaudeProvider",
+      "id": "llm.providers.claude_provider.ClaudeProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ClaudeProvider|_client",
       "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "providers.claude_provider",
+      "subgroup": "llm",
+      "module": "llm.providers.claude_provider",
       "class_name": "ClaudeProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/providers/claude_provider/ClaudeProvider.py",
+      "full_path": "src/llm/providers/claude_provider/ClaudeProvider.py",
       "docstring": "Anthropic Claude LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -1664,6 +1660,10 @@
         {
           "sig": "__init__(api_key: str, model: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "Classify a 429 by how long the API says to wait — see module docstring\nfor why this doesn't distinguish RPM from TPM."
         },
         {
           "sig": "_create_message(content: str, prompt: str)",
@@ -1687,7 +1687,8 @@
       "id": "collection_pipeline.CollectionPipeline",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CollectionPipeline|_article_repo",
+      "label": "<{CollectionPipeline|_app_env",
+      "ALIGN": "LEFT",
       "layer": "infrastructure-collection",
       "ca_layer": "infrastructure",
       "subgroup": "collection",
@@ -1703,12 +1704,23 @@
         "_event_bus",
         "_pipeline_stats",
         "_executor",
-        "_article_repo"
+        "_article_repo",
+        "_app_env",
+        "_jitter_seconds",
+        "_llm_service"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: EventBus, pipeline_stats: PipelineStats, executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository]) → None",
+          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: EventBus, pipeline_stats: PipelineStats, executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository], app_env: str, jitter_seconds: Optional[float], llm_service: Optional[Any]) → None",
           "doc": ""
+        },
+        {
+          "sig": "_build_execution_meta(started_at: datetime, start: float) → JobExecutionMeta",
+          "doc": ""
+        },
+        {
+          "sig": "_rate_limited_llm_providers() → Tuple[str, ...]",
+          "doc": "LLM provider names that hit RateLimitExhausted this run, if the\npipeline was given the same ResilientLLMService instance the analyze/\ntranslate use cases share…"
         },
         {
           "sig": "run() → int",
@@ -1803,6 +1815,69 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
+    },
+    {
+      "id": "events.dedup_reconcile_completed.DedupReconcileCompletedEvent",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{DedupReconcileCompletedEvent|execution",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "events",
+      "module": "events.dedup_reconcile_completed",
+      "class_name": "DedupReconcileCompletedEvent",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/events/dedup_reconcile_completed/DedupReconcileCompletedEvent.py",
+      "docstring": "Event published when the dedup_reconcile scheduled job finishes.",
+      "typed_attrs": [
+        "total: int",
+        "healed: int",
+        "merged: int",
+        "failed: int",
+        "execution: JobExecutionMeta"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/collection/application/events/dedup_reconcile_completed.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "notifications.dedup_reconcile_message_builder.DedupReconcileMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{DedupReconcileMessageBuilder|_emoji",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.dedup_reconcile_message_builder",
+      "class_name": "DedupReconcileMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/dedup_reconcile_message_builder/DedupReconcileMessageBuilder.py",
+      "docstring": "Builds a MarkdownV2 TelegramMessage describing a dedup_reconcile job completion event.",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "_failed_count(cls, event: DedupReconcileCompletedEvent) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: DedupReconcileCompletedEvent) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/collection/notifications/dedup_reconcile_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
     },
     {
       "id": "services.dedup_service.DedupService",
@@ -1938,19 +2013,19 @@
       "context": "notifications"
     },
     {
-      "id": "resilient_llm_service.EmbeddingProviderHandler",
+      "id": "llm.resilient_llm_service.EmbeddingProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EmbeddingProviderHandler|_can_count_tokens",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "resilient_llm_service",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
       "class_name": "EmbeddingProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/resilient_llm_service/EmbeddingProviderHandler.py",
+      "full_path": "src/llm/resilient_llm_service/EmbeddingProviderHandler.py",
       "docstring": "Wraps any EmbeddingService with quota management — mirrors the\nacquire → call → record_usage pattern used by ProviderHandler in the LLM stack.",
       "typed_attrs": [
         "provider: BaseEmbeddingProvider",
@@ -2199,19 +2274,19 @@
       "context": "collection"
     },
     {
-      "id": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "id": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiEmbeddingProvider|_client",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "embedding.gemini_embedding_provider",
+      "subgroup": "llm",
+      "module": "llm.embedding.gemini_embedding_provider",
       "class_name": "GeminiEmbeddingProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
+      "full_path": "src/llm/embedding/gemini_embedding_provider/GeminiEmbeddingProvider.py",
       "docstring": "Google Gemini embedding provider with configurable output dimensionality.",
       "typed_attrs": [
         "_output_dimensionality",
@@ -2273,21 +2348,19 @@
       "context": "intelligence"
     },
     {
-      "id": "providers.gemini_provider.GeminiProvider",
+      "id": "llm.providers.gemini_provider.GeminiProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{GeminiProvider|_client",
       "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "providers.gemini_provider",
+      "subgroup": "llm",
+      "module": "llm.providers.gemini_provider",
       "class_name": "GeminiProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/providers/gemini_provider/GeminiProvider.py",
+      "full_path": "src/llm/providers/gemini_provider/GeminiProvider.py",
       "docstring": "Google Gemini LLM provider implementing the BaseProvider interface.",
       "typed_attrs": [
         "_client"
@@ -2298,8 +2371,12 @@
           "doc": ""
         },
         {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "google-genai raises a typed ClientError on 4xx (errors.py) with `.code`\n(int status), `.status` (parsed gRPC-style status string, e.g.\n\"RESOURCE_EXHAUSTED\"),…"
+        },
+        {
           "sig": "_generate(content: str, prompt: str)",
-          "doc": "Send a generate_content request to Gemini and return the raw response."
+          "doc": "Send a generate_content request to Gemini and return the raw response.\nRaises the raw SDK exception on failure — BaseProvider classifies it…"
         },
         {
           "sig": "_call_api(content: str, prompt: str) → dict",
@@ -2507,7 +2584,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/image/huggingface_image_provider/HuggingFaceImageProvider.py",
-      "docstring": "Generate cover images via the HuggingFace Inference API.\n\nThe provider is stateless: every call opens a short-lived\n``InferenceClient`` (cheap to construct) and decodes the returned\n``PIL.Image`` to…",
+      "docstring": "Generate cover images via the HuggingFace Inference API.\n\nThe provider is stateless: every call opens a short-lived\n``InferenceClient`` (cheap to construct) and decodes the returned\n``PIL.Image``,…",
       "typed_attrs": [
         "_model",
         "_api_key",
@@ -2770,6 +2847,87 @@
       "context": "intelligence"
     },
     {
+      "id": "notifications.job_completion_message_builder.JobCompletionMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{JobCompletionMessageBuilder|_emoji",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.job_completion_message_builder",
+      "class_name": "JobCompletionMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/job_completion_message_builder/JobCompletionMessageBuilder.py",
+      "docstring": "Subclass and set `_emoji` / `_title` / `_failure_noun`, then implement\n`_failed_count()` and `_render_body()`. `build()` assembles header + body + footer.",
+      "typed_attrs": [
+        "_emoji: str",
+        "_title: str",
+        "_failure_noun: str"
+      ],
+      "typed_methods": [
+        {
+          "sig": "_esc(s: str) → str",
+          "doc": "Escape MarkdownV2 special characters in a string."
+        },
+        {
+          "sig": "build(cls, event: Any) → TelegramMessage",
+          "doc": "Format and return a TelegramMessage for the given job-completion event."
+        },
+        {
+          "sig": "_render_header(cls, meta: JobExecutionMeta) → str",
+          "doc": "Timestamp + non-production environment badge + execution window + duration + jitter."
+        },
+        {
+          "sig": "_render_footer(cls, event: Any) → str",
+          "doc": ""
+        },
+        {
+          "sig": "_failed_count(cls, event: Any) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: Any) → str",
+          "doc": "Return the already-MarkdownV2-escaped detail block (counts, tables, etc.)."
+        }
+      ],
+      "source_file": "src/infrastructure/shared/notifications/job_completion_message_builder.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "value_objects.job_execution_meta.JobExecutionMeta",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{JobExecutionMeta|app_env",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "value_objects",
+      "module": "value_objects.job_execution_meta",
+      "class_name": "JobExecutionMeta",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/value_objects/job_execution_meta/JobExecutionMeta.py",
+      "docstring": "Wall-clock execution window + environment context, attached to every scheduled\nCLI job's completion event so notification messages render a consistent\ntimestamp/environment/duration/jitter block (see…",
+      "typed_attrs": [
+        "started_at: datetime",
+        "completed_at: datetime",
+        "duration_seconds: float",
+        "app_env: str",
+        "jitter_seconds: Optional[float]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/shared/domain/value_objects/job_execution_meta.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
       "id": "metrics.json_path_extractor.JsonPathMetricExtractor",
       "color": "black",
       "fontcolor": "black",
@@ -2900,10 +3058,8 @@
       "id": "events.metrics_refresh_completed.MetricsRefreshCompletedEvent",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{MetricsRefreshCompletedEvent|duration_seconds",
+      "label": "<{MetricsRefreshCompletedEvent|execution",
       "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
       "layer": "unknown",
       "ca_layer": "infrastructure",
       "subgroup": "events",
@@ -2917,7 +3073,8 @@
         "total: int",
         "refreshed: int",
         "failed: int",
-        "duration_seconds: float"
+        "execution: JobExecutionMeta",
+        "rate_limited_providers: Tuple[str, ...]"
       ],
       "typed_methods": [],
       "source_file": "src/modules/collection/application/events/metrics_refresh_completed.py",
@@ -2929,7 +3086,7 @@
       "id": "notifications.metrics_refresh_message_builder.MetricsRefreshMessageBuilder",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{MetricsRefreshMessageBuilder|<br",
+      "label": "<{MetricsRefreshMessageBuilder|_emoji",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -2945,8 +3102,12 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "build(event: MetricsRefreshCompletedEvent) → TelegramMessage",
-          "doc": "Format and return a TelegramMessage for the given metrics-refresh completion event."
+          "sig": "_failed_count(cls, event: MetricsRefreshCompletedEvent) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: MetricsRefreshCompletedEvent) → str",
+          "doc": ""
         }
       ],
       "source_file": "src/infrastructure/collection/notifications/metrics_refresh_message_builder.py",
@@ -2955,21 +3116,21 @@
       "context": "notifications"
     },
     {
-      "id": "rate_limit.no_op_strategy.NoOpStrategy",
+      "id": "llm.rate_limit.no_op_strategy.NoOpStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{NoOpStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "rate_limit.no_op_strategy",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.no_op_strategy",
       "class_name": "NoOpStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/rate_limit/no_op_strategy/NoOpStrategy.py",
+      "full_path": "src/llm/rate_limit/no_op_strategy/NoOpStrategy.py",
       "docstring": "Quota strategy that performs no rate limiting; all calls pass through immediately.",
       "typed_attrs": [],
       "typed_methods": [
@@ -3281,21 +3442,19 @@
       "context": "collection"
     },
     {
-      "id": "providers.openrouter_provider.OpenRouterProvider",
+      "id": "llm.providers.openrouter_provider.OpenRouterProvider",
       "color": "black",
       "fontcolor": "black",
       "label": "<{OpenRouterProvider|_api_key",
       "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "providers.openrouter_provider",
+      "subgroup": "llm",
+      "module": "llm.providers.openrouter_provider",
       "class_name": "OpenRouterProvider",
       "attributes": [],
       "methods": [],
-      "full_path": "src/providers/openrouter_provider/OpenRouterProvider.py",
+      "full_path": "src/llm/providers/openrouter_provider/OpenRouterProvider.py",
       "docstring": "OpenRouter LLM provider implementing the BaseProvider interface via chat completions API.",
       "typed_attrs": [
         "_api_key"
@@ -3304,6 +3463,10 @@
         {
           "sig": "__init__(api_key: str, model: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "Classify a 429 by the standard Retry-After header — see module docstring."
         },
         {
           "sig": "_post(content: str, prompt: str) → dict",
@@ -3428,7 +3591,7 @@
       "id": "events.pipeline_completed.PipelineCompletedEvent",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{PipelineCompletedEvent|duration_seconds",
+      "label": "<{PipelineCompletedEvent|execution",
       "ALIGN": "LEFT",
       "layer": "infrastructure-shared",
       "ca_layer": "infrastructure",
@@ -3438,10 +3601,12 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/events/pipeline_completed/PipelineCompletedEvent.py",
-      "docstring": "Event published when the full scrape pipeline finishes, carrying per-source stats and total duration.",
+      "docstring": "Event published when the full scrape pipeline finishes, carrying per-source stats and execution metadata.",
       "typed_attrs": [
         "stats: List[SourceStats]",
-        "duration_seconds: float"
+        "execution: JobExecutionMeta",
+        "rate_limited_hosts: Tuple[str, ...]",
+        "rate_limited_llm_providers: Tuple[str, ...]"
       ],
       "typed_methods": [],
       "source_file": "src/modules/collection/application/events/pipeline_completed.py",
@@ -3453,7 +3618,7 @@
       "id": "notifications.pipeline_completed_message_builder.PipelineCompletedMessageBuilder",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{PipelineCompletedMessageBuilder|<br",
+      "label": "<{PipelineCompletedMessageBuilder|_emoji",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3469,8 +3634,12 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "build(event: PipelineCompletedEvent) → TelegramMessage",
-          "doc": "Format and return a TelegramMessage for the given pipeline completion event."
+          "sig": "_failed_count(cls, event: PipelineCompletedEvent) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: PipelineCompletedEvent) → str",
+          "doc": ""
         }
       ],
       "source_file": "src/infrastructure/collection/notifications/pipeline_completed_message_builder.py",
@@ -3604,19 +3773,19 @@
       "context": "intelligence"
     },
     {
-      "id": "resilient_llm_service.ProviderHandler",
+      "id": "llm.resilient_llm_service.ProviderHandler",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ProviderHandler|name",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "resilient_llm_service",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
       "class_name": "ProviderHandler",
       "attributes": [],
       "methods": [],
-      "full_path": "src/resilient_llm_service/ProviderHandler.py",
+      "full_path": "src/llm/resilient_llm_service/ProviderHandler.py",
       "docstring": "Pairs a provider with its quota management strategy.",
       "typed_attrs": [
         "provider: BaseProvider",
@@ -3642,6 +3811,30 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "intelligence"
+    },
+    {
+      "id": "clients.rate_limit_errors.ProviderRateLimitedError",
+      "color": "black",
+      "fontcolor": "red",
+      "label": "<{ProviderRateLimitedError|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-collection",
+      "ca_layer": "infrastructure",
+      "subgroup": "clients",
+      "module": "clients.rate_limit_errors",
+      "class_name": "ProviderRateLimitedError",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/clients/rate_limit_errors/ProviderRateLimitedError.py",
+      "docstring": "Common base for every article-source client's 429 signal (arXiv, OpenAlex,\nSemantic Scholar, ...). External APIs' 429s here mean quota/pool exhaustion,\nnot a transient blip — orchestration layers…",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/infrastructure/collection/clients/rate_limit_errors.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
     },
     {
       "id": "executor.queue_router.QueueRouter",
@@ -3712,21 +3905,21 @@
       "context": "collection"
     },
     {
-      "id": "rate_limit.quota_strategy.QuotaStrategy",
+      "id": "llm.rate_limit.quota_strategy.QuotaStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{QuotaStrategy|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "rate_limit.quota_strategy",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.quota_strategy",
       "class_name": "QuotaStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/rate_limit/quota_strategy/QuotaStrategy.py",
+      "full_path": "src/llm/rate_limit/quota_strategy/QuotaStrategy.py",
       "docstring": "Abstract base for LLM API quota/rate-limit strategies.",
       "typed_attrs": [],
       "typed_methods": [
@@ -3752,10 +3945,8 @@
       "id": "storage.r2_blob_storage.R2BlobStorageService",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{R2BlobStorageService|_bucket",
+      "label": "<{R2BlobStorageService|CACHE_CONTROL",
       "ALIGN": "LEFT",
-      "shape": "record",
-      "style": "solid",
       "layer": "unknown",
       "ca_layer": "infrastructure",
       "subgroup": "other",
@@ -3780,6 +3971,18 @@
           "doc": ""
         },
         {
+          "sig": "iter_keys(prefix: str) → Iterator[str]",
+          "doc": "Yield every object key under `prefix` in this bucket (paginated list_objects_v2)."
+        },
+        {
+          "sig": "head_object(key: str) → dict",
+          "doc": "Raw object metadata (ContentType, CacheControl, ...) without downloading the body."
+        },
+        {
+          "sig": "refresh_cache_control(key: str, content_type: str) → None",
+          "doc": "Rewrite `key`'s metadata in place (S3 copy-onto-self) to this service's current\n`CACHE_CONTROL` policy, without re-downloading/re-uploading the object's bytes."
+        },
+        {
           "sig": "from_env(cls) → 'R2BlobStorageService'",
           "doc": ""
         }
@@ -3793,7 +3996,7 @@
       "id": "events.rag_backfill_completed.RagBackfillCompletedEvent",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{RagBackfillCompletedEvent|duration_seconds",
+      "label": "<{RagBackfillCompletedEvent|execution",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3810,7 +4013,7 @@
         "total: int",
         "succeeded: int",
         "failed: int",
-        "duration_seconds: float"
+        "execution: JobExecutionMeta"
       ],
       "typed_methods": [],
       "source_file": "src/modules/intelligence/application/events/rag_backfill_completed.py",
@@ -3822,7 +4025,7 @@
       "id": "notifications.rag_backfill_message_builder.RagBackfillMessageBuilder",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{RagBackfillMessageBuilder|<br",
+      "label": "<{RagBackfillMessageBuilder|_emoji",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3838,8 +4041,12 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "build(event: RagBackfillCompletedEvent) → TelegramMessage",
-          "doc": "Format and return a TelegramMessage for the given RAG-backfill completion event."
+          "sig": "_failed_count(cls, event: RagBackfillCompletedEvent) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: RagBackfillCompletedEvent) → str",
+          "doc": ""
         }
       ],
       "source_file": "src/infrastructure/intelligence/notifications/rag_backfill_message_builder.py",
@@ -4037,21 +4244,21 @@
       "context": "intelligence"
     },
     {
-      "id": "rate_limit.sliding_window_strategy.RateLimitExhausted",
+      "id": "llm.rate_limit.sliding_window_strategy.RateLimitExhausted",
       "color": "black",
       "fontcolor": "red",
       "label": "<{RateLimitExhausted|<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "rate_limit.sliding_window_strategy",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.sliding_window_strategy",
       "class_name": "RateLimitExhausted",
       "attributes": [],
       "methods": [],
-      "full_path": "src/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
+      "full_path": "src/llm/rate_limit/sliding_window_strategy/RateLimitExhausted.py",
       "docstring": "Raised when a provider's daily request cap is reached and no more calls should be made.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -4061,27 +4268,135 @@
       "context": "intelligence"
     },
     {
-      "id": "resilient_llm_service.ResilientEmbeddingService",
+      "id": "llm.rate_limit.rate_limit_kind.RateLimitKind",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{RateLimitKind|name<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.rate_limit_kind",
+      "class_name": "RateLimitKind",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/rate_limit/rate_limit_kind/RateLimitKind.py",
+      "docstring": "Classification of a rate-limit-shaped error a provider can report via\nBaseProvider._classify_rate_limit(). RPM/TPM windows clear within seconds —\nBaseProvider retries those with backoff. RPD means…",
+      "typed_attrs": [],
+      "typed_methods": [],
+      "source_file": "src/infrastructure/intelligence/llm/rate_limit/rate_limit_kind.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "rate_limit_tracker.RateLimitedProviderTracker",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{RateLimitedProviderTracker|_exhausted",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "rate_limit_tracker",
+      "class_name": "RateLimitedProviderTracker",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/rate_limit_tracker/RateLimitedProviderTracker.py",
+      "docstring": "Thread-safe, run-scoped memory of identifiers (provider names, hostnames,\n...) that have already hit a rate limit once this run.\n\nEach owner (ResilientLLMService,…",
+      "typed_attrs": [
+        "_exhausted: set[str]",
+        "_lock"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__() → None",
+          "doc": ""
+        },
+        {
+          "sig": "mark_exhausted(identifier: str) → None",
+          "doc": "Record that `identifier` hit a rate limit — idempotent."
+        },
+        {
+          "sig": "is_exhausted(identifier: str) → bool",
+          "doc": ""
+        },
+        {
+          "sig": "exhausted() → List[str]",
+          "doc": "Sorted snapshot of every identifier marked exhausted so far this run."
+        }
+      ],
+      "source_file": "src/infrastructure/shared/rate_limit_tracker.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "search.application.use_cases.rebuild_search_index_use_case.RebuildSearchIndexUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{RebuildSearchIndexUseCase|_min_doc_freq",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "search.application.use_cases.rebuild_search_index_use_case",
+      "class_name": "RebuildSearchIndexUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/search/application/use_cases/rebuild_search_index_use_case/RebuildSearchIndexUseCase.py",
+      "docstring": "",
+      "typed_attrs": [
+        "_session",
+        "_search_term_repo",
+        "_search_index_gateway",
+        "_min_doc_freq"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Any, search_term_repo: Any, search_index_gateway: Any, min_doc_freq: int) → None",
+          "doc": ""
+        },
+        {
+          "sig": "execute() → dict",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/search/application/use_cases/rebuild_search_index_use_case.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "search"
+    },
+    {
+      "id": "llm.resilient_llm_service.ResilientEmbeddingService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientEmbeddingService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "resilient_llm_service",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
       "class_name": "ResilientEmbeddingService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/resilient_llm_service/ResilientEmbeddingService.py",
+      "full_path": "src/llm/resilient_llm_service/ResilientEmbeddingService.py",
       "docstring": "Composite EmbeddingService that tries multiple providers in order.",
       "typed_attrs": [
-        "_handlers"
+        "_handlers",
+        "_rate_limit_tracker"
       ],
       "typed_methods": [
         {
           "sig": "__init__(handlers: List[EmbeddingProviderHandler]) → None",
           "doc": ""
+        },
+        {
+          "sig": "exhausted_providers() → List[str]",
+          "doc": "provider names that raised RateLimitExhausted at least once this run."
         },
         {
           "sig": "embed(text: str) → Optional[List[float]]",
@@ -4098,27 +4413,32 @@
       "context": "intelligence"
     },
     {
-      "id": "resilient_llm_service.ResilientLLMService",
+      "id": "llm.resilient_llm_service.ResilientLLMService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ResilientLLMService|_handlers<br",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "resilient_llm_service",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
       "class_name": "ResilientLLMService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/resilient_llm_service/ResilientLLMService.py",
+      "full_path": "src/llm/resilient_llm_service/ResilientLLMService.py",
       "docstring": "Composite LLMService that walks an ordered list of ProviderHandlers.\nFalls back to the next provider on rate limit or failure.",
       "typed_attrs": [
-        "_handlers"
+        "_handlers",
+        "_rate_limit_tracker"
       ],
       "typed_methods": [
         {
           "sig": "__init__(handlers: List[ProviderHandler]) → None",
           "doc": ""
+        },
+        {
+          "sig": "exhausted_providers() → List[str]",
+          "doc": "provider names that raised RateLimitExhausted at least once this run —\nsurfaced so callers (main.py, weekly_report.py) can report it in their\ncompletion…"
         },
         {
           "sig": "analyze(content: str, prompt: str) → Optional[Tuple[AnalysisContent, AnalysisMetadata]]",
@@ -4153,7 +4473,8 @@
       "full_path": "src/metrics/resilient_metrics_service/ResilientMetricsService.py",
       "docstring": "Walks each metric_key's provider list in priority order, keeping the\nfirst non-null result. Metric keys are independent of each other.",
       "typed_attrs": [
-        "_by_metric_key: Dict[str, List[MetricHandler]]"
+        "_by_metric_key: Dict[str, List[MetricHandler]]",
+        "_rate_limit_tracker"
       ],
       "typed_methods": [
         {
@@ -4163,6 +4484,10 @@
         {
           "sig": "tracked_metric_keys() → List[str]",
           "doc": "The metric_keys this service has at least one enabled provider for."
+        },
+        {
+          "sig": "exhausted_providers() → List[str]",
+          "doc": "provider_names that raised ProviderRateLimitedError at least once this\nrun — surfaced so callers (refresh_metrics.py) can report \"N articles\nskipped because…"
         },
         {
           "sig": "fetch_all(article_identifiers: Dict[str, str]) → Dict[str, Any]",
@@ -4375,7 +4700,7 @@
       "id": "executor.scrape_executor.ScrapeExecutor",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{ScrapeExecutor|_abort_lock",
+      "label": "<{ScrapeExecutor|_discover_delays",
       "ALIGN": "LEFT",
       "layer": "infrastructure-collection",
       "ca_layer": "infrastructure",
@@ -4393,13 +4718,16 @@
         "_discover_delays",
         "_selector",
         "_on_discover_failed",
-        "_aborted_hosts: set[str]",
-        "_abort_lock"
+        "_rate_limit_tracker"
       ],
       "typed_methods": [
         {
           "sig": "__init__(num_workers: int, discover_workers: int, fetch_delay: float, discover_delays: Optional[Dict[str, float]], selector: Optional[QueueSelector], on_discover_failed: Optional[Callable]) → None",
           "doc": ""
+        },
+        {
+          "sig": "exhausted_hosts() → List[str]",
+          "doc": "Hostnames that hit ProviderRateLimitedError during discover this run —\nsurfaced so callers (main.py) can report it in the pipeline completion\nnotification…"
         },
         {
           "sig": "run(tasks: List[FetchTask], on_result: Callable[[ScrapedArticle], None]) → int",
@@ -4664,6 +4992,41 @@
       "context": "collection"
     },
     {
+      "id": "search.application.event_handlers.search_index_rebuild_handler.SearchIndexRebuildHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SearchIndexRebuildHandler|_use_case",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "event_handlers",
+      "module": "search.application.event_handlers.search_index_rebuild_handler",
+      "class_name": "SearchIndexRebuildHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/search/application/event_handlers/search_index_rebuild_handler/SearchIndexRebuildHandler.py",
+      "docstring": "Rebuilds the autocomplete term index once per completed scrape pipeline run\n(FR-008) — mirrors CacheInvalidationHandler/CacheWarmupHandler's PipelineCompletedEvent\nsubscription pattern.",
+      "typed_attrs": [
+        "_use_case"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(use_case: RebuildSearchIndexUseCase) → None",
+          "doc": ""
+        },
+        {
+          "sig": "handle(event: PipelineCompletedEvent) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/search/application/event_handlers/search_index_rebuild_handler.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "search"
+    },
+    {
       "id": "clients.semantic_scholar_client.SemanticScholarClient",
       "color": "black",
       "fontcolor": "black",
@@ -4842,19 +5205,19 @@
       "context": "collection"
     },
     {
-      "id": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "id": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
       "color": "black",
       "fontcolor": "black",
       "label": "<{SlidingWindowStrategy|_WINDOW",
       "ALIGN": "LEFT",
-      "layer": "unknown",
+      "layer": "infrastructure-intelligence",
       "ca_layer": "infrastructure",
-      "subgroup": "other",
-      "module": "rate_limit.sliding_window_strategy",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.sliding_window_strategy",
       "class_name": "SlidingWindowStrategy",
       "attributes": [],
       "methods": [],
-      "full_path": "src/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
+      "full_path": "src/llm/rate_limit/sliding_window_strategy/SlidingWindowStrategy.py",
       "docstring": "Sliding-window rate limiter for LLM API quota management.\n\nTracks requests and token usage within a rolling 60-second window,\nblocking until capacity is available. Also enforces a hard daily cap…",
       "typed_attrs": [
         "rpm",
@@ -6459,6 +6822,67 @@
       "context": "notifications"
     },
     {
+      "id": "events.weekly_report_job_completed.WeeklyReportJobCompletedEvent",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportJobCompletedEvent|execution",
+      "ALIGN": "LEFT",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "events",
+      "module": "events.weekly_report_job_completed",
+      "class_name": "WeeklyReportJobCompletedEvent",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/events/weekly_report_job_completed/WeeklyReportJobCompletedEvent.py",
+      "docstring": "Event published when a weekly_report.py run finishes processing every due topic.\n\nStructurally identical in shape to PipelineCompletedEvent/MetricsRefreshCompletedEvent/\nRagBackfillCompletedEvent — a…",
+      "typed_attrs": [
+        "total_topics: int",
+        "generated: int",
+        "failed: int",
+        "execution: JobExecutionMeta",
+        "rate_limited_providers: Tuple[str, ...]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/intelligence/application/events/weekly_report_job_completed.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "notifications.weekly_report_job_completed_message_builder.WeeklyReportJobCompletedMessageBuilder",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{WeeklyReportJobCompletedMessageBuilder|_emoji",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.weekly_report_job_completed_message_builder",
+      "class_name": "WeeklyReportJobCompletedMessageBuilder",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/weekly_report_job_completed_message_builder/WeeklyReportJobCompletedMessageBuilder.py",
+      "docstring": "Builds a MarkdownV2 TelegramMessage describing a weekly_report.py job-level\ncompletion event — the operator-facing \"did the job itself run cleanly\" summary,\ndistinct from the per-report…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "_failed_count(cls, event: WeeklyReportJobCompletedEvent) → int",
+          "doc": ""
+        },
+        {
+          "sig": "_render_body(cls, event: WeeklyReportJobCompletedEvent) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/notifications/weekly_report_job_completed_message_builder.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
       "id": "notifications.weekly_report_notification_content.WeeklyReportNotificationContent",
       "color": "black",
       "fontcolor": "black",
@@ -6510,8 +6934,8 @@
           "doc": ""
         },
         {
-          "sig": "run(week_start: date, topic_id: Optional[UUID], force: bool) → List[WeeklyReport]",
-          "doc": "Generate weekly reports for the given topic (or all active topics)."
+          "sig": "run(week_start: date, topic_id: Optional[UUID], force: bool) → tuple[List[WeeklyReport], int]",
+          "doc": "Generate weekly reports for the given topic (or all active topics). Returns\n(reports, total_topics) — total_topics is the number of topics attempted,…"
         }
       ],
       "source_file": "src/infrastructure/intelligence/weekly_report_pipeline.py",
@@ -6901,13 +7325,6 @@
   ],
   "edges": [
     {
-      "source": "embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
-      "target": "embedding.base_embedding_provider.BaseEmbeddingProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
       "source": "exceptions.InvalidSimilarityScoreError",
       "target": "exceptions.IntelligenceDomainError",
       "type": "inheritance",
@@ -6943,6 +7360,48 @@
       "arrowtail": "none"
     },
     {
+      "source": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
+      "target": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.claude_provider.ClaudeProvider",
+      "target": "llm.providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.gemini_provider.GeminiProvider",
+      "target": "llm.providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.openrouter_provider.OpenRouterProvider",
+      "target": "llm.providers.base_provider.BaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.rate_limit.no_op_strategy.NoOpStrategy",
+      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.rate_limit.sliding_window_strategy.SlidingWindowStrategy",
+      "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
       "source": "parsers.html_parser.HtmlArticleParser",
       "target": "parsers.base_parser.BaseContentParser",
       "type": "inheritance",
@@ -6952,41 +7411,6 @@
     {
       "source": "parsers.pdf_parser.PdfParser",
       "target": "parsers.base_parser.BaseContentParser",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "providers.claude_provider.ClaudeProvider",
-      "target": "providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "providers.gemini_provider.GeminiProvider",
-      "target": "providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "providers.openrouter_provider.OpenRouterProvider",
-      "target": "providers.base_provider.BaseProvider",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "rate_limit.no_op_strategy.NoOpStrategy",
-      "target": "rate_limit.quota_strategy.QuotaStrategy",
-      "type": "inheritance",
-      "arrowhead": "empty",
-      "arrowtail": "none"
-    },
-    {
-      "source": "rate_limit.sliding_window_strategy.SlidingWindowStrategy",
-      "target": "rate_limit.quota_strategy.QuotaStrategy",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -7117,22 +7541,32 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 84,
+      "count": 92,
       "subgroups": [
+        {
+          "id": "llm",
+          "label": "LLM Providers",
+          "count": 15
+        },
         {
           "id": "other",
           "label": "Other",
-          "count": 28
-        },
-        {
-          "id": "clients",
-          "label": "Clients",
-          "count": 11
+          "count": 15
         },
         {
           "id": "notifications",
           "label": "Notifications",
-          "count": 11
+          "count": 14
+        },
+        {
+          "id": "clients",
+          "label": "Clients",
+          "count": 12
+        },
+        {
+          "id": "events",
+          "label": "Events",
+          "count": 8
         },
         {
           "id": "executor",
@@ -7143,11 +7577,6 @@
           "id": "scrapers",
           "label": "Scrapers",
           "count": 7
-        },
-        {
-          "id": "events",
-          "label": "Events",
-          "count": 6
         },
         {
           "id": "parsers",
@@ -7189,22 +7618,22 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 41
+          "count": 43
         },
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 27
+          "count": 29
         },
         {
           "id": "notifications",
           "label": "Notifications",
-          "count": 11
+          "count": 14
         },
         {
           "id": "shared",
           "label": "Shared",
-          "count": 4
+          "count": 5
         },
         {
           "id": "other",
@@ -7242,17 +7671,17 @@
       "id": "application",
       "label": "Application",
       "color": "#44BB99",
-      "count": 31,
+      "count": 33,
       "subgroups": [
         {
           "id": "use_cases",
           "label": "Use Cases",
-          "count": 14
+          "count": 15
         },
         {
           "id": "event_handlers",
           "label": "Event Handlers",
-          "count": 9
+          "count": 10
         },
         {
           "id": "events",
@@ -7275,6 +7704,11 @@
           "id": "shared",
           "label": "Shared",
           "count": 2
+        },
+        {
+          "id": "search",
+          "label": "Search",
+          "count": 2
         }
       ]
     },
@@ -7282,12 +7716,12 @@
       "id": "entities",
       "label": "Domain / Entities",
       "color": "#77AADD",
-      "count": 68,
+      "count": 69,
       "subgroups": [
         {
           "id": "value_objects",
           "label": "Value Objects",
-          "count": 27
+          "count": 28
         },
         {
           "id": "repositories",
@@ -7319,7 +7753,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 9
+          "count": 10
         }
       ]
     }
@@ -7491,6 +7925,11 @@
           "param": "executor",
           "class": "ScrapeExecutor",
           "deps": [
+            {
+              "param": "creates",
+              "class": "RateLimitedProviderTracker",
+              "deps": []
+            },
             {
               "param": "creates",
               "class": "HostQueueMap",
@@ -7943,14 +8382,21 @@
       "desc": "PipelineCompletedEvent -> CacheInvalidationHandler",
       "color": "#EEDD88",
       "classes": [
-        "CacheInvalidationHandler"
+        "CacheInvalidationHandler",
+        "RedisCacheGateway"
       ],
       "receives": [
         "PipelineCompletedEvent"
       ],
       "emits": [],
       "branches": [],
-      "di": []
+      "di": [
+        {
+          "param": "",
+          "class": "RedisCacheGateway",
+          "deps": []
+        }
+      ]
     },
     {
       "step": 9,
@@ -7961,14 +8407,57 @@
       "desc": "PipelineCompletedEvent -> CacheWarmupHandler",
       "color": "#44BB99",
       "classes": [
-        "CacheWarmupHandler"
+        "CacheWarmupHandler",
+        "RedisCacheGateway"
       ],
       "receives": [
         "PipelineCompletedEvent"
       ],
       "emits": [],
       "branches": [],
-      "di": []
+      "di": [
+        {
+          "param": "",
+          "class": "RedisCacheGateway",
+          "deps": []
+        }
+      ]
+    },
+    {
+      "step": 10,
+      "id": "searchindexrebuildhandler",
+      "parallel_group": "pg_pipelinecompletedevent",
+      "icon": "⚙️",
+      "label": "Search Index Rebuild",
+      "desc": "PipelineCompletedEvent -> SearchIndexRebuildHandler",
+      "color": "#44BB99",
+      "classes": [
+        "SearchIndexRebuildHandler",
+        "RebuildSearchIndexUseCase"
+      ],
+      "receives": [
+        "PipelineCompletedEvent"
+      ],
+      "emits": [],
+      "branches": [],
+      "di": [
+        {
+          "param": "",
+          "class": "RebuildSearchIndexUseCase",
+          "deps": [
+            {
+              "param": "search_term_repo",
+              "class": "SqlAlchemySearchTermRepository",
+              "deps": []
+            },
+            {
+              "param": "search_index_gateway",
+              "class": "RedisSearchIndexGateway",
+              "deps": []
+            }
+          ]
+        }
+      ]
     }
   ]
 }

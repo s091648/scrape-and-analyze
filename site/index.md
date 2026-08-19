@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 22 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 23 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -83,4 +83,7 @@ features:
   - title: '022 · Lighthouse Performance Check'
     details: '我希望能夠在 Makefile 跟 scripts/ 裡面加上一個使用 lighthouse CLI 來去做 performance check 的一個腳本，並且最後出具一份report。可能需要涵蓋說我要使用哪個url，用甚麼身分(應該是用 guest)登入，以及指定要測試那些 route。然後出來的 report 希望是以繁體中文彙整。且之後會希望可以把他做在 .github/workflows/ci.yml 或是其他的 action 裡面。'
     link: '/specs/022-lighthouse-performance-check/spec'
+  - title: '023 · Article Search'
+    details: '我想要新增一個新的功能，那就是搜尋功能。具體來說，是要在 frontend/app/articles/page.tsx 中新增一個 search bar，當使用者在這個 search bar 上面輸入文字時，還要能夠觸發 auto-complete。為此，主要需要新增的功能為：1. Redis 與 models/ 裡面需要新增一個 prefix tree（但其實不是只有 prefix，所以可能要包含所有的 occurrence）2. src/entrypoints/cli/main.py 中要新增一個 stage 是去更新那個 tree（re-construct 而不是 append/update 可能會比較簡單）3. backend/ 中要去實作 autocomplete 以及 search 的端點與服務，search 的話因為 alembic/versions/21_add_vectors_schema_and_article_chunks.py 裡面應該是已經有 sparse vector 可以做 keyword-based 的資料查詢，不確定有沒有需要額外引用新的 tech stack 如 opensearch 之類的。而且 autocomplete 對於 response time 非常地要求，所以可能會需要在 Redis 上面指定一個 database index 專門 for 這個 prefix node 的 key-value cache 的形式。4. frontend 的部分需要實作 debounce 以節制 autocomplete API 的輸出，至於 search 後的頁面是否要用一個新的 UI 可以再討論。'
+    link: '/specs/023-article-search/spec'
 ---
