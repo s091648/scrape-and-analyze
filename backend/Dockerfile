@@ -6,9 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# git: chatbot-plugin-sdk (backend group, 023-article-search follow-up) is a git-tag
+# dependency — uv needs the git binary to fetch it, same reason src/Dockerfile* installs it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Download MaxMind GeoLite2-City database
