@@ -10,7 +10,15 @@ import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
 import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
 import { useI18n, useTopic } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { GroupedTagSelect } from './grouped-tag-select'
+
+// Long enough that rapid successive edits (ticking through several checkboxes, or typing/picking
+// both ends of a date range) collapse into a single applied change and a single fetch, short
+// enough that it still reads as "instant" once the user pauses — same idea as SearchBar's
+// autocomplete debounce, just tuned looser since this drives a real list refetch, not a
+// suggestions lookup.
+const FILTER_APPLY_DEBOUNCE_MS = 500
 
 interface FilterBarProps {
   aggregators: string[]
@@ -85,21 +93,38 @@ export function FilterBar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(activeAggregators), JSON.stringify(activeOriginalSources), JSON.stringify(activeTags), JSON.stringify(activeTagGroups), publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
 
-  function handleApply() {
-    onApply({
-      aggregator: draftAggregators,
-      original_source: draftOriginalSources,
-      tag: draftTags, tag_group: draftTagGroups,
-      published_after: draftPubAfter, published_before: draftPubBefore,
-      scraped_after: draftScrapedAfter, scraped_before: draftScrapedBefore,
+  // Auto-applies on every draft change, debounced — so toggling several checkboxes in a row, or
+  // filling in both ends of a date range, collapses into one `onApply` call instead of one per
+  // click/keystroke, while still feeling instant (no separate "Apply" button to press). Comparing
+  // against the *active* (already-applied) snapshot — not just "did draft change" — is what makes
+  // this safe to leave unconditional: after onApply fires, the props-sync effect above resets
+  // draft to match, so the debounced value settles back to equal the active snapshot and this
+  // effect's next run is a no-op instead of re-applying the same filters forever.
+  const draftFiltersKey = JSON.stringify({
+    aggregator: draftAggregators, original_source: draftOriginalSources,
+    tag: draftTags, tag_group: draftTagGroups,
+    published_after: draftPubAfter, published_before: draftPubBefore,
+    scraped_after: draftScrapedAfter, scraped_before: draftScrapedBefore,
+  })
+  const debouncedDraftFiltersKey = useDebouncedValue(draftFiltersKey, FILTER_APPLY_DEBOUNCE_MS)
+
+  useEffect(() => {
+    const activeFiltersKey = JSON.stringify({
+      aggregator: activeAggregators, original_source: activeOriginalSources,
+      tag: activeTags, tag_group: activeTagGroups,
+      published_after: publishedAfter, published_before: publishedBefore,
+      scraped_after: scrapedAfter, scraped_before: scrapedBefore,
     })
-    setOpen(false)
-  }
+    if (debouncedDraftFiltersKey === activeFiltersKey) return
+    onApply(JSON.parse(debouncedDraftFiltersKey))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedDraftFiltersKey])
 
   function handleClear() {
     setDraftAggregators([]); setDraftOriginalSources([]); setDraftTags([]); setDraftTagGroups([])
     setDraftPubAfter(''); setDraftPubBefore('')
     setDraftScrapedAfter(''); setDraftScrapedBefore('')
+    // Bypasses the debounce above — clearing is an explicit, immediate action.
     onApply({ aggregator: [], original_source: [], tag: [], tag_group: [], published_after: '', published_before: '', scraped_after: '', scraped_before: '' })
     setOpen(false)
   }
@@ -186,14 +211,13 @@ export function FilterBar({
             onBeforeChange={setDraftScrapedBefore}
             labels={dateLabels}
           />
-          <div className="flex gap-2 ml-auto">
-            {activeFilterCount > 0 && (
+          {activeFilterCount > 0 && (
+            <div className="flex gap-2 ml-auto">
               <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 cursor-pointer" onClick={handleClear}>
                 <X className="h-3 w-3" /> {t('filterBar.clear')}
               </Button>
-            )}
-            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={handleApply}>{t('filterBar.apply')}</Button>
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

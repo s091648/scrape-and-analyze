@@ -17,6 +17,9 @@ export interface Article {
   metrics?: Record<string, number>
   view_count?: number
   is_favorited?: boolean
+  /** Only ever set by /search (RRF hybrid search) — undefined for the normal listing
+   * endpoint, where "exact match" isn't a meaningful concept. */
+  exact_match?: boolean
 }
 
 export interface TagGroup {

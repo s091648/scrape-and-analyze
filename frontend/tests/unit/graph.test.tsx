@@ -164,17 +164,22 @@ describe('KnowledgeGraph initialData seeding', () => {
     render(<KnowledgeGraph initialData={seededData as any} />)
     expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
 
-    // The FilterBar UI has no native <select> — filters live behind a toggled panel with an
-    // Apply button. Other renders in this file leave stale trees in the document (no cleanup
-    // between tests), so target the just-rendered (last) instance's controls.
+    // The FilterBar UI has no native <select> — filters live behind a toggled panel, and apply
+    // themselves (debounced) on change rather than via a separate Apply button. Other renders in
+    // this file leave stale trees in the document (no cleanup between tests), so target the
+    // just-rendered (last) instance's controls. published_after already defaults to "30 days
+    // ago" (matching KnowledgeGraph's own default), so the date popover opens straight into
+    // "after" mode — changing that date is a real filter change that should trigger a fetch.
     const filterToggles = screen.getAllByRole('button', { name: /filterBar\.filters/ })
     fireEvent.click(filterToggles[filterToggles.length - 1])
-    const applyButtons = screen.getAllByText('filterBar.apply')
-    fireEvent.click(applyButtons[applyButtons.length - 1])
+    const publishedToggles = screen.getAllByRole('button', { name: /filterBar\.published/ })
+    fireEvent.click(publishedToggles[publishedToggles.length - 1])
+    const dateInputs = document.querySelectorAll('input[type="date"]')
+    fireEvent.change(dateInputs[dateInputs.length - 1], { target: { value: '2020-01-01' } })
 
     await vi.waitFor(() => {
-      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
-    })
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after=2020-01-01'), expect.anything(), expect.anything())
+    }, { timeout: 2000 })
   })
 })
 

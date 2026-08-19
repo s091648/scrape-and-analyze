@@ -9,6 +9,7 @@ import { ArticleDetailSkeleton } from './article-card-skeleton'
 import { useI18n } from '@/lib/providers'
 import { useMetricDefinitions } from './use-metric-definitions'
 import { resolveMetricIcon } from './metric-icons'
+import { highlightMatch } from '@/lib/highlight-match'
 
 import { deriveDisplaySource, formatViaSource } from './source-utils'
 
@@ -25,10 +26,13 @@ interface ArticleDetailDialogProps {
   content: string
   detail: ArticleDetail | null
   loading: boolean
+  /** Active search query (passed through from ArticleCard) — highlighted in the title/
+   * content the same way as the article list and autocomplete dropdown. */
+  highlightQuery?: string
 }
 
 export function ArticleDetailDialog({
-  open, onOpenChange, id, title, source, url, via_source, original_source, published_at, content, detail, loading,
+  open, onOpenChange, id, title, source, url, via_source, original_source, published_at, content, detail, loading, highlightQuery,
 }: ArticleDetailDialogProps) {
   const { t, locale } = useI18n()
   const metricDefs = useMetricDefinitions()
@@ -53,7 +57,7 @@ export function ArticleDetailDialog({
               className="inline-flex items-start gap-2 hover:underline cursor-pointer"
               onClick={e => e.stopPropagation()}
             >
-              {displayTitle}
+              {highlightMatch(displayTitle, highlightQuery ?? '')}
               <ExternalLink className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
             </a>
           </DialogTitle>
@@ -99,7 +103,7 @@ export function ArticleDetailDialog({
           ) : (
             <div className="space-y-6">
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                {displayContent}
+                {highlightMatch(displayContent, highlightQuery ?? '')}
               </p>
               {locale !== 'en' && (!!detail?.translated_content || !!detail?.translated_title) && (
                 <p className="text-xs text-muted-foreground italic mt-2">
