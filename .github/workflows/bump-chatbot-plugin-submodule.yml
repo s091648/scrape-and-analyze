@@ -39,25 +39,7 @@ jobs:
 
       - name: Check out chatbot-plugin's latest release tag
         id: bump
-        run: |
-          cd chatbot-plugin
-          git fetch --tags origin -q
-          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -1)
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No v* tags found in chatbot-plugin — nothing to do."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          CURRENT=$(git rev-parse HEAD)
-          TARGET=$(git rev-parse "$LATEST_TAG^{commit}")
-          if [ "$CURRENT" = "$TARGET" ]; then
-            echo "Already pinned to $LATEST_TAG ($CURRENT) — nothing to do."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git checkout "$LATEST_TAG"
-          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
-          echo "changed=true" >> "$GITHUB_OUTPUT"
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/bump-chatbot-plugin-submodule.sh"
 
       - name: Commit submodule bump
         if: steps.bump.outputs.changed == 'true'

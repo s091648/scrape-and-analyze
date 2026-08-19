@@ -130,6 +130,31 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       # -------------------------------------------------------------------
+      # Keep chatbot-plugin pinned to its latest tagged commit before deploying.
+      # deploy-production.sh (below) only deploys chatbot-plugin from a submodule
+      # commit that carries a v* tag in chatbot-plugin's own repo — otherwise it
+      # silently skips that service's deploy with only an easy-to-miss
+      # ::warning:: to show for it (this had gone unnoticed for several
+      # releases). bump-chatbot-plugin-submodule.yml already keeps the pointer
+      # from drifting stale via a daily cron, but a release cut before that
+      # cron catches up (e.g. right after chatbot-plugin's own release.yml
+      # force-moves its tag to a version-bump commit) would still hit the same
+      # silent skip. Doing the same bump here makes every scrape-analyzer
+      # release self-healing instead of depending on cron timing.
+      # -------------------------------------------------------------------
+      - name: Bump chatbot-plugin submodule to its latest release tag
+        id: bump_chatbot_plugin
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/bump-chatbot-plugin-submodule.sh"
+
+      - name: Commit chatbot-plugin submodule bump
+        if: steps.bump_chatbot_plugin.outputs.changed == 'true'
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/git-commit-and-push.sh"
+          "🔖 [CHORE] bump chatbot-plugin submodule to ${{ steps.bump_chatbot_plugin.outputs.latest_tag }} [skip ci]"
+          "No submodule update needed"
+          chatbot-plugin
+
+      # -------------------------------------------------------------------
       # Deploy to Railway production
       # -------------------------------------------------------------------
       - name: Install Railway CLI

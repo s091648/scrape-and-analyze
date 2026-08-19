@@ -12,6 +12,23 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Ephemeral local Postgres/Redis service-container credentials & connection strings,
+  # shared by every job below that spins up its own postgres/redis service (backend-unit,
+  # backend-integration, src-integration-test) — centralized here so a value only needs to
+  # be added/changed once instead of once per job. A job forgetting to declare one of these
+  # itself previously degraded silently rather than failing loudly (e.g. backend-integration
+  # missing SEARCH_INDEX_REDIS_URL fell through to a Postgres/no-op fallback with 0 results,
+  # passing locally — where the docker-compose `redis` hostname the code's own default
+  # resolves to — but failing only in CI, where it doesn't). migrate/rollback intentionally
+  # override DATABASE_URL at their own step level to the real secrets.DATABASE_URL — never
+  # this literal — since they migrate the actual staging DB, not this ephemeral one.
+  CI_DB_USER: ci
+  CI_DB_PASSWORD: ci
+  CI_DB_NAME: ci_test
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+  REDIS_URL: redis://localhost:6379/0
+  CACHE_REDIS_URL: redis://localhost:6379/1
+  SEARCH_INDEX_REDIS_URL: redis://localhost:6379/2
 
 jobs:
   # -----------------------------------------------
@@ -125,6 +142,9 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      # Overrides the workflow-level DATABASE_URL default (the ephemeral CI-only
+      # postgres:ci_test literal) with the real staging secret — this job migrates the
+      # actual staging DB, not the local service container the other jobs spin up.
       - name: Run alembic upgrade
         run: uv run alembic upgrade head
         env:
@@ -218,18 +238,13 @@ jobs:
     if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 15
 
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
-
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -257,14 +272,11 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend unit tests with coverage
         run: uv run pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov=shared --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
         env:
           PYTHONPATH: .
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Upload backend-unit coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -318,18 +330,13 @@ jobs:
     needs: [backend-unit]
     timeout-minutes: 20
 
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
-
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -366,15 +373,9 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend integration tests with coverage
         run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
-          REDIS_URL: redis://localhost:6379/0
-          CACHE_REDIS_URL: redis://localhost:6379/1
 
       - name: Upload backend-integration coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -432,18 +433,13 @@ jobs:
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
-
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -471,13 +467,10 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run integration tests with coverage
         run: uv run pytest src/tests/integration/ -v --tb=short -m integration --cov=src --cov=shared --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -1054,6 +1047,7 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      # Overrides the workflow-level DATABASE_URL default — see migrate's own comment above.
       - name: Rollback one revision
         run: uv run alembic downgrade -1
         env:
