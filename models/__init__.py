@@ -2,7 +2,6 @@ from sqlalchemy.orm import configure_mappers
 
 from models.base import Base
 from models.article import Article
-from models.article_chunk import ArticleChunk  # noqa: F401
 from models.article_metrics import ArticleMetrics  # noqa: F401
 from models.metric_definition import MetricDefinition  # noqa: F401
 from models.metric_provider import MetricProvider  # noqa: F401
@@ -21,6 +20,8 @@ from models.auth import AuthBase, User
 from models.scraper_setting import ScraperBase, ScraperSetting
 from models.tag_normalization_suggestion import TagNormalizationSuggestion  # noqa: F401
 from models.article_translation import ArticleTranslation  # noqa: F401 — registers Article.article_translations backref
+from models.search_term import SearchTerm  # noqa: F401
+from models.search_term_article import SearchTermArticle  # noqa: F401 — registers Article.search_term_articles / SearchTerm.articles backrefs
 from models.user_subscription import UserTopicSubscription, UserNotificationSettings, UserArticleFavorite  # noqa: F401
 from models.weekly_report import WeeklyReport  # noqa: F401
 from models.weekly_report_translation import WeeklyReportTranslation  # noqa: F401 — registers WeeklyReport.translations backref
