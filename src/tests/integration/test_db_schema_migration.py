@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
         "tag_group_definitions", "tag_group_definitions_translation",
         "tags_translation", "tag_normalization_suggestions",
         "weekly_reports", "weekly_reports_translation",
+        "search_terms", "search_term_articles"
     },
     "ai_infra": {"llm_providers", "metric_definitions", "metric_providers"},
     "user_prefs": {

@@ -247,6 +247,11 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     from src.modules.collection.application.event_handlers import CacheInvalidationHandler, CacheWarmupHandler
     from shared.cache import RedisCacheGateway
     from src.config.settings import CACHE_REDIS_URL, APP_ENV
+    from src.config.settings import SEARCH_INDEX_REDIS_URL, SEARCH_MIN_DOC_FREQ
+    from shared.search_index import RedisSearchIndexGateway
+    from src.infrastructure.persistence.intelligence import SqlAlchemySearchTermRepository
+    from src.modules.search.application.use_cases import RebuildSearchIndexUseCase
+    from src.modules.search.application.event_handlers import SearchIndexRebuildHandler
     from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
@@ -412,9 +417,16 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
         SpanName.ANALYSIS_COMPLETED_HANDLE, analysis_completed_handler.handle, event_bus, _tracer))
 
     # ── Observability handlers — subscribe to PipelineCompletedEvent ────────
+    # InMemoryEventBus.publish() dispatches synchronously in subscribe()-call order (see
+    # in_memory_event_bus.py) — these five PipelineCompletedEvent handlers run strictly
+    # sequentially, one after another, never concurrently. Each gets its own SpanName
+    # (instead of sharing one generic name) precisely so that sequential ordering and
+    # per-handler duration are both visible as distinct, non-overlapping bars in the
+    # admin monitoring waterfall (frontend/components/features/monitoring/run-waterfall-dialog.tsx),
+    # rather than collapsing into indistinguishable same-named rows.
     otel_handler = OtelMetricsHandler()
     event_bus.subscribe(PipelineCompletedEvent, with_span(
-        SpanName.PIPELINE_COMPLETED_HANDLE, otel_handler.handle, _tracer))
+        SpanName.PIPELINE_COMPLETED_METRICS_HANDLE, otel_handler.handle, _tracer))
 
     notification_handler = build_notification_handler(PipelineCompletedMessageBuilder)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
@@ -426,7 +438,7 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     scraper_cache_gateway = RedisCacheGateway(redis_url=CACHE_REDIS_URL)
     cache_invalidation_handler = CacheInvalidationHandler(scraper_cache_gateway)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
-        SpanName.PIPELINE_COMPLETED_HANDLE, cache_invalidation_handler.handle, _tracer))
+        SpanName.CACHE_INVALIDATION_HANDLE, cache_invalidation_handler.handle, _tracer))
 
     # Must subscribe strictly after cache_invalidation_handler above (InMemoryEventBus
     # dispatches subscribers in subscribe()-call order) — warming has to write into the
@@ -435,7 +447,22 @@ def build_collection_pipeline(jitter_seconds: float | None = None):
     # PUBLISH on the same CACHE_REDIS_URL, no separate connection needed.
     cache_warmup_handler = CacheWarmupHandler(scraper_cache_gateway)
     event_bus.subscribe(PipelineCompletedEvent, with_span(
-        SpanName.PIPELINE_COMPLETED_HANDLE, cache_warmup_handler.handle, _tracer))
+        SpanName.CACHE_WARMUP_HANDLE, cache_warmup_handler.handle, _tracer))
+
+    # ── Search index rebuild — subscribe to PipelineCompletedEvent ──────────
+    # (023-article-search) FR-008: the autocomplete term index is fully rebuilt from
+    # core.articles once per scheduled scrape cycle, not incrementally updated.
+    search_index_gateway = RedisSearchIndexGateway(redis_url=SEARCH_INDEX_REDIS_URL)
+    search_term_repo = SqlAlchemySearchTermRepository(session)
+    rebuild_search_index_uc = RebuildSearchIndexUseCase(
+        session=session,
+        search_term_repo=search_term_repo,
+        search_index_gateway=search_index_gateway,
+        min_doc_freq=SEARCH_MIN_DOC_FREQ,
+    )
+    search_index_rebuild_handler = SearchIndexRebuildHandler(rebuild_search_index_uc)
+    event_bus.subscribe(PipelineCompletedEvent, with_span(
+        SpanName.SEARCH_INDEX_REBUILD_HANDLE, search_index_rebuild_handler.handle, _tracer))
 
     # ── Collection Pipeline ─────────────────────────────────────────────────
     from datetime import datetime, timezone

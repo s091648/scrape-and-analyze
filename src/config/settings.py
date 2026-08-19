@@ -50,6 +50,19 @@ REDIS_URL: str = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 # backend/config.py's CACHE_REDIS_URL constant).
 CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
 
+# 023-article-search: dedicated logical DB for the autocomplete prefix index, separate
+# from REDIS_URL/CACHE_REDIS_URL for the same reason CACHE_REDIS_URL is separate from
+# REDIS_URL — a full rebuild safely FLUSHDB/SWAPDBs without touching either.
+SEARCH_INDEX_REDIS_URL: str = os.environ.get("SEARCH_INDEX_REDIS_URL", "redis://redis:6379/2")
+
+# Longest (suffix-)prefix indexed per term during rebuild — must match backend/config.py's
+# SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN (same value, read independently by each process).
+SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN: int = int(os.environ.get("SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN", "8"))
+
+# Minimum document frequency (number of distinct articles a term must appear in) to be
+# indexed — filters rare/incidental words out of the autocomplete vocabulary (research.md).
+SEARCH_MIN_DOC_FREQ: int = int(os.environ.get("SEARCH_MIN_DOC_FREQ", "2"))
+
 # Web
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "https://example.com")
 
