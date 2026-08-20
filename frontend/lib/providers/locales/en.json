@@ -28,6 +28,13 @@
     "next": "Next",
     "pageOf": "Page {page} of {total}"
   },
+  "search": {
+    "placeholder": "Search articles...",
+    "noResults": "No matching articles found",
+    "noSuggestions": "No suggestions",
+    "exactMatchOnly": "Exact matches only",
+    "exactMatchOnlyTooltip": "When off, search uses keyword + semantic (sparse + dense) hybrid retrieval instead of requiring a literal match."
+  },
   "weeklyReport": {
     "noReportYet": "No report for this week yet.",
     "articleCount": "{count} articles",

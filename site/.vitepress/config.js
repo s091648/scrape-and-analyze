@@ -308,6 +308,18 @@ export default defineConfig({
           { text: 'Contract: Report Format', link: '/specs/022-lighthouse-performance-check/contracts/report-format' },
         ],
       },
+      {
+        text: '023 · Article Search',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/023-article-search/spec' },
+          { text: 'Plan', link: '/specs/023-article-search/plan' },
+          { text: 'Data Model', link: '/specs/023-article-search/data-model' },
+          { text: 'Tasks', link: '/specs/023-article-search/tasks' },
+          { text: 'Requirements', link: '/specs/023-article-search/checklists/requirements' },
+          { text: 'Contract: Search API', link: '/specs/023-article-search/contracts/search-api' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },

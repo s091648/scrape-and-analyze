@@ -1,0 +1,50 @@
+name: Bump chatbot-plugin Submodule
+
+# Keeps the chatbot-plugin submodule pointer in sync with its latest tagged
+# release. deploy-production.sh (release.yml) only ever deploys a submodule
+# commit that carries a v* tag in chatbot-plugin's own repo — if nobody
+# manually `git submodule update`s and commits the bump after chatbot-plugin
+# cuts a release (which itself appends CI commits after tagging), the
+# pointer silently drifts past the last tagged commit and production keeps
+# deploying a stale version forever, with only a easy-to-miss ::warning:: in
+# the release job's log to show for it.
+#
+# This workflow only ever moves the pointer to an already-tagged commit in
+# chatbot-plugin's own repo and commits that pointer bump to master — it
+# never deploys anything itself. A production deploy still only happens when
+# a v* tag is pushed to *this* repo via the normal release.yml flow
+# (Constitution Principle V — explicit CI/CD deployment boundary).
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # daily 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump-submodule:
+    name: Bump to latest chatbot-plugin release tag
+    runs-on: ubuntu-latest
+    environment: scraper / production
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          token: ${{ secrets.RELEASE_PAT }}
+          submodules: recursive
+
+      - name: Check out chatbot-plugin's latest release tag
+        id: bump
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/bump-chatbot-plugin-submodule.sh"
+
+      - name: Commit submodule bump
+        if: steps.bump.outputs.changed == 'true'
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/git-commit-and-push.sh"
+          "🔖 [CHORE] bump chatbot-plugin submodule to ${{ steps.bump.outputs.latest_tag }}"
+          "No submodule update needed"
+          chatbot-plugin

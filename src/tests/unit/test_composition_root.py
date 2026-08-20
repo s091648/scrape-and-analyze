@@ -136,18 +136,32 @@ def test_t020_failed_event_subscriptions():
 
 
 def test_t021_pipeline_completed_event_subscriptions():
-    """PipelineCompletedEvent must have four handlers (OtelMetricsHandler, notification
-    handler, CacheInvalidationHandler, and CacheWarmupHandler — 020-redis-caching-layer,
-    US3 + eager cache warm-up)."""
+    """PipelineCompletedEvent must have five handlers (OtelMetricsHandler, notification
+    handler, CacheInvalidationHandler, CacheWarmupHandler — 020-redis-caching-layer,
+    US3 + eager cache warm-up — and SearchIndexRebuildHandler — 023-article-search,
+    FR-008 term-index rebuild)."""
     pipeline, *_ = _build_pipeline_with_mocks()
     handlers = pipeline._event_bus._handlers.get(PipelineCompletedEvent, [])
-    assert len(handlers) == 4, f"expected 4 handlers for PipelineCompletedEvent, got {len(handlers)}"
+    assert len(handlers) == 5, f"expected 5 handlers for PipelineCompletedEvent, got {len(handlers)}"
 
 
 def test_cache_invalidation_handler_subscribed_to_pipeline_completed_event():
     """build_collection_pipeline() must wire CacheInvalidationHandler to PipelineCompletedEvent."""
     src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
     assert "CacheInvalidationHandler" in src
+
+
+def test_pipeline_completed_event_handlers_each_have_a_distinct_span_name():
+    """Each of the five PipelineCompletedEvent handlers must use its own SpanName (not a
+    shared generic one) so admin monitoring's Tempo waterfall (run-waterfall-dialog.tsx)
+    can tell them apart — otherwise same-named sequential spans collapse into indistinguishable
+    rows even though the underlying InMemoryEventBus dispatches them one at a time."""
+    src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
+    assert "SpanName.PIPELINE_COMPLETED_METRICS_HANDLE, otel_handler.handle" in src
+    assert "SpanName.PIPELINE_COMPLETED_NOTIFY, notification_handler.handle" in src
+    assert "SpanName.CACHE_INVALIDATION_HANDLE, cache_invalidation_handler.handle" in src
+    assert "SpanName.CACHE_WARMUP_HANDLE, cache_warmup_handler.handle" in src
+    assert "SpanName.SEARCH_INDEX_REBUILD_HANDLE, search_index_rebuild_handler.handle" in src
 
 
 def test_cache_warmup_handler_subscribed_after_cache_invalidation_handler():
@@ -160,6 +174,15 @@ def test_cache_warmup_handler_subscribed_after_cache_invalidation_handler():
     assert src.index("cache_invalidation_handler = CacheInvalidationHandler") < src.index(
         "cache_warmup_handler = CacheWarmupHandler"
     )
+
+
+def test_search_index_rebuild_handler_subscribed_to_pipeline_completed_event():
+    """023-article-search FR-008: build_collection_pipeline() must wire
+    SearchIndexRebuildHandler to PipelineCompletedEvent so the autocomplete term index
+    is rebuilt once per scheduled scrape cycle."""
+    src = inspect.getsource(__import__("src.bootstrap", fromlist=["build_collection_pipeline"]).build_collection_pipeline)
+    assert "SearchIndexRebuildHandler" in src
+    assert "PipelineCompletedEvent, with_span(\n        SpanName.SEARCH_INDEX_REBUILD_HANDLE, search_index_rebuild_handler.handle" in src
 
 
 # ---------------------------------------------------------------------------

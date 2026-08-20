@@ -92,24 +92,33 @@
   "app/articles/articles-page-content.tsx": [
     "components/features/articles/article-card.tsx",
     "components/features/articles/filter-bar.tsx",
+    "components/features/articles/search-bar.tsx",
     "components/features/articles/sort-select.tsx",
     "components/ui/button.tsx",
     "hooks/use-pagination.ts",
     "lib/api/articles.ts",
+    "lib/api/search.ts",
     "lib/providers/index.tsx"
   ],
   "app/articles/page.tsx": [
-    "app/articles/articles-page-content.tsx"
+    "app/articles/articles-page-content.tsx",
+    "lib/server/ssr-fetch.ts"
   ],
   "app/globals.css": [],
-  "app/graph/page.tsx": [
+  "app/graph/graph-page-content.tsx": [
     "components/features/graph/knowledge-graph.tsx",
     "lib/api/articles.ts",
+    "lib/api/graph.ts",
     "lib/providers/index.tsx"
+  ],
+  "app/graph/page.tsx": [
+    "app/graph/graph-page-content.tsx",
+    "lib/server/ssr-fetch.ts"
   ],
   "app/home-page-content.tsx": [
     "components/features/chat/InlineQABarWrapper.tsx",
     "components/features/weekly-report/weekly-report-widget.tsx",
+    "lib/api/weekly-reports.ts",
     "lib/providers/index.tsx"
   ],
   "app/layout-shell.tsx": [
@@ -121,7 +130,8 @@
   "app/layout.tsx": [
     "app/globals.css",
     "app/layout-shell.tsx",
-    "lib/providers/index.tsx"
+    "lib/providers/index.tsx",
+    "lib/server/ssr-fetch.ts"
   ],
   "app/login/login-page-content.tsx": [
     "components/ui/button.tsx",
@@ -131,7 +141,8 @@
     "app/login/login-page-content.tsx"
   ],
   "app/page.tsx": [
-    "app/home-page-content.tsx"
+    "app/home-page-content.tsx",
+    "lib/server/ssr-fetch.ts"
   ],
   "app/register/page.tsx": [
     "app/register/register-page-content.tsx"
@@ -169,6 +180,10 @@
     "lib/providers/index.tsx"
   ],
   "app/tags/page.tsx": [
+    "app/tags/tags-page-content.tsx",
+    "lib/server/ssr-fetch.ts"
+  ],
+  "app/tags/tags-page-content.tsx": [
     "components/features/tags/merge-group-dialog.tsx",
     "components/features/tags/pending-changes-panel.tsx",
     "components/features/tags/pending-suggestions.tsx",
@@ -219,6 +234,11 @@
     "lib/api/articles.ts",
     "lib/providers/index.tsx"
   ],
+  "components/features/articles/autocomplete-dropdown.tsx": [
+    "components/ui/command.tsx",
+    "lib/api/search.ts",
+    "lib/providers/index.tsx"
+  ],
   "components/features/articles/filter-bar.tsx": [
     "components/common/date-filter.tsx",
     "components/common/multi-select-popover.tsx",
@@ -244,6 +264,13 @@
     "lib/utils.ts"
   ],
   "components/features/articles/metric-icons.ts": [],
+  "components/features/articles/search-bar.tsx": [
+    "components/features/articles/autocomplete-dropdown.tsx",
+    "components/ui/command.tsx",
+    "hooks/use-debounced-value.ts",
+    "lib/api/search.ts",
+    "lib/providers/index.tsx"
+  ],
   "components/features/articles/sort-select.tsx": [
     "components/features/articles/use-metric-definitions.ts",
     "components/ui/button.tsx",
@@ -258,6 +285,7 @@
   "components/features/chat/AnswerDisplay.tsx": [
     "components/features/chat/cited-content.tsx",
     "components/features/chat/types.ts",
+    "components/features/chat/use-typewriter.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/chat/FloatingChatbotPanel.tsx": [
@@ -283,6 +311,7 @@
     "lib/providers/index.tsx"
   ],
   "components/features/chat/types.ts": [],
+  "components/features/chat/use-typewriter.ts": [],
   "components/features/graph/knowledge-graph.tsx": [
     "components/features/articles/filter-bar.tsx",
     "components/ui/dialog.tsx",
@@ -537,9 +566,11 @@
     "components/ui/popover.tsx",
     "lib/utils.ts"
   ],
+  "hooks/use-debounced-value.ts": [],
   "hooks/use-pagination.ts": [],
   "lib/api/articles.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/cache/lru-cache.ts"
   ],
   "lib/api/auth.ts": [
     "lib/api/client.ts"
@@ -559,6 +590,7 @@
     "lib/api/llm-providers.ts",
     "lib/api/scraper-keywords.ts",
     "lib/api/scraper-settings.ts",
+    "lib/api/search.ts",
     "lib/api/topics.ts"
   ],
   "lib/api/llm-providers.ts": [
@@ -571,6 +603,10 @@
     "lib/api/client.ts"
   ],
   "lib/api/scraper-settings.ts": [
+    "lib/api/client.ts"
+  ],
+  "lib/api/search.ts": [
+    "lib/api/articles.ts",
     "lib/api/client.ts"
   ],
   "lib/api/source-categories.ts": [
@@ -592,7 +628,13 @@
   ],
   "lib/auth-token-store.ts": [],
   "lib/auth.ts": [],
+  "lib/cache/lru-cache.ts": [],
   "lib/chat-session.ts": [],
+  "lib/chat/chat-storage.ts": [],
+  "lib/cookies/constants.ts": [],
+  "lib/cookies/set-preference-cookie.ts": [
+    "lib/cookies/constants.ts"
+  ],
   "lib/loki-logger.ts": [],
   "lib/observability-constants.ts": [],
   "lib/otlp-utils.ts": [
@@ -606,9 +648,20 @@
     "lib/api/client.ts",
     "lib/providers/auth-token-provider.tsx"
   ],
+  "lib/providers/float-chat-provider.tsx": [
+    "components/features/chat/types.ts",
+    "lib/chat/chat-storage.ts",
+    "lib/providers/auth-token-provider.tsx",
+    "lib/providers/chat-quota-provider.tsx",
+    "lib/providers/i18n-provider.tsx",
+    "lib/providers/pinned-article-provider.tsx",
+    "lib/providers/topic-provider.tsx"
+  ],
   "lib/providers/guest-mode-provider.tsx": [],
   "lib/providers/i18n-provider.tsx": [
     "lib/api/client.ts",
+    "lib/cookies/constants.ts",
+    "lib/cookies/set-preference-cookie.ts",
     "lib/providers/auth-token-provider.tsx",
     "lib/providers/locales/en.json",
     "lib/providers/locales/zh-TW.json"
@@ -616,13 +669,24 @@
   "lib/providers/index.tsx": [
     "lib/providers/auth-token-provider.tsx",
     "lib/providers/chat-quota-provider.tsx",
+    "lib/providers/float-chat-provider.tsx",
     "lib/providers/guest-mode-provider.tsx",
     "lib/providers/i18n-provider.tsx",
+    "lib/providers/inline-chat-provider.tsx",
     "lib/providers/pinned-article-provider.tsx",
     "lib/providers/session-provider.tsx",
     "lib/providers/theme-provider.tsx",
     "lib/providers/topic-provider.tsx",
     "lib/providers/tutorial-provider.tsx"
+  ],
+  "lib/providers/inline-chat-provider.tsx": [
+    "components/features/chat/types.ts",
+    "lib/chat/chat-storage.ts",
+    "lib/providers/auth-token-provider.tsx",
+    "lib/providers/chat-quota-provider.tsx",
+    "lib/providers/i18n-provider.tsx",
+    "lib/providers/pinned-article-provider.tsx",
+    "lib/providers/topic-provider.tsx"
   ],
   "lib/providers/locales/en.json": [],
   "lib/providers/locales/zh-TW.json": [],
@@ -631,11 +695,21 @@
   "lib/providers/theme-provider.tsx": [],
   "lib/providers/topic-provider.tsx": [
     "lib/api/topics.ts",
+    "lib/cookies/constants.ts",
+    "lib/cookies/set-preference-cookie.ts",
     "lib/providers/auth-token-provider.tsx"
   ],
   "lib/providers/tutorial-provider.tsx": [
     "components/features/tutorial/tutorial-registry.ts",
     "lib/providers/guest-mode-provider.tsx"
+  ],
+  "lib/server/ssr-fetch.ts": [
+    "lib/api/articles.ts",
+    "lib/api/graph.ts",
+    "lib/api/tags.ts",
+    "lib/api/weekly-reports.ts",
+    "lib/auth.ts",
+    "lib/cookies/constants.ts"
   ],
   "lib/utils.ts": []
 }

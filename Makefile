@@ -11,6 +11,7 @@
 	backfill-r2-cache-control backfill-r2-cache-control-dry-run backfill-r2-cache-control-remote \
 	data-migrate data-migrate-list data-migrate-one data-migrate-down \
 	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
+	rebuild-search-index rebuild-search-index-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
@@ -210,6 +211,17 @@ retry-failed:
 retry-failed-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
+
+# optional: override with MIN_DOC_FREQ=1
+MIN_DOC_FREQ ?=
+_REBUILD_SEARCH_INDEX_ARGS := $(if $(MIN_DOC_FREQ),--min-doc-freq $(MIN_DOC_FREQ),)
+
+rebuild-search-index:
+	docker compose run --rm job_service python /app/scripts/rebuild_search_index.py $(_REBUILD_SEARCH_INDEX_ARGS)
+
+rebuild-search-index-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/rebuild_search_index.py $(_REBUILD_SEARCH_INDEX_ARGS)
 
 # ─── src/ tests ───────────────────────────────────────────────────────────────
 

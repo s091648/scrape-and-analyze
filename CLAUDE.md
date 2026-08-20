@@ -68,7 +68,7 @@ Three services sharing one PostgreSQL database:
 
 ### API Proxy Pattern
 
-The frontend does **not** call the backend directly. All API requests go through a Next.js catch-all reverse proxy at `frontend/app/api/proxy/[...path]/route.ts`, which forwards to `http://backend:8000`. Client code uses `apiFetch()` from `frontend/lib/api-fetch.ts` which prefixes paths with `/api/proxy` and appends `lang` from localStorage.
+The frontend does **not** call the backend directly. All API requests go through a Next.js catch-all reverse proxy at `frontend/app/api/proxy/[...path]/route.ts`, which forwards to `http://backend:8000`. Client code uses `apiFetch()` from `frontend/lib/api/client.ts` (re-exported via `frontend/lib/api/index.ts`) which prefixes paths with `/api/proxy` and appends `lang` from localStorage.
 
 ### Auth Flow
 
@@ -101,6 +101,7 @@ Routes needing neither (no `useSearchParams`, no server-only session/env fetch) 
 | `tags.py` | `/` | `GET /tag-groups`, `GET /tag-groups/{group_id}` require_any_token; all other (write) endpoints require_admin |
 | `chat.py` | `/chat` | `require_any_token` on `/chat/completions` and `/chat/quota` |
 | `monitoring.py` | `/` | `GET /failed-tasks` require_admin |
+| `search.py` | `/` | `require_any_token` on `GET /search` and `GET /search/autocomplete` |
 
 `require_any_token` (`backend/auth/guards.py`, `018-public-api-auth`) accepts any real user/admin JWT or a guest access token (obtained via `POST /auth/guest`, no credentials required); it never accepts a guest *refresh* token. It is the floor auth requirement for every endpoint above that isn't already gated by `require_admin`/`require_user` — see `site/guide/architecture/exception-handling.md`'s sibling doc for the full guest-token contract in `specs/018-public-api-auth/contracts/guest-token.md`.
 
@@ -190,5 +191,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/022-lighthouse-performance-check/plan.md`.
+at `specs/023-article-search/plan.md`.
 <!-- SPECKIT END -->

@@ -26,12 +26,12 @@
       "name": "ArxivRateLimitedError",
       "category": "custom",
       "bases": [
-        "Exception"
+        "ProviderRateLimitedError"
       ],
       "docstring": "arXiv API returned HTTP 429. Signals callers to abort remaining arxiv tasks for this run.",
       "defined_at": {
         "file": "src/infrastructure/collection/clients/arxiv_client.py",
-        "line": 28
+        "line": 29
       },
       "raise_sites": [
         {
@@ -42,16 +42,32 @@
           "status_code": null
         },
         {
-          "file": "src/infrastructure/collection/executor/discover_task.py",
-          "line": 33,
-          "function": "DiscoverTask.execute",
-          "snippet": "raise",
+          "file": "src/infrastructure/collection/clients/arxiv_client.py",
+          "line": 106,
+          "function": "ArxivClient.fetch_entries",
+          "snippet": "raise ArxivRateLimitedError(str(exc)) from exc",
           "status_code": null
         },
         {
           "file": "src/infrastructure/collection/scrapers/arxiv_scraper.py",
           "line": 49,
           "function": "ArxivScraper.discover",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "CancelledError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "backend/cache_warmup_listener.py",
+          "line": 62,
+          "function": "listen_for_warmup_signals",
           "snippet": "raise",
           "status_code": null
         }
@@ -99,16 +115,37 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 168,
+          "line": 176,
           "function": "update_tag_group",
           "snippet": "raise ConflictError(\"A tag group with this name already exists in this topic\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 215,
+          "line": 227,
           "function": "rename_tag",
           "snippet": "raise ConflictError(\"Tag name already exists in target group\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "DomainCircuitOpenError",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "Raised when a domain already returned 429 earlier in this run. External\nAPIs' 429s (daily/pool quota exhaustion) don't clear within a single run,\nso further requests are short-circuited locally instead of pacing out more\ndoomed calls — callers should treat this the same as a fresh 429.",
+      "defined_at": {
+        "file": "src/infrastructure/shared/http/rate_limiter.py",
+        "line": 48
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/shared/http/rate_limiter.py",
+          "line": 153,
+          "function": "DomainRateLimiter._raise_if_tripped",
+          "snippet": "raise DomainCircuitOpenError(domain)",
           "status_code": null
         }
       ]
@@ -121,36 +158,43 @@
       "defined_at": null,
       "raise_sites": [
         {
+          "file": "src/entrypoints/cli/backfill_rag.py",
+          "line": 177,
+          "function": "main",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/entrypoints/cli/dedup_reconcile.py",
-          "line": 136,
+          "line": 133,
           "function": "main",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/entrypoints/cli/main.py",
-          "line": 98,
+          "line": 100,
           "function": "main",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/entrypoints/cli/refresh_metrics.py",
-          "line": 182,
+          "line": 180,
           "function": "main",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/entrypoints/cli/weekly_report.py",
-          "line": 123,
+          "line": 121,
           "function": "main",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/image/gemini_imagen_provider.py",
-          "line": 38,
+          "line": 39,
           "function": "GeminiImagenProvider.generate_image",
           "snippet": "raise e",
           "status_code": null
@@ -159,13 +203,6 @@
           "file": "src/infrastructure/intelligence/llm/embedding/gemini_embedding_provider.py",
           "line": 39,
           "function": "GeminiEmbeddingProvider._call_embed",
-          "snippet": "raise",
-          "status_code": null
-        },
-        {
-          "file": "src/infrastructure/intelligence/llm/providers/gemini_provider.py",
-          "line": 31,
-          "function": "GeminiProvider._generate",
           "snippet": "raise",
           "status_code": null
         },
@@ -249,6 +286,27 @@
       ]
     },
     {
+      "name": "ExternalDependencyError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "A required external dependency (LLM provider, metrics API, etc.) failed or was exhausted.",
+      "defined_at": {
+        "file": "shared/domain/exceptions.py",
+        "line": 25
+      },
+      "raise_sites": [
+        {
+          "file": "backend/services/search_service.py",
+          "line": 109,
+          "function": "search_articles_hybrid",
+          "snippet": "raise ExternalDependencyError(\"fastembed has neither a sparse nor a dense model loaded\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "ForbiddenError",
       "category": "custom",
       "bases": [
@@ -292,7 +350,7 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/shared/http/http_client.py",
-          "line": 127,
+          "line": 133,
           "function": "HttpClient.get",
           "snippet": "raise",
           "status_code": null
@@ -357,14 +415,14 @@
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 91,
+          "line": 133,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
           "status_code": 404
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 93,
+          "line": 135,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
           "status_code": 400
@@ -545,7 +603,7 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/storage/r2_blob_storage.py",
-          "line": 50,
+          "line": 83,
           "function": "R2BlobStorageService.from_env",
           "snippet": "raise MissingR2ConfigError(f\"R2 blob storage config incomplete: missing {missing}\")",
           "status_code": null
@@ -587,8 +645,8 @@
       "raise_sites": [
         {
           "file": "backend/routers/articles.py",
-          "line": 135,
-          "function": "get_article",
+          "line": 153,
+          "function": "get_article._load",
           "snippet": "raise NotFoundError(\"Article not found\")",
           "status_code": null
         },
@@ -699,63 +757,63 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 144,
-          "function": "get_tag_group",
+          "line": 147,
+          "function": "get_tag_group._load",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 162,
+          "line": 170,
           "function": "update_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 189,
+          "line": 199,
           "function": "delete_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 204,
+          "line": 216,
           "function": "rename_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 234,
+          "line": 248,
           "function": "delete_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 297,
+          "line": 316,
           "function": "approve_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 328,
+          "line": 348,
           "function": "reject_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/topics.py",
-          "line": 45,
+          "line": 70,
           "function": "update_topic",
           "snippet": "raise NotFoundError(\"Topic not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/topics.py",
-          "line": 59,
+          "line": 86,
           "function": "delete_topic",
           "snippet": "raise NotFoundError(\"Topic not found\")",
           "status_code": null
@@ -766,33 +824,82 @@
       "name": "OpenAlexRateLimitedError",
       "category": "custom",
       "bases": [
-        "Exception"
+        "ProviderRateLimitedError"
       ],
       "docstring": "OpenAlex API returned HTTP 429.",
       "defined_at": {
         "file": "src/infrastructure/collection/clients/openalex_client.py",
-        "line": 23
+        "line": 25
       },
       "raise_sites": [
         {
           "file": "src/infrastructure/collection/clients/openalex_client.py",
-          "line": 191,
+          "line": 192,
           "function": "OpenAlexClient.fetch_by_doi",
           "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
           "status_code": null
         },
         {
           "file": "src/infrastructure/collection/clients/openalex_client.py",
-          "line": 227,
+          "line": 196,
+          "function": "OpenAlexClient.fetch_by_doi",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 231,
           "function": "OpenAlexClient.fetch_by_id",
           "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
           "status_code": null
         },
         {
           "file": "src/infrastructure/collection/clients/openalex_client.py",
-          "line": 275,
+          "line": 235,
+          "function": "OpenAlexClient.fetch_by_id",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 282,
           "function": "OpenAlexClient.fetch_papers",
           "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/openalex_client.py",
+          "line": 286,
+          "function": "OpenAlexClient.fetch_papers",
+          "snippet": "raise OpenAlexRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/scrapers/openalex_scraper.py",
+          "line": 49,
+          "function": "OpenAlexScraper.discover",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "ProviderRateLimitedError",
+      "category": "custom",
+      "bases": [
+        "Exception"
+      ],
+      "docstring": "Common base for every article-source client's 429 signal (arXiv, OpenAlex,\nSemantic Scholar, ...). External APIs' 429s here mean quota/pool exhaustion,\nnot a transient blip — orchestration layers (e.g. ScrapeExecutor) catch this\nbase type, not each provider's subclass individually, so a new client gets\nthe same \"abort remaining same-host work this run\" treatment for free.",
+      "defined_at": {
+        "file": "src/infrastructure/collection/clients/rate_limit_errors.py",
+        "line": 1
+      },
+      "raise_sites": [
+        {
+          "file": "src/infrastructure/collection/executor/discover_task.py",
+          "line": 33,
+          "function": "DiscoverTask.execute",
+          "snippet": "raise",
           "status_code": null
         }
       ]
@@ -855,30 +962,44 @@
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
-          "line": 129,
+          "line": 143,
           "function": "BaseProvider.analyze",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
-          "line": 155,
+          "line": 146,
+          "function": "BaseProvider.analyze",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 171,
           "function": "BaseProvider.translate",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
-          "line": 176,
+          "line": 174,
+          "function": "BaseProvider.translate",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 194,
           "function": "BaseProvider.generate",
           "snippet": "raise",
           "status_code": null
         },
         {
-          "file": "src/infrastructure/intelligence/llm/providers/gemini_provider.py",
-          "line": 30,
-          "function": "GeminiProvider._generate",
-          "snippet": "raise RateLimitExhausted(f\"Daily quota exceeded for {self._model}\") from e",
+          "file": "src/infrastructure/intelligence/llm/providers/base_provider.py",
+          "line": 197,
+          "function": "BaseProvider.generate",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
           "status_code": null
         },
         {
@@ -899,7 +1020,7 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/intelligence/image/gemini_imagen_provider.py",
-          "line": 35,
+          "line": 36,
           "function": "GeminiImagenProvider.generate_image",
           "snippet": "raise RuntimeError(\"Gemini API 成功回應，但未包含任何圖片數據。\")",
           "status_code": null
@@ -910,33 +1031,61 @@
       "name": "SemanticScholarRateLimitedError",
       "category": "custom",
       "bases": [
-        "Exception"
+        "ProviderRateLimitedError"
       ],
       "docstring": "Semantic Scholar API returned HTTP 429. Signals callers to abort remaining tasks for this run.",
       "defined_at": {
         "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
-        "line": 29
+        "line": 31
       },
       "raise_sites": [
         {
           "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
-          "line": 81,
+          "line": 82,
           "function": "SemanticScholarClient.fetch_by_doi",
           "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
           "status_code": null
         },
         {
           "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
-          "line": 109,
+          "line": 86,
+          "function": "SemanticScholarClient.fetch_by_doi",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 113,
           "function": "SemanticScholarClient.fetch_by_arxiv_id",
           "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
           "status_code": null
         },
         {
           "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
-          "line": 161,
+          "line": 117,
+          "function": "SemanticScholarClient.fetch_by_arxiv_id",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 168,
           "function": "SemanticScholarClient.fetch_papers",
           "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/clients/semantic_scholar_client.py",
+          "line": 172,
+          "function": "SemanticScholarClient.fetch_papers",
+          "snippet": "raise SemanticScholarRateLimitedError(str(exc)) from exc",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/collection/scrapers/semantic_scholar_scraper.py",
+          "line": 48,
+          "function": "SemanticScholarScraper.discover",
+          "snippet": "raise",
           "status_code": null
         }
       ]
@@ -1179,6 +1328,20 @@
           "status_code": null
         },
         {
+          "file": "backend/routers/search.py",
+          "line": 28,
+          "function": "search",
+          "snippet": "raise ValidationError(\"q must not be empty\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/search.py",
+          "line": 41,
+          "function": "autocomplete",
+          "snippet": "raise ValidationError(\"prefix must not be empty\")",
+          "status_code": null
+        },
+        {
           "file": "shared/selector_config.py",
           "line": 111,
           "function": "build_selector_config",
@@ -1224,14 +1387,14 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 494,
+          "line": 547,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
         },
         {
           "file": "src/config/settings.py",
-          "line": 154,
+          "line": 177,
           "function": "validate_config",
           "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
           "status_code": null
@@ -1248,6 +1411,20 @@
           "line": 80,
           "function": "SqlAlchemyTagRepository.save",
           "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
+          "status_code": null
+        },
+        {
+          "file": "shared/search_index/search_term.py",
+          "line": 18,
+          "function": "SearchTerm.__post_init__",
+          "snippet": "raise ValueError(\"SearchTerm.term must not be empty\")",
+          "status_code": null
+        },
+        {
+          "file": "shared/search_index/search_term.py",
+          "line": 20,
+          "function": "SearchTerm.__post_init__",
+          "snippet": "raise ValueError(f\"SearchTerm.occurrence_count must be >= 0, got {self.occurrence_count}\")",
           "status_code": null
         },
         {

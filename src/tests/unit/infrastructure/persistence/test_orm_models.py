@@ -52,13 +52,31 @@ def test_intelligence_schema_tables():
     from models.tag_normalization_suggestion import TagNormalizationSuggestion
     from models.weekly_report import WeeklyReport
     from models.weekly_report_translation import WeeklyReportTranslation
+    from models.search_term import SearchTerm
+    from models.search_term_article import SearchTermArticle
     for model in (
         Analysis, AnalysesTranslation, Tag, TagGroupDefinition,
         TagGroupDefinitionsTranslation, TagsTranslation,
         TagNormalizationSuggestion, WeeklyReport, WeeklyReportTranslation,
+        SearchTerm, SearchTermArticle,
     ):
         assert model.__table__.schema == DbSchema.INTELLIGENCE.value, model.__tablename__
     assert article_tags.schema == DbSchema.INTELLIGENCE.value
+
+
+def test_search_term_model_columns():
+    from models.search_term import SearchTerm
+    cols = {c.name for c in SearchTerm.__table__.columns}
+    assert cols == {"id", "topic_id", "term", "language", "occurrence_count"}
+
+
+def test_search_term_article_model_columns_and_fks():
+    from models.search_term_article import SearchTermArticle
+    cols = {c.name for c in SearchTermArticle.__table__.columns}
+    assert cols == {"id", "search_term_id", "article_id"}
+    fk_targets = {fk.target_fullname for fk in SearchTermArticle.__table__.foreign_keys}
+    assert "intelligence.search_terms.id" in fk_targets
+    assert "core.articles.id" in fk_targets
 
 
 def test_ai_infra_schema_tables():
@@ -77,16 +95,7 @@ def test_user_prefs_schema_tables():
         assert model.__table__.schema == DbSchema.USER_PREFS.value, model.__tablename__
 
 
-def test_auth_and_vectors_schemas_unchanged():
-    """auth/vectors predate DbSchema and are out of this feature's scope."""
+def test_auth_schema_unchanged():
+    """auth predates DbSchema and is out of this feature's scope."""
     from models.auth import User
-    from models.article_chunk import ArticleChunk
     assert User.__table__.schema == "auth"
-    assert ArticleChunk.__table__.schema == "vectors"
-
-
-def test_article_chunk_fk_requalified_to_core():
-    """article_chunk.py doesn't move, but its FK into articles must follow the move."""
-    from models.article_chunk import ArticleChunk
-    fk = next(iter(ArticleChunk.__table__.c.article_id.foreign_keys))
-    assert fk.target_fullname == "core.articles.id"

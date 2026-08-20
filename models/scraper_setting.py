@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
 import uuid
@@ -22,7 +22,10 @@ class ScraperSetting(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     selector_config = Column(SelectorConfigColumn, nullable=True)
     last_scraped_at = Column(DateTime(timezone=True), nullable=True)
-    topic_id = Column(UUID(as_uuid=True), nullable=False)
+    # fk_scraper_settings_topic_id — added by migration 12, never dropped, still live in
+    # Postgres today. The ORM model was missing the ForeignKey() declaration even though
+    # the DB-level constraint always existed (found via 023-article-search's models/ audit).
+    topic_id = Column(UUID(as_uuid=True), ForeignKey('core.topics.id'), nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

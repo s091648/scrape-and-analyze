@@ -28,6 +28,13 @@
     "next": "下一頁",
     "pageOf": "第 {page} 頁，共 {total} 頁"
   },
+  "search": {
+    "placeholder": "搜尋文章...",
+    "noResults": "找不到符合的文章",
+    "noSuggestions": "沒有建議",
+    "exactMatchOnly": "只顯示完全符合的文章",
+    "exactMatchOnlyTooltip": "關閉時，搜尋會改用關鍵字 + 語意（sparse + dense）混合檢索，不要求逐字完全符合。"
+  },
   "weeklyReport": {
     "noReportYet": "本週尚無報告。",
     "articleCount": "{count} 篇文章",

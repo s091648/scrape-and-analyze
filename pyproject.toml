@@ -18,6 +18,12 @@ dependencies = [
     # 原本只在 backend group，但 src/Dockerfile 對所有 scraper 服務都是
     # --no-group backend，會導致 ImportError，所以移到這裡確保永遠會被安裝
     "redis>=5.0",
+    # 023-article-search follow-up: shared/search_index/tokenizer.py 被 src/ 的
+    # RebuildSearchIndexUseCase 與 backend/services/search_service.py（exact-match
+    # AND-intersection 查詢時需要用同一套斷詞邏輯切 query）共用，backend/Dockerfile
+    # 是 --no-group scraper，同上述 redis 的理由移到這裡確保兩邊都會裝到
+    "jieba>=0.42",
+    "stopwordsiso>=0.6",
 ]
 
 [dependency-groups]
@@ -62,6 +68,13 @@ backend = [
     "email-validator>=2.0",
     "bcrypt>=4.0",
     "httpx",
+    # 023-article-search follow-up: GET /search's dense/sparse query embedding reuses the
+    # same provider classes (GeminiDenseProvider, EndpointProvider) that src/'s RAG
+    # ingestion pipeline already uses to embed articles — only this way is the query
+    # vector guaranteed to land in the same space as the stored article vectors. No
+    # extras needed: `gemini` extra's google-genai is already a root-level dependency
+    # above, and EndpointProvider only needs httpx (already in this group).
+    "chatbot-plugin-sdk",
 ]
 # 可觀測性 — scraper 與 backend 共用，prod 才需要
 observability = [
@@ -86,7 +99,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v1.0.2" }
+chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v1.0.3" }
 
 [tool.coverage.run]
 omit = [

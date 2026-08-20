@@ -7,7 +7,10 @@
 # only ever deploys a submodule commit that's actually been tagged there —
 # staging (ci.yml's check-staging-deployments.sh) still deploys whatever the
 # submodule pointer currently is, untagged or not, since that's a preview
-# environment, not a release.
+# environment, not a release. release.yml runs
+# bump-chatbot-plugin-submodule.sh right before calling this script, so the
+# warning branch below should only ever fire when chatbot-plugin has no v*
+# tag at all yet — not from the pointer merely being stale.
 #
 # Reads service IDs from SERVICE_ID_* env vars (set by the calling step) and
 # RAILWAY_TOKEN for CLI auth.

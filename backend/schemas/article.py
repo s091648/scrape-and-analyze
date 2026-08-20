@@ -27,6 +27,10 @@ class ArticleOut(BaseModel):
     metrics: Dict[str, float] = {}
     view_count: int = 0
     is_favorited: bool = False
+    # Only ever set by search_articles_hybrid (True/False) — None for every other endpoint
+    # that returns ArticleOut (e.g. GET /articles), where "exact match" isn't a meaningful
+    # concept since there's no query to match against.
+    exact_match: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 

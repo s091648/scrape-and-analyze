@@ -18,10 +18,8 @@ test.describe('Article list page', () => {
     await page.getByRole('button', { name: /filters/i }).click()
     // Open Source popover
     await page.getByRole('button', { name: /source/i }).click()
-    // Select 'rss' option
+    // Select 'rss' option — filters auto-apply after a debounce, no separate Apply button
     await page.getByRole('option', { name: 'rss', exact: true }).click()
-    // Apply filters
-    await page.getByRole('button', { name: /apply/i }).click()
     await expect(page).toHaveURL(/original_source=rss/)
   })
 
@@ -48,7 +46,6 @@ test.describe('Article list page', () => {
     const fetchPromise = page.waitForRequest(req =>
       req.url().includes('/api/proxy/articles') && req.url().includes('aggregator=semantic_scholar')
     )
-    await page.getByRole('button', { name: /apply/i }).click()
     await fetchPromise
     await expect(page).toHaveURL(/aggregator=semantic_scholar/)
   })

@@ -1,5 +1,31 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Added a new search bar to help users quickly find articles across the platform."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced real-time autocomplete suggestions in the search interface."
+      },
+      {
+        "type": "feat",
+        "description": "Implemented keyword highlighting in search results for better visibility of matches."
+      },
+      {
+        "type": "feat",
+        "description": "Updated backend systems to provide faster and more efficient search results."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced search accuracy and language support through improved text processing."
+      }
+    ]
+  },
+  {
     "version": "v1.5.2",
     "date": "2026-08-13",
     "changes": [

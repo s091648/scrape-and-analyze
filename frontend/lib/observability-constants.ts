@@ -86,8 +86,13 @@ export const SpanName = {
   ANALYSIS_FAILED_HANDLE: 'article.analysis_failed.handle',
   TAG_NORMALIZATION_FAILED_HANDLE: 'article.tag_normalization_failed.handle',
   TRANSLATION_FAILED_HANDLE: 'article.translation_failed.handle',
-  PIPELINE_COMPLETED_HANDLE: 'scraper.pipeline_completed.handle',
+  RAG_INGESTION_FAILED_HANDLE: 'rag.ingestion_failed.handle',
+  RAG_CONFIG_FAILED_HANDLE: 'rag.config_failed.handle',
+  PIPELINE_COMPLETED_METRICS_HANDLE: 'scraper.pipeline_completed.metrics_handle',
   PIPELINE_COMPLETED_NOTIFY: 'scraper.pipeline_completed.notify',
+  CACHE_INVALIDATION_HANDLE: 'cache.invalidation.handle',
+  CACHE_WARMUP_HANDLE: 'cache.warmup.handle',
+  SEARCH_INDEX_REBUILD_HANDLE: 'search.index_rebuild.handle',
   WEEKLY_REPORT_RUN: 'weekly_report.run',
   WEEKLY_REPORT_TOPIC: 'weekly_report.topic',
   WEEKLY_REPORT_SUMMARIZE: 'weekly_report.summarize',
@@ -96,6 +101,7 @@ export const SpanName = {
   WEEKLY_REPORT_NOTIFY: 'weekly_report.notify',
   REFRESH_METRICS_RUN: 'refresh_metrics.run',
   DEDUP_RECONCILE_RUN: 'dedup_reconcile.run',
+  RAG_BACKFILL_RUN: 'rag_backfill.run',
 } as const
 
 // ── Span attributes ──────────────────────────────────────────────────────────

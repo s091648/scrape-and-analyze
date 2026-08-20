@@ -40,6 +40,8 @@ Schema 分類對照 `src/modules/` 既有的 DDD bounded context，詳見 [016-d
 |---|---|---|
 | `auth` schema | Migration `01_4f2e59c8650f_create_auth_schema` | `CREATE SCHEMA` + `REVOKE ALL ON SCHEMA auth FROM PUBLIC`；schema 本身早於 `DbSchema` enum，但 `auth.users` 有對應的 `models/auth.py::User`，所以該表仍會出現在圖表中 |
 | `vectors` schema | Migration `21_add_vectors_schema_and_article_chunks` | `CREATE SCHEMA` + `CREATE EXTENSION vector`；schema 本身早於 `DbSchema` enum |
-| `vectors.articles` | Migration `21_add_vectors_schema_and_article_chunks` | Raw SQL 建立的去正規化 parent table（供 search 結果 join 用），沒有對應 model，**不會出現在圖表中**（`vectors.article_chunks` 有對應的 `models/article_chunk.py::ArticleChunk`，會正常出現） |
+| `vectors.articles` | Migration `21_add_vectors_schema_and_article_chunks` | Raw SQL 建立的去正規化 parent table（供 search 結果 join 用），沒有對應 model，**不會出現在圖表中** |
+| `vectors.article_chunks` | Migration `21_add_vectors_schema_and_article_chunks` | 存放 dense/sparse embedding 的 chunk table；讀寫皆透過 `chatbot-plugin-sdk`／raw SQL 進行（pgvector 的 vector/sparsevec 型別當時缺乏可用的 ORM 支援），沒有對應 model，**不會出現在圖表中**（原本的 `models/article_chunk.py::ArticleChunk` 因欄位定義與實際 table 早已不同步而被移除，見 `023-article-search`） |
 | `public.data_migrations` | Migration `18_add_data_migrations_table` | 資料遷移執行紀錄的 ledger 表，沒有對應 model，**不會出現在圖表中** |
 | `public.arxiv_metadata` | Migration `22_add_correlation_id_and_rag_providers` | 沒有對應 model，**不會出現在圖表中** |
+| `intelligence.search_terms` | Migration `26_add_search_terms_and_pg_trgm` | Autocomplete 的精簡 term 清單（Redis cache-aside fallback 用），讀寫皆透過 `shared/search_index/search_term_repo_impl.py` 的 raw SQL 進行——跟 `vectors.article_chunks` 同樣的理由，沒有對應 model，**不會出現在圖表中**（見 `023-article-search`） |

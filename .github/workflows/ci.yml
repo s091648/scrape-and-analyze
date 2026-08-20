@@ -12,6 +12,23 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Ephemeral local Postgres/Redis service-container credentials & connection strings,
+  # shared by every job below that spins up its own postgres/redis service (backend-unit,
+  # backend-integration, src-integration-test) — centralized here so a value only needs to
+  # be added/changed once instead of once per job. A job forgetting to declare one of these
+  # itself previously degraded silently rather than failing loudly (e.g. backend-integration
+  # missing SEARCH_INDEX_REDIS_URL fell through to a Postgres/no-op fallback with 0 results,
+  # passing locally — where the docker-compose `redis` hostname the code's own default
+  # resolves to — but failing only in CI, where it doesn't). migrate/rollback intentionally
+  # override DATABASE_URL at their own step level to the real secrets.DATABASE_URL — never
+  # this literal — since they migrate the actual staging DB, not this ephemeral one.
+  CI_DB_USER: ci
+  CI_DB_PASSWORD: ci
+  CI_DB_NAME: ci_test
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
+  REDIS_URL: redis://localhost:6379/0
+  CACHE_REDIS_URL: redis://localhost:6379/1
+  SEARCH_INDEX_REDIS_URL: redis://localhost:6379/2
 
 jobs:
   # -----------------------------------------------
@@ -87,6 +104,68 @@ jobs:
           SERVICE_ID_DEDUP_RECONCILE: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
 
   # -----------------------------------------------
+  # Stage -0.5: Verify uv.lock matches pyproject.toml
+  # `uv sync --frozen` (used everywhere below, and in backend/Dockerfile, src/Dockerfile)
+  # trusts uv.lock exactly as-is — it never checks that it still matches pyproject.toml.
+  # Editing pyproject.toml (e.g. adding a dependency) without following up with `uv lock`
+  # leaves the lock stale, and nothing downstream fails loudly: a `--frozen` sync just
+  # silently installs whatever the old lock recorded, which can differ per job depending
+  # on which --group/--no-group flags that job happens to pass. This is exactly how
+  # jieba/stopwordsiso went missing from backend/Dockerfile's production image after being
+  # promoted to root-level dependencies without a `uv lock` regen: every job in this
+  # workflow's own `--frozen` syncs happened to not pass backend/Dockerfile's exact
+  # `--no-group scraper`, so they kept getting jieba from the (stale) scraper group
+  # instead and never noticed — only backend/Dockerfile's narrower group selection
+  # actually exposed the gap, and only once deployed.
+  # -----------------------------------------------
+  check-lockfile:
+    name: Verify uv.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Check whether uv.lock is up to date with pyproject.toml
+        id: check
+        run: |
+          if uv lock --check; then
+            echo "in_sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "in_sync=false" >> "$GITHUB_OUTPUT"
+            uv lock
+          fi
+
+      # Pushed with RELEASE_PAT (not the default GITHUB_TOKEN) specifically so this push
+      # re-triggers a fresh workflow run — GitHub Actions deliberately does not let a
+      # GITHUB_TOKEN-authored push trigger further workflows, which would otherwise make
+      # "auto-fix and let CI re-validate" silently never happen.
+      - name: Commit regenerated uv.lock
+        if: steps.check.outputs.in_sync == 'false'
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/git-commit-and-push.sh"
+          "🔒 [CHORE] regenerate uv.lock to match pyproject.toml [skip ci]"
+          "No lockfile update needed"
+          uv.lock
+
+      - name: Fail — uv.lock was out of date
+        if: steps.check.outputs.in_sync == 'false'
+        run: |
+          echo "::error::uv.lock was out of sync with pyproject.toml (a dependency was likely added/changed without running \`uv lock\` afterward). It has been regenerated and pushed automatically — re-run this workflow (or push again) to pick up the fix."
+          exit 1
+
+  # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
   # push-to-master (post-merge) skips this: it would race the staging DB
   # against itself if a still-in-flight PR run's migrate overlapped, and it
@@ -97,10 +176,11 @@ jobs:
   migrate:
     name: DB Migration
     runs-on: ubuntu-latest
-    needs: [check-staging-deployments]
+    needs: [check-staging-deployments, check-lockfile]
     if: |
       always() &&
       github.event_name == 'pull_request' &&
+      needs.check-lockfile.result == 'success' &&
       (needs.check-staging-deployments.result == 'success' || needs.check-staging-deployments.result == 'skipped')
     timeout-minutes: 10
     environment: scraper / staging
@@ -125,6 +205,9 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      # Overrides the workflow-level DATABASE_URL default (the ephemeral CI-only
+      # postgres:ci_test literal) with the real staging secret — this job migrates the
+      # actual staging DB, not the local service container the other jobs spin up.
       - name: Run alembic upgrade
         run: uv run alembic upgrade head
         env:
@@ -141,8 +224,11 @@ jobs:
   src-unit-test:
     name: Src Unit Tests
     runs-on: ubuntu-latest
-    needs: [migrate]
-    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    needs: [migrate, check-lockfile]
+    if: |
+      always() &&
+      needs.check-lockfile.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
     steps:
@@ -214,22 +300,20 @@ jobs:
   backend-unit:
     name: Backend Unit Tests
     runs-on: ubuntu-latest
-    needs: [migrate]
-    if: always() && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    needs: [migrate, check-lockfile]
+    if: |
+      always() &&
+      needs.check-lockfile.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 15
-
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
 
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -257,14 +341,11 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend unit tests with coverage
         run: uv run pytest backend/tests/ -v --tb=short --ignore=backend/tests/integration --cov=backend --cov=shared --cov-report=xml:coverage-backend.xml --junitxml=pytest-backend.xml
         env:
           PYTHONPATH: .
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Upload backend-unit coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -318,18 +399,13 @@ jobs:
     needs: [backend-unit]
     timeout-minutes: 20
 
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
-
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -366,15 +442,9 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run backend integration tests with coverage
         run: uv run pytest backend/tests/integration/ -v --tb=short -m integration --cov=backend --cov=shared --cov-report=xml:coverage-backend-integration.xml --junitxml=pytest-backend-integration.xml
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
-          REDIS_URL: redis://localhost:6379/0
-          CACHE_REDIS_URL: redis://localhost:6379/1
 
       - name: Upload backend-integration coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -432,18 +502,13 @@ jobs:
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     timeout-minutes: 30
 
-    env:
-      CI_DB_USER: ci
-      CI_DB_PASSWORD: ci
-      CI_DB_NAME: ci_test
-
     services:
       postgres:
         image: pgvector/pgvector:pg15
         env:
-          POSTGRES_USER: ci
-          POSTGRES_PASSWORD: ci
-          POSTGRES_DB: ci_test
+          POSTGRES_USER: ${{ env.CI_DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
         ports:
           - 5432:5432
         options: >-
@@ -471,13 +536,10 @@ jobs:
 
       - name: Run alembic upgrade for test DB
         run: uv run alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
 
       - name: Run integration tests with coverage
         run: uv run pytest src/tests/integration/ -v --tb=short -m integration --cov=src --cov=shared --cov-report=xml:coverage-integration.xml --junitxml=pytest-integration.xml
         env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_test
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -1054,6 +1116,7 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: "1"
 
+      # Overrides the workflow-level DATABASE_URL default — see migrate's own comment above.
       - name: Rollback one revision
         run: uv run alembic downgrade -1
         env:

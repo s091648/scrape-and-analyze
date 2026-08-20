@@ -21,14 +21,31 @@ def admin_token() -> str:
 
 _ADMIN_HDR = {"Authorization": f"Bearer {admin_token()}"}
 
-_RSS_PAYLOAD = {
-    "source_type": "rss",
-    "name": "Test Feed",
-    "url": "https://example.com/feed.xml",
-    "frequency": 60,
-    "is_active": True,
-    "topic_id": str(uuid.uuid4()),
-}
+
+def _seed_topic(db_session, name=None):
+    from models.topic import Topic
+    t = Topic(
+        id=uuid.uuid4(),
+        name=name or f"topic-{uuid.uuid4().hex[:6]}",
+        display_name="Seed Topic",
+        color_hex="#123456",
+        sort_order=1,
+        is_active=True,
+    )
+    db_session.add(t)
+    db_session.flush()
+    return t
+
+
+def _rss_payload(topic_id):
+    return {
+        "source_type": "rss",
+        "name": "Test Feed",
+        "url": "https://example.com/feed.xml",
+        "frequency": 60,
+        "is_active": True,
+        "topic_id": str(topic_id),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +58,7 @@ def test_list_settings_requires_admin(api_client):
 
 
 def test_create_setting_requires_admin(api_client):
-    r = api_client.post("/scraper-settings", json=_RSS_PAYLOAD)
+    r = api_client.post("/scraper-settings", json=_rss_payload(uuid.uuid4()))
     assert r.status_code in (401, 403)
 
 
@@ -49,8 +66,9 @@ def test_create_setting_requires_admin(api_client):
 # Create
 # ---------------------------------------------------------------------------
 
-def test_create_setting_persists(api_client):
-    r = api_client.post("/scraper-settings", json=_RSS_PAYLOAD, headers=_ADMIN_HDR)
+def test_create_setting_persists(api_client, db_session):
+    topic = _seed_topic(db_session)
+    r = api_client.post("/scraper-settings", json=_rss_payload(topic.id), headers=_ADMIN_HDR)
     assert r.status_code == 201
     data = r.json()
     assert data["name"] == "Test Feed"
@@ -58,8 +76,9 @@ def test_create_setting_persists(api_client):
     assert "id" in data
 
 
-def test_create_setting_appears_in_list(api_client):
-    api_client.post("/scraper-settings", json=_RSS_PAYLOAD, headers=_ADMIN_HDR)
+def test_create_setting_appears_in_list(api_client, db_session):
+    topic = _seed_topic(db_session)
+    api_client.post("/scraper-settings", json=_rss_payload(topic.id), headers=_ADMIN_HDR)
 
     r = api_client.get("/scraper-settings", headers=_ADMIN_HDR)
     assert r.status_code == 200
@@ -71,8 +90,9 @@ def test_create_setting_appears_in_list(api_client):
 # Update
 # ---------------------------------------------------------------------------
 
-def test_update_setting_persists(api_client):
-    created = api_client.post("/scraper-settings", json=_RSS_PAYLOAD,
+def test_update_setting_persists(api_client, db_session):
+    topic = _seed_topic(db_session)
+    created = api_client.post("/scraper-settings", json=_rss_payload(topic.id),
                               headers=_ADMIN_HDR).json()
     sid = created["id"]
 
@@ -83,8 +103,9 @@ def test_update_setting_persists(api_client):
     assert r.json()["name"] == "Updated Feed"
 
 
-def test_update_setting_frequency(api_client):
-    created = api_client.post("/scraper-settings", json=_RSS_PAYLOAD,
+def test_update_setting_frequency(api_client, db_session):
+    topic = _seed_topic(db_session)
+    created = api_client.post("/scraper-settings", json=_rss_payload(topic.id),
                               headers=_ADMIN_HDR).json()
     sid = created["id"]
 
@@ -106,8 +127,9 @@ def test_update_nonexistent_returns_404(api_client):
 # Delete
 # ---------------------------------------------------------------------------
 
-def test_delete_setting_removes_from_list(api_client):
-    created = api_client.post("/scraper-settings", json=_RSS_PAYLOAD,
+def test_delete_setting_removes_from_list(api_client, db_session):
+    topic = _seed_topic(db_session)
+    created = api_client.post("/scraper-settings", json=_rss_payload(topic.id),
                               headers=_ADMIN_HDR).json()
     sid = created["id"]
 
@@ -127,9 +149,10 @@ def test_delete_nonexistent_returns_404(api_client):
 # Full cycle
 # ---------------------------------------------------------------------------
 
-def test_create_update_delete_cycle(api_client):
+def test_create_update_delete_cycle(api_client, db_session):
     # Create
-    created = api_client.post("/scraper-settings", json=_RSS_PAYLOAD,
+    topic = _seed_topic(db_session)
+    created = api_client.post("/scraper-settings", json=_rss_payload(topic.id),
                               headers=_ADMIN_HDR).json()
     sid = created["id"]
 

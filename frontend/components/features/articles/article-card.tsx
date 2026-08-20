@@ -12,6 +12,7 @@ import { useSession } from 'next-auth/react'
 import type { ArticleDetail } from '@/lib/api/articles'
 import { useMetricDefinitions } from './use-metric-definitions'
 import { resolveMetricIcon } from './metric-icons'
+import { highlightMatch } from '@/lib/highlight-match'
 
 export type { Article }
 
@@ -26,9 +27,12 @@ interface ArticleCardProps extends Article {
   isFirstTutorialTarget?: boolean
   /** Marks this card as the Feature Spotlight target for the favorite/view-count tour steps. */
   isStatsTutorialTarget?: boolean
+  /** Active search query (articles-page-content.tsx) — when set, occurrences of it in the
+   * title/content preview are highlighted the same way as autocomplete-dropdown's matches. */
+  highlightQuery?: string
 }
 
-export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, metrics, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget }: ArticleCardProps) {
+export function ArticleCard({ id, title, source, via_source, original_source, content, published_at, scraped_at, url, translated_title, translated_content, has_vectors, metrics, view_count, is_favorited, open: controlledOpen, onOpenChange: controlledOnOpenChange, isFirstTutorialTarget, isStatsTutorialTarget, highlightQuery }: ArticleCardProps) {
   const { locale, t } = useI18n()
   const { selectedTopicId } = useTopic()
   const metricDefs = useMetricDefinitions()
@@ -127,7 +131,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
                   <Heart className={`h-3.5 w-3.5 ${favorited ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
                 </button>
               )}
-              <span className="flex-1">{toTitleCase(displayTitle)}</span>
+              <span className="flex-1">{highlightMatch(toTitleCase(displayTitle), highlightQuery ?? '')}</span>
               <div className="flex items-center gap-2 shrink-0 mt-0.5">
                 <button
                   type="button"
@@ -155,7 +159,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         </CardHeader>
 
         <div className="relative px-6 h-[4.5rem] overflow-hidden">
-          <p className="text-xs text-muted-foreground leading-relaxed">{displayContent}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">{highlightMatch(displayContent, highlightQuery ?? '')}</p>
           <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent pointer-events-none" />
         </div>
 
@@ -256,6 +260,7 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
         content={displayContent}
         detail={detail}
         loading={loading}
+        highlightQuery={highlightQuery}
       />
     </>
   )
