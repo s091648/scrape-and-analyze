@@ -67,6 +67,23 @@ def _format_filtered_exception(exc_info) -> str:
     return "".join(parts)
 
 
+def _add_otel_context(record: logging.LogRecord) -> bool:
+    """logging.Filter that injects the current OTel trace_id/span_id onto the
+    record so Loki log lines correlate with Tempo traces by trace_id — mirrors
+    chatbot-plugin/backend's own _add_otel_context. Always returns True (a
+    no-op filter never drops records); safe when no TracerProvider is
+    configured, since the default tracer's span context is simply invalid."""
+    try:
+        from opentelemetry import trace as _otel_trace
+        ctx = _otel_trace.get_current_span().get_span_context()
+        if ctx.is_valid:
+            record.trace_id = format(ctx.trace_id, "032x")
+            record.span_id = format(ctx.span_id, "016x")
+    except Exception:
+        pass
+    return True
+
+
 class _JsonFormatter(logging.Formatter):
     def __init__(self, service: str) -> None:
         super().__init__()
@@ -103,6 +120,7 @@ def configure_logging(
     stdout = logging.StreamHandler(sys.stdout)
     stdout.setLevel(logging.INFO)
     stdout.setFormatter(fmt)
+    stdout.addFilter(_add_otel_context)
     root.addHandler(stdout)
 
     if all([loki_url, loki_user, loki_api_key]):
@@ -116,6 +134,66 @@ def configure_logging(
             )
             loki_handler.setLevel(logging.INFO)
             loki_handler.setFormatter(fmt)
+            loki_handler.addFilter(_add_otel_context)
             root.addHandler(loki_handler)
         except Exception as exc:
             print(f"Loki handler setup failed: {exc}", file=sys.stdout)
+
+
+def setup_tracing(app_env: str, otlp_endpoint: str, otlp_user: str, api_key: str):
+    """Initialize OTel tracing with a Grafana Cloud OTLP exporter and return the
+    TracerProvider. Returns None (no-op tracer) if any of otlp_endpoint/
+    otlp_user/api_key are absent.
+
+    Mirrors chatbot-plugin/backend's setup_tracing() — same Grafana Cloud
+    tenant/credentials, separate service.name so traces from this service are
+    distinguishable. No SQLAlchemy/httpx client instrumentation (unlike
+    chatbot-plugin/backend): this service has no DB and makes no outbound
+    HTTP calls of its own — it's purely a callee (src/ at ingestion time,
+    chatbot-plugin at query time). FastAPIInstrumentor is what matters here:
+    it continues the caller's trace via the incoming `traceparent` header
+    (chatbot-plugin's own HTTPXClientInstrumentor already sends one) instead
+    of starting a new, disconnected trace_id for every /embed call.
+    """
+    if not all([otlp_endpoint, otlp_user, api_key]):
+        missing = [
+            k
+            for k, v in {
+                "GRAFANA_OTLP_ENDPOINT": otlp_endpoint,
+                "GRAFANA_OTLP_USER": otlp_user,
+                "GRAFANA_API_KEY": api_key,
+            }.items()
+            if not v
+        ]
+        print(f"[tracing] Skipping OTLP setup, missing env vars: {missing}", file=sys.stdout)
+        return None
+
+    try:
+        import base64
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        auth_str = f"{otlp_user}:{api_key}"
+        encoded_auth = base64.b64encode(auth_str.encode()).decode()
+
+        resource = Resource.create({
+            "service.name": "fastembed",
+            "deployment.environment": app_env,
+        })
+        exporter = OTLPSpanExporter(
+            endpoint=f"{otlp_endpoint.rstrip('/')}/v1/traces",
+            headers={"Authorization": f"Basic {encoded_auth}"},
+            timeout=15,
+        )
+        provider = TracerProvider(resource=resource)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
+
+        print("[tracing] OTLP setup successful", file=sys.stdout)
+        return provider
+    except Exception as e:
+        print(f"[tracing] OTLP setup failed: {e}", file=sys.stdout)
+        return None

@@ -94,6 +94,14 @@ backend = [
     # above, and EndpointProvider only needs httpx (already in this group).
     "chatbot-plugin-sdk",
 ]
+# fastembed/ FastAPI 服務專屬依賴 — fastembed>=0.3 在此重複宣告一次（scraper group
+# 已有一份，src/ 的 in-process embedding 路徑用），因為 fastembed/ 服務不該背整個
+# scraper group（beautifulsoup4/feedparser/pymupdf 等跟它無關的爬蟲解析套件）。
+fastembed-service = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "fastembed>=0.3",
+]
 # 可觀測性 — scraper 與 backend 共用，prod 才需要
 observability = [
     "python-logging-loki>=0.3",

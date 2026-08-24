@@ -224,7 +224,7 @@ deliberately released.
 - **Structured logging**: All services MUST emit structured JSON logs
   to stdout and optionally ship to Loki. The scraper (`src/`) uses
   structlog; FastAPI microservices (`backend/`, `chatbot-plugin/`,
-  `services/fastembed/`) use stdlib `logging` with a `_JsonFormatter`
+  `fastembed/`) use stdlib `logging` with a `_JsonFormatter`
   producing `{"event", "level", "logger", "service", "timestamp"}`
   output compatible with scraper's structlog format. `print()` and
   unformatted `logging.basicConfig()` are forbidden in all services.
@@ -336,7 +336,7 @@ type errors.
 ### IX. FastAPI Microservice Structure
 
 Each Python microservice (`backend/`, `chatbot-plugin/`,
-`services/fastembed/`) MUST follow this layout:
+`fastembed/`) MUST follow this layout:
 
 - **`config.py`** — All `os.environ.get()` reads in one place. Pure
   reads only; no side effects, no imports from the rest of the

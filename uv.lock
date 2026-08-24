@@ -3021,6 +3021,11 @@ dev = [
     { name = "responses" },
     { name = "starlette" },
 ]
+fastembed-service = [
+    { name = "fastapi" },
+    { name = "fastembed" },
+    { name = "uvicorn", extra = ["standard"] },
+]
 http-clients = [
     { name = "requests" },
 ]
@@ -3093,6 +3098,11 @@ dev = [
     { name = "pytest-cov" },
     { name = "responses" },
     { name = "starlette" },
+]
+fastembed-service = [
+    { name = "fastapi", specifier = ">=0.110" },
+    { name = "fastembed", specifier = ">=0.3" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27" },
 ]
 http-clients = [{ name = "requests" }]
 llm = [

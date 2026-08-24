@@ -15,14 +15,10 @@ services:
   # Fastembed embedding service — SPLADE 模型集中在此，scraper 與 chatbot-plugin 共用
   fastembed:
     build:
-      context: ./services/fastembed
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: fastembed/Dockerfile.dev
     volumes:
-      - ./services/fastembed/main.py:/app/main.py
-      - ./services/fastembed/config.py:/app/config.py
-      - ./services/fastembed/observability.py:/app/observability.py
-      - ./services/fastembed/routers:/app/routers
-      - ./services/fastembed/services:/app/services
+      - ./fastembed/src:/app/src
     env_file:
       - .env
     healthcheck:

@@ -15,7 +15,7 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from config import (
+from fastembed_service.config import (
     EMBED_SPARSE_MODEL,
     EMBED_SPARSE_BATCH_SIZE,
     EMBED_DENSE_MODEL,

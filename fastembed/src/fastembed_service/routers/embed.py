@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from services.embedding import EmbeddingService
+from fastembed_service.services.embedding import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
