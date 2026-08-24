@@ -120,7 +120,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v1.0.4" }
+chatbot-plugin-sdk = { git = "https://github.com/s091648/chatbot-plugin-sdk.git", tag = "v1.1.0" }
 
 [tool.coverage.run]
 omit = [

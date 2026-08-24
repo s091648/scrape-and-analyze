@@ -43,4 +43,4 @@ body:
     attributes:
       label: Additional Context
       description: Any other context about the problem (ex. slack message).
-      placeholder: https://weathernews.slack.com/
+      placeholder: Additional information goes here!
