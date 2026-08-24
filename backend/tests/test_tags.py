@@ -180,9 +180,12 @@ def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
-    # Tag ORM query chain: join().join().filter(tag_group_id).filter(topic_id).group_by().order_by().all()
-    mock_tag_row = SimpleNamespace(id=tag_id, name="Transformer", article_count=3)
-    mock_db.query.return_value.join.return_value.join.return_value.filter.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
+    # tag_outs_for_groups' batched ORM query chain: join(article_tags).join(Article)
+    # .join(TagGroupDefinition).filter(tag_group_id in).filter(topic_id match).group_by()
+    # .order_by().all() — rows are plain (tag_group_id, tag_id, tag_name, article_count)
+    # tuples (unpacked positionally in tag_service.py), not attribute-style objects.
+    mock_tag_row = (grp_id, tag_id, "Transformer", 3)
+    mock_db.query.return_value.join.return_value.join.return_value.join.return_value.filter.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
