@@ -373,6 +373,36 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
         </div>
       )}
 
+      {/* Events — span.add_event(name, attributes) markers (e.g. chatbot-plugin's
+          "first_content"/"first_chunk"). Shown as an offset from the span's own start,
+          since that's what actually answers "how much of this span's duration was
+          silence before this happened" — the whole reason these get added. */}
+      {(span.events ?? []).length > 0 && (
+        <div className="border-t border-border pt-1.5">
+          <table className="text-xs w-full">
+            <tbody>
+              {(span.events ?? []).map((event, i) => {
+                const offsetMs = Number((BigInt(event.timeUnixNano) - BigInt(span.startTimeUnixNano)) / 1_000_000n)
+                const attrText = (event.attributes ?? [])
+                  .map(a => `${a.key}=${formatValue(a.value)}`)
+                  .join(', ')
+                return (
+                  <tr key={`${event.name}-${i}`}>
+                    <td className="text-muted-foreground pr-2 py-0.5 whitespace-nowrap align-top font-medium">
+                      {event.name}
+                    </td>
+                    <td className="font-mono break-all py-0.5 align-top">
+                      +{formatDuration(offsetMs)}
+                      {attrText && <span className="text-muted-foreground"> · {attrText}</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Error message from span status */}
       {error && span.status?.message && (
         <p className="text-xs text-destructive break-words border-t border-destructive/30 pt-1.5">
