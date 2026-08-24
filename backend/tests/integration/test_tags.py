@@ -701,6 +701,77 @@ def test_delete_tag_bumps_article_scoped_caches(api_client, db_session, monkeypa
     assert set(calls) == {"articles", "graph", "tag_groups"}
 
 
+# ---------------------------------------------------------------------------
+# tag_outs_for_groups — batched replacement for the N+1 pattern of calling
+# tag_outs_for_group() once per group inside build_tag_groups_payload()'s loop
+# ---------------------------------------------------------------------------
+
+def test_tag_outs_for_groups_batches_into_a_single_query(db_session):
+    from sqlalchemy import event
+    from backend.services import tag_service
+
+    topic = _topic(db_session)
+    groups = [_group(db_session, topic, name=f"g{i}") for i in range(3)]
+    for i, grp in enumerate(groups):
+        tag = _tag(db_session, name=f"tag{i}", group=grp)
+        article = _article(db_session, topic=topic)
+        _link(db_session, article, tag)
+
+    statements = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    bind = db_session.get_bind()
+    event.listen(bind, "before_cursor_execute", _record)
+    try:
+        result = tag_service.tag_outs_for_groups(db_session, groups)
+    finally:
+        event.remove(bind, "before_cursor_execute", _record)
+
+    select_statements = [s for s in statements if s.strip().upper().startswith("SELECT")]
+    assert len(select_statements) == 1, (
+        "tag_outs_for_groups() should fetch every group's tags in one query — "
+        f"issued {len(select_statements)} instead (was the N+1 this function replaces)"
+    )
+    for i, grp in enumerate(groups):
+        assert [t.name for t in result[grp.id]] == [f"tag{i}"]
+
+
+def test_tag_outs_for_groups_scopes_article_counts_by_each_groups_own_topic(db_session):
+    """Mirrors tag_outs_for_group()'s per-group `Article.topic_id == grp.topic_id` filter —
+    batching must not let a tag from one group's topic pick up article counts (or leak into
+    another group's list) via a different topic."""
+    from backend.services import tag_service
+
+    topic_a = _topic(db_session, name="topic-a")
+    topic_b = _topic(db_session, name="topic-b")
+    group_a = _group(db_session, topic_a, name="group-a")
+    group_b = _group(db_session, topic_b, name="group-b")
+
+    tag_a = _tag(db_session, name="alpha", group=group_a)
+    tag_b = _tag(db_session, name="beta", group=group_b)
+    article_a = _article(db_session, topic=topic_a)
+    article_b = _article(db_session, topic=topic_b)
+    _link(db_session, article_a, tag_a)
+    _link(db_session, article_b, tag_b)
+
+    # Belongs to group_a (topic A) but only ever linked to an article from topic B —
+    # should not appear for group_a at all, same as the unbatched function's behavior.
+    tag_cross_topic = _tag(db_session, name="cross-topic", group=group_a)
+    _link(db_session, article_b, tag_cross_topic)
+
+    result = tag_service.tag_outs_for_groups(db_session, [group_a, group_b])
+
+    assert [t.name for t in result[group_a.id]] == ["alpha"]
+    assert [t.name for t in result[group_b.id]] == ["beta"]
+
+
+def test_tag_outs_for_groups_empty_list_returns_empty_dict(db_session):
+    from backend.services import tag_service
+    assert tag_service.tag_outs_for_groups(db_session, []) == {}
+
+
 def test_repeated_tag_groups_request_is_served_from_cache(api_client, db_session, monkeypatch):
     from backend.services import tag_service
 
@@ -708,13 +779,13 @@ def test_repeated_tag_groups_request_is_served_from_cache(api_client, db_session
     _group(db_session, topic, name="cache-hit-group")
 
     calls = []
-    original = tag_service.tag_outs_for_group
+    original = tag_service.tag_outs_for_groups
 
     def _spy(*args, **kwargs):
         calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(tag_service, "tag_outs_for_group", _spy)
+    monkeypatch.setattr(tag_service, "tag_outs_for_groups", _spy)
 
     first = api_client.get(f"/tag-groups?topic_id={topic.id}")
     second = api_client.get(f"/tag-groups?topic_id={topic.id}")

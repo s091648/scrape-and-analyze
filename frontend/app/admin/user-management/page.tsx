@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
-import { fetchUsers, updateUser, deleteUser as deleteUserApi, createUser } from '@/lib/api/auth'
+import { updateUser, deleteUser as deleteUserApi, createUser } from '@/lib/api/auth'
+import { useAdminUsersStore } from '@/lib/stores/admin-users-store'
 import { Button } from '@/components/ui/button'
 import { Dropdown } from '@/components/ui/dropdown'
 import { Switch } from '@/components/ui/switch'
@@ -25,23 +26,10 @@ function UserAvatar({ name, icon }: { name: string | null | undefined; icon: str
   )
 }
 
-interface User {
-  id: string
-  email: string | null
-  name: string | null
-  username: string | null
-  role: 'admin' | 'user'
-  is_allowed: boolean
-  icon: string | null
-  google_id: string | null
-  created_at: string | null
-}
-
 export default function UsersPage() {
   const { data: session, status } = useSession()
   const { t } = useI18n()
-  const [users, setUsers] = useState<User[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { users, loaded, loading, ensureLoaded, upsertUser, removeUser } = useAdminUsersStore()
   const [creating, setCreating] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState<'admin' | 'user'>('user')
@@ -52,29 +40,26 @@ export default function UsersPage() {
   if (status === 'authenticated' && (session?.user as any)?.role !== 'admin') redirect('/settings')
 
   const token = (session as any)?.accessToken
+  const isLoading = !loaded && loading
 
   useEffect(() => {
-    if (!token) return
-    setIsLoading(true)
-    fetchUsers(token)
-      .then(setUsers)
-      .finally(() => setIsLoading(false))
-  }, [token])
+    if (token) ensureLoaded(token)
+  }, [token, ensureLoaded])
 
-  async function toggleAllowed(user: User) {
+  async function toggleAllowed(user: (typeof users)[number]) {
     const res = await updateUser(token, user.id, { is_allowed: !user.is_allowed })
-    if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, is_allowed: !u.is_allowed } : u))
+    if (res.ok) upsertUser({ ...user, is_allowed: !user.is_allowed })
   }
 
-  async function changeRole(user: User, role: 'admin' | 'user') {
+  async function changeRole(user: (typeof users)[number], role: 'admin' | 'user') {
     const res = await updateUser(token, user.id, { role })
-    if (res.ok) setUsers(users.map(u => u.id === user.id ? { ...u, role } : u))
+    if (res.ok) upsertUser({ ...user, role })
   }
 
   async function deleteUser(userId: string) {
     if (!confirm(t('admin.confirmDeleteUser'))) return
     const res = await deleteUserApi(token, userId)
-    if (res.ok) setUsers(users.filter(u => u.id !== userId))
+    if (res.ok) removeUser(userId)
   }
 
   async function handleCreateUser(e: React.FormEvent) {
@@ -86,7 +71,7 @@ export default function UsersPage() {
     const res = await createUser(token, body)
     if (res.ok) {
       const created = await res.json()
-      setUsers([created, ...users])
+      upsertUser(created)
       setCreating(false)
       setNewEmail(''); setNewUsername(''); setNewPassword(''); setNewRole('user')
     }

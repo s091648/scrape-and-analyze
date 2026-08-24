@@ -58,6 +58,41 @@ def tag_outs_for_group(db: Session, grp) -> List[TagOut]:
     return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
 
 
+def tag_outs_for_groups(db: Session, groups: list) -> dict:
+    """Batched equivalent of calling tag_outs_for_group() once per group in a loop — a
+    single query for every group's tags instead of one query per group (was an N+1:
+    GET /tag-groups with N groups issued 1 + N queries). TagGroupDefinition.topic_id is
+    NOT NULL (see models/tag_group.py), so joining it in lets each row's article count
+    stay scoped to its own group's topic — same semantics as tag_outs_for_group()'s
+    per-group `Article.topic_id == grp.topic_id` filter, just correlated per-row instead
+    of re-run once per group."""
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+    from models.tag_group import TagGroupDefinition
+
+    result: dict = {grp.id: [] for grp in groups}
+    if not groups:
+        return result
+
+    rows = (
+        db.query(
+            Tag.tag_group_id, Tag.id, Tag.name,
+            func.count(distinct(article_tags_table.c.article_id)).label("article_count"),
+        )
+        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
+        .join(Article, Article.id == article_tags_table.c.article_id)
+        .join(TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id)
+        .filter(Tag.tag_group_id.in_([grp.id for grp in groups]))
+        .filter(Article.topic_id == TagGroupDefinition.topic_id)
+        .group_by(Tag.tag_group_id, Tag.id, Tag.name)
+        .order_by(Tag.name)
+        .all()
+    )
+    for tag_group_id, tag_id, tag_name, article_count in rows:
+        result[tag_group_id].append(TagOut(id=tag_id, name=tag_name, article_count=article_count))
+    return result
+
+
 def ungrouped_tag_outs(db: Session, topic_id: UUID) -> List[TagOut]:
     from models.tag import Tag, article_tags as article_tags_table
     from models.article import Article
@@ -87,6 +122,8 @@ def build_tag_groups_payload(
         q = q.filter(TagGroupDefinition.topic_id == topic_id)
     groups = q.order_by(TagGroupDefinition.sort_order, TagGroupDefinition.name).all()
 
+    tags_by_group = tag_outs_for_groups(db, groups)
+
     result = []
     for grp in groups:
         similar = (
@@ -97,7 +134,7 @@ def build_tag_groups_payload(
         result.append(TagGroupOut(
             id=grp.id, name=grp.name, display_name=grp.display_name,
             description=grp.description, color_hex=grp.color_hex,
-            topic_id=grp.topic_id, tags=tag_outs_for_group(db, grp),
+            topic_id=grp.topic_id, tags=tags_by_group[grp.id],
             similar_groups=similar,
         ))
 
