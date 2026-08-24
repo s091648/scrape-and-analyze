@@ -3,19 +3,35 @@ import type { Account, Profile, Session, User } from 'next-auth'
 import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { SignJWT } from 'jose'
 
 // auth.ts runs server-side only (NextAuth callbacks). Use BACKEND_URL (not NEXT_PUBLIC_*)
 // so it reads Docker's internal hostname (http://backend:8000) at runtime.
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
-const SECRET = process.env.NEXTAUTH_SECRET!
+// Refresh a bit before actual expiry so a request never races an about-to-expire
+// token — mirrors AuthTokenProvider's guest-token refresh margin.
+const REFRESH_MARGIN_MS = 60_000
 
-async function makeAccessToken(payload: Record<string, unknown>): Promise<string> {
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(payload.exp as number ?? Math.floor(Date.now() / 1000) + 86400 * 30)
-    .sign(Buffer.from(SECRET ?? ''))
+/** Exchanges the refresh token for a new access token via POST /auth/refresh.
+ * On failure, returns the token unchanged (still carrying the now-stale
+ * accessToken) — apiFetch()'s existing 401 handler already forces a sign-out
+ * the next time it's used, so no separate "refresh failed" plumbing is needed. */
+async function refreshAccessToken(token: JWT): Promise<JWT> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: token.refreshToken }),
+    })
+    if (!res.ok) return token
+    const data = await res.json()
+    return {
+      ...token,
+      accessToken: data.access_token,
+      accessTokenExpires: Date.now() + data.expires_in * 1000,
+    }
+  } catch {
+    return token
+  }
 }
 
 export const authConfig: NextAuthOptions = {
@@ -40,7 +56,15 @@ export const authConfig: NextAuthOptions = {
           })
           if (!res.ok) return null
           const user = await res.json()
-          return { id: user.id, name: user.name ?? user.username, email: user.email, role: user.role }
+          return {
+            id: user.id,
+            name: user.name ?? user.username,
+            email: user.email,
+            role: user.role,
+            accessToken: user.access_token,
+            refreshToken: user.refresh_token,
+            expiresIn: user.expires_in,
+          }
         } catch {
           return null
         }
@@ -84,6 +108,9 @@ export const authConfig: NextAuthOptions = {
           const dbUser = await res.json()
           user.id = dbUser.id
           ;(user as any).role = dbUser.role
+          ;(user as any).accessToken = dbUser.access_token
+          ;(user as any).refreshToken = dbUser.refresh_token
+          ;(user as any).expiresIn = dbUser.expires_in
           return true
         } catch {
           return false
@@ -106,6 +133,9 @@ export const authConfig: NextAuthOptions = {
           const dbUser = await res.json()
           user.id = dbUser.id
           ;(user as any).role = dbUser.role
+          ;(user as any).accessToken = dbUser.access_token
+          ;(user as any).refreshToken = dbUser.refresh_token
+          ;(user as any).expiresIn = dbUser.expires_in
           return true
         } catch {
           return false
@@ -120,8 +150,20 @@ export const authConfig: NextAuthOptions = {
       if (user) {
         token.userId = user.id
         token.role = (user as any).role
+        // Backend is the sole issuer of these tokens (auth_service.create_user_access_token /
+        // create_user_refresh_token) — NextAuth only relays and refreshes them, it never signs
+        // its own.
+        token.accessToken = (user as any).accessToken
+        token.refreshToken = (user as any).refreshToken
+        token.accessTokenExpires = Date.now() + ((user as any).expiresIn as number) * 1000
+        return token
       }
-      return token
+
+      if (Date.now() < (token.accessTokenExpires as number) - REFRESH_MARGIN_MS) {
+        return token
+      }
+
+      return refreshAccessToken(token)
     },
 
     async session({ session, token }: { session: Session; token: JWT }) {
@@ -129,12 +171,7 @@ export const authConfig: NextAuthOptions = {
         (session.user as any).role = token.role
         ;(session.user as any).id = token.userId
       }
-      // Expose a HS256-signed JWT as accessToken for backend Bearer auth
-      ;(session as any).accessToken = await makeAccessToken({
-        sub: token.userId as string,
-        role: token.role as string,
-        exp: token.exp,
-      })
+      ;(session as any).accessToken = token.accessToken as string
       return session
     },
   },

@@ -19,6 +19,15 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuthUserOut(UserOut):
+    """UserOut plus the token pair the frontend should carry forward into its
+    session — returned by the endpoints that authenticate a user (verify,
+    google/authorize, register), never by the plain user-management endpoints."""
+    access_token: str
+    refresh_token: str
+    expires_in: int
+
+
 class RegisterCredentialsRequest(BaseModel):
     username: str
     password: str

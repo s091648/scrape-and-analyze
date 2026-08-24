@@ -28,6 +28,18 @@ export default async function globalSetup() {
     sub: 'admin-test-user',
     role: 'admin',
     userId: 'admin-test-user',
+    // lib/auth.ts's jwt() callback only populates these from a real sign-in
+    // (`user` object); this cookie is injected directly, bypassing login, so
+    // they must be seeded here or session.accessToken stays undefined forever
+    // and every accessToken-gated fetch (TopicProvider, scraper-settings page)
+    // never fires. accessTokenExpires is epoch-ms (matches auth.ts's
+    // `Date.now() + expiresIn * 1000`), set far in the future so the jwt()
+    // callback's expiry check short-circuits instead of calling the
+    // deliberately-unreachable BACKEND_URL refresh endpoint (see
+    // playwright.config.ts's BACKEND_URL comment).
+    accessToken: 'e2e-test-access-token',
+    refreshToken: 'e2e-test-refresh-token',
+    accessTokenExpires: (now + oneYear) * 1000,
   })
     .setProtectedHeader({ alg: 'dir', enc: 'A256GCM' })
     .setIssuedAt(now)

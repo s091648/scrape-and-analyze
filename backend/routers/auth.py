@@ -11,10 +11,10 @@ from shared.domain.exceptions import ValidationError, NotFoundError, ConflictErr
 from backend.database import get_db
 from backend.auth.guards import require_admin, require_user
 from backend.schemas.error import error_responses
-from backend.schemas.auth import LoginRequest
+from backend.schemas.auth import LoginRequest, RefreshRequest, AccessTokenOut
 from backend.schemas.guest import GuestTokenPairOut, GuestAccessTokenOut, GuestRefreshRequest
 from backend.schemas.user import (
-    UserOut, UserProfileOut, UserProfileUpdate, PasswordChangeRequest,
+    UserOut, AuthUserOut, UserProfileOut, UserProfileUpdate, PasswordChangeRequest,
     RegisterCredentialsRequest, RegisterGoogleRequest,
     AdminCreateUserRequest, AdminUpdateUserRequest, GoogleAuthorizeRequest,
     LinkGoogleRequest,
@@ -34,11 +34,27 @@ from backend.services.auth_service import (
     compute_guest_id,
     create_guest_access_token,
     create_guest_refresh_token,
+    create_user_access_token,
+    create_user_refresh_token,
     decode_guest_refresh_token,
+    decode_user_refresh_token,
     GUEST_ACCESS_TOKEN_TTL_SECONDS,
+    USER_ACCESS_TOKEN_TTL_SECONDS,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _to_auth_response(user) -> AuthUserOut:
+    """Wraps a User ORM object with the token pair the frontend should carry
+    into its session — backend is the sole token issuer, so every endpoint that
+    authenticates a user (not just /auth/guest) returns one."""
+    return AuthUserOut(
+        **UserOut.model_validate(user, from_attributes=True).model_dump(),
+        access_token=create_user_access_token(user.id, user.role),
+        refresh_token=create_user_refresh_token(user.id),
+        expires_in=USER_ACCESS_TOKEN_TTL_SECONDS,
+    )
 
 
 @router.post("/verify", responses=error_responses(401, 403))
@@ -51,10 +67,13 @@ def verify_credentials(data: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_allowed:
         raise ForbiddenError("Account disabled")
     return {"id": str(user.id), "username": user.username, "email": user.email,
-            "name": user.name, "role": user.role}
+            "name": user.name, "role": user.role,
+            "access_token": create_user_access_token(user.id, user.role),
+            "refresh_token": create_user_refresh_token(user.id),
+            "expires_in": USER_ACCESS_TOKEN_TTL_SECONDS}
 
 
-@router.post("/register", response_model=UserOut, status_code=201, responses=error_responses(400, 409))
+@router.post("/register", response_model=AuthUserOut, status_code=201, responses=error_responses(400, 409))
 def register(data: dict, db: Session = Depends(get_db)):
     try:
         if "google_id" in data:
@@ -66,21 +85,23 @@ def register(data: dict, db: Session = Depends(get_db)):
 
     try:
         if "google_id" in data:
-            return _create_user(
+            user = _create_user(
                 db, id=_uuid.uuid4(), email=req.email, name=req.name,
                 google_id=req.google_id, role='user', is_allowed=True,
             )
-        return _create_user(
-            db, id=_uuid.uuid4(), email=req.email, name=req.name,
-            username=req.username, hashed_password=hash_password(req.password),
-            role='user', is_allowed=True,
-        )
+        else:
+            user = _create_user(
+                db, id=_uuid.uuid4(), email=req.email, name=req.name,
+                username=req.username, hashed_password=hash_password(req.password),
+                role='user', is_allowed=True,
+            )
+        return _to_auth_response(user)
     except IntegrityError:
         db.rollback()
         raise ConflictError("Email or username already taken")
 
 
-@router.post("/google/authorize", response_model=UserOut, responses=error_responses(403, 404, 409))
+@router.post("/google/authorize", response_model=AuthUserOut, responses=error_responses(403, 404, 409))
 def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db)):
     user = _get_user_by_email(db, data.email)
     if not user:
@@ -89,7 +110,19 @@ def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db)
         raise ForbiddenError("Account disabled")
     if not user.google_id:
         raise ConflictError("Google account not linked")
-    return user
+    return _to_auth_response(user)
+
+
+@router.post("/refresh", response_model=AccessTokenOut, responses=error_responses(401))
+def refresh_user_token(data: RefreshRequest, db: Session = Depends(get_db)):
+    payload = decode_user_refresh_token(data.refresh_token)
+    user = _get_user_by_id(db, UUID(payload["sub"]))
+    if not user or not user.is_allowed:
+        raise UnauthorizedError("Invalid refresh token")
+    return AccessTokenOut(
+        access_token=create_user_access_token(user.id, user.role),
+        expires_in=USER_ACCESS_TOKEN_TTL_SECONDS,
+    )
 
 
 @router.get("/users", response_model=list[UserOut], responses=error_responses(401, 403))
