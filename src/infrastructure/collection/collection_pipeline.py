@@ -294,10 +294,22 @@ class CollectionPipeline:
         published = len(results)
         with tracer.start_as_current_span("pipeline.publish_articles") as publish_span:
             publish_span.set_attribute("articles.published", published)
-            await asyncio.gather(
+            outcomes = await asyncio.gather(
                 *(self._process_article_text(article) for article in results),
                 return_exceptions=True,
             )
+            failed = 0
+            for article, outcome in zip(results, outcomes, strict=True):
+                if isinstance(outcome, BaseException):
+                    failed += 1
+                    logger.error(
+                        "article_task_failed",
+                        url=article.url,
+                        source=article.source,
+                        error=str(outcome),
+                        error_type=type(outcome).__name__,
+                    )
+            publish_span.set_attribute("articles.task_failed", failed)
 
         stats = self._pipeline_stats.get_results()
         text_execution = self._build_execution_meta(started_at, start)
@@ -310,7 +322,14 @@ class CollectionPipeline:
 
         # ── Barrier 2: every RAG task also settled ───────────────────────
         if self._rag_tasks:
-            await asyncio.gather(*self._rag_tasks, return_exceptions=True)
+            rag_outcomes = await asyncio.gather(*self._rag_tasks, return_exceptions=True)
+            for outcome in rag_outcomes:
+                if isinstance(outcome, BaseException):
+                    logger.error(
+                        "rag_task_failed",
+                        error=str(outcome),
+                        error_type=type(outcome).__name__,
+                    )
 
         duration = time.time() - start
         final_stats = self._pipeline_stats.get_results()

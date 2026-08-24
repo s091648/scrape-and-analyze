@@ -69,7 +69,7 @@ class TagRepository(ABC):
 class AsyncTagRepository(Protocol):
     """024-async-pipeline-refactor: async sibling covering only what
     NormalizeTagsUseCase actually calls: find_similar, save, link_to_article,
-    save_suggestion, commit. find_by_group/list_pending_suggestions/
+    save_suggestion, commit, rollback. find_by_group/list_pending_suggestions/
     approve_suggestion/reject_suggestion are admin-only, used by backend
     routers, not this pipeline's per-article path."""
 
@@ -88,4 +88,7 @@ class AsyncTagRepository(Protocol):
         ...
 
     async def commit(self) -> None:
+        ...
+
+    async def rollback(self) -> None:
         ...

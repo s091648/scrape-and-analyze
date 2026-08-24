@@ -55,6 +55,21 @@ class NormalizeTagsUseCase:
             return NormalizeTagsResult(success=True, analysis_id=analysis_id, article_id=article_id)
         except Exception as e:
             logger.error("normalize_tags_failed", analysis_id=str(analysis_id), error=str(e))
+            # The article_session is shared with FailedTaskPersistenceHandler
+            # (same per-article downstream chain, see bootstrap.py's
+            # article_downstream_builder) — if _process left the session with
+            # an unflushed/failed transaction, that handler's later commit()
+            # on the same session would fail too, silently losing the failure
+            # record. Roll back here so the session is clean regardless of
+            # where in _process the failure happened.
+            try:
+                await self._tag_repository.rollback()
+            except Exception as rollback_error:
+                logger.error(
+                    "normalize_tags_rollback_failed",
+                    analysis_id=str(analysis_id),
+                    error=str(rollback_error),
+                )
             return NormalizeTagsResult(
                 success=False,
                 analysis_id=analysis_id,

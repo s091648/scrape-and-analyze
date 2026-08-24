@@ -36,6 +36,7 @@ def to_article_model_kwargs(article: Article) -> dict:
         title=article.title,
         content=article.content,
         published_at=article.published_at,
+        scraped_at=article.scraped_at,
         metadata_=article.metadata or {},
         topic_id=article.topic_id,
         original_source=article.original_source,

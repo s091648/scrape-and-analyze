@@ -1,3 +1,5 @@
+import asyncio
+
 from shared.cache import CacheGateway
 from shared.enums.observability import SpanName
 from src.infrastructure.shared.observability import get_tracer
@@ -29,7 +31,9 @@ class CacheWarmupHandler:
 
     async def handle(self, event) -> None:
         """024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent,
-        same reasoning as CacheInvalidationHandler above."""
+        same reasoning as CacheInvalidationHandler above. publish_warmup_signal()
+        is offloaded via asyncio.to_thread for the same reason — see that
+        handler's docstring."""
         with get_tracer().start_as_current_span(SpanName.CACHE_WARMUP_HANDLE) as span:
             span.set_attribute("cache.warmup_reason", "scraper_pipeline")
-            self._cache.publish_warmup_signal(reason="scraper_pipeline")
+            await asyncio.to_thread(self._cache.publish_warmup_signal, reason="scraper_pipeline")

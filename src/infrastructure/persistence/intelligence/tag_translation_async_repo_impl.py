@@ -1,7 +1,9 @@
+import uuid
 from typing import List
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,21 +21,25 @@ class AsyncSqlAlchemyTagTranslationRepository(AsyncTagTranslationRepository):
         self._session = session
 
     async def save_tag_translation(self, tag_id: UUID, language: str, name: str) -> None:
-        """Insert or update a tag's translated name for a given language."""
+        """Insert or update a tag's translated name for a given language.
+
+        024-async-pipeline-refactor follow-up: uses an atomic DB upsert rather
+        than select-then-insert — every article's downstream chain runs its own
+        translate_tags() batch concurrently (analysis_completed_handler.py), so
+        two tasks can both select "no row" for the same tag_id/language and both
+        try to insert, hitting uq_tags_translation_tag_language. ON CONFLICT DO
+        UPDATE makes the loser update instead of raising."""
         from models.tag_translation import TagsTranslation as TagsTranslationModel
 
-        result = await self._session.execute(
-            select(TagsTranslationModel).filter_by(tag_id=tag_id, language=language)
+        stmt = insert(TagsTranslationModel).values(
+            id=uuid.uuid4(), tag_id=tag_id, language=language, name=name,
+        ).on_conflict_do_update(
+            index_elements=["tag_id", "language"],
+            set_={"name": name},
         )
-        existing = result.scalars().first()
-
-        if existing:
-            existing.name = name
-        else:
-            model = TagsTranslationModel(tag_id=tag_id, language=language, name=name)
-            self._session.add(model)
 
         try:
+            await self._session.execute(stmt)
             await self._session.commit()
         except Exception:
             await self._session.rollback()
@@ -63,29 +69,26 @@ class AsyncSqlAlchemyTagTranslationRepository(AsyncTagTranslationRepository):
     async def save_group_translation(
         self, tag_group_definition_id: UUID, language: str, display_name: str, description: str | None = None
     ) -> None:
-        """Insert or update a tag group's translated display name and description."""
+        """Insert or update a tag group's translated display name and description.
+
+        024-async-pipeline-refactor follow-up: same atomic-upsert reasoning as
+        save_tag_translation above — ON CONFLICT DO UPDATE against
+        uq_tag_group_definitions_translation_group_language."""
         from models.tag_group_translation import TagGroupDefinitionsTranslation as TagGroupTranslationModel
 
-        result = await self._session.execute(
-            select(TagGroupTranslationModel).filter_by(
-                tag_group_definition_id=tag_group_definition_id, language=language,
-            )
+        stmt = insert(TagGroupTranslationModel).values(
+            id=uuid.uuid4(),
+            tag_group_definition_id=tag_group_definition_id,
+            language=language,
+            display_name=display_name,
+            description=description,
+        ).on_conflict_do_update(
+            index_elements=["tag_group_definition_id", "language"],
+            set_={"display_name": display_name, "description": description},
         )
-        existing = result.scalars().first()
-
-        if existing:
-            existing.display_name = display_name
-            existing.description = description
-        else:
-            model = TagGroupTranslationModel(
-                tag_group_definition_id=tag_group_definition_id,
-                language=language,
-                display_name=display_name,
-                description=description,
-            )
-            self._session.add(model)
 
         try:
+            await self._session.execute(stmt)
             await self._session.commit()
         except Exception:
             await self._session.rollback()

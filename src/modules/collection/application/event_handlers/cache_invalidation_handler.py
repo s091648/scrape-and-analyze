@@ -1,3 +1,5 @@
+import asyncio
+
 from shared.cache import CacheGateway
 from shared.enums.observability import SpanName
 from src.infrastructure.shared.observability import get_tracer
@@ -17,8 +19,14 @@ class CacheInvalidationHandler:
         024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent
         (not PipelineCompletedEvent) — cached article/graph reads only depend
         on article/analysis text content, not RAG vectors, so this fires as
-        soon as the text stage settles rather than waiting on RAG."""
+        soon as the text stage settles rather than waiting on RAG.
+
+        024-async-pipeline-refactor follow-up: bump_version() is a synchronous
+        redis.Redis call (CacheGateway stays sync — it's shared with backend's
+        sync routes and CLI scripts, see redis_gateway.py). Offloaded via
+        asyncio.to_thread so a slow/unreachable Redis doesn't stall this
+        article task's event loop, or any other concurrent article/RAG task."""
         with get_tracer().start_as_current_span(SpanName.CACHE_INVALIDATION_HANDLE) as span:
             span.set_attribute("cache.namespaces", list(_INVALIDATED_NAMESPACES))
             for namespace in _INVALIDATED_NAMESPACES:
-                self._cache.bump_version(namespace)
+                await asyncio.to_thread(self._cache.bump_version, namespace)

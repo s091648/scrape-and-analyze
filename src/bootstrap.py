@@ -110,6 +110,7 @@ def build_async_llm_service(session):
     """Build (AsyncResilientLLMService, AsyncResilientEmbeddingService) from
     the same DB provider config build_llm_service() reads, using the async
     provider/service classes instead."""
+    from shared.domain.exceptions import ValidationError
     from shared.llm_provider import load_active_providers, load_active_embedding_providers
     from src.infrastructure.intelligence.llm.resilient_llm_service import (
         AsyncResilientLLMService, AsyncProviderHandler,
@@ -147,7 +148,7 @@ def build_async_llm_service(session):
         logger.info("async_llm_provider_loaded", name=name, model=cfg['model'], priority=cfg['priority'])
 
     if not handlers:
-        raise ValueError("llm_providers table has no active LLM providers")
+        raise ValidationError("llm_providers table has no active LLM providers")
 
     emb_handlers: List[AsyncEmbeddingProviderHandler] = []
     for cfg in load_active_embedding_providers(session):
@@ -166,7 +167,7 @@ def build_async_llm_service(session):
         ))
 
     if not emb_handlers:
-        raise ValueError("llm_providers table has no active embedding providers")
+        raise ValidationError("llm_providers table has no active embedding providers")
 
     provider_names = [h.name for h in handlers]
     return AsyncResilientLLMService(handlers=handlers), AsyncResilientEmbeddingService(handlers=emb_handlers), provider_names

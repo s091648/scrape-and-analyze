@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.domain.exceptions import NotFoundError, ValidationError
 from src.infrastructure.persistence.intelligence.tag_repo_queries import (
     find_similar_tags_stmt, update_tag_embedding_stmt,
 )
@@ -51,14 +52,14 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
         from models.tag_group import TagGroupDefinition
 
         if topic_id is None:
-            raise ValueError("topic_id is required to save a tag")
+            raise ValidationError("topic_id is required to save a tag")
 
         result = await self._session.execute(
             select(TagGroupDefinition).filter_by(name=tag_group_name, topic_id=topic_id)
         )
         group = result.scalars().first()
         if not group:
-            raise ValueError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
+            raise NotFoundError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
 
         result = await self._session.execute(
             select(Tag).filter_by(name=name, tag_group_id=group.id)
@@ -105,3 +106,8 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
         except Exception:
             await self._session.rollback()
             raise
+
+    async def rollback(self) -> None:
+        """Roll back the current transaction (e.g. after a failure in _process
+        that never reached commit())."""
+        await self._session.rollback()

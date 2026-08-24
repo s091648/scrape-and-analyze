@@ -96,7 +96,11 @@ class AsyncBaseProvider(ABC):
     ) -> Optional[tuple[AnalysisContent, AnalysisMetadata]]:
         """Analyze article content via the LLM with retry, validation, and domain mapping."""
         try:
-            async for attempt in self._retry:
+            # 024-async-pipeline-refactor follow-up: .copy() gives this call its
+            # own AsyncRetrying controller — the shared self._retry instance
+            # carries mutable per-attempt state that concurrent analyze() calls
+            # on the same provider would otherwise stomp on.
+            async for attempt in self._retry.copy():
                 with attempt:
                     result = await self._call_api(content, prompt)
         except RateLimitExhausted:
@@ -123,7 +127,7 @@ class AsyncBaseProvider(ABC):
     ) -> Optional[str]:
         """Translate content via the LLM raw-text endpoint with retry and empty-check."""
         try:
-            async for attempt in self._translate_retry:
+            async for attempt in self._translate_retry.copy():
                 with attempt:
                     text = await self._call_api_raw(content, prompt)
         except RateLimitExhausted:
@@ -146,7 +150,7 @@ class AsyncBaseProvider(ABC):
     ) -> Optional[str]:
         """Run a one-shot generation task via the LLM raw-text endpoint with retry and empty-check."""
         try:
-            async for attempt in self._translate_retry:
+            async for attempt in self._translate_retry.copy():
                 with attempt:
                     text = await self._call_api_raw("", prompt)
         except RateLimitExhausted:
