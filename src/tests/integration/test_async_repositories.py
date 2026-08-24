@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -219,3 +220,434 @@ async def test_async_tag_translation_repository_save_and_find_without_translatio
 
     without_after = await translation_repo.find_tags_without_translation("zh-TW", limit=50)
     assert all(t["tag_id"] != tag.id for t in without_after)
+
+
+# ---------------------------------------------------------------------------
+# Batch 3 (024-async-pipeline-refactor follow-up): branch coverage the tests
+# above don't reach — not-found lookups, update-existing paths, validation/
+# not-found errors, and the commit-fails-then-rollback branch every repo
+# shares. Grouped by repo file, mirroring the file layout under
+# src/infrastructure/persistence/intelligence/ and .../shared/.
+# ---------------------------------------------------------------------------
+
+# ── AsyncSqlAlchemyAnalysesTranslationRepository ────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_analyses_translation_repository_find_returns_none_when_missing(async_db_session):
+    from src.infrastructure.persistence.intelligence.analyses_translation_async_repo_impl import (
+        AsyncSqlAlchemyAnalysesTranslationRepository,
+    )
+
+    repo = AsyncSqlAlchemyAnalysesTranslationRepository(async_db_session)
+    found = await repo.find_by_analysis_id_and_language(uuid.uuid4(), "zh-TW")
+    assert found is None
+
+
+@pytest.mark.asyncio
+async def test_async_analyses_translation_repository_updates_existing_translation(async_db_session, test_topic):
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.analysis_async_repo_impl import AsyncSqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.intelligence.analyses_translation_async_repo_impl import (
+        AsyncSqlAlchemyAnalysesTranslationRepository,
+    )
+    from src.modules.intelligence.domain.entities import Analysis, AnalysesContent
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+
+    article_repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    saved_article = await article_repo.save(_make_article(test_topic))
+    await async_db_session.commit()
+
+    analysis_repo = AsyncSqlAlchemyAnalysisRepository(async_db_session)
+    analysis = Analysis(
+        article_id=saved_article.id,
+        analysis_content=AnalysisContent(summary="s", pain_points="p", insights="i", innovations="n", tag_groups=None),
+        analysis_metadata=AnalysisMetadata(model_used="test-model", input_tokens=1, output_tokens=1),
+    )
+    await analysis_repo.save(analysis)
+
+    translation_repo = AsyncSqlAlchemyAnalysesTranslationRepository(async_db_session)
+    await translation_repo.save(AnalysesContent(
+        id=None, analysis_id=analysis.id, language="zh-TW",
+        summary="第一版", pain_points="p", insights="i", innovations="n",
+        created_at=None, updated_at=None,
+    ))
+    await translation_repo.save(AnalysesContent(
+        id=None, analysis_id=analysis.id, language="zh-TW",
+        summary="第二版", pain_points="p2", insights="i2", innovations="n2",
+        created_at=None, updated_at=None,
+    ))
+
+    found = await translation_repo.find_by_analysis_id_and_language(analysis.id, "zh-TW")
+    assert found is not None
+    assert found.summary == "第二版"
+    assert found.pain_points == "p2"
+
+
+@pytest.mark.asyncio
+async def test_async_analyses_translation_repository_save_rolls_back_on_commit_failure(async_db_session):
+    from src.infrastructure.persistence.intelligence.analyses_translation_async_repo_impl import (
+        AsyncSqlAlchemyAnalysesTranslationRepository,
+    )
+    from src.modules.intelligence.domain.entities import AnalysesContent
+
+    repo = AsyncSqlAlchemyAnalysesTranslationRepository(async_db_session)
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save(AnalysesContent(
+            id=None, analysis_id=uuid.uuid4(), language="zh-TW",
+            summary="s", pain_points="p", insights="i", innovations="n",
+            created_at=None, updated_at=None,
+        ))
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+# ── AsyncSqlAlchemyAnalysisRepository ────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_analysis_repository_save_rolls_back_on_commit_failure(async_db_session, test_topic):
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.analysis_async_repo_impl import AsyncSqlAlchemyAnalysisRepository
+    from src.modules.intelligence.domain.entities import Analysis
+    from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+
+    article_repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    saved_article = await article_repo.save(_make_article(test_topic))
+    await async_db_session.commit()
+
+    analysis_repo = AsyncSqlAlchemyAnalysisRepository(async_db_session)
+    analysis = Analysis(
+        article_id=saved_article.id,
+        analysis_content=AnalysisContent(summary="s", pain_points="p", insights="i", innovations="n", tag_groups=None),
+        analysis_metadata=AnalysisMetadata(model_used="test-model", input_tokens=1, output_tokens=1),
+    )
+
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await analysis_repo.save(analysis)
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+# ── AsyncSqlAlchemyArticleTranslationRepository ─────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_article_translation_repository_find_returns_none_when_missing(async_db_session):
+    from src.infrastructure.persistence.intelligence.article_translation_async_repo_impl import (
+        AsyncSqlAlchemyArticleTranslationRepository,
+    )
+
+    repo = AsyncSqlAlchemyArticleTranslationRepository(async_db_session)
+    found = await repo.find_by_article_id_and_language(uuid.uuid4(), "zh-TW")
+    assert found is None
+
+
+@pytest.mark.asyncio
+async def test_async_article_translation_repository_updates_existing_translation(async_db_session, test_topic):
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.article_translation_async_repo_impl import (
+        AsyncSqlAlchemyArticleTranslationRepository,
+    )
+
+    article_repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    saved = await article_repo.save(_make_article(test_topic))
+    await async_db_session.commit()
+
+    repo = AsyncSqlAlchemyArticleTranslationRepository(async_db_session)
+    await repo.save(saved.id, "zh-TW", "第一版標題", "第一版內文")
+    await repo.save(saved.id, "zh-TW", "第二版標題", "第二版內文")
+
+    found = await repo.find_by_article_id_and_language(saved.id, "zh-TW")
+    assert found is not None
+    assert found.title == "第二版標題"
+    assert found.content == "第二版內文"
+
+
+@pytest.mark.asyncio
+async def test_async_article_translation_repository_save_rolls_back_on_commit_failure(async_db_session, test_topic):
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.article_translation_async_repo_impl import (
+        AsyncSqlAlchemyArticleTranslationRepository,
+    )
+
+    article_repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    saved = await article_repo.save(_make_article(test_topic))
+    await async_db_session.commit()
+
+    repo = AsyncSqlAlchemyArticleTranslationRepository(async_db_session)
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save(saved.id, "zh-TW", "標題", "內文")
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+# ── AsyncSqlAlchemyTagRepository ─────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_find_similar_returns_empty_when_topic_id_none():
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    repo = AsyncSqlAlchemyTagRepository(session=None)  # never touched: short-circuits before any query
+    result = await repo.find_similar([0.1] * 768, "some-group", None, threshold=0.9)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_save_raises_validation_error_when_topic_id_none(async_db_session):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+    from shared.domain.exceptions import ValidationError
+
+    repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    with pytest.raises(ValidationError):
+        await repo.save(name="x", tag_group_name="any-group", embedding=[0.1] * 768, topic_id=None)
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_save_raises_not_found_when_group_missing(async_db_session, test_topic):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+    from shared.domain.exceptions import NotFoundError
+
+    repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    with pytest.raises(NotFoundError):
+        await repo.save(
+            name="x",
+            tag_group_name=f"nonexistent-group-{uuid.uuid4().hex[:8]}",
+            embedding=[0.1] * 768,
+            topic_id=test_topic,
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_save_suggestion_persists_and_backfills_id(async_db_session, tag_group, test_topic):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.modules.intelligence.domain.entities.tag_normalization_suggestion import TagNormalizationSuggestion
+
+    tag_repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    new_tag = await tag_repo.save(
+        name=f"async-sugg-new-{uuid.uuid4().hex[:8]}", tag_group_name=tag_group.name,
+        embedding=[0.3] * 768, topic_id=tag_group.topic_id,
+    )
+    existing_tag = await tag_repo.save(
+        name=f"async-sugg-existing-{uuid.uuid4().hex[:8]}", tag_group_name=tag_group.name,
+        embedding=[0.4] * 768, topic_id=tag_group.topic_id,
+    )
+    await tag_repo.commit()
+
+    article_repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    saved_article = await article_repo.save(_make_article(test_topic))
+    await async_db_session.commit()
+
+    suggestion = TagNormalizationSuggestion(
+        new_tag_id=new_tag.id,
+        existing_tag_id=existing_tag.id,
+        similarity_score=0.95,
+        article_id=saved_article.id,
+    )
+    assert suggestion.id is None
+
+    result = await tag_repo.save_suggestion(suggestion)
+    await tag_repo.commit()
+
+    assert result is suggestion
+    assert suggestion.id is not None
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_commit_rolls_back_on_failure(async_db_session):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.commit()
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_rollback_delegates_to_session(async_db_session):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    async_db_session.rollback = AsyncMock()
+
+    await repo.rollback()
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+# ── AsyncSqlAlchemyTagGroupDefinitionRepository ──────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_tag_group_definition_repository_sets_embedding_on_create(async_db_session, test_topic):
+    from sqlalchemy import text
+    from src.infrastructure.persistence.intelligence.tag_group_definition_async_repo_impl import (
+        AsyncSqlAlchemyTagGroupDefinitionRepository,
+    )
+
+    repo = AsyncSqlAlchemyTagGroupDefinitionRepository(async_db_session)
+    name = f"async-test-group-embed-{uuid.uuid4().hex[:8]}"
+
+    await repo.upsert(name=name, display_name="Embedded Group", topic_id=test_topic, embedding=[0.1] * 768)
+    await async_db_session.commit()
+
+    row = (await async_db_session.execute(
+        text("SELECT embedding IS NOT NULL FROM tag_group_definitions WHERE name = :name"),
+        {"name": name},
+    )).first()
+    assert row is not None
+    assert row[0] is True
+
+
+@pytest.mark.asyncio
+async def test_async_tag_group_definition_repository_updates_embedding_when_existing_without_one(async_db_session, test_topic):
+    from sqlalchemy import text
+    from src.infrastructure.persistence.intelligence.tag_group_definition_async_repo_impl import (
+        AsyncSqlAlchemyTagGroupDefinitionRepository,
+    )
+
+    repo = AsyncSqlAlchemyTagGroupDefinitionRepository(async_db_session)
+    name = f"async-test-group-noembed-{uuid.uuid4().hex[:8]}"
+
+    await repo.upsert(name=name, display_name="No Embedding Yet", topic_id=test_topic)
+    await async_db_session.commit()
+
+    await repo.upsert(name=name, display_name="No Embedding Yet", topic_id=test_topic, embedding=[0.2] * 768)
+    await async_db_session.commit()
+
+    row = (await async_db_session.execute(
+        text("SELECT embedding IS NOT NULL FROM tag_group_definitions WHERE name = :name"),
+        {"name": name},
+    )).first()
+    assert row is not None
+    assert row[0] is True
+
+
+# ── AsyncSqlAlchemyTagTranslationRepository ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_tag_translation_repository_save_group_translation_insert_and_update(async_db_session, tag_group):
+    from src.infrastructure.persistence.intelligence.tag_translation_async_repo_impl import (
+        AsyncSqlAlchemyTagTranslationRepository,
+    )
+    from sqlalchemy import select
+    from models.tag_group import TagGroupDefinition
+
+    result = await async_db_session.execute(
+        select(TagGroupDefinition).filter_by(name=tag_group.name, topic_id=tag_group.topic_id)
+    )
+    group_row = result.scalars().first()
+
+    translation_repo = AsyncSqlAlchemyTagTranslationRepository(async_db_session)
+    await translation_repo.save_group_translation(group_row.id, "zh-TW", display_name="第一版", description="desc1")
+    await translation_repo.save_group_translation(group_row.id, "zh-TW", display_name="第二版", description="desc2")
+
+    groups_without = await translation_repo.find_groups_without_translation("zh-TW", limit=200)
+    assert all(g["id"] != group_row.id for g in groups_without)
+
+
+@pytest.mark.asyncio
+async def test_async_tag_translation_repository_save_group_translation_rolls_back_on_commit_failure(async_db_session, tag_group):
+    from sqlalchemy import select
+    from models.tag_group import TagGroupDefinition
+    from src.infrastructure.persistence.intelligence.tag_translation_async_repo_impl import (
+        AsyncSqlAlchemyTagTranslationRepository,
+    )
+
+    result = await async_db_session.execute(
+        select(TagGroupDefinition).filter_by(name=tag_group.name, topic_id=tag_group.topic_id)
+    )
+    group_row = result.scalars().first()
+
+    repo = AsyncSqlAlchemyTagTranslationRepository(async_db_session)
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save_group_translation(group_row.id, "zh-TW", display_name="無效群組", description=None)
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_tag_translation_repository_find_groups_without_translation(async_db_session, test_topic):
+    from src.infrastructure.persistence.intelligence.tag_group_definition_async_repo_impl import (
+        AsyncSqlAlchemyTagGroupDefinitionRepository,
+    )
+    from src.infrastructure.persistence.intelligence.tag_translation_async_repo_impl import (
+        AsyncSqlAlchemyTagTranslationRepository,
+    )
+    from sqlalchemy import select
+    from models.tag_group import TagGroupDefinition
+
+    group_repo = AsyncSqlAlchemyTagGroupDefinitionRepository(async_db_session)
+    name = f"async-group-no-translation-{uuid.uuid4().hex[:8]}"
+    await group_repo.upsert(name=name, display_name="Needs Translation", topic_id=test_topic)
+    await async_db_session.commit()
+
+    result = await async_db_session.execute(select(TagGroupDefinition).filter_by(name=name, topic_id=test_topic))
+    group_row = result.scalars().first()
+
+    translation_repo = AsyncSqlAlchemyTagTranslationRepository(async_db_session)
+    without = await translation_repo.find_groups_without_translation("zh-TW", limit=200)
+    assert any(g["id"] == group_row.id for g in without)
+
+
+@pytest.mark.asyncio
+async def test_async_tag_translation_repository_save_tag_translation_rolls_back_on_commit_failure(async_db_session, tag_group):
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+    from src.infrastructure.persistence.intelligence.tag_translation_async_repo_impl import (
+        AsyncSqlAlchemyTagTranslationRepository,
+    )
+
+    tag_repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    tag = await tag_repo.save(
+        name=f"async-tag-rollback-{uuid.uuid4().hex[:8]}",
+        tag_group_name=tag_group.name,
+        embedding=[0.5] * 768,
+        topic_id=tag_group.topic_id,
+    )
+    await tag_repo.commit()
+
+    repo = AsyncSqlAlchemyTagTranslationRepository(async_db_session)
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save_tag_translation(tag.id, "zh-TW", "無效標籤")
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+# ── AsyncSqlAlchemyFailedTaskRepository ──────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_failed_task_repository_save_rolls_back_on_commit_failure(async_db_session):
+    from src.infrastructure.persistence.shared.failed_task_async_repo_impl import AsyncSqlAlchemyFailedTaskRepository
+    from src.modules.collection.domain.entities import FailedTask
+
+    repo = AsyncSqlAlchemyFailedTaskRepository(async_db_session)
+    task = FailedTask(
+        task_type="analyze",
+        exception_type="RuntimeError",
+        exception_message="boom",
+        failed_at=datetime.now(timezone.utc),
+    )
+
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save(task)
+
+    async_db_session.rollback.assert_awaited_once()

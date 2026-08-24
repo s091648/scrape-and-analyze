@@ -207,3 +207,520 @@ async def test_async_resilient_embedding_service_falls_back_to_next_provider():
     result = await service.embed("text")
 
     assert result == [0.1, 0.2]
+
+
+# ── AsyncProviderHandler.translate / generate ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_provider_handler_translate_records_usage_on_success():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
+    provider = MagicMock()
+    provider.translate = AsyncMock(return_value="translated text")
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
+    result = await handler.translate("some content", "prompt")
+
+    assert result == "translated text"
+    strategy.try_acquire.assert_called_once()
+    strategy.acquire.assert_not_called()
+    strategy.record_usage.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_provider_handler_translate_falls_back_to_acquire():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
+    provider = MagicMock()
+    provider.translate = AsyncMock(return_value=None)
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = False
+
+    handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
+    result = await handler.translate("some content", "prompt")
+
+    assert result is None
+    strategy.acquire.assert_called_once()
+    strategy.record_usage.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_provider_handler_generate_records_usage_on_success():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
+    provider = MagicMock()
+    provider.generate = AsyncMock(return_value="generated text")
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
+    result = await handler.generate("prompt")
+
+    assert result == "generated text"
+    strategy.try_acquire.assert_called_once()
+    strategy.acquire.assert_not_called()
+    strategy.record_usage.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_provider_handler_generate_falls_back_to_acquire():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
+    provider = MagicMock()
+    provider.generate = AsyncMock(return_value=None)
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = False
+
+    handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
+    result = await handler.generate("prompt")
+
+    assert result is None
+    strategy.acquire.assert_called_once()
+    strategy.record_usage.assert_not_called()
+
+
+# ── AsyncResilientLLMService.analyze — generic exception branch ────────────────
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_falls_back_on_generic_exception():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.analyze = AsyncMock(side_effect=RuntimeError("boom"))
+    provider2 = MagicMock()
+    provider2.analyze = AsyncMock(return_value=_make_result())
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.analyze("content", "prompt")
+
+    assert result is not None
+    assert service.exhausted_providers == []
+
+
+# ── AsyncResilientLLMService.translate ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_translate_falls_back_to_next_provider():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.translate = AsyncMock(return_value=None)
+    provider2 = MagicMock()
+    provider2.translate = AsyncMock(return_value="translated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.translate("content", "prompt")
+
+    assert result == "translated"
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_translate_moves_exhausted_provider_to_end():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+    from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
+
+    provider1 = MagicMock()
+    provider1.translate = AsyncMock(side_effect=RateLimitExhausted("daily cap hit"))
+    provider2 = MagicMock()
+    provider2.translate = AsyncMock(return_value="translated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.translate("content", "prompt")
+
+    assert result == "translated"
+    assert 'p1' in service.exhausted_providers
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_translate_falls_back_on_generic_exception():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.translate = AsyncMock(side_effect=RuntimeError("boom"))
+    provider2 = MagicMock()
+    provider2.translate = AsyncMock(return_value="translated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.translate("content", "prompt")
+
+    assert result == "translated"
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_translate_returns_none_when_all_providers_fail():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider = MagicMock()
+    provider.translate = AsyncMock(return_value=None)
+
+    handlers = [AsyncProviderHandler(provider=provider, strategy=NoOpStrategy(), priority=1, name='p1')]
+    service = AsyncResilientLLMService(handlers=handlers)
+
+    result = await service.translate("content", "prompt")
+    assert result is None
+
+
+# ── AsyncResilientLLMService.generate ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_generate_falls_back_to_next_provider():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.generate = AsyncMock(return_value=None)
+    provider2 = MagicMock()
+    provider2.generate = AsyncMock(return_value="generated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.generate("prompt")
+
+    assert result == "generated"
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_generate_moves_exhausted_provider_to_end():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+    from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
+
+    provider1 = MagicMock()
+    provider1.generate = AsyncMock(side_effect=RateLimitExhausted("daily cap hit"))
+    provider2 = MagicMock()
+    provider2.generate = AsyncMock(return_value="generated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.generate("prompt")
+
+    assert result == "generated"
+    assert 'p1' in service.exhausted_providers
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_generate_falls_back_on_generic_exception():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.generate = AsyncMock(side_effect=RuntimeError("boom"))
+    provider2 = MagicMock()
+    provider2.generate = AsyncMock(return_value="generated")
+
+    handlers = [
+        AsyncProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='p1'),
+        AsyncProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='p2'),
+    ]
+    service = AsyncResilientLLMService(handlers=handlers)
+    result = await service.generate("prompt")
+
+    assert result == "generated"
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_llm_service_generate_returns_none_when_all_providers_fail():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientLLMService, AsyncProviderHandler
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider = MagicMock()
+    provider.generate = AsyncMock(return_value=None)
+
+    handlers = [AsyncProviderHandler(provider=provider, strategy=NoOpStrategy(), priority=1, name='p1')]
+    service = AsyncResilientLLMService(handlers=handlers)
+
+    result = await service.generate("prompt")
+    assert result is None
+
+
+# ── AsyncEmbeddingProviderHandler ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_falls_back_to_acquire():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=5)
+    provider.embed = AsyncMock(return_value=[0.1])
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = False
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed("text")
+
+    assert result == [0.1]
+    strategy.acquire.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_falls_back_when_count_tokens_fails():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(side_effect=RuntimeError("no tokenizer"))
+    provider.embed = AsyncMock(return_value=[0.1])
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed("some text")
+
+    assert result == [0.1]
+    strategy.record_usage.assert_called_once()
+    # Once count_tokens has failed, the handler must stop calling it again.
+    assert handler._can_count_tokens is False
+    provider.count_tokens.reset_mock()
+    await handler.embed("more text")
+    provider.count_tokens.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_batch_success():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=10)
+    provider.embed_batch = AsyncMock(return_value=[[0.1], [0.2]])
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed_batch(["a", "b"])
+
+    assert result == [[0.1], [0.2]]
+    strategy.record_usage.assert_called_once_with(10)
+
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_batch_falls_back_to_acquire():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=10)
+    provider.embed_batch = AsyncMock(return_value=[[0.1]])
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = False
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed_batch(["a"])
+
+    assert result == [[0.1]]
+    strategy.acquire.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_batch_falls_back_when_count_tokens_fails():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(side_effect=RuntimeError("no tokenizer"))
+    provider.embed_batch = AsyncMock(return_value=[[0.1]])
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed_batch(["some text"])
+
+    assert result == [[0.1]]
+    assert handler._can_count_tokens is False
+
+
+@pytest.mark.asyncio
+async def test_async_embedding_provider_handler_embed_batch_returns_none_without_recording_usage():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncEmbeddingProviderHandler
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=10)
+    provider.embed_batch = AsyncMock(return_value=None)
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = True
+
+    handler = AsyncEmbeddingProviderHandler(provider=provider, strategy=strategy, priority=1, name='e1')
+    result = await handler.embed_batch(["a"])
+
+    assert result is None
+    strategy.record_usage.assert_not_called()
+
+
+# ── AsyncResilientEmbeddingService ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_exhausted_providers_starts_empty():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncResilientEmbeddingService
+    service = AsyncResilientEmbeddingService(handlers=[])
+    assert service.exhausted_providers == []
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_moves_exhausted_provider_to_end():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+    from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
+
+    provider1 = MagicMock()
+    provider1.embed = AsyncMock(side_effect=RateLimitExhausted("daily cap hit"))
+    provider2 = MagicMock()
+    provider2.count_tokens = AsyncMock(return_value=5)
+    provider2.embed = AsyncMock(return_value=[0.2])
+
+    handlers = [
+        AsyncEmbeddingProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='e1'),
+        AsyncEmbeddingProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='e2'),
+    ]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+    result = await service.embed("text")
+
+    assert result == [0.2]
+    assert 'e1' in service.exhausted_providers
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_falls_back_on_generic_exception():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.embed = AsyncMock(side_effect=RuntimeError("boom"))
+    provider2 = MagicMock()
+    provider2.count_tokens = AsyncMock(return_value=5)
+    provider2.embed = AsyncMock(return_value=[0.2])
+
+    handlers = [
+        AsyncEmbeddingProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='e1'),
+        AsyncEmbeddingProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='e2'),
+    ]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+    result = await service.embed("text")
+
+    assert result == [0.2]
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_returns_none_when_all_providers_fail():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=5)
+    provider.embed = AsyncMock(return_value=None)
+
+    handlers = [AsyncEmbeddingProviderHandler(provider=provider, strategy=NoOpStrategy(), priority=1, name='e1')]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+
+    result = await service.embed("text")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_batch_falls_back_to_next_provider():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.count_tokens = AsyncMock(return_value=5)
+    provider1.embed_batch = AsyncMock(return_value=None)
+    provider2 = MagicMock()
+    provider2.count_tokens = AsyncMock(return_value=5)
+    provider2.embed_batch = AsyncMock(return_value=[[0.1], [0.2]])
+
+    handlers = [
+        AsyncEmbeddingProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='e1'),
+        AsyncEmbeddingProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='e2'),
+    ]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+    result = await service.embed_batch(["a", "b"])
+
+    assert result == [[0.1], [0.2]]
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_batch_moves_exhausted_provider_to_end():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+    from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted
+
+    provider1 = MagicMock()
+    provider1.embed_batch = AsyncMock(side_effect=RateLimitExhausted("daily cap hit"))
+    provider2 = MagicMock()
+    provider2.count_tokens = AsyncMock(return_value=5)
+    provider2.embed_batch = AsyncMock(return_value=[[0.2]])
+
+    handlers = [
+        AsyncEmbeddingProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='e1'),
+        AsyncEmbeddingProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='e2'),
+    ]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+    result = await service.embed_batch(["a"])
+
+    assert result == [[0.2]]
+    assert 'e1' in service.exhausted_providers
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_batch_falls_back_on_generic_exception():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider1 = MagicMock()
+    provider1.embed_batch = AsyncMock(side_effect=RuntimeError("boom"))
+    provider2 = MagicMock()
+    provider2.count_tokens = AsyncMock(return_value=5)
+    provider2.embed_batch = AsyncMock(return_value=[[0.2]])
+
+    handlers = [
+        AsyncEmbeddingProviderHandler(provider=provider1, strategy=NoOpStrategy(), priority=1, name='e1'),
+        AsyncEmbeddingProviderHandler(provider=provider2, strategy=NoOpStrategy(), priority=2, name='e2'),
+    ]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+    result = await service.embed_batch(["a"])
+
+    assert result == [[0.2]]
+
+
+@pytest.mark.asyncio
+async def test_async_resilient_embedding_service_embed_batch_returns_none_when_all_providers_fail():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientEmbeddingService, AsyncEmbeddingProviderHandler,
+    )
+    from src.infrastructure.intelligence.llm.rate_limit.no_op_strategy import NoOpStrategy
+
+    provider = MagicMock()
+    provider.count_tokens = AsyncMock(return_value=5)
+    provider.embed_batch = AsyncMock(return_value=None)
+
+    handlers = [AsyncEmbeddingProviderHandler(provider=provider, strategy=NoOpStrategy(), priority=1, name='e1')]
+    service = AsyncResilientEmbeddingService(handlers=handlers)
+
+    result = await service.embed_batch(["a"])
+    assert result is None

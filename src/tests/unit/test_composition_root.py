@@ -231,6 +231,96 @@ def test_search_index_rebuild_handler_subscribed_to_pipeline_completed_event():
 # ---------------------------------------------------------------------------
 
 
+class _AsyncCM:
+    """Minimal async context manager stand-in for `async with sessionmaker() as s`."""
+
+    def __init__(self, value):
+        self._value = value
+
+    async def __aenter__(self):
+        return self._value
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def test_build_collection_pipeline_persists_rag_config_failed_event_at_startup():
+    """When build_async_rag_ingestion_service() reports a config-failure event,
+    build_collection_pipeline() must persist it as a FailedTask before returning
+    (rag_config_failed_event must be published AFTER all event subscriptions are
+    registered — see build_rag_ingestion_service()'s docstring)."""
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+
+    fake_event = RagConfigFailedEvent(
+        exception_type="MissingConfiguration",
+        exception_message="RAG disabled — missing required vars: VECTOR_DB_NAME",
+        context={"missing_vars": ["VECTOR_DB_NAME"]},
+        correlation_id=None,
+    )
+
+    mock_init_db = MagicMock()
+    mock_get_session = MagicMock(return_value=MagicMock())
+    mock_build_async_llm = MagicMock(return_value=(MagicMock(), MagicMock(), ["gemini"]))
+    mock_build_async_rag = MagicMock(return_value=(None, fake_event))
+    mock_sessionmaker_factory = MagicMock(side_effect=lambda: _AsyncCM(MagicMock()))
+    mock_get_async_sessionmaker = MagicMock(return_value=mock_sessionmaker_factory)
+
+    mock_handler_instance = MagicMock()
+    mock_handler_instance.handle = AsyncMock()
+    mock_handler_cls = MagicMock(return_value=mock_handler_instance)
+
+    with patch("src.bootstrap.init_db", mock_init_db), \
+         patch("src.bootstrap.get_session", mock_get_session), \
+         patch("src.bootstrap.build_async_llm_service", mock_build_async_llm), \
+         patch("src.bootstrap.build_async_rag_ingestion_service", mock_build_async_rag), \
+         patch("src.infrastructure.persistence.database.get_async_sessionmaker", mock_get_async_sessionmaker), \
+         patch(
+             "src.modules.intelligence.application.event_handlers.failed_task_persistence_handler.FailedTaskPersistenceHandler",
+             mock_handler_cls,
+         ):
+        from src.bootstrap import build_collection_pipeline
+        asyncio.run(build_collection_pipeline())
+
+    mock_handler_instance.handle.assert_awaited_once_with(fake_event)
+
+
+def test_build_collection_pipeline_wires_rag_downstream_builder_when_enabled():
+    """When RAG is enabled, build_collection_pipeline() must (1) subscribe
+    dispatch_rag to ArticleProcessedEvent on the per-article bus, and (2) set
+    a working rag_downstream_builder on the pipeline — both no-ops today
+    because every existing test here mocks build_async_rag_ingestion_service()
+    to always disable RAG."""
+    mock_rag_service = MagicMock()
+    (mock_init_db, mock_get_session, mock_session, mock_llm, mock_embedding,
+     _, _, mock_get_async_sessionmaker) = _make_collection_pipeline_mocks()
+    mock_build_async_rag = MagicMock(return_value=(mock_rag_service, None))
+
+    with patch("src.bootstrap.init_db", mock_init_db), \
+         patch("src.bootstrap.get_session", mock_get_session), \
+         patch("src.bootstrap.build_async_llm_service", MagicMock(return_value=(mock_llm, mock_embedding, ["gemini"]))), \
+         patch("src.bootstrap.build_async_rag_ingestion_service", mock_build_async_rag), \
+         patch("src.infrastructure.persistence.database.get_async_sessionmaker", mock_get_async_sessionmaker):
+        from src.bootstrap import build_collection_pipeline
+        pipeline, _ = asyncio.run(build_collection_pipeline())
+
+    assert pipeline._rag_downstream_builder is not None
+
+    from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEventBus
+
+    bus = AsyncInMemoryEventBus()
+
+    async def _noop_dispatch_rag(event):
+        pass
+
+    asyncio.run(pipeline._article_downstream_builder(MagicMock(), bus, _noop_dispatch_rag))
+    handlers = bus._handlers.get(ArticleProcessedEvent, [])
+    assert len(handlers) == 2, "expected article_processed_handler + dispatch_rag when RAG is enabled"
+
+    from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import AsyncRagIngestionHandler
+    rag_handler = asyncio.run(pipeline._rag_downstream_builder(MagicMock()))
+    assert isinstance(rag_handler, AsyncRagIngestionHandler)
+
+
 def test_t022_repositories_share_same_session():
     """get_session() (sync) is called exactly once, for the still-batched
     upstream phase and one-time LLM/RAG config reads — NOT for the per-article
@@ -396,3 +486,201 @@ def test_build_llm_service_skips_unknown_provider(monkeypatch):
         from src.bootstrap import build_llm_service
         with pytest.raises(ValueError, match="no active LLM providers"):
             build_llm_service(mock_session)
+
+
+# ---------------------------------------------------------------------------
+# build_async_llm_service — async sibling of build_llm_service, exercised for
+# real (not mocked) here — every other test in this file mocks it out.
+# ---------------------------------------------------------------------------
+
+
+def test_build_async_llm_service_skips_unknown_provider_and_raises():
+    """build_async_llm_service logs a warning and skips providers with unknown
+    names, then raises ValidationError (not bare ValueError — see
+    site/guide/architecture/exception-handling.md) when nothing usable remains."""
+    mock_session = MagicMock()
+    unknown_cfg = {
+        "name": "unknown_provider",
+        "api_key_env": "UNKNOWN_API_KEY",
+        "model": "unknown-model",
+        "priority": 1,
+        "strategy": {},
+    }
+
+    with patch("shared.llm_provider.load_active_providers", return_value=[unknown_cfg]), \
+         patch("shared.llm_provider.load_active_embedding_providers", return_value=[]):
+        from src.bootstrap import build_async_llm_service
+        from shared.domain.exceptions import ValidationError
+        with pytest.raises(ValidationError, match="no active LLM providers"):
+            build_async_llm_service(mock_session)
+
+
+def test_build_async_llm_service_raises_when_no_active_embedding_providers():
+    mock_session = MagicMock()
+    claude_cfg = {
+        "name": "claude", "api_key_env": "CLAUDE_API_KEY", "model": "claude-sonnet-4-6",
+        "priority": 1, "strategy": {},
+    }
+    unknown_embedding_cfg = {
+        "name": "unknown_embedder", "api_key_env": "X", "model": "x", "priority": 1, "strategy": {},
+    }
+
+    with patch("shared.llm_provider.load_active_providers", return_value=[claude_cfg]), \
+         patch("shared.llm_provider.load_active_embedding_providers", return_value=[unknown_embedding_cfg]), \
+         patch("src.infrastructure.intelligence.llm.providers.AsyncClaudeProvider", return_value=MagicMock()):
+        from src.bootstrap import build_async_llm_service
+        from shared.domain.exceptions import ValidationError
+        with pytest.raises(ValidationError, match="no active embedding providers"):
+            build_async_llm_service(mock_session)
+
+
+def test_build_async_llm_service_builds_handlers_sorted_by_priority():
+    mock_session = MagicMock()
+    claude_cfg = {
+        "name": "claude", "api_key_env": "CLAUDE_API_KEY", "model": "claude-sonnet-4-6",
+        "priority": 2, "strategy": {},
+    }
+    gemini_cfg = {
+        "name": "gemini", "api_key_env": "GEMINI_API_KEY", "model": "gemini-3-flash-preview",
+        "priority": 1, "strategy": {"type": "sliding_window", "rpm": 10, "tpm": 1000, "rpd": 100},
+    }
+    gemini_embedding_cfg = {
+        "name": "gemini", "api_key_env": "GEMINI_API_KEY", "model": "gemini-embedding-001",
+        "priority": 1, "strategy": {},
+    }
+
+    with patch("shared.llm_provider.load_active_providers", return_value=[claude_cfg, gemini_cfg]), \
+         patch("shared.llm_provider.load_active_embedding_providers", return_value=[gemini_embedding_cfg]), \
+         patch("src.infrastructure.intelligence.llm.providers.AsyncClaudeProvider", return_value=MagicMock()), \
+         patch("src.infrastructure.intelligence.llm.providers.AsyncGeminiProvider", return_value=MagicMock()), \
+         patch("src.infrastructure.intelligence.llm.embedding.AsyncGeminiEmbeddingProvider", return_value=MagicMock()):
+        from src.bootstrap import build_async_llm_service
+        llm_service, embedding_service, provider_names = build_async_llm_service(mock_session)
+
+    from src.infrastructure.intelligence.llm.resilient_llm_service import (
+        AsyncResilientLLMService, AsyncResilientEmbeddingService,
+    )
+    assert isinstance(llm_service, AsyncResilientLLMService)
+    assert isinstance(embedding_service, AsyncResilientEmbeddingService)
+    # provider_names preserves DB/config iteration order (claude, then gemini)...
+    assert provider_names == ["claude", "gemini"]
+    # ...but the service's own handler list is sorted by priority, so gemini
+    # (priority 1) is tried before claude (priority 2).
+    assert [h.name for h in llm_service._handlers] == ["gemini", "claude"]
+
+
+# ---------------------------------------------------------------------------
+# build_async_rag_ingestion_service — async sibling of
+# build_rag_ingestion_service, mirroring its sync test coverage above.
+# ---------------------------------------------------------------------------
+
+
+def test_build_async_rag_returns_none_and_event_when_config_missing():
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    with patch("src.config.settings.missing_rag_config", return_value=["VECTOR_DB_NAME", "VECTOR_DB_USER"]):
+        from src.bootstrap import build_async_rag_ingestion_service
+        rag_service, event = build_async_rag_ingestion_service()
+
+    assert rag_service is None
+    assert event is not None
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+    assert isinstance(event, RagConfigFailedEvent)
+
+
+def test_build_async_rag_returns_none_none_when_sdk_not_installed(monkeypatch):
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    sdk_keys = [k for k in sys.modules if "chatbot_plugin_sdk" in k]
+    saved = {k: sys.modules.pop(k) for k in sdk_keys}
+    try:
+        sys.modules["chatbot_plugin_sdk"] = None  # type: ignore[assignment]
+        from src.bootstrap import build_async_rag_ingestion_service
+        rag_service, event = build_async_rag_ingestion_service()
+    finally:
+        sys.modules.pop("chatbot_plugin_sdk", None)
+        sys.modules.update(saved)
+
+    assert rag_service is None
+    assert event is None
+
+
+def test_build_async_rag_returns_none_none_on_generic_exception(monkeypatch):
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    mock_sdk = MagicMock()
+    mock_sdk.NotConfiguredError = type("NotConfiguredError", (Exception,), {})
+    mock_sdk.IngestProcessor.side_effect = RuntimeError("unexpected failure")
+
+    with patch.dict("sys.modules", {"chatbot_plugin_sdk": mock_sdk}):
+        from src.bootstrap import build_async_rag_ingestion_service
+        rag_service, event = build_async_rag_ingestion_service()
+
+    assert rag_service is None
+    assert event is None
+
+
+def test_build_async_rag_returns_event_on_not_configured_error(monkeypatch):
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    not_configured_error = type("NotConfiguredError", (Exception,), {})
+
+    mock_sdk = MagicMock()
+    mock_sdk.NotConfiguredError = not_configured_error
+    mock_sdk.IngestProcessor.side_effect = not_configured_error("dense provider not configured")
+
+    with patch.dict("sys.modules", {"chatbot_plugin_sdk": mock_sdk}):
+        from src.bootstrap import build_async_rag_ingestion_service
+        rag_service, event = build_async_rag_ingestion_service()
+
+    assert rag_service is None
+    assert event is not None
+    from src.modules.intelligence.application.events import RagConfigFailedEvent
+    assert isinstance(event, RagConfigFailedEvent)
+
+
+def test_build_async_rag_ingestion_service_success(monkeypatch):
+    monkeypatch.setenv("VECTOR_DB_NAME", "mydb")
+    monkeypatch.setenv("VECTOR_DB_USER", "user")
+    monkeypatch.setenv("VECTOR_DB_PASSWORD", "pass")
+    import importlib
+    import src.config.settings as _settings
+    importlib.reload(_settings)
+
+    mock_sdk = MagicMock()
+    mock_sdk.NotConfiguredError = type("NotConfiguredError", (Exception,), {})
+    mock_processor = MagicMock()
+    mock_sdk.IngestProcessor.return_value = mock_processor
+
+    mock_service_module = MagicMock()
+    mock_service_instance = MagicMock()
+    mock_service_module.AsyncRagSdkIngestionService.return_value = mock_service_instance
+
+    with patch.dict("sys.modules", {"chatbot_plugin_sdk": mock_sdk}), \
+         patch(
+             "src.infrastructure.intelligence.vector_store.rag_sdk_ingestion_impl.AsyncRagSdkIngestionService",
+             return_value=mock_service_instance,
+         ):
+        from src.bootstrap import build_async_rag_ingestion_service
+        rag_service, event = build_async_rag_ingestion_service()
+
+    assert rag_service is mock_service_instance
+    assert event is None
+    mock_processor.configure.assert_called_once()

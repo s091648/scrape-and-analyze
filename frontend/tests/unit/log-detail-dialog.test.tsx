@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { parseLogFields, LogDetailDialog } from '@/components/features/monitoring/log-detail-dialog'
+import { parseLogFields, LogDetailDialog, DbSystemBadge } from '@/components/features/monitoring/log-detail-dialog'
 import type { LogEntry } from '@/components/features/monitoring/log-detail-dialog'
 
 vi.mock('@/lib/providers', () => ({
@@ -8,8 +8,13 @@ vi.mock('@/lib/providers', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) =>
-    open ? <div data-testid="dialog">{children}</div> : null,
+  Dialog: ({ children, open, onOpenChange }: { children: React.ReactNode; open: boolean; onOpenChange?: (v: boolean) => void }) =>
+    open ? (
+      <div data-testid="dialog">
+        {children}
+        <button data-testid="dismiss-dialog" onClick={() => onOpenChange?.(false)} />
+      </div>
+    ) : null,
   DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children, className }: { children: React.ReactNode; className?: string }) =>
@@ -166,5 +171,26 @@ describe('LogDetailDialog', () => {
   it('does not render an exception section when exception is absent', () => {
     render(<LogDetailDialog entry={makeEntry()} onClose={() => {}} />)
     expect(screen.queryByText('admin.logFieldException')).toBeNull()
+  })
+
+  it('calls onClose when the dialog is dismissed', () => {
+    const onClose = vi.fn()
+    render(<LogDetailDialog entry={makeEntry()} onClose={onClose} />)
+    fireEvent.click(screen.getByTestId('dismiss-dialog'))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+// ── DbSystemBadge ────────────────────────────────────────────────────────────
+
+describe('DbSystemBadge', () => {
+  it('shows the friendly label for a known db.system value', () => {
+    render(<DbSystemBadge system="postgresql" />)
+    expect(screen.getByText('Postgres')).toBeDefined()
+  })
+
+  it('falls back to the raw system name when unmapped', () => {
+    render(<DbSystemBadge system="cassandra" />)
+    expect(screen.getByText('cassandra')).toBeDefined()
   })
 })
