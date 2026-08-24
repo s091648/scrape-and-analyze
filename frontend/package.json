@@ -97,5 +97,11 @@
     "edge >= 100",
     "firefox >= 100",
     "safari >= 15"
-  ]
+  ],
+  "overrides": {
+    "react-simple-maps": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  }
 }
