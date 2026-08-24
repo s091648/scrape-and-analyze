@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-16T11:51:57.833Z",
+  "generated_at": "2026-08-23T12:44:49.500Z",
   "providers": [
     {
       "id": "session",
@@ -93,12 +93,12 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 43,
+          "line": 45,
           "destructured": "{ data: session, status }"
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 100,
+          "line": 109,
           "destructured": ""
         },
         {
@@ -138,12 +138,12 @@
         },
         {
           "file": "components/features/articles/article-card.tsx",
-          "line": 36,
+          "line": 40,
           "destructured": "{ data: session, status }"
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 52,
+          "line": 60,
           "destructured": "{ status }"
         },
         {
@@ -219,7 +219,7 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 68,
+          "line": 69,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -244,12 +244,12 @@
         },
         {
           "file": "components/features/articles/article-card.tsx",
-          "line": 33,
+          "line": 37,
           "destructured": "{ selectedTopicId }"
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 51,
+          "line": 59,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -390,7 +390,7 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 49,
+          "line": 50,
           "destructured": "{ t, locale }"
         },
         {
@@ -435,22 +435,22 @@
         },
         {
           "file": "components/features/articles/article-card.tsx",
-          "line": 32,
+          "line": 36,
           "destructured": "{ locale, t }"
         },
         {
           "file": "components/features/articles/article-detail-dialog.tsx",
-          "line": 33,
+          "line": 37,
           "destructured": "{ t, locale }"
         },
         {
           "file": "components/features/articles/autocomplete-dropdown.tsx",
-          "line": 17,
+          "line": 22,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 50,
+          "line": 58,
           "destructured": "{ t, locale }"
         },
         {
@@ -510,12 +510,12 @@
         },
         {
           "file": "components/features/monitoring/run-waterfall-dialog.tsx",
-          "line": 80,
+          "line": 81,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/stage-card.tsx",
-          "line": 202,
+          "line": 226,
           "destructured": "{ t }"
         },
         {
@@ -636,7 +636,7 @@
       "sites": [
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 45,
+          "line": 47,
           "destructured": "{ isGuestMode }"
         },
         {
