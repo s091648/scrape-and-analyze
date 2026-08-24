@@ -11,6 +11,10 @@ class NoOpStrategy(QuotaStrategy):
         """No-op: discard token usage recording."""
         ...
 
+    def try_acquire(self, estimated_tokens: int) -> bool:
+        """No-op: always immediately available."""
+        return True
+
     def update_batch_size(self, batch_size: int) -> None:
         """No-op: ignore batch size updates."""
         ...

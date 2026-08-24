@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
@@ -386,7 +387,18 @@ class AsyncProviderHandler:
     name: str
 
     async def analyze(self, content: str, prompt: str) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
-        self.strategy.acquire(estimated_tokens=len(content) // 4)
+        # 024-async-pipeline-refactor follow-up: try the non-blocking reservation
+        # first — it runs synchronously on the event loop thread, so it's atomic
+        # with respect to every other concurrently-gathered task (nothing else
+        # runs until this coroutine hits a real await). Only fall back to the
+        # thread-offloaded, sleeping acquire() when capacity genuinely isn't
+        # free right now — that's the one case a direct call would stall the
+        # event loop (and every other concurrent article task) for the wait.
+        # See _dispatch_order's docstring for why this closes the prior race
+        # between a background-thread reservation and the next task's peek.
+        estimated_tokens = len(content) // 4
+        if not self.strategy.try_acquire(estimated_tokens=estimated_tokens):
+            await asyncio.to_thread(self.strategy.acquire, estimated_tokens=estimated_tokens)
         result = await self.provider.analyze(content, prompt)
         if result is not None:
             _, metadata = result
@@ -394,14 +406,18 @@ class AsyncProviderHandler:
         return result
 
     async def translate(self, content: str, prompt: str) -> Optional[str]:
-        self.strategy.acquire(estimated_tokens=len(content) // 4)
+        estimated_tokens = len(content) // 4
+        if not self.strategy.try_acquire(estimated_tokens=estimated_tokens):
+            await asyncio.to_thread(self.strategy.acquire, estimated_tokens=estimated_tokens)
         result = await self.provider.translate(content, prompt)
         if result is not None:
             self.strategy.record_usage(len(content) // 4 + len(result) // 4)
         return result
 
     async def generate(self, prompt: str) -> Optional[str]:
-        self.strategy.acquire(estimated_tokens=len(prompt) // 4)
+        estimated_tokens = len(prompt) // 4
+        if not self.strategy.try_acquire(estimated_tokens=estimated_tokens):
+            await asyncio.to_thread(self.strategy.acquire, estimated_tokens=estimated_tokens)
         result = await self.provider.generate(prompt)
         if result is not None:
             self.strategy.record_usage(len(prompt) // 4 + len(result) // 4)
@@ -425,20 +441,34 @@ class AsyncResilientLLMService:
     def exhausted_providers(self) -> List[str]:
         return self._rate_limit_tracker.exhausted
 
-    def _dispatch_order(self, handlers_snapshot: List[AsyncProviderHandler]) -> List[AsyncProviderHandler]:
+    def _dispatch_order(
+        self, handlers_snapshot: List[AsyncProviderHandler], estimated_tokens: int = 0,
+    ) -> List[AsyncProviderHandler]:
         """Handlers with current capacity first (selector's preferred order),
         then every remaining handler in its original (priority) order as a
         fallback — preserves "try everyone before giving up" semantics while
         preferring whichever model has headroom right now (FR-010/FR-011).
-        No `await` between this call and the caller's first dispatch attempt
-        — see contracts/provider-selector-port.md's atomicity requirement."""
-        selected = self._provider_selector.select(handlers_snapshot)
+        `estimated_tokens` must be the same estimate the caller will use for
+        reservation, so a handler that's only "available" for a 0-token
+        request isn't preferred over one with real headroom for this request.
+
+        There IS now an `await` between this call and reservation
+        (AsyncProviderHandler.* offloads strategy.acquire() via
+        asyncio.to_thread — see its docstring), which the original
+        contracts/provider-selector-port.md atomicity requirement assumed
+        away. This stays correct anyway: SlidingWindowStrategy's own
+        threading.Lock makes acquire() itself an atomic check-and-reserve, so
+        a handler that loses the race to another concurrent task simply waits
+        inside that thread for real capacity instead of over-committing the
+        window — the only cost of the race is a possibly-suboptimal pick, not
+        a quota violation."""
+        selected = self._provider_selector.select(handlers_snapshot, estimated_tokens)
         selected_set = set(selected)
         remaining = [i for i in range(len(handlers_snapshot)) if i not in selected_set]
         return [handlers_snapshot[i] for i in selected + remaining]
 
     async def analyze(self, content: str, prompt: str) -> Optional[Tuple[AnalysisContent, AnalysisMetadata]]:
-        handlers_snapshot = self._dispatch_order(list(self._handlers))
+        handlers_snapshot = self._dispatch_order(list(self._handlers), estimated_tokens=len(content) // 4)
         for handler in handlers_snapshot:
             try:
                 result = await handler.analyze(content, prompt)
@@ -460,7 +490,7 @@ class AsyncResilientLLMService:
         return None
 
     async def translate(self, content: str, prompt: str) -> Optional[str]:
-        handlers_snapshot = self._dispatch_order(list(self._handlers))
+        handlers_snapshot = self._dispatch_order(list(self._handlers), estimated_tokens=len(content) // 4)
         for handler in handlers_snapshot:
             try:
                 result = await handler.translate(content, prompt)
@@ -479,7 +509,7 @@ class AsyncResilientLLMService:
         return None
 
     async def generate(self, prompt: str) -> Optional[str]:
-        handlers_snapshot = self._dispatch_order(list(self._handlers))
+        handlers_snapshot = self._dispatch_order(list(self._handlers), estimated_tokens=len(prompt) // 4)
         for handler in handlers_snapshot:
             try:
                 result = await handler.generate(prompt)
@@ -509,7 +539,9 @@ class AsyncEmbeddingProviderHandler:
 
     async def embed(self, text: str) -> List[float]:
         self.strategy.update_batch_size(1)
-        self.strategy.acquire(max(1, len(text) // 4))
+        estimated_tokens = max(1, len(text) // 4)
+        if not self.strategy.try_acquire(estimated_tokens):
+            await asyncio.to_thread(self.strategy.acquire, estimated_tokens)
         if self._can_count_tokens:
             try:
                 token = await self.provider.count_tokens(text)
@@ -527,7 +559,8 @@ class AsyncEmbeddingProviderHandler:
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         estimated = max(1, sum(len(t) for t in texts) // 4)
         self.strategy.update_batch_size(len(texts))
-        self.strategy.acquire(estimated)
+        if not self.strategy.try_acquire(estimated):
+            await asyncio.to_thread(self.strategy.acquire, estimated)
         result = await self.provider.embed_batch(texts)
         if result is not None:
             if self._can_count_tokens:
@@ -556,15 +589,17 @@ class AsyncResilientEmbeddingService:
     def exhausted_providers(self) -> List[str]:
         return self._rate_limit_tracker.exhausted
 
-    def _dispatch_order(self, handlers_snapshot: List[AsyncEmbeddingProviderHandler]) -> List[AsyncEmbeddingProviderHandler]:
+    def _dispatch_order(
+        self, handlers_snapshot: List[AsyncEmbeddingProviderHandler], estimated_tokens: int = 0,
+    ) -> List[AsyncEmbeddingProviderHandler]:
         """See AsyncResilientLLMService._dispatch_order above."""
-        selected = self._provider_selector.select(handlers_snapshot)
+        selected = self._provider_selector.select(handlers_snapshot, estimated_tokens)
         selected_set = set(selected)
         remaining = [i for i in range(len(handlers_snapshot)) if i not in selected_set]
         return [handlers_snapshot[i] for i in selected + remaining]
 
     async def embed(self, text: str) -> Optional[List[float]]:
-        handlers_snapshot = self._dispatch_order(list(self._handlers))
+        handlers_snapshot = self._dispatch_order(list(self._handlers), estimated_tokens=max(1, len(text) // 4))
         for handler in handlers_snapshot:
             try:
                 result = await handler.embed(text)
@@ -583,7 +618,8 @@ class AsyncResilientEmbeddingService:
         return None
 
     async def embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
-        handlers_snapshot = self._dispatch_order(list(self._handlers))
+        estimated = max(1, sum(len(t) for t in texts) // 4)
+        handlers_snapshot = self._dispatch_order(list(self._handlers), estimated_tokens=estimated)
         for handler in handlers_snapshot:
             try:
                 result = await handler.embed_batch(texts)

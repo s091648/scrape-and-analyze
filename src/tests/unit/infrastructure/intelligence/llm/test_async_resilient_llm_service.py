@@ -14,15 +14,33 @@ def _make_result():
 
 
 @pytest.mark.asyncio
-async def test_async_provider_handler_calls_strategy_acquire():
+async def test_async_provider_handler_calls_strategy_try_acquire():
     from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
     provider = MagicMock()
     provider.analyze = AsyncMock(return_value=_make_result())
     strategy = MagicMock()
+    strategy.try_acquire.return_value = True  # capacity immediately available
 
     handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
     result = await handler.analyze("content", "prompt")
 
+    strategy.try_acquire.assert_called_once()
+    strategy.acquire.assert_not_called()  # non-blocking path succeeded, no thread hop needed
+    assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_async_provider_handler_falls_back_to_acquire_when_try_acquire_fails():
+    from src.infrastructure.intelligence.llm.resilient_llm_service import AsyncProviderHandler
+    provider = MagicMock()
+    provider.analyze = AsyncMock(return_value=_make_result())
+    strategy = MagicMock()
+    strategy.try_acquire.return_value = False  # no capacity right now — must block
+
+    handler = AsyncProviderHandler(provider=provider, strategy=strategy, priority=1, name='test')
+    result = await handler.analyze("content", "prompt")
+
+    strategy.try_acquire.assert_called_once()
     strategy.acquire.assert_called_once()
     assert result is not None
 

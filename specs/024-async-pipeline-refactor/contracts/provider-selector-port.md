@@ -9,9 +9,11 @@
 ```python
 class ProviderSelector(ABC):
     @abstractmethod
-    def select(self, handlers: list[ProviderHandler]) -> list[int]:
-        """Return indices of currently-available handlers, in preferred dispatch order.
-        Returns [] if none are currently available (caller falls back to blocking acquire())."""
+    def select(self, handlers: list[ProviderHandler], estimated_tokens: int = 0) -> list[int]:
+        """Return indices of currently-available handlers, in preferred dispatch order, for a
+        request estimated at estimated_tokens (the same estimate the caller will use for
+        reservation). Returns [] if none are currently available (caller falls back to blocking
+        acquire())."""
 ```
 
 ```python
@@ -23,8 +25,8 @@ class PriorityFirstProviderSelector(ProviderSelector):
 
 ## Behavioral guarantees
 
-- **`select` MUST be side-effect-free** — it only inspects `has_capacity()` on each handler's `SlidingWindowStrategy` (research.md item 7 / `sliding_window_strategy.py`'s new non-blocking method) and returns an ordering; it does not itself reserve capacity. Reservation happens in the caller's own check-and-record step (see below).
-- **Caller contract** (`ResilientLLMService.analyze`/`translate`/`generate`, `ResilientEmbeddingService.embed`/`embed_batch`): iterate `selector.select(handlers)` in order; for each candidate index, re-check `has_capacity()` and, if still available, record the reservation (`update_batch_size`/window insert) — **with no `await` between the re-check and the record** — and use that handler. This re-check-then-reserve step, not `select()` itself, is what must stay atomic (research.md item 7). If `select()` returns `[]`, or every candidate's re-check fails (lost a race to another concurrent caller since `select()` ran), fall back to the existing blocking `acquire()` on the highest-priority handler — matching FR-011's "wait rather than fail" requirement.
+- **`select` MUST be side-effect-free** — it only inspects `has_capacity(estimated_tokens)` on each handler's `SlidingWindowStrategy` (research.md item 7 / `sliding_window_strategy.py`'s new non-blocking method), called with the same token estimate the caller will use for reservation, and returns an ordering; it does not itself reserve capacity. Reservation happens in the caller's own check-and-record step (see below).
+- **Caller contract** (`AsyncResilientLLMService.analyze`/`translate`/`generate`, `AsyncResilientEmbeddingService.embed`/`embed_batch`): iterate `selector.select(handlers, estimated_tokens)` in order and use the first candidate, whose own `strategy.try_acquire(estimated_tokens)` performs the actual re-check-and-reserve — **synchronously, on the event loop thread, with no `await` in between** — so it's atomic with respect to every other concurrently-gathered task (nothing else runs until this coroutine hits a real `await`). Only when `try_acquire()` returns `False` (capacity genuinely isn't free right now) does the caller fall back to `asyncio.to_thread(strategy.acquire, estimated_tokens)`, which blocks on a worker thread since `SlidingWindowStrategy.acquire()` sleeps synchronously. An earlier version of this design always went through the thread-offloaded `acquire()`, even when capacity was free — that introduced a real race (the previous task's reservation landing on a worker thread after the next task's `select()` snapshot had already run, so both could pick the same handler); `try_acquire()` closes it by keeping the common case fully synchronous. If `select()` returns `[]`, the fallback list (every remaining handler in priority order) still goes through `try_acquire()` then `acquire()` the same way — matching FR-011's "wait rather than fail" requirement.
 - **A model is excluded from `select()`'s results only when it is currently rate-limited (RPM/TPM window full) or has hit its daily cap (`RateLimitExhausted`, unchanged existing behavior)** — never for any other reason. `select()` MUST NOT reorder or exclude handlers based on anything other than current capacity and the configured `priority` (FR-010: momentary per-minute throttling must not be conflated with daily exhaustion).
 - **Swappability**: A future alternative implementation (e.g. a round-robin selector, mirroring `RoundRobinQueueSelector`) satisfies this same Protocol with no change to `ResilientLLMService`/`ResilientEmbeddingService` — this is the reason the strategy is a separate object rather than inline logic, mirroring why `QueueSelector` is already factored out for `ScrapeExecutor`.
 

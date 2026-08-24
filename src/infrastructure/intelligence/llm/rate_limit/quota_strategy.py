@@ -25,3 +25,16 @@ class QuotaStrategy(ABC):
         ProviderSelector port — see contracts/provider-selector-port.md).
         Never reserves capacity; only `acquire()` does that."""
         ...
+
+    @abstractmethod
+    def try_acquire(self, estimated_tokens: int) -> bool:
+        """Non-blocking reservation attempt: if a slot is immediately
+        available, reserve it (same effect as `acquire()`) and return True;
+        otherwise reserve nothing and return False. Lets async callers do the
+        common "capacity is free" case synchronously on the event loop
+        thread, without an `asyncio.to_thread` hop — closing the race where
+        that hop's reservation lands after a concurrently-gathered task's
+        `has_capacity()` peek already ran (both then pick the same handler).
+        Falling back to `acquire()` is still required when this returns
+        False."""
+        ...

@@ -43,6 +43,12 @@ class SlidingWindowStrategy(QuotaStrategy):
                 return
             time.sleep(wait)
 
+    def try_acquire(self, estimated_tokens: int) -> bool:
+        """Non-blocking: reserve a slot only if immediately available.
+        `_compute_wait()` already only reserves when it returns 0, so this
+        is just that check without ever sleeping."""
+        return self._compute_wait(estimated_tokens) == 0
+
     def record_usage(self, actual_tokens: int) -> None:
         """Record actual token usage in the sliding window after a successful API call."""
         with self._lock:
