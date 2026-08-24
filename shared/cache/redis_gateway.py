@@ -1,19 +1,24 @@
 import hashlib
 import json
-import logging
 from typing import Any, Callable
 
 import redis
 import structlog
+from opentelemetry import trace
 
 from .gateway import CacheResult
 
-logger = logging.getLogger(__name__)
-# Separate from `logger` above (plain stdlib, used for warnings only): this one is a structlog
-# bound logger so "cache_lookup" gets JSON-rendered with an "event" field, matching the
-# `| json | event = "..."` LogQL pattern the monitoring dashboard's other panels already rely on
-# (backend/observability.py's configure_logging()) — a plain stdlib call wouldn't be structured.
+# structlog bound logger (not plain stdlib logging) so every event here — including the
+# read/write/version/decode/bump/warmup-publish failure warnings below — gets JSON-rendered
+# with an "event" field, matching the `| json | event = "..."` LogQL pattern the monitoring
+# dashboard's panels rely on (backend/observability.py's configure_logging()). A plain stdlib
+# logger.warning() call would emit unstructured text that `| json` can't parse.
 event_logger = structlog.get_logger(__name__)
+
+# opentelemetry-api's default tracer is a documented no-op when no SDK/TracerProvider is
+# configured (e.g. local dev without GRAFANA_OTLP_* set) — safe to use unconditionally here,
+# same as every other tracer.start_as_current_span() call in this codebase.
+_tracer = trace.get_tracer(__name__)
 
 _VERSION_KEY_PREFIX = "cache:v:"
 WARMUP_CHANNEL = "cache:warmup"
@@ -51,10 +56,10 @@ class RedisCacheGateway:
             raw = self._client.get(_VERSION_KEY_PREFIX + namespace)
             return int(raw) if raw is not None else 1
         except redis.exceptions.RedisError as e:
-            logger.warning("cache_version_read_failed", extra={"namespace": namespace, "error": str(e)})
+            event_logger.warning("cache_version_read_failed", namespace=namespace, error=str(e))
             return 1
         except (TypeError, ValueError) as e:
-            logger.warning("cache_version_malformed", extra={"namespace": namespace, "error": str(e)})
+            event_logger.warning("cache_version_malformed", namespace=namespace, error=str(e))
             return 1
 
     def _build_key(self, namespace: str, version: int, lang: str, params: dict) -> str:
@@ -68,12 +73,19 @@ class RedisCacheGateway:
         loader: Callable[[], Any],
         lang: str = "en",
     ) -> CacheResult:
-        result = self._get_or_set(namespace, params, ttl_seconds, loader, lang)
-        # Single structured event per lookup, covering every namespace this gateway serves
-        # (articles/graph/tag_groups/weekly_reports) — see contracts/cache-gateway.md and
-        # monitoring-content.tsx's Operations tab for the "admin.cacheHitRate" panel that reads it.
-        event_logger.info("cache_lookup", namespace=namespace, status=result.status, lang=lang)
-        return result
+        # Child span of whatever's currently active (the request root span, if this runs
+        # inside one) — makes a cache lookup show up nested under the API call that triggered
+        # it in Tempo, instead of only being visible as a same-named-but-uncorrelated Loki log
+        # line. The Loki event below is kept too: it's what Operations' cacheHitRate/
+        # cacheLookupsByStatusChart panels aggregate over time, which a per-request span can't
+        # do (Tempo has no cheap "count by status over 7d" query the way LogQL does).
+        with _tracer.start_as_current_span("cache.lookup") as span:
+            result = self._get_or_set(namespace, params, ttl_seconds, loader, lang)
+            span.set_attribute("cache.namespace", namespace)
+            span.set_attribute("cache.status", result.status)
+            span.set_attribute("cache.lang", lang)
+            event_logger.info("cache_lookup", namespace=namespace, status=result.status, lang=lang)
+            return result
 
     def _get_or_set(
         self,
@@ -88,7 +100,7 @@ class RedisCacheGateway:
             key = self._build_key(namespace, version, lang, params)
             cached = self._client.get(key)
         except redis.exceptions.RedisError as e:
-            logger.warning("cache_read_failed", extra={"namespace": namespace, "error": str(e)})
+            event_logger.warning("cache_read_failed", namespace=namespace, error=str(e))
             return CacheResult(value=loader(), status="BYPASS")
 
         if cached is not None:
@@ -97,14 +109,14 @@ class RedisCacheGateway:
             except ValueError as e:
                 # Poisoned entry (truncated, or written by an incompatible producer):
                 # fall through to loader(), which overwrites it below.
-                logger.warning("cache_decode_failed", extra={"namespace": namespace, "error": str(e)})
+                event_logger.warning("cache_decode_failed", namespace=namespace, error=str(e))
 
         value = loader()
 
         try:
             self._client.set(key, json.dumps(value, default=str), ex=ttl_seconds)
         except (redis.exceptions.RedisError, ValueError, TypeError, RecursionError) as e:
-            logger.warning("cache_write_failed", extra={"namespace": namespace, "error": str(e)})
+            event_logger.warning("cache_write_failed", namespace=namespace, error=str(e))
 
         return CacheResult(value=value, status="MISS")
 
@@ -120,11 +132,11 @@ class RedisCacheGateway:
             self._client.setnx(key, 1)
             return int(self._client.incr(key))
         except redis.exceptions.RedisError as e:
-            logger.warning("cache_bump_version_failed", extra={"namespace": namespace, "error": str(e)})
+            event_logger.warning("cache_bump_version_failed", namespace=namespace, error=str(e))
             return 0
 
     def publish_warmup_signal(self, reason: str = "") -> None:
         try:
             self._client.publish(WARMUP_CHANNEL, reason)
         except redis.exceptions.RedisError as e:
-            logger.warning("cache_warmup_publish_failed", extra={"reason": reason, "error": str(e)})
+            event_logger.warning("cache_warmup_publish_failed", reason=reason, error=str(e))

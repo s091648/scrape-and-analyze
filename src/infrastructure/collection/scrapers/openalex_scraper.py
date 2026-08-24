@@ -98,7 +98,7 @@ class OpenAlexScraper(BaseScraper):
             content=job.metadata.get("abstract", ""),
             source="openalex",
             topic_id=job.topic_id,
-            published_at=job.metadata.get("published"),
+            published_at=self._parse_published_at(job.metadata.get("published")),
             authors=job.metadata.get("authors", []),
             extra={
                 "work_id": job.metadata.get("work_id"),

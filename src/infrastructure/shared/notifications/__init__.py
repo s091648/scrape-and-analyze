@@ -10,12 +10,17 @@ module that owns that event or entity, under infrastructure/<module>/notificatio
 (formats collection's PipelineCompletedEvent), or WeeklyReportTelegramMessageBuilder
 under infrastructure/intelligence/notifications/ (formats intelligence's WeeklyReport).
 """
-from .notification_service import NotificationHandler, build_notification_handler
+from .notification_service import (
+    NotificationHandler, build_notification_handler,
+    AsyncNotificationHandler, build_async_notification_handler,
+)
 from .telegram_notifier_client import TelegramNotifierClient
 
 
 __all__ = [
     "NotificationHandler",
     "build_notification_handler",
+    "AsyncNotificationHandler",
+    "build_async_notification_handler",
     "TelegramNotifierClient",
 ]

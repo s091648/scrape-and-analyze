@@ -83,7 +83,7 @@ src/
         ├── http/                   #   HttpClient, rate_limiter, retry, proxy, user_agent
         ├── logging.py              #   configure_logging(), bind_correlation_id()
         ├── notifications/          #   NotificationService, TelegramNotifier
-        └── observability/          #   OTel tracing, Loki log shipping, GeoIP, span_wrappers
+        └── observability/          #   OTel tracing, Loki log shipping, GeoIP
 ```
 
 ## Pipeline Event Flow

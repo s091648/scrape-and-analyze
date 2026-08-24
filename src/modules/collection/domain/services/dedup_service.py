@@ -37,3 +37,24 @@ class DedupService:
         if article.id is None:
             return False
         return not self._repo.has_analysis(article.id)
+
+
+class AsyncDedupService:
+    """024-async-pipeline-refactor: async sibling of DedupService — new class,
+    not because DedupService is shared with another pipeline (it isn't — only
+    ever constructed inside build_collection_pipeline()), but because its
+    constructor dependency changes from the sync ArticleRepository to the
+    async one, which is a different type than DedupService's `__init__`
+    accepts. Same logic, `async def`/`await` throughout."""
+
+    def __init__(self, article_repo) -> None:
+        self._repo = article_repo
+
+    async def find_existing(self, url: str) -> Optional[Article]:
+        url_hash = UrlHash.from_url(url).value
+        return await self._repo.find_by_url_hash(url_hash)
+
+    async def needs_analysis(self, article: Article) -> bool:
+        if article.id is None:
+            return False
+        return not await self._repo.has_analysis(article.id)

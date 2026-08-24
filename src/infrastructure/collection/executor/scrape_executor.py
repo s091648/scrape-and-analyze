@@ -3,9 +3,13 @@ import queue
 import time
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional
 from urllib.parse import urlparse
 
+from opentelemetry.trace import StatusCode
+
+from shared.enums.observability import SpanName
+from src.infrastructure.shared.observability import get_tracer
 from .discover_task import DiscoverTask
 from .fetch_task import FetchTask
 from .host_queue_map import HostQueueMap
@@ -31,11 +35,6 @@ def _context_wrapper(fn, ctx: contextvars.Context):
 
 logger = get_logger(__name__)
 
-_DEFAULT_DISCOVER_DELAYS: Dict[str, float] = {
-    "export.arxiv.org": 30.0,
-    "arxiv.org": 30.0,
-}
-
 
 class ScrapeExecutor:
     """
@@ -49,26 +48,27 @@ class ScrapeExecutor:
 
     Args:
         num_workers:       Number of fetch worker threads (default 5).
-        discover_workers:  Number of discover worker threads (default 1).
+        discover_workers:  Number of discover worker threads (default 5). Safe to run
+                           concurrently with itself — HostQueueMap's per-host
+                           BoundedSemaphore(1) already guarantees at most one in-flight
+                           discover per host regardless of pool size, so raising this
+                           only lets *independent* hosts overlap (e.g. a slow/rate-limited
+                           host no longer blocks every other host's discover behind it).
         fetch_delay:       Seconds to sleep between fetches per worker (default 5.0).
-        discover_delays:   Per-host cooldown after discover in seconds.
-                           Keys are hostnames (e.g. "export.arxiv.org": 30.0).
         selector:          QueueSelector strategy.
     """
 
     def __init__(
         self,
         num_workers: int = 5,
-        discover_workers: int = 1,
+        discover_workers: int = 5,
         fetch_delay: float = 5.0,
-        discover_delays: Optional[Dict[str, float]] = None,
         selector: Optional[QueueSelector] = None,
         on_discover_failed: Optional[Callable] = None,
     ) -> None:
         self._num_workers = num_workers
         self._discover_workers = discover_workers
         self._fetch_delay = fetch_delay
-        self._discover_delays = discover_delays if discover_delays is not None else _DEFAULT_DISCOVER_DELAYS
         self._selector = selector or WeightedRoundRobinQueueSelector()
         self._on_discover_failed = on_discover_failed
         self._rate_limit_tracker = RateLimitedProviderTracker()
@@ -206,10 +206,21 @@ class ScrapeExecutor:
         router = QueueRouter(host_queue_map)
         router.route_discover(discover_tasks)
 
+        # Dynamic sizing (not a fixed constant): never spin up more worker
+        # threads than there are distinct hosts to discover this run — a
+        # worker beyond that count would just poll queues every other
+        # worker already holds the (per-host BoundedSemaphore(1)) lock on,
+        # since HostQueueMap allocates exactly one queue+semaphore per host.
+        # self._discover_workers is a ceiling, not a target: few due sources
+        # this run means few threads spun up; many distinct hosts due at
+        # once can still use up to that ceiling in parallel.
+        worker_count = min(self._discover_workers, len(host_queue_map.queues))
+
         logger.info(
             "executor_discover_start",
             discover_tasks=len(discover_tasks),
             host_count=len(host_queue_map.queues),
+            discover_workers=worker_count,
         )
 
         pending_discovers = [len(discover_tasks)]
@@ -222,16 +233,20 @@ class ScrapeExecutor:
 
         all_fetch_tasks: List[FetchTask] = []
 
-        def _route_and_collect(fetch_tasks: List[FetchTask]) -> None:
-            """Apply pre-fetch filter, collect fetch tasks, and route them into host queues."""
+        def _route_and_collect(fetch_tasks: List[FetchTask]) -> int:
+            """Apply pre-fetch filter, collect fetch tasks, and route them into host queues.
+            Returns the number of fetch tasks that survived the filter (i.e. not
+            already-analyzed duplicates) — the caller uses this to report
+            discover.new_count/discover.duplicate_count on that discover's own span."""
             if pre_fetch_filter is not None:
                 fetch_tasks = pre_fetch_filter(fetch_tasks)
             all_fetch_tasks.extend(fetch_tasks)
             router.route(fetch_tasks)
+            return len(fetch_tasks)
 
-        with ThreadPoolExecutor(max_workers=self._discover_workers) as pool:
+        with ThreadPoolExecutor(max_workers=worker_count) as pool:
             futures = []
-            for i in range(self._discover_workers):
+            for i in range(worker_count):
                 futures.append(pool.submit(
                     _context_wrapper(self._discover_worker_loop_collect, contextvars.copy_context()),
                     worker_id=i,
@@ -259,7 +274,7 @@ class ScrapeExecutor:
         pending_discovers: list,
         pending_lock: threading.Lock,
         on_discover_complete: Callable[[], None],
-        on_fetch_tasks: Callable[[List[FetchTask]], None],
+        on_fetch_tasks: Callable[[List[FetchTask]], int],
     ) -> int:
         """Discover worker that collects FetchTasks via callback instead of routing to queues."""
         logger.info("discover_worker_started", worker_id=worker_id)
@@ -277,7 +292,6 @@ class ScrapeExecutor:
                 time.sleep(0.05)
                 continue
 
-            executed_discover = False
             try:
                 try:
                     task = host_queue_map.queues[claimed_idx].get_nowait()
@@ -302,37 +316,48 @@ class ScrapeExecutor:
                             )
                         on_discover_complete()
                     else:
-                        try:
-                            fetch_tasks = task.execute()
-                            discover_count += 1
-                            executed_discover = True
+                        with get_tracer().start_as_current_span(SpanName.DISCOVER_TASK) as span:
+                            span.set_attribute("discover.source", task.setting.source)
+                            span.set_attribute("discover.host", host)
+                            try:
+                                fetch_tasks = task.execute()
+                                discover_count += 1
+                                discovered_count = len(fetch_tasks) if fetch_tasks else 0
+                                span.set_attribute("discover.discovered_count", discovered_count)
 
-                            if fetch_tasks:
-                                on_fetch_tasks(fetch_tasks)
-                                logger.info(
-                                    "discover_produced_fetch_tasks",
+                                if fetch_tasks:
+                                    new_count = on_fetch_tasks(fetch_tasks)
+                                    span.set_attribute("discover.new_count", new_count)
+                                    span.set_attribute("discover.duplicate_count", discovered_count - new_count)
+                                    logger.info(
+                                        "discover_produced_fetch_tasks",
+                                        source=task.setting.source,
+                                        host=task.host,
+                                        count=len(fetch_tasks),
+                                    )
+                                else:
+                                    span.set_attribute("discover.new_count", 0)
+                                    span.set_attribute("discover.duplicate_count", 0)
+                            except ProviderRateLimitedError as exc:
+                                self._rate_limit_tracker.mark_exhausted(host)
+                                span.set_status(StatusCode.ERROR, "rate_limited")
+                                logger.warning(
+                                    "discover_rate_limited_host_aborted",
+                                    host=host,
                                     source=task.setting.source,
-                                    host=task.host,
-                                    count=len(fetch_tasks),
                                 )
-                        except ProviderRateLimitedError as exc:
-                            self._rate_limit_tracker.mark_exhausted(host)
-                            logger.warning(
-                                "discover_rate_limited_host_aborted",
-                                host=host,
-                                source=task.setting.source,
-                            )
-                            if self._on_discover_failed is not None:
-                                self._on_discover_failed(task, exc)
-                        finally:
-                            on_discover_complete()
+                                if self._on_discover_failed is not None:
+                                    self._on_discover_failed(task, exc)
+                            finally:
+                                on_discover_complete()
 
             finally:
-                if executed_discover:
-                    host = self._host_for_queue(host_queue_map, claimed_idx)
-                    delay = self._discover_delays.get(host, 0.0)
-                    if delay > 0:
-                        time.sleep(delay)
+                # Per-host politeness is fully owned by DomainRateLimiter now
+                # (src/infrastructure/shared/http/rate_limiter.py) — it's wired
+                # into every HttpClient call (discover AND fetch alike, whichever
+                # phase makes it), stateful for the whole run, and blocks the
+                # actual HTTP call itself rather than an executor-level guess at
+                # how long to wait. No extra cooldown needed here on top of that.
                 host_queue_map.semaphores[claimed_idx].release()
 
         logger.info("discover_worker_stopped", worker_id=worker_id, discovers=discover_count)
@@ -539,14 +564,6 @@ class ScrapeExecutor:
                             break
 
             finally:
-                # Per-host discover cooldown — hold semaphore during sleep so
-                # no other worker hits this host until cooldown expires.
-                # Only apply when a DiscoverTask was actually executed.
-                if executed_discover:
-                    host = self._host_for_queue(host_queue_map, claimed_idx)
-                    delay = self._discover_delays.get(host, 0.0)
-                    if delay > 0:
-                        time.sleep(delay)
                 host_queue_map.semaphores[claimed_idx].release()
 
         logger.info(

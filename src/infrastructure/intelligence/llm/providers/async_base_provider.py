@@ -1,0 +1,164 @@
+from abc import ABC, abstractmethod
+from typing import Optional
+
+import tenacity
+
+from src.shared.logging import get_logger
+from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
+from src.modules.intelligence.domain.value_objects.analysis_tag_group import AnalysisTagGroup
+from src.infrastructure.intelligence.llm.rate_limit import RateLimitExhausted, RateLimitKind
+from .base_provider import _NON_RETRYABLE, _TRANSLATE_NON_RETRYABLE, _REQUIRED_FIELDS, _to_str
+
+logger = get_logger(__name__)
+
+
+class AsyncBaseProvider(ABC):
+    """024-async-pipeline-refactor: async sibling of BaseProvider (untouched —
+    still the base for ClaudeProvider/GeminiProvider/OpenRouterProvider, which
+    are constructed by the untouched sync build_llm_service(), shared with the
+    out-of-scope weekly-report/translation jobs; see research.md item 3).
+
+    Mirrors BaseProvider's template-method shape exactly (retry via
+    tenacity.AsyncRetrying instead of Retrying; same validation/rate-limit-
+    classification/logging logic, reusing the pure helper constants/functions
+    from base_provider.py directly since those carry no sync/async-specific
+    state). Concrete async providers only implement _call_api/_call_api_raw.
+    """
+
+    def __init__(self, model: str) -> None:
+        self._model = model
+        self._retry = tenacity.AsyncRetrying(
+            retry=tenacity.retry_if_exception(self._is_retryable),
+            wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
+            stop=tenacity.stop_after_attempt(3),
+            reraise=True,
+        )
+        self._translate_retry = tenacity.AsyncRetrying(
+            retry=tenacity.retry_if_exception(self._is_translate_retryable),
+            wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
+            stop=tenacity.stop_after_attempt(3),
+            reraise=True,
+        )
+
+    def _classify_rate_limit(self, exc: BaseException) -> Optional[RateLimitKind]:
+        """See BaseProvider._classify_rate_limit — same contract, overridden
+        per-provider to inspect that provider's own SDK exception shape."""
+        return None
+
+    def _is_retryable(self, exc: BaseException) -> bool:
+        if isinstance(exc, _NON_RETRYABLE):
+            return False
+        return self._classify_rate_limit(exc) is not RateLimitKind.RPD
+
+    def _is_translate_retryable(self, exc: BaseException) -> bool:
+        if isinstance(exc, _TRANSLATE_NON_RETRYABLE):
+            return False
+        return self._classify_rate_limit(exc) is not RateLimitKind.RPD
+
+    @abstractmethod
+    async def _call_api(self, content: str, prompt: str) -> dict:
+        """Call the provider API and return a parsed JSON dict. Raise on any
+        failure — retry is handled by the base class."""
+        ...
+
+    @abstractmethod
+    async def _call_api_raw(self, content: str, prompt: str) -> str:
+        """Call the provider API and return raw text response. Raise on any
+        failure — retry is handled by the base class."""
+        ...
+
+    def _parse_result(self, result: dict) -> tuple[AnalysisContent, AnalysisMetadata]:
+        tag_groups = [
+            AnalysisTagGroup(
+                group_name=tg.get("group", ""),
+                tags=tg.get("tags", []),
+            )
+            for tg in result.get("tag_groups", [])
+        ]
+        analysis_content = AnalysisContent(
+            pain_points=_to_str(result.get("pain_points")),
+            insights=_to_str(result.get("insights")),
+            innovations=_to_str(result.get("innovations")),
+            summary=_to_str(result.get("summary")),
+            tag_groups=tag_groups,
+        )
+        analysis_metadata = AnalysisMetadata(
+            model_used=self._model,
+            input_tokens=result.get("_input_tokens", 0),
+            output_tokens=result.get("_output_tokens", 0),
+        )
+        return analysis_content, analysis_metadata
+
+    async def analyze(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[tuple[AnalysisContent, AnalysisMetadata]]:
+        """Analyze article content via the LLM with retry, validation, and domain mapping."""
+        try:
+            async for attempt in self._retry:
+                with attempt:
+                    result = await self._call_api(content, prompt)
+        except RateLimitExhausted:
+            raise
+        except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
+            logger.warning("provider_analyze_failed", model=self._model, error=str(e))
+            return None
+
+        if not self._validate(result):
+            logger.warning("provider_response_invalid", model=self._model, keys=list(result.keys()))
+            return None
+
+        return self._parse_result(result)
+
+    def _validate(self, result: dict) -> bool:
+        return all(f in result for f in _REQUIRED_FIELDS)
+
+    async def translate(
+        self,
+        content: str,
+        prompt: str,
+    ) -> Optional[str]:
+        """Translate content via the LLM raw-text endpoint with retry and empty-check."""
+        try:
+            async for attempt in self._translate_retry:
+                with attempt:
+                    text = await self._call_api_raw(content, prompt)
+        except RateLimitExhausted:
+            raise
+        except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
+            logger.warning("provider_translate_failed", model=self._model, error=str(e))
+            return None
+
+        if not text.strip():
+            logger.warning("provider_translate_empty", model=self._model)
+            return None
+
+        return text
+
+    async def generate(
+        self,
+        prompt: str,
+    ) -> Optional[str]:
+        """Run a one-shot generation task via the LLM raw-text endpoint with retry and empty-check."""
+        try:
+            async for attempt in self._translate_retry:
+                with attempt:
+                    text = await self._call_api_raw("", prompt)
+        except RateLimitExhausted:
+            raise
+        except Exception as e:
+            if self._classify_rate_limit(e) is RateLimitKind.RPD:
+                raise RateLimitExhausted(f"Rate limit (RPD) exhausted for {self._model}") from e
+            logger.warning("provider_generate_failed", model=self._model, error=str(e))
+            return None
+
+        if not text.strip():
+            logger.warning("provider_generate_empty", model=self._model)
+            return None
+
+        return text

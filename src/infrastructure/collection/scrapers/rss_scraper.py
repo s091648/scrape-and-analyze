@@ -101,7 +101,7 @@ class RssScraper(BaseScraper):
             content=content,
             source=job.source,
             topic_id=job.topic_id,
-            published_at=job.metadata.get("published"),
+            published_at=self._parse_published_at(job.metadata.get("published")),
             authors=[job.metadata.get("author")] if job.metadata.get("author") else [],
             extra={"author": job.metadata.get("author"), "original_source": job.source},
         )

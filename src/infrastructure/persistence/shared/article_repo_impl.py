@@ -1,6 +1,7 @@
 from typing import Optional, Set
 from uuid import UUID, uuid4
 
+from src.infrastructure.persistence.shared.article_mapper import to_article_entity, to_article_model_kwargs
 from src.shared.domain.entities import Article
 from src.shared.domain.repositories import ArticleRepository
 from src.shared.logging import get_logger
@@ -18,28 +19,19 @@ class SqlAlchemyArticleRepository(ArticleRepository):
         """Look up an article by its URL hash; returns None if not found."""
         from models.article import Article as ArticleModel
         row = self._session.query(ArticleModel).filter_by(url_hash=url_hash).first()
-        return self._to_entity(row) if row else None
+        return to_article_entity(row) if row else None
 
     def save(self, article: Article) -> Article:
         """Persist a new article and return the entity with DB-generated fields."""
         from models.article import Article as ArticleModel
         row = ArticleModel(
-            id=article.id,
-            url=article.url,
-            url_hash=article.url_hash,
-            source=article.source,
-            title=article.title,
-            content=article.content,
-            published_at=article.published_at,
-            metadata_=article.metadata or {},
-            topic_id=article.topic_id,
+            **to_article_model_kwargs(article),
             correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
-            original_source=article.original_source,
         )
         self._session.add(row)
         self._session.flush()
         logger.info("article_saved", url=article.url, article_id=str(row.id))
-        return self._to_entity(row)
+        return to_article_entity(row)
 
     def has_analysis(self, article_id: UUID) -> bool:
         """Return True if the given article already has an associated analysis."""
@@ -59,20 +51,3 @@ class SqlAlchemyArticleRepository(ArticleRepository):
             .all()
         )
         return {row.url_hash for row in rows}
-
-    @staticmethod
-    def _to_entity(row) -> Article:
-        """Convert an ORM Article row to a domain Article entity."""
-        return Article(
-            id=row.id,
-            url=row.url,
-            url_hash=row.url_hash,
-            source=row.source,
-            title=row.title,
-            content=row.content,
-            published_at=row.published_at,
-            scraped_at=row.scraped_at,
-            metadata=row.metadata_ or {},
-            topic_id=row.topic_id,
-            original_source=row.original_source,
-        )

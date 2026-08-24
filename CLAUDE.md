@@ -117,20 +117,21 @@ Assembly is in `src/bootstrap.py`: `build_collection_pipeline()` wires the full 
 
 ### Scraper Pipeline Flow
 
+`CollectionPipeline.run()` (`src/infrastructure/collection/collection_pipeline.py`) is `async def`; discover/fetch/pre-dedup stay batched and sequential (deliberately — see 024-async-pipeline-refactor's FR-003), but from Publish onward every article gets its own concurrent `asyncio.Task`, and completion is reported via two barriers instead of one:
+
 1. **Discover** — Each scraper's `discover()` returns `List[ScrapeJob]` from RSS feeds, blog listings, or ArXiv API
 2. **Pre-dedup** — Filter out URLs already analyzed (via `UrlHash`)
 3. **Fetch** — `ScrapeExecutor` runs concurrent fetches (5 workers, per-host semaphore, robots.txt respect for blogs)
-4. **Publish** — Scraped articles published as `ArticleScrapedEvent` on `InMemoryEventBus`
-5. **Process** — `ArticleScrapedHandler` → `ProcessScrapedArticleUseCase` (dedup + save)
-6. **Analyze** — `ArticleProcessedHandler` → `AnalyzeArticleUseCase` (LLM chain)
-7. **Translate** — `AnalysisCompletedHandler` auto-triggers translation for configured languages
-8. **Notify** — `PipelineCompletedEvent` triggers Telegram notifications and OTel metrics
+4. **Publish** — Each scraped article's `ArticleScrapedEvent` is published on its own fresh per-article `AsyncInMemoryEventBus`, inside its own `asyncio.Task` with its own `AsyncSession` — one article's chain never blocks another's
+5. **Process / Analyze / Translate** (concurrent, Barrier 1) — `ArticleScrapedHandler` → `ProcessScrapedArticleUseCase` (dedup + save) → `ArticleProcessedHandler` → `AnalyzeArticleUseCase` (LLM chain) → `AnalysisCompletedHandler` auto-triggers translation for configured languages. Once every article's task has *settled* (`asyncio.gather(..., return_exceptions=True)` — succeeded or permanently failed, never blocking on one slow/failed article), `TextPipelineCompletedEvent` fires, triggering search-index rebuild + cache invalidation/warmup — these only depend on text content, so they don't wait on RAG
+6. **RAG** (concurrent, Barrier 2) — `ArticleProcessedEvent` also dispatches RAG ingestion (`AsyncRagIngestionHandler`) as a detached `asyncio.Task` (`CollectionPipeline._dispatch_rag`), never awaited inline — so RAG's latency never blocks that article's own text-stage completion or any other article. Barrier 2 awaits every article's RAG task (also settle semantics) before the run is considered fully done
+7. **Notify** — Once Barrier 2 settles, `PipelineCompletedEvent` triggers Telegram notifications and OTel metrics — this is the "everything including RAG is done" signal, unchanged in meaning from before this became concurrent
 
-The scheduled runner (`src/entrypoints/cli/main.py`) adds 0-180s random startup jitter (disable with `RUN_IMMEDIATELY=1`), has a 50-min hard timeout, and handles SIGTERM/SIGINT for graceful shutdown.
+The scheduled runner (`src/entrypoints/cli/main.py`) bridges into this async pipeline via `asyncio.run()`, adds 0-180s random startup jitter (disable with `RUN_IMMEDIATELY=1`), has a 50-min hard timeout, and handles SIGTERM/SIGINT for graceful shutdown.
 
 ### LLM Provider Chain
 
-`ResilientLLMService` holds an ordered list of `ProviderHandler` objects (sorted by priority). Each pairs a provider with a `SlidingWindowStrategy` rate limiter (rpm/tpm/rpd). On `analyze()`, walks providers in priority order; falls back on `RateLimitExhausted` or any exception.
+`ResilientLLMService`/`AsyncResilientLLMService` each hold an ordered list of `ProviderHandler` objects (sorted by priority). Each pairs a provider with a `SlidingWindowStrategy` rate limiter (rpm/tpm/rpd). On `analyze()`, walks providers in priority order; falls back on `RateLimitExhausted` or any exception. The async version (used by `build_collection_pipeline()` only) additionally scans for spare capacity via a `ProviderSelector` (`src/infrastructure/intelligence/llm/rate_limit/provider_selector.py`) before dispatching, so concurrent article tasks spread across every model with headroom instead of all queuing behind the single highest-priority one — see contracts/provider-selector-port.md under `specs/024-async-pipeline-refactor/`.
 
 **Provider config is DB-driven, not a TOML file** — there is no `providers.toml` in this repo; a prior file-based config was superseded by the `llm_providers` table (`models/llm_provider.py`) in migration `16_add_llm_providers.py`. `shared/llm_provider.py::load_active_providers()` / `load_active_embedding_providers()` / `load_active_multimodal_provider()` load active rows filtered by `type` (`'llm'` / `'embedding'` / `'multimodal'`) and `is_active=True`, ordered by `priority`; `src/bootstrap.py::build_llm_service()` and the weekly-report image pipeline consume these directly from the DB on every run — no config file, no redeploy needed to change a provider, model, or priority. Managed at runtime via `backend/routers/llm_providers.py` (full CRUD + `/reorder`, all `require_admin`) and the `/admin/llm-providers` dashboard page.
 

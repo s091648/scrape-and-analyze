@@ -84,6 +84,7 @@ class LogLevel(StrEnum):
 class SpanName(StrEnum):
     SCRAPER_RUN = "scraper.run"
     PIPELINE_DISCOVER = "pipeline.discover"
+    DISCOVER_TASK = "discover.task"
     PIPELINE_FETCH = "pipeline.fetch"
     ARTICLE_PIPELINE = "article.pipeline"
     ARTICLE_SCRAPED_HANDLE = "article.scraped.handle"

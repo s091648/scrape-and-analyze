@@ -4,6 +4,9 @@ from uuid import UUID
 
 from sqlalchemy import text
 
+from src.infrastructure.persistence.intelligence.tag_repo_queries import (
+    find_similar_tags_stmt, update_tag_embedding_stmt,
+)
 from src.modules.intelligence.domain.repositories.tag_repository import TagRepository, TagData
 from src.modules.intelligence.domain.entities.tag_normalization_suggestion import TagNormalizationSuggestion
 from src.shared.logging import get_logger
@@ -40,24 +43,8 @@ class SqlAlchemyTagRepository(TagRepository):
         """Find tags with cosine similarity above threshold using pgvector nearest-neighbor search."""
         if topic_id is None:
             return []
-        vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
-        rows = self._session.execute(text("""
-            SELECT t.id, t.name, tgd.name AS group_name,
-                   1 - (t.embedding <=> CAST(:vec AS vector)) AS similarity
-            FROM tags t
-            JOIN tag_group_definitions tgd ON tgd.id = t.tag_group_id
-            WHERE tgd.name = :group_name
-              AND tgd.topic_id = :topic_id
-              AND t.embedding IS NOT NULL
-              AND (1 - (t.embedding <=> CAST(:vec AS vector))) >= :threshold
-            ORDER BY t.embedding <=> CAST(:vec AS vector)
-            LIMIT 5
-        """), {
-            "vec": vec_str,
-            "group_name": group_name,
-            "topic_id": str(topic_id),
-            "threshold": threshold,
-        }).fetchall()
+        stmt, params = find_similar_tags_stmt(embedding, group_name, topic_id, threshold)
+        rows = self._session.execute(stmt, params).fetchall()
 
         return [
             (TagData(id=row[0], name=row[1], tag_group_name=row[2]), float(row[3]))
@@ -68,7 +55,6 @@ class SqlAlchemyTagRepository(TagRepository):
         """Create or update a tag with its embedding vector under the given group and topic."""
         from models.tag import Tag
         from models.tag_group import TagGroupDefinition
-        vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
         if topic_id is None:
             raise ValueError("topic_id is required to save a tag")
@@ -87,9 +73,8 @@ class SqlAlchemyTagRepository(TagRepository):
             self._session.add(tag)
             self._session.flush()
 
-        self._session.execute(text(
-            "UPDATE tags SET embedding = CAST(:vec AS vector) WHERE id = :id"
-        ), {"vec": vec_str, "id": str(tag.id)})
+        stmt, params = update_tag_embedding_stmt(tag.id, embedding)
+        self._session.execute(stmt, params)
 
         return TagData(id=tag.id, name=tag.name, tag_group_name=tag_group_name, embedding=embedding)
 

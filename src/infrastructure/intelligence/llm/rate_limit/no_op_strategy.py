@@ -14,3 +14,7 @@ class NoOpStrategy(QuotaStrategy):
     def update_batch_size(self, batch_size: int) -> None:
         """No-op: ignore batch size updates."""
         ...
+
+    def has_capacity(self, estimated_tokens: int = 0) -> bool:
+        """No-op: always has capacity."""
+        return True

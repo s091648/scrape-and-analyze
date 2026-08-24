@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Protocol
 from uuid import UUID
 
 from src.modules.intelligence.domain.value_objects.analyses_translation_content import ArticleBodyTranslationContent
@@ -31,4 +31,21 @@ class ArticleTranslationRepository(ABC):
 
         Each element is a dict with keys: article_id, title, content.
         """
+        ...
+
+
+class AsyncArticleTranslationRepository(Protocol):
+    """024-async-pipeline-refactor: async sibling. Covers save/exists/find_by_* —
+    what TranslateArticleBodyUseCase calls. find_articles_without_translation
+    is only used by the out-of-scope standalone translate CLI job."""
+
+    async def save(self, article_id: UUID, language: str, title: str, content: Optional[str]) -> None:
+        ...
+
+    async def find_by_article_id_and_language(
+        self, article_id: UUID, language: str
+    ) -> Optional[ArticleBodyTranslationContent]:
+        ...
+
+    async def exists(self, article_id: UUID, language: str) -> bool:
         ...

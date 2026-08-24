@@ -37,6 +37,21 @@ scraper = [
     "pymupdf>=1.24",
     "chatbot-plugin-sdk",
     "fastembed>=0.3",
+    # 024-async-pipeline-refactor: CollectionPipeline's async DB session
+    # (get_async_sessionmaker()) imports asyncpg directly for
+    # create_async_engine("postgresql+asyncpg://..."). Already a transitive
+    # dependency via chatbot-plugin-sdk's AsyncPgBackend, but declared here
+    # explicitly since this pipeline's own code now imports it too.
+    "asyncpg>=0.29",
+    # 024-async-pipeline-refactor: asyncpg (unlike the old sync psycopg2
+    # driver) requires a native datetime for TIMESTAMP WITH TIME ZONE bind
+    # params and raises DataError on a raw string — surfaced a pre-existing
+    # bug where every scraper passed a client's raw published-date string
+    # straight through to ScrapedArticle.published_at (typed datetime) without
+    # parsing it. BaseScraper._parse_published_at() now normalizes it via
+    # dateutil, already a transitive dependency (feedparser) but declared
+    # explicitly since scraper code now imports it directly too.
+    "python-dateutil>=2.9",
 ]
 # LLM provider chain 共用依賴 — worker(analyze/translate) 與 weekly-report
 # (summary/translate/image) 都會呼叫 src.bootstrap.build_llm_service()，
@@ -47,6 +62,9 @@ llm = [
     "anthropic",
     "tenacity",
     "huggingface-hub>=0.24",
+    # 024-async-pipeline-refactor: AsyncOpenRouterProvider replaces requests.post
+    # with httpx.AsyncClient. Previously only declared in backend/dev groups.
+    "httpx",
 ]
 # 外部 HTTP client 共用依賴 — worker 的 scrape http client、
 # refresh-metrics 的 OpenAlex/Semantic Scholar client、
@@ -85,6 +103,8 @@ observability = [
     "opentelemetry-exporter-otlp-proto-http",
     "opentelemetry-instrumentation",
     "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-sqlalchemy",
+    "opentelemetry-instrumentation-redis",
 ]
 # 本地開發與測試工具
 dev = [

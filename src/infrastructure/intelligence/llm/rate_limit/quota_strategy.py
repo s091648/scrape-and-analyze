@@ -17,3 +17,11 @@ class QuotaStrategy(ABC):
     def update_batch_size(self, batch_size: int) -> None:
         """Inform the strategy of the current batch size for better estimation."""
         ...
+
+    @abstractmethod
+    def has_capacity(self, estimated_tokens: int = 0) -> bool:
+        """Non-blocking, side-effect-free check: True if a request could be
+        dispatched right now without waiting (024-async-pipeline-refactor,
+        ProviderSelector port — see contracts/provider-selector-port.md).
+        Never reserves capacity; only `acquire()` does that."""
+        ...
