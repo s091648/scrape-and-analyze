@@ -320,6 +320,20 @@ export default defineConfig({
           { text: 'Contract: Search API', link: '/specs/023-article-search/contracts/search-api' },
         ],
       },
+      {
+        text: '024 · Async Pipeline Refactor',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/024-async-pipeline-refactor/spec' },
+          { text: 'Plan', link: '/specs/024-async-pipeline-refactor/plan' },
+          { text: 'Data Model', link: '/specs/024-async-pipeline-refactor/data-model' },
+          { text: 'Tasks', link: '/specs/024-async-pipeline-refactor/tasks' },
+          { text: 'Requirements', link: '/specs/024-async-pipeline-refactor/checklists/requirements' },
+          { text: 'Contract: Async Repository Ports', link: '/specs/024-async-pipeline-refactor/contracts/async-repository-ports' },
+          { text: 'Contract: Event Bus Port', link: '/specs/024-async-pipeline-refactor/contracts/event-bus-port' },
+          { text: 'Contract: Provider Selector Port', link: '/specs/024-async-pipeline-refactor/contracts/provider-selector-port' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },
