@@ -11,6 +11,8 @@ import {
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
+import { StageCard } from './stage-card'
+import { HttpMethodBadge, splitMethodSpanName, DbSystemBadge } from './log-detail-dialog'
 import { cn } from '@/lib/utils'
 
 // ── Waterfall row builder ─────────────────────────────────────────────────────
@@ -83,6 +85,12 @@ export function RunWaterfallDialog({
   const tree  = buildSpanTree(spans)
   const allRows = useMemo(() => buildAllRows(spans, tree), [spans, tree])
 
+  // Prototype: any non-pipeline/non-topic row can be clicked to inspect its own
+  // span attributes via StageCard — reuses the same component ArticleWorkflowDialog
+  // renders per-stage cards with, just standalone instead of chained. No percentile
+  // thresholds fetched here yet (that's ArticleWorkflowDialog-only for now).
+  const [selectedSpan, setSelectedSpan] = useState<OtlpSpan | null>(null)
+
   // Default: collapse spans at depth >= 1 (second level and deeper)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     const initial = new Set<string>()
@@ -145,8 +153,21 @@ export function RunWaterfallDialog({
   }
 
   return (
+    <>
+    {selectedSpan && (
+      <Dialog open onOpenChange={v => { if (!v) setSelectedSpan(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm">
+              {selectedSpan.name.split('.').slice(-2).join('.')}
+            </DialogTitle>
+          </DialogHeader>
+          <StageCard span={selectedSpan} className="w-full" />
+        </DialogContent>
+      </Dialog>
+    )}
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-[90vw] sm:max-w-[90vw] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="font-mono text-sm">
             {t('admin.waterfallDialogTitle', { id: traceId.slice(0, 16) })}
@@ -158,7 +179,7 @@ export function RunWaterfallDialog({
           </p>
         </DialogHeader>
 
-        <div className="themed-scrollbar overflow-auto flex-1">
+        <div className="themed-scrollbar overflow-auto flex-1 min-h-0">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 bg-background border-b border-border">
               <tr>
@@ -171,15 +192,22 @@ export function RunWaterfallDialog({
               {rows.map(({ span, depth, hasChildren }) => {
                 const isPipeline = span.name === SpanName.ARTICLE_PIPELINE
                 const isTopic = span.name === SpanName.WEEKLY_REPORT_TOPIC
+                const isDiscoverTask = span.name === SpanName.DISCOVER_TASK
                 const durationMs = spanDurationMs(span)
                 const error = isErrorSpan(span)
                 const isCollapsed = collapsed.has(span.spanId)
+                const methodSpan = !isPipeline && !isTopic && !isDiscoverTask ? splitMethodSpanName(span.name) : null
+                const dbSystem = !isPipeline && !isTopic && !isDiscoverTask ? (getAttr(span, 'db.system') as string | undefined) : undefined
                 const label = isPipeline
                   ? `↳ ${(getAttr(span, 'article.url') as string | undefined)?.split('/').slice(-2).join('/') ?? 'article'}`
                   : isTopic
                   ? `↳ ${(getAttr(span, 'topic.name') as string | undefined) ?? 'topic'}`
+                  : isDiscoverTask
+                  ? `↳ ${(getAttr(span, 'discover.source') as string | undefined) ?? 'source'}`
+                  : methodSpan
+                  ? methodSpan.path
                   : span.name.split('.').slice(-2).join('.')
-                const isClickable = (isPipeline && !!onSelectArticle) || (isTopic && !!onSelectTopic)
+                const isClickable = isPipeline ? !!onSelectArticle : isTopic ? !!onSelectTopic : true
 
                 return (
                   <tr
@@ -193,6 +221,8 @@ export function RunWaterfallDialog({
                         onSelectArticle(span, findStageSpans(tree, span.spanId))
                       } else if (isTopic && onSelectTopic) {
                         onSelectTopic(span, findStageSpans(tree, span.spanId))
+                      } else if (!isPipeline && !isTopic) {
+                        setSelectedSpan(span)
                       }
                     }}
                   >
@@ -214,6 +244,8 @@ export function RunWaterfallDialog({
                           </button>
                         )}
                         {!hasChildren && <span className="inline-block w-3.5" />}
+                        {methodSpan && <HttpMethodBadge method={methodSpan.method} />}
+                        {dbSystem && <DbSystemBadge system={dbSystem} />}
                         {label}
                       </span>
                     </td>
@@ -231,5 +263,6 @@ export function RunWaterfallDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

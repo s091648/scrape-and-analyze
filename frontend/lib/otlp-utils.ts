@@ -1,4 +1,4 @@
-import type { OtlpTraceResponse, OtlpSpan, OtlpAttribute, OtlpAttributeValue, OtlpResourceSpans } from './api/grafana'
+import type { OtlpTraceResponse, OtlpSpan, OtlpAttribute, OtlpAttributeValue, OtlpResourceSpans, TempoTrace } from './api/grafana'
 import { SpanName } from './observability-constants'
 
 function getBatches(trace: OtlpTraceResponse): OtlpResourceSpans[] {
@@ -12,14 +12,16 @@ export function flattenSpans(trace: OtlpTraceResponse): OtlpSpan[] {
 }
 
 export function getAttr(span: OtlpSpan, key: string): string | boolean | number | undefined {
-  const attr = span.attributes.find(a => a.key === key)
+  // Tempo omits the `attributes` field entirely for a span with none (rather
+  // than returning an empty array), despite OtlpSpan typing it as required.
+  const attr = span.attributes?.find(a => a.key === key)
   if (!attr) return undefined
   return resolveAttrValue(attr.value)
 }
 
 export function getResourceAttr(trace: OtlpTraceResponse, key: string): string | undefined {
   for (const batch of getBatches(trace)) {
-    const attr = batch.resource.attributes.find(a => a.key === key)
+    const attr = batch.resource.attributes?.find(a => a.key === key)
     if (attr?.value?.stringValue !== undefined) return attr.value.stringValue
   }
   return undefined
@@ -86,6 +88,21 @@ export function findStageSpans(tree: Map<string, OtlpSpan[]>, pipelineSpanId: st
   return result.sort(
     (a, b) => Number(BigInt(a.span.startTimeUnixNano) - BigInt(b.span.startTimeUnixNano))
   )
+}
+
+/**
+ * Reads deployment.environment off a Tempo /api/search result trace (the lightweight
+ * TempoTrace shape — spanSet/spanSets, not a full span tree). Requires the TraceQL query to
+ * have used `| select(resource.deployment.environment)` for Tempo to populate this attribute
+ * on the search result at all — see traceQLServiceMatch() in observability-constants.ts.
+ */
+export function extractTraceSearchEnvironment(trace: TempoTrace): string | undefined {
+  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
+  const attrs = spanSet?.attributes ?? spanSet?.spans?.[0]?.attributes ?? []
+  const attr = attrs.find(
+    a => a.key === 'deployment.environment' || a.key === 'resource.deployment.environment'
+  )
+  return attr?.value?.stringValue
 }
 
 export function extractEnvironmentFromTrace(trace: OtlpTraceResponse): string | undefined {

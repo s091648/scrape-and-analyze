@@ -235,7 +235,7 @@ describe('StageCard known span labels', () => {
     ['article.tag_normalization.handle', 'admin.stageLabel_tagNorm'],
     ['article.analysis_completed.handle', 'admin.stageLabel_analysisDone'],
     ['article.translate.handle', 'admin.stageLabel_translate'],
-    ['scraper.pipeline_completed.handle', 'admin.stageLabel_pipelineCompleted'],
+    ['scraper.pipeline_completed.metrics_handle', 'admin.stageLabel_pipelineCompleted'],
   ])('renders correct i18n key for %s', async (spanName, expectedKey) => {
     const { StageCard } = await import('@/components/features/monitoring/stage-card')
     render(<StageCard span={makeSpan({ name: spanName })} />)

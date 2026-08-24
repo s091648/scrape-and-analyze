@@ -68,6 +68,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.dev
+      args:
+        MAXMIND_LICENSE_KEY: ${MAXMIND_LICENSE_KEY}
     volumes:
       - ./src:/app/src       # live-reload model changes
       - ./backend:/app/backend  # live-reload API changes

@@ -176,7 +176,7 @@ export function ArticleWorkflowDialog({
     <>
     <LogDetailDialog entry={logEntry} onClose={() => setLogEntry(null)} />
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-5xl w-full max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-[90vw] sm:max-w-[90vw] w-full max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="text-sm truncate">
             {title ?? url ?? t('admin.articlePipelineTitle')}
@@ -187,7 +187,7 @@ export function ArticleWorkflowDialog({
           </p>
         </DialogHeader>
 
-        <div ref={scrollContainerRef} className="themed-scrollbar overflow-auto flex-1 pb-2">
+        <div ref={scrollContainerRef} className="themed-scrollbar overflow-auto flex-1 min-h-0 pb-2">
           <div className="flex flex-col items-stretch">
             {stageSpans.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4">

@@ -270,7 +270,7 @@ describe('TracesTable expand/collapse', () => {
       traces: [{
         traceID: 'trace001',
         rootServiceName: 'svc',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 1000,
       }],
@@ -284,6 +284,43 @@ describe('TracesTable expand/collapse', () => {
     await waitFor(() => expect(screen.getByLabelText('Collapse')).toBeDefined())
     fireEvent.click(screen.getByLabelText('Collapse'))
     await waitFor(() => expect(screen.getByLabelText('Expand')).toBeDefined())
+  })
+
+  it('does not render an expand button for a non-scraper/non-weekly-report trace (e.g. a backend API request)', async () => {
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace777',
+        rootServiceName: 'scrape-analyzer-backend',
+        rootTraceName: 'GET /tag-groups',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 130,
+      }],
+    }
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('trace777…')).toBeDefined())
+    expect(screen.queryByLabelText('Expand')).toBeNull()
+    expect(screen.queryByText('admin.noArticlesInRun')).toBeNull()
+  })
+
+  it('renders a FastAPI-style method badge for a backend API request trace', async () => {
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace778',
+        rootServiceName: 'scrape-analyzer-backend',
+        rootTraceName: 'GET /tag-groups',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 130,
+      }],
+    }
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('GET')).toBeDefined())
+    expect(screen.getByText('/tag-groups')).toBeDefined()
   })
 })
 
@@ -301,7 +338,7 @@ describe('TracesTable waterfall dialog', () => {
       traces: [{
         traceID: 'trace999',
         rootServiceName: 'backend',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 500,
       }],
@@ -333,7 +370,7 @@ describe('TracesTable waterfall dialog', () => {
       traces: [{
         traceID: 'trace888',
         rootServiceName: 'svc',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 100,
       }],
