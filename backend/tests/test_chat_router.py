@@ -37,21 +37,23 @@ def guest_headers(guest_id="test-guest-id"):
 def test_chat_completions_returns_streaming_response():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=make_stream_chunks("test reply"),
-        ),
-    ):
-        response = client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers=guest_headers(),
-        )
+    # `with TestClient(app) as client:` runs the ASGI lifespan (backend/main.py),
+    # which is what creates app.state.http_client that ChatCompletionService needs.
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=make_stream_chunks("test reply"),
+            ),
+        ):
+            response = client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers=guest_headers(),
+            )
 
     assert response.status_code == 200
     assert "text/event-stream" in response.headers["content-type"]
@@ -93,22 +95,22 @@ def test_chat_completions_admin_bypasses_rate_limit():
     from backend.main import app
     from backend.tests.conftest import make_admin_token
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
     token = make_admin_token()
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=make_stream_chunks(),
-        ),
-    ):
-        response = client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=make_stream_chunks(),
+            ),
+        ):
+            response = client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers={"Authorization": f"Bearer {token}"},
+            )
 
     assert response.status_code == 200
     mock_redis.incr.assert_not_called()
@@ -117,7 +119,6 @@ def test_chat_completions_admin_bypasses_rate_limit():
 def test_chat_completions_x_topic_id_forwarded_to_stream():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
     captured_topic_id = []
 
@@ -125,18 +126,19 @@ def test_chat_completions_x_topic_id_forwarded_to_stream():
         captured_topic_id.append(topic_id)
         yield b"data: [DONE]\n\n"
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=capturing_stream,
-        ),
-    ):
-        client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers={**guest_headers(), "X-Topic-Id": "topic-uuid-123"},
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=capturing_stream,
+            ),
+        ):
+            client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers={**guest_headers(), "X-Topic-Id": "topic-uuid-123"},
+            )
 
     assert captured_topic_id == ["topic-uuid-123"]
 
@@ -144,7 +146,6 @@ def test_chat_completions_x_topic_id_forwarded_to_stream():
 def test_chat_completions_x_pinned_article_ids_forwarded_to_stream():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
     captured_pinned = []
 
@@ -152,18 +153,19 @@ def test_chat_completions_x_pinned_article_ids_forwarded_to_stream():
         captured_pinned.append(pinned_article_ids)
         yield b"data: [DONE]\n\n"
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=capturing_stream,
-        ),
-    ):
-        client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers={**guest_headers(), "X-Pinned-Article-Ids": "uuid-1,uuid-2,uuid-3"},
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=capturing_stream,
+            ),
+        ):
+            client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers={**guest_headers(), "X-Pinned-Article-Ids": "uuid-1,uuid-2,uuid-3"},
+            )
 
     assert captured_pinned == [["uuid-1", "uuid-2", "uuid-3"]]
 
@@ -171,7 +173,6 @@ def test_chat_completions_x_pinned_article_ids_forwarded_to_stream():
 def test_chat_completions_x_pinned_article_ids_trims_whitespace():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
     captured_pinned = []
 
@@ -179,18 +180,19 @@ def test_chat_completions_x_pinned_article_ids_trims_whitespace():
         captured_pinned.append(pinned_article_ids)
         yield b"data: [DONE]\n\n"
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=capturing_stream,
-        ),
-    ):
-        client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers={**guest_headers(), "X-Pinned-Article-Ids": " uuid-1 , uuid-2 "},
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=capturing_stream,
+            ),
+        ):
+            client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers={**guest_headers(), "X-Pinned-Article-Ids": " uuid-1 , uuid-2 "},
+            )
 
     assert captured_pinned == [["uuid-1", "uuid-2"]]
 
@@ -198,7 +200,6 @@ def test_chat_completions_x_pinned_article_ids_trims_whitespace():
 def test_chat_completions_no_x_pinned_article_ids_passes_none():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
     captured_pinned = []
 
@@ -206,18 +207,19 @@ def test_chat_completions_no_x_pinned_article_ids_passes_none():
         captured_pinned.append(pinned_article_ids)
         yield b"data: [DONE]\n\n"
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=capturing_stream,
-        ),
-    ):
-        client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers=guest_headers(),
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=capturing_stream,
+            ),
+        ):
+            client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers=guest_headers(),
+            )
 
     assert captured_pinned == [None]
 
@@ -225,21 +227,21 @@ def test_chat_completions_no_x_pinned_article_ids_passes_none():
 def test_guest_token_guest_id_used_as_rate_limit_key():
     from backend.main import app
 
-    client = TestClient(app)
     mock_redis = make_mock_redis()
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch(
-            "backend.routers.chat.ChatCompletionService.stream_completions",
-            new=make_stream_chunks(),
-        ),
-    ):
-        client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers=guest_headers(guest_id="known-guest-id"),
-        )
+    with TestClient(app) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch(
+                "backend.routers.chat.ChatCompletionService.stream_completions",
+                new=make_stream_chunks(),
+            ),
+        ):
+            client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers=guest_headers(guest_id="known-guest-id"),
+            )
 
     key_used = mock_redis.incr.call_args[0][0]
     assert "known-guest-id" in key_used
@@ -248,22 +250,22 @@ def test_guest_token_guest_id_used_as_rate_limit_key():
 def test_stream_exception_yields_error_event_before_done():
     from backend.main import app
 
-    client = TestClient(app, raise_server_exceptions=False)
     mock_redis = make_mock_redis()
 
     async def failing_stream(self, messages, topic_id=None, pinned_article_ids=None):
         raise RuntimeError("upstream failure")
         yield
 
-    with (
-        patch("backend.routers.chat._make_redis", return_value=mock_redis),
-        patch("backend.routers.chat.ChatCompletionService.stream_completions", new=failing_stream),
-    ):
-        response = client.post(
-            "/chat/completions",
-            json={"messages": [{"role": "user", "content": "hello"}]},
-            headers=guest_headers(),
-        )
+    with TestClient(app, raise_server_exceptions=False) as client:
+        with (
+            patch("backend.routers.chat._make_redis", return_value=mock_redis),
+            patch("backend.routers.chat.ChatCompletionService.stream_completions", new=failing_stream),
+        ):
+            response = client.post(
+                "/chat/completions",
+                json={"messages": [{"role": "user", "content": "hello"}]},
+                headers=guest_headers(),
+            )
 
     assert response.status_code == 200
     body = response.content.decode()

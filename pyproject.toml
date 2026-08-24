@@ -105,6 +105,7 @@ observability = [
     "opentelemetry-instrumentation-fastapi",
     "opentelemetry-instrumentation-sqlalchemy",
     "opentelemetry-instrumentation-redis",
+    "opentelemetry-instrumentation-httpx",
 ]
 # 本地開發與測試工具
 dev = [

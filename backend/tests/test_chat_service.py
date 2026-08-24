@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
@@ -161,7 +161,6 @@ async def test_get_quota_reads_correct_key(rate_svc, mock_redis):
 
 @pytest.mark.asyncio
 async def test_stream_completions_yields_response_bytes():
-    svc = ChatCompletionService()
     chunks = [b"data: chunk1\n\n", b"data: [DONE]\n\n"]
 
     mock_response = MagicMock()
@@ -181,23 +180,18 @@ async def test_stream_completions_yields_response_bytes():
     mock_client = MagicMock()
     mock_client.stream = MagicMock(return_value=mock_stream_cm)
 
-    mock_client_cm = MagicMock()
-    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_client_cm):
-        result = []
-        async for chunk in svc.stream_completions(
-            messages=[{"role": "user", "content": "hello"}]
-        ):
-            result.append(chunk)
+    svc = ChatCompletionService(mock_client)
+    result = []
+    async for chunk in svc.stream_completions(
+        messages=[{"role": "user", "content": "hello"}]
+    ):
+        result.append(chunk)
 
     assert result == chunks
 
 
 @pytest.mark.asyncio
 async def test_stream_completions_includes_topic_id_in_body():
-    svc = ChatCompletionService()
     captured_body = {}
 
     mock_response = MagicMock()
@@ -221,16 +215,12 @@ async def test_stream_completions_includes_topic_id_in_body():
     mock_client = MagicMock()
     mock_client.stream = _stream
 
-    mock_client_cm = MagicMock()
-    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_client_cm):
-        async for _ in svc.stream_completions(
-            messages=[{"role": "user", "content": "hi"}],
-            topic_id="topic-xyz",
-        ):
-            pass
+    svc = ChatCompletionService(mock_client)
+    async for _ in svc.stream_completions(
+        messages=[{"role": "user", "content": "hi"}],
+        topic_id="topic-xyz",
+    ):
+        pass
 
     assert captured_body.get("topic_id") == "topic-xyz"
     assert captured_body.get("stream") is True
@@ -238,7 +228,6 @@ async def test_stream_completions_includes_topic_id_in_body():
 
 @pytest.mark.asyncio
 async def test_stream_completions_omits_topic_id_when_none():
-    svc = ChatCompletionService()
     captured_body = {}
 
     mock_response = MagicMock()
@@ -262,16 +251,12 @@ async def test_stream_completions_omits_topic_id_when_none():
     mock_client = MagicMock()
     mock_client.stream = _stream
 
-    mock_client_cm = MagicMock()
-    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_client_cm):
-        async for _ in svc.stream_completions(
-            messages=[{"role": "user", "content": "hi"}],
-            topic_id=None,
-        ):
-            pass
+    svc = ChatCompletionService(mock_client)
+    async for _ in svc.stream_completions(
+        messages=[{"role": "user", "content": "hi"}],
+        topic_id=None,
+    ):
+        pass
 
     assert "topic_id" not in captured_body
 
@@ -280,7 +265,7 @@ async def test_stream_completions_omits_topic_id_when_none():
 
 
 def _make_stream_mock():
-    """Returns (mock_client_cm, captured_body) — captured_body is filled after stream() runs."""
+    """Returns (mock_client, captured_body) — captured_body is filled after stream() runs."""
     captured_body: dict = {}
 
     mock_response = MagicMock()
@@ -304,53 +289,46 @@ def _make_stream_mock():
     mock_client = MagicMock()
     mock_client.stream = _stream
 
-    mock_client_cm = MagicMock()
-    mock_client_cm.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client_cm.__aexit__ = AsyncMock(return_value=False)
-
-    return mock_client_cm, captured_body
+    return mock_client, captured_body
 
 
 @pytest.mark.asyncio
 async def test_stream_completions_includes_pinned_article_ids_in_body():
-    svc = ChatCompletionService()
-    mock_cm, captured = _make_stream_mock()
+    mock_client, captured = _make_stream_mock()
+    svc = ChatCompletionService(mock_client)
 
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
-        async for _ in svc.stream_completions(
-            messages=[{"role": "user", "content": "hi"}],
-            pinned_article_ids=["uuid-1", "uuid-2"],
-        ):
-            pass
+    async for _ in svc.stream_completions(
+        messages=[{"role": "user", "content": "hi"}],
+        pinned_article_ids=["uuid-1", "uuid-2"],
+    ):
+        pass
 
     assert captured.get("pinned_article_ids") == ["uuid-1", "uuid-2"]
 
 
 @pytest.mark.asyncio
 async def test_stream_completions_omits_pinned_article_ids_when_none():
-    svc = ChatCompletionService()
-    mock_cm, captured = _make_stream_mock()
+    mock_client, captured = _make_stream_mock()
+    svc = ChatCompletionService(mock_client)
 
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
-        async for _ in svc.stream_completions(
-            messages=[{"role": "user", "content": "hi"}],
-            pinned_article_ids=None,
-        ):
-            pass
+    async for _ in svc.stream_completions(
+        messages=[{"role": "user", "content": "hi"}],
+        pinned_article_ids=None,
+    ):
+        pass
 
     assert "pinned_article_ids" not in captured
 
 
 @pytest.mark.asyncio
 async def test_stream_completions_omits_pinned_article_ids_when_empty_list():
-    svc = ChatCompletionService()
-    mock_cm, captured = _make_stream_mock()
+    mock_client, captured = _make_stream_mock()
+    svc = ChatCompletionService(mock_client)
 
-    with patch("backend.services.chat_service.httpx.AsyncClient", return_value=mock_cm):
-        async for _ in svc.stream_completions(
-            messages=[{"role": "user", "content": "hi"}],
-            pinned_article_ids=[],
-        ):
-            pass
+    async for _ in svc.stream_completions(
+        messages=[{"role": "user", "content": "hi"}],
+        pinned_article_ids=[],
+    ):
+        pass
 
     assert "pinned_article_ids" not in captured
