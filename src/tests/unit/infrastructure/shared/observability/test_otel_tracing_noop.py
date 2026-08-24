@@ -1,6 +1,6 @@
 """Tests for OTel tracing no-op fallback and span lifecycle."""
 import importlib
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 
 def test_tracer_is_noop_without_env(monkeypatch):
@@ -38,9 +38,9 @@ def test_scraper_run_span_created_with_attributes():
          patch("src.infrastructure.shared.observability.shutdown_tracing"), \
          patch("src.infrastructure.shared.observability.get_tracer", return_value=mock_tracer), \
          patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}), \
-         patch("src.bootstrap.build_collection_pipeline") as mock_build:
+         patch("src.bootstrap.build_collection_pipeline", new_callable=AsyncMock) as mock_build:
         mock_pipeline = MagicMock()
-        mock_pipeline.run.return_value = None
+        mock_pipeline.run = AsyncMock(return_value=None)
         mock_pipeline_stats = MagicMock()
         mock_pipeline_stats.get_results.return_value = []
         mock_build.return_value = (mock_pipeline, mock_pipeline_stats)
@@ -66,9 +66,9 @@ def test_span_status_set_on_exception():
          patch("src.infrastructure.shared.observability.shutdown_tracing"), \
          patch("src.infrastructure.shared.observability.get_tracer", return_value=mock_tracer), \
          patch.dict("os.environ", {"RUN_IMMEDIATELY": "1"}), \
-         patch("src.bootstrap.build_collection_pipeline") as mock_build:
+         patch("src.bootstrap.build_collection_pipeline", new_callable=AsyncMock) as mock_build:
         mock_pipeline = MagicMock()
-        mock_pipeline.run.side_effect = RuntimeError("boom")
+        mock_pipeline.run = AsyncMock(side_effect=RuntimeError("boom"))
         mock_pipeline_stats = MagicMock()
         mock_pipeline_stats.get_results.return_value = []
         mock_build.return_value = (mock_pipeline, mock_pipeline_stats)

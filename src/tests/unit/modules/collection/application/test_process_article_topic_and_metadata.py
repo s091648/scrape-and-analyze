@@ -1,5 +1,8 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 from uuid import uuid4
+
+import pytest
+
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.shared.domain.entities import Article
 
@@ -17,14 +20,15 @@ def _make_arxiv_event(topic_id=None):
     )
 
 
-def test_process_uc_builds_article_with_topic_id():
+@pytest.mark.asyncio
+async def test_process_uc_builds_article_with_topic_id():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.domain.services import AsyncDedupService
 
     topic_id = uuid4()
     event = _make_arxiv_event(topic_id=topic_id)
 
-    article_repo = MagicMock()
+    article_repo = AsyncMock()
     article_repo.find_by_url_hash.return_value = None
     saved = Article(
         url=event.url, url_hash="a" * 64,
@@ -33,33 +37,34 @@ def test_process_uc_builds_article_with_topic_id():
     )
     article_repo.save.return_value = saved
 
-    dedup = DedupService(article_repo=article_repo)
+    dedup = AsyncDedupService(article_repo=article_repo)
 
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
         dedup_service=dedup,
     )
-    uc.execute(event)
+    await uc.execute(event)
 
     saved_article = article_repo.save.call_args[0][0]
     assert saved_article.topic_id == topic_id
     assert saved_article.source == "arxiv"
 
 
-def test_process_uc_builds_article_with_metadata():
+@pytest.mark.asyncio
+async def test_process_uc_builds_article_with_metadata():
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase
-    from src.modules.collection.domain.services import DedupService
+    from src.modules.collection.domain.services import AsyncDedupService
 
     event = _make_arxiv_event()
-    article_repo = MagicMock()
+    article_repo = AsyncMock()
     article_repo.find_by_url_hash.return_value = None
-    article_repo.save.return_value = MagicMock()
+    article_repo.save.return_value = AsyncMock()
 
     uc = ProcessScrapedArticleUseCase(
         article_repo=article_repo,
-        dedup_service=DedupService(article_repo=article_repo),
+        dedup_service=AsyncDedupService(article_repo=article_repo),
     )
-    uc.execute(event)
+    await uc.execute(event)
 
     saved = article_repo.save.call_args[0][0]
     assert saved.metadata["authors"] == ["Alice"]

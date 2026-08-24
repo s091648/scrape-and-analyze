@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -21,17 +21,19 @@ def _make_event():
     )
 
 
-def test_handle_publishes_warmup_signal():
+@pytest.mark.asyncio
+async def test_handle_publishes_warmup_signal():
     """020-redis-caching-layer follow-up: warm-up is now a Redis Pub/Sub signal to backend's
     own listener, not an HTTP self-call to backend's endpoints."""
     mock_cache = MagicMock()
 
-    CacheWarmupHandler(mock_cache).handle(_make_event())
+    await CacheWarmupHandler(mock_cache).handle(_make_event())
 
     mock_cache.publish_warmup_signal.assert_called_once_with(reason="scraper_pipeline")
 
 
-def test_handle_relies_on_cache_gateway_never_raising():
+@pytest.mark.asyncio
+async def test_handle_relies_on_cache_gateway_never_raising():
     """The handler itself adds no try/except — it trusts CacheGateway's "never raises"
     contract for publish_warmup_signal(), the same posture CacheInvalidationHandler takes
     for bump_version(). A fake that violates the contract propagates, by design."""
@@ -39,4 +41,4 @@ def test_handle_relies_on_cache_gateway_never_raising():
     mock_cache.publish_warmup_signal.side_effect = Exception("redis unreachable")
 
     with pytest.raises(Exception, match="redis unreachable"):
-        CacheWarmupHandler(mock_cache).handle(_make_event())
+        await CacheWarmupHandler(mock_cache).handle(_make_event())

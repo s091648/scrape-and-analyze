@@ -12,15 +12,18 @@ Tasks covered:
   T029 - CollectionPipeline.run() with no due sources publishes PipelineCompletedEvent
 """
 
+from contextlib import asynccontextmanager
+
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from models.scraper_setting import ScraperSetting as ScraperSettingModel
 from src.infrastructure.persistence.collection.scraper_setting_repo_impl import (
     SqlAlchemyScraperSettingRepository,
 )
 from src.infrastructure.collection.collection_pipeline import CollectionPipeline
+from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEventBus
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import PipelineStats
 
@@ -250,20 +253,33 @@ def test_get_active_due_skips_row_with_invalid_selector_config(db_session, test_
 
 
 @pytest.mark.integration
-def test_pipeline_no_due_sources_publishes_event(db_session):
+@pytest.mark.asyncio
+async def test_pipeline_no_due_sources_publishes_event(db_session):
     """T029: With no due sources, run() publishes PipelineCompletedEvent and returns 0."""
     mock_setting_repo = MagicMock()
     mock_setting_repo.get_active_due.return_value = []
-    mock_event_bus = MagicMock()
+    mock_event_bus = AsyncMock()
     pipeline_stats = PipelineStats()
+
+    @asynccontextmanager
+    async def _fake_session():
+        yield MagicMock()
+
+    async def _noop_article_downstream_builder(session, bus, dispatch_rag):
+        pass
+
     pipeline = CollectionPipeline(
         setting_repo=mock_setting_repo,
         scraper_factory=MagicMock(),
         event_bus=mock_event_bus,
         pipeline_stats=pipeline_stats,
+        async_sessionmaker_factory=lambda: _fake_session(),
+        article_downstream_builder=_noop_article_downstream_builder,
+        rag_downstream_builder=None,
+        event_bus_factory=AsyncInMemoryEventBus,
     )
 
-    result = pipeline.run()
+    result = await pipeline.run()
 
     assert result == 0
     mock_event_bus.publish.assert_called_once()
