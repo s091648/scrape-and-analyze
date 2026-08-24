@@ -1,3 +1,4 @@
+import json
 import uuid
 import time
 import structlog
@@ -9,12 +10,35 @@ logger = structlog.get_logger()
 
 _SECRET = NEXTAUTH_SECRET
 
+# Logged bodies are capped well below Loki's per-line ingestion limits — this is for
+# debugging typical JSON payloads, not for reconstructing large uploads.
+_MAX_BODY_LOG_BYTES = 4096
+
+# Substring match (not exact key) so variants like current_password/new_password/
+# refresh_token/api_key_env are all caught without enumerating every schema field.
+_SENSITIVE_KEY_SUBSTRINGS = ("password", "token", "secret", "api_key", "apikey")
+
+
+def _redact(value):
+    if isinstance(value, dict):
+        return {
+            k: ("***" if any(s in k.lower() for s in _SENSITIVE_KEY_SUBSTRINGS) else _redact(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    return value
+
 
 def _extract_user(auth_header: str) -> dict:
-    """Decode JWT from the raw Authorization header value. Returns {"user_id": "anonymous"} for
-    unauthenticated requests."""
+    """Decode JWT from the raw Authorization header value. Returns {"user_id": "anonymous",
+    "user_role": "guest"} for unauthenticated requests, and "guest" also covers a guest access
+    token (its claims carry "tier", never "role" — see auth_service.py's _create_guest_token).
+    user_role is always set (never omitted) so LogQL `sum by (user_role)` never lumps guest
+    traffic into an unlabeled/empty group — see admin.requestsByRoleChart in
+    frontend/app/admin/monitoring/monitoring-content.tsx."""
     if not auth_header.lower().startswith("bearer "):
-        return {"user_id": "anonymous"}
+        return {"user_id": "anonymous", "user_role": "guest"}
     token = auth_header.split(" ", 1)[1]
     try:
         from jose import jwt as jose_jwt
@@ -22,14 +46,15 @@ def _extract_user(auth_header: str) -> dict:
             token, _SECRET, algorithms=["HS256"],
             options={"verify_aud": False},
         )
-        user: dict = {"user_id": payload.get("sub", "anonymous")}
+        user: dict = {
+            "user_id": payload.get("sub", "anonymous"),
+            "user_role": payload.get("role") or "guest",
+        }
         if payload.get("email"):
             user["user_email"] = payload["email"]
-        if payload.get("role"):
-            user["user_role"] = payload["role"]
         return user
     except Exception:
-        return {"user_id": "anonymous"}
+        return {"user_id": "anonymous", "user_role": "guest"}
 
 
 class RequestLoggingMiddleware:
@@ -66,9 +91,36 @@ class RequestLoggingMiddleware:
                 message = {**message, "headers": headers}
             await send(message)
 
-        await self.app(scope, receive, send_wrapper)
+        # Wiretaps the request body as it streams past — forwards every message to the
+        # downstream app untouched (same "no buffering of its own" principle as
+        # send_wrapper above), just also accumulates chunks up to _MAX_BODY_LOG_BYTES so
+        # they can be logged after the request completes.
+        body_chunks: list[bytes] = []
+        body_truncated = False
+
+        async def receive_wrapper() -> Message:
+            nonlocal body_truncated
+            message = await receive()
+            if message["type"] == "http.request":
+                chunk = message.get("body", b"")
+                if chunk and not body_truncated:
+                    if sum(len(c) for c in body_chunks) + len(chunk) <= _MAX_BODY_LOG_BYTES:
+                        body_chunks.append(chunk)
+                    else:
+                        body_truncated = True
+            return message
+
+        await self.app(scope, receive_wrapper, send_wrapper)
 
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
+
+        # Railway/Docker healthchecks poll GET /health every few seconds (see docker-compose.yml
+        # and the platform's own health-probe config) — logging every one at INFO would flood the
+        # backend's log stream with a line that carries no signal. FastAPIInstrumentor already
+        # excludes this same path from tracing (excluded_urls="health" in backend/main.py) for the
+        # same reason. A failing health check (DB down, non-2xx) is still worth keeping.
+        if scope["path"] == "/health" and status_code < 400:
+            return
 
         # User identity from JWT
         auth_header = raw_headers.get(b"authorization", b"").decode("latin-1")
@@ -89,6 +141,21 @@ class RequestLoggingMiddleware:
 
         user_agent_bytes = raw_headers.get(b"user-agent")
 
+        query_params = (scope.get("query_string") or b"").decode("latin-1")
+
+        # Only decoded when the body looks like a small JSON payload — multipart/form-data
+        # (file uploads) and anything that overflowed _MAX_BODY_LOG_BYTES stays unlogged,
+        # since neither is meaningful (or safe, size-wise) to ship to Loki as a single field.
+        payload = None
+        if body_chunks and not body_truncated:
+            content_type = raw_headers.get(b"content-type", b"").decode("latin-1")
+            if "application/json" in content_type:
+                try:
+                    parsed = json.loads(b"".join(body_chunks))
+                    payload = json.dumps(_redact(parsed), ensure_ascii=False)
+                except Exception:
+                    pass
+
         log_fields = {
             "method": scope["method"],
             "path": scope["path"],
@@ -99,6 +166,8 @@ class RequestLoggingMiddleware:
             **({"user_agent": user_agent_bytes.decode("latin-1")} if user_agent_bytes else {}),
             **({"geo_country": geo["country"]} if geo.get("country") else {}),
             **({"geo_city": geo["city"]} if geo.get("city") else {}),
+            **({"query_params": query_params} if query_params else {}),
+            **({"payload": payload} if payload is not None else {}),
         }
 
         logger.info("request", **log_fields)

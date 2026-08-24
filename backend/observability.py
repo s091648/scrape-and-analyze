@@ -158,6 +158,25 @@ def setup_tracing(app_env: str):
         provider = TracerProvider(resource=resource)
         provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
+
+        # Without these, FastAPIInstrumentor above only ever produces one flat span per
+        # request — no visibility into whether a slow request was slow because of a DB
+        # query, a Redis round-trip, or actual application logic. Each is wrapped in its
+        # own try/except so a failure here doesn't take down request-level tracing, which
+        # already succeeded by this point.
+        try:
+            from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+            from backend.database import engine
+            SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)
+        except Exception as e:
+            print(f"[tracing] SQLAlchemy instrumentation failed: {e}")
+
+        try:
+            from opentelemetry.instrumentation.redis import RedisInstrumentor
+            RedisInstrumentor().instrument(tracer_provider=provider)
+        except Exception as e:
+            print(f"[tracing] Redis instrumentation failed: {e}")
+
         print("[tracing] OTLP setup successful")
         return provider
     except Exception as e:
