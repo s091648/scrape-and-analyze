@@ -38,12 +38,12 @@ LAYER_RULES = [
     # Infrastructure — LLM / intelligence
     (r"^(llm\.|prompt\.|factories\.prompt_factory)", "infrastructure-intelligence"),
     # Infrastructure — shared
-    (r"^(notifications\.|events\.in_memory_event_bus|events\.pipeline_completed)", "infrastructure-shared"),
+    (r"^(notifications\.|events\.in_memory_event_bus|events\.pipeline_completed|events\.text_pipeline_completed)", "infrastructure-shared"),
     # Entrypoints
     (r"^entrypoints\.", "entrypoints"),
     # Shared application
     (r"^(application\.ports|application\.events)\.", "shared-application"),
-    (r"^events\.(article_processed|analysis_completed|analysis_failed|article_scraped|failed|tag_normalization|translation_failed|pipeline_completed|in_memory_event_bus)", "shared-application"),
+    (r"^events\.(article_processed|analysis_completed|analysis_failed|article_scraped|failed|tag_normalization|translation_failed|pipeline_completed|text_pipeline_completed|in_memory_event_bus)", "shared-application"),
     # Config
     (r"^config\.", "config"),
 
@@ -563,16 +563,26 @@ def rebuild_dot_with_layers(dot_path: Path) -> None:
 
 # ── Pipeline inference helpers ──────────────────────────────────────────────────
 
-def _find_pipeline_func(tree: ast.AST) -> ast.FunctionDef | None:
+def _find_pipeline_func(tree: ast.AST) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
     """Return the top-level function with the most event_bus.subscribe() calls.
 
     Avoids hardcoding 'build_collection_pipeline' — works for any future
     pipeline builder function name as long as it wires handlers via subscribe().
+
+    Must match both FunctionDef and AsyncFunctionDef — build_collection_pipeline()
+    became `async def` in 024-async-pipeline-refactor (its per-article handler
+    subscriptions live in a nested `async def article_downstream_builder`, itself
+    still reachable via ast.walk(fn) since it recurses into nested function
+    bodies). Missing AsyncFunctionDef here made this silently fall back to
+    whichever sync `def` pipeline builder (e.g. build_weekly_pipeline, each with
+    exactly one subscribe() call for its own completion notification) happened
+    to be walked first — none of which have a real multi-stage chain, so pipeline
+    inference silently produced an empty (or near-empty) result instead of an error.
     """
-    best_func: ast.FunctionDef | None = None
+    best_func: ast.FunctionDef | ast.AsyncFunctionDef | None = None
     best_count = 0
     for fn in ast.walk(tree):
-        if not isinstance(fn, ast.FunctionDef):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         count = sum(
             1 for sub in ast.walk(fn)
@@ -704,7 +714,32 @@ def _build_class_publish_map() -> dict[str, list[str]]:
                         if ec:
                             published.append(ec)
                     elif isinstance(first_arg, ast.Name):
-                        published.append(first_arg.id)
+                        # publish(some_var) — resolve by finding every Assign to
+                        # that name within this same handle() method and
+                        # following each RHS Call's class name (a var can be
+                        # conditionally assigned to different Event classes
+                        # across branches, e.g. success vs *FailedEvent).
+                        # Needed since 024-async-pipeline-refactor's OTel
+                        # span-nesting fix moved several handlers from
+                        # publish(Event(...)) to
+                        # next_event = Event(...); ...; publish(next_event)
+                        # so publish() sits outside the span's `with` block —
+                        # falling back to the bare variable name here would
+                        # silently mask which events are actually emitted.
+                        var_name = first_arg.id
+                        for assign_node in ast.walk(method):
+                            if not isinstance(assign_node, ast.Assign):
+                                continue
+                            if not isinstance(assign_node.value, ast.Call):
+                                continue
+                            if not any(
+                                isinstance(t, ast.Name) and t.id == var_name
+                                for t in assign_node.targets
+                            ):
+                                continue
+                            ec = _call_class_name(assign_node.value)
+                            if ec:
+                                published.append(ec)
             if published:
                 publish_map[class_node.name] = published
     return publish_map
@@ -899,9 +934,16 @@ def build_pipeline_from_bootstrap() -> list[dict]:
     subscriptions: list[dict[str, str]] = []
 
     for node in ast.walk(pipeline_func):
-        if not (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)):
+        if not isinstance(node, ast.Expr):
             continue
-        call = node.value
+        # 024-async-pipeline-refactor: every subscribe() call in the async
+        # pipeline builder is `await bus.subscribe(...)`, i.e. Expr(Await(Call)),
+        # not the sync-era Expr(Call) this used to assume — unwrap the Await
+        # first or every subscription here is silently missed.
+        call_candidate = node.value.value if isinstance(node.value, ast.Await) else node.value
+        if not isinstance(call_candidate, ast.Call):
+            continue
+        call = call_candidate
         if not (
             isinstance(call.func, ast.Attribute)
             and call.func.attr == "subscribe"

@@ -1,18 +1,22 @@
+import asyncio
 import time
 from datetime import datetime, timezone
-from typing import Any, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from opentelemetry import trace as _otel
+from src.infrastructure.collection.clients.arxiv_client import ARXIV_API_URL
+from src.infrastructure.collection.clients.openalex_client import OPENALEX_API_URL
+from src.infrastructure.collection.clients.semantic_scholar_client import SEMANTIC_SCHOLAR_API_URL
 from src.infrastructure.collection.executor import DiscoverTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
-from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
+from src.modules.collection.application.events import (
+    ArticleScrapedEvent, PipelineCompletedEvent, TextPipelineCompletedEvent,
+)
 from src.modules.collection.application.use_cases import PipelineStats, ArticleOutcome
-from src.shared.application.ports import EventBus
 from src.shared.domain.repositories import ArticleRepository
 from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
 
@@ -28,37 +32,90 @@ def _extract_host(url: str) -> str:
         return url
 
 
+# ScraperSetting.url is not a usable host source for these three source_types —
+# they don't scrape "a URL" at all, they call a fixed API client whose target
+# host is a constant of that client (ArxivScraper.discover() never even reads
+# setting.url). Derived from each client's own URL constant (not duplicated as
+# a bare string) so this stays correct if a client's API host ever changes.
+_SOURCE_TYPE_HOST_OVERRIDES = {
+    "arxiv": _extract_host(ARXIV_API_URL),
+    "semantic_scholar": _extract_host(SEMANTIC_SCHOLAR_API_URL),
+    "openalex": _extract_host(OPENALEX_API_URL),
+}
+
+
 class CollectionPipeline:
-    """Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources."""
+    """Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources.
+
+    024-async-pipeline-refactor: `run()` is now `async def`. Discover/fetch
+    (unchanged, still batched — FR-003) run via `asyncio.to_thread` so the
+    long blocking ScrapeExecutor calls don't hold up the event loop; the
+    batched dedup DB lookups stay direct sync calls (fast, one-time). From
+    the publish point onward, each article gets its own `asyncio.Task` with
+    its own `AsyncSession` (research.md item 2) — RAG ingestion is dispatched
+    as a further detached task per article (item 5) so it never blocks that
+    article's own text-stage completion or any other article's progress.
+    Two barriers replace the old single completion event (data-model.md):
+    Barrier 1 (`TextPipelineCompletedEvent`) once every article's text stage
+    has settled; Barrier 2 (`PipelineCompletedEvent`, unchanged semantics)
+    once every article's RAG task has also settled.
+    """
     def __init__(
         self,
         setting_repo: ScraperSettingRepository,
         scraper_factory: ConcreteScraperFactory,
-        event_bus: EventBus,
+        event_bus: Any,
         pipeline_stats: PipelineStats,
+        async_sessionmaker_factory: Callable[[], Any],
+        article_downstream_builder: Callable[..., Awaitable[None]],
+        rag_downstream_builder: Optional[Callable[..., Awaitable[Any]]],
+        event_bus_factory: Callable[[], Any],
         executor: Optional[ScrapeExecutor] = None,
         article_repo: Optional[ArticleRepository] = None,
         app_env: str = "unknown",
         jitter_seconds: Optional[float] = None,
         llm_service: Optional[Any] = None,
+        rag_service_aclose: Optional[Callable[[], Awaitable[None]]] = None,
+        rag_dispatch_concurrency: int = 10,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
+        # Run-level bus: only the two barrier events (TextPipelineCompletedEvent,
+        # PipelineCompletedEvent) are published here — never per-article events,
+        # which each get their own fresh bus (built by article_downstream_builder)
+        # bound to that article's own AsyncSession.
         self._event_bus = event_bus
         self._pipeline_stats = pipeline_stats
+        self._async_sessionmaker_factory = async_sessionmaker_factory
+        self._article_downstream_builder = article_downstream_builder
+        self._rag_downstream_builder = rag_downstream_builder
+        # 024-async-pipeline-refactor US5: injected rather than importing
+        # AsyncInMemoryEventBus directly here — keeps this module dependent
+        # only on the EventBus Protocol, so a future Redis Streams-backed bus
+        # is a drop-in swap for the per-article bus too, not just the
+        # run-level one (see contracts/event-bus-port.md, T065).
+        self._event_bus_factory = event_bus_factory
         self._executor = executor or ScrapeExecutor()
         self._article_repo = article_repo
-        # 020-redis-caching-layer follow-up: carried into every PipelineCompletedEvent's
-        # execution meta so the Telegram notification can show a non-production env badge
-        # and the startup jitter main.py slept before this pipeline was even built.
         self._app_env = app_env
         self._jitter_seconds = jitter_seconds
-        # Same ResilientLLMService instance analyze/translate use cases share for the
-        # whole run (wired via event handlers, not called directly here) — held only so
-        # PipelineCompletedEvent can report which LLM providers got rate-limited. Typed
-        # loosely (Any, not ResilientLLMService) so this stays a notification-only concern
-        # and doesn't force LLMService's abstract interface to promise exhausted_providers.
         self._llm_service = llm_service
+        # 024-async-pipeline-refactor US6: releases the RAG-ingestion SDK's
+        # EmbeddingBatchCoordinator worker task (research.md item 11) — called
+        # once, after Barrier 2, so it never fires while a RAG task might still
+        # submit more chunks.
+        self._rag_service_aclose = rag_service_aclose
+        self._rag_tasks: List[asyncio.Task] = []
+        # Bounds how many RAG-ingesting articles concurrently hold an open
+        # AsyncSession (a real, unpooled Postgres connection — NullPool, see
+        # src/infrastructure/persistence/database.py) — NOT embedding-API
+        # throughput (that's RAG_DENSE_RPM/RAG_EMBED_BATCH_SIZE, a separate,
+        # unrelated concern). Gates entry to _run_rag_ingestion()'s body, not
+        # task creation in _dispatch_rag() — a task blocked on this semaphore
+        # hasn't opened a session or enqueued any chunks yet, which also caps
+        # how many chunks can burst into the embedding coordinator's queue at
+        # once (research.md item 11 follow-up, 024-async-pipeline-refactor US6).
+        self._rag_dispatch_semaphore = asyncio.BoundedSemaphore(rag_dispatch_concurrency)
 
     def _build_execution_meta(self, started_at: datetime, start: float) -> JobExecutionMeta:
         return JobExecutionMeta(
@@ -71,13 +128,68 @@ class CollectionPipeline:
 
     def _rate_limited_llm_providers(self) -> Tuple[str, ...]:
         """LLM provider names that hit RateLimitExhausted this run, if the
-        pipeline was given the same ResilientLLMService instance the analyze/
-        translate use cases share — empty tuple if not wired or none hit it."""
+        pipeline was given the same AsyncResilientLLMService instance the
+        analyze/translate use cases share — empty tuple if not wired or none
+        hit it."""
         if self._llm_service is None:
             return ()
         return tuple(getattr(self._llm_service, "exhausted_providers", []))
 
-    def run(self) -> int:
+    # ── Per-article downstream (concurrent) ─────────────────────────────────
+
+    async def _dispatch_rag(self, event) -> None:
+        """Subscribed to ArticleProcessedEvent on each article's own bus.
+        Fires RAG ingestion as a detached asyncio.Task, tracked for Barrier 2
+        — deliberately NOT awaited here, so this article's own text-stage
+        chain (and the triggering publish() call) completes without waiting
+        on RAG (FR-002), and RAG failing/being slow never blocks any other
+        article either."""
+        if self._rag_downstream_builder is None:
+            return
+        task = asyncio.create_task(self._run_rag_ingestion(event))
+        self._rag_tasks.append(task)
+
+    async def _run_rag_ingestion(self, event) -> None:
+        """Owns its own AsyncSession for the whole task lifetime — separate
+        from (and outliving) the text-stage task's session, since RAG may
+        still be running after the article's text-stage task has already
+        returned and closed its session. Only used for recording a
+        RagIngestionFailedEvent as a FailedTask on error; RAG ingestion
+        itself goes through the SDK's own, separate DB connection.
+
+        Gated by _rag_dispatch_semaphore — a task blocked here (unbounded
+        article volume vs. a bounded number of concurrent, unpooled Postgres
+        connections) hasn't opened its AsyncSession yet."""
+        async with self._rag_dispatch_semaphore:
+            async with self._async_sessionmaker_factory() as session:
+                handler = await self._rag_downstream_builder(session)
+                await handler.handle(event)
+
+    async def _process_article_text(self, article: ScrapedArticle) -> None:
+        """One per-article asyncio.Task: its own AsyncSession, its own fresh
+        downstream event bus + repos + use cases + handlers (built by
+        article_downstream_builder), publishing this one article's
+        ArticleScrapedEvent and awaiting the resulting text-stage chain.
+
+        NOTE: this span is coarser than the sync pipeline's — the previous
+        per-handler span wrapping (with_span/with_span_deferred, applied at
+        subscribe() time in bootstrap.py) is not yet reintegrated here, since
+        handlers are now (re)constructed fresh per article rather than
+        subscribed once at bootstrap time. Individual handler spans
+        (ARTICLE_SCRAPED_HANDLE, ARTICLE_PROCESSED_HANDLE, etc.) are
+        currently NOT emitted as separate child spans — only this one
+        article.pipeline span wraps the whole per-article chain. Restoring
+        per-handler span granularity is tracked as follow-up work.
+        """
+        with get_tracer().start_as_current_span("article.pipeline") as span:
+            span.set_attribute("article.url", article.url)
+            async with self._async_sessionmaker_factory() as session:
+                bus = self._event_bus_factory()
+                await self._article_downstream_builder(session, bus, self._dispatch_rag)
+                event = ArticleScrapedEvent.from_scraped_article(article)
+                await bus.publish(event)
+
+    async def run(self) -> int:
         """Execute the full pipeline for all due sources and return the number of articles published."""
         tracer = get_tracer()
         started_at = datetime.now(timezone.utc)
@@ -86,7 +198,7 @@ class CollectionPipeline:
 
         if not due_settings:
             logger.info("no_sources_due")
-            self._event_bus.publish(PipelineCompletedEvent(
+            await self._event_bus.publish(PipelineCompletedEvent(
                 stats=[],
                 execution=self._build_execution_meta(started_at, start),
                 rate_limited_hosts=tuple(self._executor.exhausted_hosts),
@@ -97,10 +209,6 @@ class CollectionPipeline:
         logger.info("sources_due", count=len(due_settings))
 
         # ── Mark settings scraped eagerly (before network I/O) ─────────
-        # last_scraped_at records when the pipeline *committed* to scraping
-        # a source, not when it finished. This prevents the tolerance window
-        # from shrinking when pipeline execution is long (e.g. 35 min run +
-        # 30 min tolerance = next-day check fails by 5 min).
         scraped_setting_ids = [s.id for s in due_settings]
         for setting_id in scraped_setting_ids:
             try:
@@ -113,23 +221,20 @@ class CollectionPipeline:
 
         for setting in due_settings:
             scraper = self._scraper_factory.create_for(setting)
-            # arXiv settings store no meaningful URL; use the API host directly
-            # so the discover cooldown in ScrapeExecutor is applied correctly.
-            if setting.source_type == "arxiv":
-                host = "export.arxiv.org"
-            elif setting.source_type == "semantic_scholar":
-                host = "api.semanticscholar.org"
-            elif setting.source_type == "openalex":
-                host = "api.openalex.org"
-            else:
-                host = _extract_host(setting.url)
+            host = _SOURCE_TYPE_HOST_OVERRIDES.get(setting.source_type) or _extract_host(setting.url)
             discover_tasks.append(DiscoverTask(
                 setting=setting,
                 scraper=scraper,
                 host=host,
             ))
 
-        # ── Discover phase ─────────────────────────────────────────────
+        # ── Discover phase (unchanged, batched — FR-003) ─────────────────
+        # asyncio.to_thread frees the event loop for the duration of this
+        # long, synchronous, multi-threaded ScrapeExecutor call — nothing
+        # else is running concurrently yet at this point in the run anyway
+        # (no article tasks exist until discover+fetch+dedup finish), but
+        # this keeps the coroutine genuinely non-blocking rather than
+        # relying on that being true.
         def _pre_fetch_filter(tasks):
             """Filter out FetchTasks whose URLs have already been analyzed."""
             hashes = {UrlHash.from_url(t.url).value: t for t in tasks}
@@ -149,28 +254,29 @@ class CollectionPipeline:
 
         with tracer.start_as_current_span("pipeline.discover") as discover_span:
             discover_span.set_attribute("sources.count", len(discover_tasks))
-            fetch_tasks = self._executor.run_discover(
+            fetch_tasks = await asyncio.to_thread(
+                self._executor.run_discover,
                 discover_tasks=discover_tasks,
                 pre_fetch_filter=pre_fetch_filter,
             )
             discover_span.set_attribute("articles.discovered", len(fetch_tasks))
 
-        # ── Fetch phase ─────────────────────────────────────────────────
+        # ── Fetch phase (unchanged, batched — FR-003) ─────────────────────
         results: List[ScrapedArticle] = []
 
         def on_result(article: ScrapedArticle) -> None:
-            """Collect a fetched article into the results list."""
             results.append(article)
 
         with tracer.start_as_current_span("pipeline.fetch") as fetch_span:
             fetch_span.set_attribute("articles.to_fetch", len(fetch_tasks))
-            self._executor.run_fetch_only(
+            await asyncio.to_thread(
+                self._executor.run_fetch_only,
                 fetch_tasks=fetch_tasks,
                 on_result=on_result,
             )
             fetch_span.set_attribute("articles.fetched", len(results))
 
-        # ── Pre-dedup: filter URLs already fully processed ──────────────
+        # ── Pre-dedup: filter URLs already fully processed (unchanged, batched) ──
         articles_before_dedup = len(results)
         with tracer.start_as_current_span("pipeline.dedup") as dedup_span:
             dedup_span.set_attribute("articles.before_dedup", articles_before_dedup)
@@ -205,20 +311,55 @@ class CollectionPipeline:
             dedup_span.set_attribute("articles.after_dedup", len(results))
             dedup_span.set_attribute("articles.skipped", articles_before_dedup - len(results))
 
-        # ── Publish events to event bus (triggers ArticleScrapedHandler) ─
-        published = 0
+        # ── Barrier 1: fan out one asyncio.Task per article, gather with
+        # settle semantics (research.md item 6) ─────────────────────────
+        published = len(results)
         with tracer.start_as_current_span("pipeline.publish_articles") as publish_span:
-            for article in results:
-                event = ArticleScrapedEvent.from_scraped_article(article)
-                self._event_bus.publish(event)
-                published += 1
             publish_span.set_attribute("articles.published", published)
+            outcomes = await asyncio.gather(
+                *(self._process_article_text(article) for article in results),
+                return_exceptions=True,
+            )
+            failed = 0
+            for article, outcome in zip(results, outcomes, strict=True):
+                if isinstance(outcome, BaseException):
+                    failed += 1
+                    logger.error(
+                        "article_task_failed",
+                        url=article.url,
+                        source=article.source,
+                        error=str(outcome),
+                        error_type=type(outcome).__name__,
+                    )
+            publish_span.set_attribute("articles.task_failed", failed)
 
-        # ── Publish completion event (triggers Telegram + OTel) ────────
-        duration = time.time() - start
         stats = self._pipeline_stats.get_results()
-        self._event_bus.publish(PipelineCompletedEvent(
+        text_execution = self._build_execution_meta(started_at, start)
+        await self._event_bus.publish(TextPipelineCompletedEvent(
             stats=stats,
+            execution=text_execution,
+            rate_limited_hosts=tuple(self._executor.exhausted_hosts),
+            rate_limited_llm_providers=self._rate_limited_llm_providers(),
+        ))
+
+        # ── Barrier 2: every RAG task also settled ───────────────────────
+        if self._rag_tasks:
+            rag_outcomes = await asyncio.gather(*self._rag_tasks, return_exceptions=True)
+            for outcome in rag_outcomes:
+                if isinstance(outcome, BaseException):
+                    logger.error(
+                        "rag_task_failed",
+                        error=str(outcome),
+                        error_type=type(outcome).__name__,
+                    )
+
+        if self._rag_service_aclose is not None:
+            await self._rag_service_aclose()
+
+        duration = time.time() - start
+        final_stats = self._pipeline_stats.get_results()
+        await self._event_bus.publish(PipelineCompletedEvent(
+            stats=final_stats,
             execution=self._build_execution_meta(started_at, start),
             rate_limited_hosts=tuple(self._executor.exhausted_hosts),
             rate_limited_llm_providers=self._rate_limited_llm_providers(),
@@ -228,9 +369,9 @@ class CollectionPipeline:
             "collection_pipeline_completed",
             published=published,
             duration_seconds=round(duration, 1),
-            sources=len(stats),
-            new=sum(s.new for s in stats),
-            duplicate=sum(s.duplicate for s in stats),
-            failed=sum(s.failed for s in stats),
+            sources=len(final_stats),
+            new=sum(s.new for s in final_stats),
+            duplicate=sum(s.duplicate for s in final_stats),
+            failed=sum(s.failed for s in final_stats),
         )
         return published

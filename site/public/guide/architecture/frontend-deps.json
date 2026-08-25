@@ -95,6 +95,8 @@
     "components/features/articles/search-bar.tsx",
     "components/features/articles/sort-select.tsx",
     "components/ui/button.tsx",
+    "components/ui/checkbox.tsx",
+    "components/ui/tooltip.tsx",
     "hooks/use-pagination.ts",
     "lib/api/articles.ts",
     "lib/api/search.ts",
@@ -221,6 +223,7 @@
     "components/ui/card.tsx",
     "lib/api/articles.ts",
     "lib/api/user.ts",
+    "lib/highlight-match.tsx",
     "lib/providers/index.tsx"
   ],
   "components/features/articles/article-detail-dialog.tsx": [
@@ -232,11 +235,13 @@
     "components/ui/button.tsx",
     "components/ui/dialog.tsx",
     "lib/api/articles.ts",
+    "lib/highlight-match.tsx",
     "lib/providers/index.tsx"
   ],
   "components/features/articles/autocomplete-dropdown.tsx": [
     "components/ui/command.tsx",
     "lib/api/search.ts",
+    "lib/highlight-match.tsx",
     "lib/providers/index.tsx"
   ],
   "components/features/articles/filter-bar.tsx": [
@@ -245,6 +250,7 @@
     "components/features/articles/grouped-tag-select.tsx",
     "components/ui/badge.tsx",
     "components/ui/button.tsx",
+    "hooks/use-debounced-value.ts",
     "lib/api/articles.ts",
     "lib/api/source-categories.ts",
     "lib/api/tags.ts",
@@ -255,7 +261,8 @@
     "components/ui/button.tsx",
     "components/ui/checkbox.tsx",
     "components/ui/popover.tsx",
-    "lib/api/tags.ts"
+    "lib/api/tags.ts",
+    "lib/highlight-match.tsx"
   ],
   "components/features/articles/metric-icon-picker.tsx": [
     "components/features/articles/metric-icons.ts",
@@ -357,6 +364,7 @@
     "lib/utils.ts"
   ],
   "components/features/monitoring/run-waterfall-dialog.tsx": [
+    "components/features/monitoring/stage-card.tsx",
     "components/ui/dialog.tsx",
     "lib/api/grafana.ts",
     "lib/observability-constants.ts",
@@ -635,6 +643,7 @@
   "lib/cookies/set-preference-cookie.ts": [
     "lib/cookies/constants.ts"
   ],
+  "lib/highlight-match.tsx": [],
   "lib/loki-logger.ts": [],
   "lib/observability-constants.ts": [],
   "lib/otlp-utils.ts": [

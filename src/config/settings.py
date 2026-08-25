@@ -137,6 +137,19 @@ RAG_EMBED_BATCH_SIZE: int = int(os.environ.get("RAG_EMBED_BATCH_SIZE", "96"))
 RAG_CHUNK_SIZE: int = int(os.environ.get("RAG_CHUNK_SIZE", "500"))
 RAG_CHUNK_OVERLAP: int = int(os.environ.get("RAG_CHUNK_OVERLAP", "50"))
 
+# Max number of articles' RAG ingestion allowed to be concurrently in flight
+# (holding open an AsyncSession) in the live pipeline (024-async-pipeline-refactor
+# US6, research.md item 11 follow-up). The async DB engine uses NullPool
+# (src/infrastructure/persistence/database.py) — every open AsyncSession is a
+# real, unshared Postgres connection, so this bounds real DB connections, not
+# embedding-API throughput (that's RAG_DENSE_RPM, a separate concern). Sized
+# against Postgres's own max_connections headroom (shared with backend/pgadmin/
+# other jobs), not against RAG_DENSE_RPM — a low-tier managed Postgres plan can
+# have a much lower max_connections than a local/self-hosted one. Default (10)
+# is a conservative starting point; tune once your actual max_connections and
+# other services' typical concurrent usage are known.
+RAG_DISPATCH_CONCURRENCY: int = int(os.environ.get("RAG_DISPATCH_CONCURRENCY", "10"))
+
 
 def missing_rag_config() -> list[str]:
     """Returns names of missing required RAG env vars.

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-16T11:51:40.208962+00:00",
+  "generated_at": "2026-08-23T13:09:31.946840+00:00",
   "layers": [
     "application",
     "domain",
@@ -206,7 +206,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/event_handlers/analysis_completed_handler/AnalysisCompletedHandler.py",
-      "docstring": "Translates article analysis, article body, and tags after tag normalization completes.",
+      "docstring": "Translates article analysis, article body, and tags after tag normalization completes.\n\n024-async-pipeline-refactor: converted to async in place — confirmed\nconstructed only once, only inside…",
       "typed_attrs": [
         "_translate_article_uc",
         "_translate_tags_uc",
@@ -217,12 +217,12 @@
       ],
       "typed_methods": [
         {
-          "sig": "__init__(translate_article_uc: TranslateArticleUseCase, translate_tags_uc: TranslateTagsUseCase, translate_body_uc: TranslateArticleBodyUseCase, analyses_translation_repo: AnalysesTranslationRepository, event_bus: EventBus, target_languages: list[str] | None) → None",
+          "sig": "__init__(translate_article_uc: AsyncTranslateArticleUseCase, translate_tags_uc: AsyncTranslateTagsUseCase, translate_body_uc: AsyncTranslateArticleBodyUseCase, analyses_translation_repo: AsyncAnalysesTranslationRepository, event_bus, target_languages: list[str] | None) → None",
           "doc": ""
         },
         {
-          "sig": "handle(event: TagNormalizationCompletedEvent) → None",
-          "doc": "Translate article analysis, body, and tags for each configured target language."
+          "sig": "async handle(event: TagNormalizationCompletedEvent) → None",
+          "doc": "Translate article analysis, body, and tags for each configured target language.\n\n024-async-pipeline-refactor follow-up: owns its own…"
         }
       ],
       "source_file": "src/modules/intelligence/application/event_handlers/analysis_completed_handler.py",
@@ -497,7 +497,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/use_cases/analyze_article/AnalyzeArticleUseCase.py",
-      "docstring": "Orchestrates LLM analysis of an article including prompt rendering and persistence.",
+      "docstring": "Orchestrates LLM analysis of an article including prompt rendering and persistence.\n\n024-async-pipeline-refactor: converted to async in place (`execute` is\n`async def`) — confirmed constructed only…",
       "typed_attrs": [
         "_llm_service",
         "_analysis_repository",
@@ -508,19 +508,19 @@
       ],
       "typed_methods": [
         {
-          "sig": "__init__(llm_service: LLMService, analysis_repository: AnalysisRepository, topic_repository: TopicRepository, tag_group_definition_repository: TagGroupDefinitionRepository, prompt: AnalysisPrompt, embedding_service: Optional[EmbeddingService]) → None",
+          "sig": "__init__(llm_service, analysis_repository: AsyncAnalysisRepository, topic_repository: AsyncTopicRepository, tag_group_definition_repository: AsyncTagGroupDefinitionRepository, prompt: AnalysisPrompt, embedding_service) → None",
           "doc": ""
         },
         {
-          "sig": "execute(article: Article) → AnalysisResult",
+          "sig": "async execute(article: Article) → AnalysisResult",
           "doc": "Analyze the article via LLM, persist the result, and return an AnalysisResult."
         },
         {
-          "sig": "_build_prompt(topic_id: Optional[UUID]) → str",
+          "sig": "async _build_prompt(topic_id: Optional[UUID]) → str",
           "doc": "Render an AnalysisPrompt for the article's topic.\n\nPriority:\n  1. article has a topic_id + topic found in DB\n       → supervised:      render_fixed…"
         },
         {
-          "sig": "_upsert_generated_tag_groups(tag_groups: List[AnalysisTagGroup], topic_id: UUID) → None",
+          "sig": "async _upsert_generated_tag_groups(tag_groups: List[AnalysisTagGroup], topic_id: UUID) → None",
           "doc": "Persist LLM-generated tag group keys as TagGroupDefinition rows (unsupervised + semi mode)."
         }
       ],
@@ -530,7 +530,7 @@
       "context": "intelligence"
     },
     {
-      "id": "entities.article.Article",
+      "id": "domain.entities.article.Article",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Article|content",
@@ -538,11 +538,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "entities.article",
+      "module": "domain.entities.article",
       "class_name": "Article",
       "attributes": [],
       "methods": [],
-      "full_path": "src/entities/article/Article.py",
+      "full_path": "src/domain/entities/article/Article.py",
       "docstring": "Domain entity representing a scraped article with URL, content, and metadata.",
       "typed_attrs": [
         "url: str",
@@ -757,21 +757,21 @@
       "context": "collection"
     },
     {
-      "id": "events.article_processed.ArticleProcessedEvent",
+      "id": "application.events.article_processed.ArticleProcessedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleProcessedEvent|article",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "shared-application",
+      "layer": "application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "events.article_processed",
+      "module": "application.events.article_processed",
       "class_name": "ArticleProcessedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/events/article_processed/ArticleProcessedEvent.py",
+      "full_path": "src/application/events/article_processed/ArticleProcessedEvent.py",
       "docstring": "Event emitted after an article has been successfully processed and persisted.",
       "typed_attrs": [
         "article: Article",
@@ -810,8 +810,8 @@
           "doc": ""
         },
         {
-          "sig": "handle(event: ArticleProcessedEvent) → None",
-          "doc": "Run LLM analysis on the article and emit success or failure event."
+          "sig": "async handle(event: ArticleProcessedEvent) → None",
+          "doc": "Run LLM analysis on the article and emit success or failure event.\n\n024-async-pipeline-refactor follow-up: owns its own span…"
         }
       ],
       "source_file": "src/modules/intelligence/application/event_handlers/article_processed_handler.py",
@@ -820,7 +820,7 @@
       "context": "intelligence"
     },
     {
-      "id": "repositories.article_repository.ArticleRepository",
+      "id": "domain.repositories.article_repository.ArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleRepository|<br",
@@ -828,11 +828,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.article_repository",
+      "module": "domain.repositories.article_repository",
       "class_name": "ArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/article_repository/ArticleRepository.py",
+      "full_path": "src/domain/repositories/article_repository/ArticleRepository.py",
       "docstring": "Abstract repository interface for Article persistence operations.",
       "typed_attrs": [],
       "typed_methods": [
@@ -926,8 +926,8 @@
           "doc": ""
         },
         {
-          "sig": "handle(event: ArticleScrapedEvent) → bool",
-          "doc": "Process a scraped article event: dedup, persist, record outcome stats, and publish ArticleProcessedEvent on success."
+          "sig": "async handle(event: ArticleScrapedEvent) → bool",
+          "doc": "Process a scraped article event: dedup, persist, record outcome stats, and publish ArticleProcessedEvent on success.\n\n024-async-pipeline-refactor follow-up:…"
         }
       ],
       "source_file": "src/modules/collection/application/event_handlers/article_scraped_handler.py",
@@ -1262,6 +1262,1569 @@
       "context": "collection"
     },
     {
+      "id": "repositories.analyses_translation_repository.AsyncAnalysesTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncAnalysesTranslationRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.analyses_translation_repository",
+      "class_name": "AsyncAnalysesTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/analyses_translation_repository/AsyncAnalysesTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling. Covers exists/find_by_*/save\n— what TranslateArticleUseCase actually calls. find_analyses_without_translation\nis only used by the out-of-scope standalone…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async save(content: AnalysesContent) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_analysis_id_and_language(analysis_id: UUID, language: str) → Optional[AnalysesContent]",
+          "doc": ""
+        },
+        {
+          "sig": "async exists(analysis_id: UUID, language: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/analyses_translation_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.analysis_repository.AsyncAnalysisRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncAnalysisRepository|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.analysis_repository",
+      "class_name": "AsyncAnalysisRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/analysis_repository/AsyncAnalysisRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nthe sync AnalysisRepository/SqlAlchemyAnalysisRepository. Covers only\n`save`, matching AnalyzeArticleUseCase's actual usage…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async save(analysis: Analysis) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/analysis_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.article_metrics_repository.AsyncArticleMetricsRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncArticleMetricsRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.article_metrics_repository",
+      "class_name": "AsyncArticleMetricsRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/article_metrics_repository/AsyncArticleMetricsRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling covering only `upsert` —\nthe method ProcessScrapedArticleUseCase actually calls per-article in the\nnow-concurrent downstream path. `find_stale` is only used…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async upsert(article_id: UUID, metrics: Dict[str, Any]) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/collection/domain/repositories/article_metrics_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "collection"
+    },
+    {
+      "id": "domain.repositories.article_repository.AsyncArticleRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncArticleRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "domain.repositories.article_repository",
+      "class_name": "AsyncArticleRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/repositories/article_repository/AsyncArticleRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling, not a replacement for\nArticleRepository above (still used by the batched fetch/dedup phase's\nfind_analyzed_url_hashes, which stays sync — FR-003 — so it…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async find_by_url_hash(url_hash: str) → Optional[Article]",
+          "doc": ""
+        },
+        {
+          "sig": "async save(article: Article) → Article",
+          "doc": ""
+        },
+        {
+          "sig": "async has_analysis(article_id: UUID) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/shared/domain/repositories/article_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "shared"
+    },
+    {
+      "id": "repositories.article_translation_repository.AsyncArticleTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncArticleTranslationRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.article_translation_repository",
+      "class_name": "AsyncArticleTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/article_translation_repository/AsyncArticleTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling. Covers save/exists/find_by_* —\nwhat TranslateArticleBodyUseCase calls. find_articles_without_translation\nis only used by the out-of-scope standalone…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async save(article_id: UUID, language: str, title: str, content: Optional[str]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_article_id_and_language(article_id: UUID, language: str) → Optional[ArticleBodyTranslationContent]",
+          "doc": ""
+        },
+        {
+          "sig": "async exists(article_id: UUID, language: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/article_translation_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.embedding.async_base_embedding_provider.AsyncBaseEmbeddingProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncBaseEmbeddingProvider|_model",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.embedding.async_base_embedding_provider",
+      "class_name": "AsyncBaseEmbeddingProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/embedding/async_base_embedding_provider/AsyncBaseEmbeddingProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of BaseEmbeddingProvider\n(untouched — still used by the shared, out-of-scope build_llm_service()).\nSame template-method shape, tenacity.AsyncRetrying…",
+      "typed_attrs": [
+        "_model",
+        "_retry"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(model: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_embed(texts: List[str]) → List[List[float]]",
+          "doc": "Call the provider API with a batch of texts and return one vector\nper text. Raise on any failure — retry is handled by the base class."
+        },
+        {
+          "sig": "async count_tokens(text: str) → int",
+          "doc": "Estimate tokens for a given text, used for rate limit estimation."
+        },
+        {
+          "sig": "async embed(text: str) → List[float]",
+          "doc": "Embed a single text string and return its vector."
+        },
+        {
+          "sig": "async embed_batch(texts: List[str]) → List[List[float]]",
+          "doc": "Embed a list of texts in chunks, with retry per chunk."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/embedding/async_base_embedding_provider.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.providers.async_base_provider.AsyncBaseProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncBaseProvider|_model",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.providers.async_base_provider",
+      "class_name": "AsyncBaseProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/providers/async_base_provider/AsyncBaseProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of BaseProvider (untouched —\nstill the base for ClaudeProvider/GeminiProvider/OpenRouterProvider, which\nare constructed by the untouched sync…",
+      "typed_attrs": [
+        "_model",
+        "_retry",
+        "_translate_retry"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(model: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "See BaseProvider._classify_rate_limit — same contract, overridden\nper-provider to inspect that provider's own SDK exception shape."
+        },
+        {
+          "sig": "_is_retryable(exc: BaseException) → bool",
+          "doc": ""
+        },
+        {
+          "sig": "_is_translate_retryable(exc: BaseException) → bool",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api(content: str, prompt: str) → dict",
+          "doc": "Call the provider API and return a parsed JSON dict. Raise on any\nfailure — retry is handled by the base class."
+        },
+        {
+          "sig": "async _call_api_raw(content: str, prompt: str) → str",
+          "doc": "Call the provider API and return raw text response. Raise on any\nfailure — retry is handled by the base class."
+        },
+        {
+          "sig": "_parse_result(result: dict) → tuple[AnalysisContent, AnalysisMetadata]",
+          "doc": ""
+        },
+        {
+          "sig": "async analyze(content: str, prompt: str) → Optional[tuple[AnalysisContent, AnalysisMetadata]]",
+          "doc": "Analyze article content via the LLM with retry, validation, and domain mapping."
+        },
+        {
+          "sig": "_validate(result: dict) → bool",
+          "doc": ""
+        },
+        {
+          "sig": "async translate(content: str, prompt: str) → Optional[str]",
+          "doc": "Translate content via the LLM raw-text endpoint with retry and empty-check."
+        },
+        {
+          "sig": "async generate(prompt: str) → Optional[str]",
+          "doc": "Run a one-shot generation task via the LLM raw-text endpoint with retry and empty-check."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.providers.async_claude_provider.AsyncClaudeProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncClaudeProvider|_client",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.providers.async_claude_provider",
+      "class_name": "AsyncClaudeProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/providers/async_claude_provider/AsyncClaudeProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of ClaudeProvider (untouched\n— still used by the shared, out-of-scope build_llm_service()). Uses\nanthropic.AsyncAnthropic instead of anthropic.Anthropic.",
+      "typed_attrs": [
+        "_client"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(api_key: str, model: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": ""
+        },
+        {
+          "sig": "async _create_message(content: str, prompt: str)",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api(content: str, prompt: str) → dict",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api_raw(content: str, prompt: str) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/providers/async_claude_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "services.dedup_service.AsyncDedupService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncDedupService|_repo<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "services.dedup_service",
+      "class_name": "AsyncDedupService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/services/dedup_service/AsyncDedupService.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of DedupService — new class,\nnot because DedupService is shared with another pipeline (it isn't — only\never constructed inside build_collection_pipeline()),…",
+      "typed_attrs": [
+        "_repo"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(article_repo) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_existing(url: str) → Optional[Article]",
+          "doc": ""
+        },
+        {
+          "sig": "async needs_analysis(article: Article) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/collection/domain/services/dedup_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "llm.resilient_llm_service.AsyncEmbeddingProviderHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncEmbeddingProviderHandler|_can_count_tokens",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
+      "class_name": "AsyncEmbeddingProviderHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/resilient_llm_service/AsyncEmbeddingProviderHandler.py",
+      "docstring": "Async sibling of EmbeddingProviderHandler.",
+      "typed_attrs": [
+        "provider: Any",
+        "strategy: QuotaStrategy",
+        "priority: int",
+        "name: str",
+        "_can_count_tokens: bool"
+      ],
+      "typed_methods": [
+        {
+          "sig": "async embed(text: str) → List[float]",
+          "doc": ""
+        },
+        {
+          "sig": "async embed_batch(texts: List[str]) → List[List[float]]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "domain.repositories.failed_task_repository.AsyncFailedTaskRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncFailedTaskRepository|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "domain.repositories.failed_task_repository",
+      "class_name": "AsyncFailedTaskRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/repositories/failed_task_repository/AsyncFailedTaskRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nthe sync FailedTaskRepository/SqlAlchemyFailedTaskRepository.",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async save(task: FailedTask) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/shared/domain/repositories/failed_task_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "shared"
+    },
+    {
+      "id": "llm.embedding.async_gemini_embedding_provider.AsyncGeminiEmbeddingProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncGeminiEmbeddingProvider|_client",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.embedding.async_gemini_embedding_provider",
+      "class_name": "AsyncGeminiEmbeddingProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/embedding/async_gemini_embedding_provider/AsyncGeminiEmbeddingProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of GeminiEmbeddingProvider\n(untouched — still used by the shared, out-of-scope build_llm_service()).\nSame genai.Client, called through its `.aio` namespace.",
+      "typed_attrs": [
+        "_output_dimensionality",
+        "_client"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(api_key: str, model: str, output_dimensionality: int) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_embed(texts: List[str]) → List[List[float]]",
+          "doc": "Call Gemini embed_content API and return vectors for each text."
+        },
+        {
+          "sig": "async count_tokens(text: str) → int",
+          "doc": "Count tokens for a text using the Gemini count_tokens API."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/embedding/async_gemini_embedding_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.providers.async_gemini_provider.AsyncGeminiProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncGeminiProvider|_client",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.providers.async_gemini_provider",
+      "class_name": "AsyncGeminiProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/providers/async_gemini_provider/AsyncGeminiProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of GeminiProvider (untouched\n— still used by the shared, out-of-scope build_llm_service()). Same\ngenai.Client, called through its `.aio` namespace instead…",
+      "typed_attrs": [
+        "_client"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(api_key: str, model: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "See GeminiProvider._classify_rate_limit for the full rationale —\nidentical logic, duplicated rather than imported because it reads\n`self`-free but is defined…"
+        },
+        {
+          "sig": "async _generate(content: str, prompt: str)",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api(content: str, prompt: str) → dict",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api_raw(content: str, prompt: str) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/providers/async_gemini_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "events.in_memory_event_bus.AsyncInMemoryEventBus",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncInMemoryEventBus|_handlers",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "events",
+      "module": "events.in_memory_event_bus",
+      "class_name": "AsyncInMemoryEventBus",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/events/in_memory_event_bus/AsyncInMemoryEventBus.py",
+      "docstring": "Async in-process event bus — new sibling of InMemoryEventBus, not a\nreplacement (InMemoryEventBus stays untouched; every other pipeline\nbuilder still constructs and owns its own sync instance of…",
+      "typed_attrs": [
+        "_handlers: Dict[Type, List[Callable[[Any], Awaitable[None]]]]"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__() → None",
+          "doc": ""
+        },
+        {
+          "sig": "async subscribe(event_type: Type[Any], handler: Callable[[Any], Awaitable[None]]) → None",
+          "doc": "Register a handler coroutine function to be awaited (in this order) when events of the given type are published."
+        },
+        {
+          "sig": "async publish(event: Any) → bool",
+          "doc": "Await each handler registered for type(event), one at a time, in\nsubscribe()-call order; returns False if any handler failed."
+        }
+      ],
+      "source_file": "src/infrastructure/shared/events/in_memory_event_bus.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "use_cases.ingest_article_for_rag.AsyncIngestArticleForRagUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncIngestArticleForRagUseCase|_rag_ingestion_service<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.ingest_article_for_rag",
+      "class_name": "AsyncIngestArticleForRagUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/ingest_article_for_rag/AsyncIngestArticleForRagUseCase.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of IngestArticleForRagUseCase\n— new, separate class. IngestArticleForRagUseCase is constructed by both\nbuild_collection_pipeline() (in scope) and…",
+      "typed_attrs": [
+        "_rag_ingestion_service"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(rag_ingestion_service) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async execute(article, full_text: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_build_full_text(article) → str",
+          "doc": "Fallback: assemble text from persisted article fields."
+        },
+        {
+          "sig": "_is_bot_detection(text: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/ingest_article_for_rag.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "notifications.notification_service.AsyncNotificationHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncNotificationHandler|_senders",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "notifications",
+      "module": "notifications.notification_service",
+      "class_name": "AsyncNotificationHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/notifications/notification_service/AsyncNotificationHandler.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of NotificationHandler — new,\nseparate class. NotificationHandler/build_notification_handler() are\nshared across five pipelines (collection, weekly-report,…",
+      "typed_attrs": [
+        "_senders"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(senders: list[Callable[[Any], None]]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async handle(event: Any) → None",
+          "doc": "Fan out the event to every sender, swallowing individual failures."
+        }
+      ],
+      "source_file": "src/infrastructure/shared/notifications/notification_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "notifications"
+    },
+    {
+      "id": "llm.providers.async_openrouter_provider.AsyncOpenRouterProvider",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncOpenRouterProvider|_api_key",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.providers.async_openrouter_provider",
+      "class_name": "AsyncOpenRouterProvider",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/providers/async_openrouter_provider/AsyncOpenRouterProvider.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of OpenRouterProvider\n(untouched — still used by the shared, out-of-scope build_llm_service()).\nUses httpx.AsyncClient instead of requests.post — opened and…",
+      "typed_attrs": [
+        "_api_key"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(api_key: str, model: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "_classify_rate_limit(exc: BaseException) → Optional[RateLimitKind]",
+          "doc": "Classify a 429 by the standard Retry-After header — see\nOpenRouterProvider's module docstring."
+        },
+        {
+          "sig": "async _post(content: str, prompt: str) → dict",
+          "doc": "POST to OpenRouter chat completions endpoint and return the JSON response dict."
+        },
+        {
+          "sig": "async _call_api(content: str, prompt: str) → dict",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_api_raw(content: str, prompt: str) → str",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/providers/async_openrouter_provider.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.resilient_llm_service.AsyncProviderHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncProviderHandler|name",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
+      "class_name": "AsyncProviderHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/resilient_llm_service/AsyncProviderHandler.py",
+      "docstring": "Async sibling of ProviderHandler.",
+      "typed_attrs": [
+        "provider: Any",
+        "strategy: QuotaStrategy",
+        "priority: int",
+        "name: str"
+      ],
+      "typed_methods": [
+        {
+          "sig": "async analyze(content: str, prompt: str) → Optional[Tuple[AnalysisContent, AnalysisMetadata]]",
+          "doc": ""
+        },
+        {
+          "sig": "async translate(content: str, prompt: str) → Optional[str]",
+          "doc": ""
+        },
+        {
+          "sig": "async generate(prompt: str) → Optional[str]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "event_handlers.rag_ingestion_handler.AsyncRagIngestionHandler",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncRagIngestionHandler|_event_bus<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "event_handlers",
+      "module": "event_handlers.rag_ingestion_handler",
+      "class_name": "AsyncRagIngestionHandler",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/event_handlers/rag_ingestion_handler/AsyncRagIngestionHandler.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of RagIngestionHandler — new,\nseparate class (paired with AsyncIngestArticleForRagUseCase, which\nRagIngestionHandler's use case type wouldn't accept).…",
+      "typed_attrs": [
+        "_use_case",
+        "_event_bus"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(use_case, event_bus) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async handle(event) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "services.rag_ingestion_service.AsyncRagIngestionService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncRagIngestionService|<br",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "domain_services",
+      "module": "services.rag_ingestion_service",
+      "class_name": "AsyncRagIngestionService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/services/rag_ingestion_service/AsyncRagIngestionService.py",
+      "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nRagIngestionService/RagSdkIngestionService (untouched, still used by the\nout-of-scope build_rag_backfill_pipeline() via…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async ingest(article, full_text: str) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/services/rag_ingestion_service.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "vector_store.rag_sdk_ingestion_impl.AsyncRagSdkIngestionService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncRagSdkIngestionService|_processor",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
+      "subgroup": "other",
+      "module": "vector_store.rag_sdk_ingestion_impl",
+      "class_name": "AsyncRagSdkIngestionService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/vector_store/rag_sdk_ingestion_impl/AsyncRagSdkIngestionService.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of RagSdkIngestionService\n(untouched — still used by the out-of-scope build_rag_backfill_pipeline()\nvia the unmodified build_rag_ingestion_service()).…",
+      "typed_attrs": [
+        "_processor: 'IngestProcessor'"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(processor: 'IngestProcessor') → None",
+          "doc": ""
+        },
+        {
+          "sig": "async ingest(article, full_text: str) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.resilient_llm_service.AsyncResilientEmbeddingService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncResilientEmbeddingService|_handlers<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
+      "class_name": "AsyncResilientEmbeddingService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/resilient_llm_service/AsyncResilientEmbeddingService.py",
+      "docstring": "Async sibling of ResilientEmbeddingService — capacity-aware dispatch\n(User Story 4), same shape as AsyncResilientLLMService above.",
+      "typed_attrs": [
+        "_handlers",
+        "_rate_limit_tracker",
+        "_provider_selector"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(handlers: List[AsyncEmbeddingProviderHandler], provider_selector: Optional[ProviderSelector]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "exhausted_providers() → List[str]",
+          "doc": ""
+        },
+        {
+          "sig": "_dispatch_order(handlers_snapshot: List[AsyncEmbeddingProviderHandler]) → List[AsyncEmbeddingProviderHandler]",
+          "doc": "See AsyncResilientLLMService._dispatch_order above."
+        },
+        {
+          "sig": "async embed(text: str) → Optional[List[float]]",
+          "doc": ""
+        },
+        {
+          "sig": "async embed_batch(texts: List[str]) → Optional[List[List[float]]]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "llm.resilient_llm_service.AsyncResilientLLMService",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncResilientLLMService|_handlers<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.resilient_llm_service",
+      "class_name": "AsyncResilientLLMService",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/resilient_llm_service/AsyncResilientLLMService.py",
+      "docstring": "Async sibling of ResilientLLMService — same priority-ordered-fallback\nshape, async def throughout, now capacity-aware (User Story 4): each\ndispatch call scans for handlers with spare capacity…",
+      "typed_attrs": [
+        "_handlers",
+        "_rate_limit_tracker",
+        "_provider_selector"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(handlers: List[AsyncProviderHandler], provider_selector: Optional[ProviderSelector]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "exhausted_providers() → List[str]",
+          "doc": ""
+        },
+        {
+          "sig": "_dispatch_order(handlers_snapshot: List[AsyncProviderHandler]) → List[AsyncProviderHandler]",
+          "doc": "Handlers with current capacity first (selector's preferred order),\nthen every remaining handler in its original (priority) order as a\nfallback — preserves \"try…"
+        },
+        {
+          "sig": "async analyze(content: str, prompt: str) → Optional[Tuple[AnalysisContent, AnalysisMetadata]]",
+          "doc": ""
+        },
+        {
+          "sig": "async translate(content: str, prompt: str) → Optional[str]",
+          "doc": ""
+        },
+        {
+          "sig": "async generate(prompt: str) → Optional[str]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/resilient_llm_service.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "intelligence.analyses_translation_async_repo_impl.AsyncSqlAlchemyAnalysesTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyAnalysesTranslationRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.analyses_translation_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyAnalysesTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/analyses_translation_async_repo_impl/AsyncSqlAlchemyAnalysesTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of\nSqlAlchemyAnalysesTranslationRepository (untouched).",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save(content: AnalysesContent) → None",
+          "doc": "Save or update an analysis content."
+        },
+        {
+          "sig": "async find_by_analysis_id_and_language(analysis_id: UUID, language: str) → Optional[AnalysesContent]",
+          "doc": "Find analysis translation by analysis ID and language."
+        },
+        {
+          "sig": "async exists(analysis_id: UUID, language: str) → bool",
+          "doc": "Check if translation exists for analysis and language."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/analyses_translation_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "intelligence.analysis_async_repo_impl.AsyncSqlAlchemyAnalysisRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyAnalysisRepository|_session",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.analysis_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyAnalysisRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/analysis_async_repo_impl/AsyncSqlAlchemyAnalysisRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of SqlAlchemyAnalysisRepository\n(untouched). Covers only `save` — see AsyncAnalysisRepository.",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save(analysis: Analysis) → None",
+          "doc": "Persist an Analysis entity and its English translation row, then commit."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/analysis_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "collection.article_metrics_async_repo_impl.AsyncSqlAlchemyArticleMetricsRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyArticleMetricsRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-collection",
+      "ca_layer": "infrastructure",
+      "subgroup": "persistence",
+      "module": "collection.article_metrics_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyArticleMetricsRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/collection/article_metrics_async_repo_impl/AsyncSqlAlchemyArticleMetricsRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of\nSqlAlchemyArticleMetricsRepository (untouched — find_stale, used only by\nthe out-of-scope refresh-metrics job, is not mirrored). Added after\ndiscovering…",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async upsert(article_id: UUID, metrics: Dict[str, Any]) → None",
+          "doc": "Upsert one article_metric_values row per key in `metrics`, and ensure\nan article_metrics row exists (view_count defaults to 0 on first insert)."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/collection/article_metrics_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "shared.article_async_repo_impl.AsyncSqlAlchemyArticleRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyArticleRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "shared.article_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyArticleRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/shared/article_async_repo_impl/AsyncSqlAlchemyArticleRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of SqlAlchemyArticleRepository\n(untouched). Constructed fresh per per-article asyncio.Task, holding that\ntask's own AsyncSession — never shared across…",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_url_hash(url_hash: str) → Optional[Article]",
+          "doc": "Look up an article by its URL hash; returns None if not found."
+        },
+        {
+          "sig": "async save(article: Article) → Article",
+          "doc": "Persist a new article and return the entity with DB-generated fields."
+        },
+        {
+          "sig": "async has_analysis(article_id) → bool",
+          "doc": "Return True if the given article already has an associated analysis."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/shared/article_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "intelligence.article_translation_async_repo_impl.AsyncSqlAlchemyArticleTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyArticleTranslationRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.article_translation_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyArticleTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/article_translation_async_repo_impl/AsyncSqlAlchemyArticleTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of\nSqlAlchemyArticleTranslationRepository (untouched).",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save(article_id: UUID, language: str, title: str, content: Optional[str]) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_article_id_and_language(article_id: UUID, language: str) → Optional[ArticleBodyTranslationContent]",
+          "doc": ""
+        },
+        {
+          "sig": "async exists(article_id: UUID, language: str) → bool",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/article_translation_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "shared.failed_task_async_repo_impl.AsyncSqlAlchemyFailedTaskRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyFailedTaskRepository|_session",
+      "ALIGN": "LEFT",
+      "shape": "record",
+      "style": "solid",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "shared.failed_task_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyFailedTaskRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/shared/failed_task_async_repo_impl/AsyncSqlAlchemyFailedTaskRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of SqlAlchemyFailedTaskRepository\n(untouched). Constructed with the failing task's own AsyncSession so a\nconcurrently-failing article never shares mutable…",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save(task: FailedTask) → None",
+          "doc": "Persist a failed task record and commit immediately."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/shared/failed_task_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "intelligence.tag_group_definition_async_repo_impl.AsyncSqlAlchemyTagGroupDefinitionRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyTagGroupDefinitionRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.tag_group_definition_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyTagGroupDefinitionRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/tag_group_definition_async_repo_impl/AsyncSqlAlchemyTagGroupDefinitionRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of\nSqlAlchemyTagGroupDefinitionRepository (untouched).",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_topic_id(topic_id: UUID) → List[TagGroupDefinitionData]",
+          "doc": "Return all tag group definitions for a given topic, ordered by sort_order."
+        },
+        {
+          "sig": "async upsert(name: str, display_name: str, topic_id: UUID, description: Optional[str], embedding: Optional[List[float]]) → None",
+          "doc": "Insert a new tag group or update its embedding if it already exists."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/tag_group_definition_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "intelligence.tag_async_repo_impl.AsyncSqlAlchemyTagRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyTagRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.tag_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyTagRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/tag_async_repo_impl/AsyncSqlAlchemyTagRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of SqlAlchemyTagRepository\n(untouched). Covers only find_similar/save/link_to_article/save_suggestion/\ncommit — what NormalizeTagsUseCase calls; see…",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_similar(embedding: List[float], group_name: str, topic_id: Optional[UUID], threshold: float) → List[Tuple[TagData, float]]",
+          "doc": "Find tags with cosine similarity above threshold using pgvector nearest-neighbor search."
+        },
+        {
+          "sig": "async save(name: str, tag_group_name: str, embedding: List[float], topic_id: Optional[UUID]) → TagData",
+          "doc": "Create or update a tag with its embedding vector under the given group and topic."
+        },
+        {
+          "sig": "async link_to_article(tag_id: UUID, article_id: UUID) → None",
+          "doc": "Associate a tag with an article if not already linked (direct upsert, see class docstring)."
+        },
+        {
+          "sig": "async save_suggestion(suggestion: TagNormalizationSuggestion) → TagNormalizationSuggestion",
+          "doc": "Persist a tag normalization suggestion and backfill the generated ID."
+        },
+        {
+          "sig": "async commit() → None",
+          "doc": "Commit the current transaction, rolling back on failure."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "intelligence.tag_translation_async_repo_impl.AsyncSqlAlchemyTagTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyTagTranslationRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.tag_translation_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyTagTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/tag_translation_async_repo_impl/AsyncSqlAlchemyTagTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of\nSqlAlchemyTagTranslationRepository (untouched).",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save_tag_translation(tag_id: UUID, language: str, name: str) → None",
+          "doc": "Insert or update a tag's translated name for a given language."
+        },
+        {
+          "sig": "async find_tags_without_translation(language: str, limit: int) → List[dict]",
+          "doc": "Return tags that lack a translation row for the specified language."
+        },
+        {
+          "sig": "async save_group_translation(tag_group_definition_id: UUID, language: str, display_name: str, description: str | None) → None",
+          "doc": "Insert or update a tag group's translated display name and description."
+        },
+        {
+          "sig": "async find_groups_without_translation(language: str, limit: int) → List[dict]",
+          "doc": "Return tag groups that lack a translation row for the specified language."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/tag_translation_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "shared.topic_async_repo_impl.AsyncSqlAlchemyTopicRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncSqlAlchemyTopicRepository|_session",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "shared.topic_async_repo_impl",
+      "class_name": "AsyncSqlAlchemyTopicRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/shared/topic_async_repo_impl/AsyncSqlAlchemyTopicRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of SqlAlchemyTopicRepository\n(untouched — also used by build_weekly_pipeline(), out of scope).",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: AsyncSession) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async list_active() → List[Topic]",
+          "doc": "Return all active topics ordered by sort_order."
+        },
+        {
+          "sig": "async find_by_id(topic_id: UUID) → Optional[Topic]",
+          "doc": "Look up a topic by ID; returns None if not found."
+        },
+        {
+          "sig": "_to_entity(row) → Topic",
+          "doc": "Convert an ORM Topic row to a domain Topic entity."
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/shared/topic_async_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "shared"
+    },
+    {
+      "id": "repositories.tag_group_definition_repository.AsyncTagGroupDefinitionRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTagGroupDefinitionRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.tag_group_definition_repository",
+      "class_name": "AsyncTagGroupDefinitionRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/tag_group_definition_repository/AsyncTagGroupDefinitionRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling — full method parity, both\nmethods are called by AnalyzeArticleUseCase.",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async find_by_topic_id(topic_id: UUID) → List[TagGroupDefinitionData]",
+          "doc": ""
+        },
+        {
+          "sig": "async upsert(name: str, display_name: str, topic_id: UUID, description: Optional[str], embedding: Optional[List[float]]) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/tag_group_definition_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.tag_repository.AsyncTagRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTagRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.tag_repository",
+      "class_name": "AsyncTagRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/tag_repository/AsyncTagRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling covering only what\nNormalizeTagsUseCase actually calls: find_similar, save, link_to_article,\nsave_suggestion, commit.…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async find_similar(embedding: List[float], group_name: str, topic_id: UUID, threshold: float) → List[Tuple[TagData, float]]",
+          "doc": ""
+        },
+        {
+          "sig": "async save(name: str, tag_group_name: str, embedding: List[float], topic_id: UUID) → TagData",
+          "doc": ""
+        },
+        {
+          "sig": "async link_to_article(tag_id: UUID, article_id: UUID) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async save_suggestion(suggestion: TagNormalizationSuggestion) → TagNormalizationSuggestion",
+          "doc": ""
+        },
+        {
+          "sig": "async commit() → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/tag_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "repositories.tag_translation_repository.AsyncTagTranslationRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTagTranslationRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "repositories.tag_translation_repository",
+      "class_name": "AsyncTagTranslationRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/repositories/tag_translation_repository/AsyncTagTranslationRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling — full method parity, since\nTranslateTagsUseCase.execute() calls all four methods itself regardless of\nwhich pipeline constructed the instance (research.md…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async save_tag_translation(tag_id: UUID, language: str, name: str) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_tags_without_translation(language: str, limit: int) → List[dict]",
+          "doc": ""
+        },
+        {
+          "sig": "async save_group_translation(tag_group_definition_id: UUID, language: str, display_name: str, description: str | None) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async find_groups_without_translation(language: str, limit: int) → List[dict]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/domain/repositories/tag_translation_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "intelligence"
+    },
+    {
+      "id": "domain.repositories.topic_repository.AsyncTopicRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTopicRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "domain.repositories.topic_repository",
+      "class_name": "AsyncTopicRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/domain/repositories/topic_repository/AsyncTopicRepository.py",
+      "docstring": "024-async-pipeline-refactor: async sibling. TopicRepository/\nSqlAlchemyTopicRepository are also used by build_weekly_pipeline()\n(out of scope) — this Protocol and its impl are new, separate…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "async list_active() → List[Topic]",
+          "doc": ""
+        },
+        {
+          "sig": "async find_by_id(topic_id: UUID) → Optional[Topic]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/shared/domain/repositories/topic_repository.py",
+      "is_abstract": false,
+      "is_protocol": true,
+      "context": "shared"
+    },
+    {
+      "id": "use_cases.translate_article_body.AsyncTranslateArticleBodyUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTranslateArticleBodyUseCase|_llm_service<br",
+      "ALIGN": "LEFT",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.translate_article_body",
+      "class_name": "AsyncTranslateArticleBodyUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/translate_article_body/AsyncTranslateArticleBodyUseCase.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of TranslateArticleBodyUseCase\n— new, separate class (also constructed by the out-of-scope standalone\ntranslate CLI job via build_translation_pipeline()).…",
+      "typed_attrs": [
+        "_llm_service",
+        "_translation_repository",
+        "_prompt"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(llm_service, translation_repository: ArticleTranslationRepository, prompt: ArticleBodyTranslationPrompt) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async execute(article_id: UUID, title: str, content: str, target_language: str) → ArticleBodyTranslationResult",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_llm(prompt_content: str) → Optional[str]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/translate_article_body.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "use_cases.translate_article.AsyncTranslateArticleUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTranslateArticleUseCase|_llm_service<br",
+      "ALIGN": "LEFT",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.translate_article",
+      "class_name": "AsyncTranslateArticleUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/translate_article/AsyncTranslateArticleUseCase.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of TranslateArticleUseCase —\nnew, separate class. TranslateArticleUseCase is constructed by both\nbuild_collection_pipeline() (in scope) and…",
+      "typed_attrs": [
+        "_llm_service",
+        "_translation_repository",
+        "_prompt"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(llm_service, translation_repository: AnalysesTranslationRepository, prompt: ArticleTranslationPrompt) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async execute(analysis_id: UUID, summary: Optional[str], pain_points: Optional[str], insights: Optional[str], innovations: Optional[str], target_language: str) → AnalysesTranslationResult",
+          "doc": ""
+        },
+        {
+          "sig": "async _call_llm(prompt_content: str) → Optional[AnalysesTranslationContent]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/translate_article.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
+      "id": "use_cases.translate_tags.AsyncTranslateTagsUseCase",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{AsyncTranslateTagsUseCase|_group_prompt",
+      "ALIGN": "LEFT",
+      "layer": "application",
+      "ca_layer": "application",
+      "subgroup": "use_cases",
+      "module": "use_cases.translate_tags",
+      "class_name": "AsyncTranslateTagsUseCase",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/use_cases/translate_tags/AsyncTranslateTagsUseCase.py",
+      "docstring": "024-async-pipeline-refactor: async sibling of TranslateTagsUseCase —\nnew, separate class (also constructed by the out-of-scope standalone\ntranslate CLI job via build_translation_pipeline()). Same…",
+      "typed_attrs": [
+        "_llm_service",
+        "_tag_repo",
+        "_tag_prompt",
+        "_group_prompt"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(llm_service, tag_translation_repository: TagTranslationRepository, tag_prompt: TagTranslationPrompt, group_prompt: GroupTranslationPrompt) → None",
+          "doc": ""
+        },
+        {
+          "sig": "async translate_tags(language: str, limit: int) → Dict[str, int]",
+          "doc": ""
+        },
+        {
+          "sig": "async translate_groups(language: str, limit: int) → Dict[str, int]",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/modules/intelligence/application/use_cases/translate_tags.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "parsers.base_parser.BaseContentParser",
       "color": "black",
       "fontcolor": "black",
@@ -1472,6 +3035,10 @@
         {
           "sig": "fetch(job: ScrapeJob) → Optional[ScrapedArticle]",
           "doc": "Fetch full article content for *job* and return a ScrapedArticle.\nReturns None on any failure."
+        },
+        {
+          "sig": "_parse_published_at(raw) → Optional[datetime]",
+          "doc": "Coerce a scraper client's raw published-date value into a real\ndatetime for ScrapedArticle.published_at (typed…"
         }
       ],
       "source_file": "src/infrastructure/collection/scrapers/base_scraper.py",
@@ -1480,7 +3047,7 @@
       "context": "collection"
     },
     {
-      "id": "services.blob_storage_service.BlobStorageService",
+      "id": "domain.services.blob_storage_service.BlobStorageService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BlobStorageService|<br",
@@ -1490,11 +3057,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "services.blob_storage_service",
+      "module": "domain.services.blob_storage_service",
       "class_name": "BlobStorageService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/services/blob_storage_service/BlobStorageService.py",
+      "full_path": "src/domain/services/blob_storage_service/BlobStorageService.py",
       "docstring": "",
       "typed_attrs": [],
       "typed_methods": [
@@ -1572,7 +3139,7 @@
       "id": "event_handlers.cache_invalidation_handler.CacheInvalidationHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CacheInvalidationHandler|_cache<br",
+      "label": "<{CacheInvalidationHandler|_cache",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -1594,8 +3161,8 @@
           "doc": ""
         },
         {
-          "sig": "handle(event: PipelineCompletedEvent) → None",
-          "doc": "Invalidate cached article/graph reads so newly-scraped data is visible immediately."
+          "sig": "async handle(event) → None",
+          "doc": "Invalidate cached article/graph reads so newly-scraped data is visible immediately.\n\n024-async-pipeline-refactor: now subscribed to…"
         }
       ],
       "source_file": "src/modules/collection/application/event_handlers/cache_invalidation_handler.py",
@@ -1607,7 +3174,7 @@
       "id": "event_handlers.cache_warmup_handler.CacheWarmupHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CacheWarmupHandler|_cache<br",
+      "label": "<{CacheWarmupHandler|_cache",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -1629,8 +3196,8 @@
           "doc": ""
         },
         {
-          "sig": "handle(event: PipelineCompletedEvent) → None",
-          "doc": ""
+          "sig": "async handle(event) → None",
+          "doc": "024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent,\nsame reasoning as CacheInvalidationHandler above."
         }
       ],
       "source_file": "src/modules/collection/application/event_handlers/cache_warmup_handler.py",
@@ -1697,21 +3264,26 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/collection_pipeline/CollectionPipeline.py",
-      "docstring": "Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources.",
+      "docstring": "Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources.\n\n024-async-pipeline-refactor: `run()` is now `async def`. Discover/fetch\n(unchanged, still batched — FR-003) run via…",
       "typed_attrs": [
         "_setting_repo",
         "_scraper_factory",
         "_event_bus",
         "_pipeline_stats",
+        "_async_sessionmaker_factory",
+        "_article_downstream_builder",
+        "_rag_downstream_builder",
+        "_event_bus_factory",
         "_executor",
         "_article_repo",
         "_app_env",
         "_jitter_seconds",
-        "_llm_service"
+        "_llm_service",
+        "_rag_tasks: List[asyncio.Task]"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: EventBus, pipeline_stats: PipelineStats, executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository], app_env: str, jitter_seconds: Optional[float], llm_service: Optional[Any]) → None",
+          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: Any, pipeline_stats: PipelineStats, async_sessionmaker_factory: Callable[[], Any], article_downstream_builder: Callable[..., Awaitable[None]], rag_downstream_builder: Optional[Callable[..., Awaitable[Any]]], event_bus_factory: Callable[[], Any], executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository], app_env: str, jitter_seconds: Optional[float], llm_service: Optional[Any]) → None",
           "doc": ""
         },
         {
@@ -1720,10 +3292,22 @@
         },
         {
           "sig": "_rate_limited_llm_providers() → Tuple[str, ...]",
-          "doc": "LLM provider names that hit RateLimitExhausted this run, if the\npipeline was given the same ResilientLLMService instance the analyze/\ntranslate use cases share…"
+          "doc": "LLM provider names that hit RateLimitExhausted this run, if the\npipeline was given the same AsyncResilientLLMService instance the\nanalyze/translate use cases…"
         },
         {
-          "sig": "run() → int",
+          "sig": "async _dispatch_rag(event) → None",
+          "doc": "Subscribed to ArticleProcessedEvent on each article's own bus.\nFires RAG ingestion as a detached asyncio.Task, tracked for Barrier 2\n— deliberately NOT awaited…"
+        },
+        {
+          "sig": "async _run_rag_ingestion(event) → None",
+          "doc": "Owns its own AsyncSession for the whole task lifetime — separate\nfrom (and outliving) the text-stage task's session, since RAG may\nstill be running after the…"
+        },
+        {
+          "sig": "async _process_article_text(article: ScrapedArticle) → None",
+          "doc": "One per-article asyncio.Task: its own AsyncSession, its own fresh\ndownstream event bus + repos + use cases + handlers (built by\narticle_downstream_builder),…"
+        },
+        {
+          "sig": "async run() → int",
           "doc": "Execute the full pipeline for all due sources and return the number of articles published."
         }
       ],
@@ -2081,29 +3665,29 @@
       "context": "intelligence"
     },
     {
-      "id": "ports.event_bus.EventBus",
+      "id": "application.ports.event_bus.EventBus",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EventBus|<br",
       "ALIGN": "LEFT",
-      "layer": "unknown",
-      "ca_layer": "infrastructure",
+      "layer": "application",
+      "ca_layer": "application",
       "subgroup": "ports",
-      "module": "ports.event_bus",
+      "module": "application.ports.event_bus",
       "class_name": "EventBus",
       "attributes": [],
       "methods": [],
-      "full_path": "src/ports/event_bus/EventBus.py",
-      "docstring": "Protocol for a publish-subscribe event bus used to decouple pipeline stages.",
+      "full_path": "src/application/ports/event_bus/EventBus.py",
+      "docstring": "Protocol for a publish-subscribe event bus used to decouple pipeline stages.\n\n024-async-pipeline-refactor: async so multiple publish() calls (one per\nconcurrently-running article task) can be in…",
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "subscribe(event_type: Type[Any], handler: Callable[[Any], None]) → None",
-          "doc": "Register a handler callable for a given event type."
+          "sig": "async subscribe(event_type: Type[Any], handler: Callable[[Any], Awaitable[None]]) → None",
+          "doc": "Register a handler coroutine function for a given event type."
         },
         {
-          "sig": "publish(event: Any) → bool",
-          "doc": "Dispatch an event to all subscribed handlers; returns True if any handler ran."
+          "sig": "async publish(event: Any) → bool",
+          "doc": "Await all handlers subscribed to type(event), in subscribe()-call\norder; return True if any handler ran."
         }
       ],
       "source_file": "src/shared/application/ports/event_bus.py",
@@ -2112,18 +3696,18 @@
       "context": "shared"
     },
     {
-      "id": "events.failed_event.FailedEvent",
+      "id": "application.events.failed_event.FailedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedEvent|analysis_id",
-      "layer": "shared-application",
+      "layer": "application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "events.failed_event",
+      "module": "application.events.failed_event",
       "class_name": "FailedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/events/failed_event/FailedEvent.py",
+      "full_path": "src/application/events/failed_event/FailedEvent.py",
       "docstring": "Protocol for events representing a failed pipeline task with error context.",
       "typed_attrs": [
         "task_type: str",
@@ -2192,17 +3776,17 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/event_handlers/failed_task_persistence_handler/FailedTaskPersistenceHandler.py",
-      "docstring": "Persists any FailedEvent as a FailedTask record with OTel error span.",
+      "docstring": "Persists any FailedEvent as a FailedTask record with OTel error span.\n\n024-async-pipeline-refactor: converted to async in place — confirmed\nconstructed only once, only inside…",
       "typed_attrs": [
         "_repo"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(failed_task_repository: FailedTaskRepository) → None",
+          "sig": "__init__(failed_task_repository: AsyncFailedTaskRepository) → None",
           "doc": ""
         },
         {
-          "sig": "handle(event: FailedEvent) → None",
+          "sig": "async handle(event: FailedEvent) → None",
           "doc": "Extract failure details from the event and persist a FailedTask."
         }
       ],
@@ -2212,7 +3796,7 @@
       "context": "intelligence"
     },
     {
-      "id": "repositories.failed_task_repository.FailedTaskRepository",
+      "id": "domain.repositories.failed_task_repository.FailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedTaskRepository|<br",
@@ -2222,11 +3806,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.failed_task_repository",
+      "module": "domain.repositories.failed_task_repository",
       "class_name": "FailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/failed_task_repository/FailedTaskRepository.py",
+      "full_path": "src/domain/repositories/failed_task_repository/FailedTaskRepository.py",
       "docstring": "Abstract repository interface for persisting FailedTask records.",
       "typed_attrs": [],
       "typed_methods": [
@@ -2753,7 +4337,7 @@
     {
       "id": "exceptions.IntelligenceDomainError",
       "color": "black",
-      "fontcolor": "black",
+      "fontcolor": "red",
       "label": "<{IntelligenceDomainError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2777,7 +4361,7 @@
     {
       "id": "exceptions.InvalidSimilarityScoreError",
       "color": "black",
-      "fontcolor": "black",
+      "fontcolor": "red",
       "label": "<{InvalidSimilarityScoreError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2801,7 +4385,7 @@
     {
       "id": "exceptions.InvalidSuggestionStatusError",
       "color": "black",
-      "fontcolor": "black",
+      "fontcolor": "red",
       "label": "<{InvalidSuggestionStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2825,7 +4409,7 @@
     {
       "id": "exceptions.InvalidWeeklyReportStatusError",
       "color": "black",
-      "fontcolor": "black",
+      "fontcolor": "red",
       "label": "<{InvalidWeeklyReportStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -2900,7 +4484,7 @@
       "context": "notifications"
     },
     {
-      "id": "value_objects.job_execution_meta.JobExecutionMeta",
+      "id": "domain.value_objects.job_execution_meta.JobExecutionMeta",
       "color": "black",
       "fontcolor": "black",
       "label": "<{JobExecutionMeta|app_env",
@@ -2908,11 +4492,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "value_objects.job_execution_meta",
+      "module": "domain.value_objects.job_execution_meta",
       "class_name": "JobExecutionMeta",
       "attributes": [],
       "methods": [],
-      "full_path": "src/value_objects/job_execution_meta/JobExecutionMeta.py",
+      "full_path": "src/domain/value_objects/job_execution_meta/JobExecutionMeta.py",
       "docstring": "Wall-clock execution window + environment context, attached to every scheduled\nCLI job's completion event so notification messages render a consistent\ntimestamp/environment/duration/jitter block (see…",
       "typed_attrs": [
         "started_at: datetime",
@@ -3145,6 +4729,10 @@
         {
           "sig": "update_batch_size(batch_size: int) → None",
           "doc": "No-op: ignore batch size updates."
+        },
+        {
+          "sig": "has_capacity(estimated_tokens: int) → bool",
+          "doc": "No-op: always has capacity."
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/rate_limit/no_op_strategy.py",
@@ -3195,7 +4783,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/use_cases/normalize_tags/NormalizeTagsUseCase.py",
-      "docstring": "Normalizes raw LLM tags via embedding similarity: auto-merges or suggests merges.",
+      "docstring": "Normalizes raw LLM tags via embedding similarity: auto-merges or suggests merges.\n\n024-async-pipeline-refactor: converted to async in place — confirmed\nconstructed only once, only inside…",
       "typed_attrs": [
         "_embedding_service",
         "_tag_repository",
@@ -3204,19 +4792,19 @@
       ],
       "typed_methods": [
         {
-          "sig": "__init__(embedding_service: EmbeddingService, tag_repository: TagRepository, auto_merge_threshold: float, suggest_threshold: float) → None",
+          "sig": "__init__(embedding_service, tag_repository: AsyncTagRepository, auto_merge_threshold: float, suggest_threshold: float) → None",
           "doc": ""
         },
         {
-          "sig": "execute(analysis_id: UUID, article_id: UUID, tag_groups: List[Tuple[str, List[str]]], topic_id: Optional[UUID]) → NormalizeTagsResult",
+          "sig": "async execute(analysis_id: UUID, article_id: UUID, tag_groups: List[Tuple[str, List[str]]], topic_id: Optional[UUID]) → NormalizeTagsResult",
           "doc": "Embed and normalize all tags, auto-merge or create suggestions, then commit."
         },
         {
-          "sig": "_process(analysis_id: UUID, article_id: UUID, tag_groups: List[Tuple[str, List[str]]], topic_id: Optional[UUID]) → None",
+          "sig": "async _process(analysis_id: UUID, article_id: UUID, tag_groups: List[Tuple[str, List[str]]], topic_id: Optional[UUID]) → None",
           "doc": "Flatten tag groups, embed all tag names, and process each tag."
         },
         {
-          "sig": "_process_tag(tag_name: str, group_name: str, article_id: UUID, embedding: List[float], topic_id: Optional[UUID]) → None",
+          "sig": "async _process_tag(tag_name: str, group_name: str, article_id: UUID, embedding: List[float], topic_id: Optional[UUID]) → None",
           "doc": "Check embedding similarity and auto-merge, suggest, or create the tag."
         }
       ],
@@ -3502,12 +5090,12 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/handlers/otel_metrics_handler/OtelMetricsHandler.py",
-      "docstring": "Records pipeline completion metrics on the current OpenTelemetry span.",
+      "docstring": "Records pipeline completion metrics on its own OpenTelemetry span.",
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "handle(event: PipelineCompletedEvent) → None",
-          "doc": "Attach pipeline duration and source count as attributes on the current OTel span."
+          "sig": "async handle(event: PipelineCompletedEvent) → None",
+          "doc": "Attach pipeline duration and source count as attributes on a fresh OTel span."
         }
       ],
       "source_file": "src/infrastructure/collection/handlers/otel_metrics_handler.py",
@@ -3686,6 +5274,33 @@
       "context": "collection"
     },
     {
+      "id": "llm.rate_limit.provider_selector.PriorityFirstProviderSelector",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{PriorityFirstProviderSelector|<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.provider_selector",
+      "class_name": "PriorityFirstProviderSelector",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/rate_limit/provider_selector/PriorityFirstProviderSelector.py",
+      "docstring": "Default. Preserves today's priority ordering among handlers that\ncurrently have capacity — does not change *which* model is preferred,\nonly skips ones that are momentarily unavailable instead of…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "select(handlers: List) → List[int]",
+          "doc": "Return indices of handlers with current capacity, preserving\n`handlers`' existing (priority) order."
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/rate_limit/provider_selector.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "use_cases.process_scraped_article.ProcessScrapedArticleUseCase",
       "color": "black",
       "fontcolor": "black",
@@ -3698,7 +5313,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/use_cases/process_scraped_article/ProcessScrapedArticleUseCase.py",
-      "docstring": "Receives an ArticleScrapedEvent from infrastructure, applies dedup,\npersists a new Article.\nReturns (ArticleOutcome, Article | None) so the handler can publish events.",
+      "docstring": "Receives an ArticleScrapedEvent from infrastructure, applies dedup,\npersists a new Article.\nReturns (ArticleOutcome, Article | None) so the handler can publish events.\n\n024-async-pipeline-refactor:…",
       "typed_attrs": [
         "_article_repo",
         "_dedup_service",
@@ -3706,11 +5321,11 @@
       ],
       "typed_methods": [
         {
-          "sig": "__init__(article_repo: ArticleRepository, dedup_service: DedupService, article_metrics_repo: Optional[ArticleMetricsRepository]) → None",
+          "sig": "__init__(article_repo: AsyncArticleRepository, dedup_service: AsyncDedupService, article_metrics_repo: Optional[AsyncArticleMetricsRepository]) → None",
           "doc": ""
         },
         {
-          "sig": "execute(event: ArticleScrapedEvent) → tuple[ArticleOutcome, Optional[Article]]",
+          "sig": "async execute(event: ArticleScrapedEvent) → tuple[ArticleOutcome, Optional[Article]]",
           "doc": "Deduplicate and persist the scraped article, returning the outcome and saved Article (or None on failure/duplicate)."
         },
         {
@@ -3837,6 +5452,33 @@
       "context": "collection"
     },
     {
+      "id": "llm.rate_limit.provider_selector.ProviderSelector",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{ProviderSelector|<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-intelligence",
+      "ca_layer": "infrastructure",
+      "subgroup": "llm",
+      "module": "llm.rate_limit.provider_selector",
+      "class_name": "ProviderSelector",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/llm/rate_limit/provider_selector/ProviderSelector.py",
+      "docstring": "024-async-pipeline-refactor: strategy interface for ordering provider/\nembedding-provider handlers for a concurrent dispatch attempt — mirrors\nQueueSelector…",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "select(handlers: List) → List[int]",
+          "doc": "Return indices of currently-available handlers, in preferred\ndispatch order. Returns [] if none are currently available (caller\nfalls back to the existing…"
+        }
+      ],
+      "source_file": "src/infrastructure/intelligence/llm/rate_limit/provider_selector.py",
+      "is_abstract": true,
+      "is_protocol": false,
+      "context": "intelligence"
+    },
+    {
       "id": "executor.queue_router.QueueRouter",
       "color": "black",
       "fontcolor": "black",
@@ -3934,6 +5576,10 @@
         {
           "sig": "update_batch_size(batch_size: int) → None",
           "doc": "Inform the strategy of the current batch size for better estimation."
+        },
+        {
+          "sig": "has_capacity(estimated_tokens: int) → bool",
+          "doc": "Non-blocking, side-effect-free check: True if a request could be\ndispatched right now without waiting (024-async-pipeline-refactor,\nProviderSelector port — see…"
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/rate_limit/quota_strategy.py",
@@ -4700,7 +6346,7 @@
       "id": "executor.scrape_executor.ScrapeExecutor",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{ScrapeExecutor|_discover_delays",
+      "label": "<{ScrapeExecutor|_discover_workers",
       "ALIGN": "LEFT",
       "layer": "infrastructure-collection",
       "ca_layer": "infrastructure",
@@ -4715,14 +6361,13 @@
         "_num_workers",
         "_discover_workers",
         "_fetch_delay",
-        "_discover_delays",
         "_selector",
         "_on_discover_failed",
         "_rate_limit_tracker"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(num_workers: int, discover_workers: int, fetch_delay: float, discover_delays: Optional[Dict[str, float]], selector: Optional[QueueSelector], on_discover_failed: Optional[Callable]) → None",
+          "sig": "__init__(num_workers: int, discover_workers: int, fetch_delay: float, selector: Optional[QueueSelector], on_discover_failed: Optional[Callable]) → None",
           "doc": ""
         },
         {
@@ -4742,7 +6387,7 @@
           "doc": "Discover-only mode: execute all discover tasks and return resulting FetchTasks.\n\nDoes NOT fetch — caller should pass the returned FetchTasks to…"
         },
         {
-          "sig": "_discover_worker_loop_collect(worker_id: int, host_queue_map: HostQueueMap, router: QueueRouter, pending_discovers: list, pending_lock: threading.Lock, on_discover_complete: Callable[[], None], on_fetch_tasks: Callable[[List[FetchTask]], None]) → int",
+          "sig": "_discover_worker_loop_collect(worker_id: int, host_queue_map: HostQueueMap, router: QueueRouter, pending_discovers: list, pending_lock: threading.Lock, on_discover_complete: Callable[[], None], on_fetch_tasks: Callable[[List[FetchTask]], int]) → int",
           "doc": "Discover worker that collects FetchTasks via callback instead of routing to queues."
         },
         {
@@ -5007,7 +6652,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/search/application/event_handlers/search_index_rebuild_handler/SearchIndexRebuildHandler.py",
-      "docstring": "Rebuilds the autocomplete term index once per completed scrape pipeline run\n(FR-008) — mirrors CacheInvalidationHandler/CacheWarmupHandler's PipelineCompletedEvent\nsubscription pattern.",
+      "docstring": "Rebuilds the autocomplete term index once per completed scrape pipeline run\n(FR-008) — mirrors CacheInvalidationHandler/CacheWarmupHandler's subscription\npattern.\n\n024-async-pipeline-refactor: now…",
       "typed_attrs": [
         "_use_case"
       ],
@@ -5017,12 +6662,39 @@
           "doc": ""
         },
         {
-          "sig": "handle(event: PipelineCompletedEvent) → None",
+          "sig": "async handle(event) → None",
           "doc": ""
         }
       ],
       "source_file": "src/modules/search/application/event_handlers/search_index_rebuild_handler.py",
       "is_abstract": false,
+      "is_protocol": false,
+      "context": "search"
+    },
+    {
+      "id": "search.domain.repositories.search_term_repository.SearchTermRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SearchTermRepository|<br",
+      "ALIGN": "LEFT",
+      "layer": "domain",
+      "ca_layer": "entities",
+      "subgroup": "repositories",
+      "module": "search.domain.repositories.search_term_repository",
+      "class_name": "SearchTermRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/search/domain/repositories/search_term_repository/SearchTermRepository.py",
+      "docstring": "Domain interface for the term->article inverted index persistence\n(intelligence.search_terms + intelligence.search_term_articles — 023-article-search\nfollow-up).",
+      "typed_attrs": [],
+      "typed_methods": [
+        {
+          "sig": "replace_all(topic_term_articles: Dict[Tuple[UUID, str, str], Set[UUID]]) → None",
+          "doc": "Atomically replace every row in both tables — FR-008's full-rebuild-not-\nincremental contract, mirroring the Redis index's own replace-not-merge rebuild.\n\nKey…"
+        }
+      ],
+      "source_file": "src/modules/search/domain/repositories/search_term_repository.py",
+      "is_abstract": true,
       "is_protocol": false,
       "context": "search"
     },
@@ -5245,6 +6917,10 @@
         {
           "sig": "update_batch_size(batch_size: int) → None",
           "doc": "Update the batch size used for RPM pre-accounting when acquire is called."
+        },
+        {
+          "sig": "has_capacity(estimated_tokens: int) → bool",
+          "doc": "024-async-pipeline-refactor: non-blocking peek for ProviderSelector\n(contracts/provider-selector-port.md) — True if `acquire()` would\nreturn immediately right…"
         },
         {
           "sig": "_compute_wait(estimated_tokens: int) → float",
@@ -5509,10 +7185,6 @@
         {
           "sig": "find_analyzed_url_hashes(url_hashes: Set[str]) → Set[str]",
           "doc": "Return the subset of url_hashes that already have an associated analysis."
-        },
-        {
-          "sig": "_to_entity(row) → Article",
-          "doc": "Convert an ORM Article row to a domain Article entity."
         }
       ],
       "source_file": "src/infrastructure/persistence/shared/article_repo_impl.py",
@@ -5681,6 +7353,39 @@
       "is_abstract": false,
       "is_protocol": false,
       "context": "collection"
+    },
+    {
+      "id": "intelligence.search_term_repo_impl.SqlAlchemySearchTermRepository",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{SqlAlchemySearchTermRepository|_session<br",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-persistence",
+      "ca_layer": "adapters",
+      "subgroup": "persistence",
+      "module": "intelligence.search_term_repo_impl",
+      "class_name": "SqlAlchemySearchTermRepository",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/intelligence/search_term_repo_impl/SqlAlchemySearchTermRepository.py",
+      "docstring": "SQLAlchemy ORM implementation — wholesale replace of both intelligence.search_terms\nand intelligence.search_term_articles in one transaction (FR-008: full rebuild, not\nan incremental merge). ORM, not…",
+      "typed_attrs": [
+        "_session"
+      ],
+      "typed_methods": [
+        {
+          "sig": "__init__(session: Session) → None",
+          "doc": ""
+        },
+        {
+          "sig": "replace_all(topic_term_articles: Dict[Tuple[UUID, str, str], Set[UUID]]) → None",
+          "doc": ""
+        }
+      ],
+      "source_file": "src/infrastructure/persistence/intelligence/search_term_repo_impl.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "intelligence"
     },
     {
       "id": "intelligence.tag_group_definition_repo_impl.SqlAlchemyTagGroupDefinitionRepository",
@@ -6047,7 +7752,7 @@
       "context": "intelligence"
     },
     {
-      "id": "value_objects.tag_mode.TagMode",
+      "id": "domain.value_objects.tag_mode.TagMode",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TagMode|name<br",
@@ -6057,11 +7762,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "value_objects.tag_mode",
+      "module": "domain.value_objects.tag_mode",
       "class_name": "TagMode",
       "attributes": [],
       "methods": [],
-      "full_path": "src/value_objects/tag_mode/TagMode.py",
+      "full_path": "src/domain/value_objects/tag_mode/TagMode.py",
       "docstring": "Enum controlling how tags are assigned: unsupervised, semi-supervised, or supervised.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -6134,7 +7839,7 @@
       "id": "event_handlers.tag_normalization_handler.TagNormalizationHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{TagNormalizationHandler|_event_bus",
+      "label": "<{TagNormalizationHandler|_event_bus<br",
       "ALIGN": "LEFT",
       "layer": "application",
       "ca_layer": "application",
@@ -6144,7 +7849,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/event_handlers/tag_normalization_handler/TagNormalizationHandler.py",
-      "docstring": "Normalizes tags from a completed analysis and emits the result event.",
+      "docstring": "Normalizes tags from a completed analysis and emits the result event.\n\n024-async-pipeline-refactor: converted to async in place — confirmed\nconstructed only once, only inside…",
       "typed_attrs": [
         "_use_case",
         "_event_bus",
@@ -6152,15 +7857,15 @@
       ],
       "typed_methods": [
         {
-          "sig": "__init__(use_case: NormalizeTagsUseCase, event_bus: EventBus, session: Session) → None",
+          "sig": "__init__(use_case: NormalizeTagsUseCase, event_bus, session: AsyncSession) → None",
           "doc": ""
         },
         {
-          "sig": "handle(event: AnalysisCompletedEvent) → None",
-          "doc": "Run tag normalization on the analysis result and publish outcome."
+          "sig": "async handle(event: AnalysisCompletedEvent) → None",
+          "doc": "Run tag normalization on the analysis result and publish outcome.\n\n024-async-pipeline-refactor follow-up: owns its own span (see\nArticleScrapedHandler.handle's…"
         },
         {
-          "sig": "_fetch_article_body(article_id) → tuple[str, str]",
+          "sig": "async _fetch_article_body(article_id) → tuple[str, str]",
           "doc": "Fetch article title and content from the database.\n\nRaises on DB failure so the caller can publish a TagNormalizationFailedEvent."
         }
       ],
@@ -6333,7 +8038,7 @@
       "context": "intelligence"
     },
     {
-      "id": "value_objects.telegram_message.TelegramMessage",
+      "id": "domain.value_objects.telegram_message.TelegramMessage",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramMessage|parse_mode",
@@ -6341,11 +8046,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "value_objects.telegram_message",
+      "module": "domain.value_objects.telegram_message",
       "class_name": "TelegramMessage",
       "attributes": [],
       "methods": [],
-      "full_path": "src/value_objects/telegram_message/TelegramMessage.py",
+      "full_path": "src/domain/value_objects/telegram_message/TelegramMessage.py",
       "docstring": "Transport-agnostic representation of a Telegram message to be sent.",
       "typed_attrs": [
         "text: str",
@@ -6407,7 +8112,7 @@
       "context": "notifications"
     },
     {
-      "id": "services.telegram_notifier_service.TelegramNotifierService",
+      "id": "domain.services.telegram_notifier_service.TelegramNotifierService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramNotifierService|<br",
@@ -6417,11 +8122,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "services.telegram_notifier_service",
+      "module": "domain.services.telegram_notifier_service",
       "class_name": "TelegramNotifierService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/services/telegram_notifier_service/TelegramNotifierService.py",
+      "full_path": "src/domain/services/telegram_notifier_service/TelegramNotifierService.py",
       "docstring": "Transport-only interface for sending a Telegram message to a chat id.\n\nConcrete implementations live in src/shared/infrastructure/notifications/.\nUse-case-specific content (Markdown formatting,…",
       "typed_attrs": [],
       "typed_methods": [
@@ -6463,18 +8168,45 @@
       "context": "intelligence"
     },
     {
-      "id": "entities.topic.Topic",
+      "id": "events.text_pipeline_completed.TextPipelineCompletedEvent",
+      "color": "black",
+      "fontcolor": "black",
+      "label": "<{TextPipelineCompletedEvent|execution",
+      "ALIGN": "LEFT",
+      "layer": "infrastructure-shared",
+      "ca_layer": "infrastructure",
+      "subgroup": "events",
+      "module": "events.text_pipeline_completed",
+      "class_name": "TextPipelineCompletedEvent",
+      "attributes": [],
+      "methods": [],
+      "full_path": "src/events/text_pipeline_completed/TextPipelineCompletedEvent.py",
+      "docstring": "024-async-pipeline-refactor: published once every article's text stage\n(scrape+analyze+translate) has settled — succeeded or permanently failed,\nnever waiting on RAG ingestion (spec.md…",
+      "typed_attrs": [
+        "stats: List[SourceStats]",
+        "execution: JobExecutionMeta",
+        "rate_limited_hosts: Tuple[str, ...]",
+        "rate_limited_llm_providers: Tuple[str, ...]"
+      ],
+      "typed_methods": [],
+      "source_file": "src/modules/collection/application/events/text_pipeline_completed.py",
+      "is_abstract": false,
+      "is_protocol": false,
+      "context": "collection"
+    },
+    {
+      "id": "domain.entities.topic.Topic",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Topic|color_hex",
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "entities.topic",
+      "module": "domain.entities.topic",
       "class_name": "Topic",
       "attributes": [],
       "methods": [],
-      "full_path": "src/entities/topic/Topic.py",
+      "full_path": "src/domain/entities/topic/Topic.py",
       "docstring": "Domain entity representing a topic category for article classification.",
       "typed_attrs": [
         "name: str",
@@ -6495,7 +8227,7 @@
       "context": "shared"
     },
     {
-      "id": "repositories.topic_repository.TopicRepository",
+      "id": "domain.repositories.topic_repository.TopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TopicRepository|<br",
@@ -6503,11 +8235,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "repositories.topic_repository",
+      "module": "domain.repositories.topic_repository",
       "class_name": "TopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/repositories/topic_repository/TopicRepository.py",
+      "full_path": "src/domain/repositories/topic_repository/TopicRepository.py",
       "docstring": "Abstract repository interface for Topic lookup queries.",
       "typed_attrs": [],
       "typed_methods": [
@@ -7360,8 +9092,36 @@
       "arrowtail": "none"
     },
     {
+      "source": "llm.embedding.async_gemini_embedding_provider.AsyncGeminiEmbeddingProvider",
+      "target": "llm.embedding.async_base_embedding_provider.AsyncBaseEmbeddingProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
       "source": "llm.embedding.gemini_embedding_provider.GeminiEmbeddingProvider",
       "target": "llm.embedding.base_embedding_provider.BaseEmbeddingProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.async_claude_provider.AsyncClaudeProvider",
+      "target": "llm.providers.async_base_provider.AsyncBaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.async_gemini_provider.AsyncGeminiProvider",
+      "target": "llm.providers.async_base_provider.AsyncBaseProvider",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.providers.async_openrouter_provider.AsyncOpenRouterProvider",
+      "target": "llm.providers.async_base_provider.AsyncBaseProvider",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -7390,6 +9150,13 @@
     {
       "source": "llm.rate_limit.no_op_strategy.NoOpStrategy",
       "target": "llm.rate_limit.quota_strategy.QuotaStrategy",
+      "type": "inheritance",
+      "arrowhead": "empty",
+      "arrowtail": "none"
+    },
+    {
+      "source": "llm.rate_limit.provider_selector.PriorityFirstProviderSelector",
+      "target": "llm.rate_limit.provider_selector.ProviderSelector",
       "type": "inheritance",
       "arrowhead": "empty",
       "arrowtail": "none"
@@ -7541,22 +9308,22 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 92,
+      "count": 108,
       "subgroups": [
         {
           "id": "llm",
           "label": "LLM Providers",
-          "count": 15
+          "count": 27
         },
         {
           "id": "other",
           "label": "Other",
-          "count": 15
+          "count": 16
         },
         {
           "id": "notifications",
           "label": "Notifications",
-          "count": 14
+          "count": 15
         },
         {
           "id": "clients",
@@ -7566,7 +9333,7 @@
         {
           "id": "events",
           "label": "Events",
-          "count": 8
+          "count": 10
         },
         {
           "id": "executor",
@@ -7579,14 +9346,14 @@
           "count": 7
         },
         {
-          "id": "parsers",
-          "label": "Parsers",
+          "id": "persistence",
+          "label": "Persistence",
           "count": 4
         },
         {
-          "id": "persistence",
-          "label": "Persistence",
-          "count": 3
+          "id": "parsers",
+          "label": "Parsers",
+          "count": 4
         },
         {
           "id": "factories",
@@ -7604,11 +9371,6 @@
           "count": 1
         },
         {
-          "id": "ports",
-          "label": "Ports",
-          "count": 1
-        },
-        {
           "id": "event_handlers",
           "label": "Event Handlers",
           "count": 1
@@ -7618,17 +9380,17 @@
         {
           "id": "collection",
           "label": "Collection",
-          "count": 43
+          "count": 45
         },
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 29
+          "count": 42
         },
         {
           "id": "notifications",
           "label": "Notifications",
-          "count": 14
+          "count": 15
         },
         {
           "id": "shared",
@@ -7646,24 +9408,24 @@
       "id": "adapters",
       "label": "Interface Adapters",
       "color": "#EEDD88",
-      "count": 12,
+      "count": 22,
       "subgroups": [
         {
           "id": "persistence",
           "label": "Persistence",
-          "count": 12
+          "count": 22
         }
       ],
       "context_subgroups": [
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 9
+          "count": 16
         },
         {
           "id": "shared",
           "label": "Shared",
-          "count": 3
+          "count": 6
         }
       ]
     },
@@ -7671,29 +9433,34 @@
       "id": "application",
       "label": "Application",
       "color": "#44BB99",
-      "count": 33,
+      "count": 39,
       "subgroups": [
         {
           "id": "use_cases",
           "label": "Use Cases",
-          "count": 15
+          "count": 19
         },
         {
           "id": "event_handlers",
           "label": "Event Handlers",
-          "count": 10
+          "count": 11
         },
         {
           "id": "events",
           "label": "Events",
           "count": 8
+        },
+        {
+          "id": "ports",
+          "label": "Ports",
+          "count": 1
         }
       ],
       "context_subgroups": [
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 20
+          "count": 25
         },
         {
           "id": "collection",
@@ -7703,7 +9470,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 2
+          "count": 3
         },
         {
           "id": "search",
@@ -7716,17 +9483,17 @@
       "id": "entities",
       "label": "Domain / Entities",
       "color": "#77AADD",
-      "count": 69,
+      "count": 82,
       "subgroups": [
+        {
+          "id": "repositories",
+          "label": "Repositories",
+          "count": 30
+        },
         {
           "id": "value_objects",
           "label": "Value Objects",
           "count": 28
-        },
-        {
-          "id": "repositories",
-          "label": "Repositories",
-          "count": 19
         },
         {
           "id": "entities",
@@ -7736,24 +9503,29 @@
         {
           "id": "domain_services",
           "label": "Domain Services",
-          "count": 10
+          "count": 12
         }
       ],
       "context_subgroups": [
         {
           "id": "intelligence",
           "label": "Intelligence",
-          "count": 40
+          "count": 47
         },
         {
           "id": "collection",
           "label": "Collection",
-          "count": 19
+          "count": 21
         },
         {
           "id": "shared",
           "label": "Shared",
-          "count": 10
+          "count": 13
+        },
+        {
+          "id": "search",
+          "label": "Search",
+          "count": 1
         }
       ]
     }
@@ -7908,7 +9680,7 @@
         },
         {
           "param": "event_bus",
-          "class": "InMemoryEventBus",
+          "class": "AsyncInMemoryEventBus",
           "deps": []
         },
         {
@@ -7975,30 +9747,24 @@
           "deps": [
             {
               "param": "article_repo",
-              "class": "SqlAlchemyArticleRepository",
+              "class": "AsyncSqlAlchemyArticleRepository",
               "deps": []
             },
             {
               "param": "dedup_service",
-              "class": "DedupService",
+              "class": "AsyncDedupService",
               "deps": [
                 {
                   "param": "article_repo",
-                  "class": "SqlAlchemyArticleRepository",
+                  "class": "AsyncSqlAlchemyArticleRepository",
                   "deps": []
                 }
               ]
             },
             {
               "param": "article_metrics_repo",
-              "class": "SqlAlchemyArticleMetricsRepository",
-              "deps": [
-                {
-                  "param": "creates",
-                  "class": "StaleArticle",
-                  "deps": []
-                }
-              ]
+              "class": "AsyncSqlAlchemyArticleMetricsRepository",
+              "deps": []
             }
           ]
         },
@@ -8006,18 +9772,13 @@
           "param": "pipeline_stats",
           "class": "PipelineStats",
           "deps": []
-        },
-        {
-          "param": "event_bus",
-          "class": "InMemoryEventBus",
-          "deps": []
         }
       ]
     },
     {
       "step": 3,
       "id": "articleprocessedhandler",
-      "parallel_group": "pg_articleprocessedevent",
+      "parallel_group": "",
       "icon": "🧠",
       "label": "Article Processed",
       "desc": "ArticleProcessedEvent -> ArticleProcessedHandler -> AnalysisCompletedEvent",
@@ -8041,7 +9802,7 @@
           ],
           "classes": [
             "FailedTaskPersistenceHandler",
-            "SqlAlchemyFailedTaskRepository"
+            "AsyncSqlAlchemyFailedTaskRepository"
           ],
           "desc": "AnalysisFailedEvent → FailedTaskPersistenceHandler"
         }
@@ -8053,12 +9814,12 @@
           "deps": [
             {
               "param": "analysis_repository",
-              "class": "SqlAlchemyAnalysisRepository",
+              "class": "AsyncSqlAlchemyAnalysisRepository",
               "deps": []
             },
             {
               "param": "topic_repository",
-              "class": "SqlAlchemyTopicRepository",
+              "class": "AsyncSqlAlchemyTopicRepository",
               "deps": [
                 {
                   "param": "creates",
@@ -8074,7 +9835,7 @@
             },
             {
               "param": "tag_group_definition_repository",
-              "class": "SqlAlchemyTagGroupDefinitionRepository",
+              "class": "AsyncSqlAlchemyTagGroupDefinitionRepository",
               "deps": [
                 {
                   "param": "creates",
@@ -8099,69 +9860,20 @@
               "deps": []
             }
           ]
-        },
-        {
-          "param": "event_bus",
-          "class": "InMemoryEventBus",
-          "deps": []
         }
       ]
     },
     {
       "step": 4,
-      "id": "ragingestionhandler",
-      "parallel_group": "pg_articleprocessedevent",
-      "icon": "⚙️",
-      "label": "Rag Ingestion",
-      "desc": "ArticleProcessedEvent -> RagIngestionHandler",
-      "color": "#44BB99",
-      "classes": [
-        "RagIngestionHandler",
-        "IngestArticleForRagUseCase"
-      ],
-      "receives": [
-        "ArticleProcessedEvent"
-      ],
-      "emits": [],
-      "branches": [
-        {
-          "label": "Rag Ingestion Failed",
-          "color": "#e94560",
-          "emits": [
-            "RagIngestionFailedEvent"
-          ],
-          "classes": [
-            "FailedTaskPersistenceHandler",
-            "SqlAlchemyFailedTaskRepository"
-          ],
-          "desc": "RagIngestionFailedEvent → FailedTaskPersistenceHandler"
-        }
-      ],
-      "di": [
-        {
-          "param": "",
-          "class": "IngestArticleForRagUseCase",
-          "deps": []
-        },
-        {
-          "param": "",
-          "class": "InMemoryEventBus",
-          "deps": []
-        }
-      ]
-    },
-    {
-      "step": 5,
       "id": "tagnormalizationhandler",
       "parallel_group": "",
       "icon": "🏷️",
       "label": "Tag Normalization",
       "desc": "AnalysisCompletedEvent -> TagNormalizationHandler -> TagNormalizationCompletedEvent",
-      "color": "#77AADD",
+      "color": "#44BB99",
       "classes": [
         "TagNormalizationHandler",
-        "NormalizeTagsUseCase",
-        "get_session"
+        "NormalizeTagsUseCase"
       ],
       "receives": [
         "AnalysisCompletedEvent"
@@ -8178,7 +9890,7 @@
           ],
           "classes": [
             "FailedTaskPersistenceHandler",
-            "SqlAlchemyFailedTaskRepository"
+            "AsyncSqlAlchemyFailedTaskRepository"
           ],
           "desc": "TagNormalizationFailedEvent → FailedTaskPersistenceHandler"
         }
@@ -8190,16 +9902,11 @@
           "deps": [
             {
               "param": "tag_repository",
-              "class": "SqlAlchemyTagRepository",
+              "class": "AsyncSqlAlchemyTagRepository",
               "deps": [
                 {
                   "param": "creates",
                   "class": "TagData",
-                  "deps": []
-                },
-                {
-                  "param": "creates",
-                  "class": "TagNormalizationSuggestion",
                   "deps": []
                 }
               ]
@@ -8210,28 +9917,23 @@
               "deps": []
             }
           ]
-        },
-        {
-          "param": "event_bus",
-          "class": "InMemoryEventBus",
-          "deps": []
         }
       ]
     },
     {
-      "step": 6,
+      "step": 5,
       "id": "analysiscompletedhandler",
       "parallel_group": "",
       "icon": "⚙️",
       "label": "Analysis Completed",
       "desc": "TagNormalizationCompletedEvent -> AnalysisCompletedHandler",
-      "color": "#EE8866",
+      "color": "#77AADD",
       "classes": [
         "AnalysisCompletedHandler",
-        "TranslateArticleUseCase",
-        "TranslateTagsUseCase",
-        "TranslateArticleBodyUseCase",
-        "SqlAlchemyAnalysesTranslationRepository"
+        "AsyncTranslateArticleUseCase",
+        "AsyncTranslateTagsUseCase",
+        "AsyncTranslateArticleBodyUseCase",
+        "AsyncSqlAlchemyAnalysesTranslationRepository"
       ],
       "receives": [
         "TagNormalizationCompletedEvent"
@@ -8246,7 +9948,7 @@
           ],
           "classes": [
             "FailedTaskPersistenceHandler",
-            "SqlAlchemyFailedTaskRepository"
+            "AsyncSqlAlchemyFailedTaskRepository"
           ],
           "desc": "TranslationFailedEvent → FailedTaskPersistenceHandler"
         }
@@ -8254,11 +9956,11 @@
       "di": [
         {
           "param": "translate_article_uc",
-          "class": "TranslateArticleUseCase",
+          "class": "AsyncTranslateArticleUseCase",
           "deps": [
             {
               "param": "translation_repository",
-              "class": "SqlAlchemyAnalysesTranslationRepository",
+              "class": "AsyncSqlAlchemyAnalysesTranslationRepository",
               "deps": [
                 {
                   "param": "creates",
@@ -8286,11 +9988,11 @@
         },
         {
           "param": "translate_tags_uc",
-          "class": "TranslateTagsUseCase",
+          "class": "AsyncTranslateTagsUseCase",
           "deps": [
             {
               "param": "tag_translation_repository",
-              "class": "SqlAlchemyTagTranslationRepository",
+              "class": "AsyncSqlAlchemyTagTranslationRepository",
               "deps": []
             },
             {
@@ -8307,11 +10009,11 @@
         },
         {
           "param": "translate_body_uc",
-          "class": "TranslateArticleBodyUseCase",
+          "class": "AsyncTranslateArticleBodyUseCase",
           "deps": [
             {
               "param": "translation_repository",
-              "class": "SqlAlchemyArticleTranslationRepository",
+              "class": "AsyncSqlAlchemyArticleTranslationRepository",
               "deps": [
                 {
                   "param": "creates",
@@ -8339,7 +10041,7 @@
         },
         {
           "param": "analyses_translation_repo",
-          "class": "SqlAlchemyAnalysesTranslationRepository",
+          "class": "AsyncSqlAlchemyAnalysesTranslationRepository",
           "deps": [
             {
               "param": "creates",
@@ -8347,18 +10049,13 @@
               "deps": []
             }
           ]
-        },
-        {
-          "param": "event_bus",
-          "class": "InMemoryEventBus",
-          "deps": []
         }
       ]
     },
     {
-      "step": 7,
+      "step": 6,
       "id": "otelmetricshandler",
-      "parallel_group": "pg_pipelinecompletedevent",
+      "parallel_group": "",
       "icon": "📊",
       "label": "Otel Metrics",
       "desc": "PipelineCompletedEvent -> OtelMetricsHandler",
@@ -8374,19 +10071,66 @@
       "di": []
     },
     {
+      "step": 7,
+      "id": "searchindexrebuildhandler",
+      "parallel_group": "pg_textpipelinecompletedevent",
+      "icon": "⚙️",
+      "label": "Search Index Rebuild",
+      "desc": "TextPipelineCompletedEvent -> SearchIndexRebuildHandler",
+      "color": "#EE8866",
+      "classes": [
+        "SearchIndexRebuildHandler",
+        "RebuildSearchIndexUseCase"
+      ],
+      "receives": [
+        "TextPipelineCompletedEvent"
+      ],
+      "emits": [],
+      "branches": [],
+      "di": [
+        {
+          "param": "",
+          "class": "RebuildSearchIndexUseCase",
+          "deps": [
+            {
+              "param": "search_term_repo",
+              "class": "SqlAlchemySearchTermRepository",
+              "deps": [
+                {
+                  "param": "creates",
+                  "class": "SearchTerm",
+                  "deps": []
+                },
+                {
+                  "param": "creates",
+                  "class": "SearchTermArticle",
+                  "deps": []
+                }
+              ]
+            },
+            {
+              "param": "search_index_gateway",
+              "class": "RedisSearchIndexGateway",
+              "deps": []
+            }
+          ]
+        }
+      ]
+    },
+    {
       "step": 8,
       "id": "cacheinvalidationhandler",
-      "parallel_group": "pg_pipelinecompletedevent",
+      "parallel_group": "pg_textpipelinecompletedevent",
       "icon": "⚙️",
       "label": "Cache Invalidation",
-      "desc": "PipelineCompletedEvent -> CacheInvalidationHandler",
+      "desc": "TextPipelineCompletedEvent -> CacheInvalidationHandler",
       "color": "#EEDD88",
       "classes": [
         "CacheInvalidationHandler",
         "RedisCacheGateway"
       ],
       "receives": [
-        "PipelineCompletedEvent"
+        "TextPipelineCompletedEvent"
       ],
       "emits": [],
       "branches": [],
@@ -8401,17 +10145,17 @@
     {
       "step": 9,
       "id": "cachewarmuphandler",
-      "parallel_group": "pg_pipelinecompletedevent",
+      "parallel_group": "pg_textpipelinecompletedevent",
       "icon": "⚙️",
       "label": "Cache Warmup",
-      "desc": "PipelineCompletedEvent -> CacheWarmupHandler",
+      "desc": "TextPipelineCompletedEvent -> CacheWarmupHandler",
       "color": "#44BB99",
       "classes": [
         "CacheWarmupHandler",
         "RedisCacheGateway"
       ],
       "receives": [
-        "PipelineCompletedEvent"
+        "TextPipelineCompletedEvent"
       ],
       "emits": [],
       "branches": [],
@@ -8420,42 +10164,6 @@
           "param": "",
           "class": "RedisCacheGateway",
           "deps": []
-        }
-      ]
-    },
-    {
-      "step": 10,
-      "id": "searchindexrebuildhandler",
-      "parallel_group": "pg_pipelinecompletedevent",
-      "icon": "⚙️",
-      "label": "Search Index Rebuild",
-      "desc": "PipelineCompletedEvent -> SearchIndexRebuildHandler",
-      "color": "#44BB99",
-      "classes": [
-        "SearchIndexRebuildHandler",
-        "RebuildSearchIndexUseCase"
-      ],
-      "receives": [
-        "PipelineCompletedEvent"
-      ],
-      "emits": [],
-      "branches": [],
-      "di": [
-        {
-          "param": "",
-          "class": "RebuildSearchIndexUseCase",
-          "deps": [
-            {
-              "param": "search_term_repo",
-              "class": "SqlAlchemySearchTermRepository",
-              "deps": []
-            },
-            {
-              "param": "search_index_gateway",
-              "class": "RedisSearchIndexGateway",
-              "deps": []
-            }
-          ]
         }
       ]
     }

@@ -70,6 +70,13 @@
           "function": "listen_for_warmup_signals",
           "snippet": "raise",
           "status_code": null
+        },
+        {
+          "file": "src/infrastructure/shared/events/in_memory_event_bus.py",
+          "line": 83,
+          "function": "AsyncInMemoryEventBus.publish",
+          "snippet": "raise",
+          "status_code": null
         }
       ]
     },
@@ -173,7 +180,7 @@
         },
         {
           "file": "src/entrypoints/cli/main.py",
-          "line": 100,
+          "line": 117,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -200,6 +207,13 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/intelligence/llm/embedding/async_gemini_embedding_provider.py",
+          "line": 40,
+          "function": "AsyncGeminiEmbeddingProvider._call_embed",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/intelligence/llm/embedding/gemini_embedding_provider.py",
           "line": 39,
           "function": "GeminiEmbeddingProvider._call_embed",
@@ -214,9 +228,23 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/intelligence/analyses_translation_async_repo_impl.py",
+          "line": 55,
+          "function": "AsyncSqlAlchemyAnalysesTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/intelligence/analyses_translation_repo_impl.py",
           "line": 53,
           "function": "SqlAlchemyAnalysesTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/analysis_async_repo_impl.py",
+          "line": 55,
+          "function": "AsyncSqlAlchemyAnalysisRepository.save",
           "snippet": "raise",
           "status_code": null
         },
@@ -228,6 +256,13 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/intelligence/article_translation_async_repo_impl.py",
+          "line": 46,
+          "function": "AsyncSqlAlchemyArticleTranslationRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/intelligence/article_translation_repo_impl.py",
           "line": 44,
           "function": "SqlAlchemyArticleTranslationRepository.save",
@@ -235,9 +270,37 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/intelligence/search_term_repo_impl.py",
+          "line": 60,
+          "function": "SqlAlchemySearchTermRepository.replace_all",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+          "line": 107,
+          "function": "AsyncSqlAlchemyTagRepository.commit",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
-          "line": 185,
+          "line": 170,
           "function": "SqlAlchemyTagRepository.commit",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_translation_async_repo_impl.py",
+          "line": 40,
+          "function": "AsyncSqlAlchemyTagTranslationRepository.save_tag_translation",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_translation_async_repo_impl.py",
+          "line": 92,
+          "function": "AsyncSqlAlchemyTagTranslationRepository.save_group_translation",
           "snippet": "raise",
           "status_code": null
         },
@@ -263,23 +326,16 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/shared/failed_task_async_repo_impl.py",
+          "line": 41,
+          "function": "AsyncSqlAlchemyFailedTaskRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/shared/failed_task_repo_impl.py",
           "line": 38,
           "function": "SqlAlchemyFailedTaskRepository.save",
-          "snippet": "raise",
-          "status_code": null
-        },
-        {
-          "file": "src/infrastructure/shared/observability/span_wrappers.py",
-          "line": 34,
-          "function": "with_span._wrapper",
-          "snippet": "raise",
-          "status_code": null
-        },
-        {
-          "file": "src/infrastructure/shared/observability/span_wrappers.py",
-          "line": 54,
-          "function": "with_span_deferred._wrapper",
           "snippet": "raise",
           "status_code": null
         }
@@ -299,9 +355,9 @@
       "raise_sites": [
         {
           "file": "backend/services/search_service.py",
-          "line": 109,
+          "line": 526,
           "function": "search_articles_hybrid",
-          "snippet": "raise ExternalDependencyError(\"fastembed has neither a sparse nor a dense model loaded\")",
+          "snippet": "raise ExternalDependencyError(\"Neither a dense nor a sparse embedding provider is configured\")",
           "status_code": null
         }
       ]
@@ -582,7 +638,14 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/persistence/database.py",
-          "line": 15,
+          "line": 41,
+          "function": "get_async_sessionmaker",
+          "snippet": "raise MissingDatabaseUrlError(\"DATABASE_URL environment variable is required\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/database.py",
+          "line": 50,
           "function": "create_engine_with_nullpool",
           "snippet": "raise MissingDatabaseUrlError(\"DATABASE_URL environment variable is required\")",
           "status_code": null
@@ -954,10 +1017,59 @@
       },
       "raise_sites": [
         {
+          "file": "src/infrastructure/intelligence/llm/embedding/async_gemini_embedding_provider.py",
+          "line": 39,
+          "function": "AsyncGeminiEmbeddingProvider._call_embed",
+          "snippet": "raise RateLimitExhausted(f\"Daily quota exceeded for {self._model}\") from e",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/intelligence/llm/embedding/gemini_embedding_provider.py",
           "line": 38,
           "function": "GeminiEmbeddingProvider._call_embed",
           "snippet": "raise RateLimitExhausted(f\"Daily quota exceeded for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 103,
+          "function": "AsyncBaseProvider.analyze",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 106,
+          "function": "AsyncBaseProvider.analyze",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 130,
+          "function": "AsyncBaseProvider.translate",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 133,
+          "function": "AsyncBaseProvider.translate",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 153,
+          "function": "AsyncBaseProvider.generate",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
+          "line": 156,
+          "function": "AsyncBaseProvider.generate",
+          "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
           "status_code": null
         },
         {
@@ -1004,7 +1116,7 @@
         },
         {
           "file": "src/infrastructure/intelligence/llm/rate_limit/sliding_window_strategy.py",
-          "line": 63,
+          "line": 77,
           "function": "SlidingWindowStrategy._compute_wait",
           "snippet": "raise RateLimitExhausted(f\"Daily request limit of {self.rpd} reached\")",
           "status_code": null
@@ -1329,14 +1441,14 @@
         },
         {
           "file": "backend/routers/search.py",
-          "line": 28,
+          "line": 55,
           "function": "search",
           "snippet": "raise ValidationError(\"q must not be empty\")",
           "status_code": null
         },
         {
           "file": "backend/routers/search.py",
-          "line": 41,
+          "line": 77,
           "function": "autocomplete",
           "snippet": "raise ValidationError(\"prefix must not be empty\")",
           "status_code": null
@@ -1387,7 +1499,21 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 547,
+          "line": 150,
+          "function": "build_async_llm_service",
+          "snippet": "raise ValueError(\"llm_providers table has no active LLM providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 169,
+          "function": "build_async_llm_service",
+          "snippet": "raise ValueError(\"llm_providers table has no active embedding providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 770,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
@@ -1400,15 +1526,29 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+          "line": 54,
+          "function": "AsyncSqlAlchemyTagRepository.save",
+          "snippet": "raise ValueError(\"topic_id is required to save a tag\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+          "line": 61,
+          "function": "AsyncSqlAlchemyTagRepository.save",
+          "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
-          "line": 74,
+          "line": 60,
           "function": "SqlAlchemyTagRepository.save",
           "snippet": "raise ValueError(\"topic_id is required to save a tag\")",
           "status_code": null
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_repo_impl.py",
-          "line": 80,
+          "line": 66,
           "function": "SqlAlchemyTagRepository.save",
           "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
           "status_code": null

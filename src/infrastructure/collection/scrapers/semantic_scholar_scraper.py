@@ -94,7 +94,7 @@ class SemanticScholarScraper(BaseScraper):
             content=job.metadata.get("abstract", ""),
             source="semantic_scholar",
             topic_id=job.topic_id,
-            published_at=job.metadata.get("published"),
+            published_at=self._parse_published_at(job.metadata.get("published")),
             authors=job.metadata.get("authors", []),
             extra={
                 "paper_id": job.metadata.get("paper_id"),

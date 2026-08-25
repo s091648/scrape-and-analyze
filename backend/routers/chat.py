@@ -101,7 +101,7 @@ async def chat_completions(
     )
 
     pinned_ids = [pid.strip() for pid in x_pinned_article_ids.split(",") if pid.strip()] if x_pinned_article_ids else None
-    completion_svc = ChatCompletionService()
+    completion_svc = ChatCompletionService(request.app.state.http_client)
 
     async def generate():
         try:

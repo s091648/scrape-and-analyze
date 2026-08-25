@@ -10,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { HTTP_METHOD_COLORS } from './log-detail-dialog'
 
 const STAGE_I18N_KEYS: Record<string, string> = {
   'article.scraped.handle':                'admin.stageLabel_scraped',
@@ -20,7 +21,7 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'article.analysis_failed.handle':         'admin.stageLabel_analysisFailed',
   'article.tag_normalization_failed.handle': 'admin.stageLabel_tagNormFailed',
   'article.translation_failed.handle':     'admin.stageLabel_translationFailed',
-  'scraper.pipeline_completed.handle':      'admin.stageLabel_pipelineCompleted',
+  'scraper.pipeline_completed.metrics_handle': 'admin.stageLabel_pipelineCompleted',
   'scraper.pipeline_completed.notify':      'admin.stageLabel_pipelineNotify',
   'article.rag_ingest':                    'admin.stageLabel_ragIngest',
   'weekly_report.topic':                   'admin.stageLabel_weeklyReportTopic',
@@ -28,6 +29,19 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'weekly_report.image':                   'admin.stageLabel_weeklyReportImage',
   'weekly_report.translate':                'admin.stageLabel_weeklyReportTranslate',
   'weekly_report.notify':                  'admin.stageLabel_weeklyReportNotify',
+  // 024-async-pipeline-refactor follow-up: run-level spans, now clickable from
+  // RunWaterfallDialog's generic per-row StageCard prototype.
+  'scraper.run':                           'admin.stageLabel_scraperRun',
+  'pipeline.discover':                     'admin.stageLabel_pipelineDiscover',
+  'discover.task':                         'admin.stageLabel_discoverTask',
+  'scraper.discover_failed':               'admin.stageLabel_discoverFailed',
+  'pipeline.fetch':                        'admin.stageLabel_pipelineFetch',
+  'pipeline.dedup':                        'admin.stageLabel_pipelineDedup',
+  'pipeline.publish_articles':             'admin.stageLabel_pipelinePublishArticles',
+  'cache.invalidation.handle':             'admin.stageLabel_cacheInvalidation',
+  'cache.warmup.handle':                   'admin.stageLabel_cacheWarmup',
+  'cache.lookup':                          'admin.stageLabel_cacheLookup',
+  'search.index_rebuild.handle':           'admin.stageLabel_searchIndexRebuild',
 }
 
 const ATTR_I18N_KEYS: Record<string, string> = {
@@ -78,6 +92,25 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'notify.channel':                       'admin.stageAttr_notifyChannel',
   'notify.success':                       'admin.stageAttr_notifySuccess',
   'notify.error_type':                    'admin.stageAttr_notifyErrorType',
+  'discover.source':                      'admin.stageAttr_source',
+  'discover.host':                        'admin.stageAttr_host',
+  'discover.discovered_count':            'admin.stageAttr_discoverDiscoveredCount',
+  'discover.new_count':                   'admin.stageAttr_discoverNewCount',
+  'discover.duplicate_count':             'admin.stageAttr_discoverDuplicateCount',
+  'search_index.article_count':           'admin.stageAttr_searchIndexArticleCount',
+  'search_index.topic_count':             'admin.stageAttr_searchIndexTopicCount',
+  'search_index.term_count':              'admin.stageAttr_searchIndexTermCount',
+  'cache.namespaces':                     'admin.stageAttr_cacheNamespaces',
+  'cache.warmup_reason':                  'admin.stageAttr_cacheWarmupReason',
+  'cache.namespace':                      'admin.stageAttr_cacheNamespace',
+  'cache.status':                         'admin.stageAttr_cacheStatus',
+  'cache.lang':                           'admin.stageAttr_cacheLang',
+  'notify.senders_count':                 'admin.stageAttr_notifySendersCount',
+  'notify.failed_count':                  'admin.stageAttr_notifyFailedCount',
+  // Standard OTel HTTP semantic-convention attributes — FastAPIInstrumentor sets these on
+  // every backend request's root span automatically (backend/main.py), not something this
+  // codebase's own instrumentation names, hence no admin.stageAttr_* i18n key: the raw key
+  // itself ("http.method", "http.route", ...) already reads fine.
 }
 
 function formatValue(v: OtlpAttributeValue): string {
@@ -307,21 +340,60 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
         <div className="text-xs font-medium text-destructive">✗ Error</div>
       )}
 
-      {/* Attributes table */}
-      {span.attributes.length > 0 && (
+      {/* Attributes table — Tempo omits `attributes` entirely for a span with
+          none, rather than an empty array, despite OtlpSpan typing it as required. */}
+      {(span.attributes ?? []).length > 0 && (
         <div className="border-t border-border pt-1.5">
           <table className="text-xs w-full">
             <tbody>
-              {span.attributes.map(attr => {
+              {(span.attributes ?? []).map(attr => {
                 const i18nKey = ATTR_I18N_KEYS[attr.key]
                 const displayKey = i18nKey ? t(i18nKey) : attr.key
+                // http.method is FastAPIInstrumentor's standard OTel attribute on every
+                // backend request's root span — badge it the same Swagger/FastAPI-docs way
+                // LogsTable colors the Method column, instead of plain text.
+                const method = attr.key === 'http.method' ? attr.value.stringValue : undefined
                 return (
                   <tr key={attr.key}>
                     <td className="text-muted-foreground pr-2 py-0.5 whitespace-nowrap align-top font-medium">
                       {displayKey}
                     </td>
                     <td className="font-mono break-all py-0.5 align-top line-clamp-2">
-                      {formatValue(attr.value)}
+                      {method ? (
+                        <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-bold not-italic', HTTP_METHOD_COLORS[method] ?? 'bg-muted text-muted-foreground')}>
+                          {method}
+                        </span>
+                      ) : formatValue(attr.value)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Events — span.add_event(name, attributes) markers (e.g. chatbot-plugin's
+          "first_content"/"first_chunk"). Shown as an offset from the span's own start,
+          since that's what actually answers "how much of this span's duration was
+          silence before this happened" — the whole reason these get added. */}
+      {(span.events ?? []).length > 0 && (
+        <div className="border-t border-border pt-1.5">
+          <table className="text-xs w-full">
+            <tbody>
+              {(span.events ?? []).map((event, i) => {
+                const offsetMs = Number((BigInt(event.timeUnixNano) - BigInt(span.startTimeUnixNano)) / 1_000_000n)
+                const attrText = (event.attributes ?? [])
+                  .map(a => `${a.key}=${formatValue(a.value)}`)
+                  .join(', ')
+                return (
+                  <tr key={`${event.name}-${i}`}>
+                    <td className="text-muted-foreground pr-2 py-0.5 whitespace-nowrap align-top font-medium">
+                      {event.name}
+                    </td>
+                    <td className="font-mono break-all py-0.5 align-top">
+                      +{formatDuration(offsetMs)}
+                      {attrText && <span className="text-muted-foreground"> · {attrText}</span>}
                     </td>
                   </tr>
                 )

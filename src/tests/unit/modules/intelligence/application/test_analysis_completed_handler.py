@@ -4,7 +4,7 @@ tag normalization, English content prerequisite, failure event publishing,
 article body translation, and tag/group translation error swallowing.
 """
 import uuid
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -68,11 +68,11 @@ def _body_failure(event, lang="zh-TW"):
 
 
 def _handler(target_languages=None):
-    translate_article_uc = MagicMock()
-    translate_tags_uc = MagicMock()
-    translate_body_uc = MagicMock()
-    analyses_translation_repo = MagicMock()
-    event_bus = MagicMock()
+    translate_article_uc = AsyncMock()
+    translate_tags_uc = AsyncMock()
+    translate_body_uc = AsyncMock()
+    analyses_translation_repo = AsyncMock()
+    event_bus = AsyncMock()
     handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
@@ -86,7 +86,8 @@ def _handler(target_languages=None):
 
 # ── Calls translate_article_uc for each target language ─────────────────────
 
-def test_calls_translate_for_each_language():
+@pytest.mark.asyncio
+async def test_calls_translate_for_each_language():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
     event = _event()
     en = _en_content()
@@ -94,7 +95,7 @@ def test_calls_translate_for_each_language():
     article_uc.execute.return_value = _analysis_success(event)
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     assert article_uc.execute.call_count == 2
     call_langs = [c.kwargs["target_language"] for c in article_uc.execute.call_args_list]
@@ -103,13 +104,14 @@ def test_calls_translate_for_each_language():
 
 # ── Skips analysis translation when English content missing, but body still runs
 
-def test_skips_analysis_translation_when_no_english_content_but_body_still_runs():
+@pytest.mark.asyncio
+async def test_skips_analysis_translation_when_no_english_content_but_body_still_runs():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     article_uc.execute.assert_not_called()
     body_uc.execute.assert_called_once_with(
@@ -122,7 +124,8 @@ def test_skips_analysis_translation_when_no_english_content_but_body_still_runs(
 
 # ── Publishes TranslationFailedEvent when article translation fails ─────────
 
-def test_publishes_failed_event_when_translation_returns_failure():
+@pytest.mark.asyncio
+async def test_publishes_failed_event_when_translation_returns_failure():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
@@ -134,7 +137,7 @@ def test_publishes_failed_event_when_translation_returns_failure():
     )
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     published_events = [c[0][0] for c in bus.publish.call_args_list]
     failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
@@ -144,7 +147,8 @@ def test_publishes_failed_event_when_translation_returns_failure():
 
 # ── Publishes TranslationFailedEvent when article translation throws ────────
 
-def test_publishes_failed_event_when_translation_throws_exception():
+@pytest.mark.asyncio
+async def test_publishes_failed_event_when_translation_throws_exception():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
@@ -152,7 +156,7 @@ def test_publishes_failed_event_when_translation_throws_exception():
     article_uc.execute.side_effect = RuntimeError("provider crashed")
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     published_events = [c[0][0] for c in bus.publish.call_args_list]
     failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
@@ -162,7 +166,8 @@ def test_publishes_failed_event_when_translation_throws_exception():
 
 # ── Calls translate_tags and translate_groups for each language ─────────────
 
-def test_calls_translate_tags_and_groups_for_each_language():
+@pytest.mark.asyncio
+async def test_calls_translate_tags_and_groups_for_each_language():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
     event = _event()
     en = _en_content()
@@ -170,7 +175,7 @@ def test_calls_translate_tags_and_groups_for_each_language():
     article_uc.execute.return_value = _analysis_success(event)
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     tags_uc.translate_tags.assert_called_once_with("zh-TW", limit=50)
     tags_uc.translate_groups.assert_called_once_with("zh-TW", limit=50)
@@ -178,7 +183,8 @@ def test_calls_translate_tags_and_groups_for_each_language():
 
 # ── Swallows tag/group translation exceptions ───────────────────────────────
 
-def test_swallows_tag_translation_exceptions():
+@pytest.mark.asyncio
+async def test_swallows_tag_translation_exceptions():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
     event = _event()
     en = _en_content()
@@ -188,12 +194,13 @@ def test_swallows_tag_translation_exceptions():
     tags_uc.translate_tags.side_effect = RuntimeError("tag LLM failed")
     tags_uc.translate_groups.return_value = {"total": 0, "success": 0, "failed": 0}
 
-    handler.handle(event)  # Should not raise
+    await handler.handle(event)  # Should not raise
 
     tags_uc.translate_groups.assert_called_once()
 
 
-def test_swallows_group_translation_exceptions():
+@pytest.mark.asyncio
+async def test_swallows_group_translation_exceptions():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW"])
     event = _event()
     en = _en_content()
@@ -203,14 +210,15 @@ def test_swallows_group_translation_exceptions():
     tags_uc.translate_tags.return_value = {"total": 0, "success": 0, "failed": 0}
     tags_uc.translate_groups.side_effect = RuntimeError("group LLM failed")
 
-    handler.handle(event)  # Should not raise
+    await handler.handle(event)  # Should not raise
 
     tags_uc.translate_tags.assert_called_once()
 
 
 # ── T035: translate_body_uc called per language ──────────────────────────────
 
-def test_calls_translate_body_for_each_language():
+@pytest.mark.asyncio
+async def test_calls_translate_body_for_each_language():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
     event = _event(article_title="My Title", article_content="My Content")
     en = _en_content()
@@ -218,7 +226,7 @@ def test_calls_translate_body_for_each_language():
     article_uc.execute.return_value = _analysis_success(event)
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     assert body_uc.execute.call_count == 2
     call_langs = [c.kwargs["target_language"] for c in body_uc.execute.call_args_list]
@@ -231,13 +239,14 @@ def test_calls_translate_body_for_each_language():
 
 # ── T036: missing English content — body translation still runs ──────────────
 
-def test_missing_english_content_still_calls_body_translation():
+@pytest.mark.asyncio
+async def test_missing_english_content_still_calls_body_translation():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     article_uc.execute.assert_not_called()
     body_uc.execute.assert_called_once()
@@ -245,7 +254,8 @@ def test_missing_english_content_still_calls_body_translation():
 
 # ── T037: TranslationFailedEvent with task_type="translate_article" ──────────
 
-def test_publishes_translate_article_failed_event_with_correct_task_type():
+@pytest.mark.asyncio
+async def test_publishes_translate_article_failed_event_with_correct_task_type():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
@@ -257,7 +267,7 @@ def test_publishes_translate_article_failed_event_with_correct_task_type():
     )
     body_uc.execute.return_value = _body_success(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     published_events = [c[0][0] for c in bus.publish.call_args_list]
     failed = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
@@ -266,7 +276,8 @@ def test_publishes_translate_article_failed_event_with_correct_task_type():
 
 # ── T038: TranslationFailedEvent with task_type="translate_article_body" ─────
 
-def test_publishes_translate_article_body_failed_event_with_correct_task_type():
+@pytest.mark.asyncio
+async def test_publishes_translate_article_body_failed_event_with_correct_task_type():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     en = _en_content()
@@ -274,7 +285,7 @@ def test_publishes_translate_article_body_failed_event_with_correct_task_type():
     article_uc.execute.return_value = _analysis_success(event)
     body_uc.execute.return_value = _body_failure(event)
 
-    handler.handle(event)
+    await handler.handle(event)
 
     published_events = [c[0][0] for c in bus.publish.call_args_list]
     failed = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
@@ -284,28 +295,47 @@ def test_publishes_translate_article_body_failed_event_with_correct_task_type():
 
 # ── Span attribute tests ──────────────────────────────────────────────────────
 
-def test_span_records_analysis_and_article_ids():
+def _mock_tracer(mock_span):
+    """024-async-pipeline-refactor: AnalysisCompletedHandler now owns its own
+    module-level _tracer and creates a fresh span via
+    _tracer.start_as_current_span(...) rather than attaching attributes to an
+    ambient span, so tests mock the module's _tracer instead of
+    opentelemetry.trace.get_current_span. The outer span and the per-language
+    lang_span both resolve to the same mocked context manager here, which is
+    fine since these tests only assert attributes were set somewhere, not on
+    which specific span."""
+    tracer = MagicMock()
+    tracer.start_as_current_span.return_value.__enter__.return_value = mock_span
+    tracer.start_as_current_span.return_value.__exit__.return_value = False
+    return tracer
+
+
+@pytest.mark.asyncio
+async def test_span_records_analysis_and_article_ids():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
     body_uc.execute.return_value = _body_success(event)
     mock_span = MagicMock()
 
-    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
-        handler.handle(event)
+    with patch("src.modules.intelligence.application.event_handlers.analysis_completed_handler._tracer",
+               _mock_tracer(mock_span)):
+        await handler.handle(event)
 
     mock_span.set_attribute.assert_any_call("analysis.id", str(event.analysis_id))
     mock_span.set_attribute.assert_any_call("article.id", str(event.article_id))
 
 
-def test_span_records_target_languages():
+@pytest.mark.asyncio
+async def test_span_records_target_languages():
     handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
     event = _event()
     repo.find_by_analysis_id_and_language.return_value = None
     body_uc.execute.return_value = _body_success(event)
     mock_span = MagicMock()
 
-    with patch("opentelemetry.trace.get_current_span", return_value=mock_span):
-        handler.handle(event)
+    with patch("src.modules.intelligence.application.event_handlers.analysis_completed_handler._tracer",
+               _mock_tracer(mock_span)):
+        await handler.handle(event)
 
     mock_span.set_attribute.assert_any_call("translation.target_languages", "zh-TW, ja")

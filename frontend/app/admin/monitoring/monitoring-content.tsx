@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useI18n } from '@/lib/providers'
 import { StatCard } from '@/components/features/monitoring/stat-card'
 import { MetricsChart } from '@/components/features/monitoring/metrics-chart'
+import { CountryPanel } from '@/components/features/monitoring/country-panel'
 import { LogsTable } from '@/components/features/monitoring/logs-table'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
 import {
@@ -12,6 +14,8 @@ import {
   queryTracesBatch,
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/api/grafana'
+import { useAdminUsersStore } from '@/lib/stores/admin-users-store'
+import { extractTraceSearchEnvironment } from '@/lib/otlp-utils'
 
 /**
  * Loki's query_range endpoint (used for both metric-shaped Loki queries and raw log queries)
@@ -116,6 +120,9 @@ interface ChartPanelDef {
   tooltipKey: string
   queryType?: 'loki'
   seriesColors?: Record<string, string>
+  /** Renders via CountryMap instead of MetricsChart — same batched Loki query, different
+   * visualization. Query must be grouped `by (geo_country)`. */
+  renderAs?: 'map'
 }
 
 interface LogTablePanelDef {
@@ -133,7 +140,7 @@ interface TracesTablePanelDef {
 
 // ── Operations panel descriptors ───────────────────────────────────────────
 
-const OPS_STATS: StatPanelDef[] = [
+const OPS_SCRAPER_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.totalRuns',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${rv}]))`,                                             step: '3600', tooltipKey: 'admin.totalRunsTooltip' },
   { queryType: 'loki', titleKey: 'admin.newArticles',       buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${rv}]))`,                                           step: '3600', tooltipKey: 'admin.newArticlesTooltip' },
   { queryType: 'loki', titleKey: 'admin.duplicateArticles', buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "article_duplicate_skipped" [${rv}]))`,                                    step: '3600', tooltipKey: 'admin.duplicateArticlesTooltip' },
@@ -142,20 +149,58 @@ const OPS_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.articlesFound',     buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event =~ "analysis_completed|article_duplicate_skipped" [${rv}]))`,               step: '3600', tooltipKey: 'admin.articlesFoundTooltip' },
   { queryType: 'loki', titleKey: 'admin.recentRunDurationP100', buildQuery: rv => `max(max_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.recentRunDurationP100Tooltip' },
   { queryType: 'loki', titleKey: 'admin.avgDurationP50',        buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.avgDurationP50Tooltip' },
-  // 020-redis-caching-layer verification: shared/cache/redis_gateway.py emits one
-  // "cache_lookup" event per get_or_set() call (namespace/status/lang), covering every
-  // cached endpoint (articles/graph/tag_groups/weekly_reports) from a single choke point.
-  { queryType: 'loki', titleKey: 'admin.cacheHitRate', buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.cacheHitRateTooltip' },
 ]
 
-const OPS_CHARTS: ChartPanelDef[] = [
+const OPS_SCRAPER_CHARTS: ChartPanelDef[] = [
   // Daily step: count_over_time([1d]) + step=86400 so each point = that day's article count
   { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                                       step: '86400', height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
   // avg() collapses per-run series from unwrap into a single time series
   { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: _rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
   { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: _rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [1d]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart', buildQuery: _rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d]))`,                                                              step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
+]
+
+// 020-redis-caching-layer verification: shared/cache/redis_gateway.py emits one "cache_lookup"
+// event per get_or_set() call (namespace/status/lang), covering every cached endpoint
+// (articles/graph/tag_groups/weekly_reports) from a single choke point, plus a
+// "cache_*_failed" event per Redis error (read/write/version/decode/bump/warmup-publish).
+// RequestLoggingMiddleware (backend/middleware/logging.py) emits one "request" event per
+// HTTP request (method/path/status_code/duration_ms). Both are backend-only signals — this
+// panel set is only shown/queried when FilterBar's App selector is "backend" (see
+// OperationsTab and its useOperationsBatch() call in MonitoringContent).
+const OPS_BACKEND_STATS: StatPanelDef[] = [
+  { queryType: 'loki', titleKey: 'admin.cacheHitRate',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.cacheHitRateTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestCount',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                                    step: '3600', tooltipKey: 'admin.requestCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestErrorRate',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 500 [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.requestErrorRateTooltip' },
+  // quantile_over_time (not avg_over_time) — a true percentile, unlike avg() which one slow
+  // outlier can barely move. avg() wrapper just collapses to one series if there's ever more
+  // than one backend replica; with a single replica it's a no-op.
+  { queryType: 'loki', titleKey: 'admin.requestDurationP50',    buildQuery: rv => `avg(quantile_over_time(0.5, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                     step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP50Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestDurationP90',    buildQuery: rv => `avg(quantile_over_time(0.9, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                     step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP90Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheFailureCount',   buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event=~"cache_read_failed|cache_write_failed|cache_version_read_failed|cache_version_malformed|cache_decode_failed|cache_bump_version_failed|cache_warmup_publish_failed" [${rv}]))`, step: '3600', tooltipKey: 'admin.cacheFailureCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.chatRequestCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="chat_request" [${rv}]))`,                                                step: '3600', tooltipKey: 'admin.chatRequestCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.searchQueryCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event=~"search_query_executed|search_autocomplete_executed" [${rv}]))`,        step: '3600', tooltipKey: 'admin.searchQueryCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.searchFallbackRate',  buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="search_autocomplete_executed" | source="postgres_fallback" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="search_autocomplete_executed" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.searchFallbackRateTooltip' },
+]
+
+const OPS_BACKEND_CHARTS: ChartPanelDef[] = [
+  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart',     buildQuery: _rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d]))`,                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheHitRateByNamespaceChart',  buildQuery: _rv => `sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [1d])) / sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d])) * 100`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheHitRateByNamespaceChartTooltip' },
+  // avg() collapses per-request series from unwrap into a single time series, same shape as admin.runDurationChart
+  { queryType: 'loki', titleKey: 'admin.requestDurationTrendChart',     buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [1h]))`,                          step: '3600',  height: 240, tooltipKey: 'admin.requestDurationTrendChartTooltip' },
+  // topk(10, ...) on all by-label breakdowns below — path/country cardinality is unbounded
+  // (every distinct route or every visiting country becomes its own bar/series), so without a
+  // cap a busy day turns the chart into an unreadable wall of slivers instead of a ranked list.
+  { queryType: 'loki', titleKey: 'admin.requestsByPathChart',           buildQuery: _rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d])))`,                        step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByPathChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestErrorsByPathChart',      buildQuery: _rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 400 [1d])))`,    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestErrorsByPathChartTooltip' },
+  // No topk cap here (unlike the path/error breakdowns above) — a choropleth is naturally
+  // bounded to ~174 countries by geography, and capping to a top-N would wrongly render
+  // every country outside it as "no traffic" gray instead of its actual (smaller) count.
+  { queryType: 'loki', titleKey: 'admin.requestsByCountryChart',        buildQuery: _rv => `sum by (geo_country) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d]))`,                                 step: '86400', height: 240, renderAs: 'map', tooltipKey: 'admin.requestsByCountryChartTooltip' },
+  // backend/middleware/logging.py's _extract_user() always sets user_role (defaults to
+  // "guest" for no-token/guest-token/decode-failure), so this always shows a real
+  // guest/user/admin split instead of guest traffic falling into an unlabeled "(other)" bucket.
+  { queryType: 'loki', titleKey: 'admin.requestsByRoleChart',           buildQuery: _rv => `sum by (user_role) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d]))`,                                step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByRoleChartTooltip' },
 ]
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────
@@ -188,14 +233,17 @@ const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
 ]
 
 // ── Traces panel descriptors ───────────────────────────────────────────────
+// Split the same way Operations is (see OPS_SCRAPER_*/OPS_BACKEND_*): "execution_started"/
+// "execution_completed" are scraper-run-lifecycle events, meaningless for backend HTTP
+// traffic, so backend gets its own stat/chart set built from the "request" event instead.
 
-const TRACES_STATS: StatPanelDef[] = [
+const TRACES_SCRAPER_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.tracesCount',       buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${rv}]))`,                                   step: '3600', tooltipKey: 'admin.tracesCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.avgRunDurationP95', buildQuery: rv => `max(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`,         step: '3600', unit: 's', tooltipKey: 'admin.avgRunDurationP95Tooltip' },
   { queryType: 'loki', titleKey: 'admin.errorSpans',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,                                step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
 ]
 
-const TRACES_SPAN_CHART: ChartPanelDef = {
+const TRACES_SCRAPER_SPAN_CHART: ChartPanelDef = {
   queryType: 'loki',
   titleKey: 'admin.spanRateChart',
   // [1h] + step=3600 (instead of [5m]/300) prevents 576-point range and sparse gaps
@@ -203,6 +251,21 @@ const TRACES_SPAN_CHART: ChartPanelDef = {
   step: '3600',
   height: 240,
   tooltipKey: 'admin.spanRateChartTooltip',
+}
+
+const TRACES_BACKEND_STATS: StatPanelDef[] = [
+  { queryType: 'loki', titleKey: 'admin.tracesCount',          buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                            step: '3600', tooltipKey: 'admin.tracesCountBackendTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestDurationP95',   buildQuery: rv => `avg(quantile_over_time(0.95, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,               step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP95Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.errorSpans',           buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,                               step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
+]
+
+const TRACES_BACKEND_SPAN_CHART: ChartPanelDef = {
+  queryType: 'loki',
+  titleKey: 'admin.requestRateChart',
+  buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [1h]))`,
+  step: '3600',
+  height: 240,
+  tooltipKey: 'admin.requestRateChartTooltip',
 }
 
 const TRACES_TABLE_PANEL: TracesTablePanelDef = {
@@ -240,23 +303,31 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
 
 // ── Operations batch hook ──────────────────────────────────────────────────
 
-function useOperationsBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
+/**
+ * Generic over `stats`/`charts` so the same hook drives both the Scraper and Backend
+ * operations sub-tabs (each with its own panel set and its own fixed `app` value) —
+ * see the two useOperationsBatch() calls in MonitoringContent.
+ */
+function useOperationsBatch(
+  startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean,
+  stats: StatPanelDef[], charts: ChartPanelDef[],
+) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
-  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(OPS_STATS.length).fill(undefined))
-  const [chartData, setChartData] = useState<(PrometheusResponse | null)[]>(Array(OPS_CHARTS.length).fill(null))
-  const [loading, setLoading] = useState<boolean[]>(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(stats.length).fill(undefined))
+  const [chartData, setChartData] = useState<(PrometheusResponse | null)[]>(Array(charts.length).fill(null))
+  const [loading, setLoading] = useState<boolean[]>(Array(stats.length + charts.length).fill(true))
 
   const fetchAll = useCallback(async () => {
-    setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(true))
+    setLoading(Array(stats.length + charts.length).fill(true))
     const promItems: MetricsBatchItem[] = [
-      ...OPS_STATS.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(rangeVec, env), start: startSec, end: endSec, step: s.step })),
-      ...OPS_CHARTS.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(rangeVec, env), start: startSec, end: endSec, step: c.step })),
+      ...stats.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(rangeVec, env), start: startSec, end: endSec, step: s.step })),
+      ...charts.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(rangeVec, env), start: startSec, end: endSec, step: c.step })),
     ]
     const lokiItems = [
-      ...OPS_STATS.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
-      ...OPS_CHARTS.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: c.step })),
+      ...stats.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
+      ...charts.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: c.step })),
     ]
     try {
       const [promResults, lokiResults] = await Promise.all([
@@ -267,29 +338,29 @@ function useOperationsBatch(startSec: number, endSec: number, environment: Envir
       const lokiNotConfigured = lokiItems.length > 0 && 'error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured'
       if (promNotConfigured || lokiNotConfigured) {
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
-        setChartData(Array(OPS_CHARTS.length).fill(err))
-        setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
+        setChartData(Array(charts.length).fill(err))
+        setLoading(Array(stats.length + charts.length).fill(false))
         return
       }
-      const newStatValues: (string | undefined)[] = new Array(OPS_STATS.length).fill(undefined)
+      const newStatValues: (string | undefined)[] = new Array(stats.length).fill(undefined)
       let pi = 0, li = 0
-      for (let i = 0; i < OPS_STATS.length; i++) {
-        newStatValues[i] = OPS_STATS[i].queryType === 'loki'
+      for (let i = 0; i < stats.length; i++) {
+        newStatValues[i] = stats[i].queryType === 'loki'
           ? extractLastValue(lokiResults[li++] as PrometheusResponse)
           : extractLastValue(promResults[pi++])
       }
       const newChartData: (PrometheusResponse | null)[] = []
-      for (let i = 0; i < OPS_CHARTS.length; i++) {
-        newChartData.push(OPS_CHARTS[i].queryType === 'loki'
+      for (let i = 0; i < charts.length; i++) {
+        newChartData.push(charts[i].queryType === 'loki'
           ? lokiResults[li++] as PrometheusResponse
           : promResults[pi++] as PrometheusResponse)
       }
       setStatValues(newStatValues)
       setChartData(newChartData)
     } catch { /* keep previous data */ } finally {
-      setLoading(Array(OPS_STATS.length + OPS_CHARTS.length).fill(false))
+      setLoading(Array(stats.length + charts.length).fill(false))
     }
-  }, [startSec, endSec, rangeVec, env, environment, app])
+  }, [startSec, endSec, rangeVec, env, environment, app, stats, charts])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -346,42 +417,64 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
 
 // ── Traces batch hook ──────────────────────────────────────────────────────
 
-function useTracesBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
+function useTracesBatch(
+  startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean,
+  stats: StatPanelDef[], spanChart: ChartPanelDef,
+) {
   const rangeVec = fullRangeVec(endSec - startSec)
 
-  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(TRACES_STATS.length).fill(undefined))
+  const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(stats.length).fill(undefined))
   const [chartData, setChartData] = useState<PrometheusResponse | null>(null)
   const [tracesData, setTracesData] = useState<TempoResponse | null>(null)
-  const [loading, setLoading] = useState<boolean[]>(Array(TRACES_STATS.length + 2).fill(true))
+  const [loading, setLoading] = useState<boolean[]>(Array(stats.length + 2).fill(true))
 
-  const traceQuery = traceQLServiceMatch(environment === 'all' ? undefined : environment, APP_SERVICE_NAME[app])
+  // Tempo's TraceQL search filtered on a generic resource attribute like
+  // resource.deployment.environment has been observed to return results many hours stale
+  // (its live/head block search appears to only reliably cover a handful of intrinsic
+  // fields such as service.name) — the identical query without that attribute filter, or a
+  // trace-by-ID lookup, returns fully fresh data. So this never sends an environment filter
+  // to Tempo; `| select(...)` (still applied when env is undefined) asks Tempo to attach the
+  // attribute to each search result so it can be filtered here on the client instead. When a
+  // specific environment is selected, over-fetch more candidates than the eventual display
+  // count — a single environment's traffic can be a small fraction of "all environments"
+  // recent traces once fetched unfiltered-by-env.
+  const traceQuery = traceQLServiceMatch(undefined, APP_SERVICE_NAME[app])
+  const traceFetchLimit = environment === 'all' ? 20 : 100
+  const traceDisplayLimit = 20
 
   const fetchAll = useCallback(async () => {
-    setLoading(Array(TRACES_STATS.length + 2).fill(true))
+    setLoading(Array(stats.length + 2).fill(true))
     try {
       const lokiItems = [
-        ...TRACES_STATS.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
-        { query: applyLokiFilters(TRACES_SPAN_CHART.buildQuery(rangeVec), app, environment), step: TRACES_SPAN_CHART.step, start: toNs(startSec), end: toNs(endSec) },
+        ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
+        { query: applyLokiFilters(spanChart.buildQuery(rangeVec), app, environment), step: spanChart.step, start: toNs(startSec), end: toNs(endSec) },
       ]
       const [lokiResults, tracesResults] = await Promise.all([
         queryLokiMetricsBatch(lokiItems),
-        queryTracesBatch([{ q: traceQuery, start: startSec, end: endSec, limit: 20 }]),
+        queryTracesBatch([{ q: traceQuery, start: startSec, end: endSec, limit: traceFetchLimit }]),
       ])
       if ('error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured') {
         const err = { error: 'not_configured' } as unknown as PrometheusResponse
         const tracesErr = { error: 'not_configured' } as unknown as TempoResponse
         setChartData(err)
         setTracesData(tracesErr)
-        setLoading(Array(TRACES_STATS.length + 2).fill(false))
+        setLoading(Array(stats.length + 2).fill(false))
         return
       }
-      setStatValues(lokiResults.slice(0, TRACES_STATS.length).map(r => extractLastValue(r as PrometheusResponse)))
-      setChartData(lokiResults[TRACES_STATS.length] as PrometheusResponse)
-      setTracesData(tracesResults[0] as TempoResponse)
+      setStatValues(lokiResults.slice(0, stats.length).map(r => extractLastValue(r as PrometheusResponse)))
+      setChartData(lokiResults[stats.length] as PrometheusResponse)
+
+      const rawTraces = tracesResults[0] as TempoResponse
+      const hasTracesError = 'error' in (rawTraces as unknown as Record<string, unknown>)
+      setTracesData(
+        !hasTracesError && environment !== 'all'
+          ? { ...rawTraces, traces: rawTraces.traces.filter(t => extractTraceSearchEnvironment(t) === environment).slice(0, traceDisplayLimit) }
+          : rawTraces
+      )
     } catch { /* keep previous data */ } finally {
-      setLoading(Array(TRACES_STATS.length + 2).fill(false))
+      setLoading(Array(stats.length + 2).fill(false))
     }
-  }, [startSec, endSec, rangeVec, environment, app, traceQuery])
+  }, [startSec, endSec, rangeVec, environment, app, traceQuery, traceFetchLimit, traceDisplayLimit, stats, spanChart])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -390,9 +483,14 @@ function useTracesBatch(startSec: number, endSec: number, environment: Environme
 
 // ── Tab sub-components ─────────────────────────────────────────────────────
 
-function OperationsTab({
-  statValues: sv, chartData: cd, loading, timeRangeSeconds, rangeLabel,
+/** Renders one operations panel set — shared by the Scraper and Backend panel sets so they
+ * stay visually identical apart from their content. CSS grid auto-wraps, so `stats`/`charts`
+ * don't need to be a fixed length (unlike the Scraper set, Backend keeps growing new panels). */
+function OpsStatsChartsGrid({
+  stats, charts, statValues: sv, chartData: cd, loading, timeRangeSeconds, rangeLabel,
 }: {
+  stats: StatPanelDef[]
+  charts: ChartPanelDef[]
   statValues: (string | undefined)[]
   chartData: (PrometheusResponse | null)[]
   loading: boolean[]
@@ -403,46 +501,67 @@ function OperationsTab({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3 mt-4">
-        {OPS_STATS.slice(0, 4).map((p, i) => (
+        {stats.map((p, i) => (
           <StatCard key={i} title={t(p.titleKey, { range: rangeLabel })} value={sv[i]} unit={p.unit}
             loading={loading[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}
       </div>
-      <div className="grid grid-cols-4 gap-3">
-        {OPS_STATS.slice(4).map((p, i) => (
-          <StatCard key={i} title={t(p.titleKey, { range: rangeLabel })} value={sv[4 + i]} unit={p.unit}
-            loading={loading[4 + i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
-        ))}
-      </div>
       <div className="grid grid-cols-2 gap-3">
-        {OPS_CHARTS.slice(0, 2).map((p, i) => (
-          <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
-            chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
-            externalData={cd[i]} externalLoading={loading[OPS_STATS.length + i]}
-            tooltip={t(p.tooltipKey, { range: rangeLabel })} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {OPS_CHARTS.slice(2).map((p, i) => (
-          <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
-            chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
-            externalData={cd[2 + i]} externalLoading={loading[OPS_STATS.length + 2 + i]}
-            tooltip={t(p.tooltipKey, { range: rangeLabel })} />
+        {charts.map((p, i) => (
+          p.renderAs === 'map' ? (
+            // CountryPanel renders the map and table as two direct grid children (side by
+            // side in one row) sharing one selection state, both reading the same fetched
+            // result (cd[i]) — no second query just for the table.
+            <CountryPanel key={i} mapTitle={t(p.titleKey, { range: rangeLabel })} mapTooltip={t(p.tooltipKey, { range: rangeLabel })}
+              tableTitle={t('admin.requestsByCountryTable', { range: rangeLabel })} tableTooltip={t('admin.requestsByCountryTableTooltip', { range: rangeLabel })}
+              height={p.height} data={cd[i]} loading={loading[stats.length + i]} />
+          ) : (
+            <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
+              chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
+              externalData={cd[i]} externalLoading={loading[stats.length + i]}
+              tooltip={t(p.tooltipKey, { range: rangeLabel })} />
+          )
         ))}
       </div>
     </div>
   )
 }
 
-function LogsTab({
-  metricData: md, logsData: ld, loading, timeRangeSeconds, rangeLabel,
+/** Which panel set Operations shows switches on the same top-level App filter that already
+ * drives Logs/Traces (FilterBar's `app`) — one uniform "which app am I looking at" control
+ * across all three tabs, instead of a separate selector just for Operations. */
+function OperationsTab({
+  app, statValues, chartData, loading, timeRangeSeconds, rangeLabel,
 }: {
+  app: AppValue
+  statValues: (string | undefined)[]
+  chartData: (PrometheusResponse | null)[]
+  loading: boolean[]
+  timeRangeSeconds: number
+  rangeLabel: string
+}) {
+  const isBackend = app === LokiAppValue.BACKEND
+  return (
+    <OpsStatsChartsGrid
+      stats={isBackend ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS}
+      charts={isBackend ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS}
+      statValues={statValues} chartData={chartData} loading={loading}
+      timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
+  )
+}
+
+function LogsTab({
+  app, metricData: md, logsData: ld, loading, timeRangeSeconds, rangeLabel, callerNames,
+}: {
+  app: AppValue
   metricData: (PrometheusResponse | null)[]
   logsData: (LokiResponse | null)[]
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
+  callerNames: Record<string, string>
 }) {
+  const showRequestColumns = app === LokiAppValue.BACKEND
   const { t } = useI18n()
   return (
     <div className="space-y-4">
@@ -462,7 +581,8 @@ function LogsTab({
       <div className="space-y-3">
         {LOGS_TABLE_PANELS.map((p, i) => (
           <LogsTable key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" height={p.height}
-            externalData={ld[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
+            externalData={ld[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })}
+            showRequestColumns={showRequestColumns} callerNames={callerNames} />
         ))}
       </div>
     </div>
@@ -470,8 +590,9 @@ function LogsTab({
 }
 
 function TracesTab({
-  grafanaUrl, statValues: sv, chartData: cd, tracesData: td, loading, timeRangeSeconds, rangeLabel,
+  app, grafanaUrl, statValues: sv, chartData: cd, tracesData: td, loading, timeRangeSeconds, rangeLabel,
 }: {
+  app: AppValue
   grafanaUrl?: string
   statValues: (string | undefined)[]
   chartData: PrometheusResponse | null
@@ -481,18 +602,21 @@ function TracesTab({
   rangeLabel: string
 }) {
   const { t } = useI18n()
+  const isBackend = app === LokiAppValue.BACKEND
+  const stats = isBackend ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS
+  const spanChart = isBackend ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 mt-4">
-        {TRACES_STATS.map((p, i) => (
+        {stats.map((p, i) => (
           <StatCard key={i} title={t(p.titleKey, { range: rangeLabel })} value={sv[i]} unit={p.unit}
             loading={loading[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}
       </div>
-      <MetricsChart title={t(TRACES_SPAN_CHART.titleKey, { range: rangeLabel })} query="unused" step={TRACES_SPAN_CHART.step}
-        height={TRACES_SPAN_CHART.height} timeRangeSeconds={timeRangeSeconds}
-        externalData={cd} externalLoading={loading[TRACES_STATS.length]}
-        tooltip={t(TRACES_SPAN_CHART.tooltipKey, { range: rangeLabel })} />
+      <MetricsChart title={t(spanChart.titleKey, { range: rangeLabel })} query="unused" step={spanChart.step}
+        height={spanChart.height} timeRangeSeconds={timeRangeSeconds}
+        externalData={cd} externalLoading={loading[stats.length]}
+        tooltip={t(spanChart.tooltipKey, { range: rangeLabel })} />
       <TracesTable title={t(TRACES_TABLE_PANEL.titleKey, { range: rangeLabel })} query="unused" height={TRACES_TABLE_PANEL.height}
         grafanaUrl={grafanaUrl} externalData={td}
         tooltip={t(TRACES_TABLE_PANEL.tooltipKey, { range: rangeLabel })} />
@@ -553,6 +677,7 @@ function FilterBar({
             options={[
               { value: 'all', label: t('admin.filterAll') },
               { value: 'local', label: 'local' },
+              { value: 'staging', label: 'staging' },
               { value: 'production', label: 'production' },
               { value: 'test', label: 'test' },
             ]}
@@ -567,6 +692,22 @@ function FilterBar({
 
 export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps) {
   const { t } = useI18n()
+  const { data: session } = useSession()
+  const adminToken = (session as any)?.accessToken
+  // Shared cache (frontend/lib/stores/admin-users-store.ts) — also used by the User
+  // Management page, so whichever page loads first is the only one that ever calls
+  // GET /auth/users. Only used here to resolve the Logs tab's Caller column from a raw
+  // user_id (the bearer JWT never carries email/username — see backend/services/auth_service.py's
+  // create_user_access_token) to something readable.
+  const { users: adminUsers, ensureLoaded: ensureAdminUsersLoaded } = useAdminUsersStore()
+  useEffect(() => {
+    if (adminToken) ensureAdminUsersLoaded(adminToken)
+  }, [adminToken, ensureAdminUsersLoaded])
+  const callerNames = useMemo(
+    () => Object.fromEntries(adminUsers.map(u => [u.id, u.username ?? u.name ?? u.email ?? u.id])),
+    [adminUsers],
+  )
+
   const [filters, setFilters] = useState<MonitoringFilters>(DEFAULT_FILTERS)
   // refreshKey increments on manual Refresh so startSec/endSec update to current time
   const [refreshKey, setRefreshKey] = useState(0)
@@ -586,15 +727,31 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRangeSeconds, refreshKey])
 
-  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'operations')
+  const isBackendApp = filters.app === LokiAppValue.BACKEND
+  const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(
+    startSec, endSec, effectiveEnv, filters.app, activeTab === 'operations',
+    isBackendApp ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS, isBackendApp ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS)
   const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'logs')
-  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'traces')
+  const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(
+    startSec, endSec, effectiveEnv, filters.app, activeTab === 'traces',
+    isBackendApp ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS, isBackendApp ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART)
 
   const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
   const isLoading = activeLoading.some(Boolean)
 
   // Incrementing refreshKey updates startSec/endSec → only the active tab's hook re-fetches
   function handleRefresh() { setRefreshKey(k => k + 1) }
+
+  // Without this, startSec/endSec are only recomputed on mount or a manual Refresh click —
+  // an idle tab's time window silently freezes at whatever "now" was back then, so newly
+  // ingested Grafana Cloud data never appears no matter how long the page is left open. This
+  // just bumps refreshKey on a timer; each batch hook below is still gated by `enabled`
+  // (activeTab === ...), so only the currently visible tab actually re-queries Grafana
+  // Cloud — same one-tab-at-a-time safeguard the manual button already relies on.
+  useEffect(() => {
+    const id = setInterval(() => setRefreshKey(k => k + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   return (
     <TooltipProvider>
@@ -617,15 +774,15 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
           </TabsList>
 
           <TabsContent value="operations">
-            <OperationsTab statValues={opsSV} chartData={opsCd} loading={opsLoading}
+            <OperationsTab app={filters.app} statValues={opsSV} chartData={opsCd} loading={opsLoading}
               timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
           </TabsContent>
           <TabsContent value="logs">
-            <LogsTab metricData={logsMd} logsData={logsLd} loading={logsLoading}
-              timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
+            <LogsTab app={filters.app} metricData={logsMd} logsData={logsLd} loading={logsLoading}
+              timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} callerNames={callerNames} />
           </TabsContent>
           <TabsContent value="traces">
-            <TracesTab grafanaUrl={grafanaUrl} statValues={tracesSV} chartData={tracesCd}
+            <TracesTab app={filters.app} grafanaUrl={grafanaUrl} statValues={tracesSV} chartData={tracesCd}
               tracesData={tracesTd} loading={tracesLoading}
               timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
           </TabsContent>

@@ -2,15 +2,14 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.domain.entities import Article
-from src.shared.domain.repositories import TopicRepository
+from src.shared.domain.repositories import AsyncTopicRepository
 from src.shared.domain.value_objects.tag_mode import TagMode
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.entities import Analysis
 from src.modules.intelligence.domain.repositories import (
-    AnalysisRepository,
-    TagGroupDefinitionRepository,
+    AsyncAnalysisRepository,
+    AsyncTagGroupDefinitionRepository,
 )
-from src.modules.intelligence.domain.services import LLMService, EmbeddingService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup, AnalysisTagGroup
 from .analysis_result import AnalysisResult
 
@@ -18,16 +17,23 @@ logger = get_logger(__name__)
 
 
 class AnalyzeArticleUseCase:
-    """Orchestrates LLM analysis of an article including prompt rendering and persistence."""
+    """Orchestrates LLM analysis of an article including prompt rendering and persistence.
+
+    024-async-pipeline-refactor: converted to async in place (`execute` is
+    `async def`) — confirmed constructed only once, only inside
+    build_collection_pipeline(). Takes the async LLM/embedding services
+    (AsyncResilientLLMService/AsyncResilientEmbeddingService) and async
+    repositories now.
+    """
 
     def __init__(
         self,
-        llm_service: LLMService,
-        analysis_repository: AnalysisRepository,
-        topic_repository: TopicRepository,
-        tag_group_definition_repository: TagGroupDefinitionRepository,
+        llm_service,
+        analysis_repository: AsyncAnalysisRepository,
+        topic_repository: AsyncTopicRepository,
+        tag_group_definition_repository: AsyncTagGroupDefinitionRepository,
         prompt: AnalysisPrompt,
-        embedding_service: Optional[EmbeddingService] = None,
+        embedding_service=None,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
@@ -36,16 +42,16 @@ class AnalyzeArticleUseCase:
         self._prompt = prompt
         self._embedding_service = embedding_service
 
-    def execute(self, article: Article) -> AnalysisResult:
+    async def execute(self, article: Article) -> AnalysisResult:
         """Analyze the article via LLM, persist the result, and return an AnalysisResult."""
         content = article.get_analysis_content()
         topic_display_name: Optional[str] = None
         if article.topic_id is not None:
-            _topic = self._topic_repository.find_by_id(article.topic_id)
+            _topic = await self._topic_repository.find_by_id(article.topic_id)
             if _topic is not None:
                 topic_display_name = _topic.display_name
-        prompt = self._build_prompt(article.topic_id)
-        result = self._llm_service.analyze(content, prompt)
+        prompt = await self._build_prompt(article.topic_id)
+        result = await self._llm_service.analyze(content, prompt)
 
         if result is None:
             logger.error("llm_analysis_failed", article_id=str(article.id))
@@ -65,9 +71,9 @@ class AnalyzeArticleUseCase:
         # has a matching TagGroupDefinition row. Supervised mode skips upsert
         # because all groups must be predefined.
         if article.topic_id is not None:
-            topic = self._topic_repository.find_by_id(article.topic_id)
+            topic = await self._topic_repository.find_by_id(article.topic_id)
             if topic is not None and topic.tag_mode != TagMode.SUPERVISED:
-                self._upsert_generated_tag_groups(
+                await self._upsert_generated_tag_groups(
                     analysis_content.tag_groups or [],
                     article.topic_id,
                 )
@@ -79,7 +85,7 @@ class AnalyzeArticleUseCase:
         )
 
         try:
-            self._analysis_repository.save(analysis)
+            await self._analysis_repository.save(analysis)
         except Exception as e:
             logger.error("analysis_save_failed", article_id=str(article.id), error=str(e))
             return AnalysisResult(
@@ -110,7 +116,7 @@ class AnalyzeArticleUseCase:
 
     # ── Private helpers ──────────────────────────────────────────────────────
 
-    def _build_prompt(self, topic_id: Optional[UUID]) -> str:
+    async def _build_prompt(self, topic_id: Optional[UUID]) -> str:
         """
         Render an AnalysisPrompt for the article's topic.
 
@@ -123,10 +129,10 @@ class AnalyzeArticleUseCase:
           3. no topics in DB → return unrendered auto template
         """
         if topic_id is not None:
-            topic = self._topic_repository.find_by_id(topic_id)
+            topic = await self._topic_repository.find_by_id(topic_id)
             if topic is not None:
                 if topic.tag_mode == TagMode.SUPERVISED:
-                    db_groups = self._tag_group_definition_repository.find_by_topic_id(topic_id)
+                    db_groups = await self._tag_group_definition_repository.find_by_topic_id(topic_id)
                     if db_groups:
                         tag_groups = [
                             TagGroup(name=g.name, display_name=g.display_name, description=g.description or "")
@@ -142,7 +148,7 @@ class AnalyzeArticleUseCase:
                     )
 
                 elif topic.tag_mode == TagMode.SEMI_SUPERVISED:
-                    db_groups = self._tag_group_definition_repository.find_by_topic_id(topic_id)
+                    db_groups = await self._tag_group_definition_repository.find_by_topic_id(topic_id)
                     if db_groups:
                         tag_groups = [
                             TagGroup(name=g.name, display_name=g.display_name, description=g.description or "")
@@ -155,7 +161,7 @@ class AnalyzeArticleUseCase:
 
                 return self._prompt.render_auto(topic=topic.display_name).content
 
-        topics = self._topic_repository.list_active()
+        topics = await self._topic_repository.list_active()
         if not topics:
             logger.warning("no_active_topics_using_unrendered_prompt")
             return self._prompt.content
@@ -163,7 +169,7 @@ class AnalyzeArticleUseCase:
         topic_str = ", ".join(t.display_name for t in topics)
         return self._prompt.render_auto(topic=topic_str).content
 
-    def _upsert_generated_tag_groups(
+    async def _upsert_generated_tag_groups(
         self,
         tag_groups: List[AnalysisTagGroup],
         topic_id: UUID,
@@ -181,14 +187,14 @@ class AnalyzeArticleUseCase:
                     f"{gk} - {gk.replace('_', ' ').title()}"
                     for _, gk in valid
                 ]
-                embeddings = self._embedding_service.embed_batch(texts)
+                embeddings = await self._embedding_service.embed_batch(texts)
             except Exception as e:
                 logger.warning("tag_group_embedding_failed", error=str(e))
 
         for (tg, group_key), embedding in zip(valid, embeddings):
             display_name = group_key.replace("_", " ").title()
             try:
-                self._tag_group_definition_repository.upsert(
+                await self._tag_group_definition_repository.upsert(
                     name=group_key,
                     display_name=display_name,
                     topic_id=topic_id,

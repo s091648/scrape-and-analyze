@@ -158,6 +158,39 @@ def setup_tracing(app_env: str):
         provider = TracerProvider(resource=resource)
         provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
+
+        # Without these, FastAPIInstrumentor above only ever produces one flat span per
+        # request — no visibility into whether a slow request was slow because of a DB
+        # query, a Redis round-trip, or actual application logic. Each is wrapped in its
+        # own try/except so a failure here doesn't take down request-level tracing, which
+        # already succeeded by this point.
+        try:
+            from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+            from backend.database import engine
+            SQLAlchemyInstrumentor().instrument(engine=engine, tracer_provider=provider)
+        except Exception as e:
+            print(f"[tracing] SQLAlchemy instrumentation failed: {e}")
+
+        try:
+            from opentelemetry.instrumentation.redis import RedisInstrumentor
+            RedisInstrumentor().instrument(tracer_provider=provider)
+        except Exception as e:
+            print(f"[tracing] Redis instrumentation failed: {e}")
+
+        # Without this, outgoing httpx calls (ChatCompletionService proxying to
+        # chatbot-plugin, grafana_service.py) never carry a W3C `traceparent` header,
+        # so the downstream service's own FastAPIInstrumentor has nothing to continue —
+        # it just starts a brand new, disconnected trace_id. That's why a slow
+        # /chat/completions request showed up here as one opaque 8s span with no
+        # visibility into where the time went even after chatbot-plugin got its own
+        # spans: this service's trace and chatbot-plugin's trace were never the same
+        # trace to begin with. Instrumenting the client makes them one connected trace.
+        try:
+            from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+            HTTPXClientInstrumentor().instrument(tracer_provider=provider)
+        except Exception as e:
+            print(f"[tracing] httpx client instrumentation failed: {e}")
+
         print("[tracing] OTLP setup successful")
         return provider
     except Exception as e:

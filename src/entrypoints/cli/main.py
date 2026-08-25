@@ -9,6 +9,7 @@ Responsibilities here:
 
 All domain/application logic lives in src/app/ and src/ingestion/.
 """
+import asyncio
 import os
 import time
 import signal
@@ -89,9 +90,25 @@ def main() -> None:
             span.set_attribute(SpanAttribute.RUN_ID, run_id)
             span.set_attribute(SpanAttribute.CORRELATION_ID, correlation_id)
 
+            # 024-async-pipeline-refactor: build_collection_pipeline() and
+            # CollectionPipeline.run() are both async now — asyncio.run() is
+            # the single bridge point from this otherwise-synchronous
+            # entrypoint into the pipeline's event loop (research.md item 9).
+            # pipeline_stats is assigned as soon as the *build* step succeeds
+            # (via the mutable holder below), independent of whether the
+            # subsequent .run() call later fails — matching the original
+            # sync code's two-separate-statements behavior, where a failure
+            # in pipeline.run() alone still left pipeline_stats bound for the
+            # finally block below.
+            pipeline_stats = None
+
+            async def _build_and_run():
+                nonlocal pipeline_stats
+                pipeline, pipeline_stats = await build_collection_pipeline(jitter_seconds=jitter_seconds)
+                await pipeline.run()
+
             try:
-                pipeline, pipeline_stats = build_collection_pipeline(jitter_seconds=jitter_seconds)
-                pipeline.run()
+                asyncio.run(_build_and_run())
 
             except Exception as e:
                 span.record_exception(e)

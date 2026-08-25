@@ -6,7 +6,7 @@ from opentelemetry.trace import StatusCode
 
 from src.shared.logging import get_logger
 from src.modules.collection.domain.entities import FailedTask
-from src.shared.domain.repositories import FailedTaskRepository
+from src.shared.domain.repositories import AsyncFailedTaskRepository
 from src.shared.application.events.failed_event import FailedEvent
 from src.infrastructure.shared.logging import get_correlation_id
 
@@ -15,12 +15,19 @@ logger = get_logger(__name__)
 
 
 class FailedTaskPersistenceHandler:
-    """Persists any FailedEvent as a FailedTask record with OTel error span."""
+    """Persists any FailedEvent as a FailedTask record with OTel error span.
 
-    def __init__(self, failed_task_repository: FailedTaskRepository) -> None:
+    024-async-pipeline-refactor: converted to async in place — confirmed
+    constructed only once, only inside build_collection_pipeline(). Callers
+    may construct one per concurrent task (each with its own AsyncSession-
+    bound AsyncFailedTaskRepository) so concurrently-failing articles never
+    share mutable session state.
+    """
+
+    def __init__(self, failed_task_repository: AsyncFailedTaskRepository) -> None:
         self._repo = failed_task_repository
 
-    def handle(self, event: FailedEvent) -> None:
+    async def handle(self, event: FailedEvent) -> None:
         """Extract failure details from the event and persist a FailedTask."""
         span = _otel_trace.get_current_span()
         span.set_attribute("task.type", getattr(event, "task_type", "unknown"))
@@ -56,7 +63,7 @@ class FailedTaskPersistenceHandler:
             failed_at=datetime.now(timezone.utc),
         )
         try:
-            self._repo.save(task)
+            await self._repo.save(task)
             logger.info(
                 "failed_task_persisted",
                 task_type=task.task_type,

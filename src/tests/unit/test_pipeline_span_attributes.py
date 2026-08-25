@@ -3,15 +3,28 @@ Unit tests for OTel span attributes in CollectionPipeline stage spans.
 
 Verifies that each stage span carries the expected attributes so operators
 can identify bottlenecks from trace data.
+
+024-async-pipeline-refactor: CollectionPipeline.run() is now async; these
+tests exercise real per-article asyncio.Tasks (article_count articles flow
+all the way through the publish/gather step), so async_sessionmaker_factory
+and article_downstream_builder are given minimal-but-real async
+implementations rather than raising stubs.
 """
-from unittest.mock import MagicMock, patch, call
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, patch, call
 import pytest
 
 
 def _make_pipeline_with_articles(article_count: int = 3):
     from src.infrastructure.collection.collection_pipeline import CollectionPipeline
     from src.infrastructure.collection.executor.fetch_task import FetchTask
+    from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEventBus
 
+    # NOTE: setting_repo/scraper_factory/executor/pipeline_stats stay plain
+    # MagicMock (not AsyncMock) — every method used on them in
+    # CollectionPipeline.run()'s upstream phase is still called synchronously
+    # (FR-003: discover/fetch/dedup behavior is unchanged). Only event_bus is
+    # awaited (the two barrier-event publishes).
     mock_setting = MagicMock()
     mock_setting.source_type = "rss"
     mock_setting.url = "https://example.com/feed.xml"
@@ -48,22 +61,33 @@ def _make_pipeline_with_articles(article_count: int = 3):
     executor.run_discover = fake_run_discover
     executor.run_fetch_only = fake_run_fetch_only
 
-    event_bus = MagicMock()
+    event_bus = AsyncMock()
     pipeline_stats = MagicMock()
     pipeline_stats.get_results.return_value = []
+
+    @asynccontextmanager
+    async def _fake_session():
+        yield MagicMock()
+
+    async def article_downstream_builder(session, bus, dispatch_rag):
+        pass  # no-op: these tests only assert on discover/fetch/dedup/publish spans
 
     pipeline = CollectionPipeline(
         setting_repo=setting_repo,
         scraper_factory=MagicMock(),
         event_bus=event_bus,
         pipeline_stats=pipeline_stats,
+        async_sessionmaker_factory=lambda: _fake_session(),
+        article_downstream_builder=article_downstream_builder,
+        rag_downstream_builder=None,
+        event_bus_factory=AsyncInMemoryEventBus,
         executor=executor,
     )
     return pipeline
 
 
 class TestPipelineSpanAttributes:
-    def _capture_spans(self, pipeline):
+    async def _capture_spans(self, pipeline):
         """Run pipeline with mock tracer and capture span names + attributes."""
         calls = {}
 
@@ -85,38 +109,42 @@ class TestPipelineSpanAttributes:
         mock_tracer.start_as_current_span.side_effect = lambda name: TrackingSpan(name)
 
         with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
-            pipeline.run()
+            await pipeline.run()
 
         return calls
 
-    def test_discover_span_has_sources_count(self):
+    @pytest.mark.asyncio
+    async def test_discover_span_has_sources_count(self):
         pipeline = _make_pipeline_with_articles(3)
-        spans = self._capture_spans(pipeline)
+        spans = await self._capture_spans(pipeline)
         assert "pipeline.discover" in spans
         span = spans["pipeline.discover"]
         assert span._attrs.get("sources.count") == 1
         assert "articles.discovered" in span._attrs
 
-    def test_fetch_span_has_article_counts(self):
+    @pytest.mark.asyncio
+    async def test_fetch_span_has_article_counts(self):
         pipeline = _make_pipeline_with_articles(3)
-        spans = self._capture_spans(pipeline)
+        spans = await self._capture_spans(pipeline)
         assert "pipeline.fetch" in spans
         span = spans["pipeline.fetch"]
         assert "articles.to_fetch" in span._attrs
         assert "articles.fetched" in span._attrs
 
-    def test_dedup_span_has_article_counts(self):
+    @pytest.mark.asyncio
+    async def test_dedup_span_has_article_counts(self):
         pipeline = _make_pipeline_with_articles(3)
-        spans = self._capture_spans(pipeline)
+        spans = await self._capture_spans(pipeline)
         assert "pipeline.dedup" in spans
         span = spans["pipeline.dedup"]
         assert "articles.before_dedup" in span._attrs
         assert "articles.after_dedup" in span._attrs
         assert "articles.skipped" in span._attrs
 
-    def test_publish_span_has_published_count(self):
+    @pytest.mark.asyncio
+    async def test_publish_span_has_published_count(self):
         pipeline = _make_pipeline_with_articles(3)
-        spans = self._capture_spans(pipeline)
+        spans = await self._capture_spans(pipeline)
         assert "pipeline.publish_articles" in spans
         span = spans["pipeline.publish_articles"]
         assert "articles.published" in span._attrs

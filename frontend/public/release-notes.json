@@ -5,23 +5,19 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Added a new search bar to help users quickly find articles across the platform."
+        "description": "Introduced a new search bar with real-time autocomplete suggestions for faster content discovery."
       },
       {
         "type": "feat",
-        "description": "Introduced real-time autocomplete suggestions in the search interface."
+        "description": "Implemented global search functionality to help users find specific articles within the application."
       },
       {
         "type": "feat",
-        "description": "Implemented keyword highlighting in search results for better visibility of matches."
+        "description": "Added visual highlighting of matching keywords within search results for improved clarity."
       },
       {
         "type": "feat",
-        "description": "Updated backend systems to provide faster and more efficient search results."
-      },
-      {
-        "type": "feat",
-        "description": "Enhanced search accuracy and language support through improved text processing."
+        "description": "Upgraded the article collection system to an asynchronous architecture for more efficient data updates."
       }
     ]
   },

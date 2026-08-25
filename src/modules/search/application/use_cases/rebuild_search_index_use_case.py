@@ -33,10 +33,27 @@ class RebuildSearchIndexUseCase:
             )
             .outerjoin(ArticleTranslation, ArticleTranslation.article_id == Article.id)
             .filter(Article.merged_into_id.is_(None))
-            # Untopic'd articles are excluded from search entirely — FR-009 scopes both
-            # search and autocomplete by topic, and intelligence.search_terms.topic_id
-            # is NOT NULL (no meaningful "global" partition to place them in).
-            .filter(Article.topic_id.isnot(None))
+            .filter(
+                # Untopic'd articles are excluded from search entirely — FR-009 scopes
+                # both search and autocomplete by topic, and intelligence.search_terms.
+                # topic_id is NOT NULL (no meaningful "global" partition to place them in).
+                Article.topic_id.isnot(None),
+                # 024-async-pipeline-refactor: Article.title/content are the raw scraped
+                # values (set by ProcessScrapedArticleUseCase before analyze even runs —
+                # see process_scraped_article.py), so a permanently-failed analyze would
+                # otherwise still surface the article in search despite the pipeline
+                # never having enriched it. Requiring an Analysis row is the
+                # ground-truth signal for "text-stage processing actually completed" —
+                # translation and tag normalization are both only ever triggered off a
+                # successful AnalysisCompletedEvent, so no Analysis also implies no
+                # ArticleTranslation (spec.md's "permanently fails ... absent from the
+                # resulting search index rebuild" edge case). A single language's
+                # translation failing is NOT covered by this filter — that's already
+                # handled gracefully by the existing outer join (that language's terms
+                # are simply missing, other languages/the original stay searchable),
+                # not a reason to hide the whole article.
+                Article.analyses.any(),
+            )
             .all()
         )
 

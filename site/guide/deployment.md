@@ -29,7 +29,7 @@ aside: false
 | `scrape-and-analyze` | `src/`（主 worker，`docker-compose.yml` 的 `app`） | `src-unit-test` + `src-integration-test` 通過後，`deploy-staging-src` 部署 | 無條件部署 |
 | `weekly-report` | `src/`（與 `scrape-and-analyze` 共用程式碼與 Dockerfile，`src/railway.toml` 覆寫成獨立 start command） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-weekly-report` 部署 | 無條件部署 |
 | `refresh-metrics` | `src/`（同上，`src/railway.toml` 另一組 start command 覆寫） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-refresh-metrics` 部署 | 無條件部署 |
-| `fastembed` | `services/fastembed/` | 只依賴 `src-unit-test` 通過，由 `deploy-staging-fastembed` 部署 | 無條件部署 |
+| `fastembed` | `fastembed/` | 只依賴 `src-unit-test` 通過，由 `deploy-staging-fastembed` 部署 | 無條件部署 |
 | `chatbot-plugin` | `chatbot-plugin/`（submodule） | 只依賴 `src-unit-test` 通過，由 `deploy-staging-chatbot` 部署 submodule pointer 目前指向的 commit — 不管有沒有打 tag | **有條件**：只有 submodule 目前 commit 在*`chatbot-plugin` 自己的 repo*裡有對應 `v*` tag 才會部署，否則整個服務被跳過（詳見第 5 節） |
 
 除了 `chatbot-plugin` 外，以上每一列的 staging／production 部署都只是「測試通過與否」或「有沒有打 tag」的差異 — 沒有例外邏輯；`chatbot-plugin` 是唯一在 staging 與 production 之間部署條件不對稱的服務，這也是第 5 節要特別拆開講的原因。

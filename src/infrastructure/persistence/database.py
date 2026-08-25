@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
 
@@ -7,6 +8,40 @@ from src.infrastructure.shared.exceptions import MissingDatabaseUrlError
 
 _engine = None
 _SessionLocal = None
+
+# 024-async-pipeline-refactor: entirely separate from the sync engine/session
+# above — one AsyncSession per per-article unit of work (never shared across
+# concurrently-running asyncio.Tasks), all drawn from this one shared factory.
+# See specs/024-async-pipeline-refactor/research.md item 2.
+_async_engine: AsyncEngine | None = None
+_AsyncSessionLocal: async_sessionmaker[AsyncSession] | None = None
+
+
+def _to_asyncpg_url(sync_url: str) -> str:
+    """Rewrite a psycopg2-style DATABASE_URL ("postgresql://..." or
+    "postgresql+psycopg2://...") to the asyncpg driver SQLAlchemy expects
+    ("postgresql+asyncpg://...")."""
+    if sync_url.startswith("postgresql+psycopg2://"):
+        return sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+    if sync_url.startswith("postgresql://"):
+        return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return sync_url
+
+
+def get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Get or create the shared async engine + session factory.
+
+    Callers create their own AsyncSession per unit of work via
+    `async with get_async_sessionmaker()() as session:` — never share one
+    AsyncSession across concurrently-running tasks.
+    """
+    global _async_engine, _AsyncSessionLocal
+    if _AsyncSessionLocal is None:
+        if not DATABASE_URL:
+            raise MissingDatabaseUrlError("DATABASE_URL environment variable is required")
+        _async_engine = create_async_engine(_to_asyncpg_url(DATABASE_URL), poolclass=NullPool)
+        _AsyncSessionLocal = async_sessionmaker(bind=_async_engine, expire_on_commit=False)
+    return _AsyncSessionLocal
 
 
 def create_engine_with_nullpool():

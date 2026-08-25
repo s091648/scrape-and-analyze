@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { LokiResponse } from '@/lib/api/grafana'
 
@@ -335,6 +335,345 @@ describe('LogsTable self-fetch mode', () => {
     render(<LogsTable title="Logs" query="{app='test'}" refreshInterval={0} />)
     await waitFor(() => {
       expect(screen.getByText('admin.failedToLoadLogs')).toBeDefined()
+    })
+  })
+
+  it('renders entries from a successful self-fetch', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        data: {
+          resultType: 'streams',
+          result: [{
+            stream: { env: 'production' },
+            values: [['1700000000000000000', JSON.stringify({ level: 'info', event: 'self_fetched' })]],
+          }],
+        },
+      }),
+    })
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="{app='test'}" refreshInterval={0} />)
+    await waitFor(() => {
+      expect(screen.getByText('self_fetched')).toBeDefined()
+    })
+  })
+
+  it('shows error state when the self-fetch response is not a success status', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'error' }),
+    })
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="{app='test'}" refreshInterval={0} />)
+    await waitFor(() => {
+      expect(screen.getByText('admin.failedToLoadLogs')).toBeDefined()
+    })
+  })
+
+  it('sets up a periodic refresh interval when refreshInterval is non-zero', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', data: { resultType: 'streams', result: [] } }),
+    })
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+
+    vi.useFakeTimers()
+    try {
+      let unmount: () => void
+      await act(async () => {
+        ;({ unmount } = render(<LogsTable title="Logs" query="{app='test'}" refreshInterval={30} />))
+        await Promise.resolve()
+      })
+      expect(global.fetch).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000)
+      })
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+
+      unmount!()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000)
+      })
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resolves an absolute (non "now-") time value as-is', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', data: { resultType: 'streams', result: [] } }),
+    })
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(
+      <LogsTable
+        title="Logs"
+        query="{app='test'}"
+        from="1700000000000000000"
+        to="1700000100000000000"
+        refreshInterval={0}
+      />
+    )
+    await waitFor(() => expect(screen.getByText('admin.noLogs')).toBeDefined())
+    const calledUrl = String((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0])
+    expect(calledUrl).toContain('1700000000000000000')
+    expect(calledUrl).toContain('1700000100000000000')
+  })
+})
+
+// ── parseLevel edge cases ────────────────────────────────────────────────────
+
+describe('LogsTable parseLevel edge cases', () => {
+  it('recognizes an explicit "INFO:" prefix', async () => {
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{ stream: {}, values: [['1700000000000000000', 'INFO: server started']] }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+    await waitFor(() => expect(screen.getByText('INFO')).toBeDefined())
+  })
+
+  it('falls back to info for an unstructured line with no level signal at all', async () => {
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{ stream: {}, values: [['1700000000000000000', 'just a plain unstructured line']] }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+    await waitFor(() => expect(screen.getByText('INFO')).toBeDefined())
+  })
+})
+
+// ── parseMessage "request" event formatting ──────────────────────────────────
+
+describe('LogsTable parseMessage request formatting', () => {
+  it('formats a "request" event as "METHOD path → status (duration)"', async () => {
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [[
+            '1700000000000000000',
+            JSON.stringify({ level: 'info', event: 'request', method: 'GET', path: '/api/articles', status_code: 200, duration_ms: 42 }),
+          ]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+    await waitFor(() => {
+      expect(screen.getByText('GET /api/articles → 200 (42ms)')).toBeDefined()
+    })
+  })
+})
+
+// ── Trace navigation from a log row ──────────────────────────────────────────
+
+describe('LogsTable trace navigation', () => {
+  function mockFetchRouter(handlers: { logs?: unknown; trace?: unknown | (() => Promise<unknown>) }) {
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/grafana/traces/')) {
+        if (typeof handlers.trace === 'function') return (handlers.trace as () => Promise<unknown>)()
+        if (handlers.trace instanceof Error) throw handlers.trace
+        return { ok: true, json: async () => handlers.trace }
+      }
+      return { ok: true, json: async () => handlers.logs ?? { streams: [] } }
+    }) as unknown as typeof fetch
+  }
+
+  it('opens the ArticleWorkflowDialog when the trace contains an article.pipeline span', async () => {
+    mockFetchRouter({
+      trace: {
+        batches: [{
+          resource: { attributes: [] },
+          scopeSpans: [{
+            spans: [
+              {
+                traceId: 't1', spanId: 'aaaa1111', parentSpanId: '', name: 'article.pipeline',
+                startTimeUnixNano: '1', endTimeUnixNano: '2', attributes: [],
+              },
+              {
+                traceId: 't1', spanId: 'bbbb2222', parentSpanId: 'aaaa1111', name: 'article.processed.handle',
+                startTimeUnixNano: '1', endTimeUnixNano: '2', attributes: [],
+              },
+            ],
+          }],
+        }],
+      },
+    })
+    // span_id points at the stage span, not the pipeline itself — exercises
+    // findPipelineForSpan()'s walk-up-the-parent-chain loop. IDs are kept
+    // hex-only (0-9a-f) so otlpIdToHex() takes its "already hex" branch
+    // deterministically, rather than its base64-decode fallback.
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000', JSON.stringify({
+            level: 'info', event: 'article_analyzed', trace_id: 't1', span_id: 'bbbb2222',
+          })]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('article_analyzed')).toBeDefined())
+    fireEvent.click(screen.getAllByText('article_analyzed')[0].closest('tr')!)
+
+    const traceLink = await screen.findByRole('button', { name: /admin\.viewInTrace/ })
+    fireEvent.click(traceLink)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('article-workflow-dialog')).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByText('close'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('article-workflow-dialog')).toBeNull()
+    })
+  })
+
+  it('falls back to the first pipeline span when span_id has no pipeline ancestor of its own', async () => {
+    mockFetchRouter({
+      trace: {
+        batches: [{
+          resource: { attributes: [] },
+          scopeSpans: [{
+            spans: [
+              {
+                traceId: 't4', spanId: 'aaaa4444', parentSpanId: '', name: 'article.pipeline',
+                startTimeUnixNano: '1', endTimeUnixNano: '2', attributes: [],
+              },
+              // Unrelated root-level span with no parent and no pipeline ancestor —
+              // findPipelineForSpan() must walk to the end of its own chain and give up.
+              {
+                traceId: 't4', spanId: 'dddd4444', parentSpanId: '', name: 'pipeline.discover',
+                startTimeUnixNano: '1', endTimeUnixNano: '2', attributes: [],
+              },
+            ],
+          }],
+        }],
+      },
+    })
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000', JSON.stringify({
+            level: 'info', event: 'discover_done', trace_id: 't4', span_id: 'dddd4444',
+          })]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('discover_done')).toBeDefined())
+    fireEvent.click(screen.getAllByText('discover_done')[0].closest('tr')!)
+
+    const traceLink = await screen.findByRole('button', { name: /admin\.viewInTrace/ })
+    fireEvent.click(traceLink)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('article-workflow-dialog')).toBeDefined()
+    })
+  })
+
+  it('falls back to the generic waterfall dialog when the trace has no article.pipeline span', async () => {
+    mockFetchRouter({
+      trace: {
+        batches: [{
+          resource: { attributes: [] },
+          scopeSpans: [{
+            spans: [{
+              traceId: 't2', spanId: 'cccc3333', parentSpanId: '', name: 'scraper.run',
+              startTimeUnixNano: '1', endTimeUnixNano: '2', attributes: [],
+            }],
+          }],
+        }],
+      },
+    })
+    // span_id set to the (non-pipeline) root span with no parent — exercises
+    // findPipelineForSpan()'s "chain exhausted, no pipeline ancestor found" path.
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000', JSON.stringify({
+            level: 'info', event: 'run_completed', trace_id: 't2', span_id: 'cccc3333',
+          })]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('run_completed')).toBeDefined())
+    fireEvent.click(screen.getAllByText('run_completed')[0].closest('tr')!)
+
+    const traceLink = await screen.findByRole('button', { name: /admin\.viewInTrace/ })
+    fireEvent.click(traceLink)
+
+    await waitFor(() => {
+      expect(screen.getByText('admin.waterfallDialogTitle')).toBeDefined()
+    })
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByText('admin.waterfallDialogTitle')).toBeNull()
+    })
+  })
+
+  it('shows a failure dialog when loading the trace throws', async () => {
+    mockFetchRouter({ trace: new Error('trace fetch failed') })
+    const external: LokiResponse = {
+      status: 'success',
+      data: {
+        resultType: 'streams',
+        result: [{
+          stream: {},
+          values: [['1700000000000000000', JSON.stringify({
+            level: 'info', event: 'run_failed', trace_id: 't3',
+          })]],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(<LogsTable title="Logs" query="" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('run_failed')).toBeDefined())
+    fireEvent.click(screen.getAllByText('run_failed')[0].closest('tr')!)
+
+    const traceLink = await screen.findByRole('button', { name: /admin\.viewInTrace/ })
+    fireEvent.click(traceLink)
+
+    await waitFor(() => {
+      expect(screen.getByText('admin.traceLoadFailedTitle')).toBeDefined()
+    })
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByText('admin.traceLoadFailedTitle')).toBeNull()
     })
   })
 })

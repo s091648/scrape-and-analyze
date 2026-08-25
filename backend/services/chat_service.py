@@ -74,9 +74,17 @@ class RateLimitService:
 
 
 class ChatCompletionService:
-    """Stateless httpx proxy to the downstream LLM chat service. No Redis dependency."""
+    """httpx proxy to the downstream LLM chat service. No Redis dependency.
 
-    def __init__(self) -> None:
+    024-async-pipeline-refactor follow-up: takes a shared httpx.AsyncClient
+    (constructed once in main.py's lifespan, stored on app.state) instead of
+    building a fresh one per request/retry — the old per-call `async with
+    httpx.AsyncClient(...)` re-paid a TCP (and, if CHAT_SERVICE_URL is ever
+    HTTPS, TLS) handshake on every single chat turn instead of reusing a
+    pooled connection."""
+
+    def __init__(self, client: httpx.AsyncClient) -> None:
+        self._client = client
         self._chat_service_url = CHAT_SERVICE_URL
         self._chat_service_api_key = CHAT_SERVICE_API_KEY
 
@@ -98,21 +106,20 @@ class ChatCompletionService:
         retry_delay = 2.0
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=httpx.Timeout(connect=30.0, read=120.0, write=10.0, pool=10.0)) as client:
-                    async with client.stream(
-                        "POST",
-                        f"{self._chat_service_url}/v1/chat/completions",
-                        json=body,
-                        headers=headers,
-                    ) as response:
-                        logger.info(
-                            "chat_service_response",
-                            chat_service_status=response.status_code,
-                            topic_id=topic_id,
-                        )
-                        response.raise_for_status()
-                        async for chunk in response.aiter_bytes():
-                            yield chunk
+                async with self._client.stream(
+                    "POST",
+                    f"{self._chat_service_url}/v1/chat/completions",
+                    json=body,
+                    headers=headers,
+                ) as response:
+                    logger.info(
+                        "chat_service_response",
+                        chat_service_status=response.status_code,
+                        topic_id=topic_id,
+                    )
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        yield chunk
                 return  # success — exit generator
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 if attempt < max_retries:

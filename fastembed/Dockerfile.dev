@@ -1,0 +1,42 @@
+# build context 為 project root，可取得 pyproject.toml 與 uv.lock
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+
+WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project \
+    --group fastembed-service \
+    --group observability \
+    --no-group backend \
+    --no-group scraper \
+    --no-group llm \
+    --no-group http-clients \
+    --no-group metrics \
+    --no-group dev
+
+# 預先下載模型到 image layer 裡，避免每次啟動都重新下載
+ARG EMBED_SPARSE_MODEL=prithivida/Splade_PP_en_v1
+ARG EMBED_DENSE_MODEL=
+
+RUN set -eu; \
+    cache="$FASTEMBED_CACHE_PATH"; \
+    mkdir -p "$cache"; \
+    if [ -n "$EMBED_SPARSE_MODEL" ]; then \
+        echo "Downloading sparse model: $EMBED_SPARSE_MODEL"; \
+        .venv/bin/python -c "from fastembed import SparseTextEmbedding; SparseTextEmbedding('$EMBED_SPARSE_MODEL', cache_dir='$cache')"; \
+    fi; \
+    if [ -n "$EMBED_DENSE_MODEL" ]; then \
+        echo "Downloading dense model: $EMBED_DENSE_MODEL"; \
+        .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding('$EMBED_DENSE_MODEL', cache_dir='$cache')"; \
+    fi
+
+EXPOSE 8080
+
+# 程式碼透過 docker compose volumes 掛載，不在此 COPY — --reload 支援 hot-reload
+CMD ["uv", "run", "uvicorn", "fastembed_service.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload", "--reload-dir", "/app/src"]

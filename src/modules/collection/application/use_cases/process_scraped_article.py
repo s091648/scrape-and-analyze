@@ -1,10 +1,10 @@
 from typing import Optional
 
 from src.shared.domain.entities import Article
-from src.shared.domain.repositories import ArticleRepository
-from src.modules.collection.domain.services import DedupService
+from src.shared.domain.repositories import AsyncArticleRepository
+from src.modules.collection.domain.services import AsyncDedupService
 from src.modules.collection.domain.value_objects import UrlHash
-from src.modules.collection.domain.repositories import ArticleMetricsRepository
+from src.modules.collection.domain.repositories import AsyncArticleMetricsRepository
 from src.modules.collection.application.events import ArticleScrapedEvent
 from src.modules.collection.application.use_cases import ArticleOutcome
 from src.shared.logging import get_logger
@@ -24,24 +24,29 @@ class ProcessScrapedArticleUseCase:
     Receives an ArticleScrapedEvent from infrastructure, applies dedup,
     persists a new Article.
     Returns (ArticleOutcome, Article | None) so the handler can publish events.
+
+    024-async-pipeline-refactor: converted to async in place (`execute` is
+    `async def`) — confirmed constructed only once, only inside
+    build_collection_pipeline(), so no other caller needed a sync version
+    preserved. Takes async repositories/services now.
     """
 
     def __init__(
         self,
-        article_repo: ArticleRepository,
-        dedup_service: DedupService,
-        article_metrics_repo: Optional[ArticleMetricsRepository] = None,
+        article_repo: AsyncArticleRepository,
+        dedup_service: AsyncDedupService,
+        article_metrics_repo: Optional[AsyncArticleMetricsRepository] = None,
     ) -> None:
         self._article_repo = article_repo
         self._dedup_service = dedup_service
         self._article_metrics_repo = article_metrics_repo
 
-    def execute(self, event: ArticleScrapedEvent) -> tuple[ArticleOutcome, Optional[Article]]:
+    async def execute(self, event: ArticleScrapedEvent) -> tuple[ArticleOutcome, Optional[Article]]:
         """Deduplicate and persist the scraped article, returning the outcome and saved Article (or None on failure/duplicate)."""
-        existing = self._dedup_service.find_existing(event.url)
+        existing = await self._dedup_service.find_existing(event.url)
 
         if existing is not None:
-            if not self._dedup_service.needs_analysis(existing):
+            if not await self._dedup_service.needs_analysis(existing):
                 logger.info("article_already_analyzed", url=event.url)
                 return ArticleOutcome.DUPLICATE, None
             logger.info("article_needs_analysis", article_id=str(existing.id))
@@ -50,7 +55,7 @@ class ProcessScrapedArticleUseCase:
         article = self._build_article(event)
 
         try:
-            saved = self._article_repo.save(article)
+            saved = await self._article_repo.save(article)
         except Exception as e:
             logger.error("article_save_failed", url=event.url, error=str(e))
             return ArticleOutcome.FAILED, None
@@ -66,7 +71,7 @@ class ProcessScrapedArticleUseCase:
                     for key in OPPORTUNISTIC_SEED_METRIC_KEYS
                     if event.metadata.get(key) is not None
                 }
-                self._article_metrics_repo.upsert(saved.id, metrics)
+                await self._article_metrics_repo.upsert(saved.id, metrics)
             except Exception as e:
                 logger.warning("article_metrics_upsert_failed", article_id=str(saved.id), error=str(e))
 

@@ -95,6 +95,79 @@ def test_middleware_logs_duration_ms():
     assert kwargs["duration_ms"] >= 0
 
 
+def test_middleware_logs_query_params():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/?lang=zh-TW&limit=10")
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("query_params") == "lang=zh-TW&limit=10"
+
+
+def test_middleware_omits_query_params_when_absent():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/")
+    kwargs = mock_logger.info.call_args.kwargs
+    assert "query_params" not in kwargs
+
+
+def test_middleware_logs_json_payload():
+    import json as _json
+
+    async def echo_body(request):
+        await request.body()
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/echo", echo_body, methods=["POST"])])
+    from backend.middleware.logging import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
+
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(app)
+        client.post("/echo", json={"topic": "llm", "limit": 5})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert _json.loads(kwargs["payload"]) == {"topic": "llm", "limit": 5}
+
+
+def test_middleware_redacts_sensitive_payload_fields():
+    async def echo_body(request):
+        await request.body()
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/echo", echo_body, methods=["POST"])])
+    from backend.middleware.logging import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
+
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(app)
+        client.post("/echo", json={"username": "alice", "password": "hunter2"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert '"password": "***"' in kwargs["payload"]
+    assert "hunter2" not in kwargs["payload"]
+    assert '"username": "alice"' in kwargs["payload"]
+
+
+def test_middleware_omits_payload_for_non_json_body():
+    async def echo_body(request):
+        await request.body()
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/echo", echo_body, methods=["POST"])])
+    from backend.middleware.logging import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
+
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(app)
+        client.post("/echo", content=b"plain text body", headers={"Content-Type": "text/plain"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert "payload" not in kwargs
+
+
 def test_middleware_sets_valid_uuid4_request_id():
     """Response X-Request-ID header must be a valid UUID4."""
     import uuid

@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 
 @pytest.fixture(autouse=True)
@@ -29,9 +29,13 @@ def mock_configure_logging():
 
 @pytest.fixture()
 def mock_build_pipeline():
-    with patch("src.bootstrap.build_collection_pipeline") as m:
+    """024-async-pipeline-refactor: build_collection_pipeline() and
+    pipeline.run() are both awaited now (main.py's asyncio.run(_build_and_run())) —
+    both must be AsyncMock so `await` on them yields the configured values
+    instead of returning an un-awaited coroutine."""
+    with patch("src.bootstrap.build_collection_pipeline", new_callable=AsyncMock) as m:
         pipeline = MagicMock()
-        pipeline.run.return_value = 0
+        pipeline.run = AsyncMock(return_value=0)
         pipeline_stats = MagicMock()
         pipeline_stats.get_results.return_value = []
         m.return_value = (pipeline, pipeline_stats)

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { TempoResponse } from '@/lib/api/grafana'
 
@@ -172,6 +172,22 @@ describe('TracesTable with externalData', () => {
     })
   })
 
+  it('resolves duration as 0 when neither durationMs nor spanSet data is available', async () => {
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace003',
+        rootServiceName: 'svc',
+        rootTraceName: 'GET /health',
+        startTimeUnixNano: '1700000000000000000',
+      }],
+    }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+    await waitFor(() => {
+      expect(screen.getByText('0 ms')).toBeDefined()
+    })
+  })
+
   it('resolves duration from durationNanos fallback when durationMs is absent', async () => {
     const external: TempoResponse = {
       traces: [{
@@ -270,7 +286,7 @@ describe('TracesTable expand/collapse', () => {
       traces: [{
         traceID: 'trace001',
         rootServiceName: 'svc',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 1000,
       }],
@@ -284,6 +300,43 @@ describe('TracesTable expand/collapse', () => {
     await waitFor(() => expect(screen.getByLabelText('Collapse')).toBeDefined())
     fireEvent.click(screen.getByLabelText('Collapse'))
     await waitFor(() => expect(screen.getByLabelText('Expand')).toBeDefined())
+  })
+
+  it('does not render an expand button for a non-scraper/non-weekly-report trace (e.g. a backend API request)', async () => {
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace777',
+        rootServiceName: 'scrape-analyzer-backend',
+        rootTraceName: 'GET /tag-groups',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 130,
+      }],
+    }
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('trace777…')).toBeDefined())
+    expect(screen.queryByLabelText('Expand')).toBeNull()
+    expect(screen.queryByText('admin.noArticlesInRun')).toBeNull()
+  })
+
+  it('renders a FastAPI-style method badge for a backend API request trace', async () => {
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace778',
+        rootServiceName: 'scrape-analyzer-backend',
+        rootTraceName: 'GET /tag-groups',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 130,
+      }],
+    }
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('GET')).toBeDefined())
+    expect(screen.getByText('/tag-groups')).toBeDefined()
   })
 })
 
@@ -301,7 +354,7 @@ describe('TracesTable waterfall dialog', () => {
       traces: [{
         traceID: 'trace999',
         rootServiceName: 'backend',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 500,
       }],
@@ -333,7 +386,7 @@ describe('TracesTable waterfall dialog', () => {
       traces: [{
         traceID: 'trace888',
         rootServiceName: 'svc',
-        rootTraceName: 'run',
+        rootTraceName: 'scraper.run',
         startTimeUnixNano: '1700000000000000000',
         durationMs: 100,
       }],
@@ -351,6 +404,156 @@ describe('TracesTable waterfall dialog', () => {
 
     fireEvent.click(screen.getByText('close waterfall'))
     await waitFor(() => expect(screen.queryByTestId('waterfall-dialog')).toBeNull())
+  })
+})
+
+describe('TracesTable article sub-row actions', () => {
+  function mockArticleDetail() {
+    return {
+      batches: [{
+        resource: { attributes: [] },
+        scopeSpans: [{
+          spans: [
+            {
+              traceId: 'trace010', spanId: 'root010', parentSpanId: '', name: 'scraper.run',
+              startTimeUnixNano: '1700000000000000000', endTimeUnixNano: '1700000010000000000',
+              attributes: [], status: { code: 0 },
+            },
+            {
+              traceId: 'trace010', spanId: 'art010', parentSpanId: 'root010', name: 'article.pipeline',
+              startTimeUnixNano: '1700000001000000000', endTimeUnixNano: '1700000002000000000',
+              attributes: [{ key: 'article.url', value: { stringValue: 'https://ex.com/a' } }],
+              status: { code: 0 },
+            },
+            {
+              traceId: 'trace010', spanId: 'stage010', parentSpanId: 'art010', name: 'article.processed.handle',
+              startTimeUnixNano: '1700000001100000000', endTimeUnixNano: '1700000001900000000',
+              attributes: [
+                { key: 'article.title', value: { stringValue: 'A Great Article' } },
+                { key: 'article.id', value: { stringValue: 'article-xyz' } },
+              ],
+              status: { code: 0 },
+            },
+          ],
+        }],
+      }],
+    }
+  }
+
+  function externalWithTrace() {
+    return {
+      traces: [{
+        traceID: 'trace010',
+        rootServiceName: 'backend',
+        rootTraceName: 'scraper.run',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 10000,
+      }],
+    }
+  }
+
+  it('opens the article preview dialog when the article title is clicked, and closes it', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockArticleDetail())
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={externalWithTrace()} />)
+
+    await waitFor(() => expect(screen.getByText('trace010…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(screen.getByText('A Great Article')).toBeDefined())
+
+    fireEvent.click(screen.getByText('A Great Article'))
+    await waitFor(() => expect(screen.getByTestId('article-detail-dialog')).toBeDefined())
+
+    fireEvent.click(screen.getByText('close article'))
+    await waitFor(() => expect(screen.queryByTestId('article-detail-dialog')).toBeNull())
+  })
+
+  it('still opens the preview dialog when fetching the article detail fails', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockArticleDetail())
+    const { fetchArticleById } = await import('@/lib/api/articles') as any
+    fetchArticleById.mockRejectedValueOnce(new Error('not found'))
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={externalWithTrace()} />)
+
+    await waitFor(() => expect(screen.getByText('trace010…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(screen.getByText('A Great Article')).toBeDefined())
+
+    fireEvent.click(screen.getByText('A Great Article'))
+    await waitFor(() => expect(screen.getByTestId('article-detail-dialog')).toBeDefined())
+  })
+
+  it('opens the article workflow dialog when "view →" is clicked, and closes it', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValueOnce(mockArticleDetail())
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={externalWithTrace()} />)
+
+    await waitFor(() => expect(screen.getByText('trace010…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(screen.getByText('view →')).toBeDefined())
+
+    fireEvent.click(screen.getByText('view →'))
+    await waitFor(() => expect(screen.getByTestId('workflow-dialog')).toBeDefined())
+
+    fireEvent.click(screen.getByText('close workflow'))
+    await waitFor(() => expect(screen.queryByTestId('workflow-dialog')).toBeNull())
+  })
+
+  it('opens the article workflow dialog from the waterfall dialog via onSelectArticle, closing the waterfall', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValue(mockArticleDetail())
+
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={externalWithTrace()} />)
+
+    await waitFor(() => expect(screen.getByText('trace010…')).toBeDefined())
+    fireEvent.click(screen.getByLabelText('Expand'))
+    await waitFor(() => expect(queryTraceById).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByText('trace010…'))
+    await waitFor(() => expect(screen.getByTestId('waterfall-dialog')).toBeDefined())
+
+    fireEvent.click(screen.getByText('select article'))
+    await waitFor(() => {
+      expect(screen.queryByTestId('waterfall-dialog')).toBeNull()
+      expect(screen.getByTestId('workflow-dialog')).toBeDefined()
+    })
+  })
+})
+
+describe('TracesTable waterfall dialog — not-yet-loaded detail', () => {
+  it('loads the trace detail on demand when the traceId link is clicked before expanding', async () => {
+    const { queryTraceById } = await import('@/lib/api/grafana') as any
+    queryTraceById.mockResolvedValue({
+      batches: [{ resource: { attributes: [] }, scopeSpans: [{ spans: [] }] }],
+    })
+
+    const external: TempoResponse = {
+      traces: [{
+        traceID: 'trace555',
+        rootServiceName: 'backend',
+        rootTraceName: 'scraper.run',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 100,
+      }],
+    }
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={external} />)
+
+    await waitFor(() => expect(screen.getByText('trace555…')).toBeDefined())
+    // Click the traceId link directly, without expanding first — detail isn't cached yet.
+    fireEvent.click(screen.getByText('trace555…'))
+
+    await waitFor(() => {
+      expect(queryTraceById).toHaveBeenCalledWith('trace555')
+      expect(screen.getByTestId('waterfall-dialog')).toBeDefined()
+    })
   })
 })
 
@@ -632,6 +835,53 @@ describe('TracesTable self-fetch mode', () => {
     await waitFor(() => {
       expect(screen.getByText('admin.failedToLoadTraces')).toBeDefined()
     })
+  })
+
+  it('renders traces from a successful self-fetch', async () => {
+    const { queryTraces } = await import('@/lib/api/grafana') as any
+    queryTraces.mockResolvedValue({
+      traces: [{
+        traceID: 'selffetch01',
+        rootServiceName: 'backend',
+        rootTraceName: 'GET /articles',
+        startTimeUnixNano: '1700000000000000000',
+        durationMs: 42,
+      }],
+    })
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" query="{}" refreshInterval={0} />)
+    await waitFor(() => {
+      expect(screen.getByText('selffetc…')).toBeDefined()
+    })
+  })
+
+  it('sets up a periodic refresh interval when refreshInterval is non-zero', async () => {
+    const { queryTraces } = await import('@/lib/api/grafana') as any
+    queryTraces.mockResolvedValue({ traces: [] })
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+
+    vi.useFakeTimers()
+    try {
+      let unmount: () => void
+      await act(async () => {
+        ;({ unmount } = render(<TracesTable title="Traces" query="{}" refreshInterval={30} />))
+        await Promise.resolve()
+      })
+      expect(queryTraces).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000)
+      })
+      expect(queryTraces).toHaveBeenCalledTimes(2)
+
+      unmount!()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000)
+      })
+      expect(queryTraces).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not call queryTraces with the placeholder query while externalData is null (pending)', async () => {

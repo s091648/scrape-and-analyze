@@ -83,6 +83,15 @@ export interface OtlpAttribute {
   value: OtlpAttributeValue
 }
 
+// span.add_event(name, attributes) on the Python SDK side (e.g. chatbot-plugin's
+// "first_content"/"first_chunk" markers) — Tempo passes these through in the same
+// OTLP/JSON shape as span-level attributes, just nested per event with its own timestamp.
+export interface OtlpSpanEvent {
+  timeUnixNano: string
+  name: string
+  attributes?: OtlpAttribute[]
+}
+
 export interface OtlpSpan {
   traceId: string
   spanId: string
@@ -91,6 +100,7 @@ export interface OtlpSpan {
   startTimeUnixNano: string
   endTimeUnixNano: string
   attributes: OtlpAttribute[]
+  events?: OtlpSpanEvent[]
   status?: { code: number | string; message?: string }
 }
 

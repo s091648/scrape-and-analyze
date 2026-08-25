@@ -154,3 +154,108 @@ class TranslateArticleUseCase:
                     fields[key] = re.sub(rf'^{header}\s*[:：]\s*', '', part, flags=re.IGNORECASE).strip()
                     break
         return AnalysesTranslationContent(**fields)
+
+
+class AsyncTranslateArticleUseCase:
+    """024-async-pipeline-refactor: async sibling of TranslateArticleUseCase —
+    new, separate class. TranslateArticleUseCase is constructed by both
+    build_collection_pipeline() (in scope) and build_translation_pipeline()
+    (out of scope, the standalone `make translate` CLI job) — converting it
+    in place would break the latter. Same logic, `async def`/`await`
+    throughout, uses AsyncAnalysesTranslationRepository."""
+
+    def __init__(
+        self,
+        llm_service,
+        translation_repository: AnalysesTranslationRepository,
+        prompt: ArticleTranslationPrompt,
+    ) -> None:
+        self._llm_service = llm_service
+        self._translation_repository = translation_repository
+        self._prompt = prompt
+
+    async def execute(
+        self,
+        analysis_id: UUID,
+        summary: Optional[str],
+        pain_points: Optional[str],
+        insights: Optional[str],
+        innovations: Optional[str],
+        target_language: str,
+    ) -> AnalysesTranslationResult:
+        if await self._translation_repository.exists(analysis_id, target_language):
+            logger.info("translation_already_exists", analysis_id=str(analysis_id), language=target_language)
+            existing = await self._translation_repository.find_by_analysis_id_and_language(analysis_id, target_language)
+            if existing:
+                return AnalysesTranslationResult(
+                    analysis_id=analysis_id,
+                    language=target_language,
+                    content=AnalysesTranslationContent(
+                        summary=existing.summary,
+                        pain_points=existing.pain_points,
+                        insights=existing.insights,
+                        innovations=existing.innovations,
+                    ),
+                    success=True,
+                )
+
+        rendered = self._prompt.render(
+            target_language=target_language,
+            summary=summary or "(empty)",
+            pain_points=pain_points or "(empty)",
+            insights=insights or "(empty)",
+            innovations=innovations or "(empty)",
+        )
+
+        translated = await self._call_llm(rendered.content)
+
+        if translated is None:
+            logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
+            return AnalysesTranslationResult(
+                analysis_id=analysis_id,
+                language=target_language,
+                content=AnalysesTranslationContent(
+                    summary=None, pain_points=None, insights=None, innovations=None,
+                ),
+                success=False,
+            )
+
+        translation = AnalysesContent(
+            analysis_id=analysis_id,
+            language=target_language,
+            summary=translated.summary,
+            pain_points=translated.pain_points,
+            insights=translated.insights,
+            innovations=translated.innovations,
+        )
+
+        try:
+            await self._translation_repository.save(translation)
+            logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
+        except Exception as e:
+            logger.error("translation_save_failed", analysis_id=str(analysis_id), error=str(e))
+            return AnalysesTranslationResult(
+                analysis_id=analysis_id,
+                language=target_language,
+                content=AnalysesTranslationContent(
+                    summary=None, pain_points=None, insights=None, innovations=None,
+                ),
+                success=False,
+            )
+
+        return AnalysesTranslationResult(
+            analysis_id=analysis_id,
+            language=target_language,
+            content=translated,
+            success=True,
+        )
+
+    async def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
+        try:
+            translated_text = await self._llm_service.translate("", prompt_content)
+            if translated_text is None:
+                return None
+            return TranslateArticleUseCase._parse_sections(translated_text)
+        except Exception as e:
+            logger.error("llm_translation_error", error=str(e))
+            return None

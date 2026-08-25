@@ -1,5 +1,6 @@
+import pytest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from src.modules.collection.application.events import PipelineCompletedEvent
 from src.modules.collection.application.use_cases import SourceStats
 from src.shared.domain.value_objects.job_execution_meta import JobExecutionMeta
@@ -20,29 +21,43 @@ def _make_event(stats=None, duration=8.0):
     )
 
 
-def test_handler_sets_duration_attribute():
+def _mock_tracer(mock_span):
+    """024-async-pipeline-refactor: handlers now own their own span via
+    get_tracer().start_as_current_span(...) rather than attaching attributes
+    to an ambient span, so tests mock the tracer's context manager instead of
+    opentelemetry.trace.get_current_span."""
+    tracer = MagicMock()
+    tracer.start_as_current_span.return_value.__enter__.return_value = mock_span
+    tracer.start_as_current_span.return_value.__exit__.return_value = False
+    return tracer
+
+
+@pytest.mark.asyncio
+async def test_handler_sets_duration_attribute():
     from src.infrastructure.collection.handlers.otel_metrics_handler import OtelMetricsHandler
 
     mock_span = MagicMock()
-    with patch("src.infrastructure.collection.handlers.otel_metrics_handler._otel_trace") as mock_trace:
-        mock_trace.get_current_span.return_value = mock_span
-        OtelMetricsHandler().handle(_make_event(duration=12.5))
+    with patch("src.infrastructure.collection.handlers.otel_metrics_handler.get_tracer",
+               return_value=_mock_tracer(mock_span)):
+        await OtelMetricsHandler().handle(_make_event(duration=12.5))
 
     mock_span.set_attribute.assert_any_call("pipeline.duration_seconds", 12.5)
 
 
-def test_handler_sets_sources_count_attribute():
+@pytest.mark.asyncio
+async def test_handler_sets_sources_count_attribute():
     from src.infrastructure.collection.handlers.otel_metrics_handler import OtelMetricsHandler
 
     mock_span = MagicMock()
-    with patch("src.infrastructure.collection.handlers.otel_metrics_handler._otel_trace") as mock_trace:
-        mock_trace.get_current_span.return_value = mock_span
-        OtelMetricsHandler().handle(_make_event())
+    with patch("src.infrastructure.collection.handlers.otel_metrics_handler.get_tracer",
+               return_value=_mock_tracer(mock_span)):
+        await OtelMetricsHandler().handle(_make_event())
 
     mock_span.set_attribute.assert_any_call("pipeline.sources_count", 2)
 
 
-def test_handler_sources_count_matches_stats_length():
+@pytest.mark.asyncio
+async def test_handler_sources_count_matches_stats_length():
     from src.infrastructure.collection.handlers.otel_metrics_handler import OtelMetricsHandler
 
     stats = [
@@ -51,9 +66,9 @@ def test_handler_sources_count_matches_stats_length():
         SourceStats(source="blog", new=1, duplicate=0, failed=3),
     ]
     mock_span = MagicMock()
-    with patch("src.infrastructure.collection.handlers.otel_metrics_handler._otel_trace") as mock_trace:
-        mock_trace.get_current_span.return_value = mock_span
-        OtelMetricsHandler().handle(_make_event(stats=stats, duration=10.0))
+    with patch("src.infrastructure.collection.handlers.otel_metrics_handler.get_tracer",
+               return_value=_mock_tracer(mock_span)):
+        await OtelMetricsHandler().handle(_make_event(stats=stats, duration=10.0))
 
     mock_span.set_attribute.assert_any_call("pipeline.sources_count", 3)
     mock_span.set_attribute.assert_any_call("pipeline.duration_seconds", 10.0)

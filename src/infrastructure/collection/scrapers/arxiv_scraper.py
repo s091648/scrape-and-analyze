@@ -87,7 +87,7 @@ class ArxivScraper(BaseScraper):
             content=job.metadata.get("abstract", ""),
             source="arxiv",
             topic_id=job.topic_id,
-            published_at=job.metadata.get("published"),
+            published_at=self._parse_published_at(job.metadata.get("published")),
             authors=job.metadata.get("authors", []),
             extra={
                 "arxiv_id": job.metadata.get("arxiv_id"),

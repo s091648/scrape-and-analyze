@@ -15,6 +15,13 @@ from backend.schemas.user import AdminUpdateUserRequest
 
 GUEST_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
 GUEST_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+# Same access/refresh split as the guest tier, for the same reason: a short-lived
+# access token limits the blast radius of a leaked bearer token, while the
+# long-lived refresh token (never sent as a bearer credential itself — see the
+# token_use guard in backend/auth/guards.py) is what NextAuth's jwt() callback
+# exchanges via POST /auth/refresh to keep an active session alive past 1h.
+USER_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
+USER_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 def get_user_by_username(db: Session, username: str):
@@ -69,6 +76,53 @@ def update_google_id(db: Session, user, google_id: str) -> None:
     user.google_id = google_id
     user.updated_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def create_user_access_token(user_id: UUID, role: str) -> str:
+    """Backend is the sole issuer of the bearer token apiFetch() sends to every
+    protected endpoint — the frontend (NextAuth) only relays this value, it no
+    longer signs its own token (see specs/024-async-pipeline-refactor auth
+    architecture cleanup)."""
+    claims = {
+        "sub": str(user_id),
+        "role": role,
+        "token_use": "access",
+        "exp": int(time.time()) + USER_ACCESS_TOKEN_TTL_SECONDS,
+    }
+    return jwt.encode(claims, NEXTAUTH_SECRET, algorithm="HS256")
+
+
+def create_user_refresh_token(user_id: UUID) -> str:
+    """No `role` claim: POST /auth/refresh re-fetches the user from the DB to
+    mint the next access token, so a role change or account disable takes
+    effect the next time the access token is refreshed instead of waiting up
+    to 30 days for the refresh token itself to expire."""
+    claims = {
+        "sub": str(user_id),
+        "token_use": "refresh",
+        "exp": int(time.time()) + USER_REFRESH_TOKEN_TTL_SECONDS,
+    }
+    return jwt.encode(claims, NEXTAUTH_SECRET, algorithm="HS256")
+
+
+def decode_user_refresh_token(token: str) -> dict:
+    """Validate a real-user refresh token for POST /auth/refresh. Raises
+    UnauthorizedError for anything malformed, expired, a guest token, or a
+    user access token presented here by mistake."""
+    try:
+        payload = jwt.decode(token, NEXTAUTH_SECRET, algorithms=["HS256"],
+                             options={"verify_exp": False})
+    except JWTError:
+        raise UnauthorizedError("Invalid token")
+
+    if "exp" not in payload:
+        raise UnauthorizedError("Token missing exp claim")
+    if payload["exp"] < int(time.time()):
+        raise UnauthorizedError("Token expired")
+    if payload.get("tier") == "guest" or payload.get("token_use") != "refresh":
+        raise UnauthorizedError("Token not accepted for this endpoint")
+
+    return payload
 
 
 def hash_password(password: str) -> str:

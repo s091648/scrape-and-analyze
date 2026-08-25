@@ -15,6 +15,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Download MaxMind GeoLite2-City database — mirrors backend/Dockerfile's step so local dev
+# gets the same geo_country/geo_city enrichment in RequestLoggingMiddleware's logs as
+# production, instead of shared/utils/geoip.py silently no-op'ing on a missing /app/data/.
+# No-ops (empty tar, geoip.py falls back to {} same as before) if MAXMIND_LICENSE_KEY is unset.
+ARG MAXMIND_LICENSE_KEY
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/data && \
+    if [ -n "$MAXMIND_LICENSE_KEY" ]; then \
+      curl -sSL \
+        "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz" \
+      | tar -xz --wildcards --strip-components=1 -C /app/data/ '*.mmdb'; \
+    fi
+
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 
 # build context 為 project root，可取得 pyproject.toml 與 uv.lock

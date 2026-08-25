@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 import models  # noqa: F401 — registers all ORM mappers at startup
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
@@ -54,11 +55,18 @@ async def _periodic_view_flush():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from backend.cache_warmup_listener import listen_for_warmup_signals
+    # Shared across every /chat/completions request (backend/routers/chat.py) so
+    # each chat turn reuses a pooled connection to chatbot-plugin instead of
+    # paying a fresh TCP/TLS handshake per request — see ChatCompletionService.
+    app.state.http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=30.0, read=120.0, write=10.0, pool=10.0)
+    )
     task = asyncio.create_task(_periodic_view_flush())
     warmup_task = asyncio.create_task(listen_for_warmup_signals())
     yield
     task.cancel()
     warmup_task.cancel()
+    await app.state.http_client.aclose()
     if _tracer_provider:
         _tracer_provider.shutdown()
 

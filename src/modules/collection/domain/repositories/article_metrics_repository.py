@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol
 from uuid import UUID
 
 
@@ -22,3 +22,15 @@ class ArticleMetricsRepository(ABC):
     @abstractmethod
     def upsert(self, article_id: UUID, metrics: Dict[str, Any]) -> None:
         """Upsert one article_metric_values row per (article_id, metric_key) in `metrics`."""
+
+
+class AsyncArticleMetricsRepository(Protocol):
+    """024-async-pipeline-refactor: async sibling covering only `upsert` —
+    the method ProcessScrapedArticleUseCase actually calls per-article in the
+    now-concurrent downstream path. `find_stale` is only used by the
+    out-of-scope refresh-metrics job and is deliberately not mirrored here.
+    Discovered during implementation (planning had mis-scoped this repository
+    as upstream-only — it is not; corrected here rather than left wrong)."""
+
+    async def upsert(self, article_id: UUID, metrics: Dict[str, Any]) -> None:
+        ...

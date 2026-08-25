@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, type OtlpSpan } from '@/lib/api/grafana'
+import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, type OtlpSpan, type OtlpTraceResponse } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import { LokiLabel } from '@/lib/observability-constants'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { flattenSpans, buildSpanTree, findArticlePipelineSpans, findStageSpans, otlpIdToHex, type SpanNode } from '@/lib/otlp-utils'
-import { LogDetailDialog, LEVEL_COLORS, type LogEntry } from './log-detail-dialog'
+import { LogDetailDialog, LEVEL_COLORS, HTTP_METHOD_COLORS, type LogEntry } from './log-detail-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
+import { RunWaterfallDialog } from './run-waterfall-dialog'
 
 export type { LogEntry }
 
@@ -28,6 +29,14 @@ interface LogsTableProps {
   externalData?: LokiResponse | null
   onRefresh?: () => Promise<void>
   forcedLevel?: string
+  /** Adds Method + Path + Caller columns, populated from RequestLoggingMiddleware's "request"
+   * event (only backend logs have them — the scraper never emits them). */
+  showRequestColumns?: boolean
+  /** user_id -> display name (username/name/email), for the Caller column — the bearer JWT
+   * itself only ever carries the raw user_id (see backend/services/auth_service.py), so a
+   * readable name has to be resolved client-side. Missing entries (guest/anonymous, or a
+   * user_id not in the admin user list) just show the raw value. */
+  callerNames?: Record<string, string>
 }
 
 function parseNsTime(t: string): string {
@@ -47,8 +56,17 @@ function parseNsTime(t: string): string {
 function buildDetails(line: string): string | undefined {
   let obj: Record<string, unknown>
   try { obj = JSON.parse(line) } catch { return undefined }
-  // Priority order: url first (most useful), then source, error, counts, ids
-  const priority = ['url', 'source', 'original_source', 'error', 'count', 'duration_seconds', 'published', 'new', 'duplicate', 'failed', 'remaining', 'skipped', 'run_id', 'article_id', 'analysis_id', 'model', 'input_tokens', 'output_tokens']
+  // Priority order: url first (most useful), then source, error, counts, ids. The
+  // status_code/duration_ms/namespace/... entries are backend-only fields (request/
+  // cache_lookup/cache_warmup_completed events) — see RequestLoggingMiddleware and
+  // shared/cache/redis_gateway.py.
+  const priority = [
+    'url', 'query_params', 'payload', 'source', 'original_source', 'error', 'count',
+    'duration_seconds', 'published', 'new', 'duplicate', 'failed', 'remaining', 'skipped',
+    'run_id', 'article_id', 'analysis_id', 'model', 'input_tokens', 'output_tokens',
+    'status_code', 'duration_ms', 'namespace', 'status', 'lang', 'reason', 'topics_warmed',
+    'request_id',
+  ]
   const parts: string[] = []
   for (const key of priority) {
     const val = obj[key]
@@ -94,6 +112,15 @@ function parseLevel(line: string): string {
 function parseMessage(line: string): string {
   try {
     const obj = JSON.parse(line)
+    // The raw "request" event name says nothing on its own (every backend request logs the
+    // same literal string) — Method/Path/Caller already have their own columns, but this
+    // keeps the row self-describing even where those columns aren't shown (the detail dialog,
+    // or this component reused without showRequestColumns).
+    if (obj.event === 'request' && obj.method && obj.path) {
+      const status = obj.status_code != null ? ` → ${obj.status_code}` : ''
+      const duration = obj.duration_ms != null ? ` (${obj.duration_ms}ms)` : ''
+      return `${obj.method} ${obj.path}${status}${duration}`
+    }
     return String(obj.event ?? obj.message ?? obj.msg ?? line)
   } catch {
     return line
@@ -107,12 +134,27 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
     const env = stream.stream[LokiLabel.ENV]
     for (const [tsNs, line] of stream.values) {
       const ms = Math.floor(Number(tsNs) / 1_000_000)
+      let method: string | undefined
+      let path: string | undefined
+      let caller: string | undefined
+      try {
+        const obj = JSON.parse(line)
+        if (typeof obj.method === 'string') method = obj.method
+        if (typeof obj.path === 'string') path = obj.path
+        // RequestLoggingMiddleware (backend/middleware/logging.py) logs user_email when the
+        // caller is authenticated, otherwise just user_id ("anonymous" for guest/no token).
+        if (typeof obj.user_email === 'string') caller = obj.user_email
+        else if (typeof obj.user_id === 'string') caller = obj.user_id
+      } catch { /* not JSON — no method/path/caller to extract */ }
       entries.push({
         _ms: ms,
         ts: new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
         tsExact: new Date(ms).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         level: parseLevel(line),
         env,
+        method,
+        path,
+        caller,
         message: parseMessage(line),
         details: buildDetails(line),
         raw: line,
@@ -157,6 +199,8 @@ export function LogsTable({
   externalData,
   onRefresh,
   forcedLevel,
+  showRequestColumns,
+  callerNames,
 }: LogsTableProps) {
   const { t } = useI18n()
   const [entries, setEntries] = useState<LogEntry[]>([])
@@ -165,7 +209,8 @@ export function LogsTable({
   const [error, setError] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<LogEntry | null>(null)
   const [traceTarget, setTraceTarget] = useState<TraceTarget | null>(null)
-  const [noSpanDialog, setNoSpanDialog] = useState(false)
+  const [waterfallTarget, setWaterfallTarget] = useState<{ traceId: string; data: OtlpTraceResponse } | null>(null)
+  const [traceLoadFailed, setTraceLoadFailed] = useState(false)
 
   const fetch = useCallback(async () => {
     if (externalData !== undefined || onRefresh !== undefined) return
@@ -220,11 +265,18 @@ export function LogsTable({
       const spans = flattenSpans(data)
       const tree = buildSpanTree(spans)
       const pipelines = findArticlePipelineSpans(spans)
-      if (pipelines.length === 0) { setNoSpanDialog(true); return }
-      const pipeline = (spanId ? findPipelineForSpan(spans, spanId) : undefined) ?? pipelines[0]
-      const stages = findStageSpans(tree, pipeline.spanId)
-      setTraceTarget({ pipeline, stages, highlightSpanId: spanId })
-    } catch { setNoSpanDialog(true) }
+      if (pipelines.length > 0) {
+        const pipeline = (spanId ? findPipelineForSpan(spans, spanId) : undefined) ?? pipelines[0]
+        const stages = findStageSpans(tree, pipeline.spanId)
+        setTraceTarget({ pipeline, stages, highlightSpanId: spanId })
+        return
+      }
+      // findArticlePipelineSpans only ever matches a scraper.run trace's article.pipeline
+      // children — a backend HTTP request trace (or any other app) never has one. Fall back
+      // to the same generic span waterfall TracesTable's own trace-ID link opens, instead of
+      // treating "not a scraper article trace" as a failure.
+      setWaterfallTarget({ traceId, data })
+    } catch { setTraceLoadFailed(true) }
   }
 
   const visible = forcedLevel ? entries.filter(e => e.level === forcedLevel) : entries
@@ -238,6 +290,11 @@ export function LogsTable({
   const columns = [
     { key: 'ts',      label: t('admin.logColumnTime'),        className: 'w-32' },
     { key: 'level',   label: t('admin.logColumnLevel'),       className: 'w-16' },
+    ...(showRequestColumns ? [
+      { key: 'method', label: t('admin.logColumnMethod'), className: 'w-16' },
+      { key: 'path',   label: t('admin.logColumnPath'),   className: 'w-48' },
+      { key: 'caller', label: t('admin.logColumnCaller'), className: 'w-32' },
+    ] : []),
     { key: 'env',     label: t('admin.logColumnEnvironment'), className: 'w-24' },
     { key: 'message', label: t('admin.logColumnMessage') },
   ]
@@ -257,7 +314,7 @@ export function LogsTable({
       >
         {visible.length === 0 ? (
           <tr>
-            <td colSpan={4} className="text-center py-8 text-muted-foreground text-xs">
+            <td colSpan={columns.length} className="text-center py-8 text-muted-foreground text-xs">
               {t('admin.noLogs')}
             </td>
           </tr>
@@ -272,6 +329,23 @@ export function LogsTable({
               <td className={cn('px-2 py-1 whitespace-nowrap font-medium', LEVEL_COLORS[entry.level] ?? 'text-foreground')}>
                 {entry.level.toUpperCase()}
               </td>
+              {showRequestColumns && (
+                <>
+                  <td className="px-2 py-1 whitespace-nowrap">
+                    {entry.method ? (
+                      <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-bold', HTTP_METHOD_COLORS[entry.method] ?? 'bg-muted text-muted-foreground')}>
+                        {entry.method}
+                      </span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-2 py-1 font-mono text-[11px] max-w-0 overflow-hidden">
+                    <div className="truncate">{entry.path ?? '—'}</div>
+                  </td>
+                  <td className="px-2 py-1 text-[11px] max-w-0 overflow-hidden">
+                    <div className="truncate">{entry.caller ? (callerNames?.[entry.caller] ?? entry.caller) : '—'}</div>
+                  </td>
+                </>
+              )}
               <td className="px-2 py-1 text-muted-foreground whitespace-nowrap">{entry.env ?? '—'}</td>
               <td className="px-2 py-1 font-mono max-w-0 overflow-hidden">
                 <div className="truncate">{entry.message}</div>
@@ -300,12 +374,21 @@ export function LogsTable({
         />
       )}
 
-      <Dialog open={noSpanDialog} onOpenChange={v => { if (!v) setNoSpanDialog(false) }}>
+      {waterfallTarget && (
+        <RunWaterfallDialog
+          open
+          onClose={() => setWaterfallTarget(null)}
+          traceId={waterfallTarget.traceId}
+          trace={waterfallTarget.data}
+        />
+      )}
+
+      <Dialog open={traceLoadFailed} onOpenChange={v => { if (!v) setTraceLoadFailed(false) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-sm">{t('admin.traceNoPipelineTitle')}</DialogTitle>
+            <DialogTitle className="text-sm">{t('admin.traceLoadFailedTitle')}</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground">{t('admin.traceNoPipelineMessage')}</p>
+          <p className="text-xs text-muted-foreground">{t('admin.traceLoadFailedMessage')}</p>
         </DialogContent>
       </Dialog>
     </>

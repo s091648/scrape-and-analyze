@@ -1,19 +1,29 @@
 """
 Integration tests for the article processing pipeline.
 
-Uses the full event-driven pipeline wired via InMemoryEventBus
-with real PostgreSQL (isolated test schema) and a mocked LLM service.
+Uses the full event-driven pipeline wired via AsyncInMemoryEventBus
+with real PostgreSQL (isolated test schema, async session) and a mocked
+LLM service.
 
 Pipeline flow tested:
   ArticleScrapedHandler → ProcessScrapedArticleUseCase
   → ArticleProcessedEvent → ArticleProcessedHandler → AnalyzeArticleUseCase
+
+024-async-pipeline-refactor: ArticleScrapedHandler/ProcessScrapedArticleUseCase/
+ArticleProcessedHandler/AnalyzeArticleUseCase/NormalizeTagsUseCase/
+TagNormalizationHandler were converted to async in place — this file now wires
+their async repository siblings and awaits `.handle()`.
 """
 import pytest
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
+
+from sqlalchemy import select
 
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.collection.application.events import ArticleScrapedEvent
+
+pytestmark = pytest.mark.integration
 
 
 def _make_llm_result(**overrides):
@@ -44,43 +54,39 @@ def _make_event(**overrides):
 
 
 def _mock_llm(result=None, *, use_default=True):
-    llm = MagicMock()
+    llm = AsyncMock()
     llm.analyze.return_value = result if result is not None else (
         _make_llm_result() if use_default else None
     )
     return llm
 
 
-def _wire_pipeline(db_session, llm_service, embedding_service=None):
-    """Wire the full event-driven pipeline:
-    ArticleScrapedHandler → ProcessScrapedArticleUseCase
-    → ArticleProcessedEvent → ArticleProcessedHandler → AnalyzeArticleUseCase
-    → AnalysisCompletedEvent → TagNormalizationHandler → NormalizeTagsUseCase (if embedding_service provided)
-    """
-    from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
-    from src.infrastructure.persistence.intelligence.analysis_repo_impl import SqlAlchemyAnalysisRepository
-    from src.infrastructure.persistence.shared.topic_repo_impl import SqlAlchemyTopicRepository
-    from src.infrastructure.persistence.intelligence.tag_group_definition_repo_impl import SqlAlchemyTagGroupDefinitionRepository
-    from src.infrastructure.shared.events.in_memory_event_bus import InMemoryEventBus
-    from src.modules.collection.domain.services import DedupService
+async def _wire_pipeline_and_handle(async_session, llm_service, event, embedding_service=None):
+    """Builds the pipeline (subscribing async handlers, which requires
+    awaiting bus.subscribe()) and runs one event through it — a thin async
+    wrapper since AsyncInMemoryEventBus.subscribe() is itself async."""
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+    from src.infrastructure.persistence.intelligence.analysis_async_repo_impl import AsyncSqlAlchemyAnalysisRepository
+    from src.infrastructure.persistence.shared.topic_async_repo_impl import AsyncSqlAlchemyTopicRepository
+    from src.infrastructure.persistence.intelligence.tag_group_definition_async_repo_impl import AsyncSqlAlchemyTagGroupDefinitionRepository
+    from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEventBus
+    from src.modules.collection.domain.services import AsyncDedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
     from src.modules.intelligence.application.event_handlers import ArticleProcessedHandler
     from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     from src.shared.application.events import ArticleProcessedEvent
+    from src.modules.collection.application.events import ArticleScrapedEvent as _ArticleScrapedEvent
 
-    article_repo = SqlAlchemyArticleRepository(session=db_session)
-    analysis_repo = SqlAlchemyAnalysisRepository(session=db_session)
-    topic_repo = SqlAlchemyTopicRepository(session=db_session)
-    tag_group_def_repo = SqlAlchemyTagGroupDefinitionRepository(session=db_session)
-    event_bus = InMemoryEventBus()
-    dedup = DedupService(article_repo=article_repo)
+    article_repo = AsyncSqlAlchemyArticleRepository(session=async_session)
+    analysis_repo = AsyncSqlAlchemyAnalysisRepository(session=async_session)
+    topic_repo = AsyncSqlAlchemyTopicRepository(session=async_session)
+    tag_group_def_repo = AsyncSqlAlchemyTagGroupDefinitionRepository(session=async_session)
+    event_bus = AsyncInMemoryEventBus()
+    dedup = AsyncDedupService(article_repo=article_repo)
 
-    process_uc = ProcessScrapedArticleUseCase(
-        article_repo=article_repo,
-        dedup_service=dedup,
-    )
+    process_uc = ProcessScrapedArticleUseCase(article_repo=article_repo, dedup_service=dedup)
     analyze_uc = AnalyzeArticleUseCase(
         llm_service=llm_service,
         analysis_repository=analysis_repo,
@@ -89,59 +95,51 @@ def _wire_pipeline(db_session, llm_service, embedding_service=None):
         prompt=AnalysisPrompt(),
     )
 
-    scraped_handler = ArticleScrapedHandler(
-        use_case=process_uc,
-        pipeline_stats=PipelineStats(),
-        event_bus=event_bus,
-    )
+    scraped_handler = ArticleScrapedHandler(use_case=process_uc, pipeline_stats=PipelineStats(), event_bus=event_bus)
     processed_handler = ArticleProcessedHandler(use_case=analyze_uc, event_bus=event_bus)
-    event_bus.subscribe(ArticleProcessedEvent, processed_handler.handle)
+    await event_bus.subscribe(ArticleProcessedEvent, processed_handler.handle)
 
     if embedding_service is not None:
-        from src.infrastructure.persistence.intelligence.tag_repo_impl import SqlAlchemyTagRepository
+        from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
         from src.modules.intelligence.application.use_cases import NormalizeTagsUseCase
         from src.modules.intelligence.application.event_handlers.tag_normalization_handler import TagNormalizationHandler
         from src.modules.intelligence.application.events import AnalysisCompletedEvent
 
-        tag_repo = SqlAlchemyTagRepository(session=db_session)
-        normalize_uc = NormalizeTagsUseCase(
-            embedding_service=embedding_service,
-            tag_repository=tag_repo,
-        )
-        tag_norm_handler = TagNormalizationHandler(use_case=normalize_uc, event_bus=event_bus, session=db_session)
-        event_bus.subscribe(AnalysisCompletedEvent, tag_norm_handler.handle)
+        tag_repo = AsyncSqlAlchemyTagRepository(session=async_session)
+        normalize_uc = NormalizeTagsUseCase(embedding_service=embedding_service, tag_repository=tag_repo)
+        tag_norm_handler = TagNormalizationHandler(use_case=normalize_uc, event_bus=event_bus, session=async_session)
+        await event_bus.subscribe(AnalysisCompletedEvent, tag_norm_handler.handle)
 
-    return scraped_handler
+    return await scraped_handler.handle(event)
 
 
 # ---------------------------------------------------------------------------
 # Happy path: new article
 # ---------------------------------------------------------------------------
 
-@pytest.mark.integration
-def test_process_article_creates_article_and_analysis(db_session):
+@pytest.mark.asyncio
+async def test_process_article_creates_article_and_analysis(async_db_session):
     from models.article import Article
     from models.analysis import Analysis
     from models.analyses_translation import AnalysesTranslation
 
     event = _make_event()
-    handler = _wire_pipeline(db_session, _mock_llm())
-    assert handler.handle(event) is True
+    result = await _wire_pipeline_and_handle(async_db_session, _mock_llm(), event)
+    assert result is True
 
-    article = db_session.query(Article).filter_by(url=event.url).first()
+    article = (await async_db_session.execute(select(Article).filter_by(url=event.url))).scalars().first()
     assert article is not None
     assert article.title == event.title
     assert article.source == event.source
 
-    analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
+    analysis = (await async_db_session.execute(select(Analysis).filter_by(article_id=article.id))).scalars().first()
     assert analysis is not None
     assert analysis.model_used == "test-model"
     assert analysis.input_tokens == 100
 
-    # Content is now stored in analyses_translation
-    en_translation = db_session.query(AnalysesTranslation).filter_by(
-        analysis_id=analysis.id, language="en"
-    ).first()
+    en_translation = (await async_db_session.execute(
+        select(AnalysesTranslation).filter_by(analysis_id=analysis.id, language="en")
+    )).scalars().first()
     assert en_translation is not None
     assert en_translation.pain_points == "Test pain points"
 
@@ -150,26 +148,28 @@ def test_process_article_creates_article_and_analysis(db_session):
 # Deduplication
 # ---------------------------------------------------------------------------
 
-@pytest.mark.integration
-def test_process_article_returns_false_for_fully_processed_duplicate(db_session):
+@pytest.mark.asyncio
+async def test_process_article_returns_false_for_fully_processed_duplicate(async_db_session):
     from models.article import Article
 
     event = _make_event()
 
     # First call — creates article + analysis
-    _wire_pipeline(db_session, _mock_llm()).handle(event)
+    await _wire_pipeline_and_handle(async_db_session, _mock_llm(), event)
+    await async_db_session.commit()
 
     llm = _mock_llm()
-    result = _wire_pipeline(db_session, llm).handle(event)
+    result = await _wire_pipeline_and_handle(async_db_session, llm, event)
 
     # ArticleScrapedHandler returns True for DUPLICATE (only FAILED returns False)
     assert result is True
     llm.analyze.assert_not_called()
-    assert db_session.query(Article).filter_by(url=event.url).count() == 1
+    count = (await async_db_session.execute(select(Article).filter_by(url=event.url))).scalars().all()
+    assert len(count) == 1
 
 
-@pytest.mark.integration
-def test_process_article_analyzes_duplicate_missing_analysis(db_session):
+@pytest.mark.asyncio
+async def test_process_article_analyzes_duplicate_missing_analysis(async_db_session):
     from models.article import Article
     from models.analysis import Analysis
     from src.modules.collection.domain.value_objects import UrlHash
@@ -185,15 +185,15 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
         content=event.content,
         correlation_id=uuid.uuid4(),
     )
-    db_session.add(article)
-    db_session.commit()
+    async_db_session.add(article)
+    await async_db_session.commit()
 
     # DUPLICATE_NEEDS_ANALYSIS still publishes ArticleProcessedEvent,
     # so the handler returns True (not FAILED)
-    result = _wire_pipeline(db_session, _mock_llm()).handle(event)
+    result = await _wire_pipeline_and_handle(async_db_session, _mock_llm(), event)
     assert result is True
 
-    analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
+    analysis = (await async_db_session.execute(select(Analysis).filter_by(article_id=article.id))).scalars().first()
     assert analysis is not None
 
 
@@ -201,12 +201,12 @@ def test_process_article_analyzes_duplicate_missing_analysis(db_session):
 # Tag creation and reuse
 # ---------------------------------------------------------------------------
 
-@pytest.mark.integration
-def test_process_article_creates_tags_and_links_to_article(db_session, tag_group):
+@pytest.mark.asyncio
+async def test_process_article_creates_tags_and_links_to_article(async_db_session, tag_group):
     from models.article import Article
     from src.modules.intelligence.domain.value_objects import AnalysisTagGroup
 
-    embedding_svc = MagicMock()
+    embedding_svc = AsyncMock()
     embedding_svc.embed_batch.return_value = [[0.1] * 768]
 
     llm = _mock_llm(_make_llm_result(
@@ -214,16 +214,24 @@ def test_process_article_creates_tags_and_links_to_article(db_session, tag_group
     ))
     event = _make_event(topic_id=tag_group.topic_id)
 
-    _wire_pipeline(db_session, llm, embedding_svc).handle(event)
+    await _wire_pipeline_and_handle(async_db_session, llm, event, embedding_service=embedding_svc)
+    await async_db_session.commit()
 
-    article = db_session.query(Article).filter_by(url=event.url).first()
+    article = (await async_db_session.execute(
+        select(Article).filter_by(url=event.url)
+    )).scalars().first()
     assert article is not None
-    tag_names = {t.name for t in article.tags}
+
+    from models.tag import Tag, article_tags
+    tag_rows = (await async_db_session.execute(
+        select(Tag).join(article_tags, article_tags.c.tag_id == Tag.id).filter(article_tags.c.article_id == article.id)
+    )).scalars().all()
+    tag_names = {t.name for t in tag_rows}
     assert len(tag_names) > 0
 
 
-@pytest.mark.integration
-def test_process_article_returns_true_when_llm_returns_none(db_session):
+@pytest.mark.asyncio
+async def test_process_article_returns_true_when_llm_returns_none(async_db_session):
     from models.article import Article
     from models.analysis import Analysis
 
@@ -232,11 +240,10 @@ def test_process_article_returns_true_when_llm_returns_none(db_session):
 
     # Handler returns True because the article was saved (outcome=NEW),
     # even though LLM analysis subsequently failed inside the event chain
-    result = _wire_pipeline(db_session, llm).handle(event)
+    result = await _wire_pipeline_and_handle(async_db_session, llm, event)
 
     assert result is True
-    article = db_session.query(Article).filter_by(url=event.url).first()
+    article = (await async_db_session.execute(select(Article).filter_by(url=event.url))).scalars().first()
     assert article is not None
-    analysis = db_session.query(Analysis).filter_by(article_id=article.id).first()
+    analysis = (await async_db_session.execute(select(Analysis).filter_by(article_id=article.id))).scalars().first()
     assert analysis is None
-

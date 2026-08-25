@@ -8,6 +8,7 @@ import { useI18n } from '@/lib/providers'
 import {
   flattenSpans, buildSpanTree, findArticlePipelineSpans, findWeeklyReportTopicSpans,
   findStageSpans, spanDurationMs, isErrorSpan, formatDuration, getAttr,
+  extractTraceSearchEnvironment,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
@@ -15,19 +16,9 @@ import { ArticleDetailDialog } from '@/components/features/articles/article-deta
 import { RunWaterfallDialog } from './run-waterfall-dialog'
 import { ArticleWorkflowDialog } from './article-workflow-dialog'
 import { WeeklyReportTopicDialog } from './weekly-report-topic-dialog'
+import { HttpMethodBadge, splitMethodSpanName } from './log-detail-dialog'
+import { SpanName } from '@/lib/observability-constants'
 import { cn } from '@/lib/utils'
-
-// ── Environment extraction ─────────────────────────────────────────────────────
-
-function extractEnvironment(trace: TempoTrace): string | undefined {
-  // Tempo search may provide attributes on spanSet or first span
-  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
-  const attrs = spanSet?.attributes ?? spanSet?.spans?.[0]?.attributes ?? []
-  const attr = attrs.find(
-    a => a.key === 'deployment.environment' || a.key === 'resource.deployment.environment'
-  )
-  return attr?.value?.stringValue
-}
 
 // ── Duration computation ──────────────────────────────────────────────────────────
 
@@ -104,11 +95,11 @@ interface ArticleSubRowProps {
 
 // Columns: expand | traceId | root | service | env | dur | start  (7 total)
 function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: ArticleSubRowProps) {
-  const allAttrs = stageSpans.flatMap(n => n.span.attributes)
+  const allAttrs = stageSpans.flatMap(n => n.span.attributes ?? [])
   const title     = allAttrs.find(a => a.key === 'article.title')?.value?.stringValue ?? null
   const articleId = allAttrs.find(a => a.key === 'article.id')?.value?.stringValue ?? null
 
-  const url = pipelineSpan.attributes.find(a => a.key === 'article.url')?.value?.stringValue ?? '—'
+  const url = pipelineSpan.attributes?.find(a => a.key === 'article.url')?.value?.stringValue ?? '—'
   const durationMs = spanDurationMs(pipelineSpan)
   const error = isErrorSpan(pipelineSpan)
   const truncUrl = url.length > 40 ? `…${url.slice(-37)}` : url
@@ -380,7 +371,7 @@ export function TracesTable({
             const isExpanded = expanded.has(trace.traceID)
             const isLoading  = loadingTrace.has(trace.traceID)
             const detail     = traceDetails.get(trace.traceID)
-            const environment = extractEnvironment(trace)
+            const environment = extractTraceSearchEnvironment(trace)
 
             // Build article/topic rows from cached detail. A run's root span name
             // determines which shape applies — scraper.run has article.pipeline
@@ -399,7 +390,14 @@ export function TracesTable({
                 stages: findStageSpans(tree, ts.spanId),
               }))
             }
-            const isWeeklyReportRun = trace.rootTraceName === 'weekly_report.run'
+            const isWeeklyReportRun = trace.rootTraceName === SpanName.WEEKLY_REPORT_RUN
+            const isScraperRun = trace.rootTraceName === SpanName.SCRAPER_RUN
+            // Only scraper.run / weekly_report.run traces have article/topic sub-rows to
+            // expand into — a plain backend HTTP request trace (e.g. "GET /tag-groups") has
+            // neither, so it isn't expandable here (its full span tree is still one click
+            // away via the trace-ID waterfall link).
+            const isExpandable = isScraperRun || isWeeklyReportRun
+            const methodSpan = splitMethodSpanName(trace.rootTraceName)
 
             return (
               <Fragment key={trace.traceID}>
@@ -408,16 +406,18 @@ export function TracesTable({
                   className="border-b border-border last:border-0 hover:bg-muted/30"
                 >
                   <td className="px-1 py-1">
-                    <button
-                      onClick={() => toggleExpand(trace.traceID)}
-                      className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                      aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                    >
-                      {isExpanded
-                        ? <ChevronDown className="h-3.5 w-3.5" />
-                        : <ChevronRight className="h-3.5 w-3.5" />
-                      }
-                    </button>
+                    {isExpandable && (
+                      <button
+                        onClick={() => toggleExpand(trace.traceID)}
+                        className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                      >
+                        {isExpanded
+                          ? <ChevronDown className="h-3.5 w-3.5" />
+                          : <ChevronRight className="h-3.5 w-3.5" />
+                        }
+                      </button>
+                    )}
                   </td>
                   <td className="px-2 py-1 font-mono text-primary">
                     <button
@@ -427,7 +427,14 @@ export function TracesTable({
                       {trace.traceID.slice(0, 8)}…
                     </button>
                   </td>
-                  <td className="px-2 py-1 truncate max-w-[200px]">{trace.rootTraceName}</td>
+                  <td className="px-2 py-1 truncate max-w-[200px]">
+                    {methodSpan ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <HttpMethodBadge method={methodSpan.method} />
+                        <span className="font-mono text-[11px] truncate">{methodSpan.path}</span>
+                      </span>
+                    ) : trace.rootTraceName}
+                  </td>
                   <td className="px-2 py-1 text-muted-foreground truncate">{trace.rootServiceName}</td>
                   <td className="px-2 py-1 text-muted-foreground">{environment ?? '—'}</td>
                   <td className="px-2 py-1 text-right tabular-nums">

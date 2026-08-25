@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   flattenSpans, getAttr, getResourceAttr, buildSpanTree,
   spanDurationMs, isErrorSpan, findArticlePipelineSpans,
-  findStageSpans, formatDuration,
+  findWeeklyReportTopicSpans, findStageSpans, formatDuration,
+  extractEnvironmentFromTrace, otlpIdToHex,
 } from '@/lib/otlp-utils'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 
@@ -134,6 +135,51 @@ describe('findArticlePipelineSpans', () => {
     expect(result).toHaveLength(2)
     expect(result[0].spanId).toBe('s3')
     expect(result[1].spanId).toBe('s2')
+  })
+})
+
+describe('findWeeklyReportTopicSpans', () => {
+  it('returns only weekly_report.topic spans sorted by start time', () => {
+    const spans = [
+      makeSpan({ spanId: 's1', name: 'scraper.run' }),
+      makeSpan({ spanId: 's2', name: 'weekly_report.topic', startTimeUnixNano: '2000', endTimeUnixNano: '3000' }),
+      makeSpan({ spanId: 's3', name: 'weekly_report.topic', startTimeUnixNano: '1000', endTimeUnixNano: '2000' }),
+    ]
+    const result = findWeeklyReportTopicSpans(spans)
+    expect(result).toHaveLength(2)
+    expect(result[0].spanId).toBe('s3')
+    expect(result[1].spanId).toBe('s2')
+  })
+})
+
+describe('extractEnvironmentFromTrace', () => {
+  it('reads deployment.environment directly when present', () => {
+    const trace = makeTrace([], [{ key: 'deployment.environment', value: { stringValue: 'production' } }])
+    expect(extractEnvironmentFromTrace(trace)).toBe('production')
+  })
+
+  it('falls back to the resource.-prefixed attribute name', () => {
+    const trace = makeTrace([], [{ key: 'resource.deployment.environment', value: { stringValue: 'staging' } }])
+    expect(extractEnvironmentFromTrace(trace)).toBe('staging')
+  })
+})
+
+describe('otlpIdToHex', () => {
+  it('returns empty/falsy id unchanged', () => {
+    expect(otlpIdToHex('')).toBe('')
+  })
+
+  it('lowercases an already-hex id', () => {
+    expect(otlpIdToHex('ABCDEF12')).toBe('abcdef12')
+  })
+
+  it('decodes a base64-encoded id to hex', () => {
+    // atob('q80=') decodes to the two bytes 0xAB, 0xCD
+    expect(otlpIdToHex('q80=')).toBe('abcd')
+  })
+
+  it('returns the original id unchanged when it is neither valid hex nor decodable base64', () => {
+    expect(otlpIdToHex('not-valid-!!!')).toBe('not-valid-!!!')
   })
 })
 

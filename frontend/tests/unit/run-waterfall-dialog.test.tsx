@@ -351,6 +351,140 @@ describe('RunWaterfallDialog collapse/expand', () => {
   })
 })
 
+describe('RunWaterfallDialog topic rows', () => {
+  it('calls onSelectTopic when a weekly_report.topic row is clicked', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root001', name: 'scraper.run' })
+    const topic = makeSpan({
+      spanId: 'topic001',
+      parentSpanId: 'root001',
+      name: 'weekly_report.topic',
+      startTimeUnixNano: '1700000001000000000',
+      endTimeUnixNano: '1700000002000000000',
+      attributes: [{ key: 'topic.name', value: { stringValue: 'AI News' } }],
+    })
+    const onSelectTopic = vi.fn()
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([root, topic])}
+        onSelectTopic={onSelectTopic}
+      />
+    )
+    const row = screen.getByText('↳ AI News').closest('tr')!
+    fireEvent.click(row)
+    expect(onSelectTopic).toHaveBeenCalledOnce()
+    expect(onSelectTopic.mock.calls[0][0].spanId).toBe('topic001')
+  })
+})
+
+describe('RunWaterfallDialog span detail preview', () => {
+  it('opens a StageCard preview dialog when a non-pipeline/topic row is clicked', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root001', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([root])}
+      />
+    )
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    // Two dialogs are now mounted — the preview dialog's title is the same span name.
+    expect(screen.getAllByTestId('dialog-title').length).toBe(2)
+  })
+
+  it('closes the preview dialog when dismissed', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root001', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([root])}
+      />
+    )
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    expect(screen.getAllByTestId('dialog-title').length).toBe(2)
+
+    // The first "close-dialog" button belongs to the preview dialog (mounted first).
+    fireEvent.click(screen.getAllByTestId('close-dialog')[0])
+    expect(screen.getAllByTestId('dialog-title').length).toBe(1)
+  })
+})
+
+describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
+  it('orders sibling rows by start time regardless of input order', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root001', name: 'scraper.run' })
+    const later = makeSpan({
+      spanId: 'later001',
+      parentSpanId: 'root001',
+      name: 'pipeline.dedup',
+      startTimeUnixNano: '1700000005000000000',
+      endTimeUnixNano: '1700000006000000000',
+    })
+    const earlier = makeSpan({
+      spanId: 'earlier001',
+      parentSpanId: 'root001',
+      name: 'pipeline.discover',
+      startTimeUnixNano: '1700000001000000000',
+      endTimeUnixNano: '1700000002000000000',
+    })
+    // Passed in "later, earlier" order — the component must still render discover first.
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([root, later, earlier])}
+      />
+    )
+    const rows = screen.getAllByRole('row').filter(r => r.querySelector('td'))
+    const names = rows.map(r => r.textContent ?? '')
+    expect(names.findIndex(n => n.includes('pipeline.discover')))
+      .toBeLessThan(names.findIndex(n => n.includes('pipeline.dedup')))
+  })
+
+  it('re-collapses an expanded node when its Collapse button is clicked again', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root001', name: 'scraper.run' })
+    const child = makeSpan({
+      spanId: 'child001',
+      parentSpanId: 'root001',
+      name: 'pipeline.fetch',
+      startTimeUnixNano: '1700000001000000000',
+      endTimeUnixNano: '1700000003000000000',
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([root, child])}
+      />
+    )
+    // root (depth 0) starts expanded — collapsing it hides its own children.
+    expect(screen.getByText('pipeline.fetch')).toBeDefined()
+    fireEvent.click(screen.getByLabelText('Collapse'))
+    expect(screen.queryByText('pipeline.fetch')).toBeNull()
+  })
+})
+
 describe('RunWaterfallDialog SpanBar', () => {
   it('renders span bars in the timeline column', async () => {
     const { RunWaterfallDialog } = await import(

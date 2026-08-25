@@ -92,6 +92,10 @@ export const metricDefinitionsFixture = [
   { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
 ]
 
+export const adminUsersFixture = [
+  { id: 'admin-test-user', email: 'admin@example.com', name: 'Admin', username: null, role: 'admin', is_allowed: true, icon: null, google_id: null, created_at: '2026-01-01T00:00:00Z' },
+]
+
 export async function mockApiRoutes(page: Page) {
   // Note: Playwright page.route() uses LIFO ordering — routes registered LATER take higher priority.
   // Catch-all is registered FIRST (lowest priority) so specific routes below always win.
@@ -171,6 +175,10 @@ export async function mockApiRoutes(page: Page) {
   await page.route(proxy('chat/quota'), route =>
     route.fulfill({ json: { tier: 'guest', remaining: 5, limit: 10, guest_daily_limit: 10, member_daily_limit: 30 } })
   )
+
+  // Admin user list — needed by admin-users-store (User Management page + Monitoring's
+  // Logs tab caller-name resolution)
+  await page.route(proxy('auth/users'), route => route.fulfill({ json: adminUsersFixture }))
 
   // Topics — needed by TopicContext on every page load (must be last = highest priority)
   await page.route(proxy('topics'), route => route.fulfill({ json: topicsFixture }))

@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
+
+import pytest
 
 from src.modules.collection.application.use_cases import ArticleOutcome, ProcessScrapedArticleUseCase
 from src.modules.collection.application.events import ArticleScrapedEvent
@@ -23,53 +25,57 @@ def _make_uc(dedup, repo, metrics_repo=None):
     )
 
 
-def test_execute_returns_new_outcome_and_article_for_unknown_url():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_execute_returns_new_outcome_and_article_for_unknown_url():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
 
-    outcome, result = _make_uc(dedup, repo).execute(_make_event())
+    outcome, result = await _make_uc(dedup, repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.NEW
     assert result is article
 
 
-def test_execute_returns_failed_outcome_when_save_raises():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_execute_returns_failed_outcome_when_save_raises():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.side_effect = Exception("DB error")
 
-    outcome, result = _make_uc(dedup, repo).execute(_make_event())
+    outcome, result = await _make_uc(dedup, repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.FAILED
     assert result is None
 
 
-def test_execute_returns_duplicate_outcome_for_analyzed_article():
+@pytest.mark.asyncio
+async def test_execute_returns_duplicate_outcome_for_analyzed_article():
     article = _make_article()
-    dedup = MagicMock()
+    dedup = AsyncMock()
     dedup.find_existing.return_value = article
     dedup.needs_analysis.return_value = False
-    repo = MagicMock()
+    repo = AsyncMock()
 
-    outcome, result = _make_uc(dedup, repo).execute(_make_event())
+    outcome, result = await _make_uc(dedup, repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.DUPLICATE
     assert result is None
     repo.save.assert_not_called()
 
 
-def test_execute_returns_duplicate_needs_analysis_for_un_analyzed_article():
+@pytest.mark.asyncio
+async def test_execute_returns_duplicate_needs_analysis_for_un_analyzed_article():
     article = _make_article()
-    dedup = MagicMock()
+    dedup = AsyncMock()
     dedup.find_existing.return_value = article
     dedup.needs_analysis.return_value = True
-    repo = MagicMock()
+    repo = AsyncMock()
 
-    outcome, result = _make_uc(dedup, repo).execute(_make_event())
+    outcome, result = await _make_uc(dedup, repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS
     assert result is article
@@ -78,69 +84,74 @@ def test_execute_returns_duplicate_needs_analysis_for_un_analyzed_article():
 
 # ─── article_metrics upsert ──────────────────────────────────────────────────
 
-def test_article_metrics_upsert_called_with_citation_count():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_article_metrics_upsert_called_with_citation_count():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
-    metrics_repo = MagicMock()
+    metrics_repo = AsyncMock()
 
     event = _make_event(metadata={"citation_count": 42})
-    _make_uc(dedup, repo, metrics_repo).execute(event)
+    await _make_uc(dedup, repo, metrics_repo).execute(event)
 
     metrics_repo.upsert.assert_called_once_with(article.id, {"citation_count": 42})
 
 
-def test_article_metrics_upsert_called_with_empty_dict_when_missing():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_article_metrics_upsert_called_with_empty_dict_when_missing():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
-    metrics_repo = MagicMock()
+    metrics_repo = AsyncMock()
 
-    _make_uc(dedup, repo, metrics_repo).execute(_make_event())
+    await _make_uc(dedup, repo, metrics_repo).execute(_make_event())
 
     metrics_repo.upsert.assert_called_once_with(article.id, {})
 
 
-def test_article_metrics_upsert_ignores_unknown_metadata_keys():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_article_metrics_upsert_ignores_unknown_metadata_keys():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
-    metrics_repo = MagicMock()
+    metrics_repo = AsyncMock()
 
     event = _make_event(metadata={"citation_count": 5, "some_other_field": "ignored"})
-    _make_uc(dedup, repo, metrics_repo).execute(event)
+    await _make_uc(dedup, repo, metrics_repo).execute(event)
 
     metrics_repo.upsert.assert_called_once_with(article.id, {"citation_count": 5})
 
 
-def test_article_metrics_not_called_when_repo_absent():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_article_metrics_not_called_when_repo_absent():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
 
-    outcome, _ = _make_uc(dedup, repo).execute(_make_event())
+    outcome, _ = await _make_uc(dedup, repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.NEW
 
 
-def test_article_metrics_upsert_failure_does_not_fail_use_case():
-    dedup = MagicMock()
+@pytest.mark.asyncio
+async def test_article_metrics_upsert_failure_does_not_fail_use_case():
+    dedup = AsyncMock()
     dedup.find_existing.return_value = None
     article = _make_article()
-    repo = MagicMock()
+    repo = AsyncMock()
     repo.save.return_value = article
-    metrics_repo = MagicMock()
+    metrics_repo = AsyncMock()
     metrics_repo.upsert.side_effect = Exception("DB error")
 
-    outcome, result = _make_uc(dedup, repo, metrics_repo).execute(_make_event())
+    outcome, result = await _make_uc(dedup, repo, metrics_repo).execute(_make_event())
 
     assert outcome == ArticleOutcome.NEW
     assert result is article

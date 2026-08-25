@@ -1,7 +1,9 @@
 import pytest
+import pytest_asyncio
 import os
 from dataclasses import dataclass
 from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 TEST_SCHEMA = "test_integration"
@@ -100,6 +102,40 @@ def db_session(db_engine):
     yield session
     session.rollback()
     session.close()
+
+
+# 024-async-pipeline-refactor: async counterpart of db_engine/db_session above,
+# pointed at the SAME isolated test_integration schema (created once by the
+# session-scoped db_engine fixture) via a separate asyncpg-driven engine —
+# mirrors get_async_sessionmaker()'s relationship to the sync engine in
+# src/infrastructure/persistence/database.py.
+#
+# Function-scoped (NOT session-scoped like db_engine): asyncpg connections are
+# bound to the event loop they were created on, and pytest-asyncio gives each
+# test function its own event loop by default — a session-scoped async engine
+# would be reused across loops and fail with "attached to a different loop" /
+# "another operation is in progress". Engine construction itself is cheap
+# (lazy, no connection opened until first use), so recreating it per test costs
+# nothing meaningful.
+@pytest_asyncio.fixture
+async def async_db_session(db_engine):
+    from src.infrastructure.persistence.database import _to_asyncpg_url
+
+    base_url = os.environ["DATABASE_URL"]
+    DDD_SCHEMAS = {"core", "collection", "intelligence", "ai_infra", "user_prefs"}
+    schema_translate_map = {schema: TEST_SCHEMA for schema in DDD_SCHEMAS}
+
+    engine = create_async_engine(
+        _to_asyncpg_url(base_url),
+        connect_args={"server_settings": {"search_path": f"{TEST_SCHEMA},public"}},
+    ).execution_options(schema_translate_map=schema_translate_map)
+
+    Session = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with Session() as session:
+        yield session
+        await session.rollback()
+
+    await engine.dispose()
 
 
 @dataclass

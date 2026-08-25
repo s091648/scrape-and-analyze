@@ -490,6 +490,85 @@ jobs:
           color: ${{ steps.passrate.outputs.color }}
 
   # -----------------------------------------------
+  # Stage 1d: Fastembed Unit Tests (parallel track)
+  # No Postgres/Redis needed — fastembed/ has no DB and makes no outbound
+  # calls of its own (see fastembed/src/tests, which mock the fastembed
+  # library's model classes instead of loading real ONNX weights).
+  # -----------------------------------------------
+  fastembed-unit:
+    name: Fastembed Unit Tests
+    runs-on: ubuntu-latest
+    needs: [migrate, check-lockfile]
+    if: |
+      always() &&
+      needs.check-lockfile.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen --group fastembed-service --group observability --group dev
+        env:
+          UV_SYSTEM_PYTHON: "1"
+
+      - name: Run fastembed unit tests with coverage
+        run: uv run pytest fastembed/src/tests/ -v --tb=short --cov=fastembed_service --cov-report=xml:coverage-fastembed.xml --junitxml=pytest-fastembed.xml
+
+      - name: Upload fastembed-unit coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          files: ./coverage-fastembed.xml
+          flags: fastembed-unit
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
+      - name: Pytest Coverage Comment
+        id: coverage
+        uses: MishaKav/pytest-coverage-comment@v1.6.0
+        with:
+          pytest-xml-coverage-path: ./coverage-fastembed.xml
+          junitxml-path: ./pytest-fastembed.xml
+          title: Fastembed Unit Test Coverage
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute pass rate
+        id: passrate
+        run: >
+          bash "$GITHUB_WORKSPACE/.github/scripts/compute-pytest-pass-rate.sh"
+          "${{ steps.coverage.outputs.tests }}"
+          "${{ steps.coverage.outputs.failures }}"
+          "${{ steps.coverage.outputs.errors }}"
+          "${{ steps.coverage.outputs.skipped }}"
+
+      - name: Write coverage to job summary
+        if: always()
+        env:
+          REPORT: ${{ steps.coverage.outputs.summaryReport }}
+        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update fastembed unit pass rate badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: fastembed-unit-passrate.json
+          label: fastembed unit tests
+          message: ${{ steps.passrate.outputs.msg }}
+          color: ${{ steps.passrate.outputs.color }}
+
+  # -----------------------------------------------
   # Stage 2: Src Integration Tests (requires Postgres)
   # -----------------------------------------------
   src-integration-test:
@@ -916,11 +995,11 @@ jobs:
   deploy-staging-fastembed:
     name: Deploy Fastembed to Staging
     runs-on: ubuntu-latest
-    needs: [src-unit-test]
+    needs: [fastembed-unit]
     # PR-review context only — see check-staging-deployments for why.
     if: |
       github.event_name == 'pull_request' &&
-      needs.src-unit-test.result == 'success'
+      needs.fastembed-unit.result == 'success'
     environment: scraper / staging
     concurrency:
       group: staging-fastembed-${{ github.event.pull_request.number }}
@@ -1226,7 +1305,7 @@ jobs:
 
   close-staging-fastembed:
     name: Close Fastembed Staging Deployment
-    needs: [resolve-merged-pr, src-unit-test]
+    needs: [resolve-merged-pr, fastembed-unit]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.resolve-merged-pr.result == 'success'
     uses: ./.github/workflows/close-staging.yml
     with:

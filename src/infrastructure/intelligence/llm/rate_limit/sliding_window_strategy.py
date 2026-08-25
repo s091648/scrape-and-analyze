@@ -43,6 +43,12 @@ class SlidingWindowStrategy(QuotaStrategy):
                 return
             time.sleep(wait)
 
+    def try_acquire(self, estimated_tokens: int) -> bool:
+        """Non-blocking: reserve a slot only if immediately available.
+        `_compute_wait()` already only reserves when it returns 0, so this
+        is just that check without ever sleeping."""
+        return self._compute_wait(estimated_tokens) == 0
+
     def record_usage(self, actual_tokens: int) -> None:
         """Record actual token usage in the sliding window after a successful API call."""
         with self._lock:
@@ -55,6 +61,20 @@ class SlidingWindowStrategy(QuotaStrategy):
         """Update the batch size used for RPM pre-accounting when acquire is called."""
         with self._lock:
             self.batch_size = batch_size
+
+    def has_capacity(self, estimated_tokens: int = 0) -> bool:
+        """024-async-pipeline-refactor: non-blocking peek for ProviderSelector
+        (contracts/provider-selector-port.md) — True if `acquire()` would
+        return immediately right now, without ever calling `time.sleep()`.
+        Reuses the same RPM/TPM/RPD internals as `_compute_wait()` but never
+        reserves a slot (no window insert, no `_daily_count` increment) —
+        eviction of stale entries is harmless housekeeping, not a reservation."""
+        with self._lock:
+            if self._daily_count >= self.rpd:
+                return False
+            now = time.monotonic()
+            self._evict_stale(now)
+            return self._rpm_wait(now) == 0 and self._tpm_wait(now, estimated_tokens) == 0
 
     def _compute_wait(self, estimated_tokens: int) -> float:
         """Calculate wait time for capacity, or record the request if capacity exists."""
