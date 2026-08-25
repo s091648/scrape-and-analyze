@@ -1,6 +1,6 @@
 [project]
 name = "scrape-analyzer"
-version = "1.5.2"
+version = "1.6.0"
 requires-python = ">=3.11"
 # 共用核心依賴：scraper 與 backend 都會用到
 dependencies = [
