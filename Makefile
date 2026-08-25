@@ -266,8 +266,11 @@ test-frontend:
 test-frontend-cov:
 	docker compose run --rm frontend npm run test:coverage
 
+# `docker compose run` overrides the frontend service's Dockerfile CMD entirely, so the
+# playwright-install-on-startup step there never runs here — install explicitly first
+# (fast no-op when the cached browsers already match the installed playwright-core version).
 test-frontend-e2e:
-	docker compose run --rm frontend npm run test:e2e
+	docker compose run --rm frontend sh -c "npx playwright install && npm run test:e2e"
 
 # ─── lighthouse performance check ──────────────────────────────────────────────
 

@@ -35,6 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # node_modules 與 Playwright 瀏覽器改由 named volume 持久化（見 docker-compose.yml），
 # 不在建置期間安裝，避免跟 volume 內容重複烤進 image layer 造成 image 肥大。
-# 容器啟動時偵測 volume 是否已有內容，沒有才安裝（僅首次啟動需要等待）。
+# 容器啟動時安裝：npm install 用 node_modules 是否存在來判斷是否跳過，但 playwright install
+# 每次都跑——它內部會比對已裝瀏覽器版本跟 playwright-core 版本，版本吻合時是快速 no-op，
+# 版本不吻合（例如 package.json 升版但 volume 還留著舊版瀏覽器）才會真的重裝，
+# 避免用「目錄非空」判斷是否跳過安裝而漏掉版本不吻合的情況。
 # 程式碼透過 docker-compose volumes 掛載，不在此 COPY
-CMD ["sh", "-c", "[ -d node_modules/next ] || npm install; [ -n \"$(ls -A /root/.cache/ms-playwright 2>/dev/null)\" ] || npx playwright install; exec npm run dev"]
+CMD ["sh", "-c", "[ -d node_modules/next ] || npm install; npx playwright install; exec npm run dev"]
