@@ -78,11 +78,12 @@ class IngestArticleForRagUseCase:
 
 class AsyncIngestArticleForRagUseCase:
     """024-async-pipeline-refactor: async sibling of IngestArticleForRagUseCase
-    — new, separate class. IngestArticleForRagUseCase is constructed by both
-    build_collection_pipeline() (in scope) and build_rag_backfill_pipeline()
-    (out of scope) — converting it in place would break the latter. Same
-    logic as the sync version, `execute` is `async def` and awaits the
-    injected AsyncRagIngestionService."""
+    — new, separate class, kept alongside the untouched sync original rather
+    than converted in place (avoids any risk to other callers of the sync
+    class). As of User Story 6, both build_collection_pipeline() and
+    build_rag_backfill_pipeline() construct this async class — see
+    research.md item 11. Same logic as the sync version, `execute` is
+    `async def` and awaits the injected AsyncRagIngestionService."""
 
     def __init__(self, rag_ingestion_service) -> None:
         self._rag_ingestion_service = rag_ingestion_service
@@ -108,6 +109,12 @@ class AsyncIngestArticleForRagUseCase:
 
         await self._rag_ingestion_service.ingest(article, full_text)
         logger.debug("rag_ingested", article_id=str(article.id), chars=len(full_text))
+
+    async def aclose(self) -> None:
+        """024-async-pipeline-refactor US6: releases the RAG SDK's
+        EmbeddingBatchCoordinator worker task (research.md item 11) — call
+        once per run, after every execute() call has settled."""
+        await self._rag_ingestion_service.aclose()
 
     def _build_full_text(self, article) -> str:
         """Fallback: assemble text from persisted article fields."""

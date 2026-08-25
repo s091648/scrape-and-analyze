@@ -12,13 +12,15 @@ from the scraper worker, refresh-metrics, and dedup-reconcile.
 
 Component reuse:
     build_rag_backfill_pipeline() (src/bootstrap.py) reuses
-    build_rag_ingestion_service() — the exact same RagSdkIngestionService
+    build_async_rag_ingestion_service() — the exact same AsyncRagSdkIngestionService
     construction build_collection_pipeline() wires into the live scrape
-    pipeline — wrapped in the same IngestArticleForRagUseCase the real-time
-    RagIngestionHandler calls. Backfilled articles are therefore chunked and
-    embedded identically to freshly-scraped ones; this script only supplies a
-    different source of candidates (a DB query) and a different trigger
-    (cron instead of ArticleProcessedEvent).
+    pipeline — wrapped in the same AsyncIngestArticleForRagUseCase the real-time
+    AsyncRagIngestionHandler calls (024-async-pipeline-refactor US6, research.md
+    item 11 — previously the sync build_rag_ingestion_service()/IngestArticleForRagUseCase).
+    Backfilled articles are therefore chunked and embedded identically to
+    freshly-scraped ones; this script only supplies a different source of
+    candidates (a DB query) and a different trigger (cron instead of
+    ArticleProcessedEvent).
 
 Candidate selection:
     public.articles.has_vectors is a denormalised flag kept in sync by a
@@ -38,16 +40,21 @@ Candidate selection:
     fallback logic was needed for backfill.
 
 Concurrency:
-    Same to_thread + semaphore pattern as refresh_metrics.py: each ingest
-    call is itself synchronous (RagSdkIngestionService.ingest wraps its own
-    asyncio.run() internally), so it's offloaded to a worker thread and
-    bounded by --concurrency (default 5) to cap concurrent embedding-API
-    calls without blocking unrelated articles behind one slow request.
+    024-async-pipeline-refactor US6 (research.md item 11): all concurrent
+    ingestion runs on the main event loop, bounded by --concurrency (default
+    5) via a plain asyncio.Semaphore — no worker threads, no per-article
+    asyncio.run(). This (not just style consistency with main.py) is required
+    for correctness: the RAG SDK's EmbeddingBatchCoordinator, which batches
+    concurrent articles' embedding chunks against the shared rate limit, owns
+    an asyncio.Queue and a worker asyncio.Task that must live on one event
+    loop — the previous to_thread-per-article model gave each concurrent
+    article its own event loop (via RagSdkIngestionService.ingest()'s
+    internal asyncio.run()), which the coordinator can't span.
 
 Quota sharing with main.py:
     Unlike the LLM analysis chain (ResilientLLMService) or tag embeddings
     (ResilientEmbeddingService, backfill_tag_embeddings.py), RAG's dense
-    embedding provider (build_rag_ingestion_service() in src/bootstrap.py)
+    embedding provider (build_async_rag_ingestion_service() in src/bootstrap.py)
     is a single, fixed provider read from env vars — no multi-provider
     rate-limit fallback. Its RPD is also tracked independently per process,
     but both this script and main.py's real-time RagIngestionHandler draw
@@ -82,10 +89,7 @@ async def _backfill_one(article, use_case, semaphore: asyncio.Semaphore) -> bool
     if the use case raised."""
     async with semaphore:
         try:
-            # execute() is the synchronous RagSdkIngestionService stack (its own
-            # internal asyncio.run() call) — offload to a worker thread so other
-            # articles' ingestion can run concurrently.
-            await asyncio.to_thread(use_case.execute, article)
+            await use_case.execute(article)
         except Exception as e:
             logger.warning("article_rag_backfill_failed", article_id=str(article.id), error=str(e))
             return False
@@ -104,6 +108,17 @@ async def _backfill_all(articles, use_case, concurrency: int) -> tuple[int, int]
     succeeded = sum(1 for r in results if r is True)
     failed = sum(1 for r in results if r is False)
     return succeeded, failed
+
+
+async def _run_backfill(articles, use_case, concurrency: int) -> tuple[int, int]:
+    """Runs _backfill_all() then releases the RAG SDK's background worker task
+    (024-async-pipeline-refactor US6, research.md item 11) — aclose() must run
+    on the same event loop the coordinator's worker task was created on, so it
+    has to happen inside this same asyncio.run() call, not a later one."""
+    try:
+        return await _backfill_all(articles, use_case, concurrency)
+    finally:
+        await use_case.aclose()
 
 
 def main() -> None:
@@ -158,7 +173,7 @@ def main() -> None:
                 logger.info("rag_backfill_candidates_found", count=len(articles))
 
                 succeeded, failed = asyncio.run(
-                    _backfill_all(articles, use_case, args.concurrency)
+                    _run_backfill(articles, use_case, args.concurrency)
                 )
 
                 execution = log_execution_completed(

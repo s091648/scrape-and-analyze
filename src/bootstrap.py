@@ -449,6 +449,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
       每篇文章的 asyncio.Task 各自透過 `get_async_sessionmaker()` 開自己的
       AsyncSession（research.md item 2），從不跨 task 共用。
     """
+    from src.config.settings import RAG_DISPATCH_CONCURRENCY
     from src.infrastructure.persistence.database import get_async_sessionmaker
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
@@ -726,6 +727,8 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         app_env=APP_ENV,
         jitter_seconds=jitter_seconds,
         llm_service=llm_service,
+        rag_service_aclose=_rag_ingestion_service.aclose if rag_enabled else None,
+        rag_dispatch_concurrency=RAG_DISPATCH_CONCURRENCY,
     )
 
     logger.info(
@@ -981,16 +984,22 @@ def build_dedup_reconciliation_pipeline():
 # ---------------------------------------------------------------------------
 
 def build_rag_backfill_pipeline():
-    """Assemble (IngestArticleForRagUseCase | None, RagBackfillRepository, session, event_bus)
-    for the RAG-backfill cron job. Reuses build_rag_ingestion_service() — the
-    same RagSdkIngestionService construction the live scrape pipeline uses via
-    build_collection_pipeline() — so backfilled articles are chunked/embedded
-    identically to freshly-scraped ones. The use_case is None (same contract
-    as build_rag_ingestion_service()) when RAG is disabled or misconfigured;
-    callers must check for that before use. event_bus carries a notification handler
-    subscribed to RagBackfillCompletedEvent (020-redis-caching-layer, US4) — publish
-    that event after computing backfill stats to send the completion notification."""
-    from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
+    """Assemble (AsyncIngestArticleForRagUseCase | None, RagBackfillRepository, session, event_bus)
+    for the RAG-backfill cron job. 024-async-pipeline-refactor US6 (research.md item 11):
+    uses build_async_rag_ingestion_service() — the same AsyncRagSdkIngestionService
+    construction the live scrape pipeline uses via build_collection_pipeline() — so
+    backfilled articles are chunked/embedded identically to freshly-scraped ones, and
+    concurrent backfill articles (src/entrypoints/cli/backfill_rag.py's --concurrency)
+    share the RAG SDK's EmbeddingBatchCoordinator the same way concurrent live-pipeline
+    articles do. Previously used the sync build_rag_ingestion_service() — switched
+    because the coordinator requires every concurrent ingest() call to run on one
+    event loop, which backfill_rag.py's now-removed asyncio.to_thread-per-article model
+    didn't provide. The use_case is None (same contract as build_rag_ingestion_service())
+    when RAG is disabled or misconfigured; callers must check for that before use.
+    event_bus carries a notification handler subscribed to RagBackfillCompletedEvent
+    (020-redis-caching-layer, US4) — publish that event after computing backfill stats
+    to send the completion notification."""
+    from src.modules.intelligence.application.use_cases.ingest_article_for_rag import AsyncIngestArticleForRagUseCase
     from src.infrastructure.persistence.intelligence.rag_backfill_repo_impl import SqlAlchemyRagBackfillRepository
     from src.infrastructure.shared.events import InMemoryEventBus
     from src.infrastructure.shared.notifications import build_notification_handler
@@ -1000,8 +1009,8 @@ def build_rag_backfill_pipeline():
     init_db()
     session = get_session()
 
-    rag_service, _ = build_rag_ingestion_service()
-    use_case = IngestArticleForRagUseCase(rag_service) if rag_service is not None else None
+    rag_service, _ = build_async_rag_ingestion_service()
+    use_case = AsyncIngestArticleForRagUseCase(rag_service) if rag_service is not None else None
     backfill_repo = SqlAlchemyRagBackfillRepository(session=session)
 
     event_bus = InMemoryEventBus()

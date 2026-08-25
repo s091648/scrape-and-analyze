@@ -75,6 +75,8 @@ class CollectionPipeline:
         app_env: str = "unknown",
         jitter_seconds: Optional[float] = None,
         llm_service: Optional[Any] = None,
+        rag_service_aclose: Optional[Callable[[], Awaitable[None]]] = None,
+        rag_dispatch_concurrency: int = 10,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -98,7 +100,22 @@ class CollectionPipeline:
         self._app_env = app_env
         self._jitter_seconds = jitter_seconds
         self._llm_service = llm_service
+        # 024-async-pipeline-refactor US6: releases the RAG-ingestion SDK's
+        # EmbeddingBatchCoordinator worker task (research.md item 11) — called
+        # once, after Barrier 2, so it never fires while a RAG task might still
+        # submit more chunks.
+        self._rag_service_aclose = rag_service_aclose
         self._rag_tasks: List[asyncio.Task] = []
+        # Bounds how many RAG-ingesting articles concurrently hold an open
+        # AsyncSession (a real, unpooled Postgres connection — NullPool, see
+        # src/infrastructure/persistence/database.py) — NOT embedding-API
+        # throughput (that's RAG_DENSE_RPM/RAG_EMBED_BATCH_SIZE, a separate,
+        # unrelated concern). Gates entry to _run_rag_ingestion()'s body, not
+        # task creation in _dispatch_rag() — a task blocked on this semaphore
+        # hasn't opened a session or enqueued any chunks yet, which also caps
+        # how many chunks can burst into the embedding coordinator's queue at
+        # once (research.md item 11 follow-up, 024-async-pipeline-refactor US6).
+        self._rag_dispatch_semaphore = asyncio.BoundedSemaphore(rag_dispatch_concurrency)
 
     def _build_execution_meta(self, started_at: datetime, start: float) -> JobExecutionMeta:
         return JobExecutionMeta(
@@ -138,10 +155,15 @@ class CollectionPipeline:
         still be running after the article's text-stage task has already
         returned and closed its session. Only used for recording a
         RagIngestionFailedEvent as a FailedTask on error; RAG ingestion
-        itself goes through the SDK's own, separate DB connection."""
-        async with self._async_sessionmaker_factory() as session:
-            handler = await self._rag_downstream_builder(session)
-            await handler.handle(event)
+        itself goes through the SDK's own, separate DB connection.
+
+        Gated by _rag_dispatch_semaphore — a task blocked here (unbounded
+        article volume vs. a bounded number of concurrent, unpooled Postgres
+        connections) hasn't opened its AsyncSession yet."""
+        async with self._rag_dispatch_semaphore:
+            async with self._async_sessionmaker_factory() as session:
+                handler = await self._rag_downstream_builder(session)
+                await handler.handle(event)
 
     async def _process_article_text(self, article: ScrapedArticle) -> None:
         """One per-article asyncio.Task: its own AsyncSession, its own fresh
@@ -330,6 +352,9 @@ class CollectionPipeline:
                         error=str(outcome),
                         error_type=type(outcome).__name__,
                     )
+
+        if self._rag_service_aclose is not None:
+            await self._rag_service_aclose()
 
         duration = time.time() - start
         final_stats = self._pipeline_stats.get_results()

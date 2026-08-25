@@ -87,3 +87,17 @@ class AsyncArticleRepository(Protocol):
 Concrete implementations: `AsyncSqlAlchemy<Name>Repository` classes in `src/infrastructure/persistence/{shared,collection,intelligence}/`, filenames ending in `_async_repo_impl.py` (parallel to the existing `_repo_impl.py` convention so `generate_uml.py`'s filename-suffix classification, constitution Principle VIII, can be extended to recognize both suffixes — a one-line change to that script, tracked as a task, not a design change here).
 
 Each async repository is constructed per-`Article Processing Unit of Work` task, taking that task's own `AsyncSession` — never shared, never constructed once and reused across tasks (research.md item 2's invariant applies here directly: a repository instance is only as safe for concurrent use as the session it holds).
+
+## Embedding Batch Coordination Point (User Story 6, research.md item 11)
+
+**New** `EmbeddingBatchCoordinator` class in `chatbot_plugin_sdk/batching.py`, owned one-per-`IngestProcessor` instance (and therefore one per pipeline run, since `IngestProcessor` is itself constructed once and reused across every article's `ingest()` call — see `build_async_rag_ingestion_service()`/`build_rag_backfill_pipeline()`).
+
+| Field | Type | Notes |
+|---|---|---|
+| `_queue` | `asyncio.Queue[EmbedWorkItem]` | Lazily built via `queue_factory` on first `embed_many()` call, not at `__init__` (binds to the running event loop only once actually needed). Holds individual chunk-level work items, not per-article batches — batch composition happens worker-side, not at submission time. |
+| `_worker_task` | `asyncio.Task \| None` | The single background drain loop, started lazily alongside `_queue`. Cancelled by `aclose()`. |
+| `EmbedWorkItem` | `dataclass(text: str, future: asyncio.Future[list[float]])` | One per chunk submitted via `embed_many()`. Its `future` is resolved (or given the batch's exception) by whichever worker-composed batch it ends up in. |
+
+**Relationship to `Article Processing Unit of Work`**: an article's `ingest()` call (`IngestProcessor.ingest()` → `_embed_in_batches_dense()`) submits all of its chunks as `EmbedWorkItem`s via one `embed_many()` call and awaits the returned vectors — from that article-task's point of view, this looks like a single synchronous batching step, same as before this coordinator existed. What's different is that the *coordinator's* worker, not the calling task, decides how those chunks are grouped into real `dense.embed()` calls — potentially interleaved with other concurrently-running articles' chunks (Model Capacity Pool above is the analogous concept for LLM/embedding-model dispatch; this is the analogous concept specifically for RAG's own dense-embedding provider, which — per the Model Capacity Pool section — remains a separate, third pool this feature otherwise doesn't touch).
+
+**Invariant**: exactly one worker task per coordinator instance (RPM is one shared external resource — more workers would still serialize on it, per contracts/embedding-batch-coordinator-port.md). A batch's failure fails every `EmbedWorkItem` in that batch, regardless of which `embed_many()` call originally submitted it — the same effective per-call failure granularity `IngestProcessor.ingest()` already had, just no longer guaranteed to align with "one caller's own chunks."

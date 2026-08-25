@@ -91,6 +91,22 @@ The mechanism used to pass work between pipeline stages is internal today (in-pr
 
 ---
 
+### User Story 6 - Every article's RAG embedding succeeds regardless of its size or how many other articles are ingesting concurrently (Priority: P2)
+
+Concurrent RAG ingestion (User Story 1) means multiple articles' embedding calls can be in flight at the same time, but every article's ingestion call sends its own chunk batches directly against one shared, per-run embedding rate limit. An article whose full text produces many chunks (e.g. a long arXiv PDF) needs several large batches; under concurrent load from other articles' simultaneous batches, its calls repeatedly collide with the shared per-minute quota, and once the underlying provider's own retry budget is exhausted the article's RAG ingestion fails outright — with no further retry until the next backfill run. An operator should not see this pattern: any article's RAG ingestion result should depend on the underlying provider's real rate limit, not on how many other articles happen to be ingesting concurrently or how many chunks any single article happens to produce.
+
+**Why this priority**: Without this, User Story 1's own concurrency is what causes RAG ingestion to fail for articles that would have succeeded serially — a regression the flagship story introduces for itself. Prioritized directly behind User Story 1 because it protects that story's own guarantee (FR-002: one article's RAG ingestion never blocks or degrades another's).
+
+**Independent Test**: Run RAG ingestion concurrently for several articles, including at least one whose full text produces far more chunks than the embedding provider's per-call batch limit, against a rate limit low enough to force contention. Confirm every article's embedding calls are coordinated through a single point rather than issued independently and colliding, and that articles are not lost to rate-limit exhaustion purely because of how many other articles were ingesting at the same time.
+
+**Acceptance Scenarios**:
+
+1. **Given** several articles are being RAG-ingested concurrently, **When** their combined chunk counts would exceed the configured per-minute embedding rate limit if sent independently, **Then** their embedding calls are coordinated so the shared limit is respected without any article's call being wasted on a collision-driven retry.
+2. **Given** one article's full text produces far more chunks than another's, **When** both are ingested concurrently, **Then** the larger article's chunks do not exhaust the shared rate-limit budget in a way that starves the smaller article's embedding calls, and vice versa.
+3. **Given** the RAG-backfill job also ingests multiple articles concurrently (bounded by its own concurrency setting), **When** it runs, **Then** its embedding calls are coordinated the same way as the live pipeline's, sharing one embedding-call coordination point per run rather than each concurrent article call issuing independent requests.
+
+---
+
 ### Edge Cases
 
 - What happens when RAG ingestion fails for one article while others are still being processed? It must not stop or delay any other article's processing, and must still be reflected in the run's completion notification (User Story 3).
@@ -100,6 +116,8 @@ The mechanism used to pass work between pipeline stages is internal today (in-pr
 - What happens when an article's text-stage work (analyze/translate) permanently fails? It counts as settled toward the text-complete signal (FR-004) immediately — the barrier does not wait for it to succeed and it is not retried. The failed article contributes no title/body/translation content, so it is simply absent from the resulting search index rebuild; its failure is still recorded and reported exactly as other failures are.
 - What happens when a run contains zero articles requiring RAG ingestion? Both completion signals (text-complete and fully-complete) still fire correctly and in the right order, with no observable difference from a run that does use RAG.
 - What happens if the process crashes mid-run, after some articles' text processing finished but before RAG ingestion finished for others? This feature does not add crash-recovery or durability guarantees beyond what exists today; work already committed before the crash is unaffected, and no new data-loss mode is introduced beyond what a crash already causes today.
+- What happens when the RAG-backfill job and the live pipeline happen to run around the same time? Each process's own embedding-call coordination point (User Story 6) manages only that process's own concurrent calls — cross-process quota coordination remains out of scope, the same pre-existing limitation as every other rate-limit concern in this spec.
+- What happens to an article whose embedding batch happens to be composed alongside chunks from other concurrently-ingesting articles, when that batch's embedding call fails? All chunks in that one failed batch fail together, the same as an article's own batch failing today — each affected article's ingestion is simply not persisted this run and is retried on the next RAG-backfill pass, exactly as any other RAG ingestion failure already is.
 
 ## Requirements *(mandatory)*
 
@@ -118,6 +136,9 @@ The mechanism used to pass work between pipeline stages is internal today (in-pr
 - **FR-011**: When every registered model for a capability is simultaneously out of capacity, concurrent requests for that capability MUST wait rather than fail outright, resuming automatically once any model in the pool regains capacity.
 - **FR-012**: The existing reporting of which model providers hit their daily limit during a run MUST remain accurate when requests are dispatched concurrently across a pool of models, not just a single active one.
 - **FR-013**: Database writes performed by concurrently-processing articles MUST be isolated from one another such that one article's in-progress write can never corrupt, block, or be silently overwritten by another's.
+- **FR-014**: System MUST coordinate embedding-API calls for RAG ingestion through a single point per run, such that concurrently-processing articles' chunks are batched and dispatched against the shared embedding rate limit without independent, colliding calls.
+- **FR-015**: The size of any single article's full text (and therefore its chunk count) MUST NOT determine whether its RAG ingestion succeeds — coordination MUST behave the same regardless of how many chunks one article contributes relative to others being ingested concurrently.
+- **FR-016**: The RAG-backfill job's concurrent article ingestion MUST use the same in-process embedding-call coordination point as the live pipeline's concurrent RAG ingestion (this job's RAG-ingestion concurrency was previously out of scope per this spec's Assumptions; brought into scope because it exhibits the same rate-limit contention FR-014/FR-015 address — the rest of the backfill job's behavior, such as candidate selection and its `--limit`/`--concurrency` CLI options, is unaffected).
 
 ### Key Entities
 
@@ -125,6 +146,7 @@ The mechanism used to pass work between pipeline stages is internal today (in-pr
 - **Article Processing Unit of Work**: The scrape-save→analyze→translate→RAG-ingestion chain for one discovered article, now able to progress independently and concurrently alongside other articles' units of work. It settles — succeeds or permanently fails — independently at each stage; a settled outcome (of either kind) counts toward the relevant completion signal (FR-004) and is never retried within the same run.
 - **Model Capacity Pool**: The set of registered, active models for one capability (LLM generation, or embeddings), each carrying its own independent quota, from which concurrent requests are routed to whichever member currently has capacity.
 - **Stage Handoff Interface**: The abstract boundary through which one pipeline stage's completed work is made available to the next stage, independent of whether the underlying mechanism is in-process or external/durable.
+- **Embedding Batch Coordination Point**: The single per-run point through which every concurrently-ingesting article's RAG embedding chunks are batched and dispatched against the shared embedding rate limit, so no article's call is issued independently of the others (User Story 6).
 
 ## Success Criteria *(mandatory)*
 
@@ -136,12 +158,13 @@ The mechanism used to pass work between pipeline stages is internal today (in-pr
 - **SC-004**: A run using multiple registered low-quota models for the same capability sustains materially higher total throughput before that capability is fully exhausted, compared to the same run restricted to only its single highest-priority model.
 - **SC-005**: Zero incidents, across a full run, of one article's concurrent processing corrupting or blocking another article's data.
 - **SC-006**: The stage-handoff mechanism can be replaced with a different implementation by changing that implementation alone — zero changes required to any individual stage's processing logic.
+- **SC-007**: A run ingesting several articles concurrently — including articles whose chunk counts differ substantially from one another — completes RAG ingestion for every article whose failure would not also have occurred running serially against the same provider-side rate limit; articles are no longer lost purely due to concurrent-contention collisions on the shared embedding rate limiter.
 
 ## Assumptions
 
-- This feature is scoped to the collection pipeline (discover→fetch→analyze→translate→RAG ingestion, and the notifications/cache/search-index refresh triggered by its completion). The weekly report pipeline, metrics-refresh job, dedup-reconciliation job, and RAG-backfill job are unaffected and out of scope.
+- This feature is scoped to the collection pipeline (discover→fetch→analyze→translate→RAG ingestion, and the notifications/cache/search-index refresh triggered by its completion), plus — as of User Story 6 — the RAG-backfill job's own concurrent RAG-ingestion path specifically (it shares the same embedding-call coordination point as the live pipeline; its other behavior, such as candidate selection, is unaffected). The weekly report pipeline, metrics-refresh job, and dedup-reconciliation job remain unaffected and out of scope.
 - Concurrency introduced by this feature stays within a single process running a single scheduled scrape. Horizontal scaling across multiple processes/replicas, and any distributed coordination that would require, is explicitly out of scope — the Stage Handoff Interface (FR-008) exists specifically to make that a contained, separate future change rather than something this feature must solve now.
 - Database access changes needed to support concurrent article processing are scoped to the repositories used by the collection pipeline (articles, analyses, translations, tags, failed tasks). Repositories used exclusively by the backend API or by other scheduled jobs are unaffected.
 - The exact number of articles processed concurrently, and the degree of concurrency within a model capacity pool, are tunable implementation details — this feature does not fix a specific concurrency limit as a requirement.
 - Discovery and fetching already run with per-source/per-host concurrency today; that internal concurrency is unrelated to and unchanged by this feature. What this feature deliberately leaves in place (see FR-003) is the *phase boundary* — the fact that every source's fetching and the batched deduplication check must fully finish before any article is published for downstream processing — because that batching is what lets deduplication check every fetched URL against the database in one round trip instead of one per article.
-- The external RAG ingestion library already used by this pipeline supports the kind of concurrent operation this feature requires without requiring changes outside this project's own control.
+- The external RAG ingestion library (`chatbot_plugin_sdk`) gains a new, opt-in embedding-call coordination primitive as part of User Story 6 — its existing per-call ingestion behavior stays unchanged for any other consumer that doesn't use it, and this feature's implementation tasks are limited to the library's source; its own release/versioning process (version bump, git tag) is that repository's own CI concern, not part of this feature's task list.

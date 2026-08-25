@@ -43,11 +43,12 @@ class RagSdkIngestionService(RagIngestionService):
 
 class AsyncRagSdkIngestionService:
     """024-async-pipeline-refactor: async sibling of RagSdkIngestionService
-    (untouched — still used by the out-of-scope build_rag_backfill_pipeline()
-    via the unmodified build_rag_ingestion_service()). Awaits
-    IngestProcessor.ingest() directly — it is already async — instead of
-    wrapping it in asyncio.run(), which would raise if called from inside an
-    already-running event loop (exactly the context this now runs in)."""
+    (RagSdkIngestionService itself stays untouched, but as of User Story 6
+    build_rag_backfill_pipeline() also uses this async class now — see
+    research.md item 11). Awaits IngestProcessor.ingest() directly — it is
+    already async — instead of wrapping it in asyncio.run(), which would
+    raise if called from inside an already-running event loop (exactly the
+    context this now runs in)."""
 
     def __init__(self, processor: "IngestProcessor") -> None:
         self._processor: "IngestProcessor" = processor
@@ -74,3 +75,8 @@ class AsyncRagSdkIngestionService:
             full_text_chars=len(full_text),
             duration_seconds=round(duration, 3),
         )
+
+    async def aclose(self) -> None:
+        """024-async-pipeline-refactor US6: releases the SDK's
+        EmbeddingBatchCoordinator worker task (research.md item 11)."""
+        await self._processor.aclose()
