@@ -21,6 +21,14 @@ services:
       - ./fastembed/src:/app/src
     env_file:
       - .env
+    # init: true — runs tini as PID 1 so orphaned/zombie child processes get reaped
+    # (defense in depth; see the runaway-reload-loop OOM incident this was added after).
+    # mem_limit — contains any single container's blast radius to itself instead of
+    # starving the whole Docker VM (previously unbounded; every service below gets one
+    # for the same reason). Starting point, not a measured ceiling — raise it if a
+    # service gets OOM-killed under genuine load rather than a bug.
+    init: true
+    mem_limit: 3g
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
       interval: 15s
@@ -50,6 +58,8 @@ services:
       - ../chatbot-plugin-sdk:/opt/chatbot-plugin-sdk
     env_file:
       - .env
+    init: true
+    mem_limit: 2g
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,6 +85,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    init: true
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,6 +107,8 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    init: true
+    mem_limit: 2g
     command: npx next dev
 
   # Frontend, production build — runs the actual multi-stage frontend/Dockerfile
@@ -116,6 +130,8 @@ services:
       - "3001:3000"
     env_file:
       - .env
+    init: true
+    mem_limit: 1g
     depends_on:
       backend:
         condition: service_started
@@ -134,6 +150,8 @@ services:
     command: redis-server --maxmemory 256mb --maxmemory-policy volatile-lru
     ports:
       - "6379:6379"
+    init: true
+    mem_limit: 512m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -149,12 +167,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # - ./migrations:/docker-entrypoint-initdb.d
+    init: true
+    mem_limit: 1g
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
-  
+
   pgadmin:
     image: dpage/pgadmin4
     env_file:
@@ -163,6 +183,8 @@ services:
       - "80:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+    init: true
+    mem_limit: 512m
 
   redisinsight:
     image: redis/redisinsight:latest
@@ -176,6 +198,8 @@ services:
       - "5540:5540"
     volumes:
       - redisinsight_data:/data
+    init: true
+    mem_limit: 512m
     depends_on:
       redis:
         condition: service_healthy
@@ -198,6 +222,8 @@ services:
       - ./.coveragerc:/app/.coveragerc
     env_file:
       - .env
+    init: true
+    mem_limit: 2g
     depends_on:
       postgres:
         condition: service_healthy
@@ -219,6 +245,8 @@ services:
       - "8001:8000"
     env_file:
       - .env
+    init: true
+    mem_limit: 1g
     depends_on:
       postgres:
         condition: service_healthy
@@ -250,6 +278,8 @@ services:
       - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env
+    init: true
+    mem_limit: 2g
     depends_on:
       postgres:
         condition: service_healthy
