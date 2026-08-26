@@ -561,8 +561,8 @@ wheels = [
 
 [[package]]
 name = "chatbot-plugin-sdk"
-version = "1.2.1"
-source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.1#25944d3a3aa7af6c581ebb386b3791cd13c6e7c1" }
+version = "1.2.2"
+source = { git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.2#8d6f2cef198dad96932db634ce30634c63b7cdb7" }
 dependencies = [
     { name = "asyncpg" },
     { name = "httpx" },
@@ -2982,7 +2982,7 @@ wheels = [
 
 [[package]]
 name = "scrape-analyzer"
-version = "1.5.2"
+version = "1.6.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
@@ -3081,7 +3081,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 backend = [
     { name = "bcrypt", specifier = ">=4.0" },
-    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.1" },
+    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.2" },
     { name = "email-validator", specifier = ">=2.0" },
     { name = "fastapi", specifier = ">=0.111" },
     { name = "httpx" },
@@ -3127,7 +3127,7 @@ observability = [
 scraper = [
     { name = "asyncpg", specifier = ">=0.29" },
     { name = "beautifulsoup4" },
-    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.1" },
+    { name = "chatbot-plugin-sdk", git = "https://github.com/s091648/chatbot-plugin-sdk.git?tag=v1.2.2" },
     { name = "fastembed", specifier = ">=0.3" },
     { name = "feedparser" },
     { name = "lxml" },

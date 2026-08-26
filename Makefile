@@ -10,6 +10,7 @@
 	backfill-r2-cache-control backfill-r2-cache-control-dry-run backfill-r2-cache-control-remote \
 	data-migrate data-migrate-list data-migrate-one data-migrate-down \
 	create-admin scrape translate translate-remote run weekly-report weekly-report-remote retry-failed retry-failed-remote \
+	backfill-rag backfill-rag-remote \
 	rebuild-search-index rebuild-search-index-remote \
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
@@ -196,6 +197,21 @@ retry-failed:
 retry-failed-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python /app/scripts/retry_failed.py $(_RETRY_ARGS)
+
+# Backfill RAG vector-store ingestion for previously-scraped articles (has_vectors=false).
+# Usage:
+#   make backfill-rag
+#   make backfill-rag LIMIT=5
+#   make backfill-rag CONCURRENCY=3
+CONCURRENCY ?=
+_BACKFILL_RAG_ARGS := $(if $(LIMIT),--limit $(LIMIT),) $(if $(CONCURRENCY),--concurrency $(CONCURRENCY),)
+
+backfill-rag:
+	docker compose run --rm job_service python -m src.entrypoints.cli.backfill_rag $(_BACKFILL_RAG_ARGS)
+
+backfill-rag-remote:
+	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
+	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python -m src.entrypoints.cli.backfill_rag $(_BACKFILL_RAG_ARGS)
 
 # optional: override with MIN_DOC_FREQ=1
 MIN_DOC_FREQ ?=
