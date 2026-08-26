@@ -1,5 +1,15 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Improved chatbot troubleshooting by surfacing additional log fields from the plugin SDK."
+      }
+    ]
+  },
+  {
     "version": "v1.6.0",
     "date": "2026-08-25",
     "changes": [
