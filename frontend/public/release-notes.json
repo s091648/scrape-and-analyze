@@ -1,5 +1,31 @@
 [
   {
+    "version": "v1.6.1",
+    "date": "2026-08-26",
+    "changes": [
+      {
+        "type": "chore",
+        "description": "Updated the documentation portal to align with the latest technical specifications."
+      },
+      {
+        "type": "chore",
+        "description": "Upgraded the core SDK to the latest version to ensure platform stability."
+      },
+      {
+        "type": "feat",
+        "description": "Added support and user documentation for advanced batching and rate limiting features."
+      },
+      {
+        "type": "fix",
+        "description": "Improved log visibility by surfacing additional diagnostic fields from the chatbot plugin SDK."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced a new administrative utility for backfilling RAG data pools."
+      }
+    ]
+  },
+  {
     "version": "v1.6.0",
     "date": "2026-08-25",
     "changes": [
