@@ -155,6 +155,31 @@ jobs:
           chatbot-plugin
 
       # -------------------------------------------------------------------
+      # Apply Terraform to production (025-iac-provisioning US3) — runs
+      # before the app deploy below so infra/variable config lands first.
+      # TF_VAR_railway_token comes from secrets.TF_RAILWAY_TOKEN (account-
+      # level), never secrets.RAILWAY_TOKEN — see ci.yml's terraform-plan
+      # job comment / infra/terraform/README.md.
+      # -------------------------------------------------------------------
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: terraform init (production)
+        run: terraform -chdir=infra/terraform/environments/production init -input=false
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: terraform apply (production)
+        run: terraform -chdir=infra/terraform/environments/production apply -auto-approve -no-color
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+
+      # -------------------------------------------------------------------
       # Deploy to Railway production
       # -------------------------------------------------------------------
       - name: Install Railway CLI

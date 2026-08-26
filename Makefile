@@ -17,7 +17,8 @@
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
 	lighthouse-check \
-	site-preview uml uml-backend uml-db-schema uml-exceptions uml-frontend uml-frontend-deps uml-frontend-context
+	site-preview uml uml-backend uml-db-schema uml-exceptions uml-frontend uml-frontend-deps uml-frontend-context \
+	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -350,4 +351,41 @@ uml-frontend-deps:
 
 uml-frontend-context:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
+
+# -----------------------------------------------------------------------
+# Terraform (infra/terraform/ — 025-iac-provisioning)
+#
+# Deliberately NOT run via `docker compose run` like the targets above:
+# HCP Terraform's "local execution mode" and this feature's CI wiring both
+# assume a plain `terraform` binary on PATH, not a container — see plan.md's
+# Constitution Check for 025-iac-provisioning. Credentials come from
+# infra/terraform/.env.local (gitignored, IaC-operator only — deliberately
+# NOT loaded via the root `include .env` above, so these higher-privilege
+# tokens never leak into app containers). See infra/terraform/README.md.
+#
+# Usage: make terraform-plan ENV=staging (default) | make terraform-apply ENV=production
+# -----------------------------------------------------------------------
+
+TF_DIR := infra/terraform/environments/$(ENV)
+TF_ENV_FILE := infra/terraform/.env.local
+TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_railway_token="$$RAILWAY_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
+
+terraform-fmt:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) fmt -check -recursive
+
+terraform-validate:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false -backend=false >/dev/null && terraform -chdir=$(TF_DIR) validate
+
+terraform-plan:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) plan
+
+terraform-apply:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) apply
+
+terraform-drift-check:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false; \
+	terraform -chdir=$(TF_DIR) plan -detailed-exitcode -no-color; code=$$?; \
+	if [ $$code -eq 0 ]; then echo "[$(ENV)] in sync — no drift"; \
+	elif [ $$code -eq 2 ]; then echo "[$(ENV)] DRIFT DETECTED — see plan output above"; \
+	else echo "[$(ENV)] terraform plan failed (exit $$code)"; exit $$code; fi
 

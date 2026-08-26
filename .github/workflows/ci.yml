@@ -172,6 +172,53 @@ jobs:
         run: bash .github/scripts/check-env-var-centralization.sh
 
   # -----------------------------------------------
+  # Stage -0.3: Terraform Plan Preview (PR only) — 025-iac-provisioning US3.
+  # Read-only against both Railway and HCP Terraform's backend; the real
+  # apply happens later in deploy-staging-terraform (Stage 4j), gated on
+  # tests passing like every other deploy-staging-* job. Runs unconditionally
+  # on every PR rather than path-filtered to infra/terraform/** — the plan
+  # itself is cheap (~10-30s) and doubles as a lightweight drift check on
+  # every PR, not just ones that touch Terraform config.
+  #
+  # TF_VAR_railway_token MUST come from secrets.TF_RAILWAY_TOKEN (account-
+  # level), never secrets.RAILWAY_TOKEN — that name is already the existing
+  # environment-scoped, project-level secret deploy-staging-*/release.yml's
+  # `railway up`/`railway down` steps depend on (infra/terraform/README.md).
+  # -----------------------------------------------
+  terraform-plan:
+    name: Terraform Plan (staging)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: terraform fmt -check
+        run: terraform -chdir=infra/terraform/environments/staging fmt -check -recursive
+
+      - name: terraform init
+        run: terraform -chdir=infra/terraform/environments/staging init -input=false
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: terraform validate
+        run: terraform -chdir=infra/terraform/environments/staging validate
+
+      - name: terraform plan
+        run: terraform -chdir=infra/terraform/environments/staging plan -no-color
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+
+  # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
   # push-to-master (post-merge) skips this: it would race the staging DB
   # against itself if a still-in-flight PR run's migrate overlapped, and it
@@ -1160,6 +1207,49 @@ jobs:
         run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4j: Apply Terraform to Staging (PR only) — 025-iac-provisioning US3.
+  # Own concurrency group rather than sharing one of the ten per-service
+  # deploy-staging-* groups above: this job can touch any/all of them (it
+  # applies the whole staging workspace's declared config, not one service),
+  # so no single existing group would fully protect against it — a known,
+  # accepted simplification rather than trying to join all ten.
+  # -----------------------------------------------
+  deploy-staging-terraform:
+    name: Apply Terraform to Staging
+    runs-on: ubuntu-latest
+    needs: [terraform-plan]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.terraform-plan.result == 'success'
+    environment: scraper / staging
+    concurrency:
+      group: staging-terraform-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform -chdir=infra/terraform/environments/staging init -input=false
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: terraform apply
+        run: terraform -chdir=infra/terraform/environments/staging apply -auto-approve -no-color
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
 
   # -----------------------------------------------
   # Stage 5: DB Rollback (if migrate succeeded but any test failed)
