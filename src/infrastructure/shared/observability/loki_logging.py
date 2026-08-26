@@ -28,6 +28,13 @@ from datetime import datetime, timezone
 
 from src.config.settings import APP_ENV
 
+# Attribute names stdlib logging.LogRecord always carries — anything else on
+# record.__dict__ came from a caller's logger.warning(event, extra={...}) and
+# should be surfaced in the JSON payload.
+_LOG_RECORD_RESERVED_ATTRS = frozenset(vars(logging.LogRecord(
+    "", 0, "", 0, "", (), None,
+)).keys()) | {"message", "asctime"}
+
 
 # --- SDK JSON formatter (reads correlation_id from the ContextVar) ------------------
 
@@ -50,7 +57,16 @@ class _SdkJsonFormatter(logging.Formatter):
     the main app's structlog output shape."""
 
     def format(self, record: logging.LogRecord) -> str:
-        extra = record.__dict__.get("extra") or {}
+        # stdlib logging.Logger.warning(event, extra={...}) merges `extra`'s keys
+        # directly onto record.__dict__ (there is no nested record.extra attribute
+        # — that was the bug here: record.__dict__.get("extra") always returned
+        # None, silently dropping every field like quota_dimension/delay/model
+        # gemini_provider.py logs on each retry). Recover them by diffing against
+        # the standard LogRecord attribute set instead.
+        extra = {
+            k: v for k, v in record.__dict__.items()
+            if k not in _LOG_RECORD_RESERVED_ATTRS
+        }
         # ContextVar is imported lazily to avoid a circular import at module load
         try:
             from src.infrastructure.shared.logging import get_correlation_id

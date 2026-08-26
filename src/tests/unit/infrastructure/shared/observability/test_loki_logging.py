@@ -108,7 +108,12 @@ def _make_log_record(name="chatbot_plugin_sdk", level=logging.INFO, msg="test me
         msg=msg, args=(), exc_info=None,
     )
     if extra:
-        record.extra = extra
+        # Matches real stdlib behavior: Logger.makeRecord() merges an extra={}
+        # dict's keys directly onto record.__dict__ — there is no nested
+        # record.extra attribute. (A prior version of this helper set
+        # record.extra = extra directly, which matched a formatter bug instead
+        # of real logging.Logger.warning(event, extra={...}) behavior.)
+        record.__dict__.update(extra)
     return record
 
 
