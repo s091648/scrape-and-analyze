@@ -55,4 +55,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", ".venv/bin/uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", ".venv/bin/uvicorn backend.main:app --host :: --port ${PORT:-8000}"]
