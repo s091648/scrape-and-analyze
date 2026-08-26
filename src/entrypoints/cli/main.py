@@ -10,12 +10,11 @@ Responsibilities here:
 All domain/application logic lives in src/app/ and src/ingestion/.
 """
 import asyncio
-import os
 import time
 import signal
 import random
 
-from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
+from src.config.settings import APP_ENV, SENTRY_DSN, validate_config, get_run_immediately
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
 from src.infrastructure.shared.http import HttpClient, init_default_client
@@ -63,10 +62,8 @@ def main() -> None:
 
     # Randomise start time to avoid hitting arXiv at the top of the hour
     # alongside other cron jobs. Skipped when RUN_IMMEDIATELY is set (manual triggers).
-    # Read directly from os.environ (not the frozen settings constant) so tests
-    # that set/unset the env var per-case take effect without a module reload.
     jitter_seconds = None
-    if not os.environ.get("RUN_IMMEDIATELY", "").strip():
+    if not get_run_immediately():
         jitter_seconds = random.uniform(0, 180)  # 0–3 minutes
         logger.info("startup_jitter_sleep", seconds=round(jitter_seconds))
         time.sleep(jitter_seconds)

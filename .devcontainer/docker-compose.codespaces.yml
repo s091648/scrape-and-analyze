@@ -38,7 +38,6 @@ services:
       - .env
     environment:
       - BACKEND_URL=http://backend:8000
-      - NEXT_PUBLIC_BACKEND_URL=https://${CODESPACE_NAME}-8000.preview.app.github.dev
       - NEXTAUTH_URL=https://${CODESPACE_NAME}-3000.preview.app.github.dev
     command: npx next dev
 

@@ -119,7 +119,7 @@ jobs:
   # actually exposed the gap, and only once deployed.
   # -----------------------------------------------
   check-lockfile:
-    name: Verify uv.lock
+    name: Verify uv.lock & Env Var Centralization
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -163,7 +163,13 @@ jobs:
         if: steps.check.outputs.in_sync == 'false'
         run: |
           echo "::error::uv.lock was out of sync with pyproject.toml (a dependency was likely added/changed without running \`uv lock\` afterward). It has been regenerated and pushed automatically — re-run this workflow (or push again) to pick up the fix."
-          exit 1
+
+      # 025-iac-provisioning US5 / FR-019: env vars must be read through each
+      # service's centralized config module, not process.env/os.environ
+      # scattered ad hoc — folded in here (rather than its own job) since this
+      # job already checks out the repo and the check itself is sub-second.
+      - name: Verify env var centralization
+        run: bash .github/scripts/check-env-var-centralization.sh
 
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)

@@ -40,8 +40,9 @@ import type { Article } from '@/lib/api/articles'
 import type { GraphData } from '@/lib/api/graph'
 import type { TagGroupOut } from '@/lib/api/tags'
 import type { WeeklyReport } from '@/lib/api/weekly-reports'
+import { BACKEND_URL as BACKEND_URL_ENV } from '@/lib/env.server'
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = BACKEND_URL_ENV || 'http://localhost:8000'
 const SUPPORTED_LANGUAGE_CODES = ['en', 'zh-TW']
 // Every backend call in this module runs on the SSR request path and blocks the HTML
 // response — Node's fetch has no default timeout, so a backend that accepts the TCP

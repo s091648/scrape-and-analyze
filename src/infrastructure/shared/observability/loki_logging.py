@@ -22,11 +22,10 @@ In Grafana / Loki, filter SDK records with:
 """
 import json
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 
-from src.config.settings import APP_ENV
+from src.config.settings import APP_ENV, get_grafana_loki_config
 
 # Attribute names stdlib logging.LogRecord always carries — anything else on
 # record.__dict__ came from a caller's logger.warning(event, extra={...}) and
@@ -112,11 +111,7 @@ def _configure_sdk_logging(loki_handler: logging.Handler | None = None) -> None:
 def configure_loki() -> None:
     """Set up stdout handler and optional Loki handler for the root logger,
     then configure SDK logging separately."""
-    # Read directly from os.environ (not the frozen settings constants) so tests
-    # that set/unset these env vars per-case take effect without a module reload.
-    url = os.environ.get("GRAFANA_LOKI_URL") or None
-    user = os.environ.get("GRAFANA_LOKI_USER") or None
-    key = os.environ.get("GRAFANA_API_KEY") or None
+    url, user, key = get_grafana_loki_config()
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)

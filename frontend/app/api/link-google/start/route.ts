@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
+import { NEXTAUTH_SECRET, GOOGLE_CLIENT_ID as GOOGLE_CLIENT_ID_ENV, NEXTAUTH_URL as NEXTAUTH_URL_ENV } from '@/lib/env.server'
 
-const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL!
+const SECRET = new TextEncoder().encode(NEXTAUTH_SECRET!)
+const GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID_ENV!
+const NEXTAUTH_URL = NEXTAUTH_URL_ENV!
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')

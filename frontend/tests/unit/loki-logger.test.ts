@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { pushToLoki } from '@/lib/loki-logger'
+
+// loki-logger.ts now reads its config from lib/env.server.ts's module-level
+// consts (025-iac-provisioning US5) instead of process.env directly inside
+// the function body — each case needs vi.resetModules() + a fresh dynamic
+// import to see its own vi.stubEnv values (see env-server.test.ts).
+async function loadPushToLoki() {
+  vi.resetModules()
+  const mod = await import('@/lib/loki-logger')
+  return mod.pushToLoki
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -11,26 +20,29 @@ afterEach(() => {
 })
 
 describe('pushToLoki', () => {
-  it('returns early and does not call fetch when GRAFANA_LOKI_URL is missing', () => {
+  it('returns early and does not call fetch when GRAFANA_LOKI_URL is missing', async () => {
     vi.stubEnv('GRAFANA_LOKI_URL', '')
     vi.stubEnv('GRAFANA_LOKI_USER', 'user')
     vi.stubEnv('GRAFANA_API_KEY', 'key')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'info', fields: { msg: 'test' } })
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('returns early when GRAFANA_LOKI_USER is missing', () => {
+  it('returns early when GRAFANA_LOKI_USER is missing', async () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', '')
     vi.stubEnv('GRAFANA_API_KEY', 'key')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'info', fields: { msg: 'test' } })
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('returns early when GRAFANA_API_KEY is missing', () => {
+  it('returns early when GRAFANA_API_KEY is missing', async () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'user')
     vi.stubEnv('GRAFANA_API_KEY', '')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'info', fields: { msg: 'test' } })
     expect(global.fetch).not.toHaveBeenCalled()
   })
@@ -39,6 +51,7 @@ describe('pushToLoki', () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'myuser')
     vi.stubEnv('GRAFANA_API_KEY', 'mykey')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'warn', fields: { msg: 'hello' } })
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledOnce())
     const [url, opts] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
@@ -51,6 +64,7 @@ describe('pushToLoki', () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'myuser')
     vi.stubEnv('GRAFANA_API_KEY', 'mykey')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'info', fields: {} })
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledOnce())
     const opts = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1]
@@ -62,6 +76,7 @@ describe('pushToLoki', () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'u')
     vi.stubEnv('GRAFANA_API_KEY', 'k')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'error', fields: { error: 'oops', code: 500 } })
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledOnce())
     const bodyStr = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string
@@ -79,6 +94,7 @@ describe('pushToLoki', () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'u')
     vi.stubEnv('GRAFANA_API_KEY', 'k')
+    const pushToLoki = await loadPushToLoki()
     pushToLoki({ level: 'info', labels: { service: 'api', route: '/health' }, fields: {} })
     await vi.waitFor(() => expect(global.fetch).toHaveBeenCalledOnce())
     const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body)
@@ -90,6 +106,7 @@ describe('pushToLoki', () => {
     vi.stubEnv('GRAFANA_LOKI_URL', 'https://loki.example.com')
     vi.stubEnv('GRAFANA_LOKI_USER', 'u')
     vi.stubEnv('GRAFANA_API_KEY', 'k')
+    const pushToLoki = await loadPushToLoki()
     ;(global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network error'))
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => pushToLoki({ level: 'info', fields: {} })).not.toThrow()

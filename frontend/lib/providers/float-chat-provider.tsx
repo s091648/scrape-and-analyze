@@ -11,8 +11,9 @@ import { useChatQuota } from './chat-quota-provider'
 import { usePinnedArticle, type PinnedArticle } from './pinned-article-provider'
 import { loadChatMessages, saveChatMessages } from '@/lib/chat/chat-storage'
 import type { ArticleSource } from '@/components/features/chat/types'
+import { NEXT_PUBLIC_CHAT_ENDPOINT } from '@/lib/env.client'
 
-const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
+const CHAT_ENDPOINT = NEXT_PUBLIC_CHAT_ENDPOINT || '/api/proxy/chat/completions'
 const FLOAT_STORAGE_KEY = 'rag_float_chat_messages'
 
 interface FloatChatContextValue {

@@ -2,6 +2,8 @@
 // Fire-and-forget Loki push for Next.js server-side code.
 // Called WITHOUT await so it never blocks the response.
 
+import { GRAFANA_LOKI_URL, GRAFANA_LOKI_USER, GRAFANA_API_KEY, NODE_ENV } from '@/lib/env.server'
+
 interface LogEntry {
   level: string
   labels?: Record<string, string>
@@ -9,15 +11,15 @@ interface LogEntry {
 }
 
 export function pushToLoki(entry: LogEntry): void {
-  const url = process.env.GRAFANA_LOKI_URL
-  const user = process.env.GRAFANA_LOKI_USER
-  const key = process.env.GRAFANA_API_KEY
+  const url = GRAFANA_LOKI_URL
+  const user = GRAFANA_LOKI_USER
+  const key = GRAFANA_API_KEY
 
   if (!url || !user || !key) return
 
   const stream = {
     app: 'frontend',
-    env: process.env.NODE_ENV ?? 'production',
+    env: NODE_ENV ?? 'production',
     level: entry.level,
     ...entry.labels,
   }

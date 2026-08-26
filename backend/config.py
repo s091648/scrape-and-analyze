@@ -26,6 +26,10 @@ VIEW_COUNT_FLUSH_INTERVAL: int = int(os.environ.get("VIEW_COUNT_FLUSH_INTERVAL",
 
 SWAGGER_TRY_IT_OUT_ENABLED: bool = os.environ.get("SWAGGER_TRY_IT_OUT_ENABLED", "false").lower() == "true"
 
+# GeoIP2 MaxMind DB path — passed to shared.utils.geoip.configure() at startup rather than
+# read there directly (025-iac-provisioning US5, FR-017: shared/ must not read os.environ itself).
+GEOIP_DB_PATH: str = os.environ.get("GEOIP_DB_PATH", "/app/data/GeoLite2-City.mmdb")
+
 NEXTAUTH_SECRET: str = os.environ.get("NEXTAUTH_SECRET", "")
 
 APP_ENV: str = os.environ.get("APP_ENV", "local")

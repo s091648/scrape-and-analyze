@@ -156,3 +156,32 @@ def test_translation_languages_strips_whitespace(monkeypatch):
     import src.config.settings as m
     importlib.reload(m)
     assert m.TRANSLATION_LANGUAGES == ["zh-TW", "en"]
+
+
+# ---------------------------------------------------------------------------
+# get_run_immediately / get_grafana_loki_config — 025-iac-provisioning US5:
+# re-readable getters that reflect an env change WITHOUT a module reload
+# (that's the whole reason src/entrypoints/cli/main.py and
+# src/infrastructure/shared/observability/loki_logging.py were changed to
+# call these instead of reading os.environ directly).
+# ---------------------------------------------------------------------------
+
+def test_get_run_immediately_reflects_live_change_without_reload(monkeypatch):
+    from src.config.settings import get_run_immediately
+    monkeypatch.delenv("RUN_IMMEDIATELY", raising=False)
+    assert get_run_immediately() is False
+    monkeypatch.setenv("RUN_IMMEDIATELY", "1")
+    assert get_run_immediately() is True
+
+
+def test_get_grafana_loki_config_reflects_live_change_without_reload(monkeypatch):
+    from src.config.settings import get_grafana_loki_config
+    monkeypatch.delenv("GRAFANA_LOKI_URL", raising=False)
+    monkeypatch.delenv("GRAFANA_LOKI_USER", raising=False)
+    monkeypatch.delenv("GRAFANA_API_KEY", raising=False)
+    assert get_grafana_loki_config() == (None, None, None)
+
+    monkeypatch.setenv("GRAFANA_LOKI_URL", "https://logs.example.com")
+    monkeypatch.setenv("GRAFANA_LOKI_USER", "user123")
+    monkeypatch.setenv("GRAFANA_API_KEY", "key456")
+    assert get_grafana_loki_config() == ("https://logs.example.com", "user123", "key456")
