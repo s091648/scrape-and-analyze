@@ -172,13 +172,22 @@ jobs:
         run: bash .github/scripts/check-env-var-centralization.sh
 
   # -----------------------------------------------
-  # Stage -0.3: Terraform Plan Preview (PR only) — 025-iac-provisioning US3.
-  # Read-only against both Railway and HCP Terraform's backend; the real
-  # apply happens later in deploy-staging-terraform (Stage 4j), gated on
-  # tests passing like every other deploy-staging-* job. Runs unconditionally
-  # on every PR rather than path-filtered to infra/terraform/** — the plan
-  # itself is cheap (~10-30s) and doubles as a lightweight drift check on
-  # every PR, not just ones that touch Terraform config.
+  # Stage -0.3: Terraform Plan Preview (PR opened/reopened only, or manual) —
+  # 025-iac-provisioning US3. Read-only against both Railway and HCP
+  # Terraform's backend; the real apply happens later in
+  # deploy-staging-terraform (Stage 4j), gated on tests passing like every
+  # other deploy-staging-* job.
+  #
+  # **Deliberately NOT on every `synchronize` push** (unlike every other job
+  # in this workflow): every plan/apply refreshes all ~150+ existing
+  # `railway_variable` resources one API call at a time, and Railway's own
+  # API rate limit (independent of — and hit well before — HCP Terraform's)
+  # can only absorb so many of those per PR before a routine review-iteration
+  # push starts failing with 429s (see infra/terraform/README.md's rate-limit
+  # note). Gating on `opened`/`reopened` still gets a plan on every PR's
+  # first run; a later push that actually touches `infra/terraform/**` needs
+  # a manual re-run via the separate `terraform-staging-manual.yml`
+  # workflow_dispatch workflow instead of firing automatically.
   #
   # TF_VAR_railway_token MUST come from secrets.TF_RAILWAY_TOKEN (account-
   # level), never secrets.RAILWAY_TOKEN — that name is already the existing
@@ -188,7 +197,9 @@ jobs:
   terraform-plan:
     name: Terraform Plan (staging)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: |
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'reopened')
     timeout-minutes: 10
 
     steps:
@@ -1209,12 +1220,20 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   # -----------------------------------------------
-  # Stage 4j: Apply Terraform to Staging (PR only) — 025-iac-provisioning US3.
-  # Own concurrency group rather than sharing one of the ten per-service
-  # deploy-staging-* groups above: this job can touch any/all of them (it
-  # applies the whole staging workspace's declared config, not one service),
-  # so no single existing group would fully protect against it — a known,
-  # accepted simplification rather than trying to join all ten.
+  # Stage 4j: Apply Terraform to Staging (PR opened/reopened only, or manual)
+  # — 025-iac-provisioning US3. Own concurrency group rather than sharing one
+  # of the ten per-service deploy-staging-* groups above: this job can touch
+  # any/all of them (it applies the whole staging workspace's declared
+  # config, not one service), so no single existing group would fully
+  # protect against it — a known, accepted simplification rather than trying
+  # to join all ten.
+  #
+  # Gated on the same opened/reopened-only condition as terraform-plan above
+  # (see that job's comment for why) — `needs.terraform-plan.result ==
+  # 'success'` alone isn't enough once terraform-plan can be skipped, since a
+  # skipped dependency would otherwise also skip this job by default; the
+  # explicit `if` here re-checks the trigger condition directly instead of
+  # relying on that default.
   # -----------------------------------------------
   deploy-staging-terraform:
     name: Apply Terraform to Staging
@@ -1222,6 +1241,7 @@ jobs:
     needs: [terraform-plan]
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'reopened') &&
       needs.terraform-plan.result == 'success'
     environment: scraper / staging
     concurrency:

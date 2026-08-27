@@ -1,0 +1,67 @@
+name: Terraform Staging (Manual)
+
+# Manual counterpart to ci.yml's `terraform-plan`/`deploy-staging-terraform`
+# jobs (025-iac-provisioning US3), which only auto-run on PR opened/reopened
+# — not on every later `synchronize` push — because every plan/apply
+# refreshes all ~150+ existing `railway_variable` resources one API call at
+# a time, and Railway's own API rate limit (independent of, and hit well
+# before, HCP Terraform's) can only absorb so many of those per PR. Run this
+# by hand from the Actions tab whenever a later push to an already-open PR
+# actually changes `infra/terraform/**` and needs staging re-applied before
+# the PR merges.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to apply staging Terraform from (defaults to the branch this workflow is run against)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-apply-staging:
+    name: Terraform Plan + Apply (staging)
+    runs-on: ubuntu-latest
+    environment: scraper / staging
+    timeout-minutes: 15
+    concurrency:
+      group: staging-terraform-manual
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: terraform init
+        run: terraform -chdir=infra/terraform/environments/staging init -input=false
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      # Plan once and apply that same saved plan file — rather than a bare
+      # `terraform apply`, which would refresh every resource a second time
+      # — to roughly halve the Railway API calls this run makes (see
+      # infra/terraform/README.md's rate-limit note).
+      - name: terraform plan
+        run: terraform -chdir=infra/terraform/environments/staging plan -no-color -out=tfplan.out
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+
+      - name: terraform apply
+        run: terraform -chdir=infra/terraform/environments/staging apply -auto-approve -no-color tfplan.out
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
