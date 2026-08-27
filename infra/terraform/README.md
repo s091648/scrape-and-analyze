@@ -11,6 +11,7 @@ Declarative infrastructure for this project's Railway services and the GitHub Ac
 
 - `modules/railway-service/` — one instance per app service; registers the service (via its existing `railway.toml`, not duplicated here) and its environment variables.
 - `modules/github-ci-config/` — one instance per GitHub Environment (`scraper / staging`, `scraper / production`) plus one repo-level instance, for the secrets/variables `ci.yml`/`release.yml` read.
+- `modules/shared-variables/` — CDK-style central "constants": one secret input per shared value, grouped into named output maps (e.g. `grafana`, `sentry`) that multiple services `merge()` into their own `variables` map instead of each declaring the same baseline entry separately. One instance per environment (`module.shared_vars` in each root config) — the *grouping* is shared, each environment still supplies its own actual value via `TF_VAR_*`.
 - `environments/staging/`, `environments/production/` — root configs, each its own HCP Terraform workspace (`scrape-analyzer-staging`, `scrape-analyzer-production` respectively) and its own state.
 
 ## Bootstrap credentials
@@ -26,6 +27,11 @@ Two credentials must exist before any `terraform` command in this directory will
 ## `TF_VAR_*` mapping (secret values injected at apply time, FR-004a)
 
 Populated incrementally as secrets are brought under management — see Phase 4 (User Story 2) of `tasks.md`.
+
+| `TF_VAR_*` | Consumed by | Notes |
+| --- | --- | --- |
+| `grafana_api_key`, `grafana_loki_url`, `grafana_loki_user`, `grafana_otlp_endpoint`, `grafana_otlp_user` | `module.shared_vars.grafana` (both environments) | Must exactly match the live value (pull it first with `make pull-railway-variables`) — this flips these from baseline (`managed=false`) to Terraform-owned (`managed=true`); a mismatched value overwrites the live one on apply |
+| `sentry_dsn` | `module.shared_vars.sentry` (both environments) | Same caveat as above |
 
 ## Browsing what's declared
 
