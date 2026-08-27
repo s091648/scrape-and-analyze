@@ -34,3 +34,37 @@ variable "github_environment_name" {
   type        = string
   description = "The GitHub Environment name ci.yml/release.yml use in their environment: key (e.g. \"scraper / staging\")."
 }
+
+# --- Shared variable groups (modules/shared-variables) — specs/025-iac-provisioning
+# shared-variable migration, pilot: observability. From TF_VAR_*, never literal
+# (FR-004a); confirmed identical across every consumer via
+# scripts/pull_railway_variables.py before this migration.
+variable "grafana_api_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "grafana_loki_url" {
+  type      = string
+  sensitive = true
+}
+
+variable "grafana_loki_user" {
+  type      = string
+  sensitive = true
+}
+
+variable "grafana_otlp_endpoint" {
+  type      = string
+  sensitive = true
+}
+
+variable "grafana_otlp_user" {
+  type      = string
+  sensitive = true
+}
+
+variable "sentry_dsn" {
+  type      = string
+  sensitive = true
+}

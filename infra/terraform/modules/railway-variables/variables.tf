@@ -26,5 +26,5 @@ variable "variables" {
       `managed = true` (and supply its real value via TF_VAR_*) only when you actually want Terraform to start
       controlling that specific value going forward.
   EOT
-  default = {}
+  default     = {}
 }

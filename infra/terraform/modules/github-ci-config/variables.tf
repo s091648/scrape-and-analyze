@@ -22,7 +22,7 @@ variable "secrets" {
     - `managed = false` (default): baseline-imported — existence/name is tracked and
       reviewable, but the live value is left alone (`lifecycle.ignore_changes`).
   EOT
-  default = {}
+  default     = {}
 }
 
 variable "variables" {

@@ -1,17 +1,17 @@
 locals {
   is_env_scoped = var.github_environment_name != null
 
-  managed_secrets   = { for k, v in var.secrets : k => v if v.managed }
-  baseline_secrets  = { for k, v in var.secrets : k => v if !v.managed }
-  managed_vars      = { for k, v in var.variables : k => v if v.managed }
-  baseline_vars     = { for k, v in var.variables : k => v if !v.managed }
+  managed_secrets  = { for k, v in var.secrets : k => v if v.managed }
+  baseline_secrets = { for k, v in var.secrets : k => v if !v.managed }
+  managed_vars     = { for k, v in var.variables : k => v if v.managed }
+  baseline_vars    = { for k, v in var.variables : k => v if !v.managed }
 
   # Empty unless this instance is the matching scope, so exactly one of each
   # {repo,env}-scoped resource pair below ever has entries.
-  repo_managed_secrets   = local.is_env_scoped ? {} : local.managed_secrets
-  repo_baseline_secrets  = local.is_env_scoped ? {} : local.baseline_secrets
-  env_managed_secrets    = local.is_env_scoped ? local.managed_secrets : {}
-  env_baseline_secrets   = local.is_env_scoped ? local.baseline_secrets : {}
+  repo_managed_secrets  = local.is_env_scoped ? {} : local.managed_secrets
+  repo_baseline_secrets = local.is_env_scoped ? {} : local.baseline_secrets
+  env_managed_secrets   = local.is_env_scoped ? local.managed_secrets : {}
+  env_baseline_secrets  = local.is_env_scoped ? local.baseline_secrets : {}
 
   repo_managed_vars  = local.is_env_scoped ? {} : local.managed_vars
   repo_baseline_vars = local.is_env_scoped ? {} : local.baseline_vars

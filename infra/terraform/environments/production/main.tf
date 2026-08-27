@@ -131,12 +131,30 @@ output "service_ids" {
   description = "Consumed by environments/staging/main.tf via terraform_remote_state (railway_service only ever exists here — research.md §9)."
 }
 
+# --- Shared variable groups (specs/025-iac-provisioning shared-variable
+# migration, pilot: observability) — CDK-style central "constants", see
+# modules/shared-variables. Confirmed via scripts/pull_railway_variables.py
+# before this migration that every consumer below shares one identical live
+# value per key (both within this environment and, as it happens today,
+# across staging/production too — but each environment still supplies its own
+# TF_VAR_* independently; nothing here assumes that stays true). ---
+module "shared_vars" {
+  source = "../../modules/shared-variables"
+
+  grafana_api_key       = var.grafana_api_key
+  grafana_loki_url      = var.grafana_loki_url
+  grafana_loki_user     = var.grafana_loki_user
+  grafana_otlp_endpoint = var.grafana_otlp_endpoint
+  grafana_otlp_user     = var.grafana_otlp_user
+  sentry_dsn            = var.sentry_dsn
+}
+
 module "dashboard_backend_variables" {
   source = "../../modules/railway-variables"
 
   service_id             = module.dashboard_backend.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
     APP_ENV                    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CACHE_REDIS_URL            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CHAT_SERVICE_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -144,11 +162,6 @@ module "dashboard_backend_variables" {
     DATABASE_URL               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     FRONTEND_ORIGIN            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GEMINI_API_KEY             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL           = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GRAFANA_PROMETHEUS_URL     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GRAFANA_PROMETHEUS_USER    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GRAFANA_TEMPO_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -173,9 +186,8 @@ module "dashboard_backend_variables" {
     RAG_SPARSE_TPM             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     REDIS_URL                  = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     SEARCH_INDEX_REDIS_URL     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN                 = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     SWAGGER_TRY_IT_OUT_ENABLED = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  })
 }
 
 module "dashboard_frontend_variables" {
@@ -184,17 +196,17 @@ module "dashboard_frontend_variables" {
   service_id             = module.dashboard_frontend.railway_service_id
   railway_environment_id = var.railway_environment_id
   variables = {
-    APP_ENV                 = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    BACKEND_URL             = { value = "http://dashboard-backend2.railway.internal:8000", managed = true }
-    CHAT_SERVICE_API_KEY    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    CHAT_SERVICE_URL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GITHUB_PACKAGE_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GOOGLE_CLIENT_ID        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GOOGLE_CLIENT_SECRET    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_SA_TOKEN        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_URL             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    NEXTAUTH_SECRET         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    NEXTAUTH_URL            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    APP_ENV              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    BACKEND_URL          = { value = "http://dashboard-backend2.railway.internal:8000", managed = true }
+    CHAT_SERVICE_API_KEY = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    CHAT_SERVICE_URL     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GITHUB_PACKAGE_TOKEN = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GOOGLE_CLIENT_ID     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GOOGLE_CLIENT_SECRET = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GRAFANA_SA_TOKEN     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GRAFANA_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    NEXTAUTH_SECRET      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    NEXTAUTH_URL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
   }
 }
 
@@ -213,7 +225,7 @@ module "scrape_and_analyze_variables" {
 
   service_id             = module.scrape_and_analyze.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
     APP_ENV                 = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CACHE_REDIS_URL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CONTACT_EMAIL           = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -221,11 +233,6 @@ module "scrape_and_analyze_variables" {
     FIXIE_URL               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GEMINI_API_KEY          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GITHUB_PACKAGE_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     OPENROUTER_API_KEY      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_CHUNK_OVERLAP       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_CHUNK_SIZE          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -246,7 +253,6 @@ module "scrape_and_analyze_variables" {
     RAG_SPARSE_RPD          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_SPARSE_RPM          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_SPARSE_TPM          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     TELEGRAM_BOT_TOKEN      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     TELEGRAM_CHAT_ID        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_HOST          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -255,7 +261,7 @@ module "scrape_and_analyze_variables" {
     VECTOR_DB_PORT          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_SCHEMA        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_USER          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  })
 }
 
 module "chatbot_plugin_variables" {
@@ -263,15 +269,10 @@ module "chatbot_plugin_variables" {
 
   service_id             = module.chatbot_plugin.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
+  variables = merge(module.shared_vars.grafana, {
     APP_ENV                 = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CHATBOT_MAX_TOKENS      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GEMINI_API_KEY          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_DENSE_API_KEY_ENV   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_DENSE_DIMENSION     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_DENSE_MODEL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -290,7 +291,7 @@ module "chatbot_plugin_variables" {
     VECTOR_DB_PORT          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_SCHEMA        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_USER          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  })
 }
 
 module "fastembed_variables" {
@@ -298,14 +299,9 @@ module "fastembed_variables" {
 
   service_id             = module.fastembed.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
-    APP_ENV               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  variables = merge(module.shared_vars.grafana, {
+    APP_ENV = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+  })
 }
 
 module "weekly_report_variables" {
@@ -313,33 +309,27 @@ module "weekly_report_variables" {
 
   service_id             = module.weekly_report.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
-    APP_ENV               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    CACHE_REDIS_URL       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    CONTACT_EMAIL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    DATABASE_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    FIXIE_URL             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    FRONTEND_ORIGIN       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GEMINI_API_KEY        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    HF_TOKEN              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    OPENROUTER_API_KEY    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    R2_ACCESS_KEY_ID      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    R2_ACCOUNT_ID         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    R2_BUCKET_NAME        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    R2_PUBLIC_URL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    R2_SECRET_ACCESS_KEY  = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    RESEND_API_KEY        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    RESEND_FROM_EMAIL     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_BOT_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_CHAT_ID      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    UV_GROUP              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
+    APP_ENV              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    CACHE_REDIS_URL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    CONTACT_EMAIL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    DATABASE_URL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    FIXIE_URL            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    FRONTEND_ORIGIN      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    GEMINI_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    HF_TOKEN             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    OPENROUTER_API_KEY   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    R2_ACCESS_KEY_ID     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    R2_ACCOUNT_ID        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    R2_BUCKET_NAME       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    R2_PUBLIC_URL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    R2_SECRET_ACCESS_KEY = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    RESEND_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    RESEND_FROM_EMAIL    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_BOT_TOKEN   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_CHAT_ID     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    UV_GROUP             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+  })
 }
 
 module "refresh_metrics_variables" {
@@ -347,21 +337,15 @@ module "refresh_metrics_variables" {
 
   service_id             = module.refresh_metrics.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
-    APP_ENV               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    CONTACT_EMAIL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    DATABASE_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    FIXIE_URL             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_BOT_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_CHAT_ID      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    UV_GROUP              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
+    APP_ENV            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    CONTACT_EMAIL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    DATABASE_URL       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    FIXIE_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_BOT_TOKEN = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_CHAT_ID   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    UV_GROUP           = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+  })
 }
 
 module "rag_backfill_variables" {
@@ -369,17 +353,12 @@ module "rag_backfill_variables" {
 
   service_id             = module.rag_backfill.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
     APP_ENV                 = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     CONTACT_EMAIL           = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     DATABASE_URL            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     FIXIE_URL               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     GITHUB_PACKAGE_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_CHUNK_OVERLAP       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_CHUNK_SIZE          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_DENSE_API_KEY_ENV   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -399,7 +378,6 @@ module "rag_backfill_variables" {
     RAG_SPARSE_RPD          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_SPARSE_RPM          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     RAG_SPARSE_TPM          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     TELEGRAM_BOT_TOKEN      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     TELEGRAM_CHAT_ID        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     UV_GROUP                = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
@@ -409,7 +387,7 @@ module "rag_backfill_variables" {
     VECTOR_DB_PORT          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_SCHEMA        = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
     VECTOR_DB_USER          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  })
 }
 
 module "dedup_reconcile_variables" {
@@ -417,21 +395,15 @@ module "dedup_reconcile_variables" {
 
   service_id             = module.dedup_reconcile.railway_service_id
   railway_environment_id = var.railway_environment_id
-  variables = {
-    APP_ENV               = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    CONTACT_EMAIL         = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    DATABASE_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    FIXIE_URL             = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_API_KEY       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_URL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_LOKI_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_ENDPOINT = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    GRAFANA_OTLP_USER     = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    SENTRY_DSN            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_BOT_TOKEN    = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    TELEGRAM_CHAT_ID      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-    UV_GROUP              = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
-  }
+  variables = merge(module.shared_vars.grafana, module.shared_vars.sentry, {
+    APP_ENV            = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    CONTACT_EMAIL      = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    DATABASE_URL       = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    FIXIE_URL          = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_BOT_TOKEN = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    TELEGRAM_CHAT_ID   = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+    UV_GROUP           = { value = "IMPORTED-BASELINE-VALUE-MANAGED-OUTSIDE-TERRAFORM", sensitive = true, managed = false }
+  })
 }
 
 # --- GitHub Actions secrets/variables (US2 T023-028, FR-012) ---
