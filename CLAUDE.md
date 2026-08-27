@@ -28,6 +28,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `make translate LANG=zh-TW` | Translate article analyses; supports `LIMIT=` |
 | `make pg_init` | Stamp legacy DB with alembic baseline (one-time, for DBs without alembic_version) |
 
+### Infrastructure (Terraform — `infra/terraform/`)
+
+| Command | Purpose |
+|---|---|
+| `make terraform-fmt ENV=staging\|production` | `terraform fmt -check -recursive` |
+| `make terraform-validate ENV=staging\|production` | `terraform validate` |
+| `make terraform-plan ENV=staging\|production` | Show pending infra changes |
+| `make terraform-apply ENV=staging\|production` | Apply infra changes (needs `infra/terraform/.env.local`; see `infra/terraform/README.md`) |
+| `make terraform-drift-check ENV=staging\|production` | Detect out-of-band manual changes on Railway/GitHub |
+| `make uml-terraform-docs` | Regenerate the `site/guide/architecture/terraform-services.md` catalog from `infra/terraform/**/*.tf` (static HCL parsing, no `terraform` CLI call) |
+
 Run a single test file: `uv run pytest src/tests/unit/test_foo.py`
 Run a single test: `uv run pytest src/tests/unit/test_foo.py::test_bar -v`
 Run backend tests: `uv run pytest backend/tests/`
@@ -65,6 +76,7 @@ Three services sharing one PostgreSQL database:
 - **`backend/`** — FastAPI REST API (port 8000) serving the frontend
 - **`frontend/`** — Next.js 16 + React 19 web UI (port 3000)
 - **`models/`** — Shared SQLAlchemy ORM models used by both `src/` and `backend/`
+- **`infra/terraform/`** — Declarative Railway services/variables + GitHub Actions secrets/variables (`025-iac-provisioning`); see `infra/terraform/README.md`
 
 ### API Proxy Pattern
 

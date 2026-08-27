@@ -275,6 +275,14 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
+      # Only environments/ (main.tf/variables.tf/terraform.tfvars) — needed by
+      # scripts/generate_terraform_docs.py (make uml-terraform-docs). Deliberately
+      # NOT the whole infra/terraform/ tree: infra/terraform/.env.local (sibling,
+      # one level up — untouched by this mount) holds the account-level
+      # RAILWAY_TOKEN/TF_API_TOKEN/TF_GITHUB_TOKEN and must never enter an app
+      # container (see the terraform-* Makefile targets' comment). Read-only —
+      # this container only ever reads these files, never runs `terraform` itself.
+      - ./infra/terraform/environments:/app/infra/terraform/environments:ro
       - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env

@@ -12,6 +12,9 @@
 /.env.staging
 /.env.production
 /infra/terraform/.env.local
+# scripts/pull_railway_variables.py's output — concentrates every service's
+# live variable values (secrets included) into one file, local-only.
+/infra/terraform/.live-variables.json
 # Remote state lives in HCP Terraform, not locally — .terraform/ is just the
 # local provider plugin cache; terraform.tfvars and .terraform.lock.hcl ARE
 # committed on purpose (non-secret values / provider version pins).
@@ -141,6 +144,7 @@ openspec/
 site/specs/
 site/constitution.md
 site/.vitepress/cache/
+site/guide/architecture/terraform-modules/
 
 # -----------------------------
 # Speckit local-only planning artifacts (not committed)

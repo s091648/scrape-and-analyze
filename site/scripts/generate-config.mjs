@@ -180,6 +180,7 @@ export default defineConfig({
           { text: 'DB Schema', link: '/guide/architecture/db-schema' },
           { text: 'API Docs', link: '/guide/architecture/api-docs' },
           { text: 'Exceptions', link: '/guide/architecture/exceptions' },
+          { text: 'Terraform Services', link: '/guide/architecture/terraform-services' },
         ],
       },
 ${sidebar}

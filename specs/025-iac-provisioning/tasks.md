@@ -91,17 +91,19 @@ New top-level `infra/terraform/` directory (per plan.md's Project Structure), pl
 
 ### Tests for User Story 2
 
-- [ ] T021 [P] [US2] Verification: add a new non-secret variable to one service's staging declaration only, apply, and confirm only the staging service is affected while production is untouched (spec.md US2 Acceptance Scenario 1/3)
-- [ ] T022 [P] [US2] Verification: declare a secret variable (value from `TF_VAR_*`), apply, then grep `infra/terraform/**` and review the CI job's log output to confirm the value never appears in plaintext anywhere (spec.md US2 Acceptance Scenario 2, FR-004)
+- [X] T021 [P] [US2] Verification: added `IAC_VERIFICATION_MARKER` (non-secret) to `module.storybook_variables` in staging only, ran `make terraform-apply ENV=staging` — plan matched exactly (2 to add, 0 to change, 0 to destroy, staging-only), apply succeeded, production untouched (confirmed via its own separate `terraform plan` showing no changes throughout) (spec.md US2 Acceptance Scenario 1/3)
+- [X] T022 [P] [US2] Verification: added `IAC_VERIFICATION_SECRET` (value from `TF_VAR_iac_verification_secret_value`, sensitive+managed) alongside T021's marker, same apply. Confirmed the value never appears in plaintext anywhere: (a) `infra/terraform/**/*.tf`/`.tfvars` only ever reference `var.iac_verification_secret_value`, never a literal, (b) the local `.terraform/terraform.tfstate` files are pure remote-backend pointers (`{"backend": {"type": "cloud", ...}}`, no resource data) and are gitignored regardless, (c) actual state lives only in HCP Terraform's remote workspace. Both throwaway variables removed from `main.tf`/`variables.tf`, then cleaned up from staging via `make terraform-apply ENV=staging TARGET=module.storybook_variables` (2 to destroy, only that module refreshed) — confirmed applied (spec.md US2 Acceptance Scenario 2, FR-004)
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] `infra/terraform/modules/github-ci-config/variables.tf` — define `repository`, `github_environment_name`, `secrets` (sensitive map), `variables` per `contracts/github-ci-config-module.md`
-- [ ] T024 [US2] `infra/terraform/modules/github-ci-config/main.tf` — `github_actions_secret`/`github_actions_environment_secret` + `github_actions_variable` resources — depends on T023
-- [ ] T025 [US2] `infra/terraform/modules/github-ci-config/outputs.tf` — `managed_secret_names`, `managed_variable_names` outputs — depends on T024
-- [ ] T026 [US2] `infra/terraform/environments/staging/main.tf` — instantiate `module "github_ci_staging"` scoped to the `scraper / staging` GitHub Environment, declaring the existing `vars.RAILWAY_SERVICE_ID_*` (literal, using T017's `railway_service_id` outputs where possible) and `secrets.RAILWAY_TOKEN`/`DATABASE_URL`/etc. (from `TF_VAR_*`), then `terraform import` each existing GitHub secret/variable — depends on T024, T020
-- [ ] T027 [US2] `infra/terraform/environments/production/main.tf` — same for the `scraper / production` GitHub Environment, plus one repo-level (non-environment-scoped) `github-ci-config` instance for secrets/variables that aren't environment-scoped today (`CODECOV_TOKEN`, `GIST_SECRET`, `GIST_ID`, `NPM_TOKEN`, `RELEASE_PAT`) — depends on T024, T020
-- [ ] T028 [US2] Define the `TF_VAR_*` environment mapping (which existing GitHub secret feeds which Terraform variable) in a checked-in reference table in `infra/terraform/README.md`, ready for the CI jobs Phase 5 wires up
+- [X] T023 [US2] `infra/terraform/modules/github-ci-config/variables.tf` — define `repository`, `github_environment_name`, `secrets` (sensitive map), `variables` per `contracts/github-ci-config-module.md`
+- [X] T024 [US2] `infra/terraform/modules/github-ci-config/main.tf` — `github_actions_secret`/`github_actions_environment_secret` + `github_actions_variable` resources — depends on T023
+- [X] T025 [US2] `infra/terraform/modules/github-ci-config/outputs.tf` — `managed_secret_names`, `managed_variable_names` outputs — depends on T024
+- [X] T026 [US2] `infra/terraform/environments/staging/main.tf` — instantiate `module "github_ci_staging"` scoped to the `scraper / staging` GitHub Environment (`DATABASE_URL`/`RAILWAY_TOKEN` secrets, baseline-imported) — depends on T024, T020. **Adapted**: no `RAILWAY_SERVICE_ID_*` variables block ended up needed here — the CI jobs that would consume them (T031–T033) read service IDs from `terraform.tfvars`/Terraform outputs directly rather than via GitHub Actions variables, so that part of the original task description didn't apply
+- [X] T027 [US2] `infra/terraform/environments/production/main.tf` — same for the `scraper / production` GitHub Environment (`module "github_ci_production"`), plus one repo-level (non-environment-scoped) `module "github_ci_repo"` instance for secrets/variables that aren't environment-scoped today (`CODECOV_TOKEN`, `GIST_SECRET`, `GIST_ID`, `NPM_TOKEN`, `RELEASE_PAT`) — depends on T024, T020
+- [X] T028 [US2] Defined the `TF_VAR_*` environment mapping in `infra/terraform/README.md`'s "`TF_VAR_*` mapping" section — ready for the CI jobs Phase 5 wires up
+
+**Found during Phase 8 follow-up verification (not a numbered task)**: `terraform plan ENV=staging` surfaced 16 `railway_variable.baseline` resources (`RAG_DENSE_*`/`RAG_SPARSE_*`/`VECTOR_DB_*`/`OPENROUTER_API_KEY`/`RAG_GEMINI_API_KEY`/`RAG_CHUNK_OVERLAP` on `dedup_reconcile_variables` and `refresh_metrics_variables`) that existed live on Railway staging but were absent from both services' declared `variables` maps — stray values manually left over on those two services, confirmed unused by grepping `dedup_reconcile.py`/`refresh_metrics.py` (neither imports anything RAG/vector-db/LLM-related). Applied the destroy; `ENV=production` was already clean (`No changes`) throughout.
 
 **Checkpoint**: Every variable — Railway-side and GitHub-side — is declared from one place, per-environment isolation is demonstrated, and no secret value exists in plaintext anywhere in the repo. User Stories 1 and 2 both work independently.
 
@@ -116,13 +118,15 @@ New top-level `infra/terraform/` directory (per plan.md's Project Structure), pl
 ### Tests for User Story 3
 
 - [ ] T029 [P] [US3] Verification: open a PR with a trivial `infra/terraform/**` change, confirm the new PR-gated job posts a `terraform plan` diff, and confirm a later PR's staging deploy job actually applies it (spec.md US3 Acceptance Scenario 1)
-- [ ] T030 [P] [US3] Verification: cut a test tag and confirm `release.yml`'s new step applies the change to the `production` workspace (spec.md US3 Acceptance Scenario 2)
+- [ ] T030 [P] [US3] Verification: cut a test tag and confirm `release.yml`'s new step applies the change to the `production` workspace (spec.md US3 Acceptance Scenario 2). **Adapted**: `release.yml` originally hardcoded `ref: master` regardless of which commit was actually tagged, so a tag cut on an unmerged branch would silently deploy master's unrelated content — added a `detect` job (`git merge-base --is-ancestor` check) that splits into `release` (tag is on master → unchanged full production flow) vs. `release-test-staging` (tag is NOT on master → deploys that tag's own code to every staging service via the new `.github/scripts/deploy-staging-all.sh`, then `terraform apply` against the `staging` workspace — no version stamping/production DB migration/chatbot-plugin bump/GitHub Release). This lets a test tag on a side branch (e.g. `terraform-test`) safely validate the tag→CI→apply mechanism against staging without ever touching production; a real T030 pass still requires tagging a commit that's actually on master
 
 ### Implementation for User Story 3
 
 - [X] T031 [US3] `.github/workflows/ci.yml` — new job `terraform-plan` (PR-gated) running `terraform fmt -check` / `init` / `validate` / `plan` against the `staging` workspace, folded into `check-lockfile`'s slot rather than path-filtered to `infra/terraform/**` — runs on every PR unconditionally (cheap, ~10-30s, doubles as a lightweight drift check). **Adapted**: uses `hashicorp/setup-terraform@v3` + direct `terraform` calls rather than `make terraform-plan` (Make isn't installed on the `ubuntu-latest` runner by default and installing it isn't worth it for a two-line wrapper CI already inlines)
 - [X] T032 [US3] `.github/workflows/ci.yml` — new job `deploy-staging-terraform`, gated on `terraform-plan` succeeding, PR-only. **Discovered a real secret-naming collision while wiring this**: the account-level Railway token Terraform needs cannot reuse the `RAILWAY_TOKEN` secret name — that's already the existing environment-scoped, *project*-level secret `railway up`/`railway down` depend on; overwriting it would break those steps. Introduced a new secret name, `TF_RAILWAY_TOKEN`, exclusively for the Terraform provider (documented in `infra/terraform/README.md`) — depends on T031
 - [X] T033 [US3] `.github/workflows/release.yml` — new tag-gated steps (`terraform init`/`apply` against `production`) inserted before the existing Railway deploy step, same `TF_RAILWAY_TOKEN`/`TF_GITHUB_TOKEN`/`TF_API_TOKEN` secrets wiring as T032 — depends on T032
+
+**Adapted post-implementation (not a numbered task)**: discovered via real rate-limit testing that Railway's own API (independent of HCP Terraform's, and hit well before it) throttles hard because every plan/apply refreshes all ~150+ existing `railway_variable` resources — a PR with several review-iteration pushes could exhaust it. T031/T032's `if:` conditions were narrowed from "every `pull_request` event" to `opened`/`reopened` only; added `.github/workflows/terraform-staging-manual.yml` (`workflow_dispatch`) as the manual fallback for a later push that actually needs staging re-applied before merge, using `plan -out=tfplan.out` + `apply tfplan.out` in one job to halve the API calls. Documented in `infra/terraform/README.md`'s new "CI trigger cadence & Railway's API rate limit" section.
 - [ ] T034 [US3] Verification: deliberately break a declaration (e.g. reference an undefined variable), confirm the CI job fails loudly rather than continuing (spec.md US3 Acceptance Scenario 3, FR-006) — then revert the breakage — depends on T032
 
 **Checkpoint**: Infrastructure changes now ship through the same automated, review-gated pipelines as application code. User Stories 1–3 all work independently.
@@ -141,10 +145,12 @@ New top-level `infra/terraform/` directory (per plan.md's Project Structure), pl
 
 ### Implementation for User Story 4
 
-- [ ] T036 [US4] Add a `terraform-drift-check` target to `Makefile` running `terraform plan -detailed-exitcode` per environment, treating exit code `2` as "drift detected" and `0` as "in sync" (exit code `1` remains a hard error) — depends on Phase 2's backend/provider wiring
+- [X] T036 [US4] Added a `terraform-drift-check` target to `Makefile` running `terraform plan -detailed-exitcode` per environment, treating exit code `2` as "drift detected" and `0` as "in sync" (exit code `1` remains a hard error) — depends on Phase 2's backend/provider wiring
 - [ ] T037 [US4] `.github/workflows/ci.yml` — optional `workflow_dispatch` job running T036's drift check per environment on demand and writing the result to the job summary
 
 **Checkpoint**: All four original user stories are independently functional and demonstrable.
+
+**Added post-implementation (not a numbered task)**: a `site/guide/architecture/terraform-services.md` VitePress page now documents every declared service and its per-environment variables/GitHub Actions secrets, generated via `scripts/generate_terraform_docs.py` (`python-hcl2` static parsing of `infra/terraform/environments/*/main.tf` — no `terraform` CLI call, no credentials, never shows a secret's real value). Wired into `.github/workflows/speckit-github-pages.yml` alongside the existing `generate_uml.py`/`generate_db_schema.py`/`generate_exceptions.py` steps; local regeneration via the new `make uml-terraform-docs` target. See `infra/terraform/README.md`'s "Browsing what's declared" section.
 
 ---
 
@@ -180,10 +186,10 @@ New top-level `infra/terraform/` directory (per plan.md's Project Structure), pl
 
 **Purpose**: Documentation and safety-net checks spanning every story.
 
-- [ ] T038 [P] Update `CLAUDE.md`'s Commands table with the new `make terraform-fmt`/`terraform-validate`/`terraform-plan`/`terraform-apply`/`terraform-drift-check` targets
-- [ ] T039 [P] Update `CLAUDE.md`'s Architecture section to list `infra/terraform/` alongside `src/`/`backend/`/`frontend/`/`models/`, one sentence per module's responsibility
+- [X] T038 [P] Update `CLAUDE.md`'s Commands table with the new `make terraform-fmt`/`terraform-validate`/`terraform-plan`/`terraform-apply`/`terraform-drift-check` targets
+- [X] T039 [P] Update `CLAUDE.md`'s Architecture section to list `infra/terraform/` alongside `src/`/`backend/`/`frontend/`/`models/`, one sentence per module's responsibility
 - [ ] T040 Re-run every step of `specs/025-iac-provisioning/quickstart.md` end-to-end after all tasks above are complete, and correct the doc wherever reality drifted from what was written during planning
-- [ ] T041 [P] Repo-wide grep across `infra/terraform/**/*.tf` and `**/*.tfvars` for anything that looks like a literal secret value, confirming SC-005 ("no secret value appears in plaintext in the repository's version history")
+- [X] T041 [P] Repo-wide grep across `infra/terraform/**/*.tf` and `**/*.tfvars` for anything that looks like a literal secret value. Every `.tfvars` value is a non-secret identifier (project/environment IDs, org/repo names — confirmed via each file's own header comment). Every literal (non-`IMPORTED-BASELINE-...`, non-`${...}`) `value = "..."` in `main.tf` is one of: an internal/public Railway hostname (`BACKEND_URL`/`FRONTEND_URL`/`STORYBOOK_URL`) or the throwaway `IAC_VERIFICATION_MARKER` test value — none are secrets. Confirms SC-005
 
 ---
 

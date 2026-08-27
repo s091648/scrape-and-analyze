@@ -26,3 +26,22 @@ Two credentials must exist before any `terraform` command in this directory will
 ## `TF_VAR_*` mapping (secret values injected at apply time, FR-004a)
 
 Populated incrementally as secrets are brought under management — see Phase 4 (User Story 2) of `tasks.md`.
+
+## Browsing what's declared
+
+`site/guide/architecture/terraform-services.md` (VitePress docs site) covers both, from two complementary auto-generated sources — neither is ever hand-maintained, both regenerate on every docs build (`.github/workflows/speckit-github-pages.yml`):
+
+- The main page content — every service declared here and which environment variables/GitHub Actions secrets each one needs *per environment* (**usage**) — comes from static HCL parsing (`scripts/generate_terraform_docs.py`, `python-hcl2` — never calls `terraform` itself, no credentials needed). Regenerate locally with `make uml-terraform-docs`. Never shows a secret's actual value (per FR-004a), only whether it's Terraform-managed or a Railway/GitHub-side baseline import.
+- The collapsed "Terraform Modules" section at the bottom — each of the three modules' own inputs/outputs/resources/requirements (**interface**) — comes from the official [terraform-docs](https://terraform-docs.io/) tool (config: `infra/terraform/.terraform-docs.yml`), reformatted into nested `<details>` blocks by `scripts/wrap_terraform_module_doc.py`. Regenerate locally with `make uml-terraform-modules` (runs the official `quay.io/terraform-docs/terraform-docs` image, no credentials needed either).
+
+## CI trigger cadence & Railway's API rate limit
+
+Every `terraform plan`/`apply` against either environment refreshes **all** existing `railway_variable` resources (~150+ across both environments), one API call per resource. This is Railway's own API rate limit — independent of, and hit well before, HCP Terraform's — and a routine run of several review-iteration pushes on one PR can exhaust it (observed retry-after: ~40-45 minutes).
+
+Because of this, `ci.yml`'s `terraform-plan`/`deploy-staging-terraform` jobs deliberately do **not** run on every PR push — only on `opened`/`reopened`. If a later push to an already-open PR changes `infra/terraform/**` and needs staging re-applied before merge, trigger it manually: Actions tab → **Terraform Staging (Manual)** → Run workflow (pick the PR's branch). That workflow also uses `plan -out=tfplan.out` + `apply tfplan.out` in the same job (rather than a bare `terraform apply`, which would refresh everything a second time) to roughly halve the API calls one run makes — prefer this pattern for any new terraform automation added here.
+
+`release.yml`'s production apply isn't gated this way — it only runs once per tagged release, so it doesn't hit the same pattern in practice.
+
+Local `make terraform-plan`/`terraform-apply` runs count against the same Railway rate limit budget as CI — avoid running one immediately after another (e.g. a `plan` right before an `apply`) when possible.
+
+When a change is scoped to a single service/module, pass `TARGET=<resource address>` — e.g. `make terraform-apply ENV=staging TARGET=module.storybook_variables` — instead of a full-state `plan`/`apply`. Terraform's `-target` narrows *refresh* (not just the diff) to the targeted address and its dependencies, so it only makes API calls for that address's own `railway_variable`/`github_actions_*` resources rather than refreshing everything else already in state. Prefer a bare (untargeted) `plan`/`apply` only when you actually need to catch drift anywhere else in the environment too.
