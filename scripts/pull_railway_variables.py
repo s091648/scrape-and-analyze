@@ -37,6 +37,7 @@ Output:
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -97,17 +98,27 @@ def _discover_service_keys():
     return keys
 
 
+def _require_bin(name):
+    """shutil.which (unlike a raw subprocess.run([name, ...])) correctly resolves
+    PATHEXT on Windows — railway/terraform are installed as .cmd/.exe shims there,
+    and Popen/CreateProcess doesn't append extensions the way a shell does."""
+    path = shutil.which(name)
+    if not path:
+        raise PullError(f"`{name}` not found on PATH")
+    return path
+
+
 def _run_railway_variables(token, project_id, service_id, environment_name):
     # subprocess.run's env= REPLACES the process environment wholesale rather than
-    # extending it — merge onto os.environ or the `railway` binary itself won't
-    # even be found (PATH would be missing).
+    # extending it — merge onto os.environ or the resolved binary's own runtime
+    # deps (e.g. node, for the npm-installed railway CLI) won't be found either.
     env = {
         **os.environ,
         "RAILWAY_TOKEN": token,
         "RAILWAY_PROJECT_ID": project_id,
     }
     proc = subprocess.run(
-        ["railway", "variables", "--service", service_id, "--environment", environment_name, "--json"],
+        [_require_bin("railway"), "variables", "--service", service_id, "--environment", environment_name, "--json"],
         capture_output=True, text=True, env=env,
     )
     if proc.returncode != 0:
@@ -144,7 +155,7 @@ def main():
     tf_env = {**os.environ, **env_local}
     tf_env["TF_TOKEN_app_terraform_io"] = env_local.get("TF_API_TOKEN", "")
     proc = subprocess.run(
-        ["terraform", f"-chdir={TF_DIR / 'environments' / 'production'}", "output", "-json", "service_ids"],
+        [_require_bin("terraform"), f"-chdir={TF_DIR / 'environments' / 'production'}", "output", "-json", "service_ids"],
         capture_output=True, text=True, env=tf_env,
     )
     if proc.returncode != 0:
