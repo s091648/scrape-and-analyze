@@ -23,10 +23,20 @@ infra/terraform/.env.local (gitignored below, never share/commit, delete it
 once you're done cross-referencing values for a migration batch).
 
 Requires: `railway` CLI on PATH (`npm install -g @railway/cli`) and
-infra/terraform/.env.local populated per infra/terraform/README.md's
-bootstrap table (this script reads RAILWAY_TOKEN — the ACCOUNT-level one,
-same as Terraform's provider — not the narrower per-environment CI secrets;
-an account-level token can read every environment in one run).
+infra/terraform/.env.local populated per infra/terraform/README.md's bootstrap
+table. Confirmed the hard way: the account-level RAILWAY_TOKEN that works fine
+for Terraform's provider (broader — it also creates/updates resources) gets
+"Invalid RAILWAY_TOKEN" from `railway variables` specifically — that read
+apparently needs a project-scoped, environment-bound token, the same *shape*
+as ci.yml/release.yml's per-GitHub-Environment RAILWAY_TOKEN secret (but this
+script never touches those — generate your own via Railway dashboard ->
+Project Settings -> Tokens, scoped to that one environment, purely for local
+use). Add each as its own line in .env.local:
+    RAILWAY_TOKEN_STAGING=...
+    RAILWAY_TOKEN_PRODUCTION=...
+Falls back to the plain RAILWAY_TOKEN (account-level) per environment if its
+specific one isn't set, in case that restriction turns out to be narrower
+than observed (e.g. only certain services/resources).
 
 Usage:
     python scripts/pull_railway_variables.py [SERVICE_KEY ...]
@@ -108,6 +118,14 @@ def _require_bin(name):
     return path
 
 
+def _token_for(env_local, environment_name):
+    """Prefer a per-environment project token (RAILWAY_TOKEN_STAGING /
+    RAILWAY_TOKEN_PRODUCTION) — see this module's docstring for why. Falls back
+    to the plain account-level RAILWAY_TOKEN if the specific one isn't set."""
+    specific = env_local.get(f"RAILWAY_TOKEN_{environment_name.upper()}")
+    return specific or env_local.get("RAILWAY_TOKEN")
+
+
 def _run_railway_variables(token, project_id, service_id, environment_name):
     # subprocess.run's env= REPLACES the process environment wholesale rather than
     # extending it — merge onto os.environ or the resolved binary's own runtime
@@ -135,9 +153,11 @@ def main():
     requested = set(sys.argv[1:]) or None
 
     env_local = _load_env_local()
-    token = env_local.get("RAILWAY_TOKEN")
-    if not token:
-        raise SystemExit("RAILWAY_TOKEN not found in infra/terraform/.env.local")
+    if not any(env_local.get(k) for k in ("RAILWAY_TOKEN", "RAILWAY_TOKEN_STAGING", "RAILWAY_TOKEN_PRODUCTION")):
+        raise SystemExit(
+            "No Railway token found in infra/terraform/.env.local — set RAILWAY_TOKEN_STAGING / "
+            "RAILWAY_TOKEN_PRODUCTION (preferred) or RAILWAY_TOKEN. See this script's docstring."
+        )
 
     project_id = _load_project_id()
     service_keys = _discover_service_keys()
@@ -174,6 +194,9 @@ def main():
 
         entry = {"service_id": service_id}
         for env_name in ENVIRONMENTS:
+            token = _token_for(env_local, env_name)
+            if not token:
+                raise SystemExit(f"No token available for {env_name} — set RAILWAY_TOKEN_{env_name.upper()} (or RAILWAY_TOKEN) in infra/terraform/.env.local")
             entry[env_name] = _run_railway_variables(token, project_id, service_id, env_name)
             print(f"  pulled {key} ({env_name}): {len(entry[env_name])} variables")
         result[key] = entry
