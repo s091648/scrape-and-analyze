@@ -1,0 +1,149 @@
+name: Terraform
+
+# Reusable infra runner for 025-iac-provisioning. ci.yml / release.yml just call
+# it with `uses:` + two inputs. Two halves, one secrets/*.tfvars source of truth:
+#
+#   1. Terraform  -> GitHub Actions secrets/variables only (github-ci.tf), against
+#                    the HCP Terraform workspace selected by TF_WORKSPACE.
+#   2. Railway    -> every service's env vars, via scripts/push_railway_variables.py
+#                    (`railway` CLI + railway-services.json). The community railway
+#                    Terraform provider was dropped: its variable resources trip
+#                    Railway's deploy rate limit / race on read-back at this scale.
+#
+# Called as a job:
+#   uses: ./.github/workflows/terraform.yml
+#   with: { mode: plan|apply|drift, environment: staging|production }
+#   secrets: inherit
+#
+# tfvars are materialized from base64 GitHub Actions secrets (TF_TFVARS_SHARED /
+# _STAGING / _PRODUCTION), kept in sync from a maintainer's machine via
+# `make push-tfvars`.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "plan | apply | drift"
+        required: true
+        type: string
+      environment:
+        description: "staging | production"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan | apply | drift"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, apply, drift]
+      environment:
+        description: "staging | production"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: infra ${{ inputs.mode }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: scraper / ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # Recreate the git-ignored secrets/*.tfvars from base64 GitHub secrets.
+      # shared is always needed; only the target environment's overlay is written.
+      - name: Materialize tfvars
+        env:
+          TF_TFVARS_SHARED: ${{ secrets.TF_TFVARS_SHARED }}
+          TF_TFVARS_STAGING: ${{ secrets.TF_TFVARS_STAGING }}
+          TF_TFVARS_PRODUCTION: ${{ secrets.TF_TFVARS_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          cd infra/terraform/railway
+          printf '%s' "$TF_TFVARS_SHARED" | base64 -d > secrets/shared.tfvars
+          case "${{ inputs.environment }}" in
+            staging)    printf '%s' "$TF_TFVARS_STAGING"    | base64 -d > secrets/staging.tfvars ;;
+            production) printf '%s' "$TF_TFVARS_PRODUCTION" | base64 -d > secrets/production.tfvars ;;
+            *) echo "::error::unknown environment '${{ inputs.environment }}'"; exit 1 ;;
+          esac
+
+      - name: terraform init
+        run: terraform -chdir=infra/terraform/railway init -input=false
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: terraform fmt -check
+        if: inputs.mode == 'plan'
+        run: terraform -chdir=infra/terraform/railway fmt -check -recursive
+
+      - name: terraform validate
+        if: inputs.mode == 'plan'
+        run: terraform -chdir=infra/terraform/railway validate
+
+      # GitHub-side (github-ci.tf). `drift` is `plan -detailed-exitcode`
+      # (exit 2 = drift) written to the job summary.
+      - name: terraform ${{ inputs.mode }} (GitHub Actions config)
+        env:
+          TF_WORKSPACE: ${{ inputs.environment }}
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd infra/terraform/railway
+          VF="-var-file=secrets/shared.tfvars -var-file=secrets/${{ inputs.environment }}.tfvars"
+          case "${{ inputs.mode }}" in
+            plan)  terraform plan  -no-color -input=false $VF ;;
+            apply) terraform apply -no-color -input=false -auto-approve $VF ;;
+            drift)
+              set +e
+              terraform plan -no-color -input=false -detailed-exitcode $VF
+              code=$?
+              set -e
+              if [ "$code" = "0" ]; then echo "✅ ${{ inputs.environment }} GitHub config: in sync" >> "$GITHUB_STEP_SUMMARY"
+              elif [ "$code" = "2" ]; then echo "⚠️ ${{ inputs.environment }} GitHub config: DRIFT (see log)" >> "$GITHUB_STEP_SUMMARY"; exit 1
+              else echo "❌ ${{ inputs.environment }} GitHub config: plan failed (exit $code)" >> "$GITHUB_STEP_SUMMARY"; exit "$code"; fi ;;
+            *) echo "::error::unknown mode '${{ inputs.mode }}'"; exit 1 ;;
+          esac
+
+      - name: Install Railway CLI
+        if: inputs.mode != 'plan'
+        run: npm install -g @railway/cli
+
+      # Railway-side env vars. apply -> push (one batched set + one redeploy per
+      # service); drift -> --check (exit 2 on drift, written to the job summary).
+      - name: railway variables ${{ inputs.mode }}
+        if: inputs.mode != 'plan'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "${{ inputs.mode }}" in
+            apply)
+              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" ;;
+            drift)
+              set +e
+              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" --check
+              code=$?
+              set -e
+              if [ "$code" = "0" ]; then echo "✅ ${{ inputs.environment }} Railway vars: in sync" >> "$GITHUB_STEP_SUMMARY"
+              elif [ "$code" = "2" ]; then echo "⚠️ ${{ inputs.environment }} Railway vars: DRIFT (see log)" >> "$GITHUB_STEP_SUMMARY"; exit 1
+              else echo "❌ ${{ inputs.environment }} Railway vars: check failed (exit $code)" >> "$GITHUB_STEP_SUMMARY"; exit "$code"; fi ;;
+          esac
