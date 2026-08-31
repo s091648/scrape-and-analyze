@@ -18,7 +18,7 @@
 	storybook build-storybook \
 	lighthouse-check \
 	site-preview uml uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend uml-frontend-deps uml-frontend-context \
-	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check pull-railway-variables
+	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars pull-railway-variables push-railway-variables check-railway-variables
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -366,9 +366,9 @@ TF_DOCS_OUT := site/guide/architecture/terraform-modules
 
 uml-terraform-modules:
 	@mkdir -p $(TF_DOCS_OUT)
-	@for m in railway-service railway-variables github-ci-config; do \
+	@for m in github-ci-config; do \
 		echo "terraform-docs: modules/$$m"; \
-		MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/infra/terraform:/terraform-docs:ro" -w /terraform-docs \
+		MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/infra/terraform/railway:/terraform-docs:ro" -w /terraform-docs \
 			$(TF_DOCS_IMAGE) --config /terraform-docs/.terraform-docs.yml markdown table modules/$$m \
 			| python scripts/wrap_terraform_module_doc.py "$$m" \
 			> $(TF_DOCS_OUT)/$$m.md; \
@@ -383,60 +383,109 @@ uml-frontend-context:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
 
 # -----------------------------------------------------------------------
-# Terraform (infra/terraform/ — 025-iac-provisioning)
+# Infra (infra/terraform/railway/ — 025-iac-provisioning)
 #
-# Deliberately NOT run via `docker compose run` like the targets above:
-# HCP Terraform's "local execution mode" and this feature's CI wiring both
-# assume a plain `terraform` binary on PATH, not a container — see plan.md's
-# Constitution Check for 025-iac-provisioning. Credentials come from
-# infra/terraform/.env.local (gitignored, IaC-operator only — deliberately
-# NOT loaded via the root `include .env` above, so these higher-privilege
-# tokens never leak into app containers). See infra/terraform/README.md.
+# Two independent halves, same secrets/*.tfvars source of truth:
+#   terraform-*             -> GitHub Actions secrets/variables only (github-ci.tf),
+#                             HCP Terraform backend, `terraform` binary on PATH
+#                             (local-exec), NOT a container.
+#   push/check-railway-variables -> every Railway service's env vars, via the
+#                             `railway` CLI + railway-services.json (the community
+#                             railway Terraform provider was dropped — its
+#                             variable resources are unreliable at this scale).
+#
+# Credentials: infra/terraform/railway/.env (gitignored, IaC-operator only —
+# NOT loaded via the root `include .env`). Template: that dir's .env.example.
+#   TF_API_TOKEN / TF_GITHUB_TOKEN                -> terraform (HCP + github provider)
+#   RAILWAY_TOKEN_{STAGING,PRODUCTION}            -> push/check/pull-railway-variables
+# Every other value comes from secrets/{shared,$(ENV)}.tfvars.
 #
 # Usage: make terraform-plan ENV=staging (default) | make terraform-apply ENV=production
-#
-# TARGET narrows plan/apply to one resource/module address (Terraform's -target),
-# e.g. TARGET=module.storybook_variables — Terraform scopes *refresh* to just the
-# targeted address and its dependencies too, not only the diff, so this is the
-# actual lever for Railway's API rate limit (see README.md's rate-limit section):
-# a full-state plan/apply refreshes all ~150+ railway_variable resources one API
-# call each, while a -target'd one only refreshes what that address touches.
-# Prefer this whenever a change is scoped to one service/module, exactly like this
-# session's T021/T022 cleanup (TARGET=module.storybook_variables).
+#        make push-railway-variables ENV=staging
+# TARGET= narrows terraform plan/apply to one address (Terraform's -target).
 # -----------------------------------------------------------------------
 
-TF_DIR := infra/terraform/environments/$(ENV)
-TF_ENV_FILE := infra/terraform/.env.local
-TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_railway_token="$$RAILWAY_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
+TF_DIR := infra/terraform/railway
+TF_ENV_FILE := infra/terraform/railway/.env
+ENV ?= staging
+TF_VARFILES := -var-file=secrets/shared.tfvars -var-file=secrets/$(ENV).tfvars
+TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_WORKSPACE="$(ENV)"; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
 TARGET ?=
 _TF_TARGET := $(if $(TARGET),-target=$(TARGET),)
+_TF_ENV_GUARD = test "$(ENV)" = staging -o "$(ENV)" = production || (echo "ENV must be 'staging' or 'production' (got '$(ENV)')"; exit 1)
 
 terraform-fmt:
-	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) fmt -check -recursive
+	@terraform -chdir=$(TF_DIR) fmt -check -recursive
 
 terraform-validate:
 	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false -backend=false >/dev/null && terraform -chdir=$(TF_DIR) validate
 
 terraform-plan:
-	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) plan $(_TF_TARGET)
+	@$(_TF_ENV_GUARD)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) plan $(TF_VARFILES) $(_TF_TARGET)
 
 terraform-apply:
-	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) apply $(_TF_TARGET)
+	@$(_TF_ENV_GUARD)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) apply $(TF_VARFILES) $(_TF_TARGET)
 
 terraform-drift-check:
+	@$(_TF_ENV_GUARD)
 	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false; \
-	terraform -chdir=$(TF_DIR) plan -detailed-exitcode -no-color; code=$$?; \
+	terraform -chdir=$(TF_DIR) plan $(TF_VARFILES) -detailed-exitcode -no-color; code=$$?; \
 	if [ $$code -eq 0 ]; then echo "[$(ENV)] in sync — no drift"; \
 	elif [ $$code -eq 2 ]; then echo "[$(ENV)] DRIFT DETECTED — see plan output above"; \
 	else echo "[$(ENV)] terraform plan failed (exit $$code)"; exit $$code; fi
 
-# Read-only helper for the shared-variable migration — pulls every service's
-# CURRENT live variable values (via Railway CLI + Terraform state, both
-# environments) into infra/terraform/.live-variables.json (gitignored). Needs
-# `railway`/`terraform` on PATH and infra/terraform/.env.local populated —
-# deliberately not run via docker compose, same reasoning as terraform-* above.
-# Usage: make pull-railway-variables [SERVICES="dashboard_backend fastembed"]
+# Sync the three git-ignored secrets/*.tfvars files to GitHub Actions secrets
+# (TF_TFVARS_SHARED / _STAGING / _PRODUCTION, base64) so the reusable
+# .github/workflows/terraform.yml can materialize them at apply time. Run after
+# editing any value. Needs `gh` authenticated with repo secrets:write.
+push-tfvars:
+	@for layer in shared staging production; do \
+		f="infra/terraform/railway/secrets/$$layer.tfvars"; \
+		test -f "$$f" || { echo "missing $$f — copy from $$f.example and fill in"; exit 1; }; \
+		up=$$(echo "$$layer" | tr '[:lower:]' '[:upper:]'); \
+		base64 -w0 < "$$f" 2>/dev/null | gh secret set "TF_TFVARS_$$up" || \
+		base64 < "$$f" | tr -d '\n' | gh secret set "TF_TFVARS_$$up"; \
+		echo "set TF_TFVARS_$$up from $$f"; \
+	done
+
+# Recover from a stale state lock (e.g. an interrupted plan/apply never
+# released it) — the LOCK ID is printed in the "Error acquiring the state
+# lock" message. Only safe when no other terraform operation against this
+# workspace is actually still running.
+# Usage: make terraform-force-unlock ENV=staging LOCK_ID=<id>
+LOCK_ID ?=
+terraform-force-unlock:
+	@test -n "$(LOCK_ID)" || (echo "LOCK_ID must be set — copy it from the 'Error acquiring the state lock' message"; exit 1)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) force-unlock -force $(LOCK_ID)
+
+# Push every Railway service's env vars from secrets/{shared,ENV}.tfvars via the
+# `railway` CLI (structure = infra/terraform/railway/railway-services.json). One
+# batched `railway variables --set --skip-deploys` per service, then one redeploy.
+# Host-only: needs `railway` CLI. Token = gh_env_railway_token from
+# secrets/$(ENV).tfvars (the environment-scoped project token). Stdlib python.
+# Usage: make push-railway-variables ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1] [PRUNE=1]
+#   PRUNE=1 also DELETEs Railway vars not in the manifest/tfvars (RAILWAY_* and
+#   railway-services.json's `unmanaged`/`unmanaged_all` lists are always kept).
 SERVICES ?=
+NO_REDEPLOY ?=
+PRUNE ?=
+push-railway-variables:
+	@$(_TF_ENV_GUARD)
+	@python scripts/push_railway_variables.py --env $(ENV) $(if $(NO_REDEPLOY),--no-redeploy,) $(if $(PRUNE),--prune,) $(SERVICES)
+
+# Same, read-only: diff live Railway vars vs what the manifest+tfvars say. Exit 2 on drift.
+# Usage: make check-railway-variables ENV=staging
+check-railway-variables:
+	@$(_TF_ENV_GUARD)
+	@python scripts/push_railway_variables.py --env $(ENV) --check $(SERVICES)
+
+# Read-only inventory of every service's CURRENT live variable values into
+# infra/terraform/railway/.live-variables.json (AS_TFVARS=1 also writes a
+# paste-ready draft). Host-only; stdlib python. NOT via docker.
+# Usage: make pull-railway-variables [AS_TFVARS=1] [SERVICES="dashboard_backend fastembed"]
+AS_TFVARS ?=
 pull-railway-variables:
-	@$(TF_LOAD_ENV) uv run python scripts/pull_railway_variables.py $(SERVICES)
+	@python scripts/pull_railway_variables.py $(if $(AS_TFVARS),--as-tfvars,) $(SERVICES)
 
