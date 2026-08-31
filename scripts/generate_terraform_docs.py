@@ -1,32 +1,41 @@
-"""Generate a Terraform services/variables catalog from infra/terraform/ via static
-HCL2 parsing (python-hcl2) — same static-analysis philosophy as
-scripts/generate_db_schema.py / generate_uml.py / generate_exceptions.py, except the
-"source code" here is HCL rather than Python: this module never runs `terraform`
-itself (no state, no provider credentials needed), it only parses the *declared*
-`environments/{staging,production}/main.tf` files as text/syntax.
+"""Generate the services/variables catalog for the VitePress infra page.
 
-Output:
-  - site/public/guide/architecture/terraform-services-data.json
+Two sources, same as the infra itself (025-iac-provisioning, Option A):
+  - Railway service env vars:  infra/terraform/railway/railway-services.json
+    (the manifest scripts/push_railway_variables.py pushes from) + the tfvars key
+    list — NOT Terraform (the railway provider was dropped).
+  - GitHub Actions secrets/vars: infra/terraform/railway/github-ci.tf, still
+    Terraform-managed — static hcl2 parse, never runs `terraform`.
 
-See specs/025-iac-provisioning/ for the Terraform layout this parses
-(railway-service / railway-variables / github-ci-config modules).
+Output: site/public/guide/architecture/terraform-services-data.json
+(shape unchanged, so the existing VitePress page keeps working).
 """
 import json
-import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import hcl2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TF_ENVIRONMENTS_DIR = REPO_ROOT / "infra" / "terraform" / "environments"
+TF_ROOT = REPO_ROOT / "infra" / "terraform" / "railway"
+MANIFEST = TF_ROOT / "railway-services.json"
+GITHUB_CI_TF = TF_ROOT / "github-ci.tf"
 OUTPUT_DIR = REPO_ROOT / "site" / "public" / "guide" / "architecture"
 
 ENVIRONMENTS = ["production", "staging"]
+GITHUB_CI_CONFIG_SOURCE = "./modules/github-ci-config"
 
-RAILWAY_SERVICE_SOURCE = "../../modules/railway-service"
-RAILWAY_VARIABLES_SOURCE = "../../modules/railway-variables"
-GITHUB_CI_CONFIG_SOURCE = "../../modules/github-ci-config"
+# RAILWAY_* variable names that hold secrets (were `sensitive = true` in the old
+# shared.tf / <svc>.tf). Kept here so the page can still show a sensitive count.
+SENSITIVE_KEYS = {
+    "GRAFANA_API_KEY", "SENTRY_DSN", "RAG_GEMINI_API_KEY", "VECTOR_DB_PASSWORD",
+    "TELEGRAM_BOT_TOKEN", "FIXIE_URL", "DATABASE_URL", "CACHE_REDIS_URL",
+    "SEARCH_INDEX_REDIS_URL", "GEMINI_API_KEY", "OPENROUTER_API_KEY",
+    "GITHUB_PACKAGE_TOKEN", "CHAT_SERVICE_API_KEY", "MAXMIND_LICENSE_KEY",
+    "NEXTAUTH_SECRET", "REDIS_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+    "GRAFANA_SA_TOKEN", "HF_TOKEN", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+    "RESEND_API_KEY",
+}
 
 
 class TerraformDocsParseError(Exception):
@@ -36,12 +45,8 @@ class TerraformDocsParseError(Exception):
 @dataclass
 class VarEntry:
     name: str
-    managed: bool
+    managed: bool = True
     sensitive: bool = False
-    # Only ever populated for managed + non-sensitive entries (FR-004a: a managed
-    # sensitive value is only ever injected via TF_VAR_* at apply time, and a
-    # non-managed/baseline value's live value is intentionally left untracked here
-    # via lifecycle.ignore_changes) — never a real secret.
     value: str | None = None
 
 
@@ -59,153 +64,106 @@ class ServiceInfo:
     source_repo: str | None = None
     root_directory: str | None = None
     cron_schedule: str | None = None
-    environments: dict = field(default_factory=dict)  # env name -> ServiceEnvVariables
+    environments: dict = field(default_factory=dict)
 
 
 @dataclass
 class GithubCiConfigInfo:
     key: str
     environment: str
-    scope: str  # "repo" | "environment"
+    scope: str
     github_environment_name_ref: str | None
     secrets: list = field(default_factory=list)
     variables: list = field(default_factory=list)
 
 
-# ─── HCL value cleanup ──────────────────────────────────────────────────────────
-
-_QUOTED_LITERAL = re.compile(r'^"(.*)"$', re.DOTALL)
-_INTERPOLATION = re.compile(r'^\$\{(.*)\}$', re.DOTALL)
-
-
 def _clean_scalar(raw):
-    """python-hcl2 keeps literal string values wrapped in their source-text quotes
-    (`'"foo"'`) and interpolations as `'${expr}'` — unwrap both into plain display
-    text. Non-string values (bool, already-parsed dict/list) pass through as-is."""
-    if not isinstance(raw, str):
-        return raw
-    m = _QUOTED_LITERAL.match(raw)
-    if m:
-        return m.group(1)
-    m = _INTERPOLATION.match(raw)
-    if m:
-        return m.group(1)
+    if isinstance(raw, str) and len(raw) >= 2 and raw[0] == '"' and raw[-1] == '"':
+        return raw[1:-1]
+    if isinstance(raw, str) and raw.startswith("${") and raw.endswith("}"):
+        return raw[2:-1]
     return raw
 
 
-def _strip_label(label):
-    """Block labels (module/resource names) come back HCL-quoted too, e.g. '"foo"'."""
-    return _clean_scalar(label)
-
-
-# ─── HCL parsing ────────────────────────────────────────────────────────────────
-
-def _load_main_tf(env):
-    path = TF_ENVIRONMENTS_DIR / env / "main.tf"
-    if not path.is_file():
-        raise TerraformDocsParseError(f"missing {path}")
-    with path.open(encoding="utf-8") as f:
-        try:
-            return hcl2.load(f)
-        except Exception as e:  # python-hcl2 raises lark exceptions, not a common base
-            raise TerraformDocsParseError(f"{path}: failed to parse — {e}") from e
-
-
-def _iter_modules(parsed):
-    """Yields (module_name, module_body) for every `module "x" {...}` block."""
-    for entry in parsed.get("module", []):
-        for label, body in entry.items():
-            yield _strip_label(label), body
-
-
-def _source_of(module_body):
-    return _clean_scalar(module_body.get("source", ""))
-
-
-def _variables_to_entries(variables_map, force_sensitive=None):
-    """`force_sensitive` overrides the (possibly absent) `sensitive` field for
-    github-ci-config's `secrets`/`variables` maps, whose module schema has no
-    `sensitive` key at all — a `secrets` entry is a GitHub Actions Secret and thus
-    always sensitive by definition, and a `variables` entry is always non-sensitive
-    by definition (railway-variables' schema, which does carry a real per-entry
-    `sensitive` field, passes force_sensitive=None to use it as declared)."""
-    entries = []
-    for name, spec in (variables_map or {}).items():
-        managed = bool(spec.get("managed", False))
-        sensitive = bool(spec.get("sensitive", False)) if force_sensitive is None else force_sensitive
-        value = _clean_scalar(spec.get("value")) if (managed and not sensitive) else None
-        entries.append(VarEntry(name=name, managed=managed, sensitive=sensitive, value=value))
-    entries.sort(key=lambda e: e.name)
-    return entries
+def _manifest_service_entries(manifest, svc_key):
+    svc = manifest["services"][svc_key]
+    names = set()
+    for group in svc["groups"]:
+        names.update(manifest["shared_groups"][group])
+    names.update(svc["own"])
+    return sorted(
+        (VarEntry(name=n, sensitive=(n in SENSITIVE_KEYS)) for n in names),
+        key=lambda e: e.name,
+    )
 
 
 def _service_env_variables(entries):
     return ServiceEnvVariables(
         variables=[asdict(e) for e in entries],
-        managed_count=sum(1 for e in entries if e.managed),
+        managed_count=len(entries),
         sensitive_count=sum(1 for e in entries if e.sensitive),
     )
 
 
-# ─── Assembly ───────────────────────────────────────────────────────────────────
+def _ci_entries(variables_map, force_sensitive):
+    out = [VarEntry(name=n, sensitive=force_sensitive) for n in (variables_map or {})]
+    out.sort(key=lambda e: e.name)
+    return out
+
+
+def _humanize(key):
+    return key.replace("_", "-")
+
+
+def _load_github_ci_modules():
+    if not GITHUB_CI_TF.is_file():
+        raise TerraformDocsParseError(f"missing {GITHUB_CI_TF}")
+    with GITHUB_CI_TF.open(encoding="utf-8") as f:
+        parsed = hcl2.load(f)
+    mods = []
+    for entry in parsed.get("module", []):
+        for label, body in entry.items():
+            mods.append((_clean_scalar(label), body))
+    return mods
+
 
 def generate():
-    parsed_by_env = {env: _load_main_tf(env) for env in ENVIRONMENTS}
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
 
-    services: dict[str, ServiceInfo] = {}
+    services = []
+    for svc_key in sorted(manifest["services"]):
+        entries = _manifest_service_entries(manifest, svc_key)
+        info = ServiceInfo(key=svc_key, service_name=_humanize(svc_key))
+        # Same var set both environments (per-env value differences live in the
+        # tfvars, not the manifest).
+        for env in ENVIRONMENTS:
+            info.environments[env] = asdict(_service_env_variables(entries))
+        services.append(asdict(info))
 
-    # Pass 1: railway-service registrations only ever live in production
-    # (research.md §9 — a railway_service resource reads/writes only the
-    # project's primary environment).
-    for name, body in _iter_modules(parsed_by_env["production"]):
-        if _source_of(body) != RAILWAY_SERVICE_SOURCE:
+    github_ci = []
+    for name, body in _load_github_ci_modules():
+        if _clean_scalar(body.get("source", "")) != GITHUB_CI_CONFIG_SOURCE:
             continue
-        services[name] = ServiceInfo(
-            key=name,
-            service_name=_clean_scalar(body.get("service_name")),
-            source_repo=_clean_scalar(body.get("source_repo")),
-            root_directory=_clean_scalar(body.get("root_directory")),
-            cron_schedule=_clean_scalar(body.get("cron_schedule")),
-        )
-
-    # Pass 2: railway-variables instances in each environment, matched back to
-    # their service by module-name convention (`<service_key>_variables`).
-    github_ci: list[GithubCiConfigInfo] = []
-    for env in ENVIRONMENTS:
-        for name, body in _iter_modules(parsed_by_env[env]):
-            source = _source_of(body)
-
-            if source == RAILWAY_VARIABLES_SOURCE:
-                service_key = name[: -len("_variables")] if name.endswith("_variables") else name
-                svc = services.get(service_key)
-                if svc is None:
-                    # A railway-variables instance with no matching railway-service
-                    # module — shouldn't happen given the current layout, but don't
-                    # silently drop it: surface it as its own entry.
-                    svc = services[service_key] = ServiceInfo(key=service_key)
-                entries = _variables_to_entries(body.get("variables"))
-                svc.environments[env] = asdict(_service_env_variables(entries))
-
-            elif source == GITHUB_CI_CONFIG_SOURCE:
-                env_name_ref = body.get("github_environment_name")
-                github_ci.append(GithubCiConfigInfo(
-                    key=name,
-                    environment=env,
-                    scope="repo" if env_name_ref is None else "environment",
-                    github_environment_name_ref=_clean_scalar(env_name_ref) if env_name_ref else None,
-                    secrets=[asdict(e) for e in _variables_to_entries(body.get("secrets"), force_sensitive=True)],
-                    variables=[asdict(e) for e in _variables_to_entries(body.get("variables"), force_sensitive=False)],
-                ))
-
-    service_list = [asdict(s) for s in services.values()]
-    service_list.sort(key=lambda s: s["key"])
+        env_name_ref = body.get("github_environment_name")
+        ref = _clean_scalar(env_name_ref) if env_name_ref else None
+        scope = "repo" if env_name_ref is None else "environment"
+        for env in ENVIRONMENTS:
+            github_ci.append(asdict(GithubCiConfigInfo(
+                key=name,
+                environment=env,
+                scope=scope,
+                github_environment_name_ref=(ref.replace("${var.app_env}", env) if ref else None),
+                secrets=[asdict(e) for e in _ci_entries(body.get("secrets"), True)],
+                variables=[asdict(e) for e in _ci_entries(body.get("variables"), False)],
+            )))
 
     return {
         "generated_from": [
-            f"infra/terraform/environments/{env}/main.tf" for env in ENVIRONMENTS
+            "infra/terraform/railway/railway-services.json",
+            "infra/terraform/railway/github-ci.tf",
         ],
-        "services": service_list,
-        "github_ci": [asdict(g) for g in github_ci],
+        "services": services,
+        "github_ci": github_ci,
     }
 
 

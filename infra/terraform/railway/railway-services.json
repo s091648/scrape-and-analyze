@@ -1,0 +1,297 @@
+{
+  "_comment": [
+    "Source of truth for which environment variables each Railway service gets.",
+    "Consumed by scripts/push_railway_variables.py (push + --check). NOT Terraform:",
+    "the terraform-community-providers/railway variable resources (railway_variable /",
+    "railway_variable_collection) are unreliable at this scale (per-variable redeploys",
+    "trip Railway's deploy rate limit; the collection resource's post-write read-back",
+    "races on large services). GitHub Actions secrets/variables ARE still Terraform-",
+    "managed (see github-ci.tf).",
+    "",
+    "Each leaf value is a KEY in secrets/{shared,staging,production}.tfvars -- the push",
+    "script resolves it there (per-env file wins). An empty / missing tfvars value is",
+    "skipped (Railway does not store empty variables). Reference strings stay as",
+    "\"$${{ ... }}\" in the tfvars (HCL escaping, carried over) and are un-escaped to",
+    "\"${{ ... }}\" before being sent to Railway."
+  ],
+  "shared_groups": {
+    "grafana": {
+      "GRAFANA_API_KEY": "grafana_api_key",
+      "GRAFANA_LOKI_URL": "grafana_loki_url",
+      "GRAFANA_LOKI_USER": "grafana_loki_user",
+      "GRAFANA_OTLP_ENDPOINT": "grafana_otlp_endpoint",
+      "GRAFANA_OTLP_USER": "grafana_otlp_user"
+    },
+    "sentry": {
+      "SENTRY_DSN": "sentry_dsn"
+    },
+    "rag_dense": {
+      "RAG_DENSE_API_KEY_ENV": "rag_dense_api_key_env",
+      "RAG_DENSE_DIMENSION": "rag_dense_dimension",
+      "RAG_DENSE_MODEL": "rag_dense_model",
+      "RAG_DENSE_PROVIDER": "rag_dense_provider",
+      "RAG_DENSE_RPD": "rag_dense_rpd",
+      "RAG_DENSE_RPM": "rag_dense_rpm",
+      "RAG_DENSE_TPM": "rag_dense_tpm",
+      "RAG_GEMINI_API_KEY": "rag_gemini_api_key"
+    },
+    "rag_dense_endpoint_url": {
+      "RAG_DENSE_ENDPOINT_URL": "rag_dense_endpoint_url"
+    },
+    "rag_sparse": {
+      "RAG_SPARSE_DIMENSION": "rag_sparse_dimension",
+      "RAG_SPARSE_MODEL": "rag_sparse_model",
+      "RAG_SPARSE_PROVIDER": "rag_sparse_provider"
+    },
+    "rag_sparse_limits": {
+      "RAG_SPARSE_RPD": "rag_sparse_rpd",
+      "RAG_SPARSE_RPM": "rag_sparse_rpm",
+      "RAG_SPARSE_TPM": "rag_sparse_tpm"
+    },
+    "rag_sparse_endpoint_url": {
+      "RAG_SPARSE_ENDPOINT_URL": "rag_sparse_endpoint_url"
+    },
+    "vector_db": {
+      "VECTOR_DB_HOST": "vector_db_host",
+      "VECTOR_DB_NAME": "vector_db_name",
+      "VECTOR_DB_PASSWORD": "vector_db_password",
+      "VECTOR_DB_PORT": "vector_db_port",
+      "VECTOR_DB_SCHEMA": "vector_db_schema",
+      "VECTOR_DB_USER": "vector_db_user"
+    },
+    "rag_chunking": {
+      "RAG_CHUNK_OVERLAP": "rag_chunk_overlap",
+      "RAG_CHUNK_SIZE": "rag_chunk_size",
+      "RAG_EMBED_BATCH_SIZE": "rag_embed_batch_size"
+    },
+    "notifications": {
+      "TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+      "TELEGRAM_CHAT_ID": "telegram_chat_id",
+      "FIXIE_URL": "fixie_url"
+    },
+    "database_url": {
+      "DATABASE_URL": "database_url"
+    },
+    "cache_redis_url": {
+      "CACHE_REDIS_URL": "cache_redis_url"
+    },
+    "search_index_redis_url": {
+      "SEARCH_INDEX_REDIS_URL": "search_index_redis_url"
+    },
+    "gemini_api_key": {
+      "GEMINI_API_KEY": "gemini_api_key"
+    },
+    "openrouter_api_key": {
+      "OPENROUTER_API_KEY": "openrouter_api_key"
+    },
+    "github_package_token": {
+      "GITHUB_PACKAGE_TOKEN": "github_package_token"
+    },
+    "frontend_origin": {
+      "FRONTEND_ORIGIN": "frontend_public_url"
+    },
+    "app_env": {
+      "APP_ENV": "app_env"
+    }
+  },
+  "_unmanaged_doc": "RAILWAY var names left to manual/other management: never resolved from tfvars, never flagged as drift by --check, never deleted by --prune. 'unmanaged_all' applies to every service; per-service 'unmanaged' adds to it.",
+  "unmanaged_all": [],
+  "services": {
+    "chatbot_plugin": {
+      "service_id_key": "service_id_chatbot_plugin",
+      "groups": [
+        "grafana",
+        "rag_dense",
+        "rag_sparse",
+        "rag_sparse_endpoint_url",
+        "vector_db",
+        "gemini_api_key",
+        "app_env"
+      ],
+      "own": {
+        "CHATBOT_MAX_TOKENS": "chatbot_max_tokens"
+      }
+    },
+    "dashboard_backend": {
+      "service_id_key": "service_id_dashboard_backend",
+      "groups": [
+        "grafana",
+        "sentry",
+        "rag_dense",
+        "rag_dense_endpoint_url",
+        "rag_sparse",
+        "rag_sparse_limits",
+        "rag_sparse_endpoint_url",
+        "database_url",
+        "cache_redis_url",
+        "search_index_redis_url",
+        "gemini_api_key",
+        "frontend_origin",
+        "app_env"
+      ],
+      "own": {
+        "CHAT_SERVICE_API_KEY": "chat_service_api_key",
+        "CHAT_SERVICE_URL": "chat_service_url",
+        "MAXMIND_LICENSE_KEY": "maxmind_license_key",
+        "NEXTAUTH_SECRET": "nextauth_secret",
+        "REDIS_URL": "redis_url",
+        "SWAGGER_TRY_IT_OUT_ENABLED": "swagger_try_it_out_enabled",
+        "GRAFANA_PROMETHEUS_URL": "grafana_prometheus_url",
+        "GRAFANA_PROMETHEUS_USER": "grafana_prometheus_user",
+        "GRAFANA_TEMPO_URL": "grafana_tempo_url",
+        "GRAFANA_TEMPO_USER": "grafana_tempo_user"
+      }
+    },
+    "dashboard_frontend": {
+      "service_id_key": "service_id_dashboard_frontend",
+      "groups": [
+        "app_env",
+        "github_package_token"
+      ],
+      "own": {
+        "BACKEND_URL": "backend_url",
+        "CHAT_SERVICE_API_KEY": "chat_service_api_key",
+        "CHAT_SERVICE_URL": "chat_service_url",
+        "GOOGLE_CLIENT_ID": "google_client_id",
+        "GOOGLE_CLIENT_SECRET": "google_client_secret",
+        "GRAFANA_SA_TOKEN": "grafana_sa_token",
+        "GRAFANA_URL": "grafana_url",
+        "NEXTAUTH_SECRET": "nextauth_secret",
+        "NEXTAUTH_URL": "frontend_public_url"
+      }
+    },
+    "dedup_reconcile": {
+      "service_id_key": "service_id_dedup_reconcile",
+      "groups": [
+        "grafana",
+        "sentry",
+        "notifications",
+        "database_url",
+        "app_env"
+      ],
+      "own": {
+        "CONTACT_EMAIL": "contact_email",
+        "UV_GROUP": "uv_group_dedup_reconcile"
+      },
+      "redeploy": false
+    },
+    "fastembed": {
+      "service_id_key": "service_id_fastembed",
+      "groups": [
+        "grafana",
+        "app_env"
+      ],
+      "own": {}
+    },
+    "rag_backfill": {
+      "service_id_key": "service_id_rag_backfill",
+      "groups": [
+        "grafana",
+        "sentry",
+        "rag_dense",
+        "rag_dense_endpoint_url",
+        "rag_sparse",
+        "rag_sparse_limits",
+        "rag_sparse_endpoint_url",
+        "vector_db",
+        "rag_chunking",
+        "notifications",
+        "database_url",
+        "github_package_token",
+        "app_env"
+      ],
+      "own": {
+        "CONTACT_EMAIL": "contact_email",
+        "UV_GROUP": "uv_group_rag_backfill"
+      },
+      "unmanaged": [
+        "OPENROUTER_API_KEY"
+      ],
+      "redeploy": false
+    },
+    "refresh_metrics": {
+      "service_id_key": "service_id_refresh_metrics",
+      "groups": [
+        "grafana",
+        "sentry",
+        "notifications",
+        "database_url",
+        "app_env"
+      ],
+      "own": {
+        "CONTACT_EMAIL": "contact_email",
+        "UV_GROUP": "uv_group_refresh_metrics"
+      },
+      "redeploy": false
+    },
+    "scrape_and_analyze": {
+      "service_id_key": "service_id_scrape_and_analyze",
+      "groups": [
+        "grafana",
+        "sentry",
+        "rag_dense",
+        "rag_dense_endpoint_url",
+        "rag_sparse",
+        "rag_sparse_limits",
+        "rag_sparse_endpoint_url",
+        "vector_db",
+        "rag_chunking",
+        "notifications",
+        "database_url",
+        "cache_redis_url",
+        "search_index_redis_url",
+        "gemini_api_key",
+        "openrouter_api_key",
+        "github_package_token",
+        "app_env"
+      ],
+      "own": {
+        "CONTACT_EMAIL": "contact_email",
+        "SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN": "search_autocomplete_max_query_len",
+        "SEARCH_MIN_DOC_FREQ": "search_min_doc_freq"
+      },
+      "unmanaged": [
+        "OPENROUTER_API_KEY"
+      ]
+    },
+    "storybook": {
+      "service_id_key": "service_id_storybook",
+      "groups": [
+        "github_package_token"
+      ],
+      "own": {}
+    },
+    "weekly_report": {
+      "service_id_key": "service_id_weekly_report",
+      "groups": [
+        "grafana",
+        "sentry",
+        "notifications",
+        "database_url",
+        "cache_redis_url",
+        "gemini_api_key",
+        "openrouter_api_key",
+        "frontend_origin",
+        "app_env"
+      ],
+      "own": {
+        "CONTACT_EMAIL": "contact_email",
+        "HF_TOKEN": "hf_token",
+        "R2_ACCESS_KEY_ID": "r2_access_key_id",
+        "R2_ACCOUNT_ID": "r2_account_id",
+        "R2_BUCKET_NAME": "r2_bucket_name",
+        "R2_PUBLIC_URL": "r2_public_url",
+        "R2_SECRET_ACCESS_KEY": "r2_secret_access_key",
+        "RESEND_API_KEY": "resend_api_key",
+        "RESEND_FROM_EMAIL": "resend_from_email",
+        "UV_GROUP": "uv_group_weekly_report"
+      },
+      "unmanaged": [
+        "RESEND_API_KEY",
+        "RESEND_FROM_EMAIL",
+        "OPENROUTER_API_KEY"
+      ],
+      "redeploy": false
+    }
+  }
+}
