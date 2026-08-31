@@ -64,9 +64,27 @@ jobs:
             echo "::notice::Tag ${{ github.ref_name }} is NOT on master — treating this as a test tag: applying/deploying to STAGING only, skipping version stamping, production DB migration, chatbot-plugin submodule bump, and GitHub Release."
           fi
 
+  # Apply Terraform to production BEFORE the release job's deploy (via `needs`).
+  # All Terraform logic lives in the reusable .github/workflows/terraform.yml.
+  # NOTE (025-iac-provisioning revision 2): this used to be inline steps inside
+  # `release`, positioned after version-stamp + DB migration and before the
+  # Railway deploy. As a separate `needs`-ordered job it now runs before all of
+  # `release` (stamping/migration included) — functionally equivalent (infra
+  # config is independent of the app version / DB schema) and still strictly
+  # before the deploy.
+  terraform-production:
+    name: Apply Terraform (production)
+    needs: detect
+    if: needs.detect.outputs.is_master_tag == 'true'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: production
+    secrets: inherit
+
   release:
     name: Stamp Version & Deploy (production)
-    needs: detect
+    needs: [detect, terraform-production]
     if: needs.detect.outputs.is_master_tag == 'true'
     runs-on: ubuntu-latest
     environment: scraper / production
@@ -197,30 +215,8 @@ jobs:
           "No submodule update needed"
           chatbot-plugin
 
-      # -------------------------------------------------------------------
-      # Apply Terraform to production (025-iac-provisioning US3) — runs
-      # before the app deploy below so infra/variable config lands first.
-      # TF_VAR_railway_token comes from secrets.TF_RAILWAY_TOKEN (account-
-      # level), never secrets.RAILWAY_TOKEN — see ci.yml's terraform-plan
-      # job comment / infra/terraform/README.md.
-      # -------------------------------------------------------------------
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.9"
-          terraform_wrapper: false
-
-      - name: terraform init (production)
-        run: terraform -chdir=infra/terraform/environments/production init -input=false
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-
-      - name: terraform apply (production)
-        run: terraform -chdir=infra/terraform/environments/production apply -auto-approve -no-color
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
-          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
-          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+      # Terraform (production) already applied by the `terraform-production` job
+      # this job `needs:` — see its comment above.
 
       # -------------------------------------------------------------------
       # Deploy to Railway production
@@ -306,26 +302,20 @@ jobs:
           SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
           SERVICE_ID_DEDUP_RECONCILE: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
 
-      # -------------------------------------------------------------------
-      # Apply Terraform to staging, after the deploy above (not before, unlike
-      # the production job) — this path exists to test infra/terraform
-      # changes, so confirming the app deploy itself is healthy first makes a
-      # subsequent terraform-apply failure unambiguous.
-      # -------------------------------------------------------------------
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.9"
-          terraform_wrapper: false
+      # Terraform (staging) is applied AFTER this deploy, by the
+      # `terraform-test-staging` job below which `needs: [release-test-staging]`
+      # — this path exists to test infra/terraform changes, so confirming the
+      # app deploy itself is healthy first makes a subsequent terraform-apply
+      # failure unambiguous.
 
-      - name: terraform init (staging)
-        run: terraform -chdir=infra/terraform/environments/staging init -input=false
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-
-      - name: terraform apply (staging)
-        run: terraform -chdir=infra/terraform/environments/staging apply -auto-approve -no-color
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
-          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
-          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+  # Test-tag Terraform apply — runs after release-test-staging's deploy (see
+  # above). All Terraform logic lives in the reusable terraform.yml.
+  terraform-test-staging:
+    name: Apply Terraform (staging, test tag)
+    needs: [detect, release-test-staging]
+    if: needs.detect.outputs.is_master_tag == 'false'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit

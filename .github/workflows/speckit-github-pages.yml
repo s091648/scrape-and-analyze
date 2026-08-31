@@ -77,8 +77,8 @@ jobs:
       - name: Generate Terraform module reference (terraform-docs)
         run: |
           mkdir -p site/guide/architecture/terraform-modules
-          for m in railway-service railway-variables github-ci-config; do
-            docker run --rm -v "${{ github.workspace }}/infra/terraform:/terraform-docs:ro" -w /terraform-docs \
+          for m in github-ci-config; do
+            docker run --rm -v "${{ github.workspace }}/infra/terraform/railway:/terraform-docs:ro" -w /terraform-docs \
               quay.io/terraform-docs/terraform-docs:0.20.0 --config /terraform-docs/.terraform-docs.yml markdown table modules/$m \
               | python3 scripts/wrap_terraform_module_doc.py "$m" \
               > site/guide/architecture/terraform-modules/$m.md

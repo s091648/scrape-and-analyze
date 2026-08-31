@@ -172,62 +172,34 @@ jobs:
         run: bash .github/scripts/check-env-var-centralization.sh
 
   # -----------------------------------------------
-  # Stage -0.3: Terraform Plan Preview (PR opened/reopened only, or manual) —
-  # 025-iac-provisioning US3. Read-only against both Railway and HCP
-  # Terraform's backend; the real apply happens later in
-  # deploy-staging-terraform (Stage 4j), gated on tests passing like every
-  # other deploy-staging-* job.
+  # Stage -0.3: Infra Plan Preview (PR opened/reopened only, or manual) —
+  # 025-iac-provisioning US3. Read-only; the real apply happens later in
+  # deploy-staging-terraform (Stage 4j).
   #
-  # **Deliberately NOT on every `synchronize` push** (unlike every other job
-  # in this workflow): every plan/apply refreshes all ~150+ existing
-  # `railway_variable` resources one API call at a time, and Railway's own
-  # API rate limit (independent of — and hit well before — HCP Terraform's)
-  # can only absorb so many of those per PR before a routine review-iteration
-  # push starts failing with 429s (see infra/terraform/README.md's rate-limit
-  # note). Gating on `opened`/`reopened` still gets a plan on every PR's
-  # first run; a later push that actually touches `infra/terraform/**` needs
-  # a manual re-run via the separate `terraform-staging-manual.yml`
-  # workflow_dispatch workflow instead of firing automatically.
+  # **Deliberately NOT on every `synchronize` push** (unlike every other job in
+  # this workflow): the apply half (`deploy-staging-terraform`) pushes Railway
+  # env vars and REDEPLOYS every service via `railway redeploy` — a few
+  # review-iteration re-applies per PR would churn deployments and hit Railway's
+  # deploy rate limit. Gating on `opened`/`reopened` still gets a plan+apply on
+  # every PR's first run; a later push that changes `infra/terraform/**` and
+  # needs staging re-applied before merge → Actions → Terraform → Run workflow
+  # (terraform.yml's own workflow_dispatch).
   #
-  # TF_VAR_railway_token MUST come from secrets.TF_RAILWAY_TOKEN (account-
-  # level), never secrets.RAILWAY_TOKEN — that name is already the existing
-  # environment-scoped, project-level secret deploy-staging-*/release.yml's
-  # `railway up`/`railway down` steps depend on (infra/terraform/README.md).
+  # All infra CI logic (tfvars materialization from the TF_TFVARS_* base64
+  # secrets, the GitHub-side `terraform`, the Railway-side
+  # scripts/push_railway_variables.py) lives in the reusable
+  # .github/workflows/terraform.yml — this job just calls it.
   # -----------------------------------------------
   terraform-plan:
-    name: Terraform Plan (staging)
-    runs-on: ubuntu-latest
+    name: Infra Plan (staging)
     if: |
       github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'reopened')
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.9"
-          terraform_wrapper: false
-
-      - name: terraform fmt -check
-        run: terraform -chdir=infra/terraform/environments/staging fmt -check -recursive
-
-      - name: terraform init
-        run: terraform -chdir=infra/terraform/environments/staging init -input=false
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-
-      - name: terraform validate
-        run: terraform -chdir=infra/terraform/environments/staging validate
-
-      - name: terraform plan
-        run: terraform -chdir=infra/terraform/environments/staging plan -no-color
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
-          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
-          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: plan
+      environment: staging
+    secrets: inherit
 
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
@@ -934,14 +906,15 @@ jobs:
   # Stage 4b1: Lighthouse Performance Check (staging, PR only)
   # Gates PR merge on the check completing without route failures (022-lighthouse-
   # performance-check, US3) — not yet on the actual Performance/LCP/TBT/CLS numbers.
-  # Runs against vars.FRONTEND_URL (configure in repo Settings → Secrets and
-  # variables → Actions → Variables); to make this a required check, add "Lighthouse
-  # Performance Check / lighthouse-check" in branch protection rules for master.
-  # Can also be run standalone via workflow_dispatch on lighthouse.yml against any URL.
+  # Passes `environment: staging`, so lighthouse.yml audits the staging-scoped
+  # vars.FRONTEND_URL (managed by Terraform's github_ci_env module). To make this a
+  # required check, add "Lighthouse Performance Check / lighthouse-check" in branch
+  # protection rules for master. Can also be run standalone via workflow_dispatch on
+  # lighthouse.yml, picking staging or production.
   # Joins deploy-staging-frontend/close-staging-frontend's group (`staging-frontend-*`):
   # it's read-only against Railway (an audit, not a `railway up`/`down` mutation), so it
   # doesn't need to protect *other* jobs from itself — but it still needs protecting
-  # from *them*, since it audits vars.FRONTEND_URL (the live staging frontend). Without
+  # from *them*, since it audits the live staging frontend. Without
   # sharing this group, close-staging-frontend (Stage 6, fires on merge) could tear that
   # same deployment down mid-audit if this PR's own lighthouse-check run — from the
   # `pull_request` event — was still in flight when the merge's `push` event fires.
@@ -955,7 +928,7 @@ jobs:
       needs.deploy-staging-frontend.result == 'success'
     uses: ./.github/workflows/lighthouse.yml
     with:
-      url: ${{ vars.FRONTEND_URL }}
+      environment: staging
     secrets: inherit
     concurrency:
       group: staging-frontend-${{ github.event.pull_request.number }}
@@ -1086,7 +1059,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4f: Deploy Weekly Report to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-weekly-report:
@@ -1120,7 +1093,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4g: Deploy Refresh Metrics to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-refresh-metrics:
@@ -1154,7 +1127,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4h: Deploy RAG Backfill to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-rag-backfill:
@@ -1188,7 +1161,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4i: Deploy Dedup Reconcile to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-dedup-reconcile:
@@ -1237,39 +1210,19 @@ jobs:
   # -----------------------------------------------
   deploy-staging-terraform:
     name: Apply Terraform to Staging
-    runs-on: ubuntu-latest
     needs: [terraform-plan]
     if: |
       github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'reopened') &&
       needs.terraform-plan.result == 'success'
-    environment: scraper / staging
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit
     concurrency:
       group: staging-terraform-${{ github.event.pull_request.number }}
       cancel-in-progress: false
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.head_ref }}
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.9"
-          terraform_wrapper: false
-
-      - name: terraform init
-        run: terraform -chdir=infra/terraform/environments/staging init -input=false
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-
-      - name: terraform apply
-        run: terraform -chdir=infra/terraform/environments/staging apply -auto-approve -no-color
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
-          TF_VAR_railway_token: ${{ secrets.TF_RAILWAY_TOKEN }}
-          TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
 
   # -----------------------------------------------
   # Stage 5: DB Rollback (if migrate succeeded but any test failed)
