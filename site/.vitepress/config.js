@@ -350,7 +350,7 @@ export default defineConfig({
           { text: 'Quick Start', link: '/specs/025-iac-provisioning/quickstart' },
           { text: 'Requirements', link: '/specs/025-iac-provisioning/checklists/requirements' },
           { text: 'Contract: Github Ci Config Module', link: '/specs/025-iac-provisioning/contracts/github-ci-config-module' },
-          { text: 'Contract: Railway Service Module', link: '/specs/025-iac-provisioning/contracts/railway-service-module' },
+          { text: 'Contract: Railway Variables Module', link: '/specs/025-iac-provisioning/contracts/railway-variables-module' },
         ],
       },
     ],

@@ -5,164 +5,345 @@ description: "Task list for Infrastructure as Code for Deployment Environments"
 
 # Tasks: Infrastructure as Code for Deployment Environments
 
-**Input**: Design documents from `/specs/025-iac-provisioning/`
+**Input**: Design documents from `/specs/025-iac-provisioning/` (see `plan.md` "Revision 2 — 2026-08-28")
 
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md (all present)
+---
 
-**Tests**: This feature has no pytest/Vitest surface (it's Terraform/HCL, not application code — see plan.md's Constitution Check). Per constitution §III, every tasks.md still requires a dedicated test phase; here that means `terraform plan`/`apply`-based verification against real Railway/GitHub resources, checked against each story's Acceptance Scenarios in spec.md, rather than a pytest/Vitest suite.
+## Revision 2 — 2026-08-28 (structure reset)
 
-**Organization**: Tasks are grouped by user story (spec.md priorities: US1 P1, US2 P1, US3 P2, US4 P3) to enable independent implementation and testing of each story.
+The first pass (`T001`–`T041`) is **superseded**. Both HCP workspaces were deleted; the
+`scrape-analyzer` HCP project now has two empty workspaces (`staging`, `production`). Tasks
+below (`R01`–`R38`) replace the old Phases 1–6 and 8. **Phase 7 (User Story 5, `T042`–`T051`)
+is retained verbatim and stays done** — pure application code, no Terraform dependency.
 
-## Format: `[ID] [P?] [Story] Description`
+### Division of labour
 
-- **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (US1–US4)
+- **`[AGENT]`** — file/code changes only. Never runs `terraform import`/`plan`/`apply`, never
+  touches a real HCP workspace or GitHub secret.
+- **`[MAINTAINER]`** — the maintainer runs it; it touches real state (import, apply, GitHub
+  secret creation, test-tag). The agent provides the exact command / generated input and the
+  expected output to check against, and stops.
+
+### Format: `[ID] [P?] [role] Description`
+
+- **[P]**: can run in parallel (different files, no unmet dependency)
 - File paths are relative to the repository root
 
-## Path Conventions
+---
 
-New top-level `infra/terraform/` directory (per plan.md's Project Structure), plus additions to the existing `Makefile`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `CLAUDE.md`.
+## Phase R1: Teardown & flat skeleton
+
+- [X] R01 [AGENT] Delete the superseded tree: `infra/terraform/environments/` (all of
+  `staging/`, `production/`, `shared/`), `infra/terraform/modules/railway-service/`,
+  `infra/terraform/modules/shared-variables/`, and the stray `mig.sh` / `mig2.sh` at repo
+  root. Keep `infra/terraform/modules/railway-variables/`, `modules/github-ci-config/`,
+  `.terraform-docs.yml`, `.env.local`, `.live-variables.json`.
+- [X] R02 [AGENT] Create the flat-root skeleton per `plan.md`'s Project Structure:
+  `infra/terraform/{versions,providers,backend,variables,locals,shared,github-ci}.tf` (empty
+  or stub), `infra/terraform/services/` (empty), `infra/terraform/secrets/` with a
+  `.gitignore` (`*` then `!.gitignore` `!*.example`).
+- [X] R03 [AGENT] Update the root `.gitignore`: replace the `infra/terraform/**/*.auto.tfvars`
+  line's intent with `infra/terraform/secrets/*` + `!infra/terraform/secrets/.gitignore`
+  `!infra/terraform/secrets/*.example`; keep the `.terraform/`, `*.tfstate*`, `crash.log`,
+  `.env.local`, `.live-variables.json` rules.
+
+**Checkpoint**: old structure gone, flat skeleton + secret-dir ignore rules in place.
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase R2: Spec-doc re-alignment (keep the spec dir internally consistent)
 
-**Purpose**: Scaffolding and one-time external bootstrap, before any Terraform resource can be declared.
+- [X] R04 [P] [AGENT] `contracts/railway-service-module.md` → rename to
+  `contracts/railway-variables-module.md`; drop the `railway-service` half entirely; revise
+  the `railway-variables` half: inputs `service_id`, `environment_id`, `variables =
+  map(object({ value = string, sensitive = optional(bool, false) }))`; no `managed` field;
+  behavioural contract keeps the reference-string (`${{...}}`) and key-removal-⇒-destroy
+  clauses.
+- [X] R05 [P] [AGENT] `contracts/github-ci-config-module.md` — drop any `managed`/`baseline`
+  language; module is repo-level vs environment-scoped only, every entry enforced.
+- [X] R06 [P] [AGENT] `data-model.md` — rewrite the "Service Definition" and "Environment"
+  sections: no `railway-service` module, no `config_path`, no `terraform_remote_state`; one
+  flat root; Environment = HCP workspace selected by `TF_WORKSPACE`; the `check` guard.
+  Environment-Variable table loses the `managed`/baseline notion — every kind is enforced;
+  values arrive via layered `-var-file`.
+- [X] R07 [P] [AGENT] `quickstart.md` — rewrite: 3 bootstrap creds (add account-level Railway
+  token), `secrets/*.tfvars` + `.example` templates, `make terraform-plan ENV=…`, the
+  config-driven `import {}` flow, `make push-tfvars`, day-to-day loop via `terraform.yml`.
+- [X] R08 [P] [AGENT] `research.md` §9 — add a dated note: the `railway_service`
+  single-primary-environment finding still stands; revision 2's conclusion is **not to
+  declare `railway_service` at all** (service IDs become `.tfvars` values), which removes the
+  production-only asymmetry the old note worked around.
 
-- [X] T001 Create the `infra/terraform/{modules/railway-service,modules/github-ci-config,environments/staging,environments/production}` directory skeleton per plan.md's Project Structure
-- [X] T002 [P] `infra/terraform/versions.tf` — pin `required_providers` (`terraform-community-providers/railway ~> 0.6`, `integrations/github ~> 6.0`, `terraform >= 1.9`) per research.md §2/§3 (adapted: one `versions.tf` per environment, kept identical — Terraform requires a full `terraform {}` block per root module, see each file's header comment)
-- [X] T003 [P] `infra/terraform/README.md` — short pointer to `specs/025-iac-provisioning/quickstart.md`, and an explicit note that Railway's managed database services (Redis/Postgres) are out of scope per FR-014
-- [X] T004 Perform the one-time external bootstrap per `specs/025-iac-provisioning/quickstart.md` §"One-time bootstrap": create the HCP Terraform org + `scrape-analyzer-staging`/`scrape-analyzer-production` workspaces (**local** execution mode — see research.md §9's execution-mode gotcha), generate `TF_API_TOKEN`/`TF_GITHUB_TOKEN` and verified the existing `RAILWAY_TOKEN` is account-level (all three confirmed working locally via `infra/terraform/.env.local` and the pre-implementation PoC). **Deferred to Phase 5 (T032/T033)**: storing `TF_API_TOKEN`/`TF_GITHUB_TOKEN` as GitHub Actions secrets — not needed until CI actually runs `terraform apply`
-- [X] T005 [P] Add `terraform-fmt`, `terraform-validate`, `terraform-plan`, `terraform-apply`, `terraform-drift-check` targets to `Makefile`, each accepting `ENV=staging|production` and wrapping `terraform -chdir=infra/terraform/environments/$(ENV) <cmd>` per plan.md's CI integration decision (research.md §7) — deliberately not run via `docker compose` (see Makefile comment); credentials sourced from `infra/terraform/.env.local`, not the root `.env`
-
-**Checkpoint**: Directory structure exists, bootstrap credentials are in place, `make terraform-*` targets are callable (against an as-yet-empty config).
-
----
-
-## Phase 2: Foundational (Blocking Prerequisites)
-
-**Purpose**: Per-environment backend/provider wiring that every user story's Terraform code depends on.
-
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete.
-
-- [X] T006 [P] `infra/terraform/environments/staging/backend.tf` — HCP Terraform remote backend block targeting workspace `scrape-analyzer-staging` (data-model.md's Environment entity)
-- [X] T007 [P] `infra/terraform/environments/production/backend.tf` — same, targeting workspace `scrape-analyzer-production`
-- [X] T008 [P] `infra/terraform/environments/staging/variables.tf` + `terraform.tfvars` — root input variables, including `sensitive = true` declarations for `railway_token`/`github_token` (values supplied only via `TF_VAR_*` at apply time, never literal in `.tfvars`, per FR-004a)
-- [X] T009 [P] `infra/terraform/environments/production/variables.tf` + `terraform.tfvars` — same shape for production
-- [X] T010 [P] `infra/terraform/environments/staging/main.tf` — configure the `railway` and `github` provider blocks (tokens from T008's variables); **adapted**: no `railway_environment` data source exists in this provider (confirmed during the PoC — it has no data sources at all, research.md §9), so `var.railway_environment_id` is referenced directly as a plain variable instead — depends on T008
-- [X] T011 [P] `infra/terraform/environments/production/main.tf` — same for production — depends on T009
-- [X] T012 Ran `make terraform-plan ENV=staging` and `make terraform-plan ENV=production` — both connected and authenticated (`No changes. Your infrastructure matches the configuration.`). Found and fixed a real gap along the way: `terraform init` auto-creating `scrape-analyzer-staging` defaulted its execution-mode to `remote` (would have silently broken FR-004a's secret flow); patched to `local` via the Terraform Cloud API, and `scrape-analyzer-production` was created directly with `local` mode — see research.md §9 — depends on T004–T011
-
-**Checkpoint**: Both environments' backends/providers are live and authenticated; ready for real resources.
+**Checkpoint**: every doc in `specs/025-iac-provisioning/` describes revision 2, not the old design.
 
 ---
 
-## Phase 3: User Story 1 - Declare deployment infrastructure as version-controlled code (Priority: P1) 🎯 MVP
+## Phase R3: Modules
 
-**Goal**: A reusable `railway-service` module exists and every one of the ten app services is registered + configured declaratively in both environments, matching what's currently on the dashboard, with zero manual dashboard steps.
+- [X] R09 [AGENT] `modules/railway-variables/variables.tf` — `service_id` (string),
+  `environment_id` (string), `variables` (`map(object({ value = string, sensitive =
+  optional(bool, false) }))`, default `{}`). Remove the `managed` attribute and its long
+  doc block.
+- [X] R10 [AGENT] `modules/railway-variables/main.tf` — a single `railway_variable "this"`:
+  `for_each = toset(nonsensitive(keys(var.variables)))`, `name = each.value`, `value =
+  var.variables[each.value].value` (re-index into the original map so a `sensitive` value
+  keeps its marking), `service_id`/`environment_id` from vars. Delete the
+  `managed`/`baseline` resources and all `lifecycle { ignore_changes = [value] }`. Comment
+  explaining the `nonsensitive(keys(...))` pattern (Terraform forbids `for_each` over a
+  map any of whose values is sensitive).
+- [X] R11 [AGENT] `modules/railway-variables/outputs.tf` — `variable_names = keys(var.variables)`.
+  Drop `managed_variable_names`.
+- [X] R12 [AGENT] `modules/github-ci-config/main.tf` + `variables.tf` + `outputs.tf` — drop
+  the `managed`/`baseline` split (the `for k,v ... if v.managed` locals, the paired
+  `*.baseline` resources, the `ignore_changes`). Keep the repo-level vs
+  `github_environment_name`-scoped split. `secrets`/`variables` become
+  `map(object({ value = string }))` (or just `map(string)`); every entry enforced.
+- [X] R13 [AGENT] `make uml-terraform-modules` still points at
+  `modules/{railway-variables,github-ci-config}` — confirm `.terraform-docs.yml` needs no
+  change now that `railway-service`/`shared-variables` are gone (edit if it enumerates them).
 
-**Independent Test**: Take one existing service's current dashboard configuration, express it declaratively, apply it against the real Railway project, and confirm the resulting service matches what the dashboard previously showed.
-
-### Tests for User Story 1
-
-- [X] T013 [P] [US1] Verification: ran `make terraform-plan` for **both** `ENV=staging` and `ENV=production` after importing all ten services — both report `No changes. Your infrastructure matches the configuration.` (spec.md US1 Acceptance Scenario 1)
-- [X] T014 [P] [US1] Verification: covered by the pre-implementation sandbox PoC (declare → `plan` → `apply` → independently-verified-via-API → `destroy`, fully working end to end) rather than a real change against production, per the maintainer's explicit preference not to apply against production yet — see conversation history and research.md §9. The mechanics this task checks were proven there; the actual "change a real service's variable" exercise happens for real in US2 (T021), scoped to `development` per the maintainer's instruction
-
-### Implementation for User Story 1
-
-**Adapted mid-implementation** (research.md §9, contracts/railway-service-module.md): split into two modules — `railway-service` (registration, production-only) and `railway-variables` (per-environment) — because `railway_service` reads/writes only the project's primary (production) ServiceInstance; declaring it in both environments' state would conflict. `environments/production/main.tf` uses real Railway service names (`weekly report`, `dedup_reconcile`, `storybook UI`, `dashboard-frontend`, `scrape-and-analyze`, `refresh metrics`, `fastembed`, `dashboard-backend`, `chatbot-plugin`, `backfill_rag` — confirmed via the real project's API, several differ from the hyphen-guessed names this task list originally used) and real IDs queried directly.
-
-- [X] T015 [US1] `infra/terraform/modules/railway-service/variables.tf` — `service_name`, `railway_project_id`, `source_repo`, `root_directory` (dropped `railway_environment_id`/`config_path`/`variables` — see adaptation note); `infra/terraform/modules/railway-variables/variables.tf` — `service_id`, `railway_environment_id`, `variables` — per the revised `contracts/railway-service-module.md`
-- [X] T016 [US1] `infra/terraform/modules/railway-service/main.tf` — `railway_service` resource only (no `config_path`: confirmed via the real API that all ten services have `railwayConfigFile: null` — build/start stays entirely `railway up`'s local `railway.toml` detection, untouched by Terraform); `infra/terraform/modules/railway-variables/main.tf` — `railway_variable` resources from the `variables` map — depends on T015
-- [X] T017 [US1] `infra/terraform/modules/railway-service/outputs.tf` — `railway_service_id`; `infra/terraform/modules/railway-variables/outputs.tf` — `variable_names` — depends on T016
-- [X] T018 [US1] `infra/terraform/environments/production/main.tf` — instantiate `module "dashboard_backend"` (`railway-service`, pilot), then `terraform import` `d20f24b5-6c3f-4732-a9b8-de13486db754`. Hit and fixed two real provider issues along the way (research.md §9): `regions` panics with a "Value Conversion Error" on this provider version (`terraform-provider-railway` issues #35/#49) and `source_repo_branch` is required-but-never-readable — both handled via `lifecycle.ignore_changes` rather than fighting them. `railway-variables` deferred to US2 (T023-T028) as planned — depends on T011, T016
-- [X] T019 [US1] `infra/terraform/environments/staging/main.tf` — added a `terraform_remote_state` data source reading production's `service_ids` output (confirmed working: `terraform plan` reads it and reports no changes). No `railway-service`/import needed here — that resource only ever exists in production (research.md §9); staging has nothing else to import for *registration* since the same underlying service object is what production already owns. `railway-variables` deferred to US2 — depends on T010, T016, T018
-- [X] T020 [US1] Extended production with the remaining nine services (real names/IDs confirmed via the GraphQL API: `weekly report`, `dedup_reconcile`, `storybook UI`, `dashboard-frontend`, `scrape-and-analyze`, `refresh metrics`, `fastembed`, `chatbot-plugin` [own repo, `root_directory = null`], `backfill_rag`) + real production `cron_schedule` values where applicable, all imported. `terraform plan` for **both** `ENV=staging` and `ENV=production` reports `No changes` — FR-001/FR-010/SC-003 satisfied, zero applies against real infrastructure were needed to get there — depends on T018, T019
-
-**Checkpoint**: All ten services are declared and imported in both environments; `terraform plan` shows zero unexpected diff in either workspace. User Story 1 is independently functional.
-
----
-
-## Phase 4: User Story 2 - Manage environment variables per environment without manual dashboard edits (Priority: P1)
-
-**Goal**: Variable add/update/remove is a one-file-edit-plus-apply workflow, independent per environment, with secrets never touching plaintext files — and the same closed loop extends to the GitHub Actions secrets/variables `ci.yml`/`release.yml` read (FR-012).
-
-**Independent Test**: Add a new non-secret environment variable to the declarative definition for staging, apply it, and confirm the running staging service sees the new value without opening the hosting dashboard.
-
-### Tests for User Story 2
-
-- [X] T021 [P] [US2] Verification: added `IAC_VERIFICATION_MARKER` (non-secret) to `module.storybook_variables` in staging only, ran `make terraform-apply ENV=staging` — plan matched exactly (2 to add, 0 to change, 0 to destroy, staging-only), apply succeeded, production untouched (confirmed via its own separate `terraform plan` showing no changes throughout) (spec.md US2 Acceptance Scenario 1/3)
-- [X] T022 [P] [US2] Verification: added `IAC_VERIFICATION_SECRET` (value from `TF_VAR_iac_verification_secret_value`, sensitive+managed) alongside T021's marker, same apply. Confirmed the value never appears in plaintext anywhere: (a) `infra/terraform/**/*.tf`/`.tfvars` only ever reference `var.iac_verification_secret_value`, never a literal, (b) the local `.terraform/terraform.tfstate` files are pure remote-backend pointers (`{"backend": {"type": "cloud", ...}}`, no resource data) and are gitignored regardless, (c) actual state lives only in HCP Terraform's remote workspace. Both throwaway variables removed from `main.tf`/`variables.tf`, then cleaned up from staging via `make terraform-apply ENV=staging TARGET=module.storybook_variables` (2 to destroy, only that module refreshed) — confirmed applied (spec.md US2 Acceptance Scenario 2, FR-004)
-
-### Implementation for User Story 2
-
-- [X] T023 [US2] `infra/terraform/modules/github-ci-config/variables.tf` — define `repository`, `github_environment_name`, `secrets` (sensitive map), `variables` per `contracts/github-ci-config-module.md`
-- [X] T024 [US2] `infra/terraform/modules/github-ci-config/main.tf` — `github_actions_secret`/`github_actions_environment_secret` + `github_actions_variable` resources — depends on T023
-- [X] T025 [US2] `infra/terraform/modules/github-ci-config/outputs.tf` — `managed_secret_names`, `managed_variable_names` outputs — depends on T024
-- [X] T026 [US2] `infra/terraform/environments/staging/main.tf` — instantiate `module "github_ci_staging"` scoped to the `scraper / staging` GitHub Environment (`DATABASE_URL`/`RAILWAY_TOKEN` secrets, baseline-imported) — depends on T024, T020. **Adapted**: no `RAILWAY_SERVICE_ID_*` variables block ended up needed here — the CI jobs that would consume them (T031–T033) read service IDs from `terraform.tfvars`/Terraform outputs directly rather than via GitHub Actions variables, so that part of the original task description didn't apply
-- [X] T027 [US2] `infra/terraform/environments/production/main.tf` — same for the `scraper / production` GitHub Environment (`module "github_ci_production"`), plus one repo-level (non-environment-scoped) `module "github_ci_repo"` instance for secrets/variables that aren't environment-scoped today (`CODECOV_TOKEN`, `GIST_SECRET`, `GIST_ID`, `NPM_TOKEN`, `RELEASE_PAT`) — depends on T024, T020
-- [X] T028 [US2] Defined the `TF_VAR_*` environment mapping in `infra/terraform/README.md`'s "`TF_VAR_*` mapping" section — ready for the CI jobs Phase 5 wires up
-
-**Found during Phase 8 follow-up verification (not a numbered task)**: `terraform plan ENV=staging` surfaced 16 `railway_variable.baseline` resources (`RAG_DENSE_*`/`RAG_SPARSE_*`/`VECTOR_DB_*`/`OPENROUTER_API_KEY`/`RAG_GEMINI_API_KEY`/`RAG_CHUNK_OVERLAP` on `dedup_reconcile_variables` and `refresh_metrics_variables`) that existed live on Railway staging but were absent from both services' declared `variables` maps — stray values manually left over on those two services, confirmed unused by grepping `dedup_reconcile.py`/`refresh_metrics.py` (neither imports anything RAG/vector-db/LLM-related). Applied the destroy; `ENV=production` was already clean (`No changes`) throughout.
-
-**Checkpoint**: Every variable — Railway-side and GitHub-side — is declared from one place, per-environment isolation is demonstrated, and no secret value exists in plaintext anywhere in the repo. User Stories 1 and 2 both work independently.
-
-**Added post-implementation (not a numbered task)**: shared-variable migration, pilot: observability. Per the maintainer's explicit CDK-style "central constants" request, added `modules/shared-variables` (one secret input per shared value, grouped into named output maps like `grafana`/`sentry` that consumers `merge()` into their own `variables` map instead of each declaring the same baseline entry). `scripts/pull_railway_variables.py` (new, read-only — Railway CLI + `terraform output`) confirmed every one of the 8 consuming services shares one identical live value per Grafana/Sentry key, both within an environment and across staging/production. Both environments' 8 services now merge `module.shared_vars.grafana`/`.sentry`, flipping those 6 keys from `managed=false` (baseline) to `managed=true` (Terraform-owned). `terraform validate`/`fmt` clean on both environments. **Not yet applied** — needs `TF_VAR_grafana_*`/`TF_VAR_sentry_dsn` added to `infra/terraform/.env.local` (matching the pulled live values exactly) before a `terraform plan` (expect zero diff) and `apply`, both left to the maintainer per the established "I write code, you run apply" pattern. Further groups (rag_dense, rag_sparse, vector_db, notifications, etc. — see conversation history for the full candidate list) to follow the same pattern once this pilot is confirmed.
+**Checkpoint**: both modules compile conceptually, all-enforced, no baseline machinery.
 
 ---
 
-## Phase 5: User Story 3 - Apply infrastructure changes from the existing CI/CD pipelines (Priority: P2)
+## Phase R4: Root config
 
-**Goal**: `ci.yml`'s PR-time staging flow and `release.yml`'s tag-time production flow apply the declared infrastructure automatically, on the exact triggers `railway up` already uses — never on a bare `master` push (Constitution Principle V).
+- [X] R14 [AGENT] `infra/terraform/versions.tf` — `required_version >= 1.9`;
+  `required_providers` railway `~> 0.6`, github `~> 6.0`.
+- [X] R15 [AGENT] `infra/terraform/backend.tf` — `terraform { cloud { organization =
+  "scrape-analyzer"; workspaces { tags = ["scrape-analyzer"] } } }`. **No hard-coded
+  `name`** — `TF_WORKSPACE` selects; `terraform.workspace` then reflects `staging`/`production`.
+- [X] R16 [AGENT] `infra/terraform/providers.tf` — `railway` provider (`token =
+  var.railway_token`), `github` provider (`owner = var.github_owner`, `token =
+  var.github_token`).
+- [X] R17 [AGENT] `infra/terraform/variables.tf` — declare **every** input:
+  `railway_token`/`github_token` (`sensitive`), `github_owner`, `github_repository`,
+  `app_env`, `railway_environment_id`, `service_id_<svc>` ×10, and one `variable` per
+  environment-variable value the services/`shared.tf`/`github-ci.tf` consume (each secret
+  one `sensitive = true`, each with a one-line `description`). This file is the schema; the
+  `.example` tfvars (R25) mirror its names.
+- [X] R18 [AGENT] `infra/terraform/locals.tf` — `local.services` (the ten module keys, for
+  any list-driven docs/asserts) + `check "workspace_matches_env" { assert { condition =
+  terraform.workspace == var.app_env, error_message = "TF_WORKSPACE=${terraform.workspace}
+  != app_env=${var.app_env}" } }`.
+- [X] R19 [AGENT] `infra/terraform/shared.tf` — `local.shared` = a map of named groups
+  (`grafana`, `sentry`, `rag_dense`, `rag_dense_endpoint_url`, `rag_sparse`,
+  `rag_sparse_limits`, `vector_db`, `rag_chunking`, `notifications`, `database_url`,
+  `cache_redis_url`, `gemini_api_key`, `openrouter_api_key`, `github_package_token`,
+  `app_env`), each already shaped as the `railway-variables` `variables` input
+  (`{ KEY = { value = var.x, sensitive = true } }`). Group membership per service is the
+  same set the first pass validated via `pull_railway_variables.py` (see the old
+  `modules/shared-variables/outputs.tf` descriptions — carry those `# consumed by …`
+  comments across).
 
-**Independent Test**: Add an infrastructure change to a PR branch, confirm `ci.yml`'s staging deploy step applies it to the shared staging environment, then confirm a tagged release applies it to production via `release.yml`.
-
-### Tests for User Story 3
-
-- [ ] T029 [P] [US3] Verification: open a PR with a trivial `infra/terraform/**` change, confirm the new PR-gated job posts a `terraform plan` diff, and confirm a later PR's staging deploy job actually applies it (spec.md US3 Acceptance Scenario 1)
-- [ ] T030 [P] [US3] Verification: cut a test tag and confirm `release.yml`'s new step applies the change to the `production` workspace (spec.md US3 Acceptance Scenario 2). **Adapted**: `release.yml` originally hardcoded `ref: master` regardless of which commit was actually tagged, so a tag cut on an unmerged branch would silently deploy master's unrelated content — added a `detect` job (`git merge-base --is-ancestor` check) that splits into `release` (tag is on master → unchanged full production flow) vs. `release-test-staging` (tag is NOT on master → deploys that tag's own code to every staging service via the new `.github/scripts/deploy-staging-all.sh`, then `terraform apply` against the `staging` workspace — no version stamping/production DB migration/chatbot-plugin bump/GitHub Release). This lets a test tag on a side branch (e.g. `terraform-test`) safely validate the tag→CI→apply mechanism against staging without ever touching production; a real T030 pass still requires tagging a commit that's actually on master
-
-### Implementation for User Story 3
-
-- [X] T031 [US3] `.github/workflows/ci.yml` — new job `terraform-plan` (PR-gated) running `terraform fmt -check` / `init` / `validate` / `plan` against the `staging` workspace, folded into `check-lockfile`'s slot rather than path-filtered to `infra/terraform/**` — runs on every PR unconditionally (cheap, ~10-30s, doubles as a lightweight drift check). **Adapted**: uses `hashicorp/setup-terraform@v3` + direct `terraform` calls rather than `make terraform-plan` (Make isn't installed on the `ubuntu-latest` runner by default and installing it isn't worth it for a two-line wrapper CI already inlines)
-- [X] T032 [US3] `.github/workflows/ci.yml` — new job `deploy-staging-terraform`, gated on `terraform-plan` succeeding, PR-only. **Discovered a real secret-naming collision while wiring this**: the account-level Railway token Terraform needs cannot reuse the `RAILWAY_TOKEN` secret name — that's already the existing environment-scoped, *project*-level secret `railway up`/`railway down` depend on; overwriting it would break those steps. Introduced a new secret name, `TF_RAILWAY_TOKEN`, exclusively for the Terraform provider (documented in `infra/terraform/README.md`) — depends on T031
-- [X] T033 [US3] `.github/workflows/release.yml` — new tag-gated steps (`terraform init`/`apply` against `production`) inserted before the existing Railway deploy step, same `TF_RAILWAY_TOKEN`/`TF_GITHUB_TOKEN`/`TF_API_TOKEN` secrets wiring as T032 — depends on T032
-
-**Adapted post-implementation (not a numbered task)**: discovered via real rate-limit testing that Railway's own API (independent of HCP Terraform's, and hit well before it) throttles hard because every plan/apply refreshes all ~150+ existing `railway_variable` resources — a PR with several review-iteration pushes could exhaust it. T031/T032's `if:` conditions were narrowed from "every `pull_request` event" to `opened`/`reopened` only; added `.github/workflows/terraform-staging-manual.yml` (`workflow_dispatch`) as the manual fallback for a later push that actually needs staging re-applied before merge, using `plan -out=tfplan.out` + `apply tfplan.out` in one job to halve the API calls. Documented in `infra/terraform/README.md`'s new "CI trigger cadence & Railway's API rate limit" section.
-- [ ] T034 [US3] Verification: deliberately break a declaration (e.g. reference an undefined variable), confirm the CI job fails loudly rather than continuing (spec.md US3 Acceptance Scenario 3, FR-006) — then revert the breakage — depends on T032
-
-**Checkpoint**: Infrastructure changes now ship through the same automated, review-gated pipelines as application code. User Stories 1–3 all work independently.
-
----
-
-## Phase 6: User Story 4 - Detect configuration drift (Priority: P3)
-
-**Goal**: An on-demand check surfaces any out-of-band manual change made directly on the hosting platform or GitHub, instead of letting it silently persist.
-
-**Independent Test**: Manually change one setting directly in the hosting dashboard (bypassing IaC), then run the drift check and confirm it reports that specific setting as changed.
-
-### Tests for User Story 4
-
-- [ ] T035 [P] [US4] Verification: manually change one Railway dashboard setting outside Terraform, run the drift check, and confirm it reports exactly that setting as different — then manually revert it (spec.md US4 Acceptance Scenario 2)
-
-### Implementation for User Story 4
-
-- [X] T036 [US4] Added a `terraform-drift-check` target to `Makefile` running `terraform plan -detailed-exitcode` per environment, treating exit code `2` as "drift detected" and `0` as "in sync" (exit code `1` remains a hard error) — depends on Phase 2's backend/provider wiring
-- [ ] T037 [US4] `.github/workflows/ci.yml` — optional `workflow_dispatch` job running T036's drift check per environment on demand and writing the result to the job summary
-
-**Checkpoint**: All four original user stories are independently functional and demonstrable.
-
-**Added post-implementation (not a numbered task)**: a `site/guide/architecture/terraform-services.md` VitePress page now documents every declared service and its per-environment variables/GitHub Actions secrets, generated via `scripts/generate_terraform_docs.py` (`python-hcl2` static parsing of `infra/terraform/environments/*/main.tf` — no `terraform` CLI call, no credentials, never shows a secret's real value). Wired into `.github/workflows/speckit-github-pages.yml` alongside the existing `generate_uml.py`/`generate_db_schema.py`/`generate_exceptions.py` steps; local regeneration via the new `make uml-terraform-docs` target. See `infra/terraform/README.md`'s "Browsing what's declared" section.
+**Checkpoint**: `terraform validate` (once R20–R21 land) would parse; no resources yet beyond modules' shape.
 
 ---
 
-## Phase 7: User Story 5 - Centralize application-side environment variable reads (Priority: P2)
+## Phase R5: Per-service files + GitHub CI
 
-**Added mid-implementation** during User Story 2's audit (cross-referencing `backend/config.py`/`src/config/settings.py` against real Railway variables) — see spec.md's Clarifications/Assumptions and FR-015–FR-019. Scope: production code changes across `src/`, `shared/`, and `frontend/` — not Terraform.
+- [X] R20 [AGENT] `infra/terraform/services/<svc>.tf` ×10 — one `module "<svc>"` per file:
+  `source = "../modules/railway-variables"`, `service_id = var.service_id_<svc>`,
+  `environment_id = var.railway_environment_id`, `variables = merge(<the local.shared.*
+  groups this service uses>, { <this service's own entries> })`. Own entries: the genuinely
+  per-service keys the first pass identified as *not* shareable (`CONTACT_EMAIL`,
+  `RAG_SPARSE_ENDPOINT_URL`, `UV_GROUPS`, `SEARCH_*`, `CHAT_SERVICE_*`, `FRONTEND_ORIGIN`,
+  `NEXTAUTH_SECRET`, `MAXMIND_LICENSE_KEY`, `SWAGGER_TRY_IT_OUT_ENABLED`, `GRAFANA_TEMPO_*`,
+  `GRAFANA_PROMETHEUS_*`, `REDIS_URL`, `SEARCH_INDEX_REDIS_URL`, …) — each `{ value =
+  var.<name>, sensitive = <bool> }`, value supplied per-`.tfvars`. Service-specific-but-
+  otherwise-shared keys use a suffixed var name (`var.uv_groups__scrape_and_analyze`).
+- [X] R21 [AGENT] `infra/terraform/github-ci.tf` — `module "github_ci_repo"` (repo-level:
+  `CLAUDE_API_KEY`, `CODECOV_TOKEN`, `GEMINI_API_KEY`, `GIST_ID`, `GIST_SECRET`,
+  `NEXTAUTH_SECRET`, `NPM_TOKEN`, `OPENROUTER_API_KEY`, `RELEASE_PAT` as secrets;
+  `BACKEND_URL`/`FRONTEND_URL`/`STORYBOOK_URL` + `RAILWAY_SERVICE_ID_*` ×10 as variables —
+  the service-ID variables now come straight from `var.service_id_<svc>`, not a module
+  output) + `module "github_ci_staging"` / `module "github_ci_production"`
+  (`github_environment_name = "scraper / staging"` / `"… / production"`, secrets
+  `DATABASE_URL`, `RAILWAY_TOKEN`). Every value from a `var.*`.
+- [X] R22 [AGENT] `terraform fmt -recursive` the whole `infra/terraform/` tree; eyeball
+  `terraform validate -backend=false` mentally (agent can't run it against the cloud
+  backend, but `-backend=false` needs no creds — note it for R30's maintainer run).
 
-**Goal**: Every service reads every environment variable through exactly one designated module, with zero direct `os.environ`/`process.env` calls anywhere else, so the Terraform-side inventory (US2) can't silently drift out of sync with undiscoverable ad-hoc reads again.
+**Checkpoint**: full config written; every value is a `var.*`; nothing references a deleted module or `terraform_remote_state`.
 
-**Independent Test**: Repo-wide search for direct environment-variable access outside each service's designated module returns zero results; every affected service's test suite still passes.
+---
+
+## Phase R6: `secrets/` templates
+
+- [X] R23 [P] [AGENT] `infra/terraform/secrets/shared.tfvars.example` — every shared key
+  (the `local.shared` inputs + `service_id_<svc>` ×10 + `github_owner`/`github_repository`)
+  as `key = ""  # description`. Tracked in git.
+- [X] R24 [P] [AGENT] `secrets/staging.tfvars.example` + `secrets/production.tfvars.example`
+  — only the env-specific keys: `app_env`, `railway_environment_id`, plus any value the
+  first pass confirmed genuinely differs per environment. Tracked.
+- [X] R25 [AGENT] Header comment in each `.example`: "real file is git-ignored and ==
+  GitHub Actions secret `TF_TFVARS_<LAYER>` (base64); sync via `make push-tfvars`".
+
+---
+
+## Phase R7: Makefile + pull script
+
+- [X] R26 [AGENT] `Makefile` — retarget `terraform-fmt/validate/plan/apply/drift-check`:
+  `TF_DIR := infra/terraform` (flat), add `TF_WORKSPACE=$(ENV)` to the env-export, append
+  `-var-file=secrets/shared.tfvars -var-file=secrets/$(ENV).tfvars` to `plan`/`apply`/
+  `drift-check` (paths resolve under `-chdir=infra/terraform`). Keep `ENV` default
+  `staging`, validate `ENV ∈ {staging,production}`. Keep `TARGET=`, `terraform-force-unlock`.
+  `.env.local` still sources the 3 bootstrap creds only.
+- [X] R27 [AGENT] `Makefile` — new `push-tfvars` target: for each layer in
+  `shared|staging|production`, `base64 < infra/terraform/secrets/$$layer.tfvars | gh secret
+  set TF_TFVARS_$${layer^^}`. Guard: fail if a `.tfvars` file is missing. Add to `.PHONY`
+  and the `CLAUDE.md` command table (R37).
+- [X] R28 [AGENT] `scripts/pull_railway_variables.py` — added `--as-tfvars` output mode:
+  emits paste-ready `.tfvars` lines to `.live-variables.tfvars` (git-ignored), `${` → `$${`
+  escaped, `RAILWAY_*` filtered, grouped by shared / per-env / env-only with `# DIFFERS`
+  hints. Still read-only, not in CI.
+- [X] R28b [AGENT] `scripts/generate_terraform_imports.py` (NEW) — generates the throwaway
+  `infra/terraform/imports.tf` for R36 from `.live-variables.json` + `secrets/*.tfvars`.
+  `python scripts/generate_terraform_imports.py --env staging|production`. The Railway
+  import-ID format is a `RAILWAY_IMPORT_ID_TEMPLATE` constant at the top — **the v0.6
+  provider docs disagree on it**, so R36 must confirm with one manual `terraform import`
+  before trusting the whole file. GitHub-side import blocks are left as commented
+  templates (only ~20, stable format).
+
+---
+
+## Phase R8: Docs generator
+
+- [X] R29 [AGENT] `scripts/generate_terraform_docs.py` — re-point the static HCL parse from
+  `infra/terraform/environments/*/main.tf` to `infra/terraform/services/*.tf` +
+  `shared.tf` + `github-ci.tf`. Resolve `merge(local.shared.X, {...})` by reading
+  `shared.tf`'s `local.shared` map. Output shape (`terraform-services-data.json`, the
+  VitePress page) stays the same — still never prints a value, still per-environment usage.
+  Update `site/guide/architecture/terraform-services.md` prose if it names the old layout.
+  `make uml-terraform-docs` target unchanged.
+
+**Checkpoint**: `make uml-terraform-docs` regenerates cleanly from the flat structure.
+
+---
+
+## Phase R9: Reusable Terraform workflow + CI rewire
+
+- [X] R30 [AGENT] `.github/workflows/terraform.yml` — NEW reusable workflow.
+  `on: workflow_call` inputs `mode` (`plan`|`apply`) + `environment` (`staging`|
+  `production`); `on: workflow_dispatch` same inputs (defaults `plan`/`staging`).
+  One job: `environment: scraper / ${{ inputs.environment }}`; `hashicorp/setup-terraform@v3`
+  (`terraform_wrapper: false`); a "Materialize tfvars" step that `base64 -d`s
+  `secrets.TF_TFVARS_SHARED` → `secrets/shared.tfvars` and
+  `secrets.TF_TFVARS_<ENV>` → `secrets/<env>.tfvars`; `terraform -chdir=infra/terraform
+  init`; then `terraform -chdir=infra/terraform ${{ inputs.mode }} [-auto-approve if apply]
+  -no-color -var-file=secrets/shared.tfvars -var-file=secrets/${{ inputs.environment }}.tfvars`.
+  `env:` on the terraform steps: `TF_WORKSPACE: ${{ inputs.environment }}`,
+  `TF_TOKEN_app_terraform_io`, `GITHUB_TOKEN` (= `secrets.TF_GITHUB_TOKEN`),
+  `TF_VAR_railway_token` (= `secrets.TF_RAILWAY_TOKEN`), `TF_VAR_github_token`. Optional: on
+  `mode: plan` + PR context, post the plan as a sticky PR comment (lighthouse.yml pattern).
+- [X] R31 [AGENT] `.github/workflows/ci.yml` — replace the `terraform-plan` job body with
+  `uses: ./.github/workflows/terraform.yml` + `with: { mode: plan, environment: staging }` +
+  `secrets: inherit`; keep its `if:` (PR `opened`/`reopened`) and `needs:`. Replace
+  `deploy-staging-terraform` the same way (`mode: apply`), keeping its `if:`, `needs:
+  [terraform-plan]`, and `concurrency: staging-terraform-${{ pr.number }}`.
+- [X] R32 [AGENT] `.github/workflows/release.yml` — extract the inline `terraform
+  init`/`apply (production)` steps out of the `release` job into a new
+  `terraform-production` job (`needs: detect`, `if: needs.detect.outputs.is_master_tag ==
+  'true'`, `uses: ./.github/workflows/terraform.yml`, `with: { mode: apply, environment:
+  production }`, `secrets: inherit`). Add `needs: [terraform-production]` to whatever job
+  now performs the production Railway deploy so infra still lands first. Replace the inline
+  `terraform apply (staging)` in `release-test-staging` with a `uses:` job the same way
+  (`environment: staging`). **Flag for maintainer review**: this changes the production
+  apply from an in-job step to a `needs:`-ordered separate job — confirm the resulting job
+  graph in R34.
+- [X] R33 [AGENT] Delete `.github/workflows/terraform-staging-manual.yml` — superseded by
+  `terraform.yml`'s `workflow_dispatch`. Update `infra/terraform/README.md`'s rate-limit
+  section to point at "Actions → Terraform → Run workflow" instead.
+
+**Checkpoint**: all Terraform CI logic lives in one reusable workflow; callers are `uses:` + 2-line `with:`.
+
+---
+
+## Phase R10: [MAINTAINER] Import & verify (touches real state)
+
+- [X] R34 [MAINTAINER] Review the four changed workflow call-sites (R31/R32) — confirm the
+  `release.yml` job graph (`terraform-production` before the prod deploy) is what you want.
+- [X] R35 [MAINTAINER] Populate `infra/terraform/secrets/{shared,staging,production}.tfvars`:
+  1. `cp` each `*.tfvars.example` → `*.tfvars`; fill in the NON-secret UUIDs first —
+     `railway_project_id`, `service_id_<svc>` ×10 (in `shared.tfvars`),
+     `railway_environment_id` + `app_env` (in each `<env>.tfvars`), `github_owner`,
+     `github_repository`. (`make pull-railway-variables` needs those before it can run.)
+  2. `make pull-railway-variables AS_TFVARS=1` → writes `.live-variables.tfvars` (a draft).
+     Runs on the HOST via plain `python` (stdlib only now, no `uv`/hcl2, NOT docker); needs
+     the `railway` CLI + `RAILWAY_TOKEN_STAGING`/`_PRODUCTION` in `.env.local`.
+  3. Sort the draft's lines into the three files (shared = identical across both envs;
+     `<env>.tfvars` = the rest + env-only keys), hand-fix every `$${{ … }}` reference,
+     resolve `## DIFFERS` lines by suffixing the var. Cross-check against `*.tfvars.example`.
+- [ ] R36 [MAINTAINER] Import, one workspace at a time.
+  `make terraform-imports ENV=staging` writes the throwaway `infra/terraform/imports.tf`
+  (git-ignored) — config-driven `import {}` blocks for every `railway_variable` (address
+  `module.<svc>.railway_variable.this["<KEY>"]`). **First** run
+  ONE manual `terraform import 'module.storybook.railway_variable.this["GITHUB_PACKAGE_TOKEN"]' <id>`
+  to confirm which ID format the v0.6 provider accepts, then set
+  `RAILWAY_IMPORT_ID_TEMPLATE` in the script and regenerate. Fill in the ~20 GitHub-side
+  `import {}` blocks by hand (commented templates are in the generated file). Then:
+  `make terraform-plan ENV=staging` → MUST read "**N to import, 0 to add, 0 to change, 0 to
+  destroy**". Any `+`/`~`/`-` ⇒ stop, reconcile the `.tfvars` value or the declaration
+  (e.g. the `SEARCH_INDEX_REDIS_URL` / staging-only stray notes in the service files, or
+  moving a value between `shared.tfvars` and `<env>.tfvars`). When clean:
+  `make terraform-apply ENV=staging`. Repeat `ENV=production`. Delete `imports.tf`; a final
+  `make terraform-plan ENV=<both>` MUST say "No changes." (spec.md US1 AS1, SC-003).
+
+**Checkpoint**: both workspaces hold every service's every variable + the GitHub CI store, all Terraform-managed, `plan` clean. FR-001/FR-002/FR-003/FR-010/SC-001/SC-003 met.
+
+---
+
+## Phase R11: [MAINTAINER] CI secret sync & pipeline validation
+
+- [ ] R37 [MAINTAINER] `make push-tfvars` — creates/updates `TF_TFVARS_SHARED` /
+  `TF_TFVARS_STAGING` / `TF_TFVARS_PRODUCTION` GitHub Actions secrets. Confirm
+  `TF_API_TOKEN`, `TF_GITHUB_TOKEN`, `TF_RAILWAY_TOKEN` already exist (carried over from
+  revision 1).
+- [ ] R38 [MAINTAINER] Validate via the test-tag path: push a tag on this branch (not
+  master) → `release.yml`'s `release-test-staging` → `terraform.yml` applies `staging` →
+  expect "No changes." Then open a PR → `ci.yml`'s `terraform-plan` job posts a clean plan;
+  `deploy-staging-terraform` applies "No changes." (spec.md US3 AS1/AS2/AS3, FR-006/FR-008).
+  Break a declaration deliberately once, confirm the job fails loudly, revert (FR-006).
+
+**Checkpoint**: infra changes ship through `ci.yml` (staging) and `release.yml` (production) via the shared `terraform.yml`, on the same PR/tag triggers as `railway up`. US1–US3 all independently functional.
+
+---
+
+## Phase 6 (retained): User Story 4 — drift detection
+
+- [X] R39 [AGENT] `Makefile` `terraform-drift-check` already runs `terraform plan
+  -detailed-exitcode` per env — confirm it works against the flat root + `-var-file` (R26
+  covers the retarget). Exit `2` = drift, `0` = in sync, `1` = error.
+- [X] R40 [AGENT] `.github/workflows/terraform.yml` — add an optional `mode: drift` (or a
+  `workflow_dispatch`-only path) running `plan -detailed-exitcode` and writing the result to
+  `$GITHUB_STEP_SUMMARY`.
+- [ ] R41 [MAINTAINER] Change one Railway dashboard value out-of-band, run
+  `make terraform-drift-check ENV=staging`, confirm it reports exactly that key, revert
+  (spec.md US4 AS2).
+
+---
+
+## Phase R12: Polish
+
+- [X] R42 [P] [AGENT] `CLAUDE.md` Commands table — update the `terraform-*` rows (flat root,
+  `ENV=`, `-var-file`), add `make push-tfvars`.
+- [X] R43 [P] [AGENT] `CLAUDE.md` Architecture section — `infra/terraform/` one-liner: flat
+  root, per-env HCP workspace, `railway-variables` + `github-ci-config` modules, no
+  `railway_service`.
+- [X] R44 [P] [AGENT] `infra/terraform/README.md` — rewrite Layout, Bootstrap credentials
+  (now 3), the `TF_VAR_*`/`.tfvars` mapping, "Browsing what's declared", and the rate-limit
+  section (manual re-run is now `terraform.yml` `workflow_dispatch`).
+- [X] R45 [P] [AGENT] Repo-wide grep across `infra/terraform/**/*.tf` + tracked
+  `*.tfvars.example` for anything resembling a literal secret — expect zero (every value is
+  `var.*`; `.example` files have no values). Confirms SC-005.
+- [ ] R46 [MAINTAINER] Re-run `quickstart.md` end-to-end, correct any drift between doc and reality.
+
+---
+
+## Phase 7: User Story 5 — Centralize application-side environment variable reads (RETAINED, DONE)
+
+**Unchanged by revision 2.** Pure `src/`/`shared/`/`frontend/` code; no Terraform dependency.
+See spec.md FR-015–FR-019, SC-007.
 
 ### Tests for User Story 5
 
@@ -180,92 +361,28 @@ New top-level `infra/terraform/` directory (per plan.md's Project Structure), pl
 - [X] T048 [US5] Added an ESLint `no-restricted-properties` rule forbidding `process.env` access outside `env.server.ts`/`env.client.ts`/config/tooling files (`frontend/eslint.config.mjs`), plus `.github/scripts/check-env-var-centralization.sh` covering both the frontend rule and the Python side (`os.environ` outside each service's `config.py`/`settings.py`, with narrow documented exceptions for the two data-driven `api_key_env` redirects). Wired into CI as an extra step on the existing `check-lockfile` job (renamed "Verify uv.lock & Env Var Centralization") rather than a new standalone job — same enforcement, no extra runner/checkout overhead (FR-019, spec.md US5 Acceptance Scenario 4)
 - [X] T049 [US5] Ran `.github/scripts/check-env-var-centralization.sh` locally — passes cleanly across `backend/`, `src/`, `chatbot-plugin/src/`, `fastembed/src/`, `shared/`, and `frontend/` — satisfies SC-007
 
-**Checkpoint**: Application code and the Terraform-side inventory (US2) now describe the same reality, with an automated guard against future drift.
+**Checkpoint**: Application code and the Terraform-side inventory (US2) describe the same reality, with an automated guard against future drift.
 
 ---
 
-## Phase 8: Polish & Cross-Cutting Concerns
+## Dependencies & Execution Order (revision 2)
 
-**Purpose**: Documentation and safety-net checks spanning every story.
+- **R1** (teardown/skeleton) → everything.
+- **R2** (spec docs) — parallel with R3+, independent.
+- **R3** (modules) → **R4** (root config) → **R5** (service files) → **R6** (templates).
+- **R7** (Makefile/pull script), **R8** (docs gen), **R9** (workflows) — each depends only on
+  R5 landing; mutually parallel.
+- **R10** (`[MAINTAINER]` import) — depends on R5–R9 all done.
+- **R11** (`[MAINTAINER]` CI validation) — depends on R10 + R9.
+- **Phase 6** (drift, R39–R41) — depends on R9/R10.
+- **R12** (polish) — after the desired stories are done.
+- **Phase 7** (US5) — already complete, no dependency either way.
 
-- [X] T038 [P] Update `CLAUDE.md`'s Commands table with the new `make terraform-fmt`/`terraform-validate`/`terraform-plan`/`terraform-apply`/`terraform-drift-check` targets
-- [X] T039 [P] Update `CLAUDE.md`'s Architecture section to list `infra/terraform/` alongside `src/`/`backend/`/`frontend/`/`models/`, one sentence per module's responsibility
-- [ ] T040 Re-run every step of `specs/025-iac-provisioning/quickstart.md` end-to-end after all tasks above are complete, and correct the doc wherever reality drifted from what was written during planning
-- [X] T041 [P] Repo-wide grep across `infra/terraform/**/*.tf` and `**/*.tfvars` for anything that looks like a literal secret value. Every `.tfvars` value is a non-secret identifier (project/environment IDs, org/repo names — confirmed via each file's own header comment). Every literal (non-`IMPORTED-BASELINE-...`, non-`${...}`) `value = "..."` in `main.tf` is one of: an internal/public Railway hostname (`BACKEND_URL`/`FRONTEND_URL`/`STORYBOOK_URL`) or the throwaway `IAC_VERIFICATION_MARKER` test value — none are secrets. Confirms SC-005
+### Guardrails (carried over from revision 1's Notes)
 
----
-
-## Dependencies & Execution Order
-
-### Phase Dependencies
-
-- **Setup (Phase 1)**: No dependencies — start immediately
-- **Foundational (Phase 2)**: Depends on Setup (needs T004's bootstrap credentials, T005's Makefile targets) — BLOCKS all user stories
-- **User Story 1 (Phase 3)**: Depends on Foundational only
-- **User Story 2 (Phase 4)**: Depends on Foundational; T026/T027 also depend on US1's T020 (needs all ten services' `railway_service_id` outputs to fully populate `RAILWAY_SERVICE_ID_*` variables) — not independent of US1 in practice, even though both are P1
-- **User Story 3 (Phase 5)**: Depends on Foundational; T032 depends on US2's T028 (the `TF_VAR_*` mapping it wires into CI)
-- **User Story 4 (Phase 6)**: Depends on Foundational only — genuinely independent of US1–US3, since a drift check works against whatever is already declared, even a minimal subset
-- **User Story 5 (Phase 7)**: Independent of Foundational and every other user story — pure application code changes (`src/`, `shared/`, `frontend/`), no Terraform dependency. Can run in parallel with any other phase
-- **Polish (Phase 8)**: Depends on all desired user stories being complete
-
-### Within Each User Story
-
-- Module `variables.tf` → `main.tf` → `outputs.tf` (each module)
-- Module implementation before any environment root config instantiates it
-- `terraform import` immediately follows first instantiation of any pre-existing resource (never plan/apply against an un-imported resource that already exists)
-- Verification tasks run after the implementation tasks they check, not "first" as a red/green TDD cycle — there is no code to fail red for a declarative config; the "test" is confirming an apply against real infrastructure matches the Acceptance Scenario
-
-### Parallel Opportunities
-
-- T002, T003 (Setup) — different files
-- T006/T007, T008/T009, T010/T011 (Foundational) — staging vs. production are always different files
-- T013/T014 (US1 verification) — independent checks
-- T021/T022 (US2 verification) — independent checks
-- T029/T030 (US3 verification) — independent checks
-- T050/T051 (US5 tests), T045/T046 (US5 env.server.ts/env.client.ts) — different files
-- T038/T039/T041 (Polish) — different concerns, different files
-
----
-
-## Parallel Example: Foundational Phase
-
-```bash
-# Launch both environments' backend + variable wiring together:
-Task: "infra/terraform/environments/staging/backend.tf — HCP Terraform workspace scrape-analyzer-staging"
-Task: "infra/terraform/environments/production/backend.tf — HCP Terraform workspace scrape-analyzer-production"
-Task: "infra/terraform/environments/staging/variables.tf + terraform.tfvars"
-Task: "infra/terraform/environments/production/variables.tf + terraform.tfvars"
-```
-
----
-
-## Implementation Strategy
-
-### MVP First (User Story 1 Only)
-
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (blocks everything)
-3. Complete Phase 3: User Story 1 — all ten services declared, `terraform plan` clean
-4. **STOP and VALIDATE**: `make terraform-plan ENV=staging` and `ENV=production` both show zero diff; every service's live config still matches what the dashboard showed before migration
-5. This alone already delivers the core value: no more manual dashboard clicking to see or change a service's configuration
-
-### Incremental Delivery
-
-1. Setup + Foundational → foundation ready
-2. User Story 1 → all services declared and importable → validate → this is the MVP
-3. User Story 2 → variable workflow + GitHub secrets/variables closed loop → validate
-4. User Story 3 → CI/CD wiring, so changes ship without a manual `terraform apply` → validate
-5. User Story 4 → drift detection safety net → validate
-
-Each story adds value without breaking the previous ones; because User Story 4 has no dependency on US2/US3, it can be pulled forward if drift detection turns out to be more urgent than CI wiring.
-
----
-
-## Notes
-
-- [P] tasks touch different files and have no unmet dependency
-- [Story] label maps each task to its spec.md user story for traceability
-- Because this feature manages real, already-running production infrastructure, every `terraform apply` task (T018–T020, T026–T027, and anything run via T032/T033) MUST be preceded by reviewing the corresponding `terraform plan` output — never apply blind, even during implementation
-- Commit after each task or logical group, per standard project convention
-- Stop at any checkpoint to validate a story independently before moving on
-- FR-014 (Railway managed database services stay manual) and FR-013 (two standing bootstrap credentials) require no implementation tasks of their own — they are documented constraints (T003, T004) that later tasks must not violate, not features to build
+- Every `[MAINTAINER]` `terraform apply` MUST be preceded by reviewing the matching `plan`.
+  During import (R36) the only acceptable plan is "N to import, 0 add / 0 change / 0 destroy".
+- No secret value ever authored into a `.tf` or a tracked `.tfvars.example` (FR-004/FR-004a).
+- Applies fire only on PR (staging) / `v*` tag (production) — never a bare `master` push
+  (Principle V).
+- Commit after each task or logical group; `<emoji> [TYPE] <msg>` message format.

@@ -1,13 +1,13 @@
 {
   "generated_from": [
-    "infra/terraform/environments/production/main.tf",
-    "infra/terraform/environments/staging/main.tf"
+    "infra/terraform/railway/railway-services.json",
+    "infra/terraform/railway/github-ci.tf"
   ],
   "services": [
     {
       "key": "chatbot_plugin",
       "service_name": "chatbot-plugin",
-      "source_repo": "s091648/chatbot-plugin",
+      "source_repo": null,
       "root_directory": null,
       "cron_schedule": null,
       "environments": {
@@ -15,2776 +15,2794 @@
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CHATBOT_MAX_TOKENS",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 26
+          "managed_count": 26,
+          "sensitive_count": 4
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CHATBOT_MAX_TOKENS",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 26
+          "managed_count": 26,
+          "sensitive_count": 4
         }
       }
     },
     {
       "key": "dashboard_backend",
       "service_name": "dashboard-backend",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
+      "source_repo": null,
+      "root_directory": null,
       "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CACHE_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FRONTEND_ORIGIN",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_PROMETHEUS_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_PROMETHEUS_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_TEMPO_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_TEMPO_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "MAXMIND_LICENSE_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "NEXTAUTH_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SEARCH_INDEX_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SWAGGER_TRY_IT_OUT_ENABLED",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 38
+          "managed_count": 38,
+          "sensitive_count": 11
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CACHE_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FRONTEND_ORIGIN",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_PROMETHEUS_URL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_PROMETHEUS_USER",
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_TEMPO_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_TEMPO_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "MAXMIND_LICENSE_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "NEXTAUTH_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "REDIS_URL",
-              "managed": false,
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "SEARCH_INDEX_REDIS_URL",
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SWAGGER_TRY_IT_OUT_ENABLED",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 35
+          "managed_count": 38,
+          "sensitive_count": 11
         }
       }
     },
     {
       "key": "dashboard_frontend",
       "service_name": "dashboard-frontend",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/frontend",
+      "source_repo": null,
+      "root_directory": null,
       "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "BACKEND_URL",
               "managed": true,
               "sensitive": false,
-              "value": "http://dashboard-backend2.railway.internal:8000"
+              "value": null
             },
             {
               "name": "CHAT_SERVICE_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GOOGLE_CLIENT_ID",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GOOGLE_CLIENT_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_SA_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "NEXTAUTH_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "NEXTAUTH_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 1,
-          "sensitive_count": 10
+          "managed_count": 11,
+          "sensitive_count": 6
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "BACKEND_URL",
               "managed": true,
               "sensitive": false,
-              "value": "http://dashboard-backend.railway.internal:8000"
+              "value": null
             },
             {
               "name": "CHAT_SERVICE_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CHAT_SERVICE_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GOOGLE_CLIENT_ID",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GOOGLE_CLIENT_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_SA_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "NEXTAUTH_SECRET",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "NEXTAUTH_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 1,
-          "sensitive_count": 10
+          "managed_count": 11,
+          "sensitive_count": 6
         }
       }
     },
     {
       "key": "dedup_reconcile",
-      "service_name": "dedup_reconcile",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
-      "cron_schedule": "0 20 * * *",
+      "service_name": "dedup-reconcile",
+      "source_repo": null,
+      "root_directory": null,
+      "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 13
+          "managed_count": 13,
+          "sensitive_count": 5
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 13
+          "managed_count": 13,
+          "sensitive_count": 5
         }
       }
     },
     {
       "key": "fastembed",
       "service_name": "fastembed",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
+      "source_repo": null,
+      "root_directory": null,
       "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 6
+          "managed_count": 6,
+          "sensitive_count": 1
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 6
+          "managed_count": 6,
+          "sensitive_count": 1
         }
       }
     },
     {
       "key": "rag_backfill",
-      "service_name": "backfill_rag",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
-      "cron_schedule": "0 20 * * *",
+      "service_name": "rag-backfill",
+      "source_repo": null,
+      "root_directory": null,
+      "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_CHUNK_OVERLAP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_CHUNK_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_EMBED_BATCH_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 39
+          "managed_count": 39,
+          "sensitive_count": 8
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "OPENROUTER_API_KEY",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_CHUNK_OVERLAP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_CHUNK_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_EMBED_BATCH_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 41
+          "managed_count": 39,
+          "sensitive_count": 8
         }
       }
     },
     {
       "key": "refresh_metrics",
-      "service_name": "refresh metrics",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
-      "cron_schedule": "0 20 * * *",
+      "service_name": "refresh-metrics",
+      "source_repo": null,
+      "root_directory": null,
+      "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 13
+          "managed_count": 13,
+          "sensitive_count": 5
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 13
+          "managed_count": 13,
+          "sensitive_count": 5
         }
       }
     },
     {
       "key": "scrape_and_analyze",
       "service_name": "scrape-and-analyze",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
-      "cron_schedule": "0 8 * * *",
+      "source_repo": null,
+      "root_directory": null,
+      "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CACHE_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_CHUNK_OVERLAP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_CHUNK_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_EMBED_BATCH_SIZE",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "SENTRY_DSN",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            }
-          ],
-          "managed_count": 0,
-          "sensitive_count": 41
-        },
-        "staging": {
-          "variables": [
-            {
-              "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "CACHE_REDIS_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "DATABASE_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "FIXIE_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GEMINI_API_KEY",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GRAFANA_API_KEY",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "OPENROUTER_API_KEY",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_CHUNK_OVERLAP",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_CHUNK_SIZE",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_API_KEY_ENV",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_MODEL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_RPD",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_RPM",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_DENSE_TPM",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_EMBED_BATCH_SIZE",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_GEMINI_API_KEY",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_DIMENSION",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_ENDPOINT_URL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_MODEL",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_PROVIDER",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_RPD",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_RPM",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "RAG_SPARSE_TPM",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SEARCH_INDEX_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "SEARCH_MIN_DOC_FREQ",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_HOST",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_PASSWORD",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "VECTOR_DB_PORT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_SCHEMA",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "VECTOR_DB_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 44
+          "managed_count": 44,
+          "sensitive_count": 12
+        },
+        "staging": {
+          "variables": [
+            {
+              "name": "APP_ENV",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "CACHE_REDIS_URL",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "CONTACT_EMAIL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "DATABASE_URL",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "FIXIE_URL",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "GEMINI_API_KEY",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "GITHUB_PACKAGE_TOKEN",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_API_KEY",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_LOKI_URL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_LOKI_USER",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_OTLP_ENDPOINT",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "GRAFANA_OTLP_USER",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "OPENROUTER_API_KEY",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "RAG_CHUNK_OVERLAP",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_CHUNK_SIZE",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_API_KEY_ENV",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_DIMENSION",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_ENDPOINT_URL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_MODEL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_PROVIDER",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_RPD",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_RPM",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_DENSE_TPM",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_EMBED_BATCH_SIZE",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_GEMINI_API_KEY",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_DIMENSION",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_ENDPOINT_URL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_MODEL",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_PROVIDER",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_RPD",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_RPM",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "RAG_SPARSE_TPM",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "SEARCH_INDEX_REDIS_URL",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "SEARCH_MIN_DOC_FREQ",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "SENTRY_DSN",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "TELEGRAM_BOT_TOKEN",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "TELEGRAM_CHAT_ID",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_HOST",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_NAME",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_PASSWORD",
+              "managed": true,
+              "sensitive": true,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_PORT",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_SCHEMA",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            },
+            {
+              "name": "VECTOR_DB_USER",
+              "managed": true,
+              "sensitive": false,
+              "value": null
+            }
+          ],
+          "managed_count": 44,
+          "sensitive_count": 12
         }
       }
     },
     {
       "key": "storybook",
-      "service_name": "storybook UI",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/frontend",
+      "service_name": "storybook",
+      "source_repo": null,
+      "root_directory": null,
       "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             }
           ],
-          "managed_count": 0,
+          "managed_count": 1,
           "sensitive_count": 1
         },
         "staging": {
           "variables": [
             {
               "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             }
           ],
-          "managed_count": 0,
+          "managed_count": 1,
           "sensitive_count": 1
         }
       }
     },
     {
       "key": "weekly_report",
-      "service_name": "weekly report",
-      "source_repo": "s091648/scrape-and-analyze",
-      "root_directory": "/",
-      "cron_schedule": "0 0 * * 1",
+      "service_name": "weekly-report",
+      "source_repo": null,
+      "root_directory": null,
+      "cron_schedule": null,
       "environments": {
         "production": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CACHE_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FRONTEND_ORIGIN",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "HF_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "R2_ACCESS_KEY_ID",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "R2_ACCOUNT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_BUCKET_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_PUBLIC_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_SECRET_ACCESS_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_FROM_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 25
+          "managed_count": 25,
+          "sensitive_count": 12
         },
         "staging": {
           "variables": [
             {
               "name": "APP_ENV",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "CACHE_REDIS_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "CONTACT_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "DATABASE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FIXIE_URL",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "FRONTEND_ORIGIN",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GEMINI_API_KEY",
-              "managed": false,
-              "sensitive": true,
-              "value": null
-            },
-            {
-              "name": "GITHUB_PACKAGE_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_LOKI_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_ENDPOINT",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "GRAFANA_OTLP_USER",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "HF_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "R2_ACCESS_KEY_ID",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "R2_ACCOUNT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_BUCKET_NAME",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_PUBLIC_URL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "R2_SECRET_ACCESS_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_API_KEY",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_FROM_EMAIL",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "SENTRY_DSN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "managed": false,
+              "managed": true,
               "sensitive": true,
               "value": null
             },
             {
               "name": "TELEGRAM_CHAT_ID",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             },
             {
               "name": "UV_GROUP",
-              "managed": false,
-              "sensitive": true,
+              "managed": true,
+              "sensitive": false,
               "value": null
             }
           ],
-          "managed_count": 0,
-          "sensitive_count": 26
+          "managed_count": 25,
+          "sensitive_count": 12
         }
       }
     }
@@ -2798,55 +2816,55 @@
       "secrets": [
         {
           "name": "CLAUDE_API_KEY",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "CODECOV_TOKEN",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "GEMINI_API_KEY",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "GIST_ID",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "GIST_SECRET",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "NEXTAUTH_SECRET",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "NPM_TOKEN",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "OPENROUTER_API_KEY",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "RELEASE_PAT",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         }
@@ -2856,123 +2874,267 @@
           "name": "BACKEND_URL",
           "managed": true,
           "sensitive": false,
-          "value": "https://dashboard-backend2-production-e4c1.up.railway.app/"
-        },
-        {
-          "name": "FRONTEND_URL",
-          "managed": true,
-          "sensitive": false,
-          "value": "https://dashboard-frontend-staging-f1e3.up.railway.app"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_CHATBOT_PLUGIN",
           "managed": true,
           "sensitive": false,
-          "value": "module.chatbot_plugin.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_DASHBOARD_BACKEND",
           "managed": true,
           "sensitive": false,
-          "value": "module.dashboard_backend.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND",
           "managed": true,
           "sensitive": false,
-          "value": "module.dashboard_frontend.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_DEDUP_RECONCILE",
           "managed": true,
           "sensitive": false,
-          "value": "module.dedup_reconcile.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_FASTEMBED",
           "managed": true,
           "sensitive": false,
-          "value": "module.fastembed.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_RAG_BACKFILL",
           "managed": true,
           "sensitive": false,
-          "value": "module.rag_backfill.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_REFRESH_METRICS",
           "managed": true,
           "sensitive": false,
-          "value": "module.refresh_metrics.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE",
           "managed": true,
           "sensitive": false,
-          "value": "module.scrape_and_analyze.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_STORYBOOK",
           "managed": true,
           "sensitive": false,
-          "value": "module.storybook.railway_service_id"
+          "value": null
         },
         {
           "name": "RAILWAY_SERVICE_ID_WEEKLY_REPORT",
           "managed": true,
           "sensitive": false,
-          "value": "module.weekly_report.railway_service_id"
+          "value": null
         },
         {
           "name": "STORYBOOK_URL",
           "managed": true,
           "sensitive": false,
-          "value": "https://satisfied-luck-production.up.railway.app/"
+          "value": null
         }
       ]
     },
     {
-      "key": "github_ci_production",
-      "environment": "production",
-      "scope": "environment",
-      "github_environment_name_ref": "var.github_environment_name",
+      "key": "github_ci_repo",
+      "environment": "staging",
+      "scope": "repo",
+      "github_environment_name_ref": null,
       "secrets": [
         {
-          "name": "DATABASE_URL",
-          "managed": false,
+          "name": "CLAUDE_API_KEY",
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
-          "name": "RAILWAY_TOKEN",
-          "managed": false,
+          "name": "CODECOV_TOKEN",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "GEMINI_API_KEY",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "GIST_ID",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "GIST_SECRET",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "NEXTAUTH_SECRET",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "NPM_TOKEN",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "OPENROUTER_API_KEY",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "RELEASE_PAT",
+          "managed": true,
           "sensitive": true,
           "value": null
         }
       ],
-      "variables": []
+      "variables": [
+        {
+          "name": "BACKEND_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_CHATBOT_PLUGIN",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_DASHBOARD_BACKEND",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_DEDUP_RECONCILE",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_FASTEMBED",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_RAG_BACKFILL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_REFRESH_METRICS",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_STORYBOOK",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_SERVICE_ID_WEEKLY_REPORT",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "STORYBOOK_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        }
+      ]
     },
     {
-      "key": "github_ci_staging",
-      "environment": "staging",
+      "key": "github_ci_env",
+      "environment": "production",
       "scope": "environment",
-      "github_environment_name_ref": "var.github_environment_name",
+      "github_environment_name_ref": "scraper / production",
       "secrets": [
         {
           "name": "DATABASE_URL",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         },
         {
           "name": "RAILWAY_TOKEN",
-          "managed": false,
+          "managed": true,
           "sensitive": true,
           "value": null
         }
       ],
-      "variables": []
+      "variables": [
+        {
+          "name": "FRONTEND_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        }
+      ]
+    },
+    {
+      "key": "github_ci_env",
+      "environment": "staging",
+      "scope": "environment",
+      "github_environment_name_ref": "scraper / staging",
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        },
+        {
+          "name": "RAILWAY_TOKEN",
+          "managed": true,
+          "sensitive": true,
+          "value": null
+        }
+      ],
+      "variables": [
+        {
+          "name": "FRONTEND_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        }
+      ]
     }
   ]
 }

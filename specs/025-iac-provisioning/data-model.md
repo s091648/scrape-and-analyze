@@ -1,57 +1,83 @@
 # Phase 1 Data Model: Infrastructure as Code for Deployment Environments
 
-This feature has no application database entities — its "data model" is the shape of the declarative configuration itself. Each entity below maps a spec Key Entity to its concrete Terraform representation.
+This feature has no application database entities — its "data model" is the
+shape of the declarative configuration itself.
 
-**Revised during implementation** (research.md §9, contracts/railway-service-module.md): `railway_service` and `railway_variable` turned out to need separate modules, not one combined `railway-service` module as originally described below — `railway_service` is single-instance-per-service (declared only in production), while `railway_variable` is genuinely per-environment. The entity descriptions below still hold; only the Terraform module boundary changed.
+**Revision 2 (2026-08-28)**: one flat root config (`infra/terraform/`), no
+per-environment directories, no `railway_service`, no `environments/shared`
+workspace. See `plan.md`'s "Revision 2" section.
 
-## Service Definition → `module "railway-service"` instance (registration only, production-only) + `module "railway-variables"` instance (per environment)
+## Service Definition → `module "<svc>"` instance (`modules/railway-variables`)
 
-One module instance per app service (10 total per environment: `dashboard-backend`, `dashboard-frontend`, `storybook`, `scrape-and-analyze`, `chatbot-plugin`, `fastembed`, `weekly-report`, `refresh-metrics`, `rag-backfill`, `dedup-reconcile`).
-
-| Field | Type | Notes |
-|---|---|---|
-| `service_name` | string | Matches the existing Railway service name (e.g. `scrape-and-analyze`) |
-| `railway_project_id` | string | Shared across all services in an environment; passed from the root config |
-| `railway_environment_id` | string | The environment's Railway environment ID (see Environment below) |
-| `config_path` | string | Points at the service's existing `railway.toml` (e.g. `src/railway.toml`) for build/start settings — **not** re-declared here, per research.md §6 |
-| `variables` | map(object) | Keyed by variable name; see Environment Variable below |
-
-**Validation rules** (from FR-001/FR-010): every service in the "Scale/Scope" list above must have a corresponding module instance in both `environments/staging/main.tf` and `environments/production/main.tf` once fully migrated; a service not yet migrated (FR-010's incremental path) simply has no module instance yet — its absence from Terraform is the unambiguous signal that it's still manually managed, with no separate "managed: true/false" flag needed.
-
-## Environment → HCP Terraform workspace + `railway_environment` reference
+One module instance per app service (10), in `infra/terraform/services/<svc>.tf`.
+Railway *service objects* are NOT modelled — they stay manually managed on
+Railway; only their variables are.
 
 | Field | Type | Notes |
 |---|---|---|
-| `name` | string | `staging` \| `production` — matches `ci.yml`'s/`release.yml`'s existing `scraper / staging` / `scraper / production` GitHub Environment names |
-| `railway_environment_id` | string | Read via a `railway_environment` data source (or imported, if the environment itself predates this feature — expected, since staging/production already exist) — this feature does not create new Railway environments (per spec Assumptions: "does not introduce new environment tiers") |
-| `terraform_workspace` | string | `scrape-analyzer-staging` \| `scrape-analyzer-production` — one-to-one with `name`, giving state isolation (FR-003) at the backend level, not just via Terraform variables |
+| `service_id` | string | Stable Railway service UUID, from `var.service_id_<svc>` (set in `secrets/shared.tfvars`) |
+| `environment_id` | string | `var.railway_environment_id` (set in `secrets/<env>.tfvars`) |
+| `variables` | `map(object({ value, sensitive }))` | `merge()` of the `local.shared.*` groups this service uses (`shared.tf`) + its own entries. `value == null` ⇒ the key is skipped for this environment |
 
-**Isolation rule** (FR-003): because each Environment is a distinct HCP Terraform workspace with its own state, applying one environment structurally cannot touch another's resources — isolation is enforced by the backend, not by convention.
+**Validation rule** (FR-001/FR-010): every service in scope has a
+`module "<svc>"` block in `services/`. A partially-migrated state is expressed
+by which keys appear in a service's merged `variables` map — not by a
+`managed: true/false` flag (revision 2 removed that concept).
 
-## Environment Variable → `railway_variable` / `github_actions_secret` / `github_actions_variable`
+## Environment → HCP Terraform workspace, selected by `TF_WORKSPACE`
 
-A variable belongs to exactly one Service Definition (Railway-side) or the CI Credential Store (GitHub-side) within exactly one Environment, and is exactly one of three kinds:
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | `staging` \| `production` — the HCP workspace name AND `var.app_env` |
+| `railway_environment_id` | string | `var.railway_environment_id`, set in `secrets/<env>.tfvars`. Not read back from Railway (the provider has no data source) |
+| workspace selection | — | `backend.tf` uses `cloud { workspaces { tags = [...] } }` (no hard-coded `name`); `TF_WORKSPACE=<env>` picks. `terraform.workspace` then reflects the real name |
+
+**Isolation rule** (FR-003): each Environment is a distinct HCP workspace with
+its own state — applying one cannot touch another's resources. The
+`check "workspace_matches_env"` block (`locals.tf`) additionally asserts
+`terraform.workspace == var.app_env` so a mismatched `TF_WORKSPACE` /
+`-var-file` pair fails loudly.
+
+## Environment Variable → `railway_variable` / `github_actions_(secret|variable)`
+
+A variable belongs to one Service Definition (Railway) or the CI Credential
+Store (GitHub) within one Environment. Every kind is Terraform-enforced.
 
 | Kind | Representation | Value source |
 |---|---|---|
-| **Plain config** | `railway_variable` (Railway-side) or `github_actions_variable` (GitHub-side) | Literal value in `terraform.tfvars`, safe to commit |
-| **Secret** | `railway_variable` or `github_actions_secret`/`github_actions_environment_secret` | Injected at apply time via `TF_VAR_*` from the existing GitHub Actions secrets store (FR-004a) — never literal in any `.tf`/`.tfvars` file |
-| **Reference** | `railway_variable` only | Literal value is a Railway template string (e.g. `${{Redis.REDIS_URL}}`); resolved server-side by Railway regardless of how the variable was set (FR-014) — from Terraform's point of view this is just a plain-config string, but it's called out as its own kind because its *meaning* depends on a resource this feature does not manage |
+| Plain config | `railway_variable` / `github_actions_variable` | A `var.*`, supplied via `-var-file` (`secrets/*.tfvars`) — non-secret ones may be typed there directly |
+| Secret | `railway_variable` / `github_actions_secret` / `_environment_secret` | A `sensitive = true` `var.*`, supplied via `-var-file` / `TF_VAR_*` — never a literal in a tracked file (FR-004a) |
+| Reference | `railway_variable` only | A Railway template string (`${{ Redis.REDIS_URL }}`); plain string to Terraform, resolved server-side by Railway (FR-014). `$` escaped as `$${` in `.tfvars` |
 
-**State transitions**: none in the traditional sense — a variable's lifecycle is create → update (value change, in place) → destroy (removed from declaration). FR-011 requires destroy/replace to be visually distinguishable from create/update in the `terraform plan` output, which is native `terraform plan` behavior (`+`/`~`/`-` symbols) and needs no additional design.
+**Layering**: `-var-file=secrets/shared.tfvars -var-file=secrets/<env>.tfvars`,
+later wins. A key set only in `<env>.tfvars` (leaving the shared value `null`)
+is a clean per-environment difference. In CI the three `.tfvars` files are
+materialized from base64 GitHub Actions secrets `TF_TFVARS_SHARED` / `_STAGING`
+/ `_PRODUCTION`.
+
+**State transitions**: create → update (value change, in place) → destroy
+(key removed from the merged map). FR-011's destroy-vs-modify distinction is
+native `terraform plan` output (`+`/`~`/`-`).
 
 ## Applied State → HCP Terraform remote state (per workspace)
 
-Not a custom entity — this *is* each workspace's Terraform state file, hosted by HCP Terraform. Contains the full resource graph including plaintext secret values (research.md §4), which is exactly why FR-004 requires it to live in an encrypted, access-restricted remote backend rather than the repository. Drift detection (FR-009) is `terraform plan`'s native comparison between this record and the provider's live read of actual resource state — no custom drift-tracking mechanism is needed.
+Each workspace's Terraform state, hosted by HCP Terraform. Contains plaintext
+secret values once applied — hence FR-004's encrypted, access-restricted remote
+backend requirement. Drift detection (FR-009) is `terraform plan`'s native
+comparison (`make terraform-drift-check ENV=<env>`, or `terraform.yml` in
+`mode: drift`).
 
-## CI Credential Store → `module "github-ci-config"` instance
+## CI Credential Store → `module "github_ci_repo"` + `module "github_ci_env"`
 
-One module instance per Environment (mirroring the existing `scraper / staging` / `scraper / production` GitHub Environments used in `ci.yml`/`release.yml`'s `environment:` key) plus optionally one repo-level (non-environment-scoped) instance for secrets/variables not tied to either environment (e.g. `CODECOV_TOKEN`, `GIST_SECRET`, which today are plain repo secrets, not environment-scoped).
+Repo-level (`github_ci_repo`) and environment-scoped
+(`github_ci_env`, `github_environment_name = "scraper / ${var.app_env}"`)
+instances of `modules/github-ci-config`.
 
 | Field | Type | Notes |
 |---|---|---|
-| `github_environment_name` | string \| null | `scraper / staging`, `scraper / production`, or null for repo-level | 
-| `secrets` | map(string), sensitive | Keyed by secret name (e.g. `RAILWAY_TOKEN`, `DATABASE_URL`); values injected via `TF_VAR_*`, never literal (FR-004a) |
-| `variables` | map(string) | Keyed by variable name (e.g. `RAILWAY_SERVICE_ID_DASHBOARD_BACKEND`); literal values in `terraform.tfvars`, safe to commit |
+| `secrets` | `map(string)` | Keyed by name (`CLAUDE_API_KEY`, `DATABASE_URL`, …); values from `var.gh_*`, `null` skips |
+| `variables` | `map(string)` | Keyed by name (`RAILWAY_SERVICE_ID_*` derived from `var.service_id_*`, `BACKEND_URL`, …) |
 
-**Exclusion** (FR-013): `TF_API_TOKEN` and the GitHub PAT used by this module's own provider block are never themselves entries in `secrets` above — they are the two standing bootstrap credentials from research.md §5, created and stored manually outside this module's scope.
+**Exclusion** (FR-013): the three bootstrap credentials — `TF_API_TOKEN`,
+`TF_GITHUB_TOKEN`, `TF_RAILWAY_TOKEN` — are never entries here; they authenticate
+the tool to its state backend / GitHub / Railway and cannot be self-managed.
