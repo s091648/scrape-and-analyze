@@ -1,0 +1,20 @@
+# refresh-metrics — daily cron; keeps article_metric_values (citation_count etc.)
+# fresh for previously-scraped articles with a DOI and/or arXiv ID. Independent of
+# weekly-report and of the backend's view_count Redis flush.
+# Shares src/ code + src/Dockerfile with scrape-and-analyze.
+#
+# ── Railway service setting (ONE-TIME, manual) ───────────────────────────────
+# Config File Path → /src/railway-refresh-metrics.toml
+# (see specs/025-iac-provisioning/plan.md "Revision 3")
+#
+# UV_GROUP ("http-clients metrics") is a Terraform-managed service variable —
+# infra/terraform/railway/refresh-metrics.tf (var.uv_group_refresh_metrics).
+
+[build]
+builder        = "dockerfile"
+dockerfilePath = "src/Dockerfile"
+
+[deploy]
+startCommand      = "/app/.venv/bin/python -m src.entrypoints.cli.refresh_metrics"
+cronSchedule      = "0 20 * * *"
+restartPolicyType = "never"

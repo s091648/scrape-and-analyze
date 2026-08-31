@@ -1,0 +1,22 @@
+# rag-backfill — daily cron (after dedup-reconcile). Ingests
+# articles.has_vectors = FALSE rows into the vector store via the same
+# RagSdkIngestionService / IngestArticleForRagUseCase the live scrape pipeline
+# uses — catches articles that predate RAG or failed ingestion at scrape time.
+# Shares src/ code + src/Dockerfile with scrape-and-analyze.
+#
+# ── Railway service setting (ONE-TIME, manual) ───────────────────────────────
+# Config File Path → /src/railway-rag-backfill.toml
+# (see specs/025-iac-provisioning/plan.md "Revision 3")
+#
+# UV_GROUP ("scraper http-clients" — needs the "scraper" group for
+# chatbot-plugin-sdk) is a Terraform-managed service variable —
+# infra/terraform/railway/rag-backfill.tf (var.uv_group_rag_backfill).
+
+[build]
+builder        = "dockerfile"
+dockerfilePath = "src/Dockerfile"
+
+[deploy]
+startCommand      = "/app/.venv/bin/python -m src.entrypoints.cli.backfill_rag"
+cronSchedule      = "0 20 * * *"
+restartPolicyType = "never"

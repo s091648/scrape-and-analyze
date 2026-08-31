@@ -7,8 +7,8 @@ Usage:
     uv run python -m src.entrypoints.cli.dedup_reconcile
     uv run python -m src.entrypoints.cli.dedup_reconcile --limit 200
 
-Deployed as its own Railway Cron Service (see src/railway.toml), independent
-of refresh_metrics.py and the scraper worker.
+Deployed as its own Railway Cron Service (see src/railway-dedup-reconcile.toml),
+independent of refresh_metrics.py and the scraper worker.
 
 How it works:
     For each openalex-sourced article not reconciled in the last week, refetch

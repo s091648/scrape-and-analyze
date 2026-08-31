@@ -1,0 +1,27 @@
+# scrape-and-analyze (a.k.a. "worker") — the main scheduled scrape → analyze →
+# translate → RAG pipeline (src/entrypoints/cli/main.py).
+#
+# ── Railway service setting (ONE-TIME, manual) ───────────────────────────────
+# Config File Path → /src/railway-scrape-and-analyze.toml
+# Railway has no service variable and no drift-clean Terraform path for this
+# (RAILWAY_CONFIG_PATH does not exist; the community provider's railway_service
+# can only write the project's primary environment). See
+# specs/025-iac-provisioning/plan.md "Revision 3".
+#
+# ⚠️ cronSchedule is intentionally NOT set here — the live scrape trigger was
+#    never recorded in this repo. Config-as-code is a per-deploy overlay merged
+#    on top of dashboard settings (omitted keys fall through to the dashboard),
+#    so the existing dashboard cron keeps working. Fill it in below once the
+#    live value is confirmed, then it too becomes version-controlled.
+#
+# Shares src/Dockerfile with the other four src/ services. This one takes NO
+# UV_GROUP override — it IS the Dockerfile default ("scraper llm http-clients").
+# startCommand: none — uses the Dockerfile CMD
+#   (/app/.venv/bin/python -m src.entrypoints.cli.main).
+
+[build]
+builder        = "dockerfile"
+dockerfilePath = "src/Dockerfile"
+
+[deploy]
+restartPolicyType = "never"cronSchedule = "0 8 * * *"  # TODO(025): copy the live schedule from the Railway dashboard, then uncomment
