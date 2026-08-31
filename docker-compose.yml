@@ -275,14 +275,17 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
-      # Only environments/ (main.tf/variables.tf/terraform.tfvars) — needed by
-      # scripts/generate_terraform_docs.py (make uml-terraform-docs). Deliberately
-      # NOT the whole infra/terraform/ tree: infra/terraform/.env.local (sibling,
-      # one level up — untouched by this mount) holds the account-level
-      # RAILWAY_TOKEN/TF_API_TOKEN/TF_GITHUB_TOKEN and must never enter an app
-      # container (see the terraform-* Makefile targets' comment). Read-only —
-      # this container only ever reads these files, never runs `terraform` itself.
-      - ./infra/terraform/environments:/app/infra/terraform/environments:ro
+      # scripts/generate_terraform_docs.py (make uml-terraform-docs) statically
+      # parses infra/terraform/railway/*.tf (the flat root — every <svc>.tf plus
+      # shared.tf / github-ci.tf). Mount that dir read-only, but shadow the
+      # secret-bearing paths: the higher-privilege terraform credentials
+      # (account-level RAILWAY_TOKEN / TF_API_TOKEN / TF_GITHUB_TOKEN in .env, and
+      # secrets/*.tfvars) must never enter an app container. The generator reads
+      # only *.tf, never these — the empty overlays don't affect it.
+      - ./infra/terraform/railway:/app/infra/terraform/railway:ro
+      - /dev/null:/app/infra/terraform/railway/.env:ro
+      - /app/infra/terraform/railway/secrets
+      - /app/infra/terraform/railway/.terraform
       - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env
