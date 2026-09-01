@@ -1,5 +1,43 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "fix",
+        "description": "Improved service availability by updating backend connection settings for health checks."
+      },
+      {
+        "type": "feat",
+        "description": "Automated the generation of technical service documentation for easier reference."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced monitoring capabilities through new shared observability variable groups."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced a new tool for auditing active environment variables."
+      },
+      {
+        "type": "fix",
+        "description": "Fixed a bug that caused deployment scripts to fail on Windows systems."
+      },
+      {
+        "type": "feat",
+        "description": "Improved environment variable synchronization by automatically pruning unused variables during deployment."
+      },
+      {
+        "type": "feat",
+        "description": "Implemented automated provisioning of cloud services and CI configurations using Terraform."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the application to version 1.6.1."
+      }
+    ]
+  },
+  {
     "version": "v1.6.1",
     "date": "2026-08-26",
     "changes": [
