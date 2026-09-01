@@ -58,23 +58,30 @@ Read from `infra/terraform/railway/.env` (git-ignored). Copy `.env.example`
 
 ## Day-to-day
 
+**Normal path:** edit the value in `secrets/*.tfvars` → `make push-tfvars` → open
+a PR. CI runs both halves through `.github/workflows/terraform.yml` (`mode: apply`
+on a PR's first run for staging, on a `v*` tag for production; `mode: drift` via
+`workflow_dispatch`). Gated to PR `opened`/`reopened` — an apply redeploys every
+Railway service, so re-running on every push would churn deployments.
+`make push-tfvars` is the only command you have to remember.
+
+**Applying locally** (optional — when you don't want to wait for CI; needs `.env`):
+
 ```
-# GitHub-side
+# GitHub-side (github-ci.tf — DATABASE_URL, FRONTEND_URL, RAILWAY_SERVICE_ID_*, API keys, …)
 make terraform-plan  ENV=staging
 make terraform-apply ENV=staging
 
-# Railway-side
-make push-railway-variables  ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1]
+# Railway-side (per-service env vars; structure in railway-services.json)
 make check-railway-variables  ENV=staging     # read-only diff, exit 2 on drift
+make push-railway-variables   ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1]
 
-# after editing any secrets/*.tfvars value, sync all six to CI:
+# then, so CI doesn't report drift, sync all six tfvars to the TF_TFVARS_* secrets:
 make push-tfvars
 ```
 
-CI runs both halves through `.github/workflows/terraform.yml` (`mode: apply` on a
-PR's first run for staging, on a `v*` tag for production; `mode: drift` via
-`workflow_dispatch`). Gated to PR `opened`/`reopened` — an apply redeploys every
-Railway service, so re-running on every push would churn deployments.
+Changing *which* service gets which vars (not just a value) → edit
+`railway-services.json`, then run the Railway-side commands above.
 
 ## Browsing what's declared
 
