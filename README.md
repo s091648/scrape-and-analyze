@@ -9,9 +9,9 @@ A web scraping and AI-powered article analysis platform. Articles are automatica
 ![Common Web Crawler](images/diagrams/common_web_crawler.png)
 The overall design is greatly inspired by the Chapter 9 of System Design Interview by Alex Xu.
 
-As we're not trying to crawl every content possible across the whole world-wide web but just request contents from particular sources, the complexity of analyzing the structure and building a tree for the web pages are avoided.
+As we're not trying to crawl every content possible across the whole world-wide web but just request contents from particular sources, the complexity of analyzing the structure and building a tree for the web pages are avoided, and we primarily uses provided API's and RSS feed if provided for article sources.
 
-However, useful concepts such as politeness are taken into consideration.
+However, useful concepts such as host maps, queues, and politeness are taken into consideration.
 
 ## Architecture
 
