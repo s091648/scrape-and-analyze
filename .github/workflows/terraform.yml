@@ -56,6 +56,16 @@ jobs:
     timeout-minutes: 20
     environment: scraper / ${{ inputs.environment }}
 
+    # backend.tf pins the HCP Terraform backend with `workspaces { tags = [...] }`
+    # (not a hard-coded `name`), so EVERY terraform command — `init` included —
+    # needs TF_WORKSPACE to know whether it's targeting the `staging` or
+    # `production` workspace of the `scrape-analyzer` org. Set at job level (not
+    # just on the plan/apply step) because `terraform init -input=false` with no
+    # workspace selected otherwise falls back to a non-existent "default"
+    # workspace and fails ("Currently selected workspace \"default\" does not exist").
+    env:
+      TF_WORKSPACE: ${{ inputs.environment }}
+
     steps:
       - uses: actions/checkout@v5
 
@@ -110,7 +120,6 @@ jobs:
       # (exit 2 = drift) written to the job summary.
       - name: terraform ${{ inputs.mode }} (GitHub Actions config)
         env:
-          TF_WORKSPACE: ${{ inputs.environment }}
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
           TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
