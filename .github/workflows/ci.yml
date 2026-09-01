@@ -192,9 +192,9 @@ jobs:
   # -----------------------------------------------
   terraform-plan:
     name: Infra Plan (staging)
-    if: |
-      github.event_name == 'pull_request' &&
-      (github.event.action == 'opened' || github.event.action == 'reopened')
+    # TEMP (revert to `opened || reopened` once Terraform CI is confirmed green):
+    # run on every PR push so a fix can be re-validated without opening a new PR.
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/terraform.yml
     with:
       mode: plan
@@ -1211,9 +1211,13 @@ jobs:
   deploy-staging-terraform:
     name: Apply Terraform to Staging
     needs: [terraform-plan]
+    # TEMP (revert to `opened || reopened` once Terraform CI is confirmed green):
+    # run on every PR push so a fix can be re-validated without opening a new PR.
+    # NOTE: apply pushes Railway env vars + `railway redeploy`s every service, so
+    # while this is loosened, each PR push will churn staging deployments and can
+    # brush Railway's deploy rate limit.
     if: |
       github.event_name == 'pull_request' &&
-      (github.event.action == 'opened' || github.event.action == 'reopened') &&
       needs.terraform-plan.result == 'success'
     uses: ./.github/workflows/terraform.yml
     with:
