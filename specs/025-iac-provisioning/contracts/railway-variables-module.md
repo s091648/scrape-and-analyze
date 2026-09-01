@@ -1,45 +1,62 @@
-# Module Contract: `railway-variables`
+# Contract: `railway-services.json` (the Railway variable manifest)
 
-**Revision 2 (2026-08-28)**: the `railway-service` module is deleted. Railway
-service objects are not Terraform-managed — service IDs are stable UUIDs
-supplied as `.tfvars` values (`service_id_<svc>`). This is the only Railway
-module.
+**Revision 4 (2026-08-31, "Option A")** replaces the `railway-variables` Terraform
+module with a JSON manifest + `scripts/push_railway_variables.py`. This file is
+what earlier revisions' `railway-variables` module contract described; the module
+no longer exists (see `plan.md` "Revision 4"). The GitHub half is unchanged — see
+`github-ci-config-module.md`.
 
-Instantiated once per service, from `infra/terraform/services/<svc>.tf`. One
-flat root config, applied per environment against its own HCP workspace.
+`infra/terraform/railway/railway-services.json` declares which environment
+variables each of the ten Railway services gets. Values live in
+`infra/terraform/railway/secrets/railway-{shared,<env>}.tfvars` (per-env wins),
+plus `service_id_*` / `gh_env_railway_token` from `secrets/github-*.tfvars`.
 
-## Inputs
+## Shape
 
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `service_id` | `string` | yes | Stable Railway service UUID (from `var.service_id_<svc>`). |
-| `environment_id` | `string` | yes | This environment's Railway environment UUID (`var.railway_environment_id`). |
-| `variables` | `map(object({ value = optional(string), sensitive = optional(bool, false) }))` | yes (may be empty) | One entry per environment variable, keyed by name. |
+```jsonc
+{
+  "shared_groups": {
+    "<group>": { "<RAILWAY_VAR_NAME>": "<tfvars_key>", ... },   // e.g. "grafana": { "GRAFANA_API_KEY": "grafana_api_key" }
+    ...
+  },
+  "unmanaged_all": ["<RAILWAY_VAR_NAME>", ...],                  // never resolved / flagged / pruned, every service
+  "services": {
+    "<service_key>": {
+      "service_id_key": "service_id_<service_key>",              // tfvars key holding the Railway service UUID
+      "groups": ["<group>", ...],                                // shared_groups this service consumes
+      "own": { "<RAILWAY_VAR_NAME>": "<tfvars_key>", ... },      // this service's non-shared vars
+      "unmanaged": ["<RAILWAY_VAR_NAME>", ...],                  // optional, adds to unmanaged_all
+      "redeploy": false                                          // optional; omit (=true) for always-on services
+    },
+    ...
+  }
+}
+```
 
-## Outputs
+## Behavioral contract (`push_railway_variables.py`)
 
-| Name | Type | Description |
-|---|---|---|
-| `variable_names` | `list(string)` | Sorted names of every variable this instance manages *in the current environment* (after null-skip) — for `terraform plan` review / auditing. |
-
-## Behavioral contract
-
-- **Every entry is Terraform-managed.** The value is enforced on every apply.
-  There is no `managed`/`baseline` split and no `lifecycle { ignore_changes }` —
-  revision 2 removed it. The Railway dashboard is read-only for any variable
-  declared here.
-- **`value = null` (or the key absent from the merged map) ⇒ skip.** That
-  variable is not created/managed for the current environment. This is how a key
-  present in one environment's `secrets/<env>.tfvars` but not the other's stays a
-  clean per-environment difference instead of Terraform trying to create it
-  everywhere.
-- `sensitive = true` entries MUST get their `value` from a `TF_VAR_*`/`-var-file`
-  root variable, never a literal in a tracked file (FR-004a).
-- A `variables` entry may hold a Railway reference string (e.g.
-  `${{ Redis.REDIS_URL }}`) — a plain non-sensitive value Railway resolves
-  server-side (FR-014). In `.tfvars` the leading `$` must be escaped as `$${`.
-- A key removed from the merged map between applies MUST be destroyed on the
-  next apply (visible as `-` in `terraform plan`, satisfying FR-011).
-- `for_each` iterates `nonsensitive(local.active)` (a filtered copy) with the
-  real value re-indexed from `local.active` — Terraform forbids `for_each` over a
-  map carrying sensitive values.
+- **Resolve.** For a service, merge its `groups` then `own` into
+  `{RAILWAY_NAME: tfvars_key}`, look each `tfvars_key` up in the merged
+  `railway-{shared,<env>}.tfvars` (+ `github-*` for `service_id_*`).
+  - A tfvars value that is **absent or `""`** is skipped — Railway does not store
+    empty variables, so sending one makes the CLI read-back inconsistent. An
+    unset var and an empty var are equivalent.
+  - Names listed in `unmanaged` / `unmanaged_all` are skipped entirely (not
+    resolved, not drift-checked, not pruned).
+  - `"$${{ … }}"` in the tfvars (HCL-escaped) is un-escaped to `"${{ … }}"` before
+    sending; Railway resolves the reference server-side (FR-014).
+- **Push** (`--env <env>`): one `railway variables --set K=V … --skip-deploys` per
+  service (atomic, no per-variable redeploy), then — unless `redeploy: false` or
+  `--no-redeploy` — one `railway redeploy`. A redeploy that fails because the
+  service has no redeployable latest deployment (cron/one-off between runs) is a
+  warning, not an error.
+- **Prune** (`--prune`; on in CI's `terraform.yml` apply): after the set, delete
+  every live Railway var for that service that isn't in the resolved set and
+  isn't `unmanaged` and isn't `RAILWAY_*` (Railway-injected). This is how a var
+  removed from the manifest/tfvars is removed on Railway (FR-011).
+- **Check** (`--check`): read-only diff, `+`/`~`/`-` per key, exit 2 on any drift.
+  `~` is suppressed for reference-string (`${{`) values — the CLI reads them back
+  resolved, so they are not value-comparable.
+- Secret values arrive only via `-var-file`/the tfvars, never a literal in a
+  tracked file (FR-004a). Railway service/environment/database objects stay
+  manually managed (out of scope).

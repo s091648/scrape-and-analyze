@@ -7,6 +7,8 @@ shape of the declarative configuration itself.
 per-environment directories, no `railway_service`, no `environments/shared`
 workspace. See `plan.md`'s "Revision 2" section.
 
+> **Revision 4 (2026-08-31, "Option A")**: the Railway service *variables* left Terraform — the community `railway` provider is unusable at scale. Terraform now manages only the GitHub Actions secrets/variables; Railway vars are pushed by `scripts/push_railway_variables.py` from `railway-services.json` + `secrets/railway-*.tfvars`. See `plan.md` "Revision 4" and `quickstart.md`. FR intent unchanged.
+
 ## Service Definition → `module "<svc>"` instance (`modules/railway-variables`)
 
 One module instance per app service (10), in `infra/terraform/services/<svc>.tf`.

@@ -73,6 +73,44 @@ change.
 
 ---
 
+## Revision 4 — 2026-08-31 ("Option A": Railway variables leave Terraform)
+
+Revisions 1–3 kept the Railway service **variables** in Terraform (a
+`railway-variables` module, one `<svc>.tf` per service, `shared.tf` groups). The
+`terraform-community-providers/railway` provider (v0.6.2, latest) does not hold up
+at this project's scale:
+
+| Symptom (observed on the staging bootstrap) | Cause |
+|---|---|
+| `serviceInstanceRedeploy Service deployment rate limit exceeded` after ~3 vars | `railway_variable` triggers a service **redeploy per variable**; a first apply of one service = 30–40 redeploys in seconds. |
+| `Error: Provider produced inconsistent result after apply … .variables: inconsistent values for sensitive attribute` on every large service | `railway_variable_collection`'s Create writes all vars, then immediately re-reads; Railway's write is not read-your-writes consistent, so the read-back is short → Terraform core rejects it. Retrying re-races; empty-string values (Railway drops them) make it worse. |
+| GitHub `github_actions_variable` 409 on first apply | provider POSTs (no upsert) — needs a one-time import or `gh variable delete` + recreate. |
+
+**Fix.** Drop the `railway` provider. Terraform now manages **only** the GitHub
+Actions secrets/variables (`github-ci.tf` + `modules/github-ci-config`). Railway
+service env vars are pushed by `scripts/push_railway_variables.py`:
+
+- structure (which service gets which var) → `infra/terraform/railway/railway-services.json`
+  (shared groups + per-service `own` + an `unmanaged` allow-list + per-service
+  `redeploy: false` for cron/one-off services)
+- values → `secrets/railway-{shared,<env>}.tfvars` (the `secrets/*.tfvars` set is
+  split: `github-*` for Terraform, `railway-*` for the script)
+- one batched `railway variables --set … --skip-deploys` per service, then **one**
+  `railway redeploy` — no per-variable redeploy, no racy read-back
+- `--prune` (default in CI's `terraform.yml` apply path) deletes Railway vars the
+  manifest/tfvars don't produce → same converge-both-ways semantics as
+  `terraform apply` on the GitHub side
+- `--check` (drift) and `pull_railway_variables.py` (inventory) unchanged in spirit
+
+`spec.md`'s FR-001/002/003 intent (declarative, version-controlled, single source
+of truth, applied through CI on the same triggers as the code deploy) is
+preserved — only the *executor* for the Railway half changed from a Terraform
+provider to a stdlib script + the official CLI. FR-010 (import existing state)
+becomes a non-issue for the Railway half: the script upserts idempotently, no
+state to reconcile.
+
+---
+
 ## Summary
 
 Replace manual Railway-dashboard and GitHub-Settings configuration with one flat Terraform

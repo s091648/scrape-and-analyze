@@ -5,7 +5,31 @@ description: "Task list for Infrastructure as Code for Deployment Environments"
 
 # Tasks: Infrastructure as Code for Deployment Environments
 
-**Input**: Design documents from `/specs/025-iac-provisioning/` (see `plan.md` "Revision 2 — 2026-08-28")
+**Input**: Design documents from `/specs/025-iac-provisioning/` (see `plan.md` "Revision 2 — 2026-08-28", "Revision 4 — 2026-08-31")
+
+---
+
+## Revision 4 — 2026-08-31 ("Option A": Railway variables leave Terraform)
+
+The `terraform-community-providers/railway` provider proved unusable at scale
+(per-variable redeploys trip Railway's deploy rate limit; `railway_variable_collection`
+races on read-back). See `plan.md` "Revision 4". Net effect on the tasks below:
+
+- **Superseded** (Terraform-managed Railway variables): `R04`, `R09`–`R11`, `R19`, `R20`,
+  and the Railway half of `R08`, `R13`, `R28b`, `R29`, `R36`. The `railway-variables`
+  module, `shared.tf`, and the ten `<svc>.tf` files are deleted.
+- **New** (Option A): `infra/terraform/railway/railway-services.json` (manifest) +
+  `scripts/push_railway_variables.py` (push / `--check` / `--prune`); `secrets/*.tfvars`
+  split into `github-*` (Terraform) / `railway-*` (script) with `scripts/split_tfvars.py`;
+  `variables.tf` trimmed to the ~25 GitHub-side vars; `terraform.yml`'s apply path runs
+  the script with `--prune`; `Makefile` gains `push/check-railway-variables`.
+- **Unchanged**: everything about the GitHub Actions half (`github-ci.tf`,
+  `modules/github-ci-config`, `R05`, `R12`, `R21`), the reusable `terraform.yml` shell
+  (`R30`–`R33`), and Phase 7 (User Story 5).
+- `R34`–`R46` (`[MAINTAINER]`) still apply, re-read through the Option A lens: `R35`
+  populates the six `secrets/{github,railway}-*.tfvars`; `R36` is now "GitHub `terraform
+  apply` + `make push-railway-variables` per env, both clean" (no `import {}` for the
+  Railway side); `R37` syncs six `TF_TFVARS_*` secrets; `R46` = this doc pass.
 
 ---
 

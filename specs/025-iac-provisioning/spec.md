@@ -6,6 +6,8 @@
 
 **Status**: Draft
 
+> **Revision 4 (2026-08-31, "Option A")**: the Railway service *variables* left Terraform — the community `railway` provider is unusable at scale. Terraform now manages only the GitHub Actions secrets/variables; Railway vars are pushed by `scripts/push_railway_variables.py` from `railway-services.json` + `secrets/railway-*.tfvars`. See `plan.md` "Revision 4" and `quickstart.md`. FR intent unchanged.
+
 **Input**: User description: "我需要實作一個新的 feature ，那就是實作 IaC (preferably terraform) 。我目前是把我的 app 部署在 railway 平台上面，而且會根據不同的使用情境 (PR時使用 staging: ci.yml , 正式 release 時使用 production: release.yml ) 而有不同的 environment 。目前 deploy 的工作主要都是透過 railway CLI 去做，但是環境變數的設置等等都是我自己要在 railway 平台上面手動操作，這非常的不方便。而且我之後也希望可以有其他平台部署的支援方案，所以希望能夠使用類似 terraform 這樣的 IaC 語言去構築我的 stack 。"
 
 ## Clarifications
