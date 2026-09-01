@@ -1,8 +1,6 @@
 # infra/terraform/railway
 
-IaC for the two deploy environments (staging, production). One
-`secrets/{shared,staging,production}.tfvars` source of truth, **two independent
-halves**:
+IaC for the two deploy environments (staging, production). One `secrets/*.tfvars` source of truth (see Layout), **two independent halves**:
 
 | Half | What | How |
 | --- | --- | --- |
@@ -36,15 +34,16 @@ infra/terraform/railway/
   modules/github-ci-config/             repo-level vs environment-scoped GitHub secrets/variables
   railway-services.json                 which env vars each Railway service gets (shared groups + per-service)
   secrets/                              git-ignored except *.example
-    {shared,staging,production}.tfvars.example   tracked — key lists, no values
-    {shared,staging,production}.tfvars           real values (== GitHub secret TF_TFVARS_* base64)
+    github-{shared,staging,production}.tfvars   Terraform reads these (github-ci.tf)
+    railway-{shared,staging,production}.tfvars  push_railway_variables.py reads these
+    *.tfvars.example                            tracked — key lists, no values
+                                               real files == GitHub secret TF_TFVARS_{GITHUB,RAILWAY}_* base64
   .env / .env.example                   bootstrap credentials (git-ignored / tracked template)
 ```
 
 Environment selection: `TF_WORKSPACE=<env>` picks the HCP workspace;
-`-var-file=secrets/shared.tfvars -var-file=secrets/<env>.tfvars` layers the
-values (later wins). `make terraform-* ENV=<env>` / `make push-railway-variables
-ENV=<env>` set both; CI does it in `.github/workflows/terraform.yml`.
+`-var-file=secrets/github-shared.tfvars -var-file=secrets/github-<env>.tfvars`
+layers the values (later wins) for Terraform; the push script reads all four. `make terraform-* ENV=<env>` / `make push-railway-variables ENV=<env>` set both; CI does it in `.github/workflows/terraform.yml`.
 
 ## Bootstrap credentials
 
@@ -68,7 +67,7 @@ make terraform-apply ENV=staging
 make push-railway-variables  ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1]
 make check-railway-variables  ENV=staging     # read-only diff, exit 2 on drift
 
-# after editing any secrets/*.tfvars value, sync to CI:
+# after editing any secrets/*.tfvars value, sync all six to CI:
 make push-tfvars
 ```
 

@@ -6,7 +6,8 @@ Option A, 2026-08-31).
 Structure (which service gets which vars) lives in
   infra/terraform/railway/railway-services.json
 Values live in
-  infra/terraform/railway/secrets/{shared,staging,production}.tfvars   (per-env wins)
+  infra/terraform/railway/secrets/railway-{shared,<env>}.tfvars   (per-env wins)
+  + secrets/github-{shared,<env>}.tfvars  for service_id_* / gh_env_railway_token
 
 Per service: one `railway variables --set ... --skip-deploys` call (atomic, no
 per-variable redeploy), then a single `railway redeploy`. Empty/missing values
@@ -181,14 +182,16 @@ def main():
     env_name = args.env
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    tfvars = {**_load_kv(TF_DIR / "secrets" / "shared.tfvars"),
-              **_load_kv(TF_DIR / "secrets" / f"{env_name}.tfvars")}
+    sec = TF_DIR / "secrets"
+    tfvars = {}
+    for name in ("github-shared", f"github-{env_name}", "railway-shared", f"railway-{env_name}"):
+        tfvars.update(_load_kv(sec / f"{name}.tfvars"))
     if not tfvars:
-        raise PushError(f"no values parsed from secrets/shared.tfvars + secrets/{env_name}.tfvars")
+        raise PushError(f"no values parsed from secrets/{{github,railway}}-{{shared,{env_name}}}.tfvars")
 
     project_id = tfvars.get("railway_project_id")
     if not project_id:
-        raise PushError("railway_project_id missing from secrets/shared.tfvars")
+        raise PushError("railway_project_id missing from secrets/railway-shared.tfvars")
 
     token = _railway_token(tfvars)
     if not token:

@@ -408,7 +408,9 @@ uml-frontend-context:
 TF_DIR := infra/terraform/railway
 TF_ENV_FILE := infra/terraform/railway/.env
 ENV ?= staging
-TF_VARFILES := -var-file=secrets/shared.tfvars -var-file=secrets/$(ENV).tfvars
+# Terraform reads only the GitHub-side tfvars; the railway-*.tfvars are for
+# scripts/push_railway_variables.py.
+TF_VARFILES := -var-file=secrets/github-shared.tfvars -var-file=secrets/github-$(ENV).tfvars
 TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_WORKSPACE="$(ENV)"; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
 TARGET ?=
 _TF_TARGET := $(if $(TARGET),-target=$(TARGET),)
@@ -436,15 +438,15 @@ terraform-drift-check:
 	elif [ $$code -eq 2 ]; then echo "[$(ENV)] DRIFT DETECTED — see plan output above"; \
 	else echo "[$(ENV)] terraform plan failed (exit $$code)"; exit $$code; fi
 
-# Sync the three git-ignored secrets/*.tfvars files to GitHub Actions secrets
-# (TF_TFVARS_SHARED / _STAGING / _PRODUCTION, base64) so the reusable
-# .github/workflows/terraform.yml can materialize them at apply time. Run after
-# editing any value. Needs `gh` authenticated with repo secrets:write.
+# Sync the six git-ignored secrets/{github,railway}-{shared,staging,production}.tfvars
+# to GitHub Actions secrets (TF_TFVARS_GITHUB_SHARED / _RAILWAY_STAGING / ...,
+# base64) so .github/workflows/terraform.yml can materialize them at apply time.
+# Run after editing any value. Needs `gh` authenticated with repo secrets:write.
 push-tfvars:
-	@for layer in shared staging production; do \
+	@for layer in github-shared github-staging github-production railway-shared railway-staging railway-production; do \
 		f="infra/terraform/railway/secrets/$$layer.tfvars"; \
 		test -f "$$f" || { echo "missing $$f — copy from $$f.example and fill in"; exit 1; }; \
-		up=$$(echo "$$layer" | tr '[:lower:]' '[:upper:]'); \
+		up=$$(echo "$$layer" | tr 'a-z-' 'A-Z_'); \
 		base64 -w0 < "$$f" 2>/dev/null | gh secret set "TF_TFVARS_$$up" || \
 		base64 < "$$f" | tr -d '\n' | gh secret set "TF_TFVARS_$$up"; \
 		echo "set TF_TFVARS_$$up from $$f"; \
@@ -464,7 +466,7 @@ terraform-force-unlock:
 # `railway` CLI (structure = infra/terraform/railway/railway-services.json). One
 # batched `railway variables --set --skip-deploys` per service, then one redeploy.
 # Host-only: needs `railway` CLI. Token = gh_env_railway_token from
-# secrets/$(ENV).tfvars (the environment-scoped project token). Stdlib python.
+# secrets/github-$(ENV).tfvars (gh_env_railway_token). Stdlib python.
 # Usage: make push-railway-variables ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1] [PRUNE=1]
 #   PRUNE=1 also DELETEs Railway vars not in the manifest/tfvars (RAILWAY_* and
 #   railway-services.json's `unmanaged`/`unmanaged_all` lists are always kept).
