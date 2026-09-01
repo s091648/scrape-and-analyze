@@ -137,7 +137,10 @@ jobs:
           set -euo pipefail
           case "${{ inputs.mode }}" in
             apply)
-              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" ;;
+              # --prune: the manifest+tfvars are authoritative — a var removed
+              # there is deleted on Railway too (RAILWAY_* and railway-services
+              # .json's `unmanaged` list are always kept).
+              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" --prune ;;
             drift)
               set +e
               python scripts/push_railway_variables.py --env "${{ inputs.environment }}" --check
