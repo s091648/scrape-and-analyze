@@ -34,7 +34,16 @@ import {
   service,
   volume,
 } from "railway/iac";
-import { RAG_CHUNKING_ENV, RAG_DENSE_ENV, RAG_SPARSE_ENV } from "./constants.ts";
+import {
+  CONTACT_EMAIL,
+  GRAFANA_BACKEND_ENV,
+  GRAFANA_ENV,
+  GRAFANA_URL,
+  RAG_CHUNKING_ENV,
+  RAG_DENSE_ENV,
+  RAG_SPARSE_ENV,
+  VECTOR_DB_SCHEMA,
+} from "./constants.ts";
 
 type EnvMap = Record<string, ReturnType<typeof preserve>>;
 const preserveAll = (...keys: string[]): EnvMap =>
@@ -43,26 +52,24 @@ const preserveAll = (...keys: string[]): EnvMap =>
 // Shared env-var GROUPS — v1 lists names only (all preserve()). v2 turns these
 // into real values (non-secret, in ./constants.ts) / process.env.* (secret) one
 // group at a time, `plan`-verified.
-const GRAFANA = [
-  "GRAFANA_API_KEY", "GRAFANA_LOKI_URL", "GRAFANA_LOKI_USER",
-  "GRAFANA_OTLP_ENDPOINT", "GRAFANA_OTLP_USER",
-];
-const GRAFANA_BACKEND = [
-  "GRAFANA_PROMETHEUS_URL", "GRAFANA_PROMETHEUS_USER",
-  "GRAFANA_TEMPO_URL", "GRAFANA_TEMPO_USER",
-];
-// T6-08a de-preserve()d the non-secret RAG dense/sparse/chunking tuning values
-// into ./constants.ts (RAG_DENSE_ENV / RAG_SPARSE_ENV / RAG_CHUNKING_ENV). Still
-// preserve()d here: RAG_GEMINI_API_KEY (secret → T6-08c), RAG_SPARSE_ENDPOINT_URL
-// (cross-service ref → T6-08b), and the production-only groups below.
+// T6-08a de-preserve()d the non-secret values into ./constants.ts:
+//   RAG_DENSE_ENV / RAG_SPARSE_ENV / RAG_CHUNKING_ENV  (RAG tuning)
+//   GRAFANA_ENV / GRAFANA_BACKEND_ENV / GRAFANA_URL     (observability endpoints)
+//   CONTACT_EMAIL / VECTOR_DB_SCHEMA / appEnv           (misc)
+// Still preserve()d here: GRAFANA_API_KEY / GRAFANA_SA_TOKEN / RAG_GEMINI_API_KEY
+// (secrets → T6-08c), RAG_SPARSE_ENDPOINT_URL + the VECTOR_DB Postgres refs
+// (cross-service refs → T6-08b), and the production-only groups below.
+const GRAFANA_PRESERVED = ["GRAFANA_API_KEY"];
 const RAG_DENSE_PRESERVED = ["RAG_GEMINI_API_KEY"];
 const RAG_SPARSE_PRESERVED = ["RAG_SPARSE_ENDPOINT_URL"];
 // Currently set on production only (scrape-and-analyze / dashboard-backend / backfill_rag).
 const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"];
 const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only
-const VECTOR_DB = [
+// VECTOR_DB_SCHEMA is a de-preserve()d literal (constants.ts); the other five are
+// ${{Postgres.*}} refs still preserve()d until T6-08b.
+const VECTOR_DB_PRESERVED = [
   "VECTOR_DB_HOST", "VECTOR_DB_NAME", "VECTOR_DB_PASSWORD", "VECTOR_DB_PORT",
-  "VECTOR_DB_SCHEMA", "VECTOR_DB_USER",
+  "VECTOR_DB_USER",
 ];
 const NOTIFICATIONS = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]; // FIXIE_URL is production-only, added per service
 
@@ -70,6 +77,11 @@ export default defineRailway((ctx) => {
   const prod = ctx.environment === "production";
   const region = "asia-southeast1-eqsg3a";
   const replicas = { [region]: 1 };
+
+  // The one genuinely environment-specific non-secret value.
+  const appEnv = { APP_ENV: prod ? "production" : "staging" };
+  // Grafana core endpoints + the still-preserve()d API key, in one spread.
+  const grafana = { ...preserveAll(...GRAFANA_PRESERVED), ...GRAFANA_ENV };
 
   // GitHub sources. Monorepo `s091648/scrape-and-analyze` at two roots, plus the
   // separate chatbot-plugin repo. (The raw pull emitted 3 near-duplicate
@@ -120,14 +132,17 @@ export default defineRailway((ctx) => {
     deploy: { cronSchedule: cron("0 0 * * 1"), restartPolicyType: "NEVER" },
     networking: { privateNetworkEndpoint: "weekly-report" },
     env: {
+      ...appEnv,
+      CONTACT_EMAIL,
       ...preserveAll(
-        "APP_ENV", "CACHE_REDIS_URL", "CONTACT_EMAIL", "DATABASE_URL",
+        "CACHE_REDIS_URL", "DATABASE_URL",
         "FRONTEND_ORIGIN", "GEMINI_API_KEY", "HF_TOKEN", "OPENROUTER_API_KEY",
         "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_PUBLIC_URL",
         "R2_SECRET_ACCESS_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL",
         "SENTRY_DSN", "UV_GROUP",
       ),
-      ...preserveAll(...GRAFANA, ...NOTIFICATIONS),
+      ...grafana,
+      ...preserveAll(...NOTIFICATIONS),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -140,8 +155,11 @@ export default defineRailway((ctx) => {
     deploy: { cronSchedule: cron("0 20 * * *"), restartPolicyType: "NEVER" },
     networking: { privateNetworkEndpoint: "dedupreconcile" },
     env: {
-      ...preserveAll("APP_ENV", "CONTACT_EMAIL", "DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
-      ...preserveAll(...GRAFANA, ...NOTIFICATIONS),
+      ...appEnv,
+      CONTACT_EMAIL,
+      ...preserveAll("DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
+      ...grafana,
+      ...preserveAll(...NOTIFICATIONS),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -158,11 +176,15 @@ export default defineRailway((ctx) => {
     source: frontendRepo,
     build: df("/frontend/Dockerfile"),
     replicas,
-    env: preserveAll(
-      "APP_ENV", "BACKEND_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-      "GITHUB_PACKAGE_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
-      "GRAFANA_SA_TOKEN", "GRAFANA_URL", "NEXTAUTH_SECRET", "NEXTAUTH_URL",
-    ),
+    env: {
+      ...appEnv,
+      GRAFANA_URL,
+      ...preserveAll(
+        "BACKEND_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
+        "GITHUB_PACKAGE_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+        "GRAFANA_SA_TOKEN", "NEXTAUTH_SECRET", "NEXTAUTH_URL",
+      ),
+    },
   });
 
   const scrapeAndAnalyze = service("scrape-and-analyze", {
@@ -171,13 +193,17 @@ export default defineRailway((ctx) => {
     replicas,
     deploy: { cronSchedule: cron("0 8 * * *"), restartPolicyType: "NEVER" },
     env: {
+      ...appEnv,
+      CONTACT_EMAIL,
+      VECTOR_DB_SCHEMA,
       ...preserveAll(
-        "APP_ENV", "CACHE_REDIS_URL", "CONTACT_EMAIL", "DATABASE_URL",
+        "CACHE_REDIS_URL", "DATABASE_URL",
         "GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "OPENROUTER_API_KEY", "SENTRY_DSN",
       ),
+      ...grafana,
       ...preserveAll(
-        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-        ...VECTOR_DB, ...NOTIFICATIONS,
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
+        ...VECTOR_DB_PRESERVED, ...NOTIFICATIONS,
       ),
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
@@ -185,7 +211,11 @@ export default defineRailway((ctx) => {
       // REVIEW: these three are set on staging only today — production's
       // scrape-and-analyze has no SEARCH_* vars (likely drift; the rebuild-
       // search-index cron path needs SEARCH_INDEX_REDIS_URL).
-      ...(prod ? {} : preserveAll("SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN", "SEARCH_INDEX_REDIS_URL", "SEARCH_MIN_DOC_FREQ")),
+      ...(prod ? {} : {
+        SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN: "8",
+        SEARCH_MIN_DOC_FREQ: "2",
+        ...preserveAll("SEARCH_INDEX_REDIS_URL"),
+      }),
       ...(prod ? preserveAll("FIXIE_URL", ...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
@@ -203,8 +233,11 @@ export default defineRailway((ctx) => {
       : { cronSchedule: "0 0 1 1 1", restartPolicyType: "NEVER" },
     networking: { privateNetworkEndpoint: "refresh-metrics" },
     env: {
-      ...preserveAll("APP_ENV", "CONTACT_EMAIL", "DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
-      ...preserveAll(...GRAFANA, ...NOTIFICATIONS),
+      ...appEnv,
+      CONTACT_EMAIL,
+      ...preserveAll("DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
+      ...grafana,
+      ...preserveAll(...NOTIFICATIONS),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -213,7 +246,7 @@ export default defineRailway((ctx) => {
     source: srcRepo,
     build: df("fastembed/Dockerfile"),
     replicas,
-    env: preserveAll("APP_ENV", ...GRAFANA),
+    env: { ...appEnv, ...grafana },
   });
 
   const dashboardBackend = service("dashboard-backend", {
@@ -223,15 +256,16 @@ export default defineRailway((ctx) => {
     replicas,
     networking: { privateNetworkEndpoint: "dashboard-backend2" },
     env: {
+      ...appEnv,
+      SWAGGER_TRY_IT_OUT_ENABLED: "false",
       ...preserveAll(
-        "APP_ENV", "CACHE_REDIS_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
+        "CACHE_REDIS_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
         "DATABASE_URL", "FRONTEND_ORIGIN", "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY",
         "NEXTAUTH_SECRET", "REDIS_URL", "SEARCH_INDEX_REDIS_URL", "SENTRY_DSN",
-        "SWAGGER_TRY_IT_OUT_ENABLED",
       ),
-      ...preserveAll(
-        ...GRAFANA, ...GRAFANA_BACKEND, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-      ),
+      ...grafana,
+      ...GRAFANA_BACKEND_ENV,
+      ...preserveAll(...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED),
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...(prod ? preserveAll(...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
@@ -243,10 +277,14 @@ export default defineRailway((ctx) => {
     build: df("/Dockerfile"),
     replicas,
     env: {
+      ...appEnv,
+      CHATBOT_MAX_TOKENS: "8192",
+      VECTOR_DB_SCHEMA,
       ...preserveAll(
-        "APP_ENV", "CHATBOT_MAX_TOKENS", "GEMINI_API_KEY",
-        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...VECTOR_DB,
+        "GEMINI_API_KEY",
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...VECTOR_DB_PRESERVED,
       ),
+      ...grafana,
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
     },
@@ -263,13 +301,17 @@ export default defineRailway((ctx) => {
     deploy: { cronSchedule: cron("0 20 * * *"), restartPolicyType: "NEVER" },
     networking: { privateNetworkEndpoint: "ragbackfill" },
     env: {
+      ...appEnv,
+      CONTACT_EMAIL,
+      VECTOR_DB_SCHEMA,
       ...preserveAll(
-        "APP_ENV", "CONTACT_EMAIL", "DATABASE_URL", "GITHUB_PACKAGE_TOKEN",
+        "DATABASE_URL", "GITHUB_PACKAGE_TOKEN",
         "OPENROUTER_API_KEY", "SENTRY_DSN", "UV_GROUP",
       ),
+      ...grafana,
       ...preserveAll(
-        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-        ...VECTOR_DB, ...NOTIFICATIONS,
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
+        ...VECTOR_DB_PRESERVED, ...NOTIFICATIONS,
       ),
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,

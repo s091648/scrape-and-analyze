@@ -41,3 +41,30 @@ export const RAG_CHUNKING_ENV = {
   RAG_CHUNK_SIZE: "1500",
   RAG_EMBED_BATCH_SIZE: "70",
 } as const;
+
+// Grafana Cloud ingest endpoints + instance/tenant IDs — NOT the credentials
+// (GRAFANA_API_KEY / GRAFANA_SA_TOKEN stay process.env → T6-08c). Same values in
+// both environments.
+export const GRAFANA_ENV = {
+  GRAFANA_LOKI_URL: "https://logs-prod-030.grafana.net/loki/api/v1",
+  GRAFANA_LOKI_USER: "1516028",
+  GRAFANA_OTLP_ENDPOINT: "https://otlp-gateway-prod-ap-northeast-0.grafana.net/otlp",
+  GRAFANA_OTLP_USER: "1558239",
+} as const;
+
+// Extra Grafana endpoints only dashboard-backend reads (Prometheus + Tempo).
+export const GRAFANA_BACKEND_ENV = {
+  GRAFANA_PROMETHEUS_URL:
+    "https://prometheus-prod-49-prod-ap-northeast-0.grafana.net/api/prom",
+  GRAFANA_PROMETHEUS_USER: "3040706",
+  GRAFANA_TEMPO_URL: "https://tempo-prod-20-prod-ap-northeast-0.grafana.net/tempo",
+  GRAFANA_TEMPO_USER: "1510333",
+} as const;
+
+// The public Grafana dashboard URL the frontend links to (GRAFANA_SA_TOKEN, the
+// paired service-account token, stays process.env → T6-08c).
+export const GRAFANA_URL = "https://s091648.grafana.net/";
+
+// Non-secret single-value config shared across services.
+export const CONTACT_EMAIL = "s091648@gmail.com";
+export const VECTOR_DB_SCHEMA = "vectors";
