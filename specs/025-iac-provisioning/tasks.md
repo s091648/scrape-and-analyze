@@ -63,9 +63,11 @@ effect on the tasks above:
 | `T6-06` | [AGENT] | This doc pass — `plan.md` "Revision 6" + `tasks.md` "Revision 6", fold `research.md` §11 | ✅ done |
 | `T6-07a` | [AGENT] | Standalone `.github/workflows/railway.yml` (`railwayapp/config@v1`): `plan` both envs + `apply` staging on PR touching `.railway/**`. `release.yml` gains `railway-config-production` (v* tag, `detect`-gated) + `railway-config-test-staging` | ✅ done |
 | `T6-07b` | [MAINTAINER] | Create `RAILWAY_CONFIG_TOKEN` secret (an **environment-bound** Railway project token — Railway dashboard → project → Settings → Tokens → New Token → pick env) in the `scraper / staging` and `scraper / production` GitHub environments. Then land a trivial `.railway/**` PR to confirm the plan comment + staging apply | ☐ pending |
-| `T6-08` | [AGENT] | **v2** — replace each `preserve()` group with real literal / `process.env.X` (secret) / `Redis.env.*` ref, one group at a time, `plan`-verified each | ☐ pending |
+| `T6-08a` | [AGENT] | **v2** non-secret literals — de-`preserve()` the plain non-secret values (e.g. `RAG_DENSE_DIMENSION`, `RAG_CHUNK_SIZE`, `VECTOR_DB_SCHEMA`, `SWAGGER_TRY_IT_OUT_ENABLED`, `UV_GROUP`, `CHATBOT_MAX_TOKENS`) into `.railway/constants.ts`. `plan`-verified clean on both envs. | ☐ pending |
+| `T6-08b` | [AGENT] | **v2** service refs — `${{Redis.*}}` / `${{Postgres.*}}` / `${{<svc>.RAILWAY_*_DOMAIN}}` `preserve()`s → `Redis.env.*` / `Postgres.env.*` / cross-service refs. `plan`-verified. | ☐ pending |
+| `T6-08c` | [AGENT] + [MAINTAINER] | **v2** secrets — remaining `preserve()`s → `process.env.X`, injected into the `railwayapp/config` apply steps. **[MAINTAINER] fork:** how secrets reach the apply step — individual GH Actions secrets, or a CI step exploding the existing base64 `TF_TFVARS_RAILWAY_*` blob into `$GITHUB_ENV`. `plan`-verified. | ☐ pending (blocked on fork) |
 | `T6-09` | [AGENT] | Retire the old Railway-vars path once `T6-08` done: delete `scripts/push_railway_variables.py`, `railway-services.json`, `src/railway-*.toml`, the `push/check-railway-variables` Makefile targets, the `terraform.yml` script call; update `CLAUDE.md` + `infra/terraform/railway/README.md` + `site/guide/architecture/terraform-services.md` | ☐ pending |
-| `T6-10` | [AGENT] | Decide `src/railway-scrape-and-analyze.toml` staged TOML-syntax fix — fold into `T6-09`'s deletion or drop | ☐ pending |
+| `T6-10` | [AGENT] | `src/railway-scrape-and-analyze.toml` staged TOML-syntax fix — **decided: leave the working-tree fix as-is**, it rides along with `T6-09` deleting the whole `src/railway-*.toml` set (the file stops being read 2026-12-01 regardless). Not separately committed. | ✅ decided |
 
 ---
 
