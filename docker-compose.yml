@@ -258,6 +258,36 @@ services:
     # Revert to the default Dockerfile CMD (remove this override) once done testing.
     command: sh -c "uv pip install -e /opt/chatbot-plugin-sdk && uvicorn chatbot_plugin.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload"
 
+  # Railway IaC operator box — `railway config plan/apply/pull/migrate`, plus the
+  # interactive `railway login` / `railway link`. Dedicated container because the
+  # Railway CLI's IaC engine needs Node + a recent CLI to evaluate
+  # .railway/railway.ts, and the Windows CLI build can't. Not started by
+  # `docker compose up`; opt in with --profile tools.
+  #   docker compose run --rm -it railway_cli railway config plan
+  #   make railway-cli            # shell, for `railway login` / `railway link`
+  #   make railway-config-plan ENV=staging
+  railway_cli:
+    profiles:
+      - tools
+    build:
+      context: .
+      dockerfile: .railway/Dockerfile
+    volumes:
+      - .:/work                            # .railway/*.ts + repo-wide railway.toml scan
+      - railway_cli_home:/root/.railway    # persist `railway login` / `railway link` state
+      - railway_cli_config:/root/.config   # (CLI may keep the session under XDG instead)
+    # No env_file: a bare RAILWAY_TOKEN in the environment makes `railway login` /
+    # `railway link` refuse to run ("Invalid RAILWAY_TOKEN"). The `make
+    # railway-config-*` targets inject the correct per-ENV token as
+    # `-e RAILWAY_TOKEN=...` for just that one command instead.
+    environment:
+      RAILWAY_CLI: "1"                                # lets the `make railway-config-*` targets run in-container
+    init: true
+    mem_limit: 512m
+    stdin_open: true
+    tty: true
+    command: sleep infinity
+
   # Job service — 一次性工具容器，需加 --profile tools 才會啟動
   job_service:
     profiles:
@@ -304,3 +334,5 @@ volumes:
   playwright_cache:
   fastembed_cache:
   chatbot_fastembed_cache:
+  railway_cli_home:
+  railway_cli_config:

@@ -173,3 +173,8 @@ lighthouse-reports/
 
 # Playwright MCP browser-testing artifacts (screenshots, snapshots, console logs)
 .playwright-mcp/
+# .railway/ — Railway IaC scratch: fresh per-env pulls for comparison + CI plan pins.
+# The unified .railway/railway.ts and the .railway/railway.<env>.ts references stay tracked.
+.railway/pulled.*.ts
+.railway/.railway.ts.keep
+.railway/railway-plan*.json

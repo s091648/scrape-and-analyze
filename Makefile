@@ -18,7 +18,8 @@
 	storybook build-storybook \
 	lighthouse-check \
 	site-preview uml uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend uml-frontend-deps uml-frontend-context \
-	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars pull-railway-variables push-railway-variables check-railway-variables
+	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars pull-railway-variables push-railway-variables check-railway-variables \
+	railway-cli railway-config-plan railway-config-apply railway-config-pull railway-config-migrate
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -490,4 +491,94 @@ check-railway-variables:
 AS_TFVARS ?=
 pull-railway-variables:
 	@python scripts/pull_railway_variables.py $(if $(AS_TFVARS),--as-tfvars,) $(SERVICES)
+
+# ---------------------------------------------------------------------------
+# Railway IaC (.railway/railway.ts + `railway config`) — the Windows CLI can't
+# evaluate the .ts config, so everything runs in the `railway_cli` container
+# (Node + Railway CLI; .railway/Dockerfile; compose profile `tools`).
+#
+# AUTH — `railway config` needs a Railway PROJECT token (same as the
+# `railwayapp/config` GitHub Action). A project token is bound to ONE environment
+# and `railway config` resolves which env to plan/apply FROM the token — so the
+# slot you fill must hold a token for that env. Put one per env in
+# infra/terraform/railway/.env:
+#     RAILWAY_TOKEN_STAGING=...        RAILWAY_TOKEN_PRODUCTION=...
+# (Railway dashboard → project → Settings → Tokens → New Token → pick the env.)
+# The targets read RAILWAY_TOKEN_<ENV> (falling back to a bare RAILWAY_TOKEN in
+# the same file) and pass it as `-e RAILWAY_TOKEN=` into the container for that
+# one command — nothing is baked into the image. The `make railway-cli` shell
+# stays token-free so `railway login --browserless` / `railway link` work there
+# (state persists in the /root/.railway volume); if no token resolves, the
+# targets fall back to that persisted login. Confirm a token's env with
+# `railway status` inside `make railway-cli`.
+#
+# Each target is DUAL-MODE: on the host it resolves the token and re-invokes
+# itself inside the container; in the container (RAILWAY_CLI=1, set by compose)
+# it runs `railway` directly against whatever RAILWAY_TOKEN was injected.
+#
+#   make railway-cli                         # token-free shell (railway login / link here)
+#   make railway-config-plan  ENV=staging    # preview — safe, changes nothing
+#   make railway-config-plan  ENV=production
+#   make railway-config-apply ENV=staging    # apply (interactive confirm)
+#   make railway-config-pull  ENV=staging    # fresh ground truth -> .railway/pulled.staging.ts
+#                                            #   (your .railway/railway.ts is left untouched)
+#   make railway-config-migrate              # fold every railway.toml into .railway/railway.ts
+#
+# Extra flags: ARGS="--out railway-plan.json"
+# ---------------------------------------------------------------------------
+ARGS ?=
+_RC_UC := $(shell printf '%s' '$(ENV)' | tr '[:lower:]' '[:upper:]')
+# Host side: read RAILWAY_TOKEN_<ENV> from infra/terraform/railway/.env and pass
+# it to `docker compose run` as -e RAILWAY_TOKEN (only if non-empty). No bare
+# RAILWAY_TOKEN fallback — that value's environment is ambiguous and `railway
+# config` has no --environment flag, so a wrong token = a wrong-env apply. If the
+# var is empty the command uses the persisted `railway login` session in the
+# /root/.railway volume against WHATEVER `railway link` last selected — run
+# `railway status` in `make railway-cli` to confirm it matches ENV.
+_RC_RUN = tok=$$(set -a; . $(TF_ENV_FILE) 2>/dev/null; set +a; printenv RAILWAY_TOKEN_$(_RC_UC) 2>/dev/null || true); \
+	test -n "$$tok" && echo "→ auth: RAILWAY_TOKEN_$(_RC_UC) from $(TF_ENV_FILE)" || echo "→ auth: persisted 'railway login' session (ENV=$(ENV) not enforced — check 'railway status')"; \
+	docker compose run --rm -it $${tok:+-e RAILWAY_TOKEN=$$tok} railway_cli make
+# In-container: the genuine CLI carries the IaC engine, but if a `railway` npm SDK
+# ever lands in node_modules it gets used instead and its version self-check runs
+# `$$_  --version` — which under make/sh is not `railway`. Pin `_` so that check
+# (harmlessly) sees the real CLI.
+_RC_EXEC := env _=/usr/local/bin/railway railway
+
+railway-cli:
+	@docker compose run --rm -it railway_cli bash
+
+railway-config-plan:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config plan $(ARGS)
+else
+	@$(_RC_RUN) railway-config-plan ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-apply:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config apply $(ARGS)
+else
+	@$(_RC_RUN) railway-config-apply ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-pull:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@cp .railway/railway.ts .railway/.railway.ts.keep && \
+	 $(_RC_EXEC) config pull $(ARGS) && \
+	 mv .railway/railway.ts .railway/pulled.$(ENV).ts && \
+	 mv .railway/.railway.ts.keep .railway/railway.ts && \
+	 echo "wrote .railway/pulled.$(ENV).ts — diff it against .railway/railway.ts"
+else
+	@$(_RC_RUN) railway-config-pull ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-migrate:
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config migrate $(ARGS)
+else
+	@$(_RC_RUN) railway-config-migrate ENV=$(ENV) ARGS='$(ARGS)'
+endif
 
