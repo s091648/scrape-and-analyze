@@ -34,13 +34,15 @@ import {
   service,
   volume,
 } from "railway/iac";
+import { RAG_CHUNKING_ENV, RAG_DENSE_ENV, RAG_SPARSE_ENV } from "./constants.ts";
 
 type EnvMap = Record<string, ReturnType<typeof preserve>>;
 const preserveAll = (...keys: string[]): EnvMap =>
   Object.fromEntries(keys.map((k) => [k, preserve()]));
 
 // Shared env-var GROUPS — v1 lists names only (all preserve()). v2 turns these
-// into builders returning real values (non-secret) / process.env.* (secret).
+// into real values (non-secret, in ./constants.ts) / process.env.* (secret) one
+// group at a time, `plan`-verified.
 const GRAFANA = [
   "GRAFANA_API_KEY", "GRAFANA_LOKI_URL", "GRAFANA_LOKI_USER",
   "GRAFANA_OTLP_ENDPOINT", "GRAFANA_OTLP_USER",
@@ -49,19 +51,15 @@ const GRAFANA_BACKEND = [
   "GRAFANA_PROMETHEUS_URL", "GRAFANA_PROMETHEUS_USER",
   "GRAFANA_TEMPO_URL", "GRAFANA_TEMPO_USER",
 ];
-const RAG_DENSE = [
-  "RAG_DENSE_API_KEY_ENV", "RAG_DENSE_DIMENSION", "RAG_DENSE_MODEL",
-  "RAG_DENSE_PROVIDER", "RAG_DENSE_RPD", "RAG_DENSE_RPM", "RAG_DENSE_TPM",
-  "RAG_GEMINI_API_KEY",
-];
-const RAG_SPARSE = [
-  "RAG_SPARSE_DIMENSION", "RAG_SPARSE_ENDPOINT_URL", "RAG_SPARSE_MODEL",
-  "RAG_SPARSE_PROVIDER",
-];
+// T6-08a de-preserve()d the non-secret RAG dense/sparse/chunking tuning values
+// into ./constants.ts (RAG_DENSE_ENV / RAG_SPARSE_ENV / RAG_CHUNKING_ENV). Still
+// preserve()d here: RAG_GEMINI_API_KEY (secret → T6-08c), RAG_SPARSE_ENDPOINT_URL
+// (cross-service ref → T6-08b), and the production-only groups below.
+const RAG_DENSE_PRESERVED = ["RAG_GEMINI_API_KEY"];
+const RAG_SPARSE_PRESERVED = ["RAG_SPARSE_ENDPOINT_URL"];
 // Currently set on production only (scrape-and-analyze / dashboard-backend / backfill_rag).
 const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"];
 const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only
-const RAG_CHUNKING = ["RAG_CHUNK_OVERLAP", "RAG_CHUNK_SIZE", "RAG_EMBED_BATCH_SIZE"];
 const VECTOR_DB = [
   "VECTOR_DB_HOST", "VECTOR_DB_NAME", "VECTOR_DB_PASSWORD", "VECTOR_DB_PORT",
   "VECTOR_DB_SCHEMA", "VECTOR_DB_USER",
@@ -178,9 +176,12 @@ export default defineRailway((ctx) => {
         "GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "OPENROUTER_API_KEY", "SENTRY_DSN",
       ),
       ...preserveAll(
-        ...GRAFANA, ...RAG_DENSE, ...RAG_SPARSE, ...RAG_CHUNKING,
+        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
         ...VECTOR_DB, ...NOTIFICATIONS,
       ),
+      ...RAG_DENSE_ENV,
+      ...RAG_SPARSE_ENV,
+      ...RAG_CHUNKING_ENV,
       // REVIEW: these three are set on staging only today — production's
       // scrape-and-analyze has no SEARCH_* vars (likely drift; the rebuild-
       // search-index cron path needs SEARCH_INDEX_REDIS_URL).
@@ -229,8 +230,10 @@ export default defineRailway((ctx) => {
         "SWAGGER_TRY_IT_OUT_ENABLED",
       ),
       ...preserveAll(
-        ...GRAFANA, ...GRAFANA_BACKEND, ...RAG_DENSE, ...RAG_SPARSE,
+        ...GRAFANA, ...GRAFANA_BACKEND, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
       ),
+      ...RAG_DENSE_ENV,
+      ...RAG_SPARSE_ENV,
       ...(prod ? preserveAll(...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
@@ -239,10 +242,14 @@ export default defineRailway((ctx) => {
     source: chatbotRepo,
     build: df("/Dockerfile"),
     replicas,
-    env: preserveAll(
-      "APP_ENV", "CHATBOT_MAX_TOKENS", "GEMINI_API_KEY",
-      ...GRAFANA, ...RAG_DENSE, ...RAG_SPARSE, ...VECTOR_DB,
-    ),
+    env: {
+      ...preserveAll(
+        "APP_ENV", "CHATBOT_MAX_TOKENS", "GEMINI_API_KEY",
+        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...VECTOR_DB,
+      ),
+      ...RAG_DENSE_ENV,
+      ...RAG_SPARSE_ENV,
+    },
   });
 
   const backfillRag = service("backfill_rag", {
@@ -261,9 +268,12 @@ export default defineRailway((ctx) => {
         "OPENROUTER_API_KEY", "SENTRY_DSN", "UV_GROUP",
       ),
       ...preserveAll(
-        ...GRAFANA, ...RAG_DENSE, ...RAG_SPARSE, ...RAG_CHUNKING,
+        ...GRAFANA, ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
         ...VECTOR_DB, ...NOTIFICATIONS,
       ),
+      ...RAG_DENSE_ENV,
+      ...RAG_SPARSE_ENV,
+      ...RAG_CHUNKING_ENV,
       ...(prod ? preserveAll("FIXIE_URL", ...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
