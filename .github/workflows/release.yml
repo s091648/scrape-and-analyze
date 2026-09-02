@@ -84,33 +84,21 @@ jobs:
 
   # Railway-native IaC (`.railway/railway.ts`) — the Railway half of 025 Revision
   # 6, the counterpart to `terraform-production` for what Terraform no longer
-  # manages (service deploy config, later env-var values). Standalone
-  # `railwayapp/config@v1`, NOT the reusable terraform.yml — different engine,
-  # different credential (`RAILWAY_CONFIG_TOKEN`, an environment-bound Railway
-  # project token; see .github/workflows/railway.yml's header for setup). Gated on
-  # the same `detect` as everything else here, so a test tag off master never
-  # applies to production (Constitution Principle V). Plan-then-apply in one job:
-  # a tag push has no PR-pinned plan artifact to consume.
+  # manages (service deploy config, later env-var values). Reusable
+  # railway-config.yml (railwayapp/config@v1), NOT terraform.yml — different
+  # engine, different credential (secrets.RAILWAY_TOKEN, the env-scoped Railway
+  # project token github-ci.tf already provisions per GitHub Environment). Gated
+  # on the same `detect` as everything else here, so a test tag off master never
+  # applies to production (Constitution Principle V).
   railway-config-production:
     name: Apply Railway config (production)
     needs: detect
     if: needs.detect.outputs.is_master_tag == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: scraper / production
-    steps:
-      - uses: actions/checkout@v4
-      - uses: railwayapp/config@v1
-        with:
-          command: plan
-          railway-token: ${{ secrets.RAILWAY_CONFIG_TOKEN }}
-          comment: false
-          artifact-name: railway-plan-production
-      - uses: railwayapp/config@v1
-        with:
-          command: apply
-          railway-token: ${{ secrets.RAILWAY_CONFIG_TOKEN }}
-          confirm-destructive: false
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: production
+    secrets: inherit
 
   release:
     name: Stamp Version & Deploy (production)
@@ -357,21 +345,8 @@ jobs:
     name: Apply Railway config (staging, test tag)
     needs: [detect, release-test-staging]
     if: needs.detect.outputs.is_master_tag == 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: scraper / staging
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-      - uses: railwayapp/config@v1
-        with:
-          command: plan
-          railway-token: ${{ secrets.RAILWAY_CONFIG_TOKEN }}
-          comment: false
-          artifact-name: railway-plan-staging-testtag
-      - uses: railwayapp/config@v1
-        with:
-          command: apply
-          railway-token: ${{ secrets.RAILWAY_CONFIG_TOKEN }}
-          confirm-destructive: false
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit

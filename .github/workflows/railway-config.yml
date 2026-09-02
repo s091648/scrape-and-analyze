@@ -1,0 +1,88 @@
+name: Railway config
+
+# Reusable runner for the Railway half of 025-iac-provisioning "Revision 6" —
+# `.railway/railway.ts` applied via `railwayapp/config@v1`
+# (`railway config plan` / `railway config apply`). ci.yml / release.yml call it
+# with `uses:` + two inputs, exactly like the Terraform half's terraform.yml.
+#
+# STANDALONE from terraform.yml on purpose:
+#   - different engine     — Railway's own IaC, not the Terraform CLI
+#   - different credential  — secrets.RAILWAY_TOKEN, the environment-scoped Railway
+#                            PROJECT token github-ci.tf (module github_ci_env)
+#                            already provisions per GitHub Environment. `railway
+#                            config` has NO --environment flag, so the token alone
+#                            selects the env — hence `environment:` below picks
+#                            which one this run targets.
+#   - different scope       — reacts to `.railway/**`, not `infra/terraform/**`
+#
+# Called as a job:
+#   uses: ./.github/workflows/railway-config.yml
+#   with: { mode: plan|apply, environment: staging|production }
+#   secrets: inherit
+#
+# `mode: apply` always plans first (into a local railway-plan.json) then applies
+# exactly that file — a push/tag/reusable-call has no PR-head-pinned plan artifact
+# to consume, unlike a direct PR run of railwayapp/config.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "plan | apply"
+        required: true
+        type: string
+      environment:
+        description: "staging | production"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan | apply"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, apply]
+      environment:
+        description: "staging | production"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  pull-requests: write # railwayapp/config posts/updates the plan comment on PRs
+  actions: read # ...and reads back its pinned plan artifact
+
+jobs:
+  railway-config:
+    name: railway config ${{ inputs.mode }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: scraper / ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Always runs: on `mode: plan` this is the whole job (and comments on a PR);
+      # on `mode: apply` it produces the railway-plan.json the apply step consumes.
+      - name: railway config plan (${{ inputs.environment }})
+        uses: railwayapp/config@v1
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          comment: ${{ inputs.mode == 'plan' && github.event_name == 'pull_request' }}
+          artifact-name: railway-plan-${{ inputs.environment }}
+
+      - name: railway config apply (${{ inputs.environment }})
+        if: inputs.mode == 'apply'
+        uses: railwayapp/config@v1
+        with:
+          command: apply
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          # v1 of railway.ts is preserve()-heavy so today this is a near-no-op;
+          # fail loudly rather than silently push a destructive change as v2
+          # starts managing real values.
+          confirm-destructive: false
+          artifact-name: railway-plan-${{ inputs.environment }}

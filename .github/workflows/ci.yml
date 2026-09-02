@@ -201,6 +201,19 @@ jobs:
       environment: staging
     secrets: inherit
 
+  # Railway-native IaC (.railway/railway.ts) plan preview — the Railway half of
+  # what terraform-plan does for the GitHub half. Read-only; railwayapp/config
+  # posts the staging diff as a PR comment. The apply half is
+  # deploy-staging-railway-config (Stage 4j). See .github/workflows/railway-config.yml.
+  railway-config-plan:
+    name: Railway Config Plan (staging)
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: plan
+      environment: staging
+    secrets: inherit
+
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
   # push-to-master (post-merge) skips this: it would race the staging DB
@@ -1226,6 +1239,24 @@ jobs:
     secrets: inherit
     concurrency:
       group: staging-terraform-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+  # Apply .railway/railway.ts to staging — the Railway-IaC counterpart to
+  # deploy-staging-terraform. `railway config apply` is one batched diff (no
+  # per-variable redeploy), so it doesn't carry that job's rate-limit caveat.
+  deploy-staging-railway-config:
+    name: Apply Railway Config to Staging
+    needs: [railway-config-plan]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.railway-config-plan.result == 'success'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit
+    concurrency:
+      group: staging-railway-config-${{ github.event.pull_request.number }}
       cancel-in-progress: false
 
   # -----------------------------------------------

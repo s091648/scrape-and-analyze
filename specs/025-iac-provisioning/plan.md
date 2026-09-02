@@ -176,22 +176,29 @@ group at a time, `plan`-verified. Only once `railway.ts` manages every value do
 `push_railway_variables.py`, `railway-services.json`, `src/railway-*.toml`, and
 their Makefile targets retire.
 
-**CI.** A **standalone** `.github/workflows/railway.yml` (not folded into the
-reusable `terraform.yml` — different trigger `paths: .railway/**`, different
-credential, different engine): `railwayapp/config@v1` runs `railway config plan`
-for **both** environments on a PR touching `.railway/**` (each diff a PR
-comment; the action pins the change set + `configEtag` + `.railway/` tree), and
-applies to **staging** during that PR (mirrors `deploy-staging-terraform`,
-avoids racing `close-staging-*`). Production applies only from **release.yml**'s
-new `railway-config-production` job — `v*` tag, gated by that workflow's
-existing `detect` so a test tag off master never touches production
-(Constitution Principle V); `railway-config-test-staging` is its test-tag
-staging counterpart. Auth is `secrets.RAILWAY_CONFIG_TOKEN` — an
-**environment-bound** Railway project token (`railway config` has no
-`--environment` flag; distinct from `secrets.RAILWAY_TOKEN`, the project-wide
-token `railway up` / `railway down --environment` use) — set once per env in the
-`scraper / staging` and `scraper / production` GitHub environments
-(`[MAINTAINER]`).
+**CI.** A **reusable** `.github/workflows/railway-config.yml`
+(`workflow_call` + `workflow_dispatch`, inputs `mode` / `environment`),
+structured exactly like the Terraform half's `terraform.yml` and called by
+`ci.yml` / `release.yml` with `uses:` — *not* folded into `terraform.yml`
+itself (different engine — `railwayapp/config@v1` wrapping `railway config
+plan|apply`; different credential; reacts to `.railway/**`, not
+`infra/terraform/**`). Wiring, mirroring the Terraform jobs one-for-one:
+- `ci.yml` → `railway-config-plan` (staging, PR — posts the diff as a PR
+  comment) next to `terraform-plan`; `deploy-staging-railway-config` (staging
+  apply, PR) next to `deploy-staging-terraform`.
+- `release.yml` → `railway-config-production` (`uses:` the reusable, `mode:
+  apply`, `production`) next to `terraform-production`, gated on the same
+  `detect` so a test tag off master never touches production (Principle V);
+  `railway-config-test-staging` its test-tag counterpart.
+
+Auth reuses **`secrets.RAILWAY_TOKEN`** — the environment-scoped Railway
+**project** token `github-ci.tf`'s `github_ci_env` module already provisions
+into the `scraper / staging` and `scraper / production` GitHub Environments
+(from `secrets/github-<env>.tfvars`'s `gh_env_railway_token`). It is exactly
+what `railway config` needs (no `--environment` flag — the token picks the env;
+verified locally against staging), and is already used by `railway up
+--environment` / `push_railway_variables.py` for that same per-env project. No
+new secret, no `github-ci.tf` / tfvars change.
 
 `spec.md`'s FR-001/002/003 intent (declarative, version-controlled, single
 source of truth, applied through CI on the same triggers as the code deploy) is
