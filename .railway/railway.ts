@@ -66,11 +66,7 @@ const RAG_SPARSE_PRESERVED = ["RAG_SPARSE_ENDPOINT_URL"];
 const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"];
 const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only
 // VECTOR_DB_SCHEMA is a de-preserve()d literal (constants.ts); the other five are
-// ${{Postgres.*}} refs still preserve()d until T6-08b.
-const VECTOR_DB_PRESERVED = [
-  "VECTOR_DB_HOST", "VECTOR_DB_NAME", "VECTOR_DB_PASSWORD", "VECTOR_DB_PORT",
-  "VECTOR_DB_USER",
-];
+// ${{Postgres.*}} refs — see `vectorDbRef` in the callback (T6-08b).
 const NOTIFICATIONS = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]; // FIXIE_URL is production-only, added per service
 
 export default defineRailway((ctx) => {
@@ -120,6 +116,22 @@ export default defineRailway((ctx) => {
     region, sizeMB: 5000, allowOnlineResize: true, alerts: volAlerts,
   });
 
+  // T6-08b: single-value ${{Postgres.*}} / ${{Redis.*}} references expressed as
+  // real SDK refs (must come after the Postgres/Redis nodes above). NOT converted
+  // (no SDK string-composition form): the interpolated ones — CACHE_REDIS_URL /
+  // SEARCH_INDEX_REDIS_URL (`${{Redis.REDIS_URL}}/N`), RAG_SPARSE_ENDPOINT_URL /
+  // CHAT_SERVICE_URL / BACKEND_URL (`http://${{<svc>.RAILWAY_PRIVATE_DOMAIN}}:PORT`)
+  // — stay preserve().
+  const databaseUrl = { DATABASE_URL: Postgres.env.DATABASE_URL };
+  const redisUrl = { REDIS_URL: Redis.env.REDIS_URL };
+  const vectorDbRef = {
+    VECTOR_DB_HOST: Postgres.env.PGHOST,
+    VECTOR_DB_NAME: Postgres.env.PGDATABASE,
+    VECTOR_DB_PASSWORD: Postgres.env.PGPASSWORD,
+    VECTOR_DB_PORT: Postgres.env.PGPORT,
+    VECTOR_DB_USER: Postgres.env.PGUSER,
+  };
+
   // Cron: staging keeps "0 0 1 1 1" (an effectively-never placeholder — staging
   // services are torn down / revived per-PR); production runs the real schedule.
   const cron = (real: string) => (prod ? real : "0 0 1 1 1");
@@ -134,8 +146,9 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
+      ...databaseUrl,
       ...preserveAll(
-        "CACHE_REDIS_URL", "DATABASE_URL",
+        "CACHE_REDIS_URL",
         "FRONTEND_ORIGIN", "GEMINI_API_KEY", "HF_TOKEN", "OPENROUTER_API_KEY",
         "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_PUBLIC_URL",
         "R2_SECRET_ACCESS_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL",
@@ -157,7 +170,8 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
-      ...preserveAll("DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
+      ...databaseUrl,
+      ...preserveAll("SENTRY_DSN", "UV_GROUP"),
       ...grafana,
       ...preserveAll(...NOTIFICATIONS),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
@@ -196,14 +210,15 @@ export default defineRailway((ctx) => {
       ...appEnv,
       CONTACT_EMAIL,
       VECTOR_DB_SCHEMA,
+      ...databaseUrl,
+      ...vectorDbRef,
       ...preserveAll(
-        "CACHE_REDIS_URL", "DATABASE_URL",
+        "CACHE_REDIS_URL",
         "GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "OPENROUTER_API_KEY", "SENTRY_DSN",
       ),
       ...grafana,
       ...preserveAll(
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-        ...VECTOR_DB_PRESERVED, ...NOTIFICATIONS,
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...NOTIFICATIONS,
       ),
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
@@ -235,7 +250,8 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
-      ...preserveAll("DATABASE_URL", "SENTRY_DSN", "UV_GROUP"),
+      ...databaseUrl,
+      ...preserveAll("SENTRY_DSN", "UV_GROUP"),
       ...grafana,
       ...preserveAll(...NOTIFICATIONS),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
@@ -258,10 +274,12 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       SWAGGER_TRY_IT_OUT_ENABLED: "false",
+      ...databaseUrl,
+      ...redisUrl,
       ...preserveAll(
         "CACHE_REDIS_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-        "DATABASE_URL", "FRONTEND_ORIGIN", "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY",
-        "NEXTAUTH_SECRET", "REDIS_URL", "SEARCH_INDEX_REDIS_URL", "SENTRY_DSN",
+        "FRONTEND_ORIGIN", "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY",
+        "NEXTAUTH_SECRET", "SEARCH_INDEX_REDIS_URL", "SENTRY_DSN",
       ),
       ...grafana,
       ...GRAFANA_BACKEND_ENV,
@@ -280,9 +298,10 @@ export default defineRailway((ctx) => {
       ...appEnv,
       CHATBOT_MAX_TOKENS: "8192",
       VECTOR_DB_SCHEMA,
+      ...vectorDbRef,
       ...preserveAll(
         "GEMINI_API_KEY",
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...VECTOR_DB_PRESERVED,
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
       ),
       ...grafana,
       ...RAG_DENSE_ENV,
@@ -304,14 +323,15 @@ export default defineRailway((ctx) => {
       ...appEnv,
       CONTACT_EMAIL,
       VECTOR_DB_SCHEMA,
+      ...databaseUrl,
+      ...vectorDbRef,
       ...preserveAll(
-        "DATABASE_URL", "GITHUB_PACKAGE_TOKEN",
+        "GITHUB_PACKAGE_TOKEN",
         "OPENROUTER_API_KEY", "SENTRY_DSN", "UV_GROUP",
       ),
       ...grafana,
       ...preserveAll(
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-        ...VECTOR_DB_PRESERVED, ...NOTIFICATIONS,
+        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...NOTIFICATIONS,
       ),
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
