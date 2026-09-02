@@ -33,6 +33,41 @@ races on read-back). See `plan.md` "Revision 4". Net effect on the tasks below:
 
 ---
 
+## Revision 6 — 2026-09-02 (Railway half → Railway-native IaC `.railway/railway.ts`)
+
+Railway deprecated config-as-code (`railway.toml` / `railway.json`), hard cutoff
+**2026-12-01**. The whole Railway half migrates to a project-wide
+`.railway/railway.ts` + `railway config plan/apply`; Terraform keeps only the
+GitHub Actions half. See `plan.md` "Revision 6" and `research.md` §11. Net
+effect on the tasks above:
+
+- **Superseded** (Revision 3 `src/railway-<svc>.toml`, Revision 4
+  `push_railway_variables.py` + `railway-services.json` + `check/push-railway-variables`
+  Makefile targets + the `terraform.yml` apply-path script call): all replaced by
+  `.railway/railway.ts`. They are **not deleted yet** — that is `T6-08`, gated on
+  v2 completing.
+- **Unchanged**: the GitHub Actions half (`github-ci.tf`, `modules/github-ci-config`),
+  the reusable `terraform.yml` shell for the GitHub side, Phase 7 (User Story 5),
+  and FR-014 (managed DBs stay manually managed — `railway.ts` declares Redis/
+  Postgres/volumes only so `railway config` won't propose deleting them).
+
+### Format: `[ID] [P?] [role] Description`  (roles per Revision 2's Division of labour)
+
+| ID | Role | Description | State |
+|---|---|---|---|
+| `T6-01` | [AGENT] | `.railway/Dockerfile` + `railway_cli` compose service (profile `tools`); `railway` standalone CLI + npm SDK; `/node_modules` symlink | ✅ done |
+| `T6-02` | [AGENT] | `Makefile`: `railway-cli`, `railway-config-{plan,apply,pull,migrate}`, dual-mode host/container, per-env `RAILWAY_TOKEN_<ENV>` from `infra/terraform/railway/.env` | ✅ done |
+| `T6-03` | [AGENT] | `.railway/railway.ts` v1 — faithful reproduction, every env var `preserve()`; `.railway/railway.{staging,production}.ts` pull references; `.gitignore` for `pulled.*.ts` / `.railway.ts.keep` / `railway-plan*.json` | ✅ done |
+| `T6-04` | [MAINTAINER] | v1 gate: `railway config plan` clean on **both** envs. Normalise production's 5 branchless service sources to `branch: "master"` via one-off `railway config apply` | ✅ done (commit `bbfc655c`) |
+| `T6-05` | [AGENT] | Commit v1 (`.railway/**` + Dockerfile + `docker-compose.yml` + `Makefile` + `.gitignore`) | ✅ done (`bbfc655c`) |
+| `T6-06` | [AGENT] | This doc pass — `plan.md` "Revision 6" + `tasks.md` "Revision 6", fold `research.md` §11 | ✅ done |
+| `T6-07` | [AGENT] + [MAINTAINER] | CI job with `railwayapp/config@v1` — `plan` on PR touching `.railway/**`, `apply` on merge. [MAINTAINER]: create `RAILWAY_TOKEN` secret in the `scraper / staging` + `scraper / production` GitHub environments; decide `terraform.yml` vs. new `railway.yml` | ☐ pending |
+| `T6-08` | [AGENT] | **v2** — replace each `preserve()` group with real literal / `process.env.X` (secret) / `Redis.env.*` ref, one group at a time, `plan`-verified each | ☐ pending |
+| `T6-09` | [AGENT] | Retire the old Railway-vars path once `T6-08` done: delete `scripts/push_railway_variables.py`, `railway-services.json`, `src/railway-*.toml`, the `push/check-railway-variables` Makefile targets, the `terraform.yml` script call; update `CLAUDE.md` + `infra/terraform/railway/README.md` + `site/guide/architecture/terraform-services.md` | ☐ pending |
+| `T6-10` | [AGENT] | Decide `src/railway-scrape-and-analyze.toml` staged TOML-syntax fix — fold into `T6-09`'s deletion or drop | ☐ pending |
+
+---
+
 ## Revision 2 — 2026-08-28 (structure reset)
 
 The first pass (`T001`–`T041`) is **superseded**. Both HCP workspaces were deleted; the

@@ -111,6 +111,85 @@ state to reconcile.
 
 ---
 
+## Revision 6 — 2026-09-02 (Railway half → Railway-native IaC `.railway/railway.ts`)
+
+Revision 5 (a `push_railway_service_config.py` setting each service's
+`railwayConfigFile` via GraphQL) was abandoned the day it was written: Railway
+**deprecated config-as-code** (`railway.toml` / `railway.json`) with a **hard
+cutoff of 2026-12-01**, after which those files stop being read. This
+invalidates Revision 3's `src/railway-<svc>.toml` files *and* the four
+auto-detected `railway.toml` (backend / frontend / chatbot-plugin / fastembed).
+See `research.md` §11.
+
+**Fix — Railway-native IaC.** The whole Railway half (service deploy config
+**and**, later, env-var values) moves onto Railway's replacement: a single
+project-wide **`.railway/railway.ts`** driven by `railway config plan` /
+`railway config apply`. This subsumes both `src/railway-*.toml` (Revision 3) and
+`scripts/push_railway_variables.py` + `railway-services.json` (Revision 4) —
+`railway config`'s plan/apply is one batched diff, so the per-variable-redeploy
+rate-limit that killed the `railway` *Terraform provider* in Revision 4 does not
+apply to the CLI. **Terraform keeps only the GitHub Actions half**
+(`github-ci.tf` + `modules/github-ci-config`) — Railway IaC does not manage
+GitHub, and a real multi-cloud need is imminent (fastembed → GCP).
+
+**Toolchain — a dedicated `railway_cli` container.** The Windows Railway CLI
+build can't evaluate the `.ts` config (Node type-stripping). A
+`.railway/Dockerfile` (`node:24` + the genuine standalone Railway CLI + the
+`railway` npm SDK) + a `railway_cli` compose service (profile `tools`) run it.
+`Makefile` targets `railway-cli`, `railway-config-{plan,apply,pull,migrate}` are
+dual-mode: on the host they wrap into the container; in-container they call
+`railway` directly. See `.railway/README.md` and its gotchas list (npm CLI too
+old for the engine; SDK still required for `import "railway/iac"`; `$_`-based
+version self-check; ESM resolution needs `/node_modules`; `RAILWAY_TOKEN`
+blocks `railway login`).
+
+**Auth.** `railway config` uses a **project token scoped to one environment**
+(`RAILWAY_TOKEN`) — no `--environment` flag; the token (or a persisted `railway
+link`) selects the env. `infra/terraform/railway/.env` carries
+`RAILWAY_TOKEN_STAGING` / `RAILWAY_TOKEN_PRODUCTION`; the Makefile targets read
+`RAILWAY_TOKEN_<ENV>` and inject it for that one command. Same token model as
+the official `railwayapp/config` GitHub Action.
+
+**v1 — faithful reproduction (this revision, DONE).** Every service env var in
+`railway.ts` is `preserve()` (value left exactly as Railway holds it, not
+managed here yet); only build / start / networking / replicas + the genuine
+staging↔production differences (volume name, cron schedules, `backfill_rag`
+`--limit`) are expressed. **Gate: `railway config plan` shows 0 changes on
+BOTH environments.** Met — production's 5 branchless service sources (`weekly
+report`, `dedup_reconcile`, `refresh metrics`, `fastembed`, `backfill_rag`)
+were normalised to `branch: "master"` via a one-off `railway config apply`
+(safe, non-destructive; `null` already meant "default branch" = master, and
+the other 5 services were already pinned).
+
+| FR-014 (managed databases stay hands-off) | how v1 honours it |
+|---|---|
+| `Redis` / `Postgres` / their volumes are declared in `railway.ts` | only so the project-wide `railway config` does not propose **deleting** them; nothing about them is managed |
+| `postgres()` helper injects a default image pin the live DB lacks | `Postgres.source = null` nulls it back out to match live |
+| any `plan` diff against Redis/Postgres/volumes | **STOP** — pull them out of `resources`, do not apply |
+
+**v2 — de-`preserve()` (later).** Replace each `preserve()` group with a real
+literal (non-secret) / `process.env.X` (secret, injected at `railway config
+apply` from the GitHub Actions secrets `.github/workflows/*` already carry —
+**not** routed through Terraform/HCP, which would resurrect the "third place
+secrets live" §9 rejected) / `Redis.env.* / Postgres.env.*` reference. One
+group at a time, `plan`-verified. Only once `railway.ts` manages every value do
+`push_railway_variables.py`, `railway-services.json`, `src/railway-*.toml`, and
+their Makefile targets retire.
+
+**CI.** A job using `railwayapp/config@v1` — `plan` on a PR touching
+`.railway/**`, `apply` on merge — with the per-env project token as a
+`RAILWAY_TOKEN` secret in the `scraper / staging` and `scraper / production`
+GitHub environments. Placement (fold into the reusable `terraform.yml` vs. its
+own `railway.yml`) is a `[MAINTAINER]` decision.
+
+`spec.md`'s FR-001/002/003 intent (declarative, version-controlled, single
+source of truth, applied through CI on the same triggers as the code deploy) is
+preserved; the *executor* for the Railway half changes once more — from the
+Revision-4 script to Railway's own IaC engine — because the platform withdrew
+the surface Revisions 3–4 were built on. No `spec.md` FR change.
+
+---
+
 ## Summary
 
 Replace manual Railway-dashboard and GitHub-Settings configuration with one flat Terraform
