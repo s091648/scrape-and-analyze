@@ -176,11 +176,22 @@ group at a time, `plan`-verified. Only once `railway.ts` manages every value do
 `push_railway_variables.py`, `railway-services.json`, `src/railway-*.toml`, and
 their Makefile targets retire.
 
-**CI.** A job using `railwayapp/config@v1` — `plan` on a PR touching
-`.railway/**`, `apply` on merge — with the per-env project token as a
-`RAILWAY_TOKEN` secret in the `scraper / staging` and `scraper / production`
-GitHub environments. Placement (fold into the reusable `terraform.yml` vs. its
-own `railway.yml`) is a `[MAINTAINER]` decision.
+**CI.** A **standalone** `.github/workflows/railway.yml` (not folded into the
+reusable `terraform.yml` — different trigger `paths: .railway/**`, different
+credential, different engine): `railwayapp/config@v1` runs `railway config plan`
+for **both** environments on a PR touching `.railway/**` (each diff a PR
+comment; the action pins the change set + `configEtag` + `.railway/` tree), and
+applies to **staging** during that PR (mirrors `deploy-staging-terraform`,
+avoids racing `close-staging-*`). Production applies only from **release.yml**'s
+new `railway-config-production` job — `v*` tag, gated by that workflow's
+existing `detect` so a test tag off master never touches production
+(Constitution Principle V); `railway-config-test-staging` is its test-tag
+staging counterpart. Auth is `secrets.RAILWAY_CONFIG_TOKEN` — an
+**environment-bound** Railway project token (`railway config` has no
+`--environment` flag; distinct from `secrets.RAILWAY_TOKEN`, the project-wide
+token `railway up` / `railway down --environment` use) — set once per env in the
+`scraper / staging` and `scraper / production` GitHub environments
+(`[MAINTAINER]`).
 
 `spec.md`'s FR-001/002/003 intent (declarative, version-controlled, single
 source of truth, applied through CI on the same triggers as the code deploy) is
