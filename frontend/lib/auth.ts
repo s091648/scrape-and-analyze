@@ -3,10 +3,11 @@ import type { Account, Profile, Session, User } from 'next-auth'
 import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
+import { BACKEND_URL as BACKEND_URL_ENV, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, NODE_ENV } from '@/lib/env.server'
 
 // auth.ts runs server-side only (NextAuth callbacks). Use BACKEND_URL (not NEXT_PUBLIC_*)
 // so it reads Docker's internal hostname (http://backend:8000) at runtime.
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = BACKEND_URL_ENV || 'http://localhost:8000'
 // Refresh a bit before actual expiry so a request never races an about-to-expire
 // token — mirrors AuthTokenProvider's guest-token refresh margin.
 const REFRESH_MARGIN_MS = 60_000
@@ -35,7 +36,7 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 }
 
 export const authConfig: NextAuthOptions = {
-  debug: process.env.NODE_ENV === 'development',
+  debug: NODE_ENV === 'development',
   providers: [
     CredentialsProvider({
       name: 'Credentials',
@@ -74,15 +75,15 @@ export const authConfig: NextAuthOptions = {
     // Login provider: user must already exist in DB
     GoogleProvider({
       id: 'google-login',
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: GOOGLE_CLIENT_ID!,
+      clientSecret: GOOGLE_CLIENT_SECRET!,
     }),
 
     // Register provider: creates a new user in DB
     GoogleProvider({
       id: 'google-register',
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: GOOGLE_CLIENT_ID!,
+      clientSecret: GOOGLE_CLIENT_SECRET!,
     }),
   ],
 

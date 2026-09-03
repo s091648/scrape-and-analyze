@@ -7,8 +7,8 @@ Usage:
     uv run python -m src.entrypoints.cli.refresh_metrics
     uv run python -m src.entrypoints.cli.refresh_metrics --limit 200
 
-Deployed as its own Railway Cron Service (see src/railway.toml), separate from
-both the weekly report runner and the backend's view_count Redis flush —
+Deployed as its own Railway Cron Service (see src/railway-refresh-metrics.toml),
+separate from both the weekly report runner and the backend's view_count Redis flush —
 research.md §9b explains why these three don't share a runner.
 
 Architecture:

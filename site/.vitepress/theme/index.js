@@ -7,6 +7,7 @@ import DepGraphViewer from './DepGraphViewer.vue'
 import DbSchemaViewer from './DbSchemaViewer.vue'
 import SwaggerViewer from './SwaggerViewer.vue'
 import ExceptionViewer from './ExceptionViewer.vue'
+import TerraformServicesViewer from './TerraformServicesViewer.vue'
 
 export default {
   extends: DefaultTheme,
@@ -16,6 +17,7 @@ export default {
     app.component('DbSchemaViewer', DbSchemaViewer)
     app.component('SwaggerViewer', SwaggerViewer)
     app.component('ExceptionViewer', ExceptionViewer)
+    app.component('TerraformServicesViewer', TerraformServicesViewer)
   },
   setup() {
     const route = useRoute()

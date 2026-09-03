@@ -53,6 +53,7 @@ export default defineConfig({
           { text: 'DB Schema', link: '/guide/architecture/db-schema' },
           { text: 'API Docs', link: '/guide/architecture/api-docs' },
           { text: 'Exceptions', link: '/guide/architecture/exceptions' },
+          { text: 'Terraform Services', link: '/guide/architecture/terraform-services' },
         ],
       },
       {
@@ -333,6 +334,19 @@ export default defineConfig({
           { text: 'Contract: Embedding Batch Coordinator Port', link: '/specs/024-async-pipeline-refactor/contracts/embedding-batch-coordinator-port' },
           { text: 'Contract: Event Bus Port', link: '/specs/024-async-pipeline-refactor/contracts/event-bus-port' },
           { text: 'Contract: Provider Selector Port', link: '/specs/024-async-pipeline-refactor/contracts/provider-selector-port' },
+        ],
+      },
+      {
+        text: '025 · Iac Provisioning',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/025-iac-provisioning/spec' },
+          { text: 'Plan', link: '/specs/025-iac-provisioning/plan' },
+          { text: 'Data Model', link: '/specs/025-iac-provisioning/data-model' },
+          { text: 'Tasks', link: '/specs/025-iac-provisioning/tasks' },
+          { text: 'Requirements', link: '/specs/025-iac-provisioning/checklists/requirements' },
+          { text: 'Contract: Github Ci Config Module', link: '/specs/025-iac-provisioning/contracts/github-ci-config-module' },
+          { text: 'Contract: Railway Variables Module', link: '/specs/025-iac-provisioning/contracts/railway-variables-module' },
         ],
       },
     ],

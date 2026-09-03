@@ -4,11 +4,15 @@ name: Lighthouse Performance Check
 # Lighthouse and uploads the Traditional-Chinese Markdown report as a workflow artifact.
 #
 # Two ways to run it:
-#   1. workflow_dispatch — manual, from the Actions tab, against any URL (defaults to the
-#      staging frontend). Useful for spot-checking without opening a PR.
-#   2. workflow_call — invoked as a job from ci.yml against the staging frontend once it's
-#      actually live for a PR (after deploy-staging-frontend succeeds). See ci.yml's
-#      lighthouse-check job for the gating logic.
+#   1. workflow_dispatch — manual, from the Actions tab. Pick the environment
+#      (staging | production) to audit that deployment's FRONTEND_URL, or pass an
+#      explicit `url` to override. Useful for spot-checking prod performance.
+#   2. workflow_call — invoked as a job from ci.yml with environment: staging once
+#      the staging frontend is live for a PR (after deploy-staging-frontend
+#      succeeds). See ci.yml's lighthouse-check job for the gating logic.
+#
+# The job sets `environment: scraper / <environment>` so vars.FRONTEND_URL
+# resolves per-environment (managed by Terraform's github_ci_env module).
 #
 # Fails the job (via --fail-on-error) if the check itself couldn't complete for a route
 # (Chrome crash, timeout, network error) — it does NOT yet fail on the actual Performance/
@@ -18,9 +22,14 @@ name: Lighthouse Performance Check
 on:
   workflow_call:
     inputs:
+      environment:
+        description: "GitHub Environment whose FRONTEND_URL variable to audit (staging | production)"
+        required: false
+        type: string
+        default: staging
       url:
-        description: "Base URL to audit"
-        required: true
+        description: "Explicit base URL to audit (overrides the environment's FRONTEND_URL)"
+        required: false
         type: string
       routes:
         description: "Comma-separated routes to audit"
@@ -29,8 +38,14 @@ on:
         default: "/,/articles,/graph,/tags"
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Which deployment to audit"
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
       url:
-        description: "Base URL to audit (defaults to the staging frontend — vars.FRONTEND_URL)"
+        description: "Explicit base URL to audit (overrides the chosen environment's FRONTEND_URL)"
         required: false
         type: string
       routes:
@@ -44,6 +59,10 @@ jobs:
     name: Lighthouse Performance Check
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Scopes vars.FRONTEND_URL (and any protection rules) to the target deployment.
+    # ci.yml's PR call passes "staging"; a manual workflow_dispatch can pick
+    # "production" to spot-check prod performance.
+    environment: scraper / ${{ inputs.environment }}
     permissions:
       contents: read
       pull-requests: write
@@ -101,7 +120,7 @@ jobs:
             URL="${{ vars.FRONTEND_URL }}"
           fi
           if [ -z "$URL" ]; then
-            echo "::error::No URL provided and vars.FRONTEND_URL is not set. Configure it in repo Settings → Secrets and variables → Actions → Variables, or supply the url input."
+            echo "::error::No url input given and FRONTEND_URL is not set for the '${{ inputs.environment }}' environment. Set it via Terraform (github_ci_env's FRONTEND_URL / gh_env_frontend_url) or in repo Settings → Environments → scraper / ${{ inputs.environment }} → Variables."
             exit 1
           fi
           echo "url=$URL" >> "$GITHUB_OUTPUT"

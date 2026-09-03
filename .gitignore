@@ -11,6 +11,30 @@
 /.env.development
 /.env.staging
 /.env.production
+# Bootstrap credentials for the terraform providers / HCP backend. Only the
+# .env.example template is tracked (.env.local kept ignored for the old name).
+infra/terraform/**/.env
+infra/terraform/**/.env.local
+!infra/terraform/**/.env.example
+# scripts/pull_railway_variables.py's output — concentrates every service's
+# live variable values (secrets included) into one file, local-only.
+infra/terraform/**/.live-variables.json
+infra/terraform/**/.live-variables.tfvars
+# Remote state lives in HCP Terraform, not locally — .terraform/ is just the
+# local provider plugin cache; .terraform.lock.hcl IS committed on purpose
+# (provider version pins).
+infra/terraform/**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
+infra/terraform/**/crash.log
+infra/terraform/**/*.auto.tfvars
+# 025-iac-provisioning revision 2: real variable values live in git-ignored
+# secrets/*.tfvars (only the *.tfvars.example templates are tracked). imports.tf
+# is a throwaway generated during the one-time terraform import.
+infra/terraform/**/secrets/*
+!infra/terraform/**/secrets/.gitignore
+!infra/terraform/**/secrets/*.example
+infra/terraform/**/imports.tf
 *.pem
 *.key
 credentials.json
@@ -132,6 +156,7 @@ openspec/
 site/specs/
 site/constitution.md
 site/.vitepress/cache/
+site/guide/architecture/terraform-modules/
 
 # -----------------------------
 # Speckit local-only planning artifacts (not committed)
@@ -148,3 +173,9 @@ lighthouse-reports/
 
 # Playwright MCP browser-testing artifacts (screenshots, snapshots, console logs)
 .playwright-mcp/
+# .railway/ — Railway IaC scratch: fresh per-env pulls for comparison + CI plan pins.
+# The unified .railway/railway.ts and the .railway/railway.<env>.ts references stay tracked.
+.railway/pulled.*.ts
+.railway/.railway.ts.keep
+.railway/railway-plan*.json
+.railway/.env.*.generated

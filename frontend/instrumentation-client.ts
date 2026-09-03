@@ -6,13 +6,14 @@
 // pattern as APP_ENV) rather than a separate NEXT_PUBLIC_SENTRY_DSN — one
 // Sentry project for both, split by the SDK's automatic `platform` tag.
 import * as Sentry from '@sentry/browser'
+import { SENTRY_DSN, APP_ENV } from '@/lib/env.client'
 
-const dsn = process.env.SENTRY_DSN
+const dsn = SENTRY_DSN
 
 if (dsn) {
   Sentry.init({
     dsn,
-    environment: process.env.APP_ENV,
+    environment: APP_ENV,
     // Backend already has full OTel tracing (backend/observability.py) — this
     // SDK is for browser exception/error tracking only, not perf tracing.
     tracesSampleRate: 0,

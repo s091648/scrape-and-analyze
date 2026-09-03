@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T13:09:31.946840+00:00",
+  "generated_at": "2026-08-31T17:31:17.515600+00:00",
   "layers": [
     "application",
     "domain",
@@ -530,7 +530,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.entities.article.Article",
+      "id": "entities.article.Article",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Article|content",
@@ -538,11 +538,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "domain.entities.article",
+      "module": "entities.article",
       "class_name": "Article",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/entities/article/Article.py",
+      "full_path": "src/entities/article/Article.py",
       "docstring": "Domain entity representing a scraped article with URL, content, and metadata.",
       "typed_attrs": [
         "url: str",
@@ -820,7 +820,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.article_repository.ArticleRepository",
+      "id": "repositories.article_repository.ArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleRepository|<br",
@@ -828,11 +828,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.article_repository",
+      "module": "repositories.article_repository",
       "class_name": "ArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/article_repository/ArticleRepository.py",
+      "full_path": "src/repositories/article_repository/ArticleRepository.py",
       "docstring": "Abstract repository interface for Article persistence operations.",
       "typed_attrs": [],
       "typed_methods": [
@@ -1353,7 +1353,7 @@
       "context": "collection"
     },
     {
-      "id": "domain.repositories.article_repository.AsyncArticleRepository",
+      "id": "repositories.article_repository.AsyncArticleRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{AsyncArticleRepository|<br",
@@ -1361,11 +1361,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.article_repository",
+      "module": "repositories.article_repository",
       "class_name": "AsyncArticleRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/article_repository/AsyncArticleRepository.py",
+      "full_path": "src/repositories/article_repository/AsyncArticleRepository.py",
       "docstring": "024-async-pipeline-refactor: async sibling, not a replacement for\nArticleRepository above (still used by the batched fetch/dedup phase's\nfind_analyzed_url_hashes, which stays sync — FR-003 — so it…",
       "typed_attrs": [],
       "typed_methods": [
@@ -1659,7 +1659,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.failed_task_repository.AsyncFailedTaskRepository",
+      "id": "repositories.failed_task_repository.AsyncFailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{AsyncFailedTaskRepository|<br",
@@ -1669,11 +1669,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.failed_task_repository",
+      "module": "repositories.failed_task_repository",
       "class_name": "AsyncFailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/failed_task_repository/AsyncFailedTaskRepository.py",
+      "full_path": "src/repositories/failed_task_repository/AsyncFailedTaskRepository.py",
       "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nthe sync FailedTaskRepository/SqlAlchemyFailedTaskRepository.",
       "typed_attrs": [],
       "typed_methods": [
@@ -1822,7 +1822,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/use_cases/ingest_article_for_rag/AsyncIngestArticleForRagUseCase.py",
-      "docstring": "024-async-pipeline-refactor: async sibling of IngestArticleForRagUseCase\n— new, separate class. IngestArticleForRagUseCase is constructed by both\nbuild_collection_pipeline() (in scope) and…",
+      "docstring": "024-async-pipeline-refactor: async sibling of IngestArticleForRagUseCase\n— new, separate class, kept alongside the untouched sync original rather\nthan converted in place (avoids any risk to other…",
       "typed_attrs": [
         "_rag_ingestion_service"
       ],
@@ -1834,6 +1834,10 @@
         {
           "sig": "async execute(article, full_text: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "async aclose() → None",
+          "doc": "024-async-pipeline-refactor US6: releases the RAG SDK's\nEmbeddingBatchCoordinator worker task (research.md item 11) — call\nonce per run, after every execute()…"
         },
         {
           "sig": "_build_full_text(article) → str",
@@ -2018,12 +2022,16 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/services/rag_ingestion_service/AsyncRagIngestionService.py",
-      "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nRagIngestionService/RagSdkIngestionService (untouched, still used by the\nout-of-scope build_rag_backfill_pipeline() via…",
+      "docstring": "024-async-pipeline-refactor: async sibling — new, separate code from\nRagIngestionService/RagSdkIngestionService (untouched, still used by\nbuild_rag_ingestion_service()). As of User Story 6,…",
       "typed_attrs": [],
       "typed_methods": [
         {
           "sig": "async ingest(article, full_text: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "async aclose() → None",
+          "doc": "Release background resources (the RAG SDK's EmbeddingBatchCoordinator\nworker task) — called once per run, after every ingest() call has\nsettled (research.md…"
         }
       ],
       "source_file": "src/modules/intelligence/domain/services/rag_ingestion_service.py",
@@ -2047,7 +2055,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/vector_store/rag_sdk_ingestion_impl/AsyncRagSdkIngestionService.py",
-      "docstring": "024-async-pipeline-refactor: async sibling of RagSdkIngestionService\n(untouched — still used by the out-of-scope build_rag_backfill_pipeline()\nvia the unmodified build_rag_ingestion_service()).…",
+      "docstring": "024-async-pipeline-refactor: async sibling of RagSdkIngestionService\n(RagSdkIngestionService itself stays untouched, but as of User Story 6\nbuild_rag_backfill_pipeline() also uses this async class…",
       "typed_attrs": [
         "_processor: 'IngestProcessor'"
       ],
@@ -2059,6 +2067,10 @@
         {
           "sig": "async ingest(article, full_text: str) → None",
           "doc": ""
+        },
+        {
+          "sig": "async aclose() → None",
+          "doc": "024-async-pipeline-refactor US6: releases the SDK's\nEmbeddingBatchCoordinator worker task (research.md item 11)."
         }
       ],
       "source_file": "src/infrastructure/intelligence/vector_store/rag_sdk_ingestion_impl.py",
@@ -2096,7 +2108,7 @@
           "doc": ""
         },
         {
-          "sig": "_dispatch_order(handlers_snapshot: List[AsyncEmbeddingProviderHandler]) → List[AsyncEmbeddingProviderHandler]",
+          "sig": "_dispatch_order(handlers_snapshot: List[AsyncEmbeddingProviderHandler], estimated_tokens: int) → List[AsyncEmbeddingProviderHandler]",
           "doc": "See AsyncResilientLLMService._dispatch_order above."
         },
         {
@@ -2143,7 +2155,7 @@
           "doc": ""
         },
         {
-          "sig": "_dispatch_order(handlers_snapshot: List[AsyncProviderHandler]) → List[AsyncProviderHandler]",
+          "sig": "_dispatch_order(handlers_snapshot: List[AsyncProviderHandler], estimated_tokens: int) → List[AsyncProviderHandler]",
           "doc": "Handlers with current capacity first (selector's preferred order),\nthen every remaining handler in its original (priority) order as a\nfallback — preserves \"try…"
         },
         {
@@ -2469,6 +2481,10 @@
         {
           "sig": "async commit() → None",
           "doc": "Commit the current transaction, rolling back on failure."
+        },
+        {
+          "sig": "async rollback() → None",
+          "doc": "Roll back the current transaction (e.g. after a failure in _process\nthat never reached commit())."
         }
       ],
       "source_file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
@@ -2501,7 +2517,7 @@
         },
         {
           "sig": "async save_tag_translation(tag_id: UUID, language: str, name: str) → None",
-          "doc": "Insert or update a tag's translated name for a given language."
+          "doc": "Insert or update a tag's translated name for a given language.\n\n024-async-pipeline-refactor follow-up: uses an atomic DB upsert rather\nthan select-then-insert…"
         },
         {
           "sig": "async find_tags_without_translation(language: str, limit: int) → List[dict]",
@@ -2509,7 +2525,7 @@
         },
         {
           "sig": "async save_group_translation(tag_group_definition_id: UUID, language: str, display_name: str, description: str | None) → None",
-          "doc": "Insert or update a tag group's translated display name and description."
+          "doc": "Insert or update a tag group's translated display name and description.\n\n024-async-pipeline-refactor follow-up: same atomic-upsert reasoning…"
         },
         {
           "sig": "async find_groups_without_translation(language: str, limit: int) → List[dict]",
@@ -2607,7 +2623,7 @@
       "attributes": [],
       "methods": [],
       "full_path": "src/repositories/tag_repository/AsyncTagRepository.py",
-      "docstring": "024-async-pipeline-refactor: async sibling covering only what\nNormalizeTagsUseCase actually calls: find_similar, save, link_to_article,\nsave_suggestion, commit.…",
+      "docstring": "024-async-pipeline-refactor: async sibling covering only what\nNormalizeTagsUseCase actually calls: find_similar, save, link_to_article,\nsave_suggestion, commit, rollback.…",
       "typed_attrs": [],
       "typed_methods": [
         {
@@ -2628,6 +2644,10 @@
         },
         {
           "sig": "async commit() → None",
+          "doc": ""
+        },
+        {
+          "sig": "async rollback() → None",
           "doc": ""
         }
       ],
@@ -2676,7 +2696,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.topic_repository.AsyncTopicRepository",
+      "id": "repositories.topic_repository.AsyncTopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{AsyncTopicRepository|<br",
@@ -2684,11 +2704,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.topic_repository",
+      "module": "repositories.topic_repository",
       "class_name": "AsyncTopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/topic_repository/AsyncTopicRepository.py",
+      "full_path": "src/repositories/topic_repository/AsyncTopicRepository.py",
       "docstring": "024-async-pipeline-refactor: async sibling. TopicRepository/\nSqlAlchemyTopicRepository are also used by build_weekly_pipeline()\n(out of scope) — this Protocol and its impl are new, separate…",
       "typed_attrs": [],
       "typed_methods": [
@@ -3047,7 +3067,7 @@
       "context": "collection"
     },
     {
-      "id": "domain.services.blob_storage_service.BlobStorageService",
+      "id": "services.blob_storage_service.BlobStorageService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{BlobStorageService|<br",
@@ -3057,11 +3077,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "domain.services.blob_storage_service",
+      "module": "services.blob_storage_service",
       "class_name": "BlobStorageService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/services/blob_storage_service/BlobStorageService.py",
+      "full_path": "src/services/blob_storage_service/BlobStorageService.py",
       "docstring": "",
       "typed_attrs": [],
       "typed_methods": [
@@ -3139,7 +3159,7 @@
       "id": "event_handlers.cache_invalidation_handler.CacheInvalidationHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CacheInvalidationHandler|_cache",
+      "label": "<{CacheInvalidationHandler|_cache<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3174,7 +3194,7 @@
       "id": "event_handlers.cache_warmup_handler.CacheWarmupHandler",
       "color": "black",
       "fontcolor": "black",
-      "label": "<{CacheWarmupHandler|_cache",
+      "label": "<{CacheWarmupHandler|_cache<br",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
@@ -3197,7 +3217,7 @@
         },
         {
           "sig": "async handle(event) → None",
-          "doc": "024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent,\nsame reasoning as CacheInvalidationHandler above."
+          "doc": "024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent,\nsame reasoning as CacheInvalidationHandler above. publish_warmup_signal()\nis…"
         }
       ],
       "source_file": "src/modules/collection/application/event_handlers/cache_warmup_handler.py",
@@ -3279,11 +3299,13 @@
         "_app_env",
         "_jitter_seconds",
         "_llm_service",
-        "_rag_tasks: List[asyncio.Task]"
+        "_rag_service_aclose",
+        "_rag_tasks: List[asyncio.Task]",
+        "_rag_dispatch_semaphore"
       ],
       "typed_methods": [
         {
-          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: Any, pipeline_stats: PipelineStats, async_sessionmaker_factory: Callable[[], Any], article_downstream_builder: Callable[..., Awaitable[None]], rag_downstream_builder: Optional[Callable[..., Awaitable[Any]]], event_bus_factory: Callable[[], Any], executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository], app_env: str, jitter_seconds: Optional[float], llm_service: Optional[Any]) → None",
+          "sig": "__init__(setting_repo: ScraperSettingRepository, scraper_factory: ConcreteScraperFactory, event_bus: Any, pipeline_stats: PipelineStats, async_sessionmaker_factory: Callable[[], Any], article_downstream_builder: Callable[..., Awaitable[None]], rag_downstream_builder: Optional[Callable[..., Awaitable[Any]]], event_bus_factory: Callable[[], Any], executor: Optional[ScrapeExecutor], article_repo: Optional[ArticleRepository], app_env: str, jitter_seconds: Optional[float], llm_service: Optional[Any], rag_service_aclose: Optional[Callable[[], Awaitable[None]]], rag_dispatch_concurrency: int) → None",
           "doc": ""
         },
         {
@@ -3796,7 +3818,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.repositories.failed_task_repository.FailedTaskRepository",
+      "id": "repositories.failed_task_repository.FailedTaskRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedTaskRepository|<br",
@@ -3806,11 +3828,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.failed_task_repository",
+      "module": "repositories.failed_task_repository",
       "class_name": "FailedTaskRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/failed_task_repository/FailedTaskRepository.py",
+      "full_path": "src/repositories/failed_task_repository/FailedTaskRepository.py",
       "docstring": "Abstract repository interface for persisting FailedTask records.",
       "typed_attrs": [],
       "typed_methods": [
@@ -4337,7 +4359,7 @@
     {
       "id": "exceptions.IntelligenceDomainError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{IntelligenceDomainError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -4361,7 +4383,7 @@
     {
       "id": "exceptions.InvalidSimilarityScoreError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSimilarityScoreError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -4385,7 +4407,7 @@
     {
       "id": "exceptions.InvalidSuggestionStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidSuggestionStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -4409,7 +4431,7 @@
     {
       "id": "exceptions.InvalidWeeklyReportStatusError",
       "color": "black",
-      "fontcolor": "red",
+      "fontcolor": "black",
       "label": "<{InvalidWeeklyReportStatusError|<br",
       "ALIGN": "LEFT",
       "shape": "record",
@@ -4484,7 +4506,7 @@
       "context": "notifications"
     },
     {
-      "id": "domain.value_objects.job_execution_meta.JobExecutionMeta",
+      "id": "value_objects.job_execution_meta.JobExecutionMeta",
       "color": "black",
       "fontcolor": "black",
       "label": "<{JobExecutionMeta|app_env",
@@ -4492,11 +4514,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "domain.value_objects.job_execution_meta",
+      "module": "value_objects.job_execution_meta",
       "class_name": "JobExecutionMeta",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/value_objects/job_execution_meta/JobExecutionMeta.py",
+      "full_path": "src/value_objects/job_execution_meta/JobExecutionMeta.py",
       "docstring": "Wall-clock execution window + environment context, attached to every scheduled\nCLI job's completion event so notification messages render a consistent\ntimestamp/environment/duration/jitter block (see…",
       "typed_attrs": [
         "started_at: datetime",
@@ -4725,6 +4747,10 @@
         {
           "sig": "record_usage(actual_tokens: int) → None",
           "doc": "No-op: discard token usage recording."
+        },
+        {
+          "sig": "try_acquire(estimated_tokens: int) → bool",
+          "doc": "No-op: always immediately available."
         },
         {
           "sig": "update_batch_size(batch_size: int) → None",
@@ -5291,8 +5317,8 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "select(handlers: List) → List[int]",
-          "doc": "Return indices of handlers with current capacity, preserving\n`handlers`' existing (priority) order."
+          "sig": "select(handlers: List, estimated_tokens: int) → List[int]",
+          "doc": "Return indices of handlers with current capacity for\n`estimated_tokens`, preserving `handlers`' existing (priority)\norder."
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/rate_limit/provider_selector.py",
@@ -5469,8 +5495,8 @@
       "typed_attrs": [],
       "typed_methods": [
         {
-          "sig": "select(handlers: List) → List[int]",
-          "doc": "Return indices of currently-available handlers, in preferred\ndispatch order. Returns [] if none are currently available (caller\nfalls back to the existing…"
+          "sig": "select(handlers: List, estimated_tokens: int) → List[int]",
+          "doc": "Return indices of currently-available handlers, in preferred\ndispatch order, for a request estimated at `estimated_tokens`.\nReturns [] if none are currently…"
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/rate_limit/provider_selector.py",
@@ -5580,6 +5606,10 @@
         {
           "sig": "has_capacity(estimated_tokens: int) → bool",
           "doc": "Non-blocking, side-effect-free check: True if a request could be\ndispatched right now without waiting (024-async-pipeline-refactor,\nProviderSelector port — see…"
+        },
+        {
+          "sig": "try_acquire(estimated_tokens: int) → bool",
+          "doc": "Non-blocking reservation attempt: if a slot is immediately\navailable, reserve it (same effect as `acquire()`) and return True;\notherwise reserve nothing and…"
         }
       ],
       "source_file": "src/infrastructure/intelligence/llm/rate_limit/quota_strategy.py",
@@ -6911,6 +6941,10 @@
           "doc": "Block until a request slot and token budget are available within RPM/TPM/RPD limits."
         },
         {
+          "sig": "try_acquire(estimated_tokens: int) → bool",
+          "doc": "Non-blocking: reserve a slot only if immediately available.\n`_compute_wait()` already only reserves when it returns 0, so this\nis just that check without ever…"
+        },
+        {
           "sig": "record_usage(actual_tokens: int) → None",
           "doc": "Record actual token usage in the sliding window after a successful API call."
         },
@@ -7752,7 +7786,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.value_objects.tag_mode.TagMode",
+      "id": "value_objects.tag_mode.TagMode",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TagMode|name<br",
@@ -7762,11 +7796,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "domain.value_objects.tag_mode",
+      "module": "value_objects.tag_mode",
       "class_name": "TagMode",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/value_objects/tag_mode/TagMode.py",
+      "full_path": "src/value_objects/tag_mode/TagMode.py",
       "docstring": "Enum controlling how tags are assigned: unsupervised, semi-supervised, or supervised.",
       "typed_attrs": [],
       "typed_methods": [],
@@ -8038,7 +8072,7 @@
       "context": "intelligence"
     },
     {
-      "id": "domain.value_objects.telegram_message.TelegramMessage",
+      "id": "value_objects.telegram_message.TelegramMessage",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramMessage|parse_mode",
@@ -8046,11 +8080,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "value_objects",
-      "module": "domain.value_objects.telegram_message",
+      "module": "value_objects.telegram_message",
       "class_name": "TelegramMessage",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/value_objects/telegram_message/TelegramMessage.py",
+      "full_path": "src/value_objects/telegram_message/TelegramMessage.py",
       "docstring": "Transport-agnostic representation of a Telegram message to be sent.",
       "typed_attrs": [
         "text: str",
@@ -8112,7 +8146,7 @@
       "context": "notifications"
     },
     {
-      "id": "domain.services.telegram_notifier_service.TelegramNotifierService",
+      "id": "services.telegram_notifier_service.TelegramNotifierService",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TelegramNotifierService|<br",
@@ -8122,11 +8156,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "domain_services",
-      "module": "domain.services.telegram_notifier_service",
+      "module": "services.telegram_notifier_service",
       "class_name": "TelegramNotifierService",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/services/telegram_notifier_service/TelegramNotifierService.py",
+      "full_path": "src/services/telegram_notifier_service/TelegramNotifierService.py",
       "docstring": "Transport-only interface for sending a Telegram message to a chat id.\n\nConcrete implementations live in src/shared/infrastructure/notifications/.\nUse-case-specific content (Markdown formatting,…",
       "typed_attrs": [],
       "typed_methods": [
@@ -8195,18 +8229,18 @@
       "context": "collection"
     },
     {
-      "id": "domain.entities.topic.Topic",
+      "id": "entities.topic.Topic",
       "color": "black",
       "fontcolor": "black",
       "label": "<{Topic|color_hex",
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "entities",
-      "module": "domain.entities.topic",
+      "module": "entities.topic",
       "class_name": "Topic",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/entities/topic/Topic.py",
+      "full_path": "src/entities/topic/Topic.py",
       "docstring": "Domain entity representing a topic category for article classification.",
       "typed_attrs": [
         "name: str",
@@ -8227,7 +8261,7 @@
       "context": "shared"
     },
     {
-      "id": "domain.repositories.topic_repository.TopicRepository",
+      "id": "repositories.topic_repository.TopicRepository",
       "color": "black",
       "fontcolor": "black",
       "label": "<{TopicRepository|<br",
@@ -8235,11 +8269,11 @@
       "layer": "domain",
       "ca_layer": "entities",
       "subgroup": "repositories",
-      "module": "domain.repositories.topic_repository",
+      "module": "repositories.topic_repository",
       "class_name": "TopicRepository",
       "attributes": [],
       "methods": [],
-      "full_path": "src/domain/repositories/topic_repository/TopicRepository.py",
+      "full_path": "src/repositories/topic_repository/TopicRepository.py",
       "docstring": "Abstract repository interface for Topic lookup queries.",
       "typed_attrs": [],
       "typed_methods": [

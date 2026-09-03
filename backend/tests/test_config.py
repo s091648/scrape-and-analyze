@@ -75,6 +75,19 @@ def test_gemini_api_key_reads_env():
         assert m.GEMINI_API_KEY == "gemini-key"
 
 
+def test_geoip_db_path_reads_env():
+    with patch.dict(os.environ, {"GEOIP_DB_PATH": "/mnt/geoip/City.mmdb"}):
+        m = _reload()
+        assert m.GEOIP_DB_PATH == "/mnt/geoip/City.mmdb"
+
+
+def test_geoip_db_path_has_default():
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("GEOIP_DB_PATH", None)
+        m = _reload()
+        assert m.GEOIP_DB_PATH == "/app/data/GeoLite2-City.mmdb"
+
+
 def test_swagger_try_it_out_enabled_defaults_to_false():
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("SWAGGER_TRY_IT_OUT_ENABLED", None)

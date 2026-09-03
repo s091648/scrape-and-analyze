@@ -22,6 +22,7 @@
     "lib/providers/index.tsx"
   ],
   "app/admin/monitoring/monitoring-content.tsx": [
+    "components/features/monitoring/country-panel.tsx",
     "components/features/monitoring/logs-table.tsx",
     "components/features/monitoring/metrics-chart.tsx",
     "components/features/monitoring/stat-card.tsx",
@@ -32,12 +33,15 @@
     "components/ui/tooltip.tsx",
     "lib/api/grafana.ts",
     "lib/observability-constants.ts",
+    "lib/otlp-utils.ts",
     "lib/providers/index.tsx",
+    "lib/stores/admin-users-store.ts",
     "lib/utils.ts"
   ],
   "app/admin/monitoring/page.tsx": [
     "app/admin/monitoring/monitoring-content.tsx",
-    "lib/auth.ts"
+    "lib/auth.ts",
+    "lib/env.server.ts"
   ],
   "app/admin/scraper-settings/page.tsx": [
     "components/features/scraper/arxiv-keyword-manager.tsx",
@@ -70,18 +74,25 @@
     "components/ui/skeleton.tsx",
     "components/ui/switch.tsx",
     "lib/api/auth.ts",
-    "lib/providers/index.tsx"
+    "lib/providers/index.tsx",
+    "lib/stores/admin-users-store.ts"
   ],
   "app/api/auth/[[...nextauth]]/route.ts": [
     "lib/auth.ts"
   ],
   "app/api/grafana-embed/route.ts": [
-    "lib/auth.ts"
+    "lib/auth.ts",
+    "lib/env.server.ts"
   ],
-  "app/api/link-google/callback/route.ts": [],
-  "app/api/link-google/start/route.ts": [],
+  "app/api/link-google/callback/route.ts": [
+    "lib/env.server.ts"
+  ],
+  "app/api/link-google/start/route.ts": [
+    "lib/env.server.ts"
+  ],
   "app/api/proxy/[...path]/route.ts": [
     "lib/auth.ts",
+    "lib/env.server.ts",
     "lib/loki-logger.ts"
   ],
   "app/articles/[articleId]/page.tsx": [
@@ -337,6 +348,25 @@
     "lib/otlp-utils.ts",
     "lib/providers/index.tsx"
   ],
+  "components/features/monitoring/country-map.tsx": [
+    "components/ui/skeleton.tsx",
+    "components/ui/tooltip.tsx",
+    "lib/api/grafana.ts",
+    "lib/iso-country-codes.ts",
+    "lib/utils.ts"
+  ],
+  "components/features/monitoring/country-panel.tsx": [
+    "components/features/monitoring/country-map.tsx",
+    "components/features/monitoring/country-table.tsx",
+    "lib/api/grafana.ts"
+  ],
+  "components/features/monitoring/country-table.tsx": [
+    "components/features/monitoring/country-map.tsx",
+    "components/ui/table-panel.tsx",
+    "lib/api/grafana.ts",
+    "lib/iso-country-codes.ts",
+    "lib/utils.ts"
+  ],
   "components/features/monitoring/failed-task-list.tsx": [],
   "components/features/monitoring/grafana-panel.tsx": [
     "lib/utils.ts"
@@ -349,6 +379,7 @@
   "components/features/monitoring/logs-table.tsx": [
     "components/features/monitoring/article-workflow-dialog.tsx",
     "components/features/monitoring/log-detail-dialog.tsx",
+    "components/features/monitoring/run-waterfall-dialog.tsx",
     "components/ui/dialog.tsx",
     "components/ui/table-panel.tsx",
     "lib/api/grafana.ts",
@@ -364,6 +395,7 @@
     "lib/utils.ts"
   ],
   "components/features/monitoring/run-waterfall-dialog.tsx": [
+    "components/features/monitoring/log-detail-dialog.tsx",
     "components/features/monitoring/stage-card.tsx",
     "components/ui/dialog.tsx",
     "lib/api/grafana.ts",
@@ -373,6 +405,7 @@
     "lib/utils.ts"
   ],
   "components/features/monitoring/stage-card.tsx": [
+    "components/features/monitoring/log-detail-dialog.tsx",
     "components/ui/tooltip.tsx",
     "lib/api/grafana.ts",
     "lib/otlp-utils.ts",
@@ -387,11 +420,13 @@
   "components/features/monitoring/traces-table.tsx": [
     "components/features/articles/article-detail-dialog.tsx",
     "components/features/monitoring/article-workflow-dialog.tsx",
+    "components/features/monitoring/log-detail-dialog.tsx",
     "components/features/monitoring/run-waterfall-dialog.tsx",
     "components/features/monitoring/weekly-report-topic-dialog.tsx",
     "components/ui/table-panel.tsx",
     "lib/api/articles.ts",
     "lib/api/grafana.ts",
+    "lib/observability-constants.ts",
     "lib/otlp-utils.ts",
     "lib/providers/index.tsx",
     "lib/utils.ts"
@@ -412,6 +447,7 @@
     "components/ui/skeleton.tsx",
     "components/ui/tooltip.tsx",
     "lib/api/auth.ts",
+    "lib/env.client.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/navigation/release-notes-popover.tsx": [
@@ -553,6 +589,7 @@
     "lib/utils.ts"
   ],
   "components/ui/table-panel.tsx": [
+    "components/ui/dialog.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/tooltip.tsx",
     "lib/utils.ts"
@@ -635,7 +672,9 @@
     "lib/api/client.ts"
   ],
   "lib/auth-token-store.ts": [],
-  "lib/auth.ts": [],
+  "lib/auth.ts": [
+    "lib/env.server.ts"
+  ],
   "lib/cache/lru-cache.ts": [],
   "lib/chat-session.ts": [],
   "lib/chat/chat-storage.ts": [],
@@ -643,8 +682,13 @@
   "lib/cookies/set-preference-cookie.ts": [
     "lib/cookies/constants.ts"
   ],
+  "lib/env.client.ts": [],
+  "lib/env.server.ts": [],
   "lib/highlight-match.tsx": [],
-  "lib/loki-logger.ts": [],
+  "lib/iso-country-codes.ts": [],
+  "lib/loki-logger.ts": [
+    "lib/env.server.ts"
+  ],
   "lib/observability-constants.ts": [],
   "lib/otlp-utils.ts": [
     "lib/api/grafana.ts",
@@ -660,6 +704,7 @@
   "lib/providers/float-chat-provider.tsx": [
     "components/features/chat/types.ts",
     "lib/chat/chat-storage.ts",
+    "lib/env.client.ts",
     "lib/providers/auth-token-provider.tsx",
     "lib/providers/chat-quota-provider.tsx",
     "lib/providers/i18n-provider.tsx",
@@ -691,6 +736,7 @@
   "lib/providers/inline-chat-provider.tsx": [
     "components/features/chat/types.ts",
     "lib/chat/chat-storage.ts",
+    "lib/env.client.ts",
     "lib/providers/auth-token-provider.tsx",
     "lib/providers/chat-quota-provider.tsx",
     "lib/providers/i18n-provider.tsx",
@@ -718,7 +764,11 @@
     "lib/api/tags.ts",
     "lib/api/weekly-reports.ts",
     "lib/auth.ts",
-    "lib/cookies/constants.ts"
+    "lib/cookies/constants.ts",
+    "lib/env.server.ts"
+  ],
+  "lib/stores/admin-users-store.ts": [
+    "lib/api/auth.ts"
   ],
   "lib/utils.ts": []
 }

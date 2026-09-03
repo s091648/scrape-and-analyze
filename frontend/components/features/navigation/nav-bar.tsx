@@ -23,6 +23,7 @@ import { ReleaseNotesPopover } from "@/components/features/navigation/release-no
 import { fetchMe } from "@/lib/api/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTopic, useI18n, useTheme, useGuestMode, useTutorial } from "@/lib/providers";
+import { APP_ENV } from "@/lib/env.client";
 
 function initials(name: string | null | undefined): string {
   if (!name) return "?";
@@ -155,9 +156,9 @@ export function NavBar() {
         </div>
 
         {/* Env indicator — only shown in non-production environments */}
-        {process.env.APP_ENV !== "production" && (
+        {APP_ENV !== "production" && (
           <span className="absolute left-1/2 -translate-x-1/2 text-lg font-semibold font-mono text-red-500 select-none pointer-events-none hidden md:inline">
-            {process.env.APP_ENV}
+            {APP_ENV}
           </span>
         )}
 

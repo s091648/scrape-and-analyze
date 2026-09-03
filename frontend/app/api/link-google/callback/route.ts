@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT, jwtVerify } from 'jose'
+import {
+  NEXTAUTH_SECRET, GOOGLE_CLIENT_ID as GOOGLE_CLIENT_ID_ENV, GOOGLE_CLIENT_SECRET as GOOGLE_CLIENT_SECRET_ENV,
+  NEXTAUTH_URL as NEXTAUTH_URL_ENV, BACKEND_URL as BACKEND_URL_ENV,
+} from '@/lib/env.server'
 
-const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL!
+const SECRET = new TextEncoder().encode(NEXTAUTH_SECRET!)
+const GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID_ENV!
+const GOOGLE_CLIENT_SECRET = GOOGLE_CLIENT_SECRET_ENV!
+const NEXTAUTH_URL = NEXTAUTH_URL_ENV!
 // Internal URL for server-to-server calls (Docker/Railway)
-const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = BACKEND_URL_ENV || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl

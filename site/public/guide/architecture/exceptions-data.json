@@ -94,28 +94,28 @@
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 80,
+          "line": 101,
           "function": "register",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 91,
+          "line": 112,
           "function": "google_authorize",
           "snippet": "raise ConflictError(\"Google account not linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 116,
+          "line": 149,
           "function": "admin_create_user",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 193,
+          "line": 226,
           "function": "link_google",
           "snippet": "raise ConflictError(\"Google account already in use\")",
           "status_code": null
@@ -166,7 +166,7 @@
       "raise_sites": [
         {
           "file": "src/entrypoints/cli/backfill_rag.py",
-          "line": 177,
+          "line": 192,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -180,7 +180,7 @@
         },
         {
           "file": "src/entrypoints/cli/main.py",
-          "line": 117,
+          "line": 114,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -278,7 +278,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 107,
+          "line": 108,
           "function": "AsyncSqlAlchemyTagRepository.commit",
           "snippet": "raise",
           "status_code": null
@@ -292,14 +292,14 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_translation_async_repo_impl.py",
-          "line": 40,
+          "line": 46,
           "function": "AsyncSqlAlchemyTagTranslationRepository.save_tag_translation",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_translation_async_repo_impl.py",
-          "line": 92,
+          "line": 95,
           "function": "AsyncSqlAlchemyTagTranslationRepository.save_group_translation",
           "snippet": "raise",
           "status_code": null
@@ -376,21 +376,21 @@
       "raise_sites": [
         {
           "file": "backend/auth/guards.py",
-          "line": 45,
+          "line": 49,
           "function": "_require_admin_impl",
           "snippet": "raise ForbiddenError(\"Admin role required\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 52,
+          "line": 68,
           "function": "verify_credentials",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 89,
+          "line": 110,
           "function": "google_authorize",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
@@ -471,14 +471,14 @@
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 133,
+          "line": 170,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
           "status_code": 404
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 135,
+          "line": 172,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
           "status_code": 400
@@ -715,63 +715,63 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 87,
+          "line": 108,
           "function": "google_authorize",
           "snippet": "raise NotFoundError(\"Email not registered\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 124,
+          "line": 157,
           "function": "update_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 132,
+          "line": 165,
           "function": "delete_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 141,
+          "line": 174,
           "function": "get_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 150,
+          "line": 183,
           "function": "update_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 164,
+          "line": 197,
           "function": "change_password",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 179,
+          "line": 212,
           "function": "delete_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 189,
+          "line": 222,
           "function": "link_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 202,
+          "line": 235,
           "function": "unlink_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
@@ -879,6 +879,13 @@
           "line": 86,
           "function": "delete_topic",
           "snippet": "raise NotFoundError(\"Topic not found\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+          "line": 62,
+          "function": "AsyncSqlAlchemyTagRepository.save",
+          "snippet": "raise NotFoundError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
           "status_code": null
         }
       ]
@@ -1032,42 +1039,42 @@
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 103,
+          "line": 107,
           "function": "AsyncBaseProvider.analyze",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 106,
+          "line": 110,
           "function": "AsyncBaseProvider.analyze",
           "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 130,
+          "line": 134,
           "function": "AsyncBaseProvider.translate",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 133,
+          "line": 137,
           "function": "AsyncBaseProvider.translate",
           "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 153,
+          "line": 157,
           "function": "AsyncBaseProvider.generate",
           "snippet": "raise",
           "status_code": null
         },
         {
           "file": "src/infrastructure/intelligence/llm/providers/async_base_provider.py",
-          "line": 156,
+          "line": 160,
           "function": "AsyncBaseProvider.generate",
           "snippet": "raise RateLimitExhausted(f\"Rate limit (RPD) exhausted for {self._model}\") from e",
           "status_code": null
@@ -1116,7 +1123,7 @@
         },
         {
           "file": "src/infrastructure/intelligence/llm/rate_limit/sliding_window_strategy.py",
-          "line": 77,
+          "line": 83,
           "function": "SlidingWindowStrategy._compute_wait",
           "snippet": "raise RateLimitExhausted(f\"Daily request limit of {self.rpd} reached\")",
           "status_code": null
@@ -1216,140 +1223,196 @@
       "raise_sites": [
         {
           "file": "backend/auth/guards.py",
-          "line": 32,
+          "line": 34,
           "function": "_require_admin_impl",
           "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 38,
+          "line": 40,
           "function": "_require_admin_impl",
           "snippet": "raise UnauthorizedError(\"Invalid token\")",
-          "status_code": null
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 41,
-          "function": "_require_admin_impl",
-          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
           "line": 43,
           "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 45,
+          "function": "_require_admin_impl",
           "snippet": "raise UnauthorizedError(\"Token expired\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 60,
+          "line": 47,
+          "function": "_require_admin_impl",
+          "snippet": "raise UnauthorizedError(\"A refresh token is not accepted for this endpoint\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 64,
           "function": "_require_user_impl",
           "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 66,
+          "line": 70,
           "function": "_require_user_impl",
           "snippet": "raise UnauthorizedError(\"Invalid token\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 69,
+          "line": 73,
           "function": "_require_user_impl",
           "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 71,
+          "line": 75,
           "function": "_require_user_impl",
           "snippet": "raise UnauthorizedError(\"Token expired\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 76,
+          "line": 80,
           "function": "_require_user_impl",
           "snippet": "raise UnauthorizedError(\"A guest token is not accepted for this endpoint\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 90,
-          "function": "_require_any_token_impl",
-          "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
-          "status_code": null
-        },
-        {
-          "file": "backend/auth/guards.py",
-          "line": 96,
-          "function": "_require_any_token_impl",
-          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "line": 85,
+          "function": "_require_user_impl",
+          "snippet": "raise UnauthorizedError(\"A refresh token is not accepted for this endpoint\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
           "line": 99,
           "function": "_require_any_token_impl",
-          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "snippet": "raise UnauthorizedError(\"Missing Authorization header\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
-          "line": 101,
+          "line": 105,
           "function": "_require_any_token_impl",
-          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 108,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/auth/guards.py",
           "line": 110,
           "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 112,
+          "function": "_require_any_token_impl",
+          "snippet": "raise UnauthorizedError(\"A refresh token is not accepted for this endpoint\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/auth/guards.py",
+          "line": 121,
+          "function": "_require_any_token_impl",
           "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 48,
+          "line": 64,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 50,
+          "line": 66,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
         },
         {
+          "file": "backend/routers/auth.py",
+          "line": 121,
+          "function": "refresh_user_token",
+          "snippet": "raise UnauthorizedError(\"Invalid refresh token\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 116,
+          "function": "decode_user_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Invalid token\")",
+          "status_code": null
+        },
+        {
           "file": "backend/services/auth_service.py",
           "line": 119,
+          "function": "decode_user_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 121,
+          "function": "decode_user_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token expired\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 123,
+          "function": "decode_user_refresh_token",
+          "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
+          "status_code": null
+        },
+        {
+          "file": "backend/services/auth_service.py",
+          "line": 173,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Invalid token\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 122,
+          "line": 176,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 124,
+          "line": 178,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token expired\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 126,
+          "line": 180,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
           "status_code": null
@@ -1392,42 +1455,42 @@
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 65,
+          "line": 84,
           "function": "register",
           "snippet": "raise ValidationError(str(e))",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 104,
+          "line": 137,
           "function": "admin_create_user",
           "snippet": "raise ValidationError(\"email or username required\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 166,
+          "line": 199,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Password change not available for this account\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 168,
+          "line": 201,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Current password incorrect\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 191,
+          "line": 224,
           "function": "link_google",
           "snippet": "raise ValidationError(\"Google account already linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 204,
+          "line": 237,
           "function": "unlink_google",
           "snippet": "raise ValidationError(\"Cannot unlink Google from a Google-only account\")",
           "status_code": null
@@ -1451,6 +1514,27 @@
           "line": 77,
           "function": "autocomplete",
           "snippet": "raise ValidationError(\"prefix must not be empty\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 151,
+          "function": "build_async_llm_service",
+          "snippet": "raise ValidationError(\"llm_providers table has no active LLM providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/bootstrap.py",
+          "line": 170,
+          "function": "build_async_llm_service",
+          "snippet": "raise ValidationError(\"llm_providers table has no active embedding providers\")",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
+          "line": 55,
+          "function": "AsyncSqlAlchemyTagRepository.save",
+          "snippet": "raise ValidationError(\"topic_id is required to save a tag\")",
           "status_code": null
         },
         {
@@ -1499,44 +1583,16 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 150,
-          "function": "build_async_llm_service",
-          "snippet": "raise ValueError(\"llm_providers table has no active LLM providers\")",
-          "status_code": null
-        },
-        {
-          "file": "src/bootstrap.py",
-          "line": 169,
-          "function": "build_async_llm_service",
-          "snippet": "raise ValueError(\"llm_providers table has no active embedding providers\")",
-          "status_code": null
-        },
-        {
-          "file": "src/bootstrap.py",
-          "line": 770,
+          "line": 774,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
         },
         {
           "file": "src/config/settings.py",
-          "line": 177,
+          "line": 211,
           "function": "validate_config",
           "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
-          "status_code": null
-        },
-        {
-          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 54,
-          "function": "AsyncSqlAlchemyTagRepository.save",
-          "snippet": "raise ValueError(\"topic_id is required to save a tag\")",
-          "status_code": null
-        },
-        {
-          "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 61,
-          "function": "AsyncSqlAlchemyTagRepository.save",
-          "snippet": "raise ValueError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
           "status_code": null
         },
         {

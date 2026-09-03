@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authConfig } from '@/lib/auth'
 import { pushToLoki } from '@/lib/loki-logger'
+import { BACKEND_URL as BACKEND_URL_ENV } from '@/lib/env.server'
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = BACKEND_URL_ENV || 'http://localhost:8000'
 
 const REDACT_KEYS = new Set([
   'password', 'hashed_password', 'token', 'access_token', 'refresh_token',

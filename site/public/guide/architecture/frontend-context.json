@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-23T12:44:49.500Z",
+  "generated_at": "2026-08-31T17:31:49.800Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 24,
+      "consumerCount": 25,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -72,6 +72,11 @@
           "destructured": "{ data: session, status }"
         },
         {
+          "file": "app/admin/monitoring/monitoring-content.tsx",
+          "line": 695,
+          "destructured": "{ data: session }"
+        },
+        {
           "file": "app/admin/scraper-settings/page.tsx",
           "line": 1042,
           "destructured": "{ data: session, status }"
@@ -83,7 +88,7 @@
         },
         {
           "file": "app/admin/user-management/page.tsx",
-          "line": 41,
+          "line": 30,
           "destructured": "{ data: session, status }"
         },
         {
@@ -158,7 +163,7 @@
         },
         {
           "file": "components/features/navigation/nav-bar.tsx",
-          "line": 38,
+          "line": 39,
           "destructured": "{ data: session }"
         },
         {
@@ -168,12 +173,12 @@
         },
         {
           "file": "lib/providers/float-chat-provider.tsx",
-          "line": 37,
+          "line": 38,
           "destructured": "{ data: session, status }"
         },
         {
           "file": "lib/providers/inline-chat-provider.tsx",
-          "line": 40,
+          "line": 41,
           "destructured": "{ data: session, status }"
         },
         {
@@ -259,17 +264,17 @@
         },
         {
           "file": "components/features/navigation/nav-bar.tsx",
-          "line": 46,
+          "line": 47,
           "destructured": "{ topics, selectedTopic, setSelectedTopicId, isLoading: topicsLoading }"
         },
         {
           "file": "lib/providers/float-chat-provider.tsx",
-          "line": 38,
+          "line": 39,
           "destructured": "{ selectedTopicId }"
         },
         {
           "file": "lib/providers/inline-chat-provider.tsx",
-          "line": 41,
+          "line": 42,
           "destructured": "{ selectedTopicId }"
         }
       ]
@@ -300,27 +305,27 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 402,
+          "line": 500,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 446,
+          "line": 565,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 483,
+          "line": 604,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 512,
+          "line": 636,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 569,
+          "line": 694,
           "destructured": "{ t }"
         },
         {
@@ -380,7 +385,7 @@
         },
         {
           "file": "app/admin/user-management/page.tsx",
-          "line": 42,
+          "line": 31,
           "destructured": "{ t }"
         },
         {
@@ -500,32 +505,32 @@
         },
         {
           "file": "components/features/monitoring/log-detail-dialog.tsx",
-          "line": 64,
+          "line": 125,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/logs-table.tsx",
-          "line": 161,
+          "line": 205,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/run-waterfall-dialog.tsx",
-          "line": 81,
+          "line": 82,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/stage-card.tsx",
-          "line": 226,
+          "line": 235,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/traces-table.tsx",
-          "line": 63,
+          "line": 54,
           "destructured": "{ locale }"
         },
         {
           "file": "components/features/monitoring/traces-table.tsx",
-          "line": 248,
+          "line": 239,
           "destructured": "{ t }"
         },
         {
@@ -535,7 +540,7 @@
         },
         {
           "file": "components/features/navigation/nav-bar.tsx",
-          "line": 47,
+          "line": 48,
           "destructured": "{ locale, setLocale, availableLanguages, t, isLoading: i18nLoading }"
         },
         {
@@ -620,12 +625,12 @@
         },
         {
           "file": "lib/providers/float-chat-provider.tsx",
-          "line": 39,
+          "line": 40,
           "destructured": "{ t }"
         },
         {
           "file": "lib/providers/inline-chat-provider.tsx",
-          "line": 42,
+          "line": 43,
           "destructured": "{ t }"
         }
       ]
@@ -676,7 +681,7 @@
         },
         {
           "file": "components/features/navigation/nav-bar.tsx",
-          "line": 49,
+          "line": 50,
           "destructured": "{ isGuestMode }"
         },
         {
@@ -706,7 +711,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 122,
+    "totalConsumerSites": 123,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

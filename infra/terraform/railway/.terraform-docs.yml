@@ -1,0 +1,20 @@
+formatter: "markdown table"
+
+sections:
+  show:
+    - requirements
+    - providers
+    - resources
+    - inputs
+    - outputs
+
+sort:
+  enabled: true
+  by: required
+
+settings:
+  anchor: true
+  color: false
+  html: true
+  indent: 2
+  lockfile: false
