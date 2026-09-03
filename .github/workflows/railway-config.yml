@@ -65,9 +65,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # `railway config` evaluates .railway/railway.ts via Node type-stripping —
+      # needs Node >= 22.6 (ubuntu-latest ships 20). Match the railway_cli
+      # container (node:24).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+
+      # railway.ts does `import "railway/iac"`. railwayapp/config installs the
+      # CLI but NOT the `railway` SDK package the import needs — install it at the
+      # repo root so the ESM parent-dir walk from .railway/railway.ts resolves it.
+      # (The SDK is gutted — "the engine ships in the CLI now" — but still
+      # required to satisfy the import; same as the railway_cli container.)
+      - name: Install the railway TypeScript SDK
+        run: npm install --no-save --no-package-lock railway@latest
 
       # railway.ts reads secret / ${{...}}-reference values via process.env.X
       # (T6-08c). Rebuild the git-ignored tfvars from the base64 secrets (same
