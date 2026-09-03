@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients import ArxivClient, ArxivRateLimitedError
+from src.infrastructure.collection.clients.arxiv_client import ArxivClient, ArxivRateLimitedError
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle

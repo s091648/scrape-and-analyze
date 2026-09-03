@@ -1,7 +1,10 @@
 from typing import List, Optional
 from uuid import UUID
 from src.shared.logging import get_logger
-from src.infrastructure.collection.clients import SemanticScholarClient, SemanticScholarRateLimitedError
+from src.infrastructure.collection.clients.semantic_scholar_client import (
+    SemanticScholarClient,
+    SemanticScholarRateLimitedError,
+)
 from .base_scraper import BaseScraper
 from src.modules.collection.domain.entities import ScrapeJob
 from src.modules.collection.domain.value_objects import ScrapedArticle

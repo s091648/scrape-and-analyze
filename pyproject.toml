@@ -65,6 +65,13 @@ llm = [
     # 024-async-pipeline-refactor: AsyncOpenRouterProvider replaces requests.post
     # with httpx.AsyncClient. Previously only declared in backend/dev groups.
     "httpx",
+    # 021-ssr-public-pages: both weekly-report image providers (Gemini Imagen,
+    # HuggingFace) route their output through image_encoding.encode_as_webp, whose
+    # module-level `from PIL import Image` runs as soon as build_weekly_pipeline()
+    # imports a provider. weekly-report's UV_GROUP is "llm http-clients" — it does
+    # NOT install the `scraper` group, so it never got pillow transitively via
+    # fastembed. Declared here explicitly so the weekly-report service has it.
+    "pillow>=10.0",
 ]
 # 外部 HTTP client 共用依賴 — worker 的 scrape http client、
 # refresh-metrics 的 OpenAlex/Semantic Scholar client、
