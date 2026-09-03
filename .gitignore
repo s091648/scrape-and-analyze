@@ -178,3 +178,4 @@ lighthouse-reports/
 .railway/pulled.*.ts
 .railway/.railway.ts.keep
 .railway/railway-plan*.json
+.railway/.env.*.generated

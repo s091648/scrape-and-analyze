@@ -4,25 +4,25 @@
  * hard cutoff 2026-12-01) AND scripts/push_railway_variables.py +
  * railway-services.json.
  *
- * ── v1 (this file): FAITHFUL REPRODUCTION ──────────────────────────────────
- * Merges `railway config pull` from staging + production into one ctx-aware
- * file. Every service `env` var is preserve() — i.e. its value is left exactly
- * as Railway currently has it, NOT managed here yet. Only build config, start
- * commands, networking, replicas, and the handful of genuine staging↔production
- * differences (volume name, cron schedules, backfill_rag `--limit`) are
- * expressed. Goal: `railway config plan` shows 0 changes for BOTH environments.
+ * ── How each env var's value is expressed ─────────────────────────────────
+ *   - non-secret, fixed          → literal in ./constants.ts (T6-08a)
+ *   - non-secret, env-specific   → a `ctx`-branch here (APP_ENV)
+ *   - ${{Postgres.*}}/${{Redis.*}} single ref  → SDK ref, Postgres.env.* (T6-08b)
+ *   - secret, or a ${{...}} interpolation string → need("X") — process.env.X,
+ *     injected at `railway config plan|apply` by railway-config.yml's
+ *     `scripts/tfvars_to_env.py` step from the TF_TFVARS_RAILWAY_* GitHub
+ *     secrets (T6-08c). `need()` throws if unset, so a missing CI step fails
+ *     loudly instead of pushing an empty value onto a live service.
+ *   - still preserve()           → hand-managed on Railway (OPENROUTER_API_KEY,
+ *     RESEND_*), or empty on this env (FIXIE_URL, RAG_DENSE_ENDPOINT_URL,
+ *     RAG_SPARSE_*_limits) — Railway stores nothing for an empty var.
  *
- * ── v2 (later) ────────────────────────────────────────────────────────────
- * Move each non-secret var to a real literal in `.railway/constants.ts`, each
- * secret to `process.env.X` (injected at `railway config apply` time from the
- * GitHub Actions secrets that `.github/workflows/*` already carry), and each
- * `${{Redis/Postgres.*}}` reference to `Redis.env.* / Postgres.env.*`. One
- * group at a time, `plan`-verified.
+ * Gate for every change: `railway config plan` shows 0 changes on BOTH
+ * environments (run `scripts/tfvars_to_env.py --env <e>` into the process env
+ * first so the need() reads resolve).
  *
- * ── REVIEW markers ────────────────────────────────────────────────────────
- * `// REVIEW:` flags a spot where the two environments disagree in a way that
- * looks like unintentional drift rather than deliberate config. v1 reproduces
- * current reality; decide whether to normalise once `plan` output is in hand.
+ * `// REVIEW:` flags a spot where staging and production disagree in a way that
+ * looks like unintentional drift; v2 reproduces current reality.
  */
 import {
   defineRailway,
@@ -35,6 +35,7 @@ import {
   volume,
 } from "railway/iac";
 import {
+  CACHE_REDIS_URL,
   CONTACT_EMAIL,
   GRAFANA_BACKEND_ENV,
   GRAFANA_ENV,
@@ -42,6 +43,8 @@ import {
   RAG_CHUNKING_ENV,
   RAG_DENSE_ENV,
   RAG_SPARSE_ENV,
+  SEARCH_INDEX_REDIS_URL,
+  UV_GROUP,
   VECTOR_DB_SCHEMA,
 } from "./constants.ts";
 
@@ -49,25 +52,36 @@ type EnvMap = Record<string, ReturnType<typeof preserve>>;
 const preserveAll = (...keys: string[]): EnvMap =>
   Object.fromEntries(keys.map((k) => [k, preserve()]));
 
-// Shared env-var GROUPS — v1 lists names only (all preserve()). v2 turns these
-// into real values (non-secret, in ./constants.ts) / process.env.* (secret) one
-// group at a time, `plan`-verified.
-// T6-08a de-preserve()d the non-secret values into ./constants.ts:
-//   RAG_DENSE_ENV / RAG_SPARSE_ENV / RAG_CHUNKING_ENV  (RAG tuning)
-//   GRAFANA_ENV / GRAFANA_BACKEND_ENV / GRAFANA_URL     (observability endpoints)
-//   CONTACT_EMAIL / VECTOR_DB_SCHEMA / appEnv           (misc)
-// Still preserve()d here: GRAFANA_API_KEY / GRAFANA_SA_TOKEN / RAG_GEMINI_API_KEY
-// (secrets → T6-08c), RAG_SPARSE_ENDPOINT_URL + the VECTOR_DB Postgres refs
-// (cross-service refs → T6-08b), and the production-only groups below.
-const GRAFANA_PRESERVED = ["GRAFANA_API_KEY"];
-const RAG_DENSE_PRESERVED = ["RAG_GEMINI_API_KEY"];
-const RAG_SPARSE_PRESERVED = ["RAG_SPARSE_ENDPOINT_URL"];
-// Currently set on production only (scrape-and-analyze / dashboard-backend / backfill_rag).
-const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"];
-const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only
-// VECTOR_DB_SCHEMA is a de-preserve()d literal (constants.ts); the other five are
-// ${{Postgres.*}} refs — see `vectorDbRef` in the callback (T6-08b).
-const NOTIFICATIONS = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]; // FIXIE_URL is production-only, added per service
+// Secret / ${{...}}-interpolation values — supplied via process.env by
+// railway-config.yml's tfvars_to_env.py step (T6-08c). Throw rather than push an
+// empty value if the step didn't run.
+const need = (key: string): string => {
+  const v = process.env[key];
+  if (v === undefined || v === "") {
+    throw new Error(
+      `railway.ts: process.env.${key} is unset — run ` +
+        `\`scripts/tfvars_to_env.py --env <env>\` into the environment before ` +
+        `\`railway config\` (railway-config.yml does this in CI; T6-08c).`,
+    );
+  }
+  return v;
+};
+const needAll = (...keys: string[]): Record<string, string> =>
+  Object.fromEntries(keys.map((k) => [k, need(k)]));
+
+// Still preserve()d groups: hand-managed on Railway, or empty on some/all envs
+// (Railway stores nothing for an empty var).
+const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"]; // production only, currently empty
+const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only, currently empty
+
+// PROD-DRIFT HOLD (T6-08c): production's live value disagrees with the tfvars,
+// so managing these via need() would *change* production on the next apply —
+// left preserve() until the drift is reconciled (see specs/025 / handoff):
+//   NEXTAUTH_SECRET     prod = "generate-with-openssl-rand-base64-32" (placeholder)
+//   GITHUB_PACKAGE_TOKEN prod = a different ghp_ token than the tfvars
+//   FRONTEND_ORIGIN / NEXTAUTH_URL  prod = bare host, no scheme / no ${{ref}}
+// Staging matches the tfvars for all four, but hold them there too for symmetry.
+const PROD_DRIFT_HOLD = ["NEXTAUTH_SECRET", "GITHUB_PACKAGE_TOKEN", "FRONTEND_ORIGIN", "NEXTAUTH_URL"];
 
 export default defineRailway((ctx) => {
   const prod = ctx.environment === "production";
@@ -76,8 +90,13 @@ export default defineRailway((ctx) => {
 
   // The one genuinely environment-specific non-secret value.
   const appEnv = { APP_ENV: prod ? "production" : "staging" };
-  // Grafana core endpoints + the still-preserve()d API key, in one spread.
-  const grafana = { ...preserveAll(...GRAFANA_PRESERVED), ...GRAFANA_ENV };
+  // Grafana: de-preserve()d endpoints (constants.ts) + the secret API key.
+  const grafana = { ...GRAFANA_ENV, ...needAll("GRAFANA_API_KEY") };
+  // Telegram bot creds (FIXIE_URL is production-only, added per service).
+  const notifications = needAll("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID");
+  // RAG values still needing process.env: the Gemini key (secret) + the
+  // fastembed private-domain URL (a ${{...}} interpolation string).
+  const ragSecrets = needAll("RAG_GEMINI_API_KEY", "RAG_SPARSE_ENDPOINT_URL");
 
   // GitHub sources. Monorepo `s091648/scrape-and-analyze` at two roots, plus the
   // separate chatbot-plugin repo. (The raw pull emitted 3 near-duplicate
@@ -116,12 +135,8 @@ export default defineRailway((ctx) => {
     region, sizeMB: 5000, allowOnlineResize: true, alerts: volAlerts,
   });
 
-  // T6-08b: single-value ${{Postgres.*}} / ${{Redis.*}} references expressed as
-  // real SDK refs (must come after the Postgres/Redis nodes above). NOT converted
-  // (no SDK string-composition form): the interpolated ones — CACHE_REDIS_URL /
-  // SEARCH_INDEX_REDIS_URL (`${{Redis.REDIS_URL}}/N`), RAG_SPARSE_ENDPOINT_URL /
-  // CHAT_SERVICE_URL / BACKEND_URL (`http://${{<svc>.RAILWAY_PRIVATE_DOMAIN}}:PORT`)
-  // — stay preserve().
+  // T6-08b: single-value ${{Postgres.*}} / ${{Redis.*}} references as real SDK
+  // refs (must come after the Postgres/Redis nodes above).
   const databaseUrl = { DATABASE_URL: Postgres.env.DATABASE_URL };
   const redisUrl = { REDIS_URL: Redis.env.REDIS_URL };
   const vectorDbRef = {
@@ -146,16 +161,18 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
+      CACHE_REDIS_URL,
+      UV_GROUP: UV_GROUP.weekly_report,
       ...databaseUrl,
-      ...preserveAll(
-        "CACHE_REDIS_URL",
-        "FRONTEND_ORIGIN", "GEMINI_API_KEY", "HF_TOKEN", "OPENROUTER_API_KEY",
-        "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_PUBLIC_URL",
-        "R2_SECRET_ACCESS_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL",
-        "SENTRY_DSN", "UV_GROUP",
-      ),
       ...grafana,
-      ...preserveAll(...NOTIFICATIONS),
+      ...notifications,
+      ...needAll(
+        "GEMINI_API_KEY", "HF_TOKEN",
+        "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_PUBLIC_URL",
+        "R2_SECRET_ACCESS_KEY", "SENTRY_DSN",
+      ),
+      // Hand-managed on Railway (`unmanaged`), or prod-drift hold (T6-08c).
+      ...preserveAll("OPENROUTER_API_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL", "FRONTEND_ORIGIN"),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -170,10 +187,11 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
+      UV_GROUP: UV_GROUP.dedup_reconcile,
       ...databaseUrl,
-      ...preserveAll("SENTRY_DSN", "UV_GROUP"),
       ...grafana,
-      ...preserveAll(...NOTIFICATIONS),
+      ...notifications,
+      ...needAll("SENTRY_DSN"),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -183,7 +201,7 @@ export default defineRailway((ctx) => {
     build: df("/frontend/Dockerfile.storybook"),
     replicas,
     networking: { privateNetworkEndpoint: "satisfied-luck" },
-    env: preserveAll("GITHUB_PACKAGE_TOKEN"),
+    env: preserveAll("GITHUB_PACKAGE_TOKEN"), // prod-drift hold (T6-08c)
   });
 
   const dashboardFrontend = service("dashboard-frontend", {
@@ -193,11 +211,11 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       GRAFANA_URL,
-      ...preserveAll(
+      ...needAll(
         "BACKEND_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-        "GITHUB_PACKAGE_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
-        "GRAFANA_SA_TOKEN", "NEXTAUTH_SECRET", "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GRAFANA_SA_TOKEN",
       ),
+      ...preserveAll(...PROD_DRIFT_HOLD), // GITHUB_PACKAGE_TOKEN, NEXTAUTH_SECRET, NEXTAUTH_URL, FRONTEND_ORIGIN (T6-08c)
     },
   });
 
@@ -210,26 +228,24 @@ export default defineRailway((ctx) => {
       ...appEnv,
       CONTACT_EMAIL,
       VECTOR_DB_SCHEMA,
+      CACHE_REDIS_URL,
       ...databaseUrl,
       ...vectorDbRef,
-      ...preserveAll(
-        "CACHE_REDIS_URL",
-        "GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "OPENROUTER_API_KEY", "SENTRY_DSN",
-      ),
       ...grafana,
-      ...preserveAll(
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...NOTIFICATIONS,
-      ),
+      ...notifications,
+      ...ragSecrets,
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...RAG_CHUNKING_ENV,
-      // REVIEW: these three are set on staging only today — production's
+      ...needAll("GEMINI_API_KEY", "SENTRY_DSN"),
+      ...preserveAll("OPENROUTER_API_KEY", "GITHUB_PACKAGE_TOKEN"), // unmanaged / prod-drift hold
+      // REVIEW: SEARCH_* are set on staging only today — production's
       // scrape-and-analyze has no SEARCH_* vars (likely drift; the rebuild-
       // search-index cron path needs SEARCH_INDEX_REDIS_URL).
       ...(prod ? {} : {
         SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN: "8",
         SEARCH_MIN_DOC_FREQ: "2",
-        ...preserveAll("SEARCH_INDEX_REDIS_URL"),
+        SEARCH_INDEX_REDIS_URL,
       }),
       ...(prod ? preserveAll("FIXIE_URL", ...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
@@ -250,10 +266,11 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       CONTACT_EMAIL,
+      UV_GROUP: UV_GROUP.refresh_metrics,
       ...databaseUrl,
-      ...preserveAll("SENTRY_DSN", "UV_GROUP"),
       ...grafana,
-      ...preserveAll(...NOTIFICATIONS),
+      ...notifications,
+      ...needAll("SENTRY_DSN"),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -274,18 +291,20 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       SWAGGER_TRY_IT_OUT_ENABLED: "false",
+      CACHE_REDIS_URL,
+      SEARCH_INDEX_REDIS_URL,
       ...databaseUrl,
       ...redisUrl,
-      ...preserveAll(
-        "CACHE_REDIS_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-        "FRONTEND_ORIGIN", "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY",
-        "NEXTAUTH_SECRET", "SEARCH_INDEX_REDIS_URL", "SENTRY_DSN",
-      ),
       ...grafana,
       ...GRAFANA_BACKEND_ENV,
-      ...preserveAll(...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED),
+      ...ragSecrets,
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
+      ...needAll(
+        "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
+        "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY", "SENTRY_DSN",
+      ),
+      ...preserveAll("FRONTEND_ORIGIN", "NEXTAUTH_SECRET"), // prod-drift hold (T6-08c)
       ...(prod ? preserveAll(...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
@@ -299,13 +318,11 @@ export default defineRailway((ctx) => {
       CHATBOT_MAX_TOKENS: "8192",
       VECTOR_DB_SCHEMA,
       ...vectorDbRef,
-      ...preserveAll(
-        "GEMINI_API_KEY",
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED,
-      ),
       ...grafana,
+      ...ragSecrets,
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
+      ...needAll("GEMINI_API_KEY"),
     },
   });
 
@@ -323,19 +340,17 @@ export default defineRailway((ctx) => {
       ...appEnv,
       CONTACT_EMAIL,
       VECTOR_DB_SCHEMA,
+      UV_GROUP: UV_GROUP.rag_backfill,
       ...databaseUrl,
       ...vectorDbRef,
-      ...preserveAll(
-        "GITHUB_PACKAGE_TOKEN",
-        "OPENROUTER_API_KEY", "SENTRY_DSN", "UV_GROUP",
-      ),
       ...grafana,
-      ...preserveAll(
-        ...RAG_DENSE_PRESERVED, ...RAG_SPARSE_PRESERVED, ...NOTIFICATIONS,
-      ),
+      ...notifications,
+      ...ragSecrets,
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...RAG_CHUNKING_ENV,
+      ...needAll("SENTRY_DSN"),
+      ...preserveAll("OPENROUTER_API_KEY", "GITHUB_PACKAGE_TOKEN"), // unmanaged / prod-drift hold
       ...(prod ? preserveAll("FIXIE_URL", ...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });

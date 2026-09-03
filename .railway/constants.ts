@@ -68,3 +68,20 @@ export const GRAFANA_URL = "https://s091648.grafana.net/";
 // Non-secret single-value config shared across services.
 export const CONTACT_EMAIL = "s091648@gmail.com";
 export const VECTOR_DB_SCHEMA = "vectors";
+
+// Redis logical-DB URLs — a Railway reference string, not a secret. Live stores
+// the no-inner-space form (the `$${{ Redis.REDIS_URL }}/N` in the tfvars had
+// spaces that don't round-trip); express it as the canonical literal here.
+export const CACHE_REDIS_URL = "${{Redis.REDIS_URL}}/1";
+export const SEARCH_INDEX_REDIS_URL = "${{Redis.REDIS_URL}}/2";
+
+// Per-service uv dependency-group selection (also the `UV_GROUP` build ARG).
+// One env var name, a different value per service → a literal per service here
+// rather than one `process.env.UV_GROUP` (T6-08c). scrape-and-analyze / the
+// dashboards / storybook / fastembed / chatbot don't set it (Dockerfile default).
+export const UV_GROUP = {
+  weekly_report: "llm http-clients",
+  refresh_metrics: "http-clients metrics",
+  rag_backfill: "scraper http-clients",
+  dedup_reconcile: "http-clients",
+} as const;

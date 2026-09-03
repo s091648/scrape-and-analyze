@@ -65,6 +65,40 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # railway.ts reads secret / ${{...}}-reference values via process.env.X
+      # (T6-08c). Rebuild the git-ignored tfvars from the base64 secrets (same
+      # source terraform.yml uses) and explode them into $GITHUB_ENV so the
+      # railwayapp/config steps below see them. `need()` in railway.ts throws if
+      # a var is missing, so a bad materialize fails the plan, not the apply.
+      - name: Materialize tfvars + explode into env
+        env:
+          TF_TFVARS_GITHUB_SHARED: ${{ secrets.TF_TFVARS_GITHUB_SHARED }}
+          TF_TFVARS_RAILWAY_SHARED: ${{ secrets.TF_TFVARS_RAILWAY_SHARED }}
+          TF_TFVARS_GITHUB_STAGING: ${{ secrets.TF_TFVARS_GITHUB_STAGING }}
+          TF_TFVARS_RAILWAY_STAGING: ${{ secrets.TF_TFVARS_RAILWAY_STAGING }}
+          TF_TFVARS_GITHUB_PRODUCTION: ${{ secrets.TF_TFVARS_GITHUB_PRODUCTION }}
+          TF_TFVARS_RAILWAY_PRODUCTION: ${{ secrets.TF_TFVARS_RAILWAY_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          cd infra/terraform/railway
+          printf '%s' "$TF_TFVARS_GITHUB_SHARED"  | base64 -d > secrets/github-shared.tfvars
+          printf '%s' "$TF_TFVARS_RAILWAY_SHARED" | base64 -d > secrets/railway-shared.tfvars
+          case "${{ inputs.environment }}" in
+            staging)
+              printf '%s' "$TF_TFVARS_GITHUB_STAGING"  | base64 -d > secrets/github-staging.tfvars
+              printf '%s' "$TF_TFVARS_RAILWAY_STAGING" | base64 -d > secrets/railway-staging.tfvars ;;
+            production)
+              printf '%s' "$TF_TFVARS_GITHUB_PRODUCTION"  | base64 -d > secrets/github-production.tfvars
+              printf '%s' "$TF_TFVARS_RAILWAY_PRODUCTION" | base64 -d > secrets/railway-production.tfvars ;;
+            *) echo "::error::unknown environment '${{ inputs.environment }}'"; exit 1 ;;
+          esac
+          cd "$GITHUB_WORKSPACE"
+          python scripts/tfvars_to_env.py --env "${{ inputs.environment }}" >> "$GITHUB_ENV"
+
       # Always runs: on `mode: plan` this is the whole job (and comments on a PR);
       # on `mode: apply` it produces the railway-plan.json the apply step consumes.
       - name: railway config plan (${{ inputs.environment }})

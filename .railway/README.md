@@ -69,6 +69,21 @@ fresh ground truth with `make railway-config-pull ENV=<env>` if the two referenc
 files are stale. **FR-014**: if a plan shows ANY change to Redis / Postgres / a
 volume, stop — do not apply.
 
+**v2 (T6-08c) — plan needs `process.env` populated.** `railway.ts` now reads
+secret / `${{...}}`-reference values via `process.env.X` (in CI:
+`railway-config.yml` runs `scripts/tfvars_to_env.py --env <env>` into
+`$GITHUB_ENV`). To plan locally the same way:
+
+```bash
+python scripts/tfvars_to_env.py --env staging > .railway/.env.staging.generated
+# then, in the railway_cli container (all git-ignored):
+node .railway/.plan-with-env.mjs .railway/.env.staging.generated plan --show-values
+```
+
+`.plan-with-env.mjs` just loads the `KEY=value` file into `process.env` (first
+`=` splits) and execs `railway config …` — `railway config` can't take an
+`--env-file` and `source`-ing the file mangles `${{ }}` / trailing `=`.
+
 ## Common commands
 
 Create the configuration files:
