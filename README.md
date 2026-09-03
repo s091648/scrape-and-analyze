@@ -116,23 +116,22 @@ mirrored to GitHub Actions secrets as base64). Full detail:
 2. `make push-tfvars` — syncs all six tfvars files to the `TF_TFVARS_*` GitHub Actions secrets
 3. Open a PR
 
-CI (`.github/workflows/terraform.yml`) then applies **both** halves — GitHub-side
-via Terraform, Railway-side via `scripts/push_railway_variables.py` — for staging
-on the PR, and for production on a `v*` release tag. `make push-tfvars` is the
-only command you have to remember.
+CI applies **both** halves — GitHub-side via `.github/workflows/terraform.yml`,
+Railway-side via `.github/workflows/railway-config.yml` (`.railway/railway.ts` +
+`railway config`) — for staging on the PR, and for production on a `v*` release
+tag. `make push-tfvars` is the only command you have to remember.
 
 ### Applying locally (optional — when you don't want to wait for CI)
 
 Needs `infra/terraform/railway/.env` (copy from `.env.example`). Two toolchains,
-because the community Railway Terraform provider is unreliable at this scale
-(per-variable redeploys hit Railway's rate limit) — the Railway half uses a
-CLI-driven script instead. Both read the same `secrets/*.tfvars`.
+same `secrets/*.tfvars`: `terraform` on PATH for the GitHub half; the
+`railway_cli` compose container for the Railway half (the Windows CLI can't
+evaluate the `.ts`).
 
 | Goal | Commands |
 |---|---|
-| Update a **GitHub Actions** secret/variable (`DATABASE_URL`, `FRONTEND_URL`, `RAILWAY_SERVICE_ID_*`, API keys, …) | `make terraform-plan ENV=staging` → `make terraform-apply ENV=staging` |
-| Update a **Railway service** env var (value only) | `make check-railway-variables ENV=staging` → `make push-railway-variables ENV=staging` |
-| Change **which service** gets which vars / add a new var | edit `infra/terraform/railway/railway-services.json`, then run the Railway command above |
+| Update a **GitHub Actions** secret/variable (`DATABASE_URL`, `FRONTEND_URL`, `RAILWAY_SERVICE_ID_*`, …) | `make terraform-plan ENV=staging` → `make terraform-apply ENV=staging` |
+| Update a **Railway service** env var / deploy config | edit `.railway/railway.ts` (or `.railway/constants.ts`, or the tfvars for a secret) → `make railway-config-plan ENV=staging` → `make railway-config-apply ENV=staging` (see `.railway/README.md`) |
 
 Run the same command with `ENV=production` to apply there too. After any local
 apply, still run `make push-tfvars` so CI doesn't report drift on the next run.

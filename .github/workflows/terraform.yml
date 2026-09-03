@@ -1,14 +1,14 @@
 name: Terraform
 
-# Reusable infra runner for 025-iac-provisioning. ci.yml / release.yml just call
-# it with `uses:` + two inputs. Two halves, one secrets/*.tfvars source of truth:
+# Reusable infra runner for 025-iac-provisioning — the GITHUB-ACTIONS half only.
+# ci.yml / release.yml call it with `uses:` + two inputs. It runs `terraform`
+# against github-ci.tf (the GitHub Actions secrets/variables ci.yml/release.yml
+# read), on the HCP Terraform workspace selected by TF_WORKSPACE.
 #
-#   1. Terraform  -> GitHub Actions secrets/variables only (github-ci.tf), against
-#                    the HCP Terraform workspace selected by TF_WORKSPACE.
-#   2. Railway    -> every service's env vars, via scripts/push_railway_variables.py
-#                    (`railway` CLI + railway-services.json). The community railway
-#                    Terraform provider was dropped: its variable resources trip
-#                    Railway's deploy rate limit / race on read-back at this scale.
+# The Railway half (every service's deploy config + env vars) moved to
+# .railway/railway.ts + `railway config` — see .github/workflows/railway-config.yml
+# (Revision 6). scripts/push_railway_variables.py / railway-services.json were
+# retired in T6-09.
 #
 # Called as a job:
 #   uses: ./.github/workflows/terraform.yml
@@ -18,7 +18,7 @@ name: Terraform
 # tfvars are materialized from base64 GitHub Actions secrets
 # (TF_TFVARS_{GITHUB,RAILWAY}_{SHARED,STAGING,PRODUCTION}), kept in sync from a
 # maintainer's machine via `make push-tfvars`. Terraform reads only github-*;
-# push_railway_variables.py reads railway-* (+ github-* for service_id_* / token).
+# railway-config.yml explodes railway-* into $GITHUB_ENV via tfvars_to_env.py.
 
 on:
   workflow_call:
@@ -140,31 +140,5 @@ jobs:
               else echo "❌ ${{ inputs.environment }} GitHub config: plan failed (exit $code)" >> "$GITHUB_STEP_SUMMARY"; exit "$code"; fi ;;
             *) echo "::error::unknown mode '${{ inputs.mode }}'"; exit 1 ;;
           esac
-
-      - name: Install Railway CLI
-        if: inputs.mode != 'plan'
-        run: npm install -g @railway/cli
-
-      # Railway-side env vars. apply -> push (one batched set + one redeploy per
-      # service); drift -> --check (exit 2 on drift, written to the job summary).
-      - name: railway variables ${{ inputs.mode }}
-        if: inputs.mode != 'plan'
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          set -euo pipefail
-          case "${{ inputs.mode }}" in
-            apply)
-              # --prune: the manifest+tfvars are authoritative — a var removed
-              # there is deleted on Railway too (RAILWAY_* and railway-services
-              # .json's `unmanaged` list are always kept).
-              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" --prune ;;
-            drift)
-              set +e
-              python scripts/push_railway_variables.py --env "${{ inputs.environment }}" --check
-              code=$?
-              set -e
-              if [ "$code" = "0" ]; then echo "✅ ${{ inputs.environment }} Railway vars: in sync" >> "$GITHUB_STEP_SUMMARY"
-              elif [ "$code" = "2" ]; then echo "⚠️ ${{ inputs.environment }} Railway vars: DRIFT (see log)" >> "$GITHUB_STEP_SUMMARY"; exit 1
-              else echo "❌ ${{ inputs.environment }} Railway vars: check failed (exit $code)" >> "$GITHUB_STEP_SUMMARY"; exit "$code"; fi ;;
-          esac
+          # The Railway half (service env vars) is applied separately by
+          # .github/workflows/railway-config.yml — not here (T6-09).

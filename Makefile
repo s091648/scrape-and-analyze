@@ -18,7 +18,7 @@
 	storybook build-storybook \
 	lighthouse-check \
 	site-preview uml uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend uml-frontend-deps uml-frontend-context \
-	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars pull-railway-variables push-railway-variables check-railway-variables \
+	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars \
 	railway-cli railway-config-plan railway-config-apply railway-config-pull railway-config-migrate
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
@@ -390,27 +390,27 @@ uml-frontend-context:
 #   terraform-*             -> GitHub Actions secrets/variables only (github-ci.tf),
 #                             HCP Terraform backend, `terraform` binary on PATH
 #                             (local-exec), NOT a container.
-#   push/check-railway-variables -> every Railway service's env vars, via the
-#                             `railway` CLI + railway-services.json (the community
-#                             railway Terraform provider was dropped — its
-#                             variable resources are unreliable at this scale).
+#   railway-config-*        -> every Railway service's deploy config AND env vars,
+#                             via .railway/railway.ts + `railway config` (Revision
+#                             6). Runs in the railway_cli container — see the
+#                             `railway-config-*` targets further down + .railway/README.md.
 #
 # Credentials: infra/terraform/railway/.env (gitignored, IaC-operator only —
 # NOT loaded via the root `include .env`). Template: that dir's .env.example.
 #   TF_API_TOKEN / TF_GITHUB_TOKEN                -> terraform (HCP + github provider)
-#   RAILWAY_TOKEN_{STAGING,PRODUCTION}            -> push/check/pull-railway-variables
+#   RAILWAY_TOKEN_{STAGING,PRODUCTION}            -> railway-config-* (per-env project token)
 # Every other value comes from secrets/{shared,$(ENV)}.tfvars.
 #
 # Usage: make terraform-plan ENV=staging (default) | make terraform-apply ENV=production
-#        make push-railway-variables ENV=staging
+#        make railway-config-plan ENV=staging
 # TARGET= narrows terraform plan/apply to one address (Terraform's -target).
 # -----------------------------------------------------------------------
 
 TF_DIR := infra/terraform/railway
 TF_ENV_FILE := infra/terraform/railway/.env
 ENV ?= staging
-# Terraform reads only the GitHub-side tfvars; the railway-*.tfvars are for
-# scripts/push_railway_variables.py.
+# Terraform reads only the GitHub-side tfvars; the railway-*.tfvars are exploded
+# into the environment by scripts/tfvars_to_env.py for `railway config`.
 TF_VARFILES := -var-file=secrets/github-shared.tfvars -var-file=secrets/github-$(ENV).tfvars
 TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_WORKSPACE="$(ENV)"; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
 TARGET ?=
@@ -463,34 +463,10 @@ terraform-force-unlock:
 	@test -n "$(LOCK_ID)" || (echo "LOCK_ID must be set — copy it from the 'Error acquiring the state lock' message"; exit 1)
 	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) force-unlock -force $(LOCK_ID)
 
-# Push every Railway service's env vars from secrets/{shared,ENV}.tfvars via the
-# `railway` CLI (structure = infra/terraform/railway/railway-services.json). One
-# batched `railway variables --set --skip-deploys` per service, then one redeploy.
-# Host-only: needs `railway` CLI. Token = gh_env_railway_token from
-# secrets/github-$(ENV).tfvars (gh_env_railway_token). Stdlib python.
-# Usage: make push-railway-variables ENV=staging [SERVICES="dashboard_backend fastembed"] [NO_REDEPLOY=1] [PRUNE=1]
-#   PRUNE=1 also DELETEs Railway vars not in the manifest/tfvars (RAILWAY_* and
-#   railway-services.json's `unmanaged`/`unmanaged_all` lists are always kept).
-SERVICES ?=
-NO_REDEPLOY ?=
-PRUNE ?=
-push-railway-variables:
-	@$(_TF_ENV_GUARD)
-	@python scripts/push_railway_variables.py --env $(ENV) $(if $(NO_REDEPLOY),--no-redeploy,) $(if $(PRUNE),--prune,) $(SERVICES)
-
-# Same, read-only: diff live Railway vars vs what the manifest+tfvars say. Exit 2 on drift.
-# Usage: make check-railway-variables ENV=staging
-check-railway-variables:
-	@$(_TF_ENV_GUARD)
-	@python scripts/push_railway_variables.py --env $(ENV) --check $(SERVICES)
-
-# Read-only inventory of every service's CURRENT live variable values into
-# infra/terraform/railway/.live-variables.json (AS_TFVARS=1 also writes a
-# paste-ready draft). Host-only; stdlib python. NOT via docker.
-# Usage: make pull-railway-variables [AS_TFVARS=1] [SERVICES="dashboard_backend fastembed"]
-AS_TFVARS ?=
-pull-railway-variables:
-	@python scripts/pull_railway_variables.py $(if $(AS_TFVARS),--as-tfvars,) $(SERVICES)
+# Railway service env vars are now part of .railway/railway.ts — pushed by
+# `make railway-config-apply` (Revision 6), not a separate script. The old
+# scripts/push_railway_variables.py + railway-services.json path was retired in
+# T6-09; `railway config plan` is the drift check.
 
 # ---------------------------------------------------------------------------
 # Railway IaC (.railway/railway.ts + `railway config`) — the Windows CLI can't

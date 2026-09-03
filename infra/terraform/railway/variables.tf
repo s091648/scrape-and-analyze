@@ -9,7 +9,7 @@
 # `-var-file` is applied left-to-right, later wins. Secret vars carry
 # `sensitive = true`; their values MUST arrive via -var-file, never a literal in
 # a tracked file (FR-004a). The Railway service env vars are a separate concern
-# (secrets/railway-*.tfvars + scripts/push_railway_variables.py).
+# (secrets/railway-*.tfvars → scripts/tfvars_to_env.py → `railway config`).
 
 variable "github_token" {
   type        = string

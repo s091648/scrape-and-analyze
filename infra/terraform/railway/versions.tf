@@ -4,9 +4,9 @@
 # overlay, never by a second copy of these files.
 #
 # Scope: GitHub Actions secrets/variables only (github-ci.tf). Railway service
-# variables are NOT Terraform-managed — the community railway provider's variable
-# resources are unreliable at this scale (see railway-services.json's header and
-# scripts/push_railway_variables.py).
+# variables are NOT Terraform-managed — the Railway half moved to .railway/railway.ts + `railway config` (Revision 6); the
+# community railway provider used before that was unreliable at this scale (see
+# .railway/README.md).
 terraform {
   required_version = ">= 1.9"
 

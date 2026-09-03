@@ -10,8 +10,7 @@
 # the same object). So github_ci_repo's `secrets`/`variables` are applied
 # whichever environment this run targets; keep their values in secrets/shared.tfvars.
 #
-# NOT managed here (FR-013 bootstrap credentials): TF_API_TOKEN, TF_GITHUB_TOKEN,
-# TF_RAILWAY_TOKEN.
+# NOT managed here (FR-013 bootstrap credentials): TF_API_TOKEN, TF_GITHUB_TOKEN.
 
 module "github_ci_repo" {
   source     = "./modules/github-ci-config"
