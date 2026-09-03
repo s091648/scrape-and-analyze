@@ -26,6 +26,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write # for the reusable railway-config.yml (called for production)
+  actions: read # ...and its plan artifact
 
 env:
   PYTHON_VERSION: '3.11'
