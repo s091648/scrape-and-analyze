@@ -305,13 +305,15 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
-      # scripts/generate_terraform_docs.py (make uml-terraform-docs) statically
-      # parses infra/terraform/railway/*.tf (the flat root — every <svc>.tf plus
-      # shared.tf / github-ci.tf). Mount that dir read-only, but shadow the
-      # secret-bearing paths: the higher-privilege terraform credentials
-      # (account-level RAILWAY_TOKEN / TF_API_TOKEN / TF_GITHUB_TOKEN in .env, and
-      # secrets/*.tfvars) must never enter an app container. The generator reads
-      # only *.tf, never these — the empty overlays don't affect it.
+      # scripts/generate_terraform_docs.py (make uml-terraform-docs) reads
+      # .railway/railway.ts (deploy config, text-scraped) + railway-services.json
+      # + github-ci.tf. Mount just railway.ts by itself — NOT the whole .railway/
+      # dir, which also holds the git-ignored .env.*.generated files with
+      # resolved secret values. Mount the terraform dir read-only but shadow its
+      # secret-bearing paths: the higher-privilege credentials (account-level
+      # RAILWAY_TOKEN / TF_API_TOKEN / TF_GITHUB_TOKEN in .env, and
+      # secrets/*.tfvars) must never enter an app container.
+      - ./.railway/railway.ts:/app/.railway/railway.ts:ro
       - ./infra/terraform/railway:/app/infra/terraform/railway:ro
       - /dev/null:/app/infra/terraform/railway/.env:ro
       - /app/infra/terraform/railway/secrets

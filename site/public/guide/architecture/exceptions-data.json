@@ -1202,7 +1202,7 @@
         },
         {
           "file": "src/infrastructure/collection/scrapers/semantic_scholar_scraper.py",
-          "line": 48,
+          "line": 51,
           "function": "SemanticScholarScraper.discover",
           "snippet": "raise",
           "status_code": null
@@ -1434,7 +1434,7 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/collection/scrapers/scraper_factory.py",
-          "line": 110,
+          "line": 111,
           "function": "ConcreteScraperFactory.create_for",
           "snippet": "raise UnsupportedSourceTypeError(f\"Unsupported source_type: {setting.source_type}\")",
           "status_code": null

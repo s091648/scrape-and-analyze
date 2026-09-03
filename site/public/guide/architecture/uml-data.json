@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T17:31:17.515600+00:00",
+  "generated_at": "2026-09-03T22:37:50.104116+00:00",
   "layers": [
     "application",
     "domain",
@@ -757,21 +757,21 @@
       "context": "collection"
     },
     {
-      "id": "application.events.article_processed.ArticleProcessedEvent",
+      "id": "events.article_processed.ArticleProcessedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{ArticleProcessedEvent|article",
       "ALIGN": "LEFT",
       "shape": "record",
       "style": "solid",
-      "layer": "application",
+      "layer": "shared-application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "application.events.article_processed",
+      "module": "events.article_processed",
       "class_name": "ArticleProcessedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/application/events/article_processed/ArticleProcessedEvent.py",
+      "full_path": "src/events/article_processed/ArticleProcessedEvent.py",
       "docstring": "Event emitted after an article has been successfully processed and persisted.",
       "typed_attrs": [
         "article: Article",
@@ -3687,19 +3687,19 @@
       "context": "intelligence"
     },
     {
-      "id": "application.ports.event_bus.EventBus",
+      "id": "ports.event_bus.EventBus",
       "color": "black",
       "fontcolor": "black",
       "label": "<{EventBus|<br",
       "ALIGN": "LEFT",
-      "layer": "application",
-      "ca_layer": "application",
+      "layer": "unknown",
+      "ca_layer": "infrastructure",
       "subgroup": "ports",
-      "module": "application.ports.event_bus",
+      "module": "ports.event_bus",
       "class_name": "EventBus",
       "attributes": [],
       "methods": [],
-      "full_path": "src/application/ports/event_bus/EventBus.py",
+      "full_path": "src/ports/event_bus/EventBus.py",
       "docstring": "Protocol for a publish-subscribe event bus used to decouple pipeline stages.\n\n024-async-pipeline-refactor: async so multiple publish() calls (one per\nconcurrently-running article task) can be in…",
       "typed_attrs": [],
       "typed_methods": [
@@ -3718,18 +3718,18 @@
       "context": "shared"
     },
     {
-      "id": "application.events.failed_event.FailedEvent",
+      "id": "events.failed_event.FailedEvent",
       "color": "black",
       "fontcolor": "black",
       "label": "<{FailedEvent|analysis_id",
-      "layer": "application",
+      "layer": "shared-application",
       "ca_layer": "application",
       "subgroup": "events",
-      "module": "application.events.failed_event",
+      "module": "events.failed_event",
       "class_name": "FailedEvent",
       "attributes": [],
       "methods": [],
-      "full_path": "src/application/events/failed_event/FailedEvent.py",
+      "full_path": "src/events/failed_event/FailedEvent.py",
       "docstring": "Protocol for events representing a failed pipeline task with error context.",
       "typed_attrs": [
         "task_type: str",
@@ -9342,7 +9342,7 @@
       "id": "infrastructure",
       "label": "Infrastructure",
       "color": "#BBCC33",
-      "count": 108,
+      "count": 109,
       "subgroups": [
         {
           "id": "llm",
@@ -9405,6 +9405,11 @@
           "count": 1
         },
         {
+          "id": "ports",
+          "label": "Ports",
+          "count": 1
+        },
+        {
           "id": "event_handlers",
           "label": "Event Handlers",
           "count": 1
@@ -9429,7 +9434,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 5
+          "count": 6
         },
         {
           "id": "other",
@@ -9467,7 +9472,7 @@
       "id": "application",
       "label": "Application",
       "color": "#44BB99",
-      "count": 39,
+      "count": 38,
       "subgroups": [
         {
           "id": "use_cases",
@@ -9483,11 +9488,6 @@
           "id": "events",
           "label": "Events",
           "count": 8
-        },
-        {
-          "id": "ports",
-          "label": "Ports",
-          "count": 1
         }
       ],
       "context_subgroups": [
@@ -9504,7 +9504,7 @@
         {
           "id": "shared",
           "label": "Shared",
-          "count": 3
+          "count": 2
         },
         {
           "id": "search",
@@ -10088,24 +10088,6 @@
     },
     {
       "step": 6,
-      "id": "otelmetricshandler",
-      "parallel_group": "",
-      "icon": "📊",
-      "label": "Otel Metrics",
-      "desc": "PipelineCompletedEvent -> OtelMetricsHandler",
-      "color": "#EE8866",
-      "classes": [
-        "OtelMetricsHandler"
-      ],
-      "receives": [
-        "PipelineCompletedEvent"
-      ],
-      "emits": [],
-      "branches": [],
-      "di": []
-    },
-    {
-      "step": 7,
       "id": "searchindexrebuildhandler",
       "parallel_group": "pg_textpipelinecompletedevent",
       "icon": "⚙️",
@@ -10152,13 +10134,13 @@
       ]
     },
     {
-      "step": 8,
+      "step": 7,
       "id": "cacheinvalidationhandler",
       "parallel_group": "pg_textpipelinecompletedevent",
       "icon": "⚙️",
       "label": "Cache Invalidation",
       "desc": "TextPipelineCompletedEvent -> CacheInvalidationHandler",
-      "color": "#EEDD88",
+      "color": "#EE8866",
       "classes": [
         "CacheInvalidationHandler",
         "RedisCacheGateway"
@@ -10177,13 +10159,13 @@
       ]
     },
     {
-      "step": 9,
+      "step": 8,
       "id": "cachewarmuphandler",
       "parallel_group": "pg_textpipelinecompletedevent",
       "icon": "⚙️",
       "label": "Cache Warmup",
       "desc": "TextPipelineCompletedEvent -> CacheWarmupHandler",
-      "color": "#44BB99",
+      "color": "#EEDD88",
       "classes": [
         "CacheWarmupHandler",
         "RedisCacheGateway"
@@ -10200,6 +10182,24 @@
           "deps": []
         }
       ]
+    },
+    {
+      "step": 9,
+      "id": "otelmetricshandler",
+      "parallel_group": "",
+      "icon": "📊",
+      "label": "Otel Metrics",
+      "desc": "PipelineCompletedEvent -> OtelMetricsHandler",
+      "color": "#44BB99",
+      "classes": [
+        "OtelMetricsHandler"
+      ],
+      "receives": [
+        "PipelineCompletedEvent"
+      ],
+      "emits": [],
+      "branches": [],
+      "di": []
     }
   ]
 }

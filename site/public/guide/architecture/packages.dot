@@ -1,9 +1,6 @@
 digraph "packages_ScrapeAnalyzer" {
 rankdir=BT
 charset="utf-8"
-"application.events.article_processed" [color="black", label=<application.events.article_processed>, shape="box", style="solid"];
-"application.events.failed_event" [color="black", label=<application.events.failed_event>, shape="box", style="solid"];
-"application.ports.event_bus" [color="black", label=<application.ports.event_bus>, shape="box", style="solid"];
 "backfill_rag" [color="black", label=<backfill_rag>, shape="box", style="solid"];
 "clients.arxiv_client" [color="black", label=<clients.arxiv_client>, shape="box", style="solid"];
 "clients.openalex_client" [color="black", label=<clients.openalex_client>, shape="box", style="solid"];
@@ -40,8 +37,10 @@ charset="utf-8"
 "event_handlers.tag_normalization_handler" [color="black", label=<event_handlers.tag_normalization_handler>, shape="box", style="solid"];
 "events.analysis_completed" [color="black", label=<events.analysis_completed>, shape="box", style="solid"];
 "events.analysis_failed" [color="black", label=<events.analysis_failed>, shape="box", style="solid"];
+"events.article_processed" [color="black", label=<events.article_processed>, shape="box", style="solid"];
 "events.article_scraped" [color="black", label=<events.article_scraped>, shape="box", style="solid"];
 "events.dedup_reconcile_completed" [color="black", label=<events.dedup_reconcile_completed>, shape="box", style="solid"];
+"events.failed_event" [color="black", label=<events.failed_event>, shape="box", style="solid"];
 "events.in_memory_event_bus" [color="black", label=<events.in_memory_event_bus>, shape="box", style="solid"];
 "events.metrics_refresh_completed" [color="black", label=<events.metrics_refresh_completed>, shape="box", style="solid"];
 "events.pipeline_completed" [color="black", label=<events.pipeline_completed>, shape="box", style="solid"];
@@ -132,6 +131,7 @@ charset="utf-8"
 "parsers.html_parser" [color="black", label=<parsers.html_parser>, shape="box", style="solid"];
 "parsers.pdf_parser" [color="black", label=<parsers.pdf_parser>, shape="box", style="solid"];
 "parsers.sanitize_service" [color="black", label=<parsers.sanitize_service>, shape="box", style="solid"];
+"ports.event_bus" [color="black", label=<ports.event_bus>, shape="box", style="solid"];
 "prompt.prompt_factory" [color="black", label=<prompt.prompt_factory>, shape="box", style="solid"];
 "rate_limit_tracker" [color="black", label=<rate_limit_tracker>, shape="box", style="solid"];
 "refresh_metrics" [color="black", label=<refresh_metrics>, shape="box", style="solid"];

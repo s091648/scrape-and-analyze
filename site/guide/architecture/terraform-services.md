@@ -1,44 +1,58 @@
 ---
-title: Terraform Services
+title: Infra — Services & CI Secrets
 aside: false
 ---
 
-# Terraform Services
+# Infra — Services & CI Secrets
 
-`infra/terraform/railway/`（[025-iac-provisioning](/specs/025-iac-provisioning/spec)，revision 2）宣告的每個 Railway 服務**環境變數**，以及各自在 staging／production 兩個環境宣告了哪些；下方另外列出透過 `github-ci-config` 模組管理的 GitHub Actions secrets／variables。
+自 [025-iac-provisioning](/specs/025-iac-provisioning/spec) **Revision 6** 起，基礎設施由兩個引擎分工，本頁把兩邊的宣告攤在一起：
 
-::: info Terraform 只管環境變數，不管服務物件
-revision 2（2026-08-28 structure reset）**移除了 `railway_service` resource**。這裡的每個 `<service>.tf` 只 instantiate `railway-variables` 模組。
+| 範圍 | 由誰管 | 宣告在 | CI |
+|---|---|---|---|
+| 每個 Railway 服務的**部署設定**（`cronSchedule`／`startCommand`／`restartPolicyType`／`replicas`／`source`／networking）＋**環境變數** | `railway config apply`（Railway 原生 IaC，**不是** Terraform） | [`.railway/railway.ts`](https://github.com/s091648/scrape-and-analyze/blob/master/.railway/railway.ts) | `.github/workflows/railway-config.yml` |
+| `ci.yml`／`release.yml` 讀的 **GitHub Actions secrets／variables** | Terraform（`github` provider、HCP backend） | `infra/terraform/railway/github-ci.tf` ＋ `modules/github-ci-config` | `.github/workflows/terraform.yml` |
 
-服務物件的部署細節（`dockerfilePath`／`startCommand`／`cronSchedule`／`restartPolicyType`）走 Railway 原生的 config-as-code：`src/` 那五個共用 `src/Dockerfile` 的服務，各有一份 version-controlled 的 `src/railway-<service>.toml`（revision 3，見 [plan.md](/specs/025-iac-provisioning/plan)）。唯一的手動步驟是每個服務在 Railway 上一次性把 **Config File Path** 指到自己的檔（Railway 沒有對應的 service variable，`RAILWAY_CONFIG_PATH` 不存在）。`UV_GROUP` 這個 per-service build ARG 則是 Terraform 管的 service variable（`var.uv_group_<service>`）。
+::: warning Revision 4→6 的變化（舊文件可能還這樣寫）
+- Revision 4 曾用 `terraform-community-providers/railway` 的 `railway_variable*` resource 管環境變數 → 在這個規模不可靠，改用 `scripts/push_railway_variables.py` ＋ `railway-services.json`。
+- **Revision 6** 再進一步：整個 Railway 半邊（服務物件 ＋ 環境變數）移到 `.railway/railway.ts` ＋ `railway config`。`push_railway_variables.py`、`pull_railway_variables.py`、`src/railway-<svc>.toml`、`railway_service`／`railway-variables` module、每個服務的 `<svc>.tf`／`shared.tf` **都已刪除**（T6-09）。
+- `railway-services.json` **保留**，但只當 `scripts/tfvars_to_env.py` 的變數名／tfvars-key 對照表 ＋ 本頁的資料來源，**不再是路由權威**（權威是 `railway.ts`）。
+- `UV_GROUP` 從 Terraform service variable 變成 `.railway/constants.ts` 的 literal（`UV_GROUP.<service>`）。
 :::
 
 <TerraformServicesViewer />
 
 ## 資料生成方式
 
-圖表由 `scripts/generate_terraform_docs.py` 在 CI 時透過 `python-hcl2` 靜態解析 `infra/terraform/railway/` 底下每個服務各自的 `<service>.tf`（外加共用群組 `shared.tf` 與 `github-ci.tf`）自動產生，**不需要手動維護**，也不需要 `terraform init`／provider credentials — 純粹解析 HCL 語法樹（跟 `scripts/generate_db_schema.py` 解析 `models/*.py` 的 AST 是同一種「不執行、只解析原始碼」哲學），不會呼叫 `terraform plan`/`apply`，也不會連線 Railway／GitHub API。
+`scripts/generate_terraform_docs.py` 在 CI（`speckit-github-pages.yml`）與 `make uml-terraform-docs`（`job_service` container）產生 `site/public/guide/architecture/terraform-services-data.json`，三個來源各對應一個引擎，**都不執行 `terraform`／`railway`、不需要任何 credentials、不連線 Railway／GitHub API**：
 
-執行 `python scripts/generate_terraform_docs.py` 可在本機重新產生（只需要 `pip install python-hcl2`，不需要 `uv sync`）；也可透過 `make uml-terraform-docs` 在 `job_service` container 內執行，跟 CI 走的路徑一致。
+| 來源 | 取什麼 | 怎麼取 |
+|---|---|---|
+| `.railway/railway.ts` | 每個服務的 production 部署設定（cron／start／restart／endpoint） | 正則掃描 `service("…", { … })` 區塊（best-effort：沒 match 到的欄位留 `null`，例如用 Dockerfile CMD、無 cron 的服務） |
+| `infra/terraform/railway/railway-services.json` | 每個服務有哪些環境變數名稱、哪些是 `preserve()`（Railway 手動管理） | 直接讀 JSON |
+| `infra/terraform/railway/github-ci.tf` | `github-ci-config` module 的三個實例各自的 secrets／variables 名稱 | `python-hcl2` 靜態解析 HCL 語法樹（跟 `generate_db_schema.py` 解析 `models/*.py` AST 同一種「不執行、只解析原始碼」哲學） |
+
+本機重新產生：`python scripts/generate_terraform_docs.py`（只需 `pip install python-hcl2`），或 `make uml-terraform-docs`（走 CI 同一條路徑）。
 
 ## 如何解讀
 
-- 每個服務卡片顯示 staging／production 各自宣告了幾個環境變數。（`source_repo`／`root_directory`／`cron_schedule` 欄位保留在資料結構裡但恆為 `null` — revision 2 起不再由 Terraform 管理，見上方 info 區塊。）
-- 點開服務卡片可看到完整變數表。revision 2 起**每一個宣告的變數都是 Terraform 管理**（不再有 `managed = false` 的 baseline half-state）：值由 Terraform 在每次 apply 時強制寫回；若標記 sensitive，值只會在 apply 時透過 `TF_VAR_*` 注入（FR-004a），此頁面永遠不會顯示實際內容。
-- 「GitHub Actions 密鑰／變數」區塊對應 `github-ci-config` 模組的三個實例：一個 repo 層級（`github_ci_repo`）+ 兩個 GitHub Environment 層級（`github_ci_staging`／`github_ci_production`），欄位語意與服務變數表相同。
+- **服務卡片**：顯示 production 的 `cron` / `start` / `endpoint`（來自 `.railway/railway.ts`），以及 staging／production 各自宣告了幾個環境變數。點開看完整變數表。
+  - staging 的 cron 一律是 `0 0 1 1 1`（等同「永不執行」的佔位——staging 服務隨 PR 開關拆除／復活），所以卡片只顯示 production 值。
+  - 變數「來源」欄：**railway.ts 宣告**＝值由 `railway config apply` 每次強制寫回；**Railway 手動管理（preserve）**＝`railway.ts` 用 `preserve()` 保留現值、不覆寫（對照 `railway-services.json` 的 `unmanaged`）。sensitive 變數的實際值在 apply 時注入，本頁永遠不顯示。
+- **GitHub Actions 密鑰／變數**：對應 `github-ci-config` module 的三個實例——一個 repo 層級（`github_ci_repo`）＋ 兩個 GitHub Environment 層級（`github_ci_env` × staging／production）。這半邊**仍是 Terraform 管理**，來源欄的「Terraform 管理」在這裡才成立。
 
 ## 已知限制
 
-此頁面只反映 **宣告**（`infra/terraform/railway/*.tf` 的原始碼），不反映 Terraform 的 **live state** 或 Railway/GitHub 上的即時真實值 — 若要確認宣告與現實是否一致，請用 `make terraform-drift-check ENV=staging|production`（見 `infra/terraform/railway/README.md`）。
+- 本頁只反映**宣告**（`.railway/railway.ts` ＋ `github-ci.tf` 的原始碼），不反映 live state 或 Railway／GitHub 上的即時真實值。
+- 對帳方式：Railway 半邊用 `make railway-config-plan ENV=staging|production`（plan 乾淨＝無 drift，見 [`.railway/README.md`](https://github.com/s091648/scrape-and-analyze/blob/master/.railway/README.md)）；GitHub 半邊用 `make terraform-drift-check ENV=staging|production`（見 `infra/terraform/railway/README.md`）。
+- 部署設定為正則掃描——若 `railway.ts` 的寫法改變，最壞情況是某服務少顯示一個欄位（不會顯示錯的值）；`generate_terraform_docs.py` 會在有服務完全對不到 `service()` 區塊時直接報錯。
+- 每個服務 staging／production 顯示同一份變數**名稱**集合；per-env 的差異（`railway.ts` 裡的 `prod ? … : …`）與實際值差異落在 tfvars，不在此圖。
 
-## Terraform Modules（module 介面文件）
+## Terraform Module 介面文件
 
-上面看的是「哪個服務用了哪些變數」；這裡看的是 `infra/terraform/railway/modules/` 兩個 module **自己的介面**（inputs／outputs／resources／requirements）— 兩者互補，不重複。內容由 [terraform-docs](https://terraform-docs.io/) 產生（設定檔：`infra/terraform/railway/.terraform-docs.yml`），跟上面的服務清單一樣是純 build artifact：本機用 `make uml-terraform-modules` 重新產生（跑官方 `quay.io/terraform-docs/terraform-docs` image，不需要 `terraform init`／provider credentials），輸出的 fragment 檔案不進 git，每次 build 都會重新產生。
+上面看的是「哪個服務用了哪些變數」；這裡看的是 `infra/terraform/railway/modules/` 底下唯一的 module——`github-ci-config`——**自己的介面**（inputs／outputs／resources／requirements）。內容由 [terraform-docs](https://terraform-docs.io/) 產生（設定檔：`infra/terraform/railway/.terraform-docs.yml`），跟上面的服務清單一樣是純 build artifact：本機用 `make uml-terraform-modules` 重新產生（跑官方 `quay.io/terraform-docs/terraform-docs` image，不需要 `terraform init`／credentials），輸出的 fragment 檔不進 git。
 
 <details>
-<summary>展開查看 railway-variables／github-ci-config 兩個 module 的介面文件</summary>
-
-<!--@include: ./terraform-modules/railway-variables.md-->
+<summary>展開查看 github-ci-config module 的介面文件</summary>
 
 <!--@include: ./terraform-modules/github-ci-config.md-->
 

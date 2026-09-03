@@ -18,7 +18,6 @@ charset="utf-8"
     "use_cases.analysis_result.AnalysisResult"
     "use_cases.analyze_article.AnalyzeArticleUseCase"
     "use_cases.article_outcome.ArticleOutcome"
-    "application.events.article_processed.ArticleProcessedEvent"
     "event_handlers.article_processed_handler.ArticleProcessedHandler"
     "event_handlers.article_scraped_handler.ArticleScrapedHandler"
     "use_cases.ingest_article_for_rag.AsyncIngestArticleForRagUseCase"
@@ -29,8 +28,6 @@ charset="utf-8"
     "event_handlers.cache_invalidation_handler.CacheInvalidationHandler"
     "event_handlers.cache_warmup_handler.CacheWarmupHandler"
     "use_cases.discover_scrape_jobs.DiscoverScrapeJobsUseCase"
-    "application.ports.event_bus.EventBus"
-    "application.events.failed_event.FailedEvent"
     "event_handlers.failed_task_persistence_handler.FailedTaskPersistenceHandler"
     "use_cases.generate_weekly_report.GenerateWeeklyReportUseCase"
     "use_cases.ingest_article_for_rag.IngestArticleForRagUseCase"
@@ -146,7 +143,9 @@ charset="utf-8"
     fontcolor="#99DDFF"
     "events.analysis_completed.AnalysisCompletedEvent"
     "events.analysis_failed.AnalysisFailedEvent"
+    "events.article_processed.ArticleProcessedEvent"
     "events.article_scraped.ArticleScrapedEvent"
+    "events.failed_event.FailedEvent"
     "events.tag_normalization_completed.TagNormalizationCompletedEvent"
     "events.tag_normalization_failed.TagNormalizationFailedEvent"
     "events.translation_failed.TranslationFailedEvent"
@@ -314,7 +313,7 @@ charset="utf-8"
 "repositories.article_dedup_repository.ArticleDedupRepository" [color="black", fontcolor="black", label=<{ArticleDedupRepository|<br ALIGN="LEFT"/>|<I>find_by_work_id</I>(work_id: str): Optional[UUID]<br ALIGN="LEFT"/><I>find_pending_reconciliation</I>(limit: int): List[PendingReconciliation]<br ALIGN="LEFT"/><I>heal_identifiers</I>(article_id: UUID, work_id: str, doi: Optional[str]): None<br ALIGN="LEFT"/><I>mark_reconciled</I>(article_id: UUID): None<br ALIGN="LEFT"/><I>merge</I>(loser_id: UUID, survivor_id: UUID): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "repositories.article_metrics_repository.ArticleMetricsRepository" [color="black", fontcolor="black", label=<{ArticleMetricsRepository|<br ALIGN="LEFT"/>|<I>find_stale</I>(metric_keys: List[str], limit: int): List[StaleArticle]<br ALIGN="LEFT"/><I>upsert</I>(article_id: UUID, metrics: Dict[str, Any]): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "use_cases.article_outcome.ArticleOutcome" [color="black", fontcolor="black", label=<{ArticleOutcome|name<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
-"application.events.article_processed.ArticleProcessedEvent" [color="black", fontcolor="black", label=<{ArticleProcessedEvent|article : Article<br ALIGN="LEFT"/>full_text : str<br ALIGN="LEFT"/>|__init__(self, article: Article, full_text: str): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"events.article_processed.ArticleProcessedEvent" [color="black", fontcolor="black", label=<{ArticleProcessedEvent|article : Article<br ALIGN="LEFT"/>full_text : str<br ALIGN="LEFT"/>|__init__(self, article: Article, full_text: str): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "event_handlers.article_processed_handler.ArticleProcessedHandler" [color="black", fontcolor="black", label=<{ArticleProcessedHandler|_event_bus : EventBus<br ALIGN="LEFT"/>_use_case : AnalyzeArticleUseCase<br ALIGN="LEFT"/>|__init__(use_case: AnalyzeArticleUseCase, event_bus: EventBus): None<br ALIGN="LEFT"/>handle(event: ArticleProcessedEvent): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "repositories.article_repository.ArticleRepository" [color="black", fontcolor="black", label=<{ArticleRepository|<br ALIGN="LEFT"/>|<I>find_analyzed_url_hashes</I>(url_hashes: Set[str]): Set[str]<br ALIGN="LEFT"/><I>find_by_url_hash</I>(url_hash: str): Optional[Article]<br ALIGN="LEFT"/><I>has_analysis</I>(article_id: UUID): bool<br ALIGN="LEFT"/><I>save</I>(article: Article): Article<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "events.article_scraped.ArticleScrapedEvent" [color="black", fontcolor="black", label=<{ArticleScrapedEvent|authors : List[str]<br ALIGN="LEFT"/>content : str<br ALIGN="LEFT"/>full_text : str<br ALIGN="LEFT"/>metadata : Dict[str, Any]<br ALIGN="LEFT"/>published_at : Optional[datetime]<br ALIGN="LEFT"/>source : str<br ALIGN="LEFT"/>title : str<br ALIGN="LEFT"/>topic_id : Optional[UUID]<br ALIGN="LEFT"/>url : str<br ALIGN="LEFT"/>|__init__(self, url: str, title: str, content: str, source: str, topic_id: Optional[UUID], published_at: Optional[datetime], authors: List[str], metadata: Dict[str, Any], full_text: str): None<br ALIGN="LEFT"/>from_scraped_article(article: ScrapedArticle): 'ArticleScrapedEvent'<br ALIGN="LEFT"/>to_scraped_article(): ScrapedArticle<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
@@ -390,8 +389,8 @@ charset="utf-8"
 "notifications.weekly_report_email_message_builder.EmailMessage" [color="black", fontcolor="black", label=<{EmailMessage|html : str<br ALIGN="LEFT"/>subject : str<br ALIGN="LEFT"/>|__init__(self, subject: str, html: str): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "llm.resilient_llm_service.EmbeddingProviderHandler" [color="black", fontcolor="black", label=<{EmbeddingProviderHandler|_can_count_tokens : bool<br ALIGN="LEFT"/>name : str<br ALIGN="LEFT"/>priority : int<br ALIGN="LEFT"/>provider : BaseEmbeddingProvider<br ALIGN="LEFT"/>strategy : QuotaStrategy<br ALIGN="LEFT"/>|__init__(self, provider: BaseEmbeddingProvider, strategy: QuotaStrategy, priority: int, name: str, _can_count_tokens: bool): None<br ALIGN="LEFT"/>embed(text: str): List[float]<br ALIGN="LEFT"/>embed_batch(texts: List[str]): List[List[float]]<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "services.embedding_service.EmbeddingService" [color="black", fontcolor="black", label=<{EmbeddingService|<br ALIGN="LEFT"/>|<I>embed</I>(text: str): List[float]<br ALIGN="LEFT"/><I>embed_batch</I>(texts: List[str]): List[List[float]]<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
-"application.ports.event_bus.EventBus" [color="black", fontcolor="black", label=<{EventBus|<br ALIGN="LEFT"/>|publish(event: Any): bool<br ALIGN="LEFT"/>subscribe(event_type: Type[Any], handler: Callable[[Any], Awaitable[None]]): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
-"application.events.failed_event.FailedEvent" [color="black", fontcolor="black", label=<{FailedEvent|analysis_id : Optional[UUID]<br ALIGN="LEFT"/>article_id : Optional[UUID]<br ALIGN="LEFT"/>article_url : Optional[str]<br ALIGN="LEFT"/>context : Optional[dict]<br ALIGN="LEFT"/>correlation_id : Optional[str]<br ALIGN="LEFT"/>exception_message : Optional[str]<br ALIGN="LEFT"/>exception_type : Optional[str]<br ALIGN="LEFT"/>task_type : str<br ALIGN="LEFT"/>traceback : Optional[str]<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
+"ports.event_bus.EventBus" [color="black", fontcolor="black", label=<{EventBus|<br ALIGN="LEFT"/>|publish(event: Any): bool<br ALIGN="LEFT"/>subscribe(event_type: Type[Any], handler: Callable[[Any], Awaitable[None]]): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"events.failed_event.FailedEvent" [color="black", fontcolor="black", label=<{FailedEvent|analysis_id : Optional[UUID]<br ALIGN="LEFT"/>article_id : Optional[UUID]<br ALIGN="LEFT"/>article_url : Optional[str]<br ALIGN="LEFT"/>context : Optional[dict]<br ALIGN="LEFT"/>correlation_id : Optional[str]<br ALIGN="LEFT"/>exception_message : Optional[str]<br ALIGN="LEFT"/>exception_type : Optional[str]<br ALIGN="LEFT"/>task_type : str<br ALIGN="LEFT"/>traceback : Optional[str]<br ALIGN="LEFT"/>|}>, shape="record", style="solid"];
 "entities.failed_task.FailedTask" [color="black", fontcolor="black", label=<{FailedTask|analysis_id : Optional[UUID]<br ALIGN="LEFT"/>article_id : Optional[UUID]<br ALIGN="LEFT"/>article_url : Optional[str]<br ALIGN="LEFT"/>context : Optional[dict]<br ALIGN="LEFT"/>correlation_id : Optional[UUID]<br ALIGN="LEFT"/>exception_message : Optional[str]<br ALIGN="LEFT"/>exception_type : Optional[str]<br ALIGN="LEFT"/>failed_at : Optional[datetime]<br ALIGN="LEFT"/>id : UUID<br ALIGN="LEFT"/>resolved : bool<br ALIGN="LEFT"/>task_type : str<br ALIGN="LEFT"/>traceback : Optional[str]<br ALIGN="LEFT"/>|__init__(self, task_type: str, id: UUID, article_url: Optional[str], article_id: Optional[UUID], analysis_id: Optional[UUID], exception_type: Optional[str], exception_message: Optional[str], context: Optional[dict], traceback: Optional[str], correlation_id: Optional[UUID], failed_at: Optional[datetime], resolved: bool): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "event_handlers.failed_task_persistence_handler.FailedTaskPersistenceHandler" [color="black", fontcolor="black", label=<{FailedTaskPersistenceHandler|_repo : AsyncFailedTaskRepository<br ALIGN="LEFT"/>|__init__(failed_task_repository: AsyncFailedTaskRepository): None<br ALIGN="LEFT"/>handle(event: FailedEvent): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
 "repositories.failed_task_repository.FailedTaskRepository" [color="black", fontcolor="black", label=<{FailedTaskRepository|<br ALIGN="LEFT"/>|<I>save</I>(task: FailedTask): None<br ALIGN="LEFT"/>}>, shape="record", style="solid"];

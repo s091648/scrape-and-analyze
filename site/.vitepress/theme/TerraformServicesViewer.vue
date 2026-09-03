@@ -17,7 +17,8 @@ const filteredServices = computed(() => {
   return services.filter(s =>
     s.key.toLowerCase().includes(q) ||
     (s.service_name || '').toLowerCase().includes(q) ||
-    (s.source_repo || '').toLowerCase().includes(q)
+    (s.start_command || '').toLowerCase().includes(q) ||
+    (s.network_endpoint || '').toLowerCase().includes(q)
   )
 })
 
@@ -25,7 +26,7 @@ function envSummary(env) {
   if (!env) return '未宣告'
   const n = env.variables.length
   const parts = [`${n} 個變數`]
-  if (env.managed_count) parts.push(`${env.managed_count} 個 Terraform 管理`)
+  if (env.managed_count) parts.push(`${env.managed_count} 個由 railway.ts 宣告`)
   return parts.join('，')
 }
 
@@ -92,8 +93,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="svc-header">
             <span class="svc-name">{{ s.service_name || s.key }}</span>
           </div>
-          <div v-if="s.source_repo" class="svc-meta">{{ s.source_repo }}{{ s.root_directory ? s.root_directory : '' }}</div>
           <div v-if="s.cron_schedule" class="svc-meta">cron: <code>{{ s.cron_schedule }}</code></div>
+          <div v-if="s.start_command" class="svc-meta" :title="s.start_command">start: <code>{{ s.start_command }}</code></div>
+          <div v-if="s.network_endpoint" class="svc-meta">endpoint: <code>{{ s.network_endpoint }}</code></div>
           <div class="svc-env-row">
             <span class="env-badge prod">production</span>
             <span class="env-count">{{ envSummary(s.environments.production) }}</span>
@@ -130,9 +132,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="dialog-header">
             <div>
               <span class="dialog-name">{{ selectedService.service_name || selectedService.key }}</span>
-              <div v-if="selectedService.source_repo" class="dialog-sub">
-                {{ selectedService.source_repo }}{{ selectedService.root_directory || '' }}
-                <span v-if="selectedService.cron_schedule"> · cron: {{ selectedService.cron_schedule }}</span>
+              <div v-if="selectedService.deploy_config_source" class="dialog-sub">
+                <span v-if="selectedService.cron_schedule">cron: <code>{{ selectedService.cron_schedule }}</code></span>
+                <span v-if="selectedService.restart_policy"> · restart: {{ selectedService.restart_policy }}</span>
+                <span v-if="selectedService.network_endpoint"> · endpoint: {{ selectedService.network_endpoint }}</span>
+                <span v-if="selectedService.start_command"><br />start: <code>{{ selectedService.start_command }}</code></span>
+                <br /><span class="dialog-src">部署設定來源：{{ selectedService.deploy_config_source }}（production 值）</span>
               </div>
             </div>
             <button class="dialog-close" @click="closeService" title="ESC to close">✕</button>
@@ -141,7 +146,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <div class="dialog-body">
             <div v-for="envName in ['production', 'staging']" :key="envName">
               <div class="section-title">{{ envName.toUpperCase() }}</div>
-              <div v-if="!selectedService.environments[envName]" class="empty-msg small">此服務在此環境沒有宣告任何 railway-variables 模組。</div>
+              <div v-if="!selectedService.environments[envName]" class="empty-msg small">此服務在此環境的 railway.ts 沒有宣告任何環境變數。</div>
               <table v-else class="var-table">
                 <thead>
                   <tr><th>變數名稱</th><th>來源</th><th>Sensitive</th><th>值</th></tr>
@@ -150,11 +155,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   <tr v-for="v in selectedService.environments[envName].variables" :key="v.name">
                     <td class="mono">{{ v.name }}</td>
                     <td>
-                      <span v-if="v.managed" class="badge managed">Terraform 管理</span>
-                      <span v-else class="badge baseline">Baseline（值不受管）</span>
+                      <span v-if="v.managed" class="badge managed">railway.ts 宣告</span>
+                      <span v-else class="badge baseline">Railway 手動管理（preserve）</span>
                     </td>
                     <td>{{ v.sensitive ? '是' : '否' }}</td>
-                    <td class="mono value-cell">{{ v.value ?? (v.sensitive ? '(由 TF_VAR_* 注入，不顯示)' : '—') }}</td>
+                    <td class="mono value-cell">{{ v.value ?? (v.sensitive ? '(secret：apply 時注入，不顯示)' : '—') }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -290,7 +295,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   padding: 16px 20px; border-bottom: 2px solid var(--vp-c-border); flex-shrink: 0;
 }
 .dialog-name { font-size: 18px; font-weight: 700; font-family: monospace; }
-.dialog-sub { font-size: 12px; color: var(--vp-c-text-2); font-family: monospace; margin-top: 2px; }
+.dialog-sub { font-size: 12px; color: var(--vp-c-text-2); font-family: monospace; margin-top: 2px; line-height: 1.6; }
+.dialog-src { color: var(--vp-c-text-3); }
 .dialog-close { background: none; border: none; font-size: 16px; color: var(--vp-c-text-2); cursor: pointer; }
 .dialog-close:hover { color: var(--vp-c-text-1); }
 

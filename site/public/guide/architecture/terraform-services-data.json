@@ -1,5 +1,6 @@
 {
   "generated_from": [
+    ".railway/railway.ts",
     "infra/terraform/railway/railway-services.json",
     "infra/terraform/railway/github-ci.tf"
   ],
@@ -7,9 +8,11 @@
     {
       "key": "chatbot_plugin",
       "service_name": "chatbot-plugin",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": null,
+      "restart_policy": null,
+      "network_endpoint": null,
+      "deploy_config_source": null,
       "environments": {
         "production": {
           "variables": [
@@ -340,9 +343,11 @@
     {
       "key": "dashboard_backend",
       "service_name": "dashboard-backend",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": ".venv/bin/uvicorn backend.main:app --host :: --port 8000",
+      "restart_policy": null,
+      "network_endpoint": "dashboard-backend2",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -817,9 +822,11 @@
     {
       "key": "dashboard_frontend",
       "service_name": "dashboard-frontend",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": null,
+      "restart_policy": null,
+      "network_endpoint": null,
+      "deploy_config_source": null,
       "environments": {
         "production": {
           "variables": [
@@ -970,9 +977,11 @@
     {
       "key": "dedup_reconcile",
       "service_name": "dedup-reconcile",
-      "source_repo": null,
-      "root_directory": null,
-      "cron_schedule": null,
+      "cron_schedule": "0 20 * * *",
+      "start_command": "/app/.venv/bin/python -m src.entrypoints.cli.dedup_reconcile",
+      "restart_policy": "NEVER",
+      "network_endpoint": "dedupreconcile",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -1147,9 +1156,11 @@
     {
       "key": "fastembed",
       "service_name": "fastembed",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": null,
+      "restart_policy": null,
+      "network_endpoint": null,
+      "deploy_config_source": null,
       "environments": {
         "production": {
           "variables": [
@@ -1240,9 +1251,11 @@
     {
       "key": "rag_backfill",
       "service_name": "rag-backfill",
-      "source_repo": null,
-      "root_directory": null,
-      "cron_schedule": null,
+      "cron_schedule": "0 20 * * *",
+      "start_command": "/app/.venv/bin/python -m src.entrypoints.cli.backfill_rag",
+      "restart_policy": "NEVER",
+      "network_endpoint": "ragbackfill",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -1729,9 +1742,11 @@
     {
       "key": "refresh_metrics",
       "service_name": "refresh-metrics",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": "/app/.venv/bin/python -m src.entrypoints.cli.refresh_metrics",
+      "restart_policy": "NEVER",
+      "network_endpoint": "refresh-metrics",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -1906,9 +1921,11 @@
     {
       "key": "scrape_and_analyze",
       "service_name": "scrape-and-analyze",
-      "source_repo": null,
-      "root_directory": null,
-      "cron_schedule": null,
+      "cron_schedule": "0 8 * * *",
+      "start_command": null,
+      "restart_policy": "NEVER",
+      "network_endpoint": null,
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -1986,7 +2003,7 @@
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
@@ -2177,7 +2194,7 @@
               "value": null
             }
           ],
-          "managed_count": 44,
+          "managed_count": 43,
           "sensitive_count": 12
         },
         "staging": {
@@ -2256,7 +2273,7 @@
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
@@ -2447,7 +2464,7 @@
               "value": null
             }
           ],
-          "managed_count": 44,
+          "managed_count": 43,
           "sensitive_count": 12
         }
       }
@@ -2455,9 +2472,11 @@
     {
       "key": "storybook",
       "service_name": "storybook",
-      "source_repo": null,
-      "root_directory": null,
       "cron_schedule": null,
+      "start_command": null,
+      "restart_policy": null,
+      "network_endpoint": "satisfied-luck",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -2488,9 +2507,11 @@
     {
       "key": "weekly_report",
       "service_name": "weekly-report",
-      "source_repo": null,
-      "root_directory": null,
-      "cron_schedule": null,
+      "cron_schedule": "0 0 * * 1",
+      "start_command": "/app/.venv/bin/python -m src.entrypoints.cli.weekly_report",
+      "restart_policy": "NEVER",
+      "network_endpoint": "weekly-report",
+      "deploy_config_source": ".railway/railway.ts",
       "environments": {
         "production": {
           "variables": [
@@ -2574,7 +2595,7 @@
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
@@ -2610,13 +2631,13 @@
             },
             {
               "name": "RESEND_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_FROM_EMAIL",
-              "managed": true,
+              "managed": false,
               "sensitive": false,
               "value": null
             },
@@ -2645,7 +2666,7 @@
               "value": null
             }
           ],
-          "managed_count": 25,
+          "managed_count": 22,
           "sensitive_count": 12
         },
         "staging": {
@@ -2730,7 +2751,7 @@
             },
             {
               "name": "OPENROUTER_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
@@ -2766,13 +2787,13 @@
             },
             {
               "name": "RESEND_API_KEY",
-              "managed": true,
+              "managed": false,
               "sensitive": true,
               "value": null
             },
             {
               "name": "RESEND_FROM_EMAIL",
-              "managed": true,
+              "managed": false,
               "sensitive": false,
               "value": null
             },
@@ -2801,7 +2822,7 @@
               "value": null
             }
           ],
-          "managed_count": 25,
+          "managed_count": 22,
           "sensitive_count": 12
         }
       }
