@@ -3160,6 +3160,7 @@ llm = [
     { name = "anthropic" },
     { name = "httpx" },
     { name = "huggingface-hub" },
+    { name = "pillow" },
     { name = "tenacity" },
 ]
 metrics = [
@@ -3237,6 +3238,7 @@ llm = [
     { name = "anthropic" },
     { name = "httpx" },
     { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "pillow", specifier = ">=10.0" },
     { name = "tenacity" },
 ]
 metrics = [{ name = "jmespath", specifier = ">=1.0" }]
