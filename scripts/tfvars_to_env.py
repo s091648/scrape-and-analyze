@@ -67,9 +67,6 @@ NON_ENV = {
     # T6-08c — Redis logical-DB URLs: literal ${{Redis.REDIS_URL}}/N in
     # constants.ts (the tfvars form has non-round-tripping inner spaces)
     "CACHE_REDIS_URL", "SEARCH_INDEX_REDIS_URL",
-    # T6-08c PROD-DRIFT HOLD — production's live value != the tfvars; left
-    # preserve() in railway.ts until reconciled, so don't emit them here either.
-    "NEXTAUTH_SECRET", "GITHUB_PACKAGE_TOKEN", "FRONTEND_ORIGIN", "NEXTAUTH_URL",
     # per-service literal in railway.ts, not a single process.env value
     "UV_GROUP",
     # kept preserve() in railway.ts (empty on some/all envs, or hand-managed)

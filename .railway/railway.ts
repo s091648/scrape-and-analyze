@@ -74,14 +74,13 @@ const needAll = (...keys: string[]): Record<string, string> =>
 const RAG_SPARSE_LIMITS = ["RAG_SPARSE_RPD", "RAG_SPARSE_RPM", "RAG_SPARSE_TPM"]; // production only, currently empty
 const RAG_DENSE_ENDPOINT = ["RAG_DENSE_ENDPOINT_URL"]; // production only, currently empty
 
-// PROD-DRIFT HOLD (T6-08c): production's live value disagrees with the tfvars,
-// so managing these via need() would *change* production on the next apply —
-// left preserve() until the drift is reconciled (see specs/025 / handoff):
-//   NEXTAUTH_SECRET     prod = "generate-with-openssl-rand-base64-32" (placeholder)
-//   GITHUB_PACKAGE_TOKEN prod = a different ghp_ token than the tfvars
-//   FRONTEND_ORIGIN / NEXTAUTH_URL  prod = bare host, no scheme / no ${{ref}}
-// Staging matches the tfvars for all four, but hold them there too for symmetry.
-const PROD_DRIFT_HOLD = ["NEXTAUTH_SECRET", "GITHUB_PACKAGE_TOKEN", "FRONTEND_ORIGIN", "NEXTAUTH_URL"];
+// T6-08e: NEXTAUTH_SECRET / GITHUB_PACKAGE_TOKEN / FRONTEND_ORIGIN / NEXTAUTH_URL
+// were briefly held preserve() because production's live value had drifted from
+// the tfvars (a placeholder NEXTAUTH_SECRET, an un-rotated GITHUB_PACKAGE_TOKEN,
+// a bare-host FRONTEND_ORIGIN/NEXTAUTH_URL). Decision: the tfvars values ARE the
+// intended ones — now managed via need() like the rest, so `railway config
+// apply` corrects production. NOTE: the NEXTAUTH_SECRET change invalidates every
+// existing production session on apply.
 
 export default defineRailway((ctx) => {
   const prod = ctx.environment === "production";
@@ -167,12 +166,12 @@ export default defineRailway((ctx) => {
       ...grafana,
       ...notifications,
       ...needAll(
-        "GEMINI_API_KEY", "HF_TOKEN",
+        "FRONTEND_ORIGIN", "GEMINI_API_KEY", "HF_TOKEN",
         "R2_ACCESS_KEY_ID", "R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_PUBLIC_URL",
         "R2_SECRET_ACCESS_KEY", "SENTRY_DSN",
       ),
-      // Hand-managed on Railway (`unmanaged`), or prod-drift hold (T6-08c).
-      ...preserveAll("OPENROUTER_API_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL", "FRONTEND_ORIGIN"),
+      // Hand-managed on Railway (see railway-services.json `unmanaged`).
+      ...preserveAll("OPENROUTER_API_KEY", "RESEND_API_KEY", "RESEND_FROM_EMAIL"),
       ...(prod ? preserveAll("FIXIE_URL") : {}),
     },
   });
@@ -201,7 +200,7 @@ export default defineRailway((ctx) => {
     build: df("/frontend/Dockerfile.storybook"),
     replicas,
     networking: { privateNetworkEndpoint: "satisfied-luck" },
-    env: preserveAll("GITHUB_PACKAGE_TOKEN"), // prod-drift hold (T6-08c)
+    env: needAll("GITHUB_PACKAGE_TOKEN"),
   });
 
   const dashboardFrontend = service("dashboard-frontend", {
@@ -213,9 +212,9 @@ export default defineRailway((ctx) => {
       GRAFANA_URL,
       ...needAll(
         "BACKEND_URL", "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-        "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GRAFANA_SA_TOKEN",
+        "GITHUB_PACKAGE_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+        "GRAFANA_SA_TOKEN", "NEXTAUTH_SECRET", "NEXTAUTH_URL",
       ),
-      ...preserveAll(...PROD_DRIFT_HOLD), // GITHUB_PACKAGE_TOKEN, NEXTAUTH_SECRET, NEXTAUTH_URL, FRONTEND_ORIGIN (T6-08c)
     },
   });
 
@@ -237,8 +236,8 @@ export default defineRailway((ctx) => {
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...RAG_CHUNKING_ENV,
-      ...needAll("GEMINI_API_KEY", "SENTRY_DSN"),
-      ...preserveAll("OPENROUTER_API_KEY", "GITHUB_PACKAGE_TOKEN"), // unmanaged / prod-drift hold
+      ...needAll("GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "SENTRY_DSN"),
+      ...preserveAll("OPENROUTER_API_KEY"), // hand-managed on Railway
       // REVIEW: SEARCH_* are set on staging only today — production's
       // scrape-and-analyze has no SEARCH_* vars (likely drift; the rebuild-
       // search-index cron path needs SEARCH_INDEX_REDIS_URL).
@@ -302,9 +301,9 @@ export default defineRailway((ctx) => {
       ...RAG_SPARSE_ENV,
       ...needAll(
         "CHAT_SERVICE_API_KEY", "CHAT_SERVICE_URL",
-        "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY", "SENTRY_DSN",
+        "FRONTEND_ORIGIN", "GEMINI_API_KEY", "MAXMIND_LICENSE_KEY",
+        "NEXTAUTH_SECRET", "SENTRY_DSN",
       ),
-      ...preserveAll("FRONTEND_ORIGIN", "NEXTAUTH_SECRET"), // prod-drift hold (T6-08c)
       ...(prod ? preserveAll(...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
@@ -349,8 +348,8 @@ export default defineRailway((ctx) => {
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...RAG_CHUNKING_ENV,
-      ...needAll("SENTRY_DSN"),
-      ...preserveAll("OPENROUTER_API_KEY", "GITHUB_PACKAGE_TOKEN"), // unmanaged / prod-drift hold
+      ...needAll("GITHUB_PACKAGE_TOKEN", "SENTRY_DSN"),
+      ...preserveAll("OPENROUTER_API_KEY"), // hand-managed on Railway
       ...(prod ? preserveAll("FIXIE_URL", ...RAG_DENSE_ENDPOINT, ...RAG_SPARSE_LIMITS) : {}),
     },
   });
