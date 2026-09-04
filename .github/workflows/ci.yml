@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: read # railway-config.yml (reusable) needs it for its plan artifact
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -119,7 +120,7 @@ jobs:
   # actually exposed the gap, and only once deployed.
   # -----------------------------------------------
   check-lockfile:
-    name: Verify uv.lock
+    name: Verify uv.lock & Env Var Centralization
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -163,7 +164,56 @@ jobs:
         if: steps.check.outputs.in_sync == 'false'
         run: |
           echo "::error::uv.lock was out of sync with pyproject.toml (a dependency was likely added/changed without running \`uv lock\` afterward). It has been regenerated and pushed automatically — re-run this workflow (or push again) to pick up the fix."
-          exit 1
+
+      # 025-iac-provisioning US5 / FR-019: env vars must be read through each
+      # service's centralized config module, not process.env/os.environ
+      # scattered ad hoc — folded in here (rather than its own job) since this
+      # job already checks out the repo and the check itself is sub-second.
+      - name: Verify env var centralization
+        run: bash .github/scripts/check-env-var-centralization.sh
+
+  # -----------------------------------------------
+  # Stage -0.3: Infra Plan Preview (PR opened/reopened only, or manual) —
+  # 025-iac-provisioning US3. Read-only; the real apply happens later in
+  # deploy-staging-terraform (Stage 4j).
+  #
+  # **Deliberately NOT on every `synchronize` push** (unlike every other job in
+  # this workflow): the apply half (`deploy-staging-terraform`) pushes Railway
+  # env vars and REDEPLOYS every service via `railway redeploy` — a few
+  # review-iteration re-applies per PR would churn deployments and hit Railway's
+  # deploy rate limit. Gating on `opened`/`reopened` still gets a plan+apply on
+  # every PR's first run; a later push that changes `infra/terraform/**` and
+  # needs staging re-applied before merge → Actions → Terraform → Run workflow
+  # (terraform.yml's own workflow_dispatch).
+  #
+  # All infra CI logic (tfvars materialization from the TF_TFVARS_* base64
+  # secrets, the GitHub-side `terraform`, the Railway-side
+  # scripts/push_railway_variables.py) lives in the reusable
+  # .github/workflows/terraform.yml — this job just calls it.
+  # -----------------------------------------------
+  terraform-plan:
+    name: Infra Plan (staging)
+    # TEMP (revert to `opened || reopened` once Terraform CI is confirmed green):
+    # run on every PR push so a fix can be re-validated without opening a new PR.
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: plan
+      environment: staging
+    secrets: inherit
+
+  # Railway-native IaC (.railway/railway.ts) plan preview — the Railway half of
+  # what terraform-plan does for the GitHub half. Read-only; railwayapp/config
+  # posts the staging diff as a PR comment. The apply half is
+  # deploy-staging-railway-config (Stage 4j). See .github/workflows/railway-config.yml.
+  railway-config-plan:
+    name: Railway Config Plan (staging)
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: plan
+      environment: staging
+    secrets: inherit
 
   # -----------------------------------------------
   # Stage 0: DB Migration (PR only)
@@ -870,14 +920,15 @@ jobs:
   # Stage 4b1: Lighthouse Performance Check (staging, PR only)
   # Gates PR merge on the check completing without route failures (022-lighthouse-
   # performance-check, US3) — not yet on the actual Performance/LCP/TBT/CLS numbers.
-  # Runs against vars.FRONTEND_URL (configure in repo Settings → Secrets and
-  # variables → Actions → Variables); to make this a required check, add "Lighthouse
-  # Performance Check / lighthouse-check" in branch protection rules for master.
-  # Can also be run standalone via workflow_dispatch on lighthouse.yml against any URL.
+  # Passes `environment: staging`, so lighthouse.yml audits the staging-scoped
+  # vars.FRONTEND_URL (managed by Terraform's github_ci_env module). To make this a
+  # required check, add "Lighthouse Performance Check / lighthouse-check" in branch
+  # protection rules for master. Can also be run standalone via workflow_dispatch on
+  # lighthouse.yml, picking staging or production.
   # Joins deploy-staging-frontend/close-staging-frontend's group (`staging-frontend-*`):
   # it's read-only against Railway (an audit, not a `railway up`/`down` mutation), so it
   # doesn't need to protect *other* jobs from itself — but it still needs protecting
-  # from *them*, since it audits vars.FRONTEND_URL (the live staging frontend). Without
+  # from *them*, since it audits the live staging frontend. Without
   # sharing this group, close-staging-frontend (Stage 6, fires on merge) could tear that
   # same deployment down mid-audit if this PR's own lighthouse-check run — from the
   # `pull_request` event — was still in flight when the merge's `push` event fires.
@@ -891,7 +942,7 @@ jobs:
       needs.deploy-staging-frontend.result == 'success'
     uses: ./.github/workflows/lighthouse.yml
     with:
-      url: ${{ vars.FRONTEND_URL }}
+      environment: staging
     secrets: inherit
     concurrency:
       group: staging-frontend-${{ github.event.pull_request.number }}
@@ -1022,7 +1073,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4f: Deploy Weekly Report to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-weekly-report:
@@ -1056,7 +1107,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4g: Deploy Refresh Metrics to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-refresh-metrics:
@@ -1090,7 +1141,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4h: Deploy RAG Backfill to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-rag-backfill:
@@ -1124,7 +1175,7 @@ jobs:
   # -----------------------------------------------
   # Stage 4i: Deploy Dedup Reconcile to Staging (PR only)
   # Shares the src/ codebase & Dockerfile with deploy-staging-src — see
-  # src/railway.toml for the UV_GROUPS/Start Command overrides that make
+  # the per-service src/railway-<svc>.toml (+ Terraform-managed UV_GROUP) that make
   # this a distinct Railway service from the main worker.
   # -----------------------------------------------
   deploy-staging-dedup-reconcile:
@@ -1154,6 +1205,60 @@ jobs:
         run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # -----------------------------------------------
+  # Stage 4j: Apply Terraform to Staging (PR opened/reopened only, or manual)
+  # — 025-iac-provisioning US3. Own concurrency group rather than sharing one
+  # of the ten per-service deploy-staging-* groups above: this job can touch
+  # any/all of them (it applies the whole staging workspace's declared
+  # config, not one service), so no single existing group would fully
+  # protect against it — a known, accepted simplification rather than trying
+  # to join all ten.
+  #
+  # Gated on the same opened/reopened-only condition as terraform-plan above
+  # (see that job's comment for why) — `needs.terraform-plan.result ==
+  # 'success'` alone isn't enough once terraform-plan can be skipped, since a
+  # skipped dependency would otherwise also skip this job by default; the
+  # explicit `if` here re-checks the trigger condition directly instead of
+  # relying on that default.
+  # -----------------------------------------------
+  deploy-staging-terraform:
+    name: Apply Terraform to Staging
+    needs: [terraform-plan]
+    # TEMP (revert to `opened || reopened` once Terraform CI is confirmed green):
+    # run on every PR push so a fix can be re-validated without opening a new PR.
+    # NOTE: apply pushes Railway env vars + `railway redeploy`s every service, so
+    # while this is loosened, each PR push will churn staging deployments and can
+    # brush Railway's deploy rate limit.
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.terraform-plan.result == 'success'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit
+    concurrency:
+      group: staging-terraform-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+  # Apply .railway/railway.ts to staging — the Railway-IaC counterpart to
+  # deploy-staging-terraform. `railway config apply` is one batched diff (no
+  # per-variable redeploy), so it doesn't carry that job's rate-limit caveat.
+  deploy-staging-railway-config:
+    name: Apply Railway Config to Staging
+    needs: [railway-config-plan]
+    if: |
+      github.event_name == 'pull_request' &&
+      needs.railway-config-plan.result == 'success'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit
+    concurrency:
+      group: staging-railway-config-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
 
   # -----------------------------------------------
   # Stage 5: DB Rollback (if migrate succeeded but any test failed)

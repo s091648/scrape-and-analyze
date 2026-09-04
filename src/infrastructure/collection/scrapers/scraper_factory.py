@@ -20,7 +20,8 @@ from .blog_scraper import BlogScraper
 from .arxiv_scraper import ArxivScraper
 from .openalex_scraper import OpenAlexScraper
 from .semantic_scholar_scraper import SemanticScholarScraper
-from src.infrastructure.collection.clients import ArxivClient, RssClient
+from src.infrastructure.collection.clients.arxiv_client import ArxivClient
+from src.infrastructure.collection.clients.rss_client import RssClient
 
 logger = get_logger(__name__)
 
@@ -83,7 +84,7 @@ class ConcreteScraperFactory(ScraperFactory):
         if isinstance(cfg, SemanticScholarConfig):
             # SS 429 = per-IP daily quota; retrying only burns time.
             ss_http = self._http_client.with_skip_retry_status(frozenset({429}))
-            from src.infrastructure.collection.clients import SemanticScholarClient
+            from src.infrastructure.collection.clients.semantic_scholar_client import SemanticScholarClient
             return SemanticScholarScraper(
                 max_results=cfg.max_results,
                 days_back=cfg.days_back if days_back is None else (None if days_back == -1 else days_back),

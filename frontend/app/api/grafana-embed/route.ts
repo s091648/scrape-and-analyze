@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authConfig } from '@/lib/auth'
+import { GRAFANA_URL as GRAFANA_URL_ENV, GRAFANA_SA_TOKEN as GRAFANA_SA_TOKEN_ENV } from '@/lib/env.server'
 
-const GRAFANA_URL = process.env.GRAFANA_URL ?? ''
-const GRAFANA_SA_TOKEN = process.env.GRAFANA_SA_TOKEN ?? ''
+const GRAFANA_URL = GRAFANA_URL_ENV ?? ''
+const GRAFANA_SA_TOKEN = GRAFANA_SA_TOKEN_ENV ?? ''
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authConfig)

@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authConfig } from '@/lib/auth'
+import { GRAFANA_URL, APP_ENV } from '@/lib/env.server'
 import { MonitoringContent } from './monitoring-content'
 
 export default async function MonitoringPage() {
@@ -11,8 +12,8 @@ export default async function MonitoringPage() {
 
   // Read server-side only — same variable name used by src/ scraper service,
   // no NEXT_PUBLIC_ prefix needed since this runs only on the server.
-  const grafanaUrl = process.env.GRAFANA_URL ?? ''
-  const appEnv = process.env.APP_ENV ?? 'development'
+  const grafanaUrl = GRAFANA_URL ?? ''
+  const appEnv = APP_ENV ?? 'development'
 
   return <MonitoringContent grafanaUrl={grafanaUrl} appEnv={appEnv} />
 }

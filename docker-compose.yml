@@ -258,6 +258,36 @@ services:
     # Revert to the default Dockerfile CMD (remove this override) once done testing.
     command: sh -c "uv pip install -e /opt/chatbot-plugin-sdk && uvicorn chatbot_plugin.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload"
 
+  # Railway IaC operator box — `railway config plan/apply/pull/migrate`, plus the
+  # interactive `railway login` / `railway link`. Dedicated container because the
+  # Railway CLI's IaC engine needs Node + a recent CLI to evaluate
+  # .railway/railway.ts, and the Windows CLI build can't. Not started by
+  # `docker compose up`; opt in with --profile tools.
+  #   docker compose run --rm -it railway_cli railway config plan
+  #   make railway-cli            # shell, for `railway login` / `railway link`
+  #   make railway-config-plan ENV=staging
+  railway_cli:
+    profiles:
+      - tools
+    build:
+      context: .
+      dockerfile: .railway/Dockerfile
+    volumes:
+      - .:/work                            # .railway/*.ts + repo-wide railway.toml scan
+      - railway_cli_home:/root/.railway    # persist `railway login` / `railway link` state
+      - railway_cli_config:/root/.config   # (CLI may keep the session under XDG instead)
+    # No env_file: a bare RAILWAY_TOKEN in the environment makes `railway login` /
+    # `railway link` refuse to run ("Invalid RAILWAY_TOKEN"). The `make
+    # railway-config-*` targets inject the correct per-ENV token as
+    # `-e RAILWAY_TOKEN=...` for just that one command instead.
+    environment:
+      RAILWAY_CLI: "1"                                # lets the `make railway-config-*` targets run in-container
+    init: true
+    mem_limit: 512m
+    stdin_open: true
+    tty: true
+    command: sleep infinity
+
   # Job service — 一次性工具容器，需加 --profile tools 才會啟動
   job_service:
     profiles:
@@ -275,6 +305,19 @@ services:
       - ./backend:/app/backend   # alembic/env.py 需要 import backend models
       - ./scripts:/app/scripts
       - ./db_dumps:/app/db_dumps # persistent dump storage (gitignored)
+      # scripts/generate_terraform_docs.py (make uml-terraform-docs) reads
+      # .railway/railway.ts (deploy config, text-scraped) + railway-services.json
+      # + github-ci.tf. Mount just railway.ts by itself — NOT the whole .railway/
+      # dir, which also holds the git-ignored .env.*.generated files with
+      # resolved secret values. Mount the terraform dir read-only but shadow its
+      # secret-bearing paths: the higher-privilege credentials (account-level
+      # RAILWAY_TOKEN / TF_API_TOKEN / TF_GITHUB_TOKEN in .env, and
+      # secrets/*.tfvars) must never enter an app container.
+      - ./.railway/railway.ts:/app/.railway/railway.ts:ro
+      - ./infra/terraform/railway:/app/infra/terraform/railway:ro
+      - /dev/null:/app/infra/terraform/railway/.env:ro
+      - /app/infra/terraform/railway/secrets
+      - /app/infra/terraform/railway/.terraform
       - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env
@@ -293,3 +336,5 @@ volumes:
   playwright_cache:
   fastembed_cache:
   chatbot_fastembed_cache:
+  railway_cli_home:
+  railway_cli_config:

@@ -1,0 +1,135 @@
+name: Railway config
+
+# Reusable runner for the Railway half of 025-iac-provisioning "Revision 6" —
+# `.railway/railway.ts` applied via `railway config plan` / `railway config
+# apply`. ci.yml / release.yml call it with `uses:` + two inputs, exactly like
+# the Terraform half's terraform.yml.
+#
+# STANDALONE from terraform.yml on purpose:
+#   - different engine     — Railway's own IaC, not the Terraform CLI
+#   - different credential  — secrets.RAILWAY_TOKEN, the environment-scoped Railway
+#                            PROJECT token github-ci.tf (module github_ci_env)
+#                            already provisions per GitHub Environment. `railway
+#                            config` has NO --environment flag, so the token alone
+#                            selects the env — hence `environment:` below picks
+#                            which one this run targets.
+#   - different scope       — reacts to `.railway/**`, not `infra/terraform/**`
+#
+# Called as a job:
+#   uses: ./.github/workflows/railway-config.yml
+#   with: { mode: plan|apply, environment: staging|production }
+#   secrets: inherit
+#
+# Both modes run the same genuine `railway` CLI (installed by
+# .github/scripts/railway-install.sh); the non-trivial bash lives in
+# .github/scripts/railway-*.sh, called from thin steps below.
+#
+# The ONE asymmetry: `mode: plan` (PR review only) delegates to
+# railwayapp/config@v1 for its sticky, updated-in-place PR-diff comment + pinned
+# plan artifact — a review affordance with no raw-CLI equivalent. `mode: apply`
+# CANNOT use that action: its `apply` resolves the pinned plan by commit SHA from
+# a *separate, already-completed* workflow run's artifact (the PR's own plan
+# job), so a push / tag / workflow_dispatch / reusable-call with no such prior
+# run fails with `No railway-plan-<env> artifact found for <sha>` — even though
+# its own plan step just produced one. So apply plans+applies via the CLI itself
+# (.github/scripts/railway-config-apply.sh).
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "plan | apply"
+        required: true
+        type: string
+      environment:
+        description: "staging | production"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan | apply"
+        required: true
+        default: "plan"
+        type: choice
+        options: [plan, apply]
+      environment:
+        description: "staging | production"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+  pull-requests: write # railwayapp/config posts/updates the plan comment on PRs
+  actions: read # ...and uploads its pinned plan artifact (mode: plan)
+
+jobs:
+  railway-config:
+    name: railway config ${{ inputs.mode }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: scraper / ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # `railway config` evaluates .railway/railway.ts via Node type-stripping —
+      # needs Node >= 22.6 (ubuntu-latest ships 20). Match the railway_cli
+      # container (node:24).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # Genuine standalone `railway` CLI + the `railway` npm SDK railway.ts's
+      # `import "railway/iac"` needs. Unconditional: `mode: apply` runs the CLI
+      # directly (below); `mode: plan` uses railwayapp/config@v1's own CLI copy
+      # but still needs the SDK.
+      - name: Install Railway CLI + SDK
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/railway-install.sh"
+
+      # Rebuild the git-ignored tfvars from the base64 repo secrets and explode
+      # the values railway.ts reads via process.env.X into $GITHUB_ENV.
+      - name: Materialize tfvars + explode into env
+        env:
+          TF_TFVARS_GITHUB_SHARED: ${{ secrets.TF_TFVARS_GITHUB_SHARED }}
+          TF_TFVARS_RAILWAY_SHARED: ${{ secrets.TF_TFVARS_RAILWAY_SHARED }}
+          TF_TFVARS_GITHUB_STAGING: ${{ secrets.TF_TFVARS_GITHUB_STAGING }}
+          TF_TFVARS_RAILWAY_STAGING: ${{ secrets.TF_TFVARS_RAILWAY_STAGING }}
+          TF_TFVARS_GITHUB_PRODUCTION: ${{ secrets.TF_TFVARS_GITHUB_PRODUCTION }}
+          TF_TFVARS_RAILWAY_PRODUCTION: ${{ secrets.TF_TFVARS_RAILWAY_PRODUCTION }}
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/railway-materialize-tfvars.sh" "${{ inputs.environment }}"
+
+      # mode: plan — railwayapp/config@v1 for the sticky, updated-in-place PR-diff
+      # comment + pinned-plan artifact (its whole value; a review affordance the
+      # raw CLI has no equivalent for). mode: apply never reaches here.
+      - name: railway config plan (${{ inputs.environment }})
+        if: inputs.mode == 'plan'
+        uses: railwayapp/config@v1
+        with:
+          command: plan
+          railway-token: ${{ secrets.RAILWAY_TOKEN }}
+          comment: ${{ github.event_name == 'pull_request' }}
+          artifact-name: railway-plan-${{ inputs.environment }}
+
+      # mode: apply — the raw CLI (railwayapp/config@v1's apply can't run off a PR;
+      # see .github/scripts/railway-config-apply.sh). Plan + apply in this one
+      # job, no artifact round-trip.
+      - name: railway config apply (${{ inputs.environment }})
+        if: inputs.mode == 'apply'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/railway-config-apply.sh" "${{ inputs.environment }}"
+
+      - name: Upload applied plan (audit)
+        if: always() && inputs.mode == 'apply'
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-plan-${{ inputs.environment }}-applied
+          path: ${{ runner.temp }}/railway-plan-${{ inputs.environment }}.json
+          if-no-files-found: ignore

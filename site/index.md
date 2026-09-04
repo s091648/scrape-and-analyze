@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 24 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 25 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -89,4 +89,7 @@ features:
   - title: '024 · Async Pipeline Refactor'
     details: 'Rewrite the collection pipeline''s downstream stages (scrape → analyze → translate → RAG ingestion) into a genuinely concurrent, async, event-driven architecture, replacing the current fully-synchronous per-article chain. Full asyncio preferred over ThreadPoolExecutor for architectural fidelity to event-driven design. Discover/fetch/dedup stay batched as today — only downstream-of-publish stages become concurrent per-article. The event dispatch mechanism should stay swappable to an external/durable implementation later without touching stage logic. Concurrent access to shared model rate-limit capacity and to the database must be handled safely. RAG ingestion should not block other articles'' processing. Includes a model-pool dispatch upgrade so concurrent requests spread across every registered, currently-available model instead of queuing behind a single model.'
     link: '/specs/024-async-pipeline-refactor/spec'
+  - title: '025 · Iac Provisioning'
+    details: '我需要實作一個新的 feature ，那就是實作 IaC (preferably terraform) 。我目前是把我的 app 部署在 railway 平台上面，而且會根據不同的使用情境 (PR時使用 staging: ci.yml , 正式 release 時使用 production: release.yml ) 而有不同的 environment 。目前 deploy 的工作主要都是透過 railway CLI 去做，但是環境變數的設置等等都是我自己要在 railway 平台上面手動操作，這非常的不方便。而且我之後也希望可以有其他平台部署的支援方案，所以希望能夠使用類似 terraform 這樣的 IaC 語言去構築我的 stack 。'
+    link: '/specs/025-iac-provisioning/spec'
 ---

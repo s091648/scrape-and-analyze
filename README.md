@@ -9,9 +9,9 @@ A web scraping and AI-powered article analysis platform. Articles are automatica
 ![Common Web Crawler](images/diagrams/common_web_crawler.png)
 The overall design is greatly inspired by the Chapter 9 of System Design Interview by Alex Xu.
 
-As we're not trying to crawl every content possible across the whole world-wide web but just request contents from particular sources, the complexity of analyzing the structure and building a tree for the web pages are avoided.
+As we're not trying to crawl every content possible across the whole world-wide web but just request contents from particular sources, the complexity of analyzing the structure and building a tree for the web pages are avoided, and we primarily uses provided API's and RSS feed if provided for article sources.
 
-However, useful concepts such as politeness are taken into consideration.
+However, useful concepts such as host maps, queues, and politeness are taken into consideration.
 
 ## Architecture
 
@@ -99,3 +99,39 @@ make test-all               # everything, with a summary
 ```
 
 See [`backend/README.md`](./backend/README.md) and [`frontend/README.md`](./frontend/README.md) for service-level detail, and [`CLAUDE.md`](./CLAUDE.md) / `site/` (VitePress docs) for architecture deep-dives.
+
+## Infrastructure & Deployment Config
+
+Two deploy environments (staging, production) on Railway. All of their config —
+the GitHub Actions secrets/variables CI reads **and** every Railway service's env
+vars — is declared in `infra/terraform/railway/secrets/*.tfvars` (git-ignored;
+mirrored to GitHub Actions secrets as base64). Full detail:
+[`infra/terraform/railway/README.md`](./infra/terraform/railway/README.md).
+
+### Normal path (95% of the time)
+
+1. Edit the value in `infra/terraform/railway/secrets/*.tfvars`
+   (`github-*` = GitHub Actions config, `railway-*` = Railway service env vars;
+   `*-shared` = both envs, `*-staging` / `*-production` override per env)
+2. `make push-tfvars` — syncs all six tfvars files to the `TF_TFVARS_*` GitHub Actions secrets
+3. Open a PR
+
+CI applies **both** halves — GitHub-side via `.github/workflows/terraform.yml`,
+Railway-side via `.github/workflows/railway-config.yml` (`.railway/railway.ts` +
+`railway config`) — for staging on the PR, and for production on a `v*` release
+tag. `make push-tfvars` is the only command you have to remember.
+
+### Applying locally (optional — when you don't want to wait for CI)
+
+Needs `infra/terraform/railway/.env` (copy from `.env.example`). Two toolchains,
+same `secrets/*.tfvars`: `terraform` on PATH for the GitHub half; the
+`railway_cli` compose container for the Railway half (the Windows CLI can't
+evaluate the `.ts`).
+
+| Goal | Commands |
+|---|---|
+| Update a **GitHub Actions** secret/variable (`DATABASE_URL`, `FRONTEND_URL`, `RAILWAY_SERVICE_ID_*`, …) | `make terraform-plan ENV=staging` → `make terraform-apply ENV=staging` |
+| Update a **Railway service** env var / deploy config | edit `.railway/railway.ts` (or `.railway/constants.ts`, or the tfvars for a secret) → `make railway-config-plan ENV=staging` → `make railway-config-apply ENV=staging` (see `.railway/README.md`) |
+
+Run the same command with `ENV=production` to apply there too. After any local
+apply, still run `make push-tfvars` so CI doesn't report drift on the next run.

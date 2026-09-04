@@ -2,11 +2,20 @@ name: Release to Production
 
 # Triggered by pushing a version tag (e.g. v1.2.3).
 #
-# Two paths are supported:
+# Two production paths are supported (see the `release` job, gated on
+# needs.detect.outputs.is_master_tag == 'true'):
 #   PR flow   — pr-automation.yml already wrote {{NEWEST_VERSION}} into
 #               release-notes.json; this workflow just stamps the real version.
 #   Hotfix    — direct push to master skipped PR automation; this workflow
 #               calls generate_release_notes.py as a fallback before stamping.
+#
+# A third path exists for a tag cut on a branch that was never merged into
+# master (see the `release-test-staging` job) — e.g. testing an
+# infra/terraform change (specs/025-iac-provisioning T030) without needing to
+# merge it into master first. That path applies/deploys to STAGING only:
+# no version stamping, no production DB migration, no chatbot-plugin
+# submodule bump, no GitHub Release — none of that makes sense for a tag that
+# was never actually released.
 #
 # Re-runs are idempotent: if the tag version is already in release-notes.json
 # the stamp phase is skipped entirely.
@@ -17,14 +26,86 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write # for the reusable railway-config.yml (called for production)
+  actions: read # ...and its plan artifact
 
 env:
   PYTHON_VERSION: '3.11'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # -------------------------------------------------------------------
+  # Decide which of the two paths above this tag takes. A real release tag
+  # is always cut from master's current tip (PR flow merges first, hotfix
+  # pushes to master first) — if this tag's commit isn't even an ancestor of
+  # master, it was cut from an unmerged branch on purpose, to test something
+  # (e.g. a terraform-test branch) without a real release.
+  # -------------------------------------------------------------------
+  detect:
+    name: Detect Tag Base Branch
+    runs-on: ubuntu-latest
+    outputs:
+      is_master_tag: ${{ steps.detect.outputs.is_master }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Fetch master for ancestry check
+        run: git fetch origin master:refs/remotes/origin/master
+
+      - name: Detect whether this tag is on master
+        id: detect
+        run: |
+          if git merge-base --is-ancestor "${{ github.sha }}" refs/remotes/origin/master; then
+            echo "is_master=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ github.ref_name }} is on master — running the full production release."
+          else
+            echo "is_master=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag ${{ github.ref_name }} is NOT on master — treating this as a test tag: applying/deploying to STAGING only, skipping version stamping, production DB migration, chatbot-plugin submodule bump, and GitHub Release."
+          fi
+
+  # Apply Terraform to production BEFORE the release job's deploy (via `needs`).
+  # All Terraform logic lives in the reusable .github/workflows/terraform.yml.
+  # NOTE (025-iac-provisioning revision 2): this used to be inline steps inside
+  # `release`, positioned after version-stamp + DB migration and before the
+  # Railway deploy. As a separate `needs`-ordered job it now runs before all of
+  # `release` (stamping/migration included) — functionally equivalent (infra
+  # config is independent of the app version / DB schema) and still strictly
+  # before the deploy.
+  terraform-production:
+    name: Apply Terraform (production)
+    needs: detect
+    if: needs.detect.outputs.is_master_tag == 'true'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: production
+    secrets: inherit
+
+  # Railway-native IaC (`.railway/railway.ts`) — the Railway half of 025 Revision
+  # 6, the counterpart to `terraform-production` for what Terraform no longer
+  # manages (service deploy config, later env-var values). Reusable
+  # railway-config.yml (railwayapp/config@v1), NOT terraform.yml — different
+  # engine, different credential (secrets.RAILWAY_TOKEN, the env-scoped Railway
+  # project token github-ci.tf already provisions per GitHub Environment). Gated
+  # on the same `detect` as everything else here, so a test tag off master never
+  # applies to production (Constitution Principle V).
+  railway-config-production:
+    name: Apply Railway config (production)
+    needs: detect
+    if: needs.detect.outputs.is_master_tag == 'true'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: production
+    secrets: inherit
+
   release:
-    name: Stamp Version & Deploy
+    name: Stamp Version & Deploy (production)
+    needs: [detect, terraform-production, railway-config-production]
+    if: needs.detect.outputs.is_master_tag == 'true'
     runs-on: ubuntu-latest
     environment: scraper / production
 
@@ -154,6 +235,9 @@ jobs:
           "No submodule update needed"
           chatbot-plugin
 
+      # Terraform (production) already applied by the `terraform-production` job
+      # this job `needs:` — see its comment above.
+
       # -------------------------------------------------------------------
       # Deploy to Railway production
       # -------------------------------------------------------------------
@@ -188,3 +272,83 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.body }}
+
+  # -------------------------------------------------------------------
+  # Test-tag path (this tag's commit is not on master) — deploys this tag's
+  # own code + applies Terraform to STAGING only, never production. See the
+  # `detect` job and this file's header comment. Own job (not just gated
+  # steps inside `release`) specifically so it can run under the
+  # `scraper / staging` GitHub Environment instead of `scraper / production`
+  # — a job has exactly one Environment context, so the two paths can't share
+  # a job and still each read their own environment's secrets (e.g. the
+  # staging-scoped RAILWAY_TOKEN vs. production's).
+  # -------------------------------------------------------------------
+  release-test-staging:
+    name: Apply & Deploy Test Tag (staging)
+    needs: detect
+    if: needs.detect.outputs.is_master_tag == 'false'
+    runs-on: ubuntu-latest
+    environment: scraper / staging
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          submodules: recursive
+
+      # -------------------------------------------------------------------
+      # Deploy this tag's own code to every staging service first — mirrors
+      # ci.yml's ten deploy-staging-* jobs, consolidated into one script.
+      # `railway up` recreates a fully torn-down (REMOVED) service same as a
+      # healthy one (see check-staging-deployments.sh), so this alone both
+      # wakes anything closed since the last PR and puts this tag's code
+      # live — confirming the deploy itself succeeds before Terraform runs.
+      # -------------------------------------------------------------------
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy this tag's code to every staging service
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/deploy-staging-all.sh"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID_DASHBOARD_FRONTEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}
+          SERVICE_ID_DASHBOARD_BACKEND: ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_BACKEND }}
+          SERVICE_ID_STORYBOOK: ${{ vars.RAILWAY_SERVICE_ID_STORYBOOK }}
+          SERVICE_ID_SCRAPE_AND_ANALYZE: ${{ vars.RAILWAY_SERVICE_ID_SCRAPE_AND_ANALYZE }}
+          SERVICE_ID_CHATBOT_PLUGIN: ${{ vars.RAILWAY_SERVICE_ID_CHATBOT_PLUGIN }}
+          SERVICE_ID_FASTEMBED: ${{ vars.RAILWAY_SERVICE_ID_FASTEMBED }}
+          SERVICE_ID_WEEKLY_REPORT: ${{ vars.RAILWAY_SERVICE_ID_WEEKLY_REPORT }}
+          SERVICE_ID_REFRESH_METRICS: ${{ vars.RAILWAY_SERVICE_ID_REFRESH_METRICS }}
+          SERVICE_ID_RAG_BACKFILL: ${{ vars.RAILWAY_SERVICE_ID_RAG_BACKFILL }}
+          SERVICE_ID_DEDUP_RECONCILE: ${{ vars.RAILWAY_SERVICE_ID_DEDUP_RECONCILE }}
+
+      # Terraform (staging) is applied AFTER this deploy, by the
+      # `terraform-test-staging` job below which `needs: [release-test-staging]`
+      # — this path exists to test infra/terraform changes, so confirming the
+      # app deploy itself is healthy first makes a subsequent terraform-apply
+      # failure unambiguous.
+
+  # Test-tag Terraform apply — runs after release-test-staging's deploy (see
+  # above). All Terraform logic lives in the reusable terraform.yml.
+  terraform-test-staging:
+    name: Apply Terraform (staging, test tag)
+    needs: [detect, release-test-staging]
+    if: needs.detect.outputs.is_master_tag == 'false'
+    uses: ./.github/workflows/terraform.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit
+
+  # Test-tag Railway-config apply — staging counterpart to
+  # `railway-config-production`, mirrors `terraform-test-staging`. Runs after
+  # `release-test-staging`'s deploy so an infra failure is unambiguous.
+  railway-config-test-staging:
+    name: Apply Railway config (staging, test tag)
+    needs: [detect, release-test-staging]
+    if: needs.detect.outputs.is_master_tag == 'false'
+    uses: ./.github/workflows/railway-config.yml
+    with:
+      mode: apply
+      environment: staging
+    secrets: inherit

@@ -27,8 +27,8 @@ aside: false
 | `dashboard-frontend` | `frontend/` | `frontend-unit` + `frontend-e2e` 通過後，`deploy-staging-frontend` 部署 PR 分支 | 無條件部署 |
 | `storybook` | `frontend/`（Storybook build） | 同樣依賴 `frontend-unit` + `frontend-e2e`，由 `deploy-staging-storybook` 部署 | 無條件部署 |
 | `scrape-and-analyze` | `src/`（主 worker，`docker-compose.yml` 的 `app`） | `src-unit-test` + `src-integration-test` 通過後，`deploy-staging-src` 部署 | 無條件部署 |
-| `weekly-report` | `src/`（與 `scrape-and-analyze` 共用程式碼與 Dockerfile，`src/railway.toml` 覆寫成獨立 start command） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-weekly-report` 部署 | 無條件部署 |
-| `refresh-metrics` | `src/`（同上，`src/railway.toml` 另一組 start command 覆寫） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-refresh-metrics` 部署 | 無條件部署 |
+| `weekly-report` | `src/`（與 `scrape-and-analyze` 共用程式碼與 `src/Dockerfile`；startCommand／cronSchedule／`UV_GROUP` 都在 `.railway/railway.ts` 宣告，`railway config apply` 套用） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-weekly-report` 部署 | 無條件部署 |
+| `refresh-metrics` | `src/`（同上，部署設定在 `.railway/railway.ts`） | 同樣依賴 `src-unit-test` + `src-integration-test`，由 `deploy-staging-refresh-metrics` 部署 | 無條件部署 |
 | `fastembed` | `fastembed/` | 只依賴 `src-unit-test` 通過，由 `deploy-staging-fastembed` 部署 | 無條件部署 |
 | `chatbot-plugin` | `chatbot-plugin/`（submodule） | 只依賴 `src-unit-test` 通過，由 `deploy-staging-chatbot` 部署 submodule pointer 目前指向的 commit — 不管有沒有打 tag | **有條件**：只有 submodule 目前 commit 在*`chatbot-plugin` 自己的 repo*裡有對應 `v*` tag 才會部署，否則整個服務被跳過（詳見第 5 節） |
 

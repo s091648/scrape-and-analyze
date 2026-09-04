@@ -27,9 +27,10 @@ from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
 from backend.routers.bootstrap import router as bootstrap_router
 from backend.routers.search import router as search_router
-from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV
+from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV, GEOIP_DB_PATH
 from backend.schemas.error import error_responses
 from backend.observability import configure_logging, setup_tracing
+from shared.utils.geoip import configure as configure_geoip
 
 if SENTRY_DSN:
     import sentry_sdk
@@ -37,6 +38,7 @@ if SENTRY_DSN:
 
 configure_logging(APP_ENV)
 _tracer_provider = setup_tracing(APP_ENV)
+configure_geoip(GEOIP_DB_PATH)
 
 
 async def _periodic_view_flush():

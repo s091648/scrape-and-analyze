@@ -11,16 +11,19 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 
 # Which src/ dependency groups this service needs (space-separated).
-# Railway auto-injects a same-named service variable into ARGs at build time —
-# set UV_GROUPS per-service in the Railway dashboard, no railway.toml needed:
-#   worker          → (unset; default below) "scraper llm http-clients"
-#   weekly-report   → "llm http-clients"
-#   refresh-metrics → "http-clients metrics"
-#   dedup-reconcile → "http-clients"
-ARG UV_GROUPS="scraper llm http-clients"
+# Railway auto-injects a same-named service variable into build ARGs — UV_GROUP
+# is a Terraform-managed service variable (infra/terraform/railway/<service>.tf,
+# var.uv_group_<service>), NOT a manual dashboard entry:
+#   scrape-and-analyze → (no override; the default below) "scraper llm http-clients"
+#   weekly-report      → "llm http-clients"
+#   refresh-metrics    → "http-clients metrics"
+#   dedup-reconcile    → "http-clients"
+#   rag-backfill       → "scraper http-clients"
+# NB: the ARG name MUST match the variable name exactly (Railway matches by name).
+ARG UV_GROUP="scraper llm http-clients"
 RUN set -eu; \
     GROUP_FLAGS=""; \
-    for g in $UV_GROUPS; do GROUP_FLAGS="$GROUP_FLAGS --group $g"; done; \
+    for g in $UV_GROUP; do GROUP_FLAGS="$GROUP_FLAGS --group $g"; done; \
     uv sync --frozen $GROUP_FLAGS \
         --group observability \
         --no-group backend \

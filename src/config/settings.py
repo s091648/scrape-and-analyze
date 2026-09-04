@@ -32,6 +32,14 @@ TRANSLATION_LANGUAGES: list[str] = [
 # Scraper runtime flag — disables the 0–3 min startup jitter when set.
 RUN_IMMEDIATELY: bool = _bool("RUN_IMMEDIATELY")
 
+
+def get_run_immediately() -> bool:
+    """Re-reads RUN_IMMEDIATELY at call time instead of returning the import-time-frozen
+    constant above — callers that need to see a value set/unset after this module was
+    first imported (e.g. per-test-case) MUST use this instead of reading os.environ
+    directly (025-iac-provisioning US5, FR-016)."""
+    return _bool("RUN_IMMEDIATELY")
+
 # Email (Resend) — used by the weekly report email notifier
 RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM_EMAIL: str = os.environ.get("RESEND_FROM_EMAIL", "")
@@ -83,6 +91,19 @@ GRAFANA_LOKI_USER: Optional[str] = os.environ.get("GRAFANA_LOKI_USER") or None
 GRAFANA_API_KEY: Optional[str] = os.environ.get("GRAFANA_API_KEY") or None
 GRAFANA_OTLP_USER: str = os.environ.get("GRAFANA_OTLP_USER", "").strip()
 GRAFANA_OTLP_ENDPOINT: str = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()
+
+
+def get_grafana_loki_config() -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Re-reads GRAFANA_LOKI_URL/GRAFANA_LOKI_USER/GRAFANA_API_KEY at call time instead of
+    returning the import-time-frozen constants above — configure_loki() runs once at
+    process startup (after any test fixture has already set/unset these env vars for its
+    case), so it MUST use this instead of reading os.environ directly (025-iac-provisioning
+    US5, FR-016). Returns (url, user, key)."""
+    return (
+        os.environ.get("GRAFANA_LOKI_URL") or None,
+        os.environ.get("GRAFANA_LOKI_USER") or None,
+        os.environ.get("GRAFANA_API_KEY") or None,
+    )
 
 # Collection API clients
 # OpenAlex's polite-pool "mailto" identifier reuses CONTACT_EMAIL (same bot-identity

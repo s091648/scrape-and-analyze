@@ -17,7 +17,9 @@
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
 	storybook build-storybook \
 	lighthouse-check \
-	site-preview uml uml-backend uml-db-schema uml-exceptions uml-frontend uml-frontend-deps uml-frontend-context
+	site-preview uml uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend uml-frontend-deps uml-frontend-context \
+	terraform-fmt terraform-validate terraform-plan terraform-apply terraform-drift-check terraform-force-unlock push-tfvars \
+	railway-cli railway-config-plan railway-config-apply railway-config-pull railway-config-migrate
 
 # load environment file so targets can see variables like REMOTE_RAILWAY_DB_URL
 ifneq (,$(wildcard .env))
@@ -332,7 +334,7 @@ test-all:
 
 # ─── UML generation ──────────────────────────────────────────────────────────
 
-uml: uml-backend uml-db-schema uml-exceptions uml-frontend
+uml: uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend
 
 uml-backend:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_uml.py"
@@ -343,6 +345,36 @@ uml-db-schema:
 uml-exceptions:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_exceptions.py"
 
+# Static HCL parsing only (python-hcl2) — never calls `terraform` itself, no
+# credentials needed. See site/guide/architecture/terraform-services.md.
+uml-terraform-docs:
+	docker compose run --rm -v "$(CURDIR)/site:/app/site" job_service sh -c "python /app/scripts/generate_terraform_docs.py"
+
+# Per-module interface reference (inputs/outputs/requirements) via the official
+# terraform-docs tool — complements uml-terraform-docs above, which documents
+# *usage* (which service sets which variable), not each module's own interface.
+# Runs the official image directly (not job_service — it's a Go binary, no
+# reason to bundle it into the Python image); output is build-artifact-only
+# fragments consumed by site/guide/architecture/terraform-modules.md via
+# VitePress's @include, never hand-maintained or committed back into the
+# modules' own directories.
+TF_DOCS_IMAGE := quay.io/terraform-docs/terraform-docs:0.20.0
+# Source tree (gitignored), not site/public/ — these are raw fragments with no
+# frontmatter, spliced into site/guide/architecture/terraform-modules.md via
+# VitePress's <!--@include:--> at build time; never meant to be visited as
+# their own pages, unlike the site/public/*.json data files the Vue viewers fetch.
+TF_DOCS_OUT := site/guide/architecture/terraform-modules
+
+uml-terraform-modules:
+	@mkdir -p $(TF_DOCS_OUT)
+	@for m in github-ci-config; do \
+		echo "terraform-docs: modules/$$m"; \
+		MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/infra/terraform/railway:/terraform-docs:ro" -w /terraform-docs \
+			$(TF_DOCS_IMAGE) --config /terraform-docs/.terraform-docs.yml markdown table modules/$$m \
+			| python scripts/wrap_terraform_module_doc.py "$$m" \
+			> $(TF_DOCS_OUT)/$$m.md; \
+	done
+
 uml-frontend: uml-frontend-deps uml-frontend-context
 
 uml-frontend-deps:
@@ -350,4 +382,179 @@ uml-frontend-deps:
 
 uml-frontend-context:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
+
+# -----------------------------------------------------------------------
+# Infra (infra/terraform/railway/ — 025-iac-provisioning)
+#
+# Two independent halves, same secrets/*.tfvars source of truth:
+#   terraform-*             -> GitHub Actions secrets/variables only (github-ci.tf),
+#                             HCP Terraform backend, `terraform` binary on PATH
+#                             (local-exec), NOT a container.
+#   railway-config-*        -> every Railway service's deploy config AND env vars,
+#                             via .railway/railway.ts + `railway config` (Revision
+#                             6). Runs in the railway_cli container — see the
+#                             `railway-config-*` targets further down + .railway/README.md.
+#
+# Credentials: infra/terraform/railway/.env (gitignored, IaC-operator only —
+# NOT loaded via the root `include .env`). Template: that dir's .env.example.
+#   TF_API_TOKEN / TF_GITHUB_TOKEN                -> terraform (HCP + github provider)
+#   RAILWAY_TOKEN_{STAGING,PRODUCTION}            -> railway-config-* (per-env project token)
+# Every other value comes from secrets/{shared,$(ENV)}.tfvars.
+#
+# Usage: make terraform-plan ENV=staging (default) | make terraform-apply ENV=production
+#        make railway-config-plan ENV=staging
+# TARGET= narrows terraform plan/apply to one address (Terraform's -target).
+# -----------------------------------------------------------------------
+
+TF_DIR := infra/terraform/railway
+TF_ENV_FILE := infra/terraform/railway/.env
+ENV ?= staging
+# Terraform reads only the GitHub-side tfvars; the railway-*.tfvars are exploded
+# into the environment by scripts/tfvars_to_env.py for `railway config`.
+TF_VARFILES := -var-file=secrets/github-shared.tfvars -var-file=secrets/github-$(ENV).tfvars
+TF_LOAD_ENV = set -a; test -f $(TF_ENV_FILE) && . $(TF_ENV_FILE); set +a; export TF_WORKSPACE="$(ENV)"; export TF_TOKEN_app_terraform_io="$$TF_API_TOKEN"; export GITHUB_TOKEN="$$TF_GITHUB_TOKEN"; export TF_VAR_github_token="$$TF_GITHUB_TOKEN";
+TARGET ?=
+_TF_TARGET := $(if $(TARGET),-target=$(TARGET),)
+_TF_ENV_GUARD = test "$(ENV)" = staging -o "$(ENV)" = production || (echo "ENV must be 'staging' or 'production' (got '$(ENV)')"; exit 1)
+
+terraform-fmt:
+	@terraform -chdir=$(TF_DIR) fmt -check -recursive
+
+terraform-validate:
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false -backend=false >/dev/null && terraform -chdir=$(TF_DIR) validate
+
+terraform-plan:
+	@$(_TF_ENV_GUARD)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) plan $(TF_VARFILES) $(_TF_TARGET)
+
+terraform-apply:
+	@$(_TF_ENV_GUARD)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false && terraform -chdir=$(TF_DIR) apply $(TF_VARFILES) $(_TF_TARGET)
+
+terraform-drift-check:
+	@$(_TF_ENV_GUARD)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) init -input=false; \
+	terraform -chdir=$(TF_DIR) plan $(TF_VARFILES) -detailed-exitcode -no-color; code=$$?; \
+	if [ $$code -eq 0 ]; then echo "[$(ENV)] in sync — no drift"; \
+	elif [ $$code -eq 2 ]; then echo "[$(ENV)] DRIFT DETECTED — see plan output above"; \
+	else echo "[$(ENV)] terraform plan failed (exit $$code)"; exit $$code; fi
+
+# Sync the six git-ignored secrets/{github,railway}-{shared,staging,production}.tfvars
+# to GitHub Actions secrets (TF_TFVARS_GITHUB_SHARED / _RAILWAY_STAGING / ...,
+# base64) so .github/workflows/terraform.yml can materialize them at apply time.
+# Run after editing any value. Needs `gh` authenticated with repo secrets:write.
+push-tfvars:
+	@for layer in github-shared github-staging github-production railway-shared railway-staging railway-production; do \
+		f="infra/terraform/railway/secrets/$$layer.tfvars"; \
+		test -f "$$f" || { echo "missing $$f — copy from $$f.example and fill in"; exit 1; }; \
+		up=$$(echo "$$layer" | tr 'a-z-' 'A-Z_'); \
+		base64 -w0 < "$$f" 2>/dev/null | gh secret set "TF_TFVARS_$$up" || \
+		base64 < "$$f" | tr -d '\n' | gh secret set "TF_TFVARS_$$up"; \
+		echo "set TF_TFVARS_$$up from $$f"; \
+	done
+
+# Recover from a stale state lock (e.g. an interrupted plan/apply never
+# released it) — the LOCK ID is printed in the "Error acquiring the state
+# lock" message. Only safe when no other terraform operation against this
+# workspace is actually still running.
+# Usage: make terraform-force-unlock ENV=staging LOCK_ID=<id>
+LOCK_ID ?=
+terraform-force-unlock:
+	@test -n "$(LOCK_ID)" || (echo "LOCK_ID must be set — copy it from the 'Error acquiring the state lock' message"; exit 1)
+	@$(TF_LOAD_ENV) terraform -chdir=$(TF_DIR) force-unlock -force $(LOCK_ID)
+
+# Railway service env vars are now part of .railway/railway.ts — pushed by
+# `make railway-config-apply` (Revision 6), not a separate script. The old
+# scripts/push_railway_variables.py + railway-services.json path was retired in
+# T6-09; `railway config plan` is the drift check.
+
+# ---------------------------------------------------------------------------
+# Railway IaC (.railway/railway.ts + `railway config`) — the Windows CLI can't
+# evaluate the .ts config, so everything runs in the `railway_cli` container
+# (Node + Railway CLI; .railway/Dockerfile; compose profile `tools`).
+#
+# AUTH — `railway config` needs a Railway PROJECT token (same as the
+# `railwayapp/config` GitHub Action). A project token is bound to ONE environment
+# and `railway config` resolves which env to plan/apply FROM the token — so the
+# slot you fill must hold a token for that env. Put one per env in
+# infra/terraform/railway/.env:
+#     RAILWAY_TOKEN_STAGING=...        RAILWAY_TOKEN_PRODUCTION=...
+# (Railway dashboard → project → Settings → Tokens → New Token → pick the env.)
+# The targets read RAILWAY_TOKEN_<ENV> (falling back to a bare RAILWAY_TOKEN in
+# the same file) and pass it as `-e RAILWAY_TOKEN=` into the container for that
+# one command — nothing is baked into the image. The `make railway-cli` shell
+# stays token-free so `railway login --browserless` / `railway link` work there
+# (state persists in the /root/.railway volume); if no token resolves, the
+# targets fall back to that persisted login. Confirm a token's env with
+# `railway status` inside `make railway-cli`.
+#
+# Each target is DUAL-MODE: on the host it resolves the token and re-invokes
+# itself inside the container; in the container (RAILWAY_CLI=1, set by compose)
+# it runs `railway` directly against whatever RAILWAY_TOKEN was injected.
+#
+#   make railway-cli                         # token-free shell (railway login / link here)
+#   make railway-config-plan  ENV=staging    # preview — safe, changes nothing
+#   make railway-config-plan  ENV=production
+#   make railway-config-apply ENV=staging    # apply (interactive confirm)
+#   make railway-config-pull  ENV=staging    # fresh ground truth -> .railway/pulled.staging.ts
+#                                            #   (your .railway/railway.ts is left untouched)
+#   make railway-config-migrate              # fold every railway.toml into .railway/railway.ts
+#
+# Extra flags: ARGS="--out railway-plan.json"
+# ---------------------------------------------------------------------------
+ARGS ?=
+_RC_UC := $(shell printf '%s' '$(ENV)' | tr '[:lower:]' '[:upper:]')
+# Host side: read RAILWAY_TOKEN_<ENV> from infra/terraform/railway/.env and pass
+# it to `docker compose run` as -e RAILWAY_TOKEN (only if non-empty). No bare
+# RAILWAY_TOKEN fallback — that value's environment is ambiguous and `railway
+# config` has no --environment flag, so a wrong token = a wrong-env apply. If the
+# var is empty the command uses the persisted `railway login` session in the
+# /root/.railway volume against WHATEVER `railway link` last selected — run
+# `railway status` in `make railway-cli` to confirm it matches ENV.
+_RC_RUN = tok=$$(set -a; . $(TF_ENV_FILE) 2>/dev/null; set +a; printenv RAILWAY_TOKEN_$(_RC_UC) 2>/dev/null || true); \
+	test -n "$$tok" && echo "→ auth: RAILWAY_TOKEN_$(_RC_UC) from $(TF_ENV_FILE)" || echo "→ auth: persisted 'railway login' session (ENV=$(ENV) not enforced — check 'railway status')"; \
+	docker compose run --rm -it $${tok:+-e RAILWAY_TOKEN=$$tok} railway_cli make
+# In-container: the genuine CLI carries the IaC engine, but if a `railway` npm SDK
+# ever lands in node_modules it gets used instead and its version self-check runs
+# `$$_  --version` — which under make/sh is not `railway`. Pin `_` so that check
+# (harmlessly) sees the real CLI.
+_RC_EXEC := env _=/usr/local/bin/railway railway
+
+railway-cli:
+	@docker compose run --rm -it railway_cli bash
+
+railway-config-plan:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config plan $(ARGS)
+else
+	@$(_RC_RUN) railway-config-plan ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-apply:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config apply $(ARGS)
+else
+	@$(_RC_RUN) railway-config-apply ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-pull:
+	@$(_TF_ENV_GUARD)
+ifdef RAILWAY_CLI
+	@cp .railway/railway.ts .railway/.railway.ts.keep && \
+	 $(_RC_EXEC) config pull $(ARGS) && \
+	 mv .railway/railway.ts .railway/pulled.$(ENV).ts && \
+	 mv .railway/.railway.ts.keep .railway/railway.ts && \
+	 echo "wrote .railway/pulled.$(ENV).ts — diff it against .railway/railway.ts"
+else
+	@$(_RC_RUN) railway-config-pull ENV=$(ENV) ARGS='$(ARGS)'
+endif
+
+railway-config-migrate:
+ifdef RAILWAY_CLI
+	@$(_RC_EXEC) config migrate $(ARGS)
+else
+	@$(_RC_RUN) railway-config-migrate ENV=$(ENV) ARGS='$(ARGS)'
+endif
 

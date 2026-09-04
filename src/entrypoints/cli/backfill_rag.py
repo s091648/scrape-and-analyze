@@ -7,8 +7,8 @@ Usage:
     uv run python -m src.entrypoints.cli.backfill_rag
     uv run python -m src.entrypoints.cli.backfill_rag --limit 500
 
-Deployed as its own Railway Cron Service (see src/railway.toml), separate
-from the scraper worker, refresh-metrics, and dedup-reconcile.
+Deployed as its own Railway Cron Service (see src/railway-rag-backfill.toml),
+separate from the scraper worker, refresh-metrics, and dedup-reconcile.
 
 Component reuse:
     build_rag_backfill_pipeline() (src/bootstrap.py) reuses

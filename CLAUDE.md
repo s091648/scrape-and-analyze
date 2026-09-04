@@ -28,6 +28,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `make translate LANG=zh-TW` | Translate article analyses; supports `LIMIT=` |
 | `make pg_init` | Stamp legacy DB with alembic baseline (one-time, for DBs without alembic_version) |
 
+### Infrastructure (`infra/terraform/railway/`)
+
+Two halves, one `secrets/*.tfvars` source of truth (`github-*` for Terraform, `railway-*` fed to `railway config`):
+- **GitHub Actions secrets/variables** — Terraform (`github-ci.tf`, `github` provider, HCP backend). CI: `.github/workflows/terraform.yml`.
+- **Railway service deploy config + env vars** — `.railway/railway.ts` + `railway config plan|apply` (Revision 6; replaced `railway.toml` / `src/railway-<svc>.toml` / `scripts/push_railway_variables.py` / `railway-services.json`). Secret / `${{…}}`-reference values come from `scripts/tfvars_to_env.py` (reads `secrets/railway-*.tfvars`) → `process.env`. CI: `.github/workflows/railway-config.yml`. Runs in the `railway_cli` container — see `.railway/README.md`.
+
+| Command | Purpose |
+|---|---|
+| `make terraform-fmt` / `make terraform-validate` | GitHub-side config only (flat root, no `ENV`) |
+| `make terraform-plan ENV=staging\|production` | Preview GitHub Actions secrets/variables changes. `ENV` sets `TF_WORKSPACE` + layers `-var-file=secrets/github-shared.tfvars -var-file=secrets/github-<env>.tfvars` |
+| `make terraform-apply ENV=staging\|production` | Apply GitHub-side (needs `infra/terraform/railway/.env` — template `.env.example` — + `secrets/*.tfvars`) |
+| `make terraform-drift-check ENV=staging\|production` | GitHub-side `terraform plan -detailed-exitcode` (exit 2 = drift) |
+| `make railway-config-plan ENV=staging\|production` | Preview `.railway/railway.ts` vs live (in the `railway_cli` container). `make railway-config-apply` to apply; `railway-config-pull` / `railway-config-migrate` also available. Drift check = a clean `plan` |
+| `make push-tfvars` | Sync the six `secrets/{github,railway}-{shared,staging,production}.tfvars` to GitHub Actions secrets `TF_TFVARS_{GITHUB,RAILWAY}_*` (base64) — consumed by both `terraform.yml` and `railway-config.yml` |
+| `make uml-terraform-docs` | Regenerate the `site/guide/architecture/terraform-services.md` catalog from `railway-services.json` (retained as the docs/name-map source) + `github-ci.tf` |
+
 Run a single test file: `uv run pytest src/tests/unit/test_foo.py`
 Run a single test: `uv run pytest src/tests/unit/test_foo.py::test_bar -v`
 Run backend tests: `uv run pytest backend/tests/`
@@ -65,6 +81,7 @@ Three services sharing one PostgreSQL database:
 - **`backend/`** — FastAPI REST API (port 8000) serving the frontend
 - **`frontend/`** — Next.js 16 + React 19 web UI (port 3000)
 - **`models/`** — Shared SQLAlchemy ORM models used by both `src/` and `backend/`
+- **`infra/terraform/railway/`** + **`.railway/`** — IaC for the two deploy environments, one `secrets/*.tfvars` source of truth (`github-*` → Terraform, `railway-*` → `railway config`), split in two: (1) a flat **Terraform** root (`github-ci.tf` + `modules/github-ci-config`, `github` provider, per-env HCP workspace via `TF_WORKSPACE`) manages the GitHub Actions secrets/variables `ci.yml`/`release.yml` read — CI: `.github/workflows/terraform.yml`; (2) **`.railway/railway.ts`** + `railway config plan|apply` (Revision 6) manages every Railway service's deploy config and env vars — non-secret values are literals in `.railway/constants.ts`, secret / `${{…}}`-reference values come from `scripts/tfvars_to_env.py` → `process.env` — CI: `.github/workflows/railway-config.yml` (called from `ci.yml`/`release.yml` like `terraform.yml`). Runs in the `railway_cli` compose container (the Windows CLI can't evaluate the `.ts`). Railway's managed DBs (Redis/Postgres) stay hands-off (FR-014). See `.railway/README.md`, `infra/terraform/railway/README.md`, `specs/025-iac-provisioning/`.
 
 ### API Proxy Pattern
 
@@ -192,5 +209,5 @@ AI PR reviewer (`coderabbitai`) runs on all PRs.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at `specs/024-async-pipeline-refactor/plan.md`.
+at `specs/025-iac-provisioning/plan.md`.
 <!-- SPECKIT END -->
