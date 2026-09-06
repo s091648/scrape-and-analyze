@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { getSessionId } from '@/lib/session-id'
 
 const STORAGE_KEY = 'analytics_session'
@@ -39,5 +39,21 @@ describe('getSessionId', () => {
   it('recovers from a corrupt stored value', () => {
     sessionStorage.setItem(STORAGE_KEY, 'not json')
     expect(getSessionId()).toBeTruthy()
+  })
+
+  describe('crypto.randomUUID unavailable', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('falls back to a weak generated id when crypto.randomUUID throws', () => {
+      vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+        throw new Error('not available')
+      })
+      const id = getSessionId()
+      expect(id).toMatch(/^s-/)
+      // Still persisted so subsequent calls in the same tab reuse it.
+      expect(JSON.parse(sessionStorage.getItem(STORAGE_KEY)!).id).toBe(id)
+    })
   })
 })

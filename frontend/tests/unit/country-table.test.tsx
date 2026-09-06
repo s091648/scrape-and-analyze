@@ -16,6 +16,19 @@ function makePrometheusResponse(rows: Array<{ code: string; count: number; role?
   }
 }
 
+function makeCityResponse(rows: Array<{ code: string; city?: string; count: number }>): PrometheusResponse {
+  return {
+    status: 'success',
+    data: {
+      resultType: 'matrix',
+      result: rows.map(r => ({
+        metric: { geo_country: r.code, ...(r.city ? { geo_city: r.city } : {}) },
+        values: [[1700000000, String(r.count)]],
+      })),
+    },
+  }
+}
+
 describe('CountryTable', () => {
   it('shows "No data" when there are no rows', () => {
     render(<CountryTable title="Requests by country" data={null} />)
@@ -112,5 +125,86 @@ describe('CountryTable', () => {
     const row = screen.getByText('United States of America').closest('tr')!
     fireEvent.click(row)
     expect(onSelectCountry).toHaveBeenCalledWith(null)
+  })
+
+  describe('per-city expand/collapse', () => {
+    it('rolls the flat country/city rows up into one row per country, ranked by total', () => {
+      render(
+        <CountryTable
+          title="Requests by country"
+          data={makeCityResponse([
+            { code: 'US', city: 'New York', count: 30 },
+            { code: 'US', city: 'Boston', count: 10 },
+            { code: 'CA', city: 'Toronto', count: 25 },
+          ])}
+        />
+      )
+      const rows = screen.getAllByRole('row').filter(r => r.querySelector('td'))
+      // Collapsed: one row per country, US (40) above CA (25); no city rows yet.
+      expect(rows).toHaveLength(2)
+      expect(rows[0].textContent).toContain('United States of America')
+      expect(rows[0].textContent).toContain('40')
+      expect(rows[1].textContent).toContain('Canada')
+      expect(screen.queryByText('New York')).toBeNull()
+    })
+
+    it('expands a country to reveal its ranked city breakdown, then collapses it again', () => {
+      render(
+        <CountryTable
+          title="Requests by country"
+          data={makeCityResponse([
+            { code: 'US', city: 'New York', count: 30 },
+            { code: 'US', city: 'Boston', count: 10 },
+          ])}
+        />
+      )
+      const countryRow = screen.getByText('United States of America').closest('tr')!
+      fireEvent.click(countryRow)
+
+      const nyCell = screen.getByText('New York')
+      const bostonCell = screen.getByText('Boston')
+      expect(nyCell).toBeDefined()
+      expect(bostonCell).toBeDefined()
+      // City share is of the grand total (40): 30 -> 75.0%, 10 -> 25.0%.
+      const nyRow = nyCell.closest('tr')!
+      expect(nyRow.textContent).toContain('75.0%')
+
+      fireEvent.click(countryRow)
+      expect(screen.queryByText('New York')).toBeNull()
+    })
+
+    it('is not expandable when GeoIP only resolved the country (a single city-less row)', () => {
+      render(
+        <CountryTable
+          title="Requests by country"
+          data={makeCityResponse([{ code: 'US', count: 10 }])}
+        />
+      )
+      const countryRow = screen.getByText('United States of America').closest('tr')!
+      fireEvent.click(countryRow)
+      // Nothing to reveal — the "—" city placeholder must not appear as a sub-row.
+      const rows = screen.getAllByRole('row').filter(r => r.querySelector('td'))
+      expect(rows).toHaveLength(1)
+    })
+
+    it('still forwards selection when a city sub-row is clicked', () => {
+      const onSelectCountry = vi.fn()
+      render(
+        <CountryTable
+          title="Requests by country"
+          data={makeCityResponse([
+            { code: 'US', city: 'New York', count: 30 },
+            { code: 'US', city: 'Boston', count: 10 },
+          ])}
+          onSelectCountry={onSelectCountry}
+        />
+      )
+      const countryRow = screen.getByText('United States of America').closest('tr')!
+      fireEvent.click(countryRow)
+      onSelectCountry.mockClear()
+
+      fireEvent.click(screen.getByText('New York').closest('tr')!)
+      expect(onSelectCountry).toHaveBeenCalledWith('US')
+    })
   })
 })

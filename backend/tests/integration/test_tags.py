@@ -811,6 +811,35 @@ def test_approve_suggestions_batch_requires_admin(api_client):
     assert r.status_code in (401, 403)
 
 
+def test_approve_suggestions_batch_all_missing_returns_only_failures(api_client, db_session):
+    """Every id unresolvable -> succeeded is empty (so the tag caches are never
+    bumped) and each id is reported back as a failure. Guards the `if succeeded:`
+    branch and the batch loop's not-found path."""
+    ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+
+    r = api_client.post(
+        "/tag-normalization-suggestions/approve-batch",
+        json=ids,
+        headers=_ADMIN_HDR,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["succeeded"] == []
+    assert {f["suggestion_id"] for f in data["failed"]} == set(ids)
+    assert all(f["error"] == "Suggestion not found" for f in data["failed"])
+
+
+def test_approve_suggestions_batch_empty_body_is_a_noop_for_admin(api_client):
+    """An empty id list from an admin: 200 with nothing done — exercises
+    lock_tags_for_update()'s empty-input short-circuit path indirectly and the
+    batch endpoint's zero-iteration case."""
+    r = api_client.post(
+        "/tag-normalization-suggestions/approve-batch", json=[], headers=_ADMIN_HDR,
+    )
+    assert r.status_code == 200
+    assert r.json() == {"succeeded": [], "failed": []}
+
+
 # ---------------------------------------------------------------------------
 # Cache write-through (020-redis-caching-layer, US2)
 # ---------------------------------------------------------------------------
