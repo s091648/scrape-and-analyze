@@ -117,8 +117,12 @@ export function RunWaterfallDialog({
     const hidden = new Set<string>()
     for (const row of allRows) {
       if (collapsed.has(row.span.spanId)) {
-        // Collect all descendant spanIds
-        const stack = tree.get(row.span.spanId) ?? []
+        // Collect all descendant spanIds. Copy the tree's child array — pop()
+        // below would otherwise mutate it in place, emptying tree.get(spanId)
+        // for every consumer downstream in the same render (articleRowStatus's
+        // findStageSpans call, notably, which would then see no stage spans and
+        // report every collapsed article row as 'ok').
+        const stack = [...(tree.get(row.span.spanId) ?? [])]
         while (stack.length) {
           const child = stack.pop()!
           hidden.add(child.spanId)

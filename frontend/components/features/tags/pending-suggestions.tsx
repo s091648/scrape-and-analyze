@@ -45,6 +45,9 @@ export function PendingSuggestions({ suggestions, token, onResolved, onBatchReso
       // tag groups once instead of once per succeeded suggestion.
       const result = await approveSuggestionsBatch(suggestions.map(s => s.id), token)
       if (result.succeeded.length > 0) onBatchResolved(result.succeeded)
+    } catch {
+      // apiFetch already surfaced the failure to the user via a toast; nothing
+      // was resolved, so the suggestions stay in the list for retry.
     } finally {
       setMergingAll(false)
     }

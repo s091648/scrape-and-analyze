@@ -712,6 +712,37 @@ def test_approve_suggestion_repoints_other_pending_suggestion_that_referenced_ne
     assert r2.status_code == 200
 
 
+def test_approve_suggestion_drops_reciprocal_pending_suggestion(api_client, db_session):
+    """A reciprocal pending pair — S1 merges X into Y, S2 merges Y into X — used
+    to survive approval of S1 as a self-referential row (both ids repointed to
+    Y). Approving that leftover would then delete Y (the kept tag) and its
+    article links. The reciprocal row must be dropped up front instead."""
+    art = _article(db_session)
+    tag_x = _tag(db_session, name="recip-x")
+    tag_y = _tag(db_session, name="recip-y")
+    _link(db_session, art, tag_y)  # keep-side tag has a real article link to lose
+
+    s1 = _suggestion(db_session, new_tag=tag_x, existing_tag=tag_y)      # merge X -> Y
+    s2 = _suggestion(db_session, new_tag=tag_y, existing_tag=tag_x)      # reciprocal: merge Y -> X
+    s2_id = str(s2.id)
+
+    r = api_client.post(f"/tag-normalization-suggestions/{s1.id}/approve", headers=_ADMIN_HDR)
+    assert r.status_code == 200
+
+    from sqlalchemy import text
+    # S2 is gone (dropped, not repointed into a self-referential row).
+    assert db_session.execute(
+        text("SELECT 1 FROM tag_normalization_suggestions WHERE id = :id"), {"id": s2_id}
+    ).fetchall() == []
+    # Y survived with its article link intact.
+    assert db_session.execute(
+        text("SELECT count(*) FROM tags WHERE id = :id"), {"id": str(tag_y.id)}
+    ).scalar() == 1
+    assert db_session.execute(
+        text("SELECT count(*) FROM article_tags WHERE tag_id = :id"), {"id": str(tag_y.id)}
+    ).scalar() == 1
+
+
 def test_approve_suggestion_drops_redundant_duplicate_for_same_new_tag(api_client, db_session):
     tag_x = _tag(db_session, name="dup-new")
     tag_y = _tag(db_session, name="dup-existing-1")

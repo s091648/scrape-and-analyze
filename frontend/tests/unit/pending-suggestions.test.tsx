@@ -151,6 +151,29 @@ describe('PendingSuggestions', () => {
     })
   })
 
+  it('recovers when the batch request rejects: nothing resolved, Merge All re-enabled', async () => {
+    const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+    const mockedBatch = vi.mocked(approveSuggestionsBatch)
+    // apiFetch shows its own error toast; the wrapper still rejects.
+    mockedBatch.mockRejectedValue(new Error('Failed to batch approve suggestions'))
+    const onBatchResolved = vi.fn()
+    const onResolved = vi.fn()
+    const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
+    render(
+      <PendingSuggestions
+        suggestions={suggestions} token="tok" onResolved={onResolved} onBatchResolved={onBatchResolved}
+      />
+    )
+    fireEvent.click(screen.getByText('Merge All'))
+    await waitFor(() => {
+      expect(mockedBatch).toHaveBeenCalledTimes(1)
+      expect(onBatchResolved).not.toHaveBeenCalled()
+      expect(onResolved).not.toHaveBeenCalled()
+    })
+    // button is usable again (mergingAll reset in finally)
+    expect(screen.getByText('Merge All').closest('button')).not.toBeDisabled()
+  })
+
   it('toggles collapse on header click', async () => {
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
     render(

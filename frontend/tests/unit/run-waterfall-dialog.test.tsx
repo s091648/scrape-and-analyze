@@ -485,6 +485,85 @@ describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
   })
 })
 
+describe('RunWaterfallDialog article status indicator', () => {
+  const rootSpan = () => makeSpan({ spanId: 'root001', name: 'scraper.run' })
+  const pipelineSpan = () =>
+    makeSpan({
+      spanId: 'art001',
+      parentSpanId: 'root001',
+      name: 'article.pipeline',
+      startTimeUnixNano: '1700000001000000000',
+      endTimeUnixNano: '1700000002000000000',
+      attributes: [{ key: 'article.url', value: { stringValue: 'https://ex.com/a/b' } }],
+    })
+
+  it("renders a failed (✗) indicator when article.scraped.handle errored but the pipeline span did not", async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const scraped = makeSpan({
+      spanId: 'sc001',
+      parentSpanId: 'art001',
+      name: 'article.scraped.handle',
+      startTimeUnixNano: '1700000001000000000',
+      endTimeUnixNano: '1700000001500000000',
+      status: { code: 2 },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([rootSpan(), pipelineSpan(), scraped])}
+      />
+    )
+    const badge = screen.getByTitle('admin.articleStatusFailed')
+    expect(badge.textContent).toBe('✗')
+    // row picks up the error styling too
+    expect(screen.getByText('↳ a/b').closest('td')?.className).toContain('text-destructive')
+  })
+
+  it('renders a partial (▲) indicator when only a later stage failed', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const analyze = makeSpan({
+      spanId: 'an001',
+      parentSpanId: 'art001',
+      name: 'article.analyze',
+      startTimeUnixNano: '1700000001200000000',
+      endTimeUnixNano: '1700000001800000000',
+      status: { code: 2 },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([rootSpan(), pipelineSpan(), analyze])}
+      />
+    )
+    expect(screen.getByTitle('admin.articleStatusPartial').textContent).toBe('▲')
+    expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
+  })
+
+  it('renders no status indicator for a clean pipeline', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([rootSpan(), pipelineSpan()])}
+      />
+    )
+    expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
+    expect(screen.queryByTitle('admin.articleStatusPartial')).toBeNull()
+  })
+})
+
 describe('RunWaterfallDialog SpanBar', () => {
   it('renders span bars in the timeline column', async () => {
     const { RunWaterfallDialog } = await import(
