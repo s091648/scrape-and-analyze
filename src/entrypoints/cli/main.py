@@ -101,8 +101,14 @@ def main() -> None:
 
             async def _build_and_run():
                 nonlocal pipeline_stats
-                pipeline, pipeline_stats = await build_collection_pipeline(jitter_seconds=jitter_seconds)
-                await pipeline.run()
+                from src.infrastructure.persistence.database import dispose_async_engine
+                try:
+                    pipeline, pipeline_stats = await build_collection_pipeline(jitter_seconds=jitter_seconds)
+                    await pipeline.run()
+                finally:
+                    # Close the async engine's pooled connections inside this same
+                    # event loop, before asyncio.run() tears it down.
+                    await dispose_async_engine()
 
             try:
                 asyncio.run(_build_and_run())

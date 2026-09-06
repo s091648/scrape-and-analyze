@@ -92,6 +92,12 @@ class SpanName(StrEnum):
     TAG_NORMALIZATION_HANDLE = "article.tag_normalization.handle"
     ANALYSIS_COMPLETED_HANDLE = "article.analysis_completed.handle"
     ARTICLE_TRANSLATE_HANDLE = "article.translate.handle"
+    ARTICLE_RAG_INGEST = "article.rag_ingest"
+    # Generic wrapper span every *FailedEvent goes through (FailedTaskPersistenceHandler),
+    # so the OTel ERROR status lands on this child span instead of bleeding onto the
+    # parent article.pipeline — that keeps "article.pipeline is ERROR" meaning a hard
+    # failure (couldn't even run the pipeline) vs. a partial/downstream-stage failure.
+    FAILED_TASK_HANDLE = "article.failed_task.handle"
     ANALYSIS_FAILED_HANDLE = "article.analysis_failed.handle"
     TAG_NORMALIZATION_FAILED_HANDLE = "article.tag_normalization_failed.handle"
     TRANSLATION_FAILED_HANDLE = "article.translation_failed.handle"

@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/providers'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
-  getAttr, getResourceAttr, findStageSpans, formatDuration,
+  getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
@@ -195,6 +195,12 @@ export function RunWaterfallDialog({
                 const isDiscoverTask = span.name === SpanName.DISCOVER_TASK
                 const durationMs = spanDurationMs(span)
                 const error = isErrorSpan(span)
+                // For an article.pipeline row: roll up its stage spans so a
+                // downstream-only failure (analysis/translate/RAG) shows as
+                // partial (▲) rather than looking clean.
+                const pipelineStatus = isPipeline
+                  ? articleRowStatus(span, findStageSpans(tree, span.spanId))
+                  : null
                 const isCollapsed = collapsed.has(span.spanId)
                 const methodSpan = !isPipeline && !isTopic && !isDiscoverTask ? splitMethodSpanName(span.name) : null
                 const dbSystem = !isPipeline && !isTopic && !isDiscoverTask ? (getAttr(span, 'db.system') as string | undefined) : undefined
@@ -247,6 +253,9 @@ export function RunWaterfallDialog({
                         {methodSpan && <HttpMethodBadge method={methodSpan.method} />}
                         {dbSystem && <DbSystemBadge system={dbSystem} />}
                         {label}
+                        {pipelineStatus === 'partial' && (
+                          <span className="text-amber-500 ml-1" title={t('admin.articleStatusPartial')}>▲</span>
+                        )}
                       </span>
                     </td>
                     <td className="py-1 px-4 text-right tabular-nums text-muted-foreground whitespace-nowrap">

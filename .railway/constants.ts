@@ -40,6 +40,26 @@ export const RAG_CHUNKING_ENV = {
   RAG_CHUNK_OVERLAP: "150",
   RAG_CHUNK_SIZE: "1500",
   RAG_EMBED_BATCH_SIZE: "70",
+  // Backstop wall-clock cap (seconds) per article's RAG ingestion in the live
+  // pipeline. NOT the daily-quota (RPD) fix — that's the CollectionPipeline
+  // circuit breaker. 0 disables. A healthy large article legitimately takes a
+  // few minutes (shared rate-limited embedding worker), so keep this generous.
+  RAG_INGEST_TIMEOUT_SECONDS: "900",
+} as const;
+
+// Async DB engine pool + per-article text-stage concurrency for the
+// scrape-and-analyze pipeline (src/infrastructure/persistence/database.py +
+// CollectionPipeline). Pinned here — same values as the code defaults — so an
+// on-call can retune Postgres connection pressure from Railway without a code
+// deploy. Keep TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY (code default
+// 10, not pinned) at or under ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW.
+export const ASYNC_DB_ENV = {
+  ASYNC_DB_POOL_SIZE: "10",
+  ASYNC_DB_MAX_OVERFLOW: "10",
+  ASYNC_DB_POOL_TIMEOUT: "120",
+  ASYNC_DB_POOL_RECYCLE: "1800",
+  ASYNC_DB_CONNECT_TIMEOUT: "10",
+  TEXT_STAGE_CONCURRENCY: "10",
 } as const;
 
 // Grafana Cloud ingest endpoints + instance/tenant IDs — NOT the credentials

@@ -12,6 +12,23 @@ import {
 } from '@/components/ui/tooltip'
 import { HTTP_METHOD_COLORS } from './log-detail-dialog'
 
+// RAG embedding rate-limit exceptions (chatbot-plugin-sdk's RateLimitExhausted
+// hierarchy — RpdExhausted/RpmExhausted/TpmExhausted subclass it by quota
+// dimension, dimension="unknown" on the plain base class). Shown as a colored
+// badge instead of the raw class name wherever `rag_ingest.error_type` /
+// `task.exception_type` carries one of these — RPD is the only dimension that
+// won't recover within the run (SlidingWindowStrategy's own RPM/TPM never
+// raise at all; a provider only raises Rpm/TpmExhausted after giving up
+// retrying, and that's expected to self-heal within a minute), hence the
+// distinct (destructive vs. amber) coloring.
+const RATE_LIMIT_DIMENSION_LABELS: Record<string, { i18nKey: string; className: string }> = {
+  RpdExhausted:        { i18nKey: 'admin.rateLimitRpd',     className: 'bg-destructive/15 text-destructive' },
+  RpmExhausted:         { i18nKey: 'admin.rateLimitRpm',     className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  TpmExhausted:         { i18nKey: 'admin.rateLimitTpm',     className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  RateLimitExhausted:   { i18nKey: 'admin.rateLimitUnknown', className: 'bg-muted text-muted-foreground' },
+}
+const RATE_LIMIT_ATTR_KEYS = new Set(['rag_ingest.error_type', 'task.exception_type'])
+
 const STAGE_I18N_KEYS: Record<string, string> = {
   'article.scraped.handle':                'admin.stageLabel_scraped',
   'article.processed.handle':              'admin.stageLabel_processed',
@@ -353,6 +370,12 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
                 // backend request's root span — badge it the same Swagger/FastAPI-docs way
                 // LogsTable colors the Method column, instead of plain text.
                 const method = attr.key === 'http.method' ? attr.value.stringValue : undefined
+                // rag_ingest.error_type / task.exception_type carrying a RateLimitExhausted
+                // subclass name — badge which quota dimension (RPD/RPM/TPM) was hit instead
+                // of the raw class name.
+                const rateLimitInfo = RATE_LIMIT_ATTR_KEYS.has(attr.key) && attr.value.stringValue
+                  ? RATE_LIMIT_DIMENSION_LABELS[attr.value.stringValue]
+                  : undefined
                 return (
                   <tr key={attr.key}>
                     <td className="text-muted-foreground pr-2 py-0.5 whitespace-nowrap align-top font-medium">
@@ -362,6 +385,10 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
                       {method ? (
                         <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-bold not-italic', HTTP_METHOD_COLORS[method] ?? 'bg-muted text-muted-foreground')}>
                           {method}
+                        </span>
+                      ) : rateLimitInfo ? (
+                        <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-bold not-italic', rateLimitInfo.className)}>
+                          🚫 {t(rateLimitInfo.i18nKey)}
                         </span>
                       ) : formatValue(attr.value)}
                     </td>
