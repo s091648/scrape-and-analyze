@@ -449,7 +449,11 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
       每篇文章的 asyncio.Task 各自透過 `get_async_sessionmaker()` 開自己的
       AsyncSession（research.md item 2），從不跨 task 共用。
     """
-    from src.config.settings import RAG_DISPATCH_CONCURRENCY
+    from src.config.settings import (
+        RAG_DISPATCH_CONCURRENCY,
+        RAG_INGEST_TIMEOUT_SECONDS,
+        TEXT_STAGE_CONCURRENCY,
+    )
     from src.infrastructure.persistence.database import get_async_sessionmaker
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
@@ -603,7 +607,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
             event_bus=bus,
             target_languages=TRANSLATION_LANGUAGES,
         )
-        failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo_a)
+        failed_task_handler = FailedTaskPersistenceHandler(
+            failed_task_repository=failed_task_repo_a, pipeline_stats=pipeline_stats,
+        )
 
         await bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
         await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
@@ -628,7 +634,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     if rag_enabled:
         async def rag_downstream_builder(rag_session):
             failed_task_repo_r = AsyncSqlAlchemyFailedTaskRepository(rag_session)
-            failed_task_handler_r = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo_r)
+            failed_task_handler_r = FailedTaskPersistenceHandler(
+                failed_task_repository=failed_task_repo_r, pipeline_stats=pipeline_stats,
+            )
             rag_bus = AsyncInMemoryEventBus()
             await rag_bus.subscribe(RagIngestionFailedEvent, failed_task_handler_r.handle)
             use_case = AsyncIngestArticleForRagUseCase(_rag_ingestion_service)
@@ -729,6 +737,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         llm_service=llm_service,
         rag_service_aclose=_rag_ingestion_service.aclose if rag_enabled else None,
         rag_dispatch_concurrency=RAG_DISPATCH_CONCURRENCY,
+        rag_ingest_timeout=RAG_INGEST_TIMEOUT_SECONDS,
+        failed_task_repo_factory=AsyncSqlAlchemyFailedTaskRepository,
+        text_stage_concurrency=TEXT_STAGE_CONCURRENCY,
     )
 
     logger.info(

@@ -39,7 +39,7 @@ The targets are dual-mode: from the host they spawn the container; inside a
 
 **Auth** — two ways, in this order of preference:
 
-1. **Per-env project token** in git-ignored `infra/terraform/railway/.env` as
+1. **Per-env project token** in git-ignored `infra/terraform/github/.env` as
    `RAILWAY_TOKEN_STAGING` / `RAILWAY_TOKEN_PRODUCTION` (Railway dashboard →
    project → Settings → Tokens → New Token → pick the env). The targets read
    `RAILWAY_TOKEN_<ENV>` and pass it as `-e RAILWAY_TOKEN` for that one command.

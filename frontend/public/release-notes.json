@@ -4,36 +4,20 @@
     "date": "{{RELEASE_DATE}}",
     "changes": [
       {
-        "type": "fix",
-        "description": "Improved service availability by updating backend connection settings for health checks."
-      },
-      {
         "type": "feat",
-        "description": "Automated the generation of technical service documentation for easier reference."
-      },
-      {
-        "type": "feat",
-        "description": "Enhanced monitoring capabilities through new shared observability variable groups."
-      },
-      {
-        "type": "feat",
-        "description": "Introduced a new tool for auditing active environment variables."
+        "description": "Enhanced the analytics dashboard with new visitor charts, session tracking, and city-level geographic data."
       },
       {
         "type": "fix",
-        "description": "Fixed a bug that caused deployment scripts to fail on Windows systems."
+        "description": "Improved the tag management system with support for batch approvals and safer tag merging."
       },
       {
-        "type": "feat",
-        "description": "Improved environment variable synchronization by automatically pruning unused variables during deployment."
-      },
-      {
-        "type": "feat",
-        "description": "Implemented automated provisioning of cloud services and CI configurations using Terraform."
+        "type": "fix",
+        "description": "Resolved stability issues in the scraper pipeline to prevent data processing interruptions."
       },
       {
         "type": "chore",
-        "description": "Updated the application to version 1.6.1."
+        "description": "Updated the user documentation to reflect the latest application changes."
       }
     ]
   },

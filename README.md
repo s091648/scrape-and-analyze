@@ -104,13 +104,13 @@ See [`backend/README.md`](./backend/README.md) and [`frontend/README.md`](./fron
 
 Two deploy environments (staging, production) on Railway. All of their config —
 the GitHub Actions secrets/variables CI reads **and** every Railway service's env
-vars — is declared in `infra/terraform/railway/secrets/*.tfvars` (git-ignored;
+vars — is declared in `infra/terraform/github/secrets/*.tfvars` (git-ignored;
 mirrored to GitHub Actions secrets as base64). Full detail:
-[`infra/terraform/railway/README.md`](./infra/terraform/railway/README.md).
+[`infra/terraform/github/README.md`](./infra/terraform/github/README.md).
 
 ### Normal path (95% of the time)
 
-1. Edit the value in `infra/terraform/railway/secrets/*.tfvars`
+1. Edit the value in `infra/terraform/github/secrets/*.tfvars`
    (`github-*` = GitHub Actions config, `railway-*` = Railway service env vars;
    `*-shared` = both envs, `*-staging` / `*-production` override per env)
 2. `make push-tfvars` — syncs all six tfvars files to the `TF_TFVARS_*` GitHub Actions secrets
@@ -123,7 +123,7 @@ tag. `make push-tfvars` is the only command you have to remember.
 
 ### Applying locally (optional — when you don't want to wait for CI)
 
-Needs `infra/terraform/railway/.env` (copy from `.env.example`). Two toolchains,
+Needs `infra/terraform/github/.env` (copy from `.env.example`). Two toolchains,
 same `secrets/*.tfvars`: `terraform` on PATH for the GitHub half; the
 `railway_cli` compose container for the Railway half (the Windows CLI can't
 evaluate the `.ts`).

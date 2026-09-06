@@ -97,7 +97,10 @@ describe('extractCountryTotals', () => {
     expect(extractCountryTotals({ status: 'success' } as PrometheusResponse)).toEqual({})
   })
 
-  it('sums values per country across the whole time range', async () => {
+  it('reads only the last point per series (not a sum across the range)', async () => {
+    // The query's own [rv] range vector already spans the whole selected time window, so the
+    // last point already equals the correct cumulative total — summing every returned point
+    // would double-count the extra leading point Loki's query_range includes at `start`.
     const { extractCountryTotals } = await import('@/components/features/monitoring/country-map')
     const res: PrometheusResponse = {
       status: 'success',
@@ -109,7 +112,22 @@ describe('extractCountryTotals', () => {
         ],
       },
     }
-    expect(extractCountryTotals(res)).toEqual({ US: 7, CA: 1 })
+    expect(extractCountryTotals(res)).toEqual({ US: 4, CA: 1 })
+  })
+
+  it('merges multiple series for the same country by summing their (each already-latest) values', async () => {
+    const { extractCountryTotals } = await import('@/components/features/monitoring/country-map')
+    const res: PrometheusResponse = {
+      status: 'success',
+      data: {
+        resultType: 'matrix',
+        result: [
+          { metric: { geo_country: 'US', user_role: 'guest' }, values: [[1, '3']] },
+          { metric: { geo_country: 'US', user_role: 'admin' }, values: [[1, '2']] },
+        ],
+      },
+    }
+    expect(extractCountryTotals(res)).toEqual({ US: 5 })
   })
 
   it('skips series with no geo_country label', async () => {
@@ -119,6 +137,45 @@ describe('extractCountryTotals', () => {
       data: { resultType: 'matrix', result: [{ metric: {}, values: [[1, '5']] }] },
     }
     expect(extractCountryTotals(res)).toEqual({})
+  })
+})
+
+describe('extractCountryRoleTotals', () => {
+  it('returns an empty array for null/undefined/error/missing-data input', async () => {
+    const { extractCountryRoleTotals } = await import('@/components/features/monitoring/country-map')
+    expect(extractCountryRoleTotals(null)).toEqual([])
+    expect(extractCountryRoleTotals(undefined)).toEqual([])
+    expect(extractCountryRoleTotals({ status: 'error', error: 'boom' } as any)).toEqual([])
+    expect(extractCountryRoleTotals({ status: 'success' } as PrometheusResponse)).toEqual([])
+  })
+
+  it('groups by (geo_country, user_role) using each series\' last value, merging duplicate keys', async () => {
+    const { extractCountryRoleTotals } = await import('@/components/features/monitoring/country-map')
+    const res: PrometheusResponse = {
+      status: 'success',
+      data: {
+        resultType: 'matrix',
+        result: [
+          { metric: { geo_country: 'US', user_role: 'guest' }, values: [[1, '3'], [2, '4']] },
+          { metric: { geo_country: 'US', user_role: 'admin' }, values: [[1, '1']] },
+          { metric: { geo_country: 'CA', user_role: 'guest' }, values: [[1, '2']] },
+        ],
+      },
+    }
+    expect(extractCountryRoleTotals(res)).toEqual([
+      { code: 'US', role: 'guest', count: 4 },
+      { code: 'US', role: 'admin', count: 1 },
+      { code: 'CA', role: 'guest', count: 2 },
+    ])
+  })
+
+  it('skips series with no geo_country label', async () => {
+    const { extractCountryRoleTotals } = await import('@/components/features/monitoring/country-map')
+    const res: PrometheusResponse = {
+      status: 'success',
+      data: { resultType: 'matrix', result: [{ metric: { user_role: 'guest' }, values: [[1, '5']] }] },
+    }
+    expect(extractCountryRoleTotals(res)).toEqual([])
   })
 })
 

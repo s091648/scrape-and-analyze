@@ -1,4 +1,4 @@
-# infra/terraform/railway  (+ `.railway/`)
+# infra/terraform/github  (+ `.railway/`)
 
 IaC for the two deploy environments (staging, production). One `secrets/*.tfvars` source of truth (see Layout), **two independent halves**:
 
@@ -30,7 +30,7 @@ IaC for the two deploy environments (staging, production). One `secrets/*.tfvars
 ## Layout
 
 ```
-infra/terraform/railway/
+infra/terraform/github/
   versions.tf providers.tf backend.tf   github provider pin / auth / HCP backend (workspace via TF_WORKSPACE)
   variables.tf                          input schema (github_* used; the rest declared only so -var-file doesn't warn)
   locals.tf                             the workspace/app_env check block
@@ -58,7 +58,7 @@ its per-env project token (no `--environment` flag). `make terraform-* ENV=<env>
 
 ## Bootstrap credentials
 
-Read from `infra/terraform/railway/.env` (git-ignored). Copy `.env.example`
+Read from `infra/terraform/github/.env` (git-ignored). Copy `.env.example`
 (tracked — keys + docs, no values). `.env.local` is honoured as a fallback name.
 
 | `.env` key | Used by | Notes |

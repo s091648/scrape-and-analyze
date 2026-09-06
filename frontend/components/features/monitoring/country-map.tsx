@@ -22,20 +22,90 @@ const FOCUS_ZOOM = 4
  * locally instead of hotlinked from a CDN — see frontend/public/data/. */
 const GEO_URL = '/data/world-countries-110m.json'
 
-/** Sums every point in each `geo_country` series across the whole selected time range —
- * the map wants one static total per country, not the per-bucket time series MetricsChart's
- * bar/line charts render. Exported so CountryTable (rendered alongside this map from the same
- * query result) uses the identical aggregation instead of duplicating it. */
+/**
+ * Reads the LAST point of a query_range series, not a sum across every returned point.
+ *
+ * admin.requestsByCountryChart's query is `count_over_time(...[${rv}])` where `rv` is the
+ * *entire* selected time range (matching the StatPanelDef convention elsewhere in this file —
+ * see extractLastValue in monitoring-content.tsx) — every evaluated point already carries the
+ * trailing rv-length window's total ending at that point, so the last point (closest to "now")
+ * already equals the correct cumulative total for the whole selected range on its own.
+ *
+ * Summing across points here instead (the previous implementation) double-counted: Loki's
+ * query_range includes a point at `start` itself in addition to one at `end`, and that `start`
+ * point's own `[rv]` window reaches *before* the requested range began — so a naive sum silently
+ * added one extra rv-length window's worth of stale data on top of the correct total, for every
+ * one of the four time-range filter options.
+ */
+function lastValue(values: [number, string][]): number {
+  const last = values[values.length - 1]
+  return last ? parseFloat(last[1]) : 0
+}
+
+/** Collapses each series down to one total per `geo_country` via lastValue() — the map wants a
+ * single static total per country, not the per-bucket time series MetricsChart's bar/line charts
+ * render, and not the finer geo_city breakdown the query also carries (that's CountryTable's
+ * job, via extractCountryCityTotals below). Exported so CountryTable's map-level total (its
+ * "Share" column denominator) uses the identical aggregation instead of duplicating it. */
 export function extractCountryTotals(res: PrometheusResponse | null | undefined): Record<string, number> {
   const totals: Record<string, number> = {}
   if (!res || 'error' in res || res.status !== 'success' || !res.data) return totals
   for (const series of res.data.result) {
     const code = series.metric.geo_country
     if (!code) continue
-    const sum = series.values.reduce((s, [, v]) => s + parseFloat(v), 0)
-    totals[code] = (totals[code] ?? 0) + sum
+    totals[code] = (totals[code] ?? 0) + lastValue(series.values)
   }
   return totals
+}
+
+export interface CountryCityTotal {
+  code: string
+  /** undefined when GeoIP resolved a country but not a city (older logs, or a city-level
+   * lookup miss) — kept as its own row per country rather than dropped or merged into one. */
+  city?: string
+  count: number
+}
+
+/** Same source query as extractCountryTotals, but keyed by the (geo_country, geo_city) pair
+ * instead of collapsed to country alone — CountryTable's per-city breakdown. */
+export function extractCountryCityTotals(res: PrometheusResponse | null | undefined): CountryCityTotal[] {
+  const totals = new Map<string, CountryCityTotal>()
+  if (!res || 'error' in res || res.status !== 'success' || !res.data) return []
+  for (const series of res.data.result) {
+    const code = series.metric.geo_country
+    if (!code) continue
+    const city = series.metric.geo_city || undefined
+    const val = lastValue(series.values)
+    const key = `${code}::${city ?? ''}`
+    const existing = totals.get(key)
+    if (existing) existing.count += val
+    else totals.set(key, { code, city, count: val })
+  }
+  return Array.from(totals.values())
+}
+
+export interface CountryRoleTotal {
+  code: string
+  role: string
+  count: number
+}
+
+/** Same source query as extractCountryTotals/extractCountryCityTotals, keyed by (geo_country,
+ * user_role) instead — CountryTable's per-country role-mix bar (guest/user/admin proportion). */
+export function extractCountryRoleTotals(res: PrometheusResponse | null | undefined): CountryRoleTotal[] {
+  const totals = new Map<string, CountryRoleTotal>()
+  if (!res || 'error' in res || res.status !== 'success' || !res.data) return []
+  for (const series of res.data.result) {
+    const code = series.metric.geo_country
+    if (!code) continue
+    const role = series.metric.user_role || 'unknown'
+    const val = lastValue(series.values)
+    const key = `${code}::${role}`
+    const existing = totals.get(key)
+    if (existing) existing.count += val
+    else totals.set(key, { code, role, count: val })
+  }
+  return Array.from(totals.values())
 }
 
 interface CountryMapProps {

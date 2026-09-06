@@ -103,6 +103,32 @@ describe('apiFetch', () => {
     expect((options.headers as Headers).get('Authorization')).toBe('Bearer explicit-token')
   })
 
+  it('attaches an X-Session-Id header', async () => {
+    ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
+
+    await markTokenResolved('guest-token-abc')
+    const { apiFetch } = await import('@/lib/api/client')
+
+    await apiFetch('/articles')
+
+    const [, options] = (global.fetch as any).mock.calls[0]
+    expect((options.headers as Headers).get('X-Session-Id')).toBeTruthy()
+  })
+
+  it('reuses the same X-Session-Id across calls', async () => {
+    ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
+
+    await markTokenResolved('guest-token-abc')
+    const { apiFetch } = await import('@/lib/api/client')
+
+    await apiFetch('/articles')
+    await apiFetch('/topics')
+
+    const first = ((global.fetch as any).mock.calls[0][1].headers as Headers).get('X-Session-Id')
+    const second = ((global.fetch as any).mock.calls[1][1].headers as Headers).get('X-Session-Id')
+    expect(first).toBe(second)
+  })
+
   it('sends no Authorization header when the store has no current token', async () => {
     ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
 

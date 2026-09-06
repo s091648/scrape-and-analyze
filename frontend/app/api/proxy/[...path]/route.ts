@@ -57,6 +57,10 @@ async function handler(
     const session = await getServerSession(authConfig)
     const user = session?.user as { id?: string; email?: string; role?: string } | undefined
 
+    // Cap to match the backend's own 64-char truncation so proxy and backend
+    // logs stay correlatable by session_id (the header is untrusted client input).
+    const sessionId = request.headers.get('x-session-id')?.slice(0, 64)
+
     // Parse body for logging (best-effort)
     let parsedBody: unknown = null
     if (bodyText) {
@@ -74,6 +78,7 @@ async function handler(
         ...(user?.id ? { user_id: user.id } : {}),
         ...(user?.email ? { user_email: user.email } : {}),
         ...(user?.role ? { user_role: user.role } : {}),
+        ...(sessionId ? { session_id: sessionId } : {}),
         ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
         user_agent: request.headers.get('user-agent') ?? null,
         ...(parsedBody !== null ? { request_body: redact(parsedBody) } : {}),

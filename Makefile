@@ -369,7 +369,7 @@ uml-terraform-modules:
 	@mkdir -p $(TF_DOCS_OUT)
 	@for m in github-ci-config; do \
 		echo "terraform-docs: modules/$$m"; \
-		MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/infra/terraform/railway:/terraform-docs:ro" -w /terraform-docs \
+		MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/infra/terraform/github:/terraform-docs:ro" -w /terraform-docs \
 			$(TF_DOCS_IMAGE) --config /terraform-docs/.terraform-docs.yml markdown table modules/$$m \
 			| python scripts/wrap_terraform_module_doc.py "$$m" \
 			> $(TF_DOCS_OUT)/$$m.md; \
@@ -384,7 +384,7 @@ uml-frontend-context:
 	docker compose run --rm -v "$(CURDIR)/site:/app/site" frontend sh -c "node /app/scripts/generate-frontend-context.mjs"
 
 # -----------------------------------------------------------------------
-# Infra (infra/terraform/railway/ — 025-iac-provisioning)
+# Infra (infra/terraform/github/ — 025-iac-provisioning)
 #
 # Two independent halves, same secrets/*.tfvars source of truth:
 #   terraform-*             -> GitHub Actions secrets/variables only (github-ci.tf),
@@ -395,7 +395,7 @@ uml-frontend-context:
 #                             6). Runs in the railway_cli container — see the
 #                             `railway-config-*` targets further down + .railway/README.md.
 #
-# Credentials: infra/terraform/railway/.env (gitignored, IaC-operator only —
+# Credentials: infra/terraform/github/.env (gitignored, IaC-operator only —
 # NOT loaded via the root `include .env`). Template: that dir's .env.example.
 #   TF_API_TOKEN / TF_GITHUB_TOKEN                -> terraform (HCP + github provider)
 #   RAILWAY_TOKEN_{STAGING,PRODUCTION}            -> railway-config-* (per-env project token)
@@ -406,8 +406,8 @@ uml-frontend-context:
 # TARGET= narrows terraform plan/apply to one address (Terraform's -target).
 # -----------------------------------------------------------------------
 
-TF_DIR := infra/terraform/railway
-TF_ENV_FILE := infra/terraform/railway/.env
+TF_DIR := infra/terraform/github
+TF_ENV_FILE := infra/terraform/github/.env
 ENV ?= staging
 # Terraform reads only the GitHub-side tfvars; the railway-*.tfvars are exploded
 # into the environment by scripts/tfvars_to_env.py for `railway config`.
@@ -445,7 +445,7 @@ terraform-drift-check:
 # Run after editing any value. Needs `gh` authenticated with repo secrets:write.
 push-tfvars:
 	@for layer in github-shared github-staging github-production railway-shared railway-staging railway-production; do \
-		f="infra/terraform/railway/secrets/$$layer.tfvars"; \
+		f="infra/terraform/github/secrets/$$layer.tfvars"; \
 		test -f "$$f" || { echo "missing $$f — copy from $$f.example and fill in"; exit 1; }; \
 		up=$$(echo "$$layer" | tr 'a-z-' 'A-Z_'); \
 		base64 -w0 < "$$f" 2>/dev/null | gh secret set "TF_TFVARS_$$up" || \
@@ -477,7 +477,7 @@ terraform-force-unlock:
 # `railwayapp/config` GitHub Action). A project token is bound to ONE environment
 # and `railway config` resolves which env to plan/apply FROM the token — so the
 # slot you fill must hold a token for that env. Put one per env in
-# infra/terraform/railway/.env:
+# infra/terraform/github/.env:
 #     RAILWAY_TOKEN_STAGING=...        RAILWAY_TOKEN_PRODUCTION=...
 # (Railway dashboard → project → Settings → Tokens → New Token → pick the env.)
 # The targets read RAILWAY_TOKEN_<ENV> (falling back to a bare RAILWAY_TOKEN in
@@ -504,7 +504,7 @@ terraform-force-unlock:
 # ---------------------------------------------------------------------------
 ARGS ?=
 _RC_UC := $(shell printf '%s' '$(ENV)' | tr '[:lower:]' '[:upper:]')
-# Host side: read RAILWAY_TOKEN_<ENV> from infra/terraform/railway/.env and pass
+# Host side: read RAILWAY_TOKEN_<ENV> from infra/terraform/github/.env and pass
 # it to `docker compose run` as -e RAILWAY_TOKEN (only if non-empty). No bare
 # RAILWAY_TOKEN fallback — that value's environment is ambiguous and `railway
 # config` has no --environment flag, so a wrong token = a wrong-env apply. If the

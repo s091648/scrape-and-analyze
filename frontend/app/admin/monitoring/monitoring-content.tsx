@@ -7,7 +7,8 @@ import { useI18n } from '@/lib/providers'
 import { StatCard } from '@/components/features/monitoring/stat-card'
 import { MetricsChart } from '@/components/features/monitoring/metrics-chart'
 import { CountryPanel } from '@/components/features/monitoring/country-panel'
-import { LogsTable } from '@/components/features/monitoring/logs-table'
+import { LogsTable, type LogFilter } from '@/components/features/monitoring/logs-table'
+import { LogFilterChip } from '@/components/features/monitoring/log-filter-chip'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
 import {
   queryMetricsBatch, queryLokiMetricsBatch, queryLogsBatch,
@@ -68,6 +69,47 @@ function fullRangeVec(seconds: number): string {
   if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))}m`
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
   return `${Math.round(seconds / 86400)}d`
+}
+
+/**
+ * The actual tile size (both the chart's own count_over_time([...]) window and the Loki
+ * query_range `step`) to use for a "trend" chart panel, given the selected time window.
+ *
+ * Every trend ChartPanelDef picks `step` to equal its own inner range-vector literal (a day for
+ * daily-bucketed charts, an hour for hourly ones — see each panel's own comment), so `step`
+ * doubles as the declared tile size. That tile must be clamped down to the selected window
+ * (`totalRangeSeconds`) — otherwise a daily tile with the shortest selectable window (6h) is
+ * bigger than the window itself.
+ *
+ * `renderAs: 'map'` is the one exception (currently just admin.requestsByCountryChart): its
+ * consumer (CountryMap/CountryTable) reads only the query's *last* point rather than rendering
+ * every point as its own bar (see lastValue() in country-map.tsx), so it already uses the
+ * StatPanelDef convention — `step` there is a fixed per-point sampling rate, not a tile to
+ * clamp, and must pass through unchanged.
+ */
+function effectiveChartStep(c: ChartPanelDef, totalRangeSeconds: number): number {
+  const declared = parseInt(c.step, 10)
+  return c.renderAs === 'map' ? declared : Math.min(declared, totalRangeSeconds)
+}
+
+/**
+ * Computes the (rangeVec, start, end, step) a trend chart panel's query should actually use.
+ *
+ * Beyond clamping the tile (see effectiveChartStep), the query's own `start` is shifted forward
+ * by that tile size. Without the shift, Loki's query_range always includes an extra point at
+ * the raw `start` timestamp whose own trailing window reaches *before* the selected range even
+ * began — for a short window that's the *only* point returned, so the chart would silently show
+ * stale, out-of-range data instead of the requested window; for a longer window it shows up as
+ * an extra leading bar that doesn't belong in the selected range either. Shifting `start`
+ * forward by one tile makes the first returned point's own window start exactly at (or after)
+ * the true beginning of the selected range.
+ */
+function chartFetchParams(
+  c: ChartPanelDef, startSec: number, endSec: number, rangeVec: string,
+): { rangeVec: string; start: number; end: number; step: number } {
+  const step = effectiveChartStep(c, endSec - startSec)
+  if (c.renderAs === 'map') return { rangeVec, start: startSec, end: endSec, step }
+  return { rangeVec: fullRangeVec(step), start: startSec + step, end: endSec, step }
 }
 
 const DEFAULT_FILTERS: MonitoringFilters = {
@@ -140,6 +182,14 @@ interface TracesTablePanelDef {
 
 // ── Operations panel descriptors ───────────────────────────────────────────
 
+// Fixed colors so "bot" reads the same (destructive red) as an error/warning elsewhere in this
+// dashboard, and so MetricsChart's legend-when-single-series exception (see metrics-chart.tsx)
+// kicks in — otherwise a window with zero bot traffic would render one unlabeled browser bar.
+const CLIENT_TYPE_CHART_COLORS: Record<string, string> = {
+  bot: 'hsl(347,74%,55%)',      // --destructive (dark) — matches LOG_LEVEL_CHART_COLORS.error
+  browser: 'hsl(217,91%,60%)',  // matches COLORS[0] below
+}
+
 const OPS_SCRAPER_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.totalRuns',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${rv}]))`,                                             step: '3600', tooltipKey: 'admin.totalRunsTooltip' },
   { queryType: 'loki', titleKey: 'admin.newArticles',       buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${rv}]))`,                                           step: '3600', tooltipKey: 'admin.newArticlesTooltip' },
@@ -152,12 +202,14 @@ const OPS_SCRAPER_STATS: StatPanelDef[] = [
 ]
 
 const OPS_SCRAPER_CHARTS: ChartPanelDef[] = [
-  // Daily step: count_over_time([1d]) + step=86400 so each point = that day's article count
-  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                                       step: '86400', height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
+  // Daily tile: count_over_time([rv]) + step=86400, both clamped down (see effectiveChartStep)
+  // when the selected window is shorter than a day — so each point = that day's article count
+  // for a multi-day window, or the whole window's count as a single point for a sub-day one.
+  { queryType: 'loki', titleKey: 'admin.articleVolumeChart',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${rv}]))`,                                                                       step: '86400', height: 240, tooltipKey: 'admin.articleVolumeChartTooltip' },
   // avg() collapses per-run series from unwrap into a single time series
-  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [1h]))`,                                               step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: _rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [1d]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: _rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [1d]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.runDurationChart',      buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event = "execution_completed" | unwrap duration_seconds [${rv}]))`,                                               step: '3600',  height: 240, tooltipKey: 'admin.runDurationChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.articlesBySourceChart', buildQuery: rv => `sum by (source) (count_over_time(${lokiStreamSelector()} | json | event = "analysis_completed" [${rv}]))`,                                                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.articlesBySourceChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.errorsByTypeChart',     buildQuery: rv => `sum by (event) (count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" | json | event != "" [${rv}]))`,                                    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.errorsByTypeChartTooltip' },
 ]
 
 // 020-redis-caching-layer verification: shared/cache/redis_gateway.py emits one "cache_lookup"
@@ -181,26 +233,51 @@ const OPS_BACKEND_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.chatRequestCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="chat_request" [${rv}]))`,                                                step: '3600', tooltipKey: 'admin.chatRequestCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.searchQueryCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event=~"search_query_executed|search_autocomplete_executed" [${rv}]))`,        step: '3600', tooltipKey: 'admin.searchQueryCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.searchFallbackRate',  buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="search_autocomplete_executed" | source="postgres_fallback" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="search_autocomplete_executed" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.searchFallbackRateTooltip' },
+  // Loki has no native distinct-count aggregation — `count(count by (user_id) (...))` is the
+  // documented LogQL idiom: the inner query promotes user_id into a per-series label (one
+  // series per distinct value seen in the window), the outer count() counts those series. Works
+  // uniformly across roles now that guest traffic carries a stable per-visitor fingerprint
+  // instead of the literal "anonymous" for everyone (see _extract_user()'s guest_id fallback).
+  { queryType: 'loki', titleKey: 'admin.uniqueVisitors',      buildQuery: rv => `count(count by (user_id) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`, step: '3600', tooltipKey: 'admin.uniqueVisitorsTooltip' },
+  { queryType: 'loki', titleKey: 'admin.botRequestRate',      buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" | client_type="bot" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.botRequestRateTooltip' },
 ]
 
 const OPS_BACKEND_CHARTS: ChartPanelDef[] = [
-  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart',     buildQuery: _rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d]))`,                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.cacheHitRateByNamespaceChart',  buildQuery: _rv => `sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [1d])) / sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [1d])) * 100`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheHitRateByNamespaceChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart',     buildQuery: rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}]))`,                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheHitRateByNamespaceChart',  buildQuery: rv => `sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheHitRateByNamespaceChartTooltip' },
   // avg() collapses per-request series from unwrap into a single time series, same shape as admin.runDurationChart
-  { queryType: 'loki', titleKey: 'admin.requestDurationTrendChart',     buildQuery: _rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [1h]))`,                          step: '3600',  height: 240, tooltipKey: 'admin.requestDurationTrendChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestDurationTrendChart',     buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                          step: '3600',  height: 240, tooltipKey: 'admin.requestDurationTrendChartTooltip' },
   // topk(10, ...) on all by-label breakdowns below — path/country cardinality is unbounded
   // (every distinct route or every visiting country becomes its own bar/series), so without a
   // cap a busy day turns the chart into an unreadable wall of slivers instead of a ranked list.
-  { queryType: 'loki', titleKey: 'admin.requestsByPathChart',           buildQuery: _rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d])))`,                        step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByPathChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.requestErrorsByPathChart',      buildQuery: _rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 400 [1d])))`,    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestErrorsByPathChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestsByPathChart',           buildQuery: rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`,                        step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByPathChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestErrorsByPathChart',      buildQuery: rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 400 [${rv}])))`,    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestErrorsByPathChartTooltip' },
   // No topk cap here (unlike the path/error breakdowns above) — a choropleth is naturally
   // bounded to ~174 countries by geography, and capping to a top-N would wrongly render
   // every country outside it as "no traffic" gray instead of its actual (smaller) count.
-  { queryType: 'loki', titleKey: 'admin.requestsByCountryChart',        buildQuery: _rv => `sum by (geo_country) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d]))`,                                 step: '86400', height: 240, renderAs: 'map', tooltipKey: 'admin.requestsByCountryChartTooltip' },
+  // Grouped by geo_city and user_role too (unbounded, but CountryTable is the only consumer of
+  // that extra granularity — CountryMap's extractCountryTotals sums back down to geo_country,
+  // ignoring the role label entirely) so all three panels share this one query result instead
+  // of CountryTable firing a second query just for its per-country role-mix bar.
+  //
+  // Unlike every other chart below, this one's *consumer* (CountryMap/CountryTable) collapses
+  // the whole series down to one static total per country instead of rendering a per-bucket
+  // trend — so it uses the StatPanelDef convention instead of these other charts' hardcoded
+  // `[1d]` daily-tile pattern: `rv` is the *entire* selected time range (not a fixed day), and
+  // `step: '3600'` guarantees a point lands exactly on "now" for all four time-range filter
+  // options (6h/24h/3d/7d are all whole multiples of an hour) — extractCountryTotals &co. then
+  // read only that last point (see lastValue() in country-map.tsx). The old `[1d]`/step=86400
+  // pairing double-counted: summing every returned point included one extra trailing day of
+  // stale data outside the selected window, for every one of the four filter options.
+  { queryType: 'loki', titleKey: 'admin.requestsByCountryChart',        buildQuery: rv => `sum by (user_role, geo_country, geo_city) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                 step: '3600', height: 240, renderAs: 'map', tooltipKey: 'admin.requestsByCountryChartTooltip' },
   // backend/middleware/logging.py's _extract_user() always sets user_role (defaults to
   // "guest" for no-token/guest-token/decode-failure), so this always shows a real
   // guest/user/admin split instead of guest traffic falling into an unlabeled "(other)" bucket.
-  { queryType: 'loki', titleKey: 'admin.requestsByRoleChart',           buildQuery: _rv => `sum by (user_role) (count_over_time(${lokiStreamSelector()} | json | event="request" [1d]))`,                                step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByRoleChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestsByRoleChart',           buildQuery: rv => `sum by (user_role) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByRoleChartTooltip' },
+  // Same count-distinct idiom as admin.uniqueVisitors, kept per-role here instead of collapsed
+  // to one scalar.
+  { queryType: 'loki', titleKey: 'admin.uniqueVisitorsByRoleChart',     buildQuery: rv => `count by (user_role) (count by (user_role, user_id) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.uniqueVisitorsByRoleChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestsByClientTypeChart',     buildQuery: rv => `sum by (client_type) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                              step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByClientTypeChartTooltip', seriesColors: CLIENT_TYPE_CHART_COLORS },
 ]
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────
@@ -213,7 +290,7 @@ const LOG_LEVEL_CHART_COLORS: Record<string, string> = {
 
 const LOGS_VOLUME_CHART: ChartPanelDef = {
   titleKey: 'admin.logVolumeChart',
-  buildQuery: _rv => `sum by (${LokiLabel.DETECTED_LEVEL}) (count_over_time(${lokiStreamSelector()}[1m]))`,
+  buildQuery: rv => `sum by (${LokiLabel.DETECTED_LEVEL}) (count_over_time(${lokiStreamSelector()}[${rv}]))`,
   step: '60',
   height: 180,
   tooltipKey: 'admin.logVolumeChartTooltip',
@@ -246,8 +323,8 @@ const TRACES_SCRAPER_STATS: StatPanelDef[] = [
 const TRACES_SCRAPER_SPAN_CHART: ChartPanelDef = {
   queryType: 'loki',
   titleKey: 'admin.spanRateChart',
-  // [1h] + step=3600 (instead of [5m]/300) prevents 576-point range and sparse gaps
-  buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [1h]))`,
+  // 1h tile + step=3600 (instead of 5m/300) prevents 576-point range and sparse gaps
+  buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event = "execution_started" [${rv}]))`,
   step: '3600',
   height: 240,
   tooltipKey: 'admin.spanRateChartTooltip',
@@ -262,7 +339,7 @@ const TRACES_BACKEND_STATS: StatPanelDef[] = [
 const TRACES_BACKEND_SPAN_CHART: ChartPanelDef = {
   queryType: 'loki',
   titleKey: 'admin.requestRateChart',
-  buildQuery: _rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [1h]))`,
+  buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,
   step: '3600',
   height: 240,
   tooltipKey: 'admin.requestRateChartTooltip',
@@ -323,11 +400,17 @@ function useOperationsBatch(
     setLoading(Array(stats.length + charts.length).fill(true))
     const promItems: MetricsBatchItem[] = [
       ...stats.filter(s => s.queryType !== 'loki').map(s => ({ query: s.buildQuery(rangeVec, env), start: startSec, end: endSec, step: s.step })),
-      ...charts.filter(c => c.queryType !== 'loki').map(c => ({ query: c.buildQuery(rangeVec, env), start: startSec, end: endSec, step: c.step })),
+      ...charts.filter(c => c.queryType !== 'loki').map(c => {
+        const p = chartFetchParams(c, startSec, endSec, rangeVec)
+        return { query: c.buildQuery(p.rangeVec, env), start: p.start, end: p.end, step: String(p.step) }
+      }),
     ]
     const lokiItems = [
       ...stats.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
-      ...charts.filter(c => c.queryType === 'loki').map(c => ({ query: applyLokiFilters(c.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: c.step })),
+      ...charts.filter(c => c.queryType === 'loki').map(c => {
+        const p = chartFetchParams(c, startSec, endSec, rangeVec)
+        return { query: applyLokiFilters(c.buildQuery(p.rangeVec), app, environment), start: toNs(p.start), end: toNs(p.end), step: String(p.step) }
+      }),
     ]
     try {
       const [promResults, lokiResults] = await Promise.all([
@@ -383,13 +466,21 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
     setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(true))
     const startNs = toNs(startSec)
     const endNs = toNs(endSec)
-    const allMetricPanels = [LOGS_VOLUME_CHART, ...LOGS_STAT_PANELS]
+    // LOGS_VOLUME_CHART is a trend chart (unlike LOGS_STAT_PANELS) — its own 1-minute tile,
+    // query start, and step need the same clamp-and-shift as OPS_*_CHARTS (see chartFetchParams).
+    const volumeParams = chartFetchParams(LOGS_VOLUME_CHART, startSec, endSec, rangeVec)
     try {
       const [metricResults, logsResults] = await Promise.all([
-        queryLokiMetricsBatch(allMetricPanels.map(p => ({
-          query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment),
-          step: p.step, start: startNs, end: endNs,
-        }))),
+        queryLokiMetricsBatch([
+          {
+            query: applyLokiFilters(LOGS_VOLUME_CHART.buildQuery(volumeParams.rangeVec, env), app, environment),
+            step: String(volumeParams.step), start: toNs(volumeParams.start), end: toNs(volumeParams.end),
+          },
+          ...LOGS_STAT_PANELS.map(p => ({
+            query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment),
+            step: p.step, start: startNs, end: endNs,
+          })),
+        ]),
         queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
           query: applyLokiFilters(p.query, app, environment),
           start: startNs, end: endNs, limit: 500,
@@ -445,9 +536,11 @@ function useTracesBatch(
   const fetchAll = useCallback(async () => {
     setLoading(Array(stats.length + 2).fill(true))
     try {
+      // spanChart is a trend chart (unlike `stats`) — same clamp-and-shift as OPS_*_CHARTS.
+      const spanParams = chartFetchParams(spanChart, startSec, endSec, rangeVec)
       const lokiItems = [
         ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
-        { query: applyLokiFilters(spanChart.buildQuery(rangeVec), app, environment), step: spanChart.step, start: toNs(startSec), end: toNs(endSec) },
+        { query: applyLokiFilters(spanChart.buildQuery(spanParams.rangeVec), app, environment), step: String(spanParams.step), start: toNs(spanParams.start), end: toNs(spanParams.end) },
       ]
       const [lokiResults, tracesResults] = await Promise.all([
         queryLokiMetricsBatch(lokiItems),
@@ -516,9 +609,10 @@ function OpsStatsChartsGrid({
               tableTitle={t('admin.requestsByCountryTable', { range: rangeLabel })} tableTooltip={t('admin.requestsByCountryTableTooltip', { range: rangeLabel })}
               height={p.height} data={cd[i]} loading={loading[stats.length + i]} />
           ) : (
-            <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={p.step} height={p.height}
+            <MetricsChart key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" step={String(effectiveChartStep(p, timeRangeSeconds))} height={p.height}
               chartType={p.chartType} timeRangeSeconds={timeRangeSeconds}
               externalData={cd[i]} externalLoading={loading[stats.length + i]}
+              seriesColors={p.seriesColors}
               tooltip={t(p.tooltipKey, { range: rangeLabel })} />
           )
         ))}
@@ -563,10 +657,20 @@ function LogsTab({
 }) {
   const showRequestColumns = app === LokiAppValue.BACKEND
   const { t } = useI18n()
+  // country / session_id are backend "request"-event fields — drop the filter whenever the App
+  // selector switches, so a stale (and now column-less) filter can't hide every scraper row.
+  // Adjusting state during render on a changed prop, per the React "previous render" pattern —
+  // avoids the extra commit an effect would cost.
+  const [logFilter, setLogFilter] = useState<LogFilter | null>(null)
+  const [filterApp, setFilterApp] = useState(app)
+  if (filterApp !== app) {
+    setFilterApp(app)
+    setLogFilter(null)
+  }
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3 mt-4">
-        <MetricsChart title={t(LOGS_VOLUME_CHART.titleKey, { range: rangeLabel })} query="unused" step={LOGS_VOLUME_CHART.step}
+        <MetricsChart title={t(LOGS_VOLUME_CHART.titleKey, { range: rangeLabel })} query="unused" step={String(effectiveChartStep(LOGS_VOLUME_CHART, timeRangeSeconds))}
           height={LOGS_VOLUME_CHART.height} className="col-span-4" timeRangeSeconds={timeRangeSeconds}
           externalData={md[0]} externalLoading={loading[0]}
           seriesColors={LOGS_VOLUME_CHART.seriesColors}
@@ -578,11 +682,13 @@ function LogsTab({
           </div>
         ))}
       </div>
+      {showRequestColumns && <LogFilterChip filter={logFilter} onClear={() => setLogFilter(null)} />}
       <div className="space-y-3">
         {LOGS_TABLE_PANELS.map((p, i) => (
           <LogsTable key={i} title={t(p.titleKey, { range: rangeLabel })} query="unused" height={p.height}
             externalData={ld[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })}
-            showRequestColumns={showRequestColumns} callerNames={callerNames} />
+            showRequestColumns={showRequestColumns} callerNames={callerNames}
+            logFilter={logFilter} onLogFilterChange={setLogFilter} />
         ))}
       </div>
     </div>
@@ -613,7 +719,7 @@ function TracesTab({
             loading={loading[i]} tooltip={t(p.tooltipKey, { range: rangeLabel })} />
         ))}
       </div>
-      <MetricsChart title={t(spanChart.titleKey, { range: rangeLabel })} query="unused" step={spanChart.step}
+      <MetricsChart title={t(spanChart.titleKey, { range: rangeLabel })} query="unused" step={String(effectiveChartStep(spanChart, timeRangeSeconds))}
         height={spanChart.height} timeRangeSeconds={timeRangeSeconds}
         externalData={cd} externalLoading={loading[stats.length]}
         tooltip={t(spanChart.tooltipKey, { range: rangeLabel })} />
@@ -739,19 +845,11 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
   const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
   const isLoading = activeLoading.some(Boolean)
 
-  // Incrementing refreshKey updates startSec/endSec → only the active tab's hook re-fetches
+  // Incrementing refreshKey updates startSec/endSec → only the active tab's hook re-fetches.
+  // Manual only (via the Refresh button below) — no auto-refresh timer. An idle tab's time
+  // window does freeze at whatever "now" was on last refresh/mount until the operator clicks
+  // Refresh; that's the deliberate tradeoff (was previously a 60s setInterval).
   function handleRefresh() { setRefreshKey(k => k + 1) }
-
-  // Without this, startSec/endSec are only recomputed on mount or a manual Refresh click —
-  // an idle tab's time window silently freezes at whatever "now" was back then, so newly
-  // ingested Grafana Cloud data never appears no matter how long the page is left open. This
-  // just bumps refreshKey on a timer; each batch hook below is still gated by `enabled`
-  // (activeTab === ...), so only the currently visible tab actually re-queries Grafana
-  // Cloud — same one-tab-at-a-time safeguard the manual button already relies on.
-  useEffect(() => {
-    const id = setInterval(() => setRefreshKey(k => k + 1), 60_000)
-    return () => clearInterval(id)
-  }, [])
 
   return (
     <TooltipProvider>

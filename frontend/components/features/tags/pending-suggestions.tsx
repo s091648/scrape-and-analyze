@@ -4,15 +4,16 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useI18n } from '@/lib/providers'
 import type { SuggestionOut } from '@/lib/api/tags'
-import { approveSuggestion, rejectSuggestion } from '@/lib/api/tags'
+import { approveSuggestion, approveSuggestionsBatch, rejectSuggestion } from '@/lib/api/tags'
 
 interface Props {
   suggestions: SuggestionOut[]
   token: string
   onResolved: (id: string) => void
+  onBatchResolved: (ids: string[]) => void
 }
 
-export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
+export function PendingSuggestions({ suggestions, token, onResolved, onBatchResolved }: Props) {
   const { t } = useI18n()
   const [processing, setProcessing] = useState<string | null>(null)
   const [mergingAll, setMergingAll] = useState(false)
@@ -35,10 +36,18 @@ export function PendingSuggestions({ suggestions, token, onResolved }: Props) {
     if (!confirm(t('tags.confirmMergeAll', { count: suggestions.length }))) return
     setMergingAll(true)
     try {
-      for (const s of suggestions) {
-        await approveSuggestion(s.id, token)
-        onResolved(s.id)
-      }
+      // Single batch request instead of one sequential POST per suggestion —
+      // besides the round-trip cost, the old for-loop also aborted entirely
+      // on the first failure, leaving every suggestion after it unresolved.
+      // Suggestions the batch couldn't approve simply stay in the list for
+      // retry, same as batch-move's failed-tag handling. Reported once via
+      // onBatchResolved (not per-id onResolved) so the parent only refetches
+      // tag groups once instead of once per succeeded suggestion.
+      const result = await approveSuggestionsBatch(suggestions.map(s => s.id), token)
+      if (result.succeeded.length > 0) onBatchResolved(result.succeeded)
+    } catch {
+      // apiFetch already surfaced the failure to the user via a toast; nothing
+      // was resolved, so the suggestions stay in the list for retry.
     } finally {
       setMergingAll(false)
     }

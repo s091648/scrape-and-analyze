@@ -3,7 +3,7 @@
 # git-ignored secrets/github-{shared,<env>}.tfvars (mirrored key-for-key by the
 # tracked *.tfvars.example files), layered at apply time:
 #
-#   terraform -chdir=infra/terraform/railway <cmd> \
+#   terraform -chdir=infra/terraform/github <cmd> \
 #     -var-file=secrets/github-shared.tfvars -var-file=secrets/github-<env>.tfvars
 #
 # `-var-file` is applied left-to-right, later wins. Secret vars carry

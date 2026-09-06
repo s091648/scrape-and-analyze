@@ -158,18 +158,64 @@ RAG_EMBED_BATCH_SIZE: int = int(os.environ.get("RAG_EMBED_BATCH_SIZE", "96"))
 RAG_CHUNK_SIZE: int = int(os.environ.get("RAG_CHUNK_SIZE", "500"))
 RAG_CHUNK_OVERLAP: int = int(os.environ.get("RAG_CHUNK_OVERLAP", "50"))
 
+# ── Async DB engine connection pool (src/infrastructure/persistence/database.py) ──
+# The async engine (per-article text tasks + RAG tasks) used to run on NullPool:
+# every `async with sessionmaker()` opened a brand-new asyncpg connection (fresh
+# DNS + TCP + TLS + auth) and closed it after. Under a burst of concurrent
+# article tasks that stampeded asyncio's small default DNS ThreadPoolExecutor;
+# getaddrinfo queued past asyncpg's connect timeout and the connect was
+# cancelled → recorded as a bare TimeoutError, failing the article at the
+# `article.scraped.handle` stage. A bounded QueuePool fixes this: connections
+# are reused within a run (DNS/TLS happen a handful of times, not per-article)
+# and total concurrent connections are hard-capped at POOL_SIZE + MAX_OVERFLOW.
+# Size that cap against Postgres's own max_connections headroom, shared with
+# backend / pgadmin / other jobs — a low-tier managed Postgres plan can have a
+# much lower max_connections than a local/self-hosted one.
+ASYNC_DB_POOL_SIZE: int = int(os.environ.get("ASYNC_DB_POOL_SIZE", "10"))
+ASYNC_DB_MAX_OVERFLOW: int = int(os.environ.get("ASYNC_DB_MAX_OVERFLOW", "10"))
+# Seconds a task waits for a free pooled connection before raising. Generous on
+# purpose: a per-article task holds its connection for the whole (often multi-
+# minute) LLM chain, so under a large burst later tasks legitimately queue for a
+# slot rather than fail. A task that can't get one within this window is stuck.
+ASYNC_DB_POOL_TIMEOUT: float = float(os.environ.get("ASYNC_DB_POOL_TIMEOUT", "120"))
+# Recycle a pooled connection older than this (seconds) — guards against
+# server-side idle timeouts / proxies silently dropping long-lived connections.
+ASYNC_DB_POOL_RECYCLE: int = int(os.environ.get("ASYNC_DB_POOL_RECYCLE", "1800"))
+# asyncpg connect() timeout (seconds). Fail fast on a stuck connect instead of
+# hanging on asyncpg's 60s default while DNS resolution is starved.
+ASYNC_DB_CONNECT_TIMEOUT: float = float(os.environ.get("ASYNC_DB_CONNECT_TIMEOUT", "10"))
+
 # Max number of articles' RAG ingestion allowed to be concurrently in flight
 # (holding open an AsyncSession) in the live pipeline (024-async-pipeline-refactor
-# US6, research.md item 11 follow-up). The async DB engine uses NullPool
-# (src/infrastructure/persistence/database.py) — every open AsyncSession is a
-# real, unshared Postgres connection, so this bounds real DB connections, not
-# embedding-API throughput (that's RAG_DENSE_RPM, a separate concern). Sized
-# against Postgres's own max_connections headroom (shared with backend/pgadmin/
-# other jobs), not against RAG_DENSE_RPM — a low-tier managed Postgres plan can
-# have a much lower max_connections than a local/self-hosted one. Default (10)
-# is a conservative starting point; tune once your actual max_connections and
-# other services' typical concurrent usage are known.
+# US6, research.md item 11 follow-up). Bounds concurrent RAG sessions drawn from
+# the async engine's pool (above), independently of and below its POOL_SIZE +
+# MAX_OVERFLOW cap — not embedding-API throughput (that's RAG_DENSE_RPM, a
+# separate concern). Keep it comfortably under the pool cap so text-stage tasks
+# aren't starved of connections by RAG. Default (10) is a conservative starting
+# point; tune once your actual max_connections and other services' typical
+# concurrent usage are known.
 RAG_DISPATCH_CONCURRENCY: int = int(os.environ.get("RAG_DISPATCH_CONCURRENCY", "10"))
+
+# Max per-article text-stage tasks (scrape→process→analyze→translate) allowed to
+# concurrently hold a pooled AsyncSession + be mid-LLM chain. Barrier 1 fans out
+# one task per article at once; this caps the burst so a large run doesn't try to
+# open a connection for every article simultaneously (the asyncpg connect
+# starvation this addresses). A blocked task just waits for a slot — nothing is
+# dropped. Keep TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY at or under the
+# async pool cap (ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW), leaving a little
+# headroom for run-level/housekeeping sessions.
+TEXT_STAGE_CONCURRENCY: int = int(os.environ.get("TEXT_STAGE_CONCURRENCY", "10"))
+
+# Backstop wall-clock cap (seconds) on a single article's RAG ingestion in the
+# live pipeline. A doomed embedding call (upstream stall, coordinator deadlock,
+# a stuck sparse endpoint) otherwise sits open until the run's own 50-min hard
+# timeout, holding a Barrier-2 slot the whole time. NOT the fix for daily-quota
+# (RPD) exhaustion — that's the circuit breaker in CollectionPipeline, which
+# short-circuits the rest of the run's RAG the moment the first RateLimitExhausted
+# is seen. Set generously: a healthy large article legitimately takes a few
+# minutes (mostly queue wait behind other articles' chunks sharing one
+# rate-limited embedding worker). 0 disables the cap.
+RAG_INGEST_TIMEOUT_SECONDS: float = float(os.environ.get("RAG_INGEST_TIMEOUT_SECONDS", "900"))
 
 
 def missing_rag_config() -> list[str]:

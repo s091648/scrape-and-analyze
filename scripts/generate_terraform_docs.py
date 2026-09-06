@@ -5,14 +5,14 @@ and this catalog reads one source per engine — none of them requires running
 `terraform` / `railway` or any credentials:
 
   1. Railway service ENV VARS + DEPLOY CONFIG — `.railway/railway.ts`
-     (+ `infra/terraform/railway/railway-services.json`, retained after T6-09
+     (+ `infra/terraform/github/railway-services.json`, retained after T6-09
      purely as the var-name / tfvars-key map + this catalog's source; the
      routing authority is `railway.ts`). Managed by `railway config apply`,
      NOT Terraform. Deploy config (cronSchedule, startCommand,
      restartPolicyType, privateNetworkEndpoint) is regex-scraped from
      `railway.ts` here so the page can surface it.
 
-  2. GitHub Actions secrets / variables — `infra/terraform/railway/github-ci.tf`,
+  2. GitHub Actions secrets / variables — `infra/terraform/github/github-ci.tf`,
      still Terraform-managed. Static `python-hcl2` parse, never runs `terraform`.
 
 Output: site/public/guide/architecture/terraform-services-data.json
@@ -26,7 +26,7 @@ from pathlib import Path
 import hcl2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TF_ROOT = REPO_ROOT / "infra" / "terraform" / "railway"
+TF_ROOT = REPO_ROOT / "infra" / "terraform" / "github"
 MANIFEST = TF_ROOT / "railway-services.json"
 GITHUB_CI_TF = TF_ROOT / "github-ci.tf"
 RAILWAY_TS = REPO_ROOT / ".railway" / "railway.ts"
@@ -249,8 +249,8 @@ def generate():
     return {
         "generated_from": [
             ".railway/railway.ts",
-            "infra/terraform/railway/railway-services.json",
-            "infra/terraform/railway/github-ci.tf",
+            "infra/terraform/github/railway-services.json",
+            "infra/terraform/github/github-ci.tf",
         ],
         "services": services,
         "github_ci": github_ci,

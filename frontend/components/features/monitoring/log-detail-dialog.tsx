@@ -14,6 +14,11 @@ export interface LogEntry {
   method?: string
   path?: string
   caller?: string
+  /** GeoIP alpha-2 country code from the backend "request" event's geo_country field. */
+  country?: string
+  /** Per-visit id from the X-Session-Id header (frontend/lib/session-id.ts). Backend "request"
+   * events only. */
+  sessionId?: string
   message: string
   details?: string
   raw: string

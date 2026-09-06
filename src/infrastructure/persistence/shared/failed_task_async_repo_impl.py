@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.collection.domain.entities import FailedTask
@@ -41,3 +43,34 @@ class AsyncSqlAlchemyFailedTaskRepository(AsyncFailedTaskRepository):
             raise
         logger.info("failed_task_saved", task_type=task.task_type,
                     article_id=str(task.article_id) if task.article_id else None)
+
+    async def save_many(self, tasks: Sequence[FailedTask]) -> None:
+        """Persist several FailedTask records in a single transaction/commit."""
+        from models.failed_task import FailedTask as FailedTaskModel
+
+        if not tasks:
+            return
+        rows = [
+            FailedTaskModel(
+                id=task.id,
+                task_type=task.task_type,
+                article_url=task.article_url,
+                article_id=task.article_id,
+                analysis_id=task.analysis_id,
+                exception_type=task.exception_type,
+                exception_message=task.exception_message,
+                context=task.context,
+                traceback=task.traceback,
+                failed_at=task.failed_at,
+                correlation_id=task.correlation_id,
+            )
+            for task in tasks
+        ]
+        self._session.add_all(rows)
+        try:
+            await self._session.commit()
+        except Exception:
+            await self._session.rollback()
+            raise
+        logger.info("failed_tasks_saved_bulk", count=len(rows),
+                    task_type=tasks[0].task_type)
