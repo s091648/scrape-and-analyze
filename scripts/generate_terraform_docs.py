@@ -26,7 +26,7 @@ from pathlib import Path
 import hcl2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TF_ROOT = REPO_ROOT / "infra" / "terraform" / "railway"
+TF_ROOT = REPO_ROOT / "infra" / "terraform" / "github"
 MANIFEST = TF_ROOT / "railway-services.json"
 GITHUB_CI_TF = TF_ROOT / "github-ci.tf"
 RAILWAY_TS = REPO_ROOT / ".railway" / "railway.ts"

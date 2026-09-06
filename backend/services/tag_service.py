@@ -187,6 +187,17 @@ def repoint_pending_suggestions_before_tag_delete(
     if exclude_suggestion_id is not None:
         params["exclude_id"] = str(exclude_suggestion_id)
 
+    # A reciprocal pending suggestion (new_tag_id = keep_tag, existing_tag_id =
+    # dropped_tag) would be turned into a self-referential row — both IDs = keep_tag
+    # — by the repoint below, and later approval of that row would then delete
+    # keep_tag itself along with its article links. This merge already resolves the
+    # pair, so drop those rows outright before repointing.
+    db.execute(text(f"""
+        DELETE FROM tag_normalization_suggestions
+        WHERE existing_tag_id = :new_id AND new_tag_id = :existing_id
+          AND status = 'pending' {exclude_clause}
+    """), params)
+
     # Any other pending suggestion pointing at dropped_tag as ITS existing_tag would
     # otherwise be cascade-deleted when dropped_tag is removed — repoint it at
     # keep_tag so it survives to be approved/rejected later.

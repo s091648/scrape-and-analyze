@@ -291,7 +291,7 @@ describe('tags API', () => {
         method: 'POST',
         headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
         body: JSON.stringify(['s1', 's2']),
-      }), undefined, { silent: true })
+      }))
       expect(result).toEqual(batchResult)
     })
 

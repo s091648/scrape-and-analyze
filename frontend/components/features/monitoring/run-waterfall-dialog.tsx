@@ -233,7 +233,10 @@ export function RunWaterfallDialog({
                     }}
                   >
                     <td
-                      className={cn('py-1 pr-4 truncate max-w-0', error && 'text-destructive')}
+                      className={cn(
+                        'py-1 pr-4 truncate max-w-0',
+                        (error || pipelineStatus === 'failed') && 'text-destructive',
+                      )}
                       style={{ paddingLeft: `${depth * 14 + 6}px` }}
                     >
                       <span className="inline-flex items-center gap-0.5">
@@ -253,6 +256,9 @@ export function RunWaterfallDialog({
                         {methodSpan && <HttpMethodBadge method={methodSpan.method} />}
                         {dbSystem && <DbSystemBadge system={dbSystem} />}
                         {label}
+                        {pipelineStatus === 'failed' && (
+                          <span className="text-destructive ml-1" title={t('admin.articleStatusFailed')}>✗</span>
+                        )}
                         {pipelineStatus === 'partial' && (
                           <span className="text-amber-500 ml-1" title={t('admin.articleStatusPartial')}>▲</span>
                         )}

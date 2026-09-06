@@ -253,6 +253,12 @@ class CollectionPipeline:
                             url=str(getattr(event.article, "url", "")),
                             timeout_seconds=self._rag_ingest_timeout,
                         )
+                        # asyncio.wait_for cancels the coro, so the handler never
+                        # records this — count it here or PipelineCompletedEvent
+                        # reports zero partial failures for a timed-out article.
+                        self._pipeline_stats.record_partial_failure(
+                            getattr(event.article, "id", None)
+                        )
                         self._record_rag_skipped(
                             event,
                             reason="TimeoutError",

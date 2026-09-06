@@ -202,7 +202,7 @@ export async function approveSuggestionsBatch(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(suggestionIds),
-  }, undefined, { silent: true })
+  })
   if (!res.ok) throw new Error('Failed to batch approve suggestions')
   return res.json()
 }
