@@ -8,7 +8,7 @@ variable; this script only supplies the non-committable values (secrets +
 `${{...}}` reference strings), pulled from the same
 `secrets/{railway,github}-{shared,<env>}.tfvars` files everything else already
 uses. Name mapping (`RAILWAY_NAME -> tfvars key`) is read from
-`infra/terraform/railway/railway-services.json` — the union of every
+`infra/terraform/github/railway-services.json` — the union of every
 `shared_groups` entry and every service's `own`.
 
 NOT emitted (kept `preserve()` in railway.ts, so nothing here needs to):
@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TF_DIR = REPO_ROOT / "infra" / "terraform" / "railway"
+TF_DIR = REPO_ROOT / "infra" / "terraform" / "github"
 MANIFEST = TF_DIR / "railway-services.json"
 
 # RAILWAY_NAMEs that railway.ts already manages WITHOUT process.env — as an SDK

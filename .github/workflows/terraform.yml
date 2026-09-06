@@ -90,7 +90,7 @@ jobs:
           TF_TFVARS_RAILWAY_PRODUCTION: ${{ secrets.TF_TFVARS_RAILWAY_PRODUCTION }}
         run: |
           set -euo pipefail
-          cd infra/terraform/railway
+          cd infra/terraform/github
           printf '%s' "$TF_TFVARS_GITHUB_SHARED"  | base64 -d > secrets/github-shared.tfvars
           printf '%s' "$TF_TFVARS_RAILWAY_SHARED" | base64 -d > secrets/railway-shared.tfvars
           case "${{ inputs.environment }}" in
@@ -104,17 +104,17 @@ jobs:
           esac
 
       - name: terraform init
-        run: terraform -chdir=infra/terraform/railway init -input=false
+        run: terraform -chdir=infra/terraform/github init -input=false
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: terraform fmt -check
         if: inputs.mode == 'plan'
-        run: terraform -chdir=infra/terraform/railway fmt -check -recursive
+        run: terraform -chdir=infra/terraform/github fmt -check -recursive
 
       - name: terraform validate
         if: inputs.mode == 'plan'
-        run: terraform -chdir=infra/terraform/railway validate
+        run: terraform -chdir=infra/terraform/github validate
 
       # GitHub-side (github-ci.tf). `drift` is `plan -detailed-exitcode`
       # (exit 2 = drift) written to the job summary.
@@ -125,7 +125,7 @@ jobs:
           TF_VAR_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          cd infra/terraform/railway
+          cd infra/terraform/github
           VF="-var-file=secrets/github-shared.tfvars -var-file=secrets/github-${{ inputs.environment }}.tfvars"
           case "${{ inputs.mode }}" in
             plan)  terraform plan  -no-color -input=false $VF ;;

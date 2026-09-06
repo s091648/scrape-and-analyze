@@ -10,7 +10,7 @@ aside: false
 | 範圍 | 由誰管 | 宣告在 | CI |
 |---|---|---|---|
 | 每個 Railway 服務的**部署設定**（`cronSchedule`／`startCommand`／`restartPolicyType`／`replicas`／`source`／networking）＋**環境變數** | `railway config apply`（Railway 原生 IaC，**不是** Terraform） | [`.railway/railway.ts`](https://github.com/s091648/scrape-and-analyze/blob/master/.railway/railway.ts) | `.github/workflows/railway-config.yml` |
-| `ci.yml`／`release.yml` 讀的 **GitHub Actions secrets／variables** | Terraform（`github` provider、HCP backend） | `infra/terraform/railway/github-ci.tf` ＋ `modules/github-ci-config` | `.github/workflows/terraform.yml` |
+| `ci.yml`／`release.yml` 讀的 **GitHub Actions secrets／variables** | Terraform（`github` provider、HCP backend） | `infra/terraform/github/github-ci.tf` ＋ `modules/github-ci-config` | `.github/workflows/terraform.yml` |
 
 ::: warning Revision 4→6 的變化（舊文件可能還這樣寫）
 - Revision 4 曾用 `terraform-community-providers/railway` 的 `railway_variable*` resource 管環境變數 → 在這個規模不可靠，改用 `scripts/push_railway_variables.py` ＋ `railway-services.json`。
@@ -28,8 +28,8 @@ aside: false
 | 來源 | 取什麼 | 怎麼取 |
 |---|---|---|
 | `.railway/railway.ts` | 每個服務的 production 部署設定（cron／start／restart／endpoint） | 正則掃描 `service("…", { … })` 區塊（best-effort：沒 match 到的欄位留 `null`，例如用 Dockerfile CMD、無 cron 的服務） |
-| `infra/terraform/railway/railway-services.json` | 每個服務有哪些環境變數名稱、哪些是 `preserve()`（Railway 手動管理） | 直接讀 JSON |
-| `infra/terraform/railway/github-ci.tf` | `github-ci-config` module 的三個實例各自的 secrets／variables 名稱 | `python-hcl2` 靜態解析 HCL 語法樹（跟 `generate_db_schema.py` 解析 `models/*.py` AST 同一種「不執行、只解析原始碼」哲學） |
+| `infra/terraform/github/railway-services.json` | 每個服務有哪些環境變數名稱、哪些是 `preserve()`（Railway 手動管理） | 直接讀 JSON |
+| `infra/terraform/github/github-ci.tf` | `github-ci-config` module 的三個實例各自的 secrets／variables 名稱 | `python-hcl2` 靜態解析 HCL 語法樹（跟 `generate_db_schema.py` 解析 `models/*.py` AST 同一種「不執行、只解析原始碼」哲學） |
 
 本機重新產生：`python scripts/generate_terraform_docs.py`（只需 `pip install python-hcl2`），或 `make uml-terraform-docs`（走 CI 同一條路徑）。
 
@@ -43,13 +43,13 @@ aside: false
 ## 已知限制
 
 - 本頁只反映**宣告**（`.railway/railway.ts` ＋ `github-ci.tf` 的原始碼），不反映 live state 或 Railway／GitHub 上的即時真實值。
-- 對帳方式：Railway 半邊用 `make railway-config-plan ENV=staging|production`（plan 乾淨＝無 drift，見 [`.railway/README.md`](https://github.com/s091648/scrape-and-analyze/blob/master/.railway/README.md)）；GitHub 半邊用 `make terraform-drift-check ENV=staging|production`（見 `infra/terraform/railway/README.md`）。
+- 對帳方式：Railway 半邊用 `make railway-config-plan ENV=staging|production`（plan 乾淨＝無 drift，見 [`.railway/README.md`](https://github.com/s091648/scrape-and-analyze/blob/master/.railway/README.md)）；GitHub 半邊用 `make terraform-drift-check ENV=staging|production`（見 `infra/terraform/github/README.md`）。
 - 部署設定為正則掃描——若 `railway.ts` 的寫法改變，最壞情況是某服務少顯示一個欄位（不會顯示錯的值）；`generate_terraform_docs.py` 會在有服務完全對不到 `service()` 區塊時直接報錯。
 - 每個服務 staging／production 顯示同一份變數**名稱**集合；per-env 的差異（`railway.ts` 裡的 `prod ? … : …`）與實際值差異落在 tfvars，不在此圖。
 
 ## Terraform Module 介面文件
 
-上面看的是「哪個服務用了哪些變數」；這裡看的是 `infra/terraform/railway/modules/` 底下唯一的 module——`github-ci-config`——**自己的介面**（inputs／outputs／resources／requirements）。內容由 [terraform-docs](https://terraform-docs.io/) 產生（設定檔：`infra/terraform/railway/.terraform-docs.yml`），跟上面的服務清單一樣是純 build artifact：本機用 `make uml-terraform-modules` 重新產生（跑官方 `quay.io/terraform-docs/terraform-docs` image，不需要 `terraform init`／credentials），輸出的 fragment 檔不進 git。
+上面看的是「哪個服務用了哪些變數」；這裡看的是 `infra/terraform/github/modules/` 底下唯一的 module——`github-ci-config`——**自己的介面**（inputs／outputs／resources／requirements）。內容由 [terraform-docs](https://terraform-docs.io/) 產生（設定檔：`infra/terraform/github/.terraform-docs.yml`），跟上面的服務清單一樣是純 build artifact：本機用 `make uml-terraform-modules` 重新產生（跑官方 `quay.io/terraform-docs/terraform-docs` image，不需要 `terraform init`／credentials），輸出的 fragment 檔不進 git。
 
 <details>
 <summary>展開查看 github-ci-config module 的介面文件</summary>
