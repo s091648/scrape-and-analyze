@@ -3,13 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import type { PrometheusResponse } from '@/lib/api/grafana'
 import { CountryTable } from '@/components/features/monitoring/country-table'
 
-function makePrometheusResponse(rows: Array<{ code: string; count: number }>): PrometheusResponse {
+function makePrometheusResponse(rows: Array<{ code: string; count: number; role?: string }>): PrometheusResponse {
   return {
     status: 'success',
     data: {
       resultType: 'matrix',
       result: rows.map(r => ({
-        metric: { geo_country: r.code },
+        metric: { geo_country: r.code, ...(r.role ? { user_role: r.role } : {}) },
         values: [[1700000000, String(r.count)]],
       })),
     },
@@ -69,6 +69,34 @@ describe('CountryTable', () => {
     const row = screen.getByText('United States of America').closest('tr')!
     fireEvent.click(row)
     expect(onSelectCountry).toHaveBeenCalledWith('US')
+  })
+
+  it('buckets a series with no user_role label as "unknown" in the role-mix bar', () => {
+    // The chart this table's data comes from always sets user_role (backend/middleware/logging.py
+    // never omits it), so this is a defensive fallback rather than a real-world case — but
+    // extractCountryRoleTotals must not silently drop the count if it ever happens.
+    render(<CountryTable title="Requests by country" data={makePrometheusResponse([{ code: 'US', count: 10 }])} />)
+    const row = screen.getByText('United States of America').closest('tr')!
+    const bar = row.querySelector('[title*="unknown"]')
+    expect(bar).not.toBeNull()
+    expect(bar!.getAttribute('title')).toContain('unknown: 10 (100%)')
+  })
+
+  it('renders a role-mix bar with the per-role breakdown in its title when role data is present', () => {
+    render(
+      <CountryTable
+        title="Requests by country"
+        data={makePrometheusResponse([
+          { code: 'US', count: 8, role: 'guest' },
+          { code: 'US', count: 2, role: 'admin' },
+        ])}
+      />
+    )
+    const row = screen.getByText('United States of America').closest('tr')!
+    const bar = row.querySelector('[title*="guest"]')
+    expect(bar).not.toBeNull()
+    expect(bar!.getAttribute('title')).toContain('admin: 2 (20%)')
+    expect(bar!.getAttribute('title')).toContain('guest: 8 (80%)')
   })
 
   it('clicking the already-selected row deselects it', () => {

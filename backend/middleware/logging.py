@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 import time
 import structlog
@@ -18,6 +19,23 @@ _MAX_BODY_LOG_BYTES = 4096
 # refresh_token/api_key_env are all caught without enumerating every schema field.
 _SENSITIVE_KEY_SUBSTRINGS = ("password", "token", "secret", "api_key", "apikey")
 
+# Declared/well-behaved crawlers only (search engines, SEO tools, generic HTTP libraries
+# used to script requests) — a scraper spoofing a real browser UA is invisible to this and
+# needs a stronger signal (e.g. datacenter-ASN GeoIP) to catch, which isn't in place yet.
+_BOT_UA_PATTERN = re.compile(
+    r"bot|crawler|spider|crawling|slurp|facebookexternalhit|"
+    r"python-requests|python-httpx|okhttp|curl/|wget/|scrapy|"
+    r"headlesschrome|phantomjs|node-fetch|axios/|go-http-client|java/",
+    re.IGNORECASE,
+)
+
+
+def _classify_client(user_agent: str) -> str:
+    if not user_agent:
+        # No User-Agent header at all is itself atypical for a real browser.
+        return "bot"
+    return "bot" if _BOT_UA_PATTERN.search(user_agent) else "browser"
+
 
 def _redact(value):
     if isinstance(value, dict):
@@ -36,7 +54,13 @@ def _extract_user(auth_header: str) -> dict:
     token (its claims carry "tier", never "role" — see auth_service.py's _create_guest_token).
     user_role is always set (never omitted) so LogQL `sum by (user_role)` never lumps guest
     traffic into an unlabeled/empty group — see admin.requestsByRoleChart in
-    frontend/app/admin/monitoring/monitoring-content.tsx."""
+    frontend/app/admin/monitoring/monitoring-content.tsx.
+
+    user_id falls back to the token's `guest_id` claim (compute_guest_id() in auth_service.py —
+    a stable sha256(ip + user_agent) fingerprint, not a DB id) when `sub` is absent, so a guest
+    token's holder gets a real distinct identifier instead of every guest collapsing into the
+    literal string "anonymous". That's what lets a LogQL `count(count by (user_id) (...))`
+    query approximate unique visitors per role, including guests."""
     if not auth_header.lower().startswith("bearer "):
         return {"user_id": "anonymous", "user_role": "guest"}
     token = auth_header.split(" ", 1)[1]
@@ -47,7 +71,7 @@ def _extract_user(auth_header: str) -> dict:
             options={"verify_aud": False},
         )
         user: dict = {
-            "user_id": payload.get("sub", "anonymous"),
+            "user_id": payload.get("sub") or payload.get("guest_id") or "anonymous",
             "user_role": payload.get("role") or "guest",
         }
         if payload.get("email"):
@@ -140,6 +164,14 @@ class RequestLoggingMiddleware:
                 pass
 
         user_agent_bytes = raw_headers.get(b"user-agent")
+        client_type = _classify_client(user_agent_bytes.decode("latin-1") if user_agent_bytes else "")
+
+        # Client-generated per-visit id (frontend/lib/session-id.ts, sent by apiFetch and
+        # forwarded verbatim by the Next.js proxy) — lets a visitor's request logs be grouped
+        # into one session. Length-capped since it's an untrusted header being shipped to Loki
+        # as its own field; a well-formed value is a 36-char UUID.
+        session_id_bytes = raw_headers.get(b"x-session-id")
+        session_id = session_id_bytes.decode("latin-1")[:64] if session_id_bytes else None
 
         query_params = (scope.get("query_string") or b"").decode("latin-1")
 
@@ -161,7 +193,9 @@ class RequestLoggingMiddleware:
             "path": scope["path"],
             "status_code": status_code,
             "duration_ms": duration_ms,
+            "client_type": client_type,
             **user_info,
+            **({"session_id": session_id} if session_id else {}),
             **({"ip": ip} if ip else {}),
             **({"user_agent": user_agent_bytes.decode("latin-1")} if user_agent_bytes else {}),
             **({"geo_country": geo["country"]} if geo.get("country") else {}),

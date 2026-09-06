@@ -74,6 +74,9 @@ async function handler(
         ...(user?.id ? { user_id: user.id } : {}),
         ...(user?.email ? { user_email: user.email } : {}),
         ...(user?.role ? { user_role: user.role } : {}),
+        ...(request.headers.get('x-session-id')
+          ? { session_id: request.headers.get('x-session-id') }
+          : {}),
         ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
         user_agent: request.headers.get('user-agent') ?? null,
         ...(parsedBody !== null ? { request_body: redact(parsedBody) } : {}),

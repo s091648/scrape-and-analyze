@@ -84,6 +84,74 @@ def test_middleware_logs_user_identity_when_authenticated():
     assert kwargs.get("user_role") == "admin"
 
 
+def test_middleware_logs_guest_id_as_user_id_for_guest_token():
+    """A guest token has no `sub` claim (only `guest_id`, `tier`) — user_id must fall back to
+    it so guest traffic isn't collapsed into the single literal "anonymous" for every visitor."""
+    from jose import jwt as jose_jwt
+    secret = "test-secret-for-middleware"
+    token = jose_jwt.encode(
+        {"tier": "guest", "guest_id": "fingerprint-abc123", "token_use": "access"},
+        secret,
+        algorithm="HS256",
+    )
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("backend.middleware.logging._SECRET", secret), \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={"Authorization": f"Bearer {token}"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("user_id") == "fingerprint-abc123"
+    assert kwargs.get("user_role") == "guest"
+
+
+def test_middleware_logs_session_id_when_header_present():
+    """The client-sent X-Session-Id header must be logged as session_id so a visitor's
+    requests can be grouped into one session."""
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={"X-Session-Id": "11111111-2222-3333-4444-555555555555"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("session_id") == "11111111-2222-3333-4444-555555555555"
+
+
+def test_middleware_omits_session_id_when_header_absent():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/")
+    kwargs = mock_logger.info.call_args.kwargs
+    assert "session_id" not in kwargs
+
+
+def test_middleware_caps_oversized_session_id():
+    """An untrusted header shipped to Loki as its own field must be length-capped."""
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={"X-Session-Id": "x" * 500})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert len(kwargs["session_id"]) == 64
+
+
+def test_middleware_logs_client_type_bot_for_crawler_user_agent():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={"User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("client_type") == "bot"
+
+
+def test_middleware_logs_client_type_browser_for_normal_user_agent():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"})
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("client_type") == "browser"
+
+
 def test_middleware_logs_duration_ms():
     """The duration_ms field must be present and non-negative in the log."""
     with patch("backend.middleware.logging.logger") as mock_logger, \

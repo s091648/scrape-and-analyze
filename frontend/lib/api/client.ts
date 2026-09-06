@@ -2,6 +2,7 @@ import { getSession, signOut } from 'next-auth/react'
 import { toast } from 'sonner'
 import * as Sentry from '@sentry/browser'
 import { getCurrentToken, waitForToken } from '../auth-token-store'
+import { getSessionId } from '../session-id'
 
 // 1 initial attempt + up to 3 retries, exponential backoff with jitter. Retries
 // only network failures and 429/5xx — a 4xx (other than the 401 case handled
@@ -108,6 +109,13 @@ export async function apiFetch(
   if (!headers.has('Authorization')) {
     const token = getCurrentToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  // Per-visit id so backend request logs and proxy logs can be grouped into one
+  // session in Loki — see lib/session-id.ts. Forwarded verbatim by the proxy route.
+  if (!headers.has('X-Session-Id')) {
+    const sessionId = getSessionId()
+    if (sessionId) headers.set('X-Session-Id', sessionId)
   }
 
   const response = await fetchWithRetry(url, { ...options, headers })
