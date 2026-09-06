@@ -12,8 +12,12 @@ from models.tag_group import TagGroupDefinition  # noqa: F401 — registers mapp
 article_tags = Table(
     'article_tags',
     Base.metadata,
-    Column('article_id', UUID(as_uuid=True), ForeignKey('core.articles.id'), primary_key=True),
-    Column('tag_id', UUID(as_uuid=True), ForeignKey('intelligence.tags.id'), primary_key=True),
+    # ondelete='CASCADE' on both FKs mirrors the live DB constraints (added by
+    # migration 18_add_data_migrations_table.py) — declared here too so
+    # `alembic revision --autogenerate` doesn't see model/DB drift and propose
+    # dropping them.
+    Column('article_id', UUID(as_uuid=True), ForeignKey('core.articles.id', ondelete='CASCADE'), primary_key=True),
+    Column('tag_id', UUID(as_uuid=True), ForeignKey('intelligence.tags.id', ondelete='CASCADE'), primary_key=True),
     schema=DbSchema.INTELLIGENCE.value,
 )
 

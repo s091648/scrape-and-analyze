@@ -11,7 +11,10 @@ class TagsTranslation(Base):
     __tablename__ = 'tags_translation'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tag_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.tags.id'), nullable=False)
+    # ondelete='CASCADE' mirrors the live DB constraint fk_tags_translation_tag_id
+    # (added by migration 15_add_translations.py) — declared here too so
+    # `alembic revision --autogenerate` doesn't see model/DB drift and propose dropping it.
+    tag_id = Column(UUID(as_uuid=True), ForeignKey('intelligence.tags.id', ondelete='CASCADE'), nullable=False)
     language = Column(String(10), nullable=False)
     name = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

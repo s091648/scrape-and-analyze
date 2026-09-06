@@ -281,6 +281,27 @@ describe('tags API', () => {
     })
   })
 
+  describe('approveSuggestionsBatch', () => {
+    it('posts all ids in one request with auth header', async () => {
+      const batchResult = { succeeded: ['s1', 's2'], failed: [] }
+      mockOk(batchResult)
+      const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+      const result = await approveSuggestionsBatch(['s1', 's2'], token)
+      expect(mockApiFetch).toHaveBeenCalledWith('/tag-normalization-suggestions/approve-batch', expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: `Bearer ${token}` }),
+        body: JSON.stringify(['s1', 's2']),
+      }), undefined, { silent: true })
+      expect(result).toEqual(batchResult)
+    })
+
+    it('throws on failure', async () => {
+      mockFail()
+      const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+      await expect(approveSuggestionsBatch([], token)).rejects.toThrow('Failed to batch approve suggestions')
+    })
+  })
+
   describe('rejectSuggestion', () => {
     it('posts reject with auth header', async () => {
       mockApiFetch.mockResolvedValue({ ok: true })

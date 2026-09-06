@@ -974,6 +974,11 @@ export default function TagsPageContent({ initialGroups }: TagsPageContentProps)
                 setSuggestions(prev => prev.filter(s => s.id !== id))
                 fetchTagGroups(selectedTopic?.id).then(setGroups)
               }}
+              onBatchResolved={ids => {
+                const idSet = new Set(ids)
+                setSuggestions(prev => prev.filter(s => !idSet.has(s.id)))
+                fetchTagGroups(selectedTopic?.id).then(setGroups)
+              }}
             />
           )}
 

@@ -669,6 +669,117 @@ def test_approve_suggestion_merges_tags(api_client, db_session):
     assert r.json()["status"] == "approved"
 
 
+def test_list_suggestions_returns_group_name_and_ungrouped_fallback(api_client, db_session):
+    topic = _topic(db_session)
+    grp = _group(db_session, topic, name="research-group")
+    tag_new = _tag(db_session, name="grouped-new", group=grp)
+    tag_existing = _tag(db_session, name="grouped-existing")  # no group -> "ungrouped"
+    sug = _suggestion(db_session, tag_new, tag_existing)
+
+    r = api_client.get("/tag-normalization-suggestions", headers=_ADMIN_HDR)
+    assert r.status_code == 200
+    rows = r.json()
+    assert len(rows) == 1
+    assert rows[0]["id"] == str(sug.id)
+    assert rows[0]["new_tag_name"] == "grouped-new"
+    assert rows[0]["existing_tag_name"] == "grouped-existing"
+    assert rows[0]["group_name"] == "research-group"
+
+
+# Regression coverage for the "Suggestion not found" 404 that used to abort
+# merge-all partway through: approving a suggestion deletes its new_tag, and
+# that delete cascades (ON DELETE CASCADE on both FK columns) to any other
+# tag_normalization_suggestions row referencing the same tag id — including
+# ones the admin hasn't resolved yet.
+def test_approve_suggestion_repoints_other_pending_suggestion_that_referenced_new_tag_as_existing(api_client, db_session):
+    tag_x = _tag(db_session, name="tag-x")
+    tag_y = _tag(db_session, name="tag-y")
+    tag_z = _tag(db_session, name="tag-z")
+    # S1: merge X into Y
+    s1 = _suggestion(db_session, new_tag=tag_x, existing_tag=tag_y)
+    # S2: merge Z into X — X is about to be deleted by approving S1
+    s2 = _suggestion(db_session, new_tag=tag_z, existing_tag=tag_x)
+
+    r = api_client.post(f"/tag-normalization-suggestions/{s1.id}/approve", headers=_ADMIN_HDR)
+    assert r.status_code == 200
+
+    db_session.refresh(s2)
+    assert s2.status == "pending"
+    assert s2.existing_tag_id == tag_y.id  # repointed away from deleted tag_x
+
+    # S2 can still be approved afterwards, merging Z into Y (X's replacement)
+    r2 = api_client.post(f"/tag-normalization-suggestions/{s2.id}/approve", headers=_ADMIN_HDR)
+    assert r2.status_code == 200
+
+
+def test_approve_suggestion_drops_redundant_duplicate_for_same_new_tag(api_client, db_session):
+    tag_x = _tag(db_session, name="dup-new")
+    tag_y = _tag(db_session, name="dup-existing-1")
+    tag_w = _tag(db_session, name="dup-existing-2")
+    s1 = _suggestion(db_session, new_tag=tag_x, existing_tag=tag_y)
+    s1b = _suggestion(db_session, new_tag=tag_x, existing_tag=tag_w)
+    s1_id, s1b_id = str(s1.id), str(s1b.id)  # read before the approve call deletes s1b's row
+
+    r = api_client.post(f"/tag-normalization-suggestions/{s1_id}/approve", headers=_ADMIN_HDR)
+    assert r.status_code == 200
+
+    # Raw SQL, not the ORM identity map: s1b was deleted out from under this
+    # session by the API call's own raw DELETE, so touching any attribute of
+    # the already-loaded instance (even `.id`) would raise ObjectDeletedError
+    # instead of returning None.
+    from sqlalchemy import text
+    remaining = db_session.execute(
+        text("SELECT 1 FROM tag_normalization_suggestions WHERE id = :id"),
+        {"id": s1b_id},
+    ).fetchall()
+    assert remaining == []
+
+
+def test_approve_suggestions_batch_approves_all(api_client, db_session):
+    art = _article(db_session)
+    tag_new_1 = _tag(db_session, name="batch-new-1")
+    tag_existing_1 = _tag(db_session, name="batch-existing-1")
+    _link(db_session, art, tag_new_1)
+    sug1 = _suggestion(db_session, tag_new_1, tag_existing_1, article=art)
+
+    tag_new_2 = _tag(db_session, name="batch-new-2")
+    tag_existing_2 = _tag(db_session, name="batch-existing-2")
+    sug2 = _suggestion(db_session, tag_new_2, tag_existing_2)
+
+    r = api_client.post(
+        "/tag-normalization-suggestions/approve-batch",
+        json=[str(sug1.id), str(sug2.id)],
+        headers=_ADMIN_HDR,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert set(data["succeeded"]) == {str(sug1.id), str(sug2.id)}
+    assert data["failed"] == []
+
+
+def test_approve_suggestions_batch_partial_failure_does_not_block_others(api_client, db_session):
+    tag_new = _tag(db_session, name="batch-partial-new")
+    tag_existing = _tag(db_session, name="batch-partial-existing")
+    sug = _suggestion(db_session, tag_new, tag_existing)
+    missing_id = uuid.uuid4()
+
+    r = api_client.post(
+        "/tag-normalization-suggestions/approve-batch",
+        json=[str(missing_id), str(sug.id)],
+        headers=_ADMIN_HDR,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["succeeded"] == [str(sug.id)]
+    assert len(data["failed"]) == 1
+    assert data["failed"][0]["suggestion_id"] == str(missing_id)
+
+
+def test_approve_suggestions_batch_requires_admin(api_client):
+    r = api_client.post("/tag-normalization-suggestions/approve-batch", json=[])
+    assert r.status_code in (401, 403)
+
+
 # ---------------------------------------------------------------------------
 # Cache write-through (020-redis-caching-layer, US2)
 # ---------------------------------------------------------------------------
