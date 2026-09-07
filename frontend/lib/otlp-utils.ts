@@ -128,6 +128,19 @@ export function extractTraceSearchEnvironment(trace: TempoTrace): string | undef
   return attr?.value?.stringValue
 }
 
+/**
+ * Reads client_type off a Tempo /api/search result trace (same lightweight TempoTrace shape
+ * as extractTraceSearchEnvironment). Requires the TraceQL query to have `| select(span.client_type)`
+ * — see traceQLServiceMatch(). Returns undefined for traces predating the backend
+ * server_request_hook that sets it (so nothing is dropped for them).
+ */
+export function extractTraceClientType(trace: TempoTrace): string | undefined {
+  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
+  const attrs = spanSet?.attributes ?? spanSet?.spans?.[0]?.attributes ?? []
+  const attr = attrs.find(a => a.key === 'client_type' || a.key === 'span.client_type')
+  return attr?.value?.stringValue
+}
+
 export function extractEnvironmentFromTrace(trace: OtlpTraceResponse): string | undefined {
   // Tempo may prefix resource attributes with 'resource.' or not — check both.
   return (

@@ -16,7 +16,7 @@ import {
   type PrometheusResponse, type LokiResponse, type TempoResponse, type MetricsBatchItem,
 } from '@/lib/api/grafana'
 import { useAdminUsersStore } from '@/lib/stores/admin-users-store'
-import { extractTraceSearchEnvironment } from '@/lib/otlp-utils'
+import { extractTraceSearchEnvironment, extractTraceClientType } from '@/lib/otlp-utils'
 
 /**
  * Loki's query_range endpoint (used for both metric-shaped Loki queries and raw log queries)
@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dropdown } from '@/components/ui/dropdown'
+import { Checkbox } from '@/components/ui/checkbox'
 import { RotateCw } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -47,6 +48,11 @@ interface MonitoringFilters {
   timeRange: TimeRange
   environment: Environment
   app: AppValue
+  /** Backend app only: when false, bot- and synthetic-classified "request" traffic is
+   * excluded from every panel below (queries + display). Ignored for the scraper app,
+   * whose logs have no client_type. Defaults to false so the dashboard shows real-visitor
+   * traffic by default (CI Lighthouse runs and crawlers were drowning it out). */
+  showBotTraffic: boolean
 }
 
 /** Resource service.name to filter Tempo traces by, per selected app. */
@@ -116,7 +122,13 @@ const DEFAULT_FILTERS: MonitoringFilters = {
   timeRange: '24h',
   environment: 'all',
   app: LokiAppValue.SCRAPER,
+  showBotTraffic: false,
 }
+
+/** client_type values treated as non-human ("request" traffic to hide when showBotTraffic is
+ * off). "synthetic" = Lighthouse CI (frontend/scripts/lighthouse-check.mjs); "bot" =
+ * User-Agent matched a crawler/HTTP-library pattern (backend/middleware/logging.py). */
+const HIDDEN_CLIENT_TYPES = ['bot', 'synthetic'] as const
 
 /** Swap the app="scraper" label baked into lokiStreamSelector() for the selected app. */
 function applyAppToLokiQuery(query: string, app: AppValue): string {
@@ -132,9 +144,36 @@ function applyEnvToLokiQuery(query: string, environment: Environment): string {
     .replace(/\{app="[^"]+", (?!env=)/g, m => `${m}${envLabel}, `)
 }
 
-/** Swap in the selected app, then layer the environment filter on top. */
-function applyLokiFilters(query: string, app: AppValue, environment: Environment): string {
-  return applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
+/**
+ * Excludes bot / synthetic "request" traffic from a backend LogQL query (used when the
+ * "Show bot / synthetic traffic" toggle is off).
+ *
+ * - Queries that already pivot on client_type (the Bot Request Rate stat, the Requests by
+ *   Client Type chart) are left untouched — those exist to measure exactly what's hidden.
+ * - Queries scoped to a non-request event (cache_lookup, chat_request, search_*) carry no
+ *   client_type field, so they're left untouched too.
+ * - Everything else — "request"-event panels and the raw error/warn/info log tables plus the
+ *   log-volume chart — gets `| client_type!="bot" | client_type!="synthetic"` spliced in
+ *   before its range vector (metric queries) or appended (raw log queries), with a `| json`
+ *   first if the query doesn't already parse.
+ */
+function applyBotExclusion(query: string): string {
+  if (query.includes('client_type')) return query
+  if (/event\s*=~?\s*"/.test(query) && !query.includes('event="request"')) return query
+  const filter = HIDDEN_CLIENT_TYPES.map(v => `client_type!="${v}"`).join(' | ')
+  const stages = query.includes('| json') ? `| ${filter}` : `| json | ${filter}`
+  return /\[\d+[smhd]\]/.test(query)
+    ? query.replace(/\s*(\[\d+[smhd]\])/g, ` ${stages} $1`)
+    : `${query} ${stages}`
+}
+
+/** Swap in the selected app, layer the environment filter, then (backend + toggle off) strip
+ * bot / synthetic request traffic. */
+function applyLokiFilters(
+  query: string, app: AppValue, environment: Environment, showBotTraffic: boolean,
+): string {
+  const q = applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
+  return app === LokiAppValue.BACKEND && !showBotTraffic ? applyBotExclusion(q) : q
 }
 
 interface MonitoringContentProps {
@@ -186,8 +225,9 @@ interface TracesTablePanelDef {
 // dashboard, and so MetricsChart's legend-when-single-series exception (see metrics-chart.tsx)
 // kicks in — otherwise a window with zero bot traffic would render one unlabeled browser bar.
 const CLIENT_TYPE_CHART_COLORS: Record<string, string> = {
-  bot: 'hsl(347,74%,55%)',      // --destructive (dark) — matches LOG_LEVEL_CHART_COLORS.error
-  browser: 'hsl(217,91%,60%)',  // matches COLORS[0] below
+  bot: 'hsl(347,74%,55%)',       // --destructive (dark) — matches LOG_LEVEL_CHART_COLORS.error
+  browser: 'hsl(217,91%,60%)',   // matches COLORS[0] below
+  synthetic: 'hsl(38,92%,50%)',  // Lighthouse CI / synthetic monitoring — amber, neither "real" nor "bad"
 }
 
 const OPS_SCRAPER_STATS: StatPanelDef[] = [
@@ -387,7 +427,7 @@ function extractLastValue(res: PrometheusResponse): string | undefined {
  */
 function useOperationsBatch(
   startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean,
-  stats: StatPanelDef[], charts: ChartPanelDef[],
+  stats: StatPanelDef[], charts: ChartPanelDef[], showBotTraffic: boolean,
 ) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
@@ -406,10 +446,10 @@ function useOperationsBatch(
       }),
     ]
     const lokiItems = [
-      ...stats.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), start: toNs(startSec), end: toNs(endSec), step: s.step })),
+      ...stats.filter(s => s.queryType === 'loki').map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment, showBotTraffic), start: toNs(startSec), end: toNs(endSec), step: s.step })),
       ...charts.filter(c => c.queryType === 'loki').map(c => {
         const p = chartFetchParams(c, startSec, endSec, rangeVec)
-        return { query: applyLokiFilters(c.buildQuery(p.rangeVec), app, environment), start: toNs(p.start), end: toNs(p.end), step: String(p.step) }
+        return { query: applyLokiFilters(c.buildQuery(p.rangeVec), app, environment, showBotTraffic), start: toNs(p.start), end: toNs(p.end), step: String(p.step) }
       }),
     ]
     try {
@@ -443,7 +483,7 @@ function useOperationsBatch(
     } catch { /* keep previous data */ } finally {
       setLoading(Array(stats.length + charts.length).fill(false))
     }
-  }, [startSec, endSec, rangeVec, env, environment, app, stats, charts])
+  }, [startSec, endSec, rangeVec, env, environment, app, stats, charts, showBotTraffic])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -454,7 +494,7 @@ function useOperationsBatch(
 
 const LOGS_NUM_METRIC = 1 + LOGS_STAT_PANELS.length
 
-function useLogsBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean) {
+function useLogsBatch(startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean, showBotTraffic: boolean) {
   const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
 
@@ -473,16 +513,16 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
       const [metricResults, logsResults] = await Promise.all([
         queryLokiMetricsBatch([
           {
-            query: applyLokiFilters(LOGS_VOLUME_CHART.buildQuery(volumeParams.rangeVec, env), app, environment),
+            query: applyLokiFilters(LOGS_VOLUME_CHART.buildQuery(volumeParams.rangeVec, env), app, environment, showBotTraffic),
             step: String(volumeParams.step), start: toNs(volumeParams.start), end: toNs(volumeParams.end),
           },
           ...LOGS_STAT_PANELS.map(p => ({
-            query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment),
+            query: applyLokiFilters(p.buildQuery(rangeVec, env), app, environment, showBotTraffic),
             step: p.step, start: startNs, end: endNs,
           })),
         ]),
         queryLogsBatch(LOGS_TABLE_PANELS.map(p => ({
-          query: applyLokiFilters(p.query, app, environment),
+          query: applyLokiFilters(p.query, app, environment, showBotTraffic),
           start: startNs, end: endNs, limit: 500,
         }))),
       ])
@@ -499,7 +539,7 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
     } catch { /* keep previous data */ } finally {
       setLoading(Array(LOGS_NUM_METRIC + LOGS_TABLE_PANELS.length).fill(false))
     }
-  }, [startSec, endSec, rangeVec, env, environment, app])
+  }, [startSec, endSec, rangeVec, env, environment, app, showBotTraffic])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -510,9 +550,13 @@ function useLogsBatch(startSec: number, endSec: number, environment: Environment
 
 function useTracesBatch(
   startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean,
-  stats: StatPanelDef[], spanChart: ChartPanelDef,
+  stats: StatPanelDef[], spanChart: ChartPanelDef, showBotTraffic: boolean,
 ) {
   const rangeVec = fullRangeVec(endSec - startSec)
+  // Tempo can't filter on span.client_type reliably in a live-block search (same staleness
+  // caveat as the environment attribute below), so bot / synthetic traces are dropped
+  // client-side from the fetched results instead — see the filter in fetchAll.
+  const filterBotTraces = app === LokiAppValue.BACKEND && !showBotTraffic
 
   const [statValues, setStatValues] = useState<(string | undefined)[]>(Array(stats.length).fill(undefined))
   const [chartData, setChartData] = useState<PrometheusResponse | null>(null)
@@ -530,7 +574,9 @@ function useTracesBatch(
   // count — a single environment's traffic can be a small fraction of "all environments"
   // recent traces once fetched unfiltered-by-env.
   const traceQuery = traceQLServiceMatch(undefined, APP_SERVICE_NAME[app])
-  const traceFetchLimit = environment === 'all' ? 20 : 100
+  // Over-fetch whenever results get filtered down client-side (by environment and/or by
+  // client_type) so the display list isn't starved.
+  const traceFetchLimit = environment === 'all' && !filterBotTraces ? 20 : 100
   const traceDisplayLimit = 20
 
   const fetchAll = useCallback(async () => {
@@ -539,8 +585,8 @@ function useTracesBatch(
       // spanChart is a trend chart (unlike `stats`) — same clamp-and-shift as OPS_*_CHARTS.
       const spanParams = chartFetchParams(spanChart, startSec, endSec, rangeVec)
       const lokiItems = [
-        ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
-        { query: applyLokiFilters(spanChart.buildQuery(spanParams.rangeVec), app, environment), step: String(spanParams.step), start: toNs(spanParams.start), end: toNs(spanParams.end) },
+        ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment, showBotTraffic), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
+        { query: applyLokiFilters(spanChart.buildQuery(spanParams.rangeVec), app, environment, showBotTraffic), step: String(spanParams.step), start: toNs(spanParams.start), end: toNs(spanParams.end) },
       ]
       const [lokiResults, tracesResults] = await Promise.all([
         queryLokiMetricsBatch(lokiItems),
@@ -559,15 +605,24 @@ function useTracesBatch(
 
       const rawTraces = tracesResults[0] as TempoResponse
       const hasTracesError = 'error' in (rawTraces as unknown as Record<string, unknown>)
-      setTracesData(
-        !hasTracesError && environment !== 'all'
-          ? { ...rawTraces, traces: rawTraces.traces.filter(t => extractTraceSearchEnvironment(t) === environment).slice(0, traceDisplayLimit) }
-          : rawTraces
-      )
+      if (hasTracesError) {
+        setTracesData(rawTraces)
+      } else {
+        let traces = rawTraces.traces
+        if (environment !== 'all') traces = traces.filter(t => extractTraceSearchEnvironment(t) === environment)
+        if (filterBotTraces) {
+          traces = traces.filter(t => !(HIDDEN_CLIENT_TYPES as readonly string[]).includes(extractTraceClientType(t) ?? ''))
+        }
+        setTracesData(
+          environment !== 'all' || filterBotTraces
+            ? { ...rawTraces, traces: traces.slice(0, traceDisplayLimit) }
+            : rawTraces,
+        )
+      }
     } catch { /* keep previous data */ } finally {
       setLoading(Array(stats.length + 2).fill(false))
     }
-  }, [startSec, endSec, rangeVec, environment, app, traceQuery, traceFetchLimit, traceDisplayLimit, stats, spanChart])
+  }, [startSec, endSec, rangeVec, environment, app, traceQuery, traceFetchLimit, traceDisplayLimit, stats, spanChart, showBotTraffic, filterBotTraces])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -773,6 +828,15 @@ function FilterBar({
           ]}
         />
       </div>
+      {filters.app === LokiAppValue.BACKEND && (
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+          <Checkbox
+            checked={filters.showBotTraffic}
+            onCheckedChange={v => onChange({ ...filters, showBotTraffic: v === true })}
+          />
+          <span className="text-muted-foreground">{t('admin.filterShowBotTraffic')}</span>
+        </label>
+      )}
       {appEnv === 'local' && (
         <div className="flex items-center gap-1.5 text-xs">
           <span className="text-muted-foreground">{t('admin.filterEnvironment')}:</span>
@@ -834,13 +898,16 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
   }, [timeRangeSeconds, refreshKey])
 
   const isBackendApp = filters.app === LokiAppValue.BACKEND
+  // Only the backend app has a client_type field to filter on; force "show all" for the
+  // scraper so its panels are never silently narrowed by a leftover toggle state.
+  const showBotTraffic = !isBackendApp || filters.showBotTraffic
   const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(
     startSec, endSec, effectiveEnv, filters.app, activeTab === 'operations',
-    isBackendApp ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS, isBackendApp ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS)
-  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'logs')
+    isBackendApp ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS, isBackendApp ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS, showBotTraffic)
+  const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'logs', showBotTraffic)
   const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(
     startSec, endSec, effectiveEnv, filters.app, activeTab === 'traces',
-    isBackendApp ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS, isBackendApp ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART)
+    isBackendApp ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS, isBackendApp ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART, showBotTraffic)
 
   const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
   const isLoading = activeLoading.some(Boolean)

@@ -33,9 +33,9 @@ describe('traceQLServiceMatch', () => {
   it('returns match without env filter clause when env is undefined', () => {
     const result = traceQLServiceMatch()
     expect(result).toContain(`${TraceQLResource.SERVICE_NAME} = "${SERVICE_NAME}"`)
-    // select() always includes the env attribute, but the filter (= "...") is absent
+    // select() always includes the env + client_type attributes, but the filter (= "...") is absent
     expect(result).not.toContain(`${TraceQLResource.DEPLOYMENT_ENVIRONMENT} = "`)
-    expect(result).toContain(`select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`)
+    expect(result).toContain(`select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT}, span.client_type)`)
   })
 
   it('includes env filter clause when env is provided', () => {

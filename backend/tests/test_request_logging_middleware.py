@@ -152,6 +152,21 @@ def test_middleware_logs_client_type_browser_for_normal_user_agent():
     assert kwargs.get("client_type") == "browser"
 
 
+def test_middleware_tags_client_type_synthetic_for_synthetic_monitor_header():
+    """Lighthouse CI (frontend/scripts/lighthouse-check.mjs) sends X-Synthetic-Monitor on
+    every request so its traffic is tagged client_type="synthetic" and stays separable from
+    real visitors on the monitoring dashboard — even with an ordinary browser User-Agent."""
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/", headers={
+            "User-Agent": "Mozilla/5.0 (Linux; Android 11; moto g power (2022))",
+            "X-Synthetic-Monitor": "lighthouse-ci",
+        })
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs.get("client_type") == "synthetic"
+
+
 def test_middleware_logs_duration_ms():
     """The duration_ms field must be present and non-negative in the log."""
     with patch("backend.middleware.logging.logger") as mock_logger, \

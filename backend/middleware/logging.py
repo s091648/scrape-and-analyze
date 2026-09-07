@@ -37,6 +37,17 @@ def _classify_client(user_agent: str) -> str:
     return "bot" if _BOT_UA_PATTERN.search(user_agent) else "browser"
 
 
+def classify_client_from_headers(raw_headers: dict[bytes, bytes]) -> str:
+    """client_type for a request from its raw ASGI headers: "synthetic" for synthetic
+    monitoring (Lighthouse CI's X-Synthetic-Monitor header), otherwise "bot"/"browser" by
+    User-Agent. Shared by RequestLoggingMiddleware and main.py's tracing server_request_hook
+    so a request's log line and its span agree on the same client_type."""
+    if raw_headers.get(b"x-synthetic-monitor"):
+        return "synthetic"
+    ua = raw_headers.get(b"user-agent")
+    return _classify_client(ua.decode("latin-1") if ua else "")
+
+
 def _redact(value):
     if isinstance(value, dict):
         return {
@@ -164,7 +175,11 @@ class RequestLoggingMiddleware:
                 pass
 
         user_agent_bytes = raw_headers.get(b"user-agent")
-        client_type = _classify_client(user_agent_bytes.decode("latin-1") if user_agent_bytes else "")
+        # "synthetic" for synthetic monitoring (Lighthouse CI hitting the staging frontend
+        # from a GitHub Actions runner — see frontend/scripts/lighthouse-check.mjs, which
+        # sets X-Synthetic-Monitor on every request), else "bot"/"browser" by User-Agent —
+        # so the monitoring dashboard can tell CI traffic apart from real visitors.
+        client_type = classify_client_from_headers(raw_headers)
 
         # Client-generated per-visit id (frontend/lib/session-id.ts, sent by apiFetch and
         # forwarded verbatim by the Next.js proxy) — lets a visitor's request logs be grouped

@@ -519,6 +519,7 @@
     "filterApp": "App",
     "filterEnvironment": "Environment",
     "filterAll": "All",
+    "filterShowBotTraffic": "Show bot / synthetic traffic",
     "refreshPage": "Refresh",
     "logFieldTime": "Time",
     "logFieldLevel": "Level",

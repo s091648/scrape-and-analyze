@@ -135,7 +135,11 @@ jobs:
         run: |
           URL="${{ steps.target.outputs.url }}"
           for i in $(seq 1 20); do
-            if curl -sf -o /dev/null "$URL"; then
+            # X-Synthetic-Monitor: same tag lighthouse-check.mjs sends on the audit
+            # requests — keeps these readiness-probe hits classified as
+            # client_type="synthetic" in backend/middleware/logging.py rather than
+            # counting as real visitor traffic on the monitoring dashboard.
+            if curl -sf -o /dev/null -H "X-Synthetic-Monitor: lighthouse-ci" "$URL"; then
               echo "$URL is reachable"
               exit 0
             fi

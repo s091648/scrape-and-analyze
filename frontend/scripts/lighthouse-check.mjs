@@ -25,6 +25,11 @@ const execFileAsync = promisify(execFile)
 const DEFAULT_URL = 'http://frontend_prod:3000'
 const DEFAULT_ROUTES = '/,/articles,/graph,/tags'
 const LIGHTHOUSE_TIMEOUT_MS = 60_000
+// Sent on every request this script and the audited page make, so backend/middleware/logging.py
+// can tag the resulting logs as client_type="synthetic" and keep CI's Lighthouse traffic out of
+// the real-visitor analytics on the monitoring dashboard.
+const SYNTHETIC_MONITOR_HEADER = 'X-Synthetic-Monitor'
+const SYNTHETIC_MONITOR_VALUE = 'lighthouse-ci'
 const OUTPUT_ROOT = process.env.LIGHTHOUSE_OUTPUT_ROOT || join(process.cwd(), 'lighthouse-reports')
 // Reused rather than reinstalled — this is the same Chromium the `frontend` image already
 // downloads for Playwright E2E tests (Dockerfile.dev's startup `npx playwright install`).
@@ -56,7 +61,10 @@ function decodeGuestId(jwt) {
 }
 
 async function fetchGuestToken(baseUrl) {
-  const res = await fetch(`${baseUrl}/api/proxy/auth/guest`, { method: 'POST' })
+  const res = await fetch(`${baseUrl}/api/proxy/auth/guest`, {
+    method: 'POST',
+    headers: { [SYNTHETIC_MONITOR_HEADER]: SYNTHETIC_MONITOR_VALUE },
+  })
   if (!res.ok) {
     throw new Error(`POST /api/proxy/auth/guest 回應失敗（HTTP ${res.status}）`)
   }
@@ -102,7 +110,10 @@ function routeFileName(path, index) {
 async function runLighthouseForRoute({ baseUrl, path, accessToken, chromePath, outputDir, index }) {
   const url = `${baseUrl}${path}`
   const outputPath = join(outputDir, routeFileName(path, index))
-  const extraHeaders = JSON.stringify({ Authorization: `Bearer ${accessToken}` })
+  const extraHeaders = JSON.stringify({
+    Authorization: `Bearer ${accessToken}`,
+    [SYNTHETIC_MONITOR_HEADER]: SYNTHETIC_MONITOR_VALUE,
+  })
 
   try {
     await execFileAsync(

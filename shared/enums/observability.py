@@ -124,6 +124,10 @@ class SpanName(StrEnum):
 class SpanAttribute(StrEnum):
     RUN_ID = "run.id"
     CORRELATION_ID = "run.correlation_id"
+    # Set on the backend HTTP server span (backend/main.py's FastAPIInstrumentor
+    # server_request_hook), mirroring the "request"-log client_type field so the
+    # monitoring dashboard can exclude bot / synthetic traces.
+    CLIENT_TYPE = "client_type"
 
 
 # ── Tempo TraceQL resource label ─────────────────────────────────────────────

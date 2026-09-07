@@ -93,7 +93,27 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 if _tracer_provider:
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=_tracer_provider, excluded_urls="health")
+    from backend.middleware.logging import classify_client_from_headers
+
+    def _tag_client_type_on_span(span, scope):
+        """Mirror RequestLoggingMiddleware's client_type onto the HTTP server span so the
+        monitoring dashboard's traces view can exclude bot / synthetic traffic just like it
+        does for request logs. Best-effort — a failure here must not break request tracing."""
+        try:
+            if span and span.is_recording() and scope.get("type") == "http":
+                span.set_attribute(
+                    "client_type",
+                    classify_client_from_headers(dict(scope.get("headers") or [])),
+                )
+        except Exception:
+            pass
+
+    FastAPIInstrumentor.instrument_app(
+        app,
+        tracer_provider=_tracer_provider,
+        excluded_urls="health",
+        server_request_hook=_tag_client_type_on_span,
+    )
 
 register_exception_handlers(app)
 

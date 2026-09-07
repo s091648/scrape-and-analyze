@@ -519,6 +519,7 @@
     "filterApp": "服務",
     "filterEnvironment": "環境",
     "filterAll": "全部",
+    "filterShowBotTraffic": "顯示 bot／synthetic 流量",
     "refreshPage": "重整",
     "logFieldTime": "時間",
     "logFieldLevel": "等級",
