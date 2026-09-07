@@ -47,19 +47,27 @@ export const RAG_CHUNKING_ENV = {
   RAG_INGEST_TIMEOUT_SECONDS: "900",
 } as const;
 
-// Async DB engine pool + per-article text-stage concurrency for the
-// scrape-and-analyze pipeline (src/infrastructure/persistence/database.py +
-// CollectionPipeline). Pinned here — same values as the code defaults — so an
+// Async DB engine pool + per-article text-stage concurrency + the run's DNS
+// thread-pool size + the RAG SDK's own vector-DB pool, for the scrape-and-
+// analyze pipeline (src/infrastructure/persistence/database.py,
+// src/entrypoints/cli/main.py, CollectionPipeline, and chatbot_plugin_sdk's
+// AsyncPgBackend). Pinned here — same values as the code defaults — so an
 // on-call can retune Postgres connection pressure from Railway without a code
-// deploy. Keep TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY (code default
-// 10, not pinned) at or under ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW.
+// deploy. Keep TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY at or under
+// ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW. VECTOR_DB_* here is the RAG
+// engine's separate pool (needs SDK >= 1.3.1 to take effect).
 export const ASYNC_DB_ENV = {
   ASYNC_DB_POOL_SIZE: "10",
   ASYNC_DB_MAX_OVERFLOW: "10",
   ASYNC_DB_POOL_TIMEOUT: "120",
   ASYNC_DB_POOL_RECYCLE: "1800",
-  ASYNC_DB_CONNECT_TIMEOUT: "10",
-  TEXT_STAGE_CONCURRENCY: "10",
+  ASYNC_DB_CONNECT_TIMEOUT: "30",
+  PIPELINE_EXECUTOR_MAX_WORKERS: "32",
+  TEXT_STAGE_CONCURRENCY: "8",
+  RAG_DISPATCH_CONCURRENCY: "4",
+  VECTOR_DB_POOL_SIZE: "5",
+  VECTOR_DB_MAX_OVERFLOW: "10",
+  VECTOR_DB_CONNECT_TIMEOUT: "30",
 } as const;
 
 // Grafana Cloud ingest endpoints + instance/tenant IDs — NOT the credentials

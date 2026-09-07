@@ -291,6 +291,7 @@ def test_build_collection_pipeline_wires_rag_downstream_builder_when_enabled():
     because every existing test here mocks build_async_rag_ingestion_service()
     to always disable RAG."""
     mock_rag_service = MagicMock()
+    mock_rag_service.prewarm = AsyncMock()
     (mock_init_db, mock_get_session, mock_session, mock_llm, mock_embedding,
      _, _, mock_get_async_sessionmaker) = _make_collection_pipeline_mocks()
     mock_build_async_rag = MagicMock(return_value=(mock_rag_service, None))

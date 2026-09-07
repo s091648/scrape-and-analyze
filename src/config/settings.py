@@ -120,6 +120,17 @@ VECTOR_DB_SCHEMA: str = os.environ.get("VECTOR_DB_SCHEMA", "vectors")
 VECTOR_DB_ARTICLES_TABLE: str = os.environ.get("VECTOR_DB_ARTICLES_TABLE", "articles")
 VECTOR_DB_CHUNKS_TABLE: str = os.environ.get("VECTOR_DB_CHUNKS_TABLE", "article_chunks")
 
+# Connection-pool tuning for the RAG SDK's own async engine (chatbot_plugin_sdk
+# AsyncPgBackend) — a second asyncpg pool, entirely separate from the scraper's
+# ASYNC_DB_* engine below and pointed at VECTOR_DB_HOST. Before v1.3.1 the SDK
+# hard-coded pool_size=5/max_overflow=10 with asyncpg's 60s connect default and
+# no pre-ping; at run start its cold connects raced the scraper engine's for
+# asyncio's DNS executor. These feed DatabaseConfig(...) in
+# build_async_rag_ingestion_service().
+VECTOR_DB_POOL_SIZE: int = int(os.environ.get("VECTOR_DB_POOL_SIZE", "5"))
+VECTOR_DB_MAX_OVERFLOW: int = int(os.environ.get("VECTOR_DB_MAX_OVERFLOW", "10"))
+VECTOR_DB_CONNECT_TIMEOUT: float = float(os.environ.get("VECTOR_DB_CONNECT_TIMEOUT", "30"))
+
 
 # RAG embedding provider — dense
 RAG_DENSE_PROVIDER: str = os.environ.get("RAG_DENSE_PROVIDER", "")
@@ -181,9 +192,22 @@ ASYNC_DB_POOL_TIMEOUT: float = float(os.environ.get("ASYNC_DB_POOL_TIMEOUT", "12
 # Recycle a pooled connection older than this (seconds) — guards against
 # server-side idle timeouts / proxies silently dropping long-lived connections.
 ASYNC_DB_POOL_RECYCLE: int = int(os.environ.get("ASYNC_DB_POOL_RECYCLE", "1800"))
-# asyncpg connect() timeout (seconds). Fail fast on a stuck connect instead of
-# hanging on asyncpg's 60s default while DNS resolution is starved.
-ASYNC_DB_CONNECT_TIMEOUT: float = float(os.environ.get("ASYNC_DB_CONNECT_TIMEOUT", "10"))
+# asyncpg connect() timeout (seconds). Not "fail fast" — the connect that times
+# out here is usually *queued*, not stuck: every new connection's getaddrinfo
+# runs on asyncio's default ThreadPoolExecutor, so a burst of cold connects at
+# run start can sit in that queue for seconds even against a healthy DB. 10s
+# turned a transient DNS slowdown into a failed article; 30s rides it out.
+# Pre-warming the pool (prewarm_async_engine) + a bigger executor
+# (PIPELINE_EXECUTOR_MAX_WORKERS) are the real fixes — this is the backstop.
+ASYNC_DB_CONNECT_TIMEOUT: float = float(os.environ.get("ASYNC_DB_CONNECT_TIMEOUT", "30"))
+
+# Size of the event loop's default ThreadPoolExecutor for the scrape run
+# (src/entrypoints/cli/main.py). asyncio.getaddrinfo — every asyncpg cold
+# connect's DNS lookup — runs here, as does every asyncio.to_thread call in the
+# pipeline. Python's default is min(32, cpu_count + 4), i.e. ~5-6 on a small
+# Railway container, which a run-start connection burst across two pools
+# (scraper + RAG SDK) starves. 32 gives DNS resolution room to breathe.
+PIPELINE_EXECUTOR_MAX_WORKERS: int = int(os.environ.get("PIPELINE_EXECUTOR_MAX_WORKERS", "32"))
 
 # Max number of articles' RAG ingestion allowed to be concurrently in flight
 # (holding open an AsyncSession) in the live pipeline (024-async-pipeline-refactor
@@ -193,8 +217,10 @@ ASYNC_DB_CONNECT_TIMEOUT: float = float(os.environ.get("ASYNC_DB_CONNECT_TIMEOUT
 # separate concern). Keep it comfortably under the pool cap so text-stage tasks
 # aren't starved of connections by RAG. Default (10) is a conservative starting
 # point; tune once your actual max_connections and other services' typical
-# concurrent usage are known.
-RAG_DISPATCH_CONCURRENCY: int = int(os.environ.get("RAG_DISPATCH_CONCURRENCY", "10"))
+# concurrent usage are known. Lowered 10 -> 4: with TEXT_STAGE_CONCURRENCY this
+# also bounds the run-start cold-connect burst, and 8 + 4 leaves real headroom
+# under the 20-connection pool cap (10 was the whole cap, zero headroom).
+RAG_DISPATCH_CONCURRENCY: int = int(os.environ.get("RAG_DISPATCH_CONCURRENCY", "4"))
 
 # Max per-article text-stage tasks (scrape→process→analyze→translate) allowed to
 # concurrently hold a pooled AsyncSession + be mid-LLM chain. Barrier 1 fans out
@@ -203,8 +229,10 @@ RAG_DISPATCH_CONCURRENCY: int = int(os.environ.get("RAG_DISPATCH_CONCURRENCY", "
 # starvation this addresses). A blocked task just waits for a slot — nothing is
 # dropped. Keep TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY at or under the
 # async pool cap (ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW), leaving a little
-# headroom for run-level/housekeeping sessions.
-TEXT_STAGE_CONCURRENCY: int = int(os.environ.get("TEXT_STAGE_CONCURRENCY", "10"))
+# headroom for run-level/housekeeping sessions. Lowered 10 -> 8 so 8 + 4 (RAG)
+# = 12 sits comfortably under the 20 cap and the first fan-out opens at most 8
+# cold connections at once instead of 10.
+TEXT_STAGE_CONCURRENCY: int = int(os.environ.get("TEXT_STAGE_CONCURRENCY", "8"))
 
 # Backstop wall-clock cap (seconds) on a single article's RAG ingestion in the
 # live pipeline. A doomed embedding call (upstream stall, coordinator deadlock,

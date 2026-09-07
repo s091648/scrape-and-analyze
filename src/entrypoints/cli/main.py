@@ -101,7 +101,22 @@ def main() -> None:
 
             async def _build_and_run():
                 nonlocal pipeline_stats
+                from concurrent.futures import ThreadPoolExecutor
+                from src.config.settings import PIPELINE_EXECUTOR_MAX_WORKERS
                 from src.infrastructure.persistence.database import dispose_async_engine
+
+                # asyncio.getaddrinfo — every asyncpg cold connect's DNS lookup —
+                # and every asyncio.to_thread call run on the loop's default
+                # executor. Its default size (~min(32, cpu+4), i.e. ~5-6 on a
+                # small Railway container) is starved by a run-start connection
+                # burst across the scraper + RAG SDK pools, so queued getaddrinfo
+                # calls miss asyncpg's connect timeout. Give it real room.
+                asyncio.get_running_loop().set_default_executor(
+                    ThreadPoolExecutor(
+                        max_workers=PIPELINE_EXECUTOR_MAX_WORKERS,
+                        thread_name_prefix="pipeline-aio",
+                    )
+                )
                 try:
                     pipeline, pipeline_stats = await build_collection_pipeline(jitter_seconds=jitter_seconds)
                     await pipeline.run()

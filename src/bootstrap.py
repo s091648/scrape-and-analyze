@@ -377,6 +377,7 @@ def build_async_rag_ingestion_service():
             VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
             VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
             VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
+            VECTOR_DB_POOL_SIZE, VECTOR_DB_MAX_OVERFLOW, VECTOR_DB_CONNECT_TIMEOUT,
             RAG_DENSE_PROVIDER, RAG_SPARSE_PROVIDER,
             RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
         )
@@ -384,7 +385,7 @@ def build_async_rag_ingestion_service():
 
         dense_provider, sparse_provider = _build_rag_dense_sparse_providers()
 
-        backend = AsyncPgBackend(DatabaseConfig(
+        db_kwargs = dict(
             dbname=VECTOR_DB_NAME,
             user=VECTOR_DB_USER,
             password=VECTOR_DB_PASSWORD,
@@ -393,7 +394,25 @@ def build_async_rag_ingestion_service():
             schema=VECTOR_DB_SCHEMA,
             articles_table=VECTOR_DB_ARTICLES_TABLE,
             chunks_table=VECTOR_DB_CHUNKS_TABLE,
-        ))
+        )
+        # SDK >= 1.3.1: give the RAG engine the same pre-ping + generous connect
+        # timeout the scraper engine has, so its run-start cold connects don't
+        # fail under DNS-executor contention. Skipped on older SDKs whose
+        # DatabaseConfig has no such fields (dependency pin still v1.3.0).
+        try:
+            import dataclasses as _dc
+            _supported = {f.name for f in _dc.fields(DatabaseConfig)}
+            for _k, _v in dict(
+                pool_size=VECTOR_DB_POOL_SIZE,
+                max_overflow=VECTOR_DB_MAX_OVERFLOW,
+                connect_timeout=VECTOR_DB_CONNECT_TIMEOUT,
+            ).items():
+                if _k in _supported:
+                    db_kwargs[_k] = _v
+        except (TypeError, AttributeError):
+            pass  # DatabaseConfig isn't a real dataclass here — base kwargs only
+
+        backend = AsyncPgBackend(DatabaseConfig(**db_kwargs))
         processor = IngestProcessor()
         processor.configure(
             backend=backend,
@@ -513,6 +532,16 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     session = get_session()
     async_sessionmaker_factory = get_async_sessionmaker()
 
+    # Pre-open the async pool now, sequentially, so the Barrier-1 fan-out reuses
+    # warm connections instead of every task racing a cold asyncpg connect
+    # (whose getaddrinfo stampedes asyncio's DNS executor past the connect
+    # timeout — the failure this branch keeps hitting on staging).
+    from src.infrastructure.persistence.database import prewarm_async_engine
+    try:
+        await prewarm_async_engine()
+    except Exception as e:  # never let warm-up abort a run
+        logger.warning("async_engine_prewarm_failed", error=str(e))
+
     # ── Upstream (sync, still-batched — FR-003) repositories ────────────────
     article_repo = SqlAlchemyArticleRepository(session=session)  # find_analyzed_url_hashes only
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
@@ -526,6 +555,15 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     # ── RAG (async) ──────────────────────────────────────────────────────────
     _rag_ingestion_service, _rag_config_failed_event = build_async_rag_ingestion_service()
     rag_enabled = _rag_ingestion_service is not None
+
+    if rag_enabled:
+        # Same reasoning as the scraper pool above, for the RAG SDK's separate
+        # AsyncPgBackend pool — plus it runs the SDK's one-time schema setup
+        # here rather than on the first (concurrent) RAG tasks.
+        try:
+            await _rag_ingestion_service.prewarm()
+        except Exception as e:
+            logger.warning("rag_backend_prewarm_failed", error=str(e))
 
     # ── Run-level event bus — ONLY the two barrier events are published here.
     # Every per-article event (ArticleScrapedEvent..TagNormalizationCompletedEvent)

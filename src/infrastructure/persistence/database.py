@@ -69,6 +69,39 @@ def get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
     return _AsyncSessionLocal
 
 
+async def prewarm_async_engine(connections: int | None = None) -> None:
+    """Open ``connections`` real connections (default: ``ASYNC_DB_POOL_SIZE``)
+    once, sequentially, and hand them straight back to the pool.
+
+    The QueuePool switch alone doesn't stop the *first* Barrier-1 fan-out from
+    racing: the pool starts empty, so the first ``TEXT_STAGE_CONCURRENCY`` tasks
+    each open a brand-new asyncpg connection at the same instant, and their
+    getaddrinfo calls stampede asyncio's default executor past the connect
+    timeout. Pre-warming here means that fan-out checks out warm connections
+    instead. Best-effort: a connection that can't be opened is skipped so a
+    transient blip during warm-up doesn't abort startup. Call once, after
+    ``get_async_sessionmaker()``, inside the run's event loop.
+    """
+    from sqlalchemy import text
+
+    get_async_sessionmaker()  # ensure _async_engine is built
+    if _async_engine is None:  # engine couldn't be built — nothing to warm
+        return
+    n = ASYNC_DB_POOL_SIZE if connections is None else connections
+    held = []
+    try:
+        for _ in range(max(0, n)):
+            try:
+                conn = await _async_engine.connect()
+            except Exception:
+                break
+            held.append(conn)
+            await conn.execute(text("SELECT 1"))
+    finally:
+        for conn in held:
+            await conn.close()
+
+
 async def dispose_async_engine() -> None:
     """Close the async engine's pooled connections and reset the module state.
 
