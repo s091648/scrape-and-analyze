@@ -51,6 +51,41 @@ _SOURCE_TYPE_HOST_OVERRIDES = {
 }
 
 
+class _ArticleSpanLatch:
+    """Ends one article's ``article.pipeline`` span once BOTH its text stage and
+    its detached RAG task have settled.
+
+    approach A keeps that span open past the text stage so its window/subtree
+    contain RAG ingestion. RAG ingestion used to be dispatched strictly after
+    the article's analyze+translate chain, so "the RAG task ends the span" was
+    always safe. RAG is now dispatched *before* that chain (see the
+    ArticleProcessedEvent subscribe order in bootstrap.py) and runs concurrently
+    with it, so RAG may finish first — whichever of ``mark_text()`` /
+    ``mark_rag()`` lands second ends the span. Single event loop, no threads: the
+    two bool checks need no lock. When no RAG task is dispatched, the text stage
+    calls both marks itself.
+    """
+
+    __slots__ = ("span", "_text_done", "_rag_done")
+
+    def __init__(self, span) -> None:
+        self.span = span
+        self._text_done = False
+        self._rag_done = False
+
+    def mark_text(self) -> None:
+        self._text_done = True
+        self._maybe_end()
+
+    def mark_rag(self) -> None:
+        self._rag_done = True
+        self._maybe_end()
+
+    def _maybe_end(self) -> None:
+        if self._text_done and self._rag_done and self.span.is_recording():
+            self.span.end()
+
+
 class CollectionPipeline:
     """Orchestrates the full discover-fetch-dedup-publish cycle for due scraper sources.
 
@@ -174,34 +209,36 @@ class CollectionPipeline:
 
     # ── Per-article downstream (concurrent) ─────────────────────────────────
 
-    async def _dispatch_rag(self, event, pipeline_span=None) -> Optional[asyncio.Task]:
+    async def _dispatch_rag(self, event, span_latch=None) -> Optional[asyncio.Task]:
         """Fire RAG ingestion as a detached asyncio.Task, tracked for Barrier 2
         — deliberately NOT awaited, so this article's own text-stage chain (and
         the triggering publish() call) completes without waiting on RAG (FR-002),
         and RAG failing/being slow never blocks any other article either.
 
-        pipeline_span is that article's article.pipeline span (still current
-        when this runs, inside _process_article_text's use_span block) — passed
-        through so the RAG task can parent article.rag_ingest to it explicitly
-        and end it once RAG settles (approach A)."""
+        span_latch is that article's _ArticleSpanLatch — its .span is the
+        article.pipeline span (still current when this runs, inside
+        _process_article_text's span block), used so the RAG task can parent
+        article.rag_ingest to it explicitly; the RAG task calls
+        span_latch.mark_rag() once it settles (approach A)."""
         if self._rag_downstream_builder is None:
             return None
-        task = asyncio.create_task(self._run_rag_ingestion(event, pipeline_span))
+        task = asyncio.create_task(self._run_rag_ingestion(event, span_latch))
         self._rag_tasks.append(task)
         return task
 
-    def _make_rag_dispatcher(self, pipeline_span, rag_task_box: List[asyncio.Task]):
+    def _make_rag_dispatcher(self, span_latch, rag_task_box: List[asyncio.Task]):
         """Per-article ArticleProcessedEvent subscriber: delegates to
-        _dispatch_rag with this article's span, and records the resulting task
-        in rag_task_box — _process_article_text's signal that a RAG task now
-        owns ending the article.pipeline span."""
+        _dispatch_rag with this article's span latch, and records the resulting
+        task in rag_task_box — _process_article_text's signal that a RAG task
+        now co-owns ending the article.pipeline span (it must not mark_rag()
+        itself in that case)."""
         async def _dispatch(event) -> None:
-            task = await self._dispatch_rag(event, pipeline_span)
+            task = await self._dispatch_rag(event, span_latch)
             if task is not None:
                 rag_task_box.append(task)
         return _dispatch
 
-    async def _run_rag_ingestion(self, event, pipeline_span=None) -> None:
+    async def _run_rag_ingestion(self, event, span_latch=None) -> None:
         """Owns its own AsyncSession for the whole task lifetime — separate
         from (and outliving) the text-stage task's session, since RAG may
         still be running after the article's text-stage task has already
@@ -217,8 +254,11 @@ class CollectionPipeline:
         daily quota (RateLimitExhausted), skip straight to recording a deferred
         FailedTask — don't open a session, don't enqueue chunks, don't wait.
 
-        Ends pipeline_span (the article.pipeline span) once RAG settles, so the
-        article's span time window actually contains its RAG ingestion."""
+        Calls span_latch.mark_rag() once RAG settles. The latch ends the
+        article.pipeline span only after the text stage has also marked it —
+        which, now that RAG runs concurrently with analyze/translate, may be
+        before OR after this point."""
+        parent_span = span_latch.span if span_latch is not None else None
         try:
             if self._rag_rate_limited:
                 self._record_rag_skipped(event)
@@ -230,7 +270,7 @@ class CollectionPipeline:
                     return
                 async with self._async_sessionmaker_factory() as session:
                     handler = await self._rag_downstream_builder(session)
-                    coro = handler.handle(event, parent_span=pipeline_span)
+                    coro = handler.handle(event, parent_span=parent_span)
                     try:
                         if self._rag_ingest_timeout and self._rag_ingest_timeout > 0:
                             await asyncio.wait_for(coro, timeout=self._rag_ingest_timeout)
@@ -265,8 +305,8 @@ class CollectionPipeline:
                             message=f"RAG ingestion exceeded {self._rag_ingest_timeout}s backstop cap",
                         )
         finally:
-            if pipeline_span is not None and pipeline_span.is_recording():
-                pipeline_span.end()
+            if span_latch is not None:
+                span_latch.mark_rag()
 
     def _record_rag_skipped(self, event, reason: str = "RateLimitExhausted",
                             message: Optional[str] = None) -> None:
@@ -312,14 +352,15 @@ class CollectionPipeline:
         subscribed once at bootstrap time.
 
         approach A (fix/scraper_failure): the article.pipeline span is managed
-        manually. The text stage doesn't block on RAG, but the span is only
-        ended once this article's detached RAG task settles (via
-        _run_rag_ingestion), so its duration and subtree actually contain
-        article.rag_ingest. When no RAG task is dispatched (RAG disabled,
-        dedup, or a scrape-stage failure that stops before ArticleProcessedEvent)
-        this method ends the span itself.
+        manually via _ArticleSpanLatch. The text stage doesn't block on RAG, but
+        the span stays open until BOTH the text stage and this article's detached
+        RAG task have settled — in either order, since RAG now runs concurrently
+        with analyze/translate — so its duration and subtree actually contain
+        article.rag_ingest. When no RAG task is dispatched (RAG disabled, dedup,
+        or a scrape-stage failure that stops before ArticleProcessedEvent) the
+        text stage marks both sides of the latch itself.
         """
-        span = None
+        latch: Optional[_ArticleSpanLatch] = None
         rag_task_box: List[asyncio.Task] = []
         try:
             # _text_stage_semaphore gates entry here — a task still waiting on it
@@ -328,26 +369,28 @@ class CollectionPipeline:
             # once. Released when this method returns (after bus.publish), which
             # is before the detached RAG task settles.
             async with self._text_stage_semaphore:
-                # end_on_exit=False: the text stage doesn't wait on RAG, but the
-                # span is kept open (see _run_rag_ingestion) so its duration/
-                # subtree contain the RAG work. record_exception/set_status still
-                # fire on a hard failure that escapes the chain.
+                # end_on_exit=False: the span is kept open (see _ArticleSpanLatch)
+                # so its duration/subtree contain the RAG work. record_exception/
+                # set_status still fire on a hard failure that escapes the chain.
                 with get_tracer().start_as_current_span(
                     SpanName.ARTICLE_PIPELINE, end_on_exit=False,
                 ) as span:
+                    latch = _ArticleSpanLatch(span)
                     span.set_attribute("article.url", article.url)
                     async with self._async_sessionmaker_factory() as session:
                         bus = self._event_bus_factory()
-                        dispatch_rag = self._make_rag_dispatcher(span, rag_task_box)
+                        dispatch_rag = self._make_rag_dispatcher(latch, rag_task_box)
                         await self._article_downstream_builder(session, bus, dispatch_rag)
                         event = ArticleScrapedEvent.from_scraped_article(article)
                         await bus.publish(event)
-        except BaseException:
-            if span is not None and not rag_task_box and span.is_recording():
-                span.end()
-            raise
-        if span is not None and not rag_task_box and span.is_recording():
-            span.end()
+        finally:
+            if latch is not None:
+                # A dispatched RAG task (rag_task_box non-empty) will call
+                # mark_rag() when it settles — maybe before, maybe after here.
+                # Otherwise the text stage is the only gate, so mark both.
+                if not rag_task_box:
+                    latch.mark_rag()
+                latch.mark_text()
 
     async def run(self) -> int:
         """Execute the full pipeline for all due sources and return the number of articles published."""
@@ -471,52 +514,74 @@ class CollectionPipeline:
             dedup_span.set_attribute("articles.after_dedup", len(results))
             dedup_span.set_attribute("articles.skipped", articles_before_dedup - len(results))
 
-        # ── Barrier 1: fan out one asyncio.Task per article, gather with
-        # settle semantics (research.md item 6) ─────────────────────────
+        # ── Barrier 1 + Barrier 2, both inside one pipeline.process_articles
+        # span ───────────────────────────────────────────────────────────
+        # process_articles is the real container for all per-article work: the
+        # article.pipeline spans parent to IT (not to pipeline.publish_articles),
+        # and it stays open — end_on_exit=False + manual .end() after Barrier 2 —
+        # until every detached RAG task has settled, so its window/subtree
+        # actually contain article.rag_ingest. pipeline.publish_articles is now a
+        # leaf timing marker for just the text fan-out (Barrier 1) window,
+        # started with start_span (NOT current) so it never becomes an ancestor
+        # of article.pipeline. The TextPipelineCompletedEvent handlers still run
+        # after publish_span closes and with process_span no longer current, so
+        # they stay parented to scraper.run exactly as before.
         published = len(results)
-        with tracer.start_as_current_span("pipeline.publish_articles") as publish_span:
-            publish_span.set_attribute("articles.published", published)
-            outcomes = await asyncio.gather(
-                *(self._process_article_text(article) for article in results),
-                return_exceptions=True,
-            )
-            failed = 0
-            for article, outcome in zip(results, outcomes, strict=True):
-                if isinstance(outcome, BaseException):
-                    failed += 1
-                    logger.error(
-                        "article_task_failed",
-                        url=article.url,
-                        source=article.source,
-                        error=str(outcome),
-                        error_type=type(outcome).__name__,
+        process_span = None
+        try:
+            with tracer.start_as_current_span(
+                "pipeline.process_articles", end_on_exit=False,
+            ) as process_span:
+                process_span.set_attribute("articles.published", published)
+                publish_span = tracer.start_span("pipeline.publish_articles")
+                publish_span.set_attribute("articles.published", published)
+                try:
+                    outcomes = await asyncio.gather(
+                        *(self._process_article_text(article) for article in results),
+                        return_exceptions=True,
                     )
-            publish_span.set_attribute("articles.task_failed", failed)
-        # NOTE: pipeline.publish_articles closes here, before the detached RAG
-        # tasks (and the article.pipeline spans they keep open) finish — those
-        # spans intentionally outlive it (approach A). scraper.run still contains
-        # everything, since pipeline.run() only returns after Barrier 2.
+                    failed = 0
+                    for article, outcome in zip(results, outcomes, strict=True):
+                        if isinstance(outcome, BaseException):
+                            failed += 1
+                            logger.error(
+                                "article_task_failed",
+                                url=article.url,
+                                source=article.source,
+                                error=str(outcome),
+                                error_type=type(outcome).__name__,
+                            )
+                    publish_span.set_attribute("articles.task_failed", failed)
+                    process_span.set_attribute("articles.task_failed", failed)
+                finally:
+                    publish_span.end()
 
-        stats = self._pipeline_stats.get_results()
-        text_execution = self._build_execution_meta(started_at, start)
-        await self._event_bus.publish(TextPipelineCompletedEvent(
-            stats=stats,
-            execution=text_execution,
-            rate_limited_hosts=tuple(self._executor.exhausted_hosts),
-            rate_limited_llm_providers=self._rate_limited_llm_providers(),
-            partial_failure_count=self._pipeline_stats.partial_failure_count,
-        ))
+            stats = self._pipeline_stats.get_results()
+            text_execution = self._build_execution_meta(started_at, start)
+            await self._event_bus.publish(TextPipelineCompletedEvent(
+                stats=stats,
+                execution=text_execution,
+                rate_limited_hosts=tuple(self._executor.exhausted_hosts),
+                rate_limited_llm_providers=self._rate_limited_llm_providers(),
+                partial_failure_count=self._pipeline_stats.partial_failure_count,
+            ))
 
-        # ── Barrier 2: every RAG task also settled ───────────────────────
-        if self._rag_tasks:
-            rag_outcomes = await asyncio.gather(*self._rag_tasks, return_exceptions=True)
-            for outcome in rag_outcomes:
-                if isinstance(outcome, BaseException):
-                    logger.error(
-                        "rag_task_failed",
-                        error=str(outcome),
-                        error_type=type(outcome).__name__,
-                    )
+            # ── Barrier 2: every RAG task also settled ───────────────────
+            if self._rag_tasks:
+                rag_outcomes = await asyncio.gather(*self._rag_tasks, return_exceptions=True)
+                for outcome in rag_outcomes:
+                    if isinstance(outcome, BaseException):
+                        logger.error(
+                            "rag_task_failed",
+                            error=str(outcome),
+                            error_type=type(outcome).__name__,
+                        )
+        finally:
+            # Every article.pipeline span has been ended by its latch by now
+            # (text stage + RAG task both settled at Barrier 2), so this closes
+            # the true outer bound of all per-article work.
+            if process_span is not None and process_span.is_recording():
+                process_span.end()
 
         # ── RAG circuit-breaker: one bulk write for every skipped article ──
         rag_rate_limited_skipped = 0

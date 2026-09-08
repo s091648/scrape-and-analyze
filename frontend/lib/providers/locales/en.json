@@ -595,6 +595,7 @@
     "stageLabel_discoverFailed": "Discover Failed",
     "stageLabel_pipelineFetch": "Fetch",
     "stageLabel_pipelineDedup": "Dedup",
+    "stageLabel_pipelineProcessArticles": "Process Articles",
     "stageLabel_pipelinePublishArticles": "Publish Articles",
     "stageLabel_cacheInvalidation": "Cache Invalidation",
     "stageLabel_cacheWarmup": "Cache Warmup",

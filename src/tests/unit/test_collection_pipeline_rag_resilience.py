@@ -198,7 +198,7 @@ async def test_make_rag_dispatcher_records_the_task_in_the_box_for_the_text_stag
     )
 
     box: list = []
-    dispatch = pipeline._make_rag_dispatcher(pipeline_span=MagicMock(), rag_task_box=box)
+    dispatch = pipeline._make_rag_dispatcher(span_latch=MagicMock(), rag_task_box=box)
     await dispatch(_event())
 
     assert len(box) == 1
@@ -213,7 +213,7 @@ async def test_make_rag_dispatcher_records_nothing_when_rag_is_disabled():
         async_sessionmaker_factory=_fake_session,
     )
     box: list = []
-    dispatch = pipeline._make_rag_dispatcher(pipeline_span=MagicMock(), rag_task_box=box)
+    dispatch = pipeline._make_rag_dispatcher(span_latch=MagicMock(), rag_task_box=box)
     await dispatch(_event())
     assert box == []
 
@@ -221,10 +221,11 @@ async def test_make_rag_dispatcher_records_nothing_when_rag_is_disabled():
 @pytest.mark.asyncio
 async def test_process_article_text_keeps_pipeline_span_open_until_rag_settles():
     """approach A: the text stage doesn't block on RAG, but the article.pipeline
-    span is only ended once the detached RAG task settles — so its duration and
-    subtree actually contain article.rag_ingest. When a RAG task IS dispatched,
-    _process_article_text must leave the span open (end_on_exit=False + no manual
-    end); _run_rag_ingestion's finally block ends it."""
+    span is only ended once BOTH the text stage and the detached RAG task have
+    settled (via _ArticleSpanLatch) — so its duration and subtree actually
+    contain article.rag_ingest. When a RAG task IS dispatched, _process_article_text
+    only marks the text side of the latch; _run_rag_ingestion's finally marks the
+    RAG side, and whichever is second ends the span."""
     ended: list = []
 
     def _fake_span_factory():
@@ -270,11 +271,11 @@ async def test_process_article_text_keeps_pipeline_span_open_until_rag_settles()
         article = ScrapedArticle(title="A", url="https://example.com/a", source="test",
                                  content="c", published_at=None)
         await pipeline._process_article_text(article)
-        # Span left open by the text stage — a RAG task owns ending it now.
+        # Text side marked; RAG task hasn't settled → latch keeps the span open.
         assert ended == []
         assert len(pipeline._rag_tasks) == 1
         await asyncio.gather(*pipeline._rag_tasks)
-        # _run_rag_ingestion's finally block ended it once RAG settled.
+        # RAG side marked second → latch ended the span.
         assert ended == [True]
     finally:
         mod.get_tracer = original

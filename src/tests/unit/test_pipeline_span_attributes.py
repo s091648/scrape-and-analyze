@@ -102,11 +102,14 @@ class TestPipelineSpanAttributes:
 
             def record_exception(self, e): pass
             def set_status(self, *a, **k): pass
+            def is_recording(self): return True
+            def end(self): pass
             def __enter__(self): return self
             def __exit__(self, *a): return False
 
         mock_tracer = MagicMock()
-        mock_tracer.start_as_current_span.side_effect = lambda name: TrackingSpan(name)
+        mock_tracer.start_as_current_span.side_effect = lambda name, **_kw: TrackingSpan(name)
+        mock_tracer.start_span.side_effect = lambda name, **_kw: TrackingSpan(name)
 
         with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
             await pipeline.run()
@@ -148,3 +151,10 @@ class TestPipelineSpanAttributes:
         assert "pipeline.publish_articles" in spans
         span = spans["pipeline.publish_articles"]
         assert "articles.published" in span._attrs
+
+    @pytest.mark.asyncio
+    async def test_process_articles_span_has_published_count(self):
+        pipeline = _make_pipeline_with_articles(3)
+        spans = await self._capture_spans(pipeline)
+        assert "pipeline.process_articles" in spans
+        assert "articles.published" in spans["pipeline.process_articles"]._attrs

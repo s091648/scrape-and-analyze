@@ -89,7 +89,7 @@ class TestCollectionPipelineSpans:
         assert "pipeline.fetch" in span_names
 
     @pytest.mark.asyncio
-    async def test_publish_articles_span_created(self):
+    async def test_process_articles_span_created(self):
         pipeline, _ = _make_pipeline()
         mock_span = MagicMock()
         mock_span.__enter__ = MagicMock(return_value=mock_span)
@@ -101,7 +101,24 @@ class TestCollectionPipelineSpans:
             await pipeline.run()
 
         span_names = [c.args[0] for c in mock_tracer.start_as_current_span.call_args_list]
-        assert "pipeline.publish_articles" in span_names
+        assert "pipeline.process_articles" in span_names
+
+    @pytest.mark.asyncio
+    async def test_publish_articles_span_created(self):
+        pipeline, _ = _make_pipeline()
+        mock_span = MagicMock()
+        mock_span.__enter__ = MagicMock(return_value=mock_span)
+        mock_span.__exit__ = MagicMock(return_value=False)
+        mock_tracer = MagicMock()
+        mock_tracer.start_as_current_span.return_value = mock_span
+
+        with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
+            await pipeline.run()
+
+        # pipeline.publish_articles is now started with start_span (not made
+        # current) so it never becomes an ancestor of article.pipeline.
+        start_span_names = [c.args[0] for c in mock_tracer.start_span.call_args_list]
+        assert "pipeline.publish_articles" in start_span_names
 
     @pytest.mark.asyncio
     async def test_no_span_error_when_tracer_is_noop(self):

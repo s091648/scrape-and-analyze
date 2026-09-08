@@ -650,13 +650,22 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         )
 
         await bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
-        await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
         if rag_enabled:
-            # Subscribed after article_processed_handler (subscribe-order
-            # dispatch — contracts/event-bus-port.md) though order between
-            # these two doesn't matter functionally, since dispatch_rag
-            # returns near-instantly regardless of position.
+            # Subscribed BEFORE article_processed_handler (subscribe-order
+            # dispatch — contracts/event-bus-port.md): the bus awaits handlers
+            # sequentially, and article_processed_handler runs this article's
+            # whole analyze → tag-normalise → translate chain inline. Putting
+            # dispatch_rag first means the detached RAG task is created (and
+            # starts running) up front and proceeds concurrently with that
+            # chain, instead of only after translation finishes. RAG needs just
+            # event.full_text — no analysis/translation output — so nothing in
+            # the RAG path depends on that chain having run. dispatch_rag itself
+            # still returns near-instantly (asyncio.create_task only); the
+            # article.pipeline span is closed by _ArticleSpanLatch once BOTH the
+            # text stage and the RAG task settle, so RAG finishing first no
+            # longer ends the span out from under a still-running translate.
             await bus.subscribe(ArticleProcessedEvent, dispatch_rag)
+        await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
         await bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
         await bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
         await bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)

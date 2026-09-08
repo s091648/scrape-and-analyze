@@ -595,6 +595,7 @@
     "stageLabel_discoverFailed": "探索失敗",
     "stageLabel_pipelineFetch": "內容抓取",
     "stageLabel_pipelineDedup": "去重",
+    "stageLabel_pipelineProcessArticles": "文章處理",
     "stageLabel_pipelinePublishArticles": "文章發布",
     "stageLabel_cacheInvalidation": "快取失效",
     "stageLabel_cacheWarmup": "快取預熱",

@@ -54,6 +54,7 @@ const STAGE_I18N_KEYS: Record<string, string> = {
   'scraper.discover_failed':               'admin.stageLabel_discoverFailed',
   'pipeline.fetch':                        'admin.stageLabel_pipelineFetch',
   'pipeline.dedup':                        'admin.stageLabel_pipelineDedup',
+  'pipeline.process_articles':             'admin.stageLabel_pipelineProcessArticles',
   'pipeline.publish_articles':             'admin.stageLabel_pipelinePublishArticles',
   'cache.invalidation.handle':             'admin.stageLabel_cacheInvalidation',
   'cache.warmup.handle':                   'admin.stageLabel_cacheWarmup',
