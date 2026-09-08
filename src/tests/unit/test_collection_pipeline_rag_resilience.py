@@ -94,9 +94,10 @@ async def test_rag_ingest_timeout_is_recorded_as_partial_failure_and_deferred_ta
 
 @pytest.mark.asyncio
 async def test_first_rate_limit_trips_breaker_and_later_articles_skip_without_a_session():
-    """The embedding RPD cap, once hit, raises RateLimitExhausted on every
-    subsequent call — so after the first, no further RAG ingestion should even
-    open a session; the untried article is just queued for the backfill cron."""
+    """An untyped RateLimitExhausted (dimension "unknown") is treated
+    conservatively like a daily cap: it trips the breaker, so after the first
+    hit no further RAG ingestion even opens a session; the untried article is
+    queued for the backfill cron."""
     sessions_opened = 0
 
     @asynccontextmanager
@@ -130,6 +131,115 @@ async def test_first_rate_limit_trips_breaker_and_later_articles_skip_without_a_
     assert sessions_opened == 1
     assert len(pipeline._rag_skipped_tasks) == 1
     assert pipeline._rag_skipped_tasks[0].exception_type == "RateLimitExhausted"
+
+
+@pytest.mark.asyncio
+async def test_rpd_dimension_trips_the_breaker():
+    """A typed daily-cap error (dimension="rpd") opens the breaker — every
+    remaining article this run would fail identically."""
+    class _RpdExhausted(RateLimitExhausted):
+        dimension = "rpd"
+
+    async def _handle(event, parent_span=None):
+        raise _RpdExhausted("daily cap")
+
+    async def _builder(session):
+        h = MagicMock()
+        h.handle = _handle
+        return h
+
+    pipeline = _make_pipeline(
+        rag_downstream_builder=_builder,
+        async_sessionmaker_factory=_fake_session,
+    )
+
+    await pipeline._run_rag_ingestion(_event())
+
+    assert pipeline._rag_rate_limited is True
+
+
+@pytest.mark.asyncio
+async def test_transient_rpm_dimension_does_not_trip_the_breaker():
+    """A per-minute cap (dimension="rpm") recovers within the run — it must fail
+    only its own article (recorded inline by the handler), never open the
+    breaker that would skip RAG for every remaining article."""
+    class _RpmExhausted(RateLimitExhausted):
+        dimension = "rpm"
+
+    async def _handle(event, parent_span=None):
+        raise _RpmExhausted("per-minute cap")
+
+    async def _builder(session):
+        h = MagicMock()
+        h.handle = _handle
+        return h
+
+    pipeline = _make_pipeline(
+        rag_downstream_builder=_builder,
+        async_sessionmaker_factory=_fake_session,
+    )
+
+    await pipeline._run_rag_ingestion(_event("https://example.com/rpm"))
+    await pipeline._run_rag_ingestion(_event("https://example.com/rpm2"))
+
+    assert pipeline._rag_rate_limited is False
+    # Not a circuit-breaker skip — the handler's own RagIngestionFailedEvent
+    # path (stubbed out here) owns recording the per-article failure.
+    assert pipeline._rag_skipped_tasks == []
+
+
+@pytest.mark.asyncio
+async def test_circuit_broken_article_emits_a_failed_rag_span():
+    """B (fix/scraper_failure): once the breaker is open, later articles never
+    reach AsyncRagIngestionHandler (where article.rag_ingest is normally
+    created), so _record_rag_skipped emits a short ERROR span itself — otherwise
+    the article row renders as a clean ✓ despite its vectors never landing."""
+    import src.infrastructure.collection.collection_pipeline as mod
+
+    ended_spans = []
+
+    class _SkipSpan:
+        def __init__(self, name):
+            self.name = name
+            self.attrs = {}
+            self.status = None
+
+        def set_attribute(self, k, v):
+            self.attrs[k] = v
+
+        def set_status(self, code, desc=None):
+            self.status = (code, desc)
+
+        def end(self):
+            ended_spans.append(self)
+
+    tracer = MagicMock()
+    tracer.start_span.side_effect = lambda name, **_kw: _SkipSpan(name)
+
+    pipeline = _make_pipeline(
+        rag_downstream_builder=AsyncMock(),
+        async_sessionmaker_factory=_fake_session,
+    )
+    pipeline._rag_rate_limited = True  # breaker already open
+
+    parent = MagicMock()
+    latch = mod._ArticleSpanLatch(parent)
+
+    original = mod.get_tracer
+    mod.get_tracer = lambda: tracer
+    try:
+        await pipeline._run_rag_ingestion(_event("https://example.com/skip"), latch)
+    finally:
+        mod.get_tracer = original
+
+    assert len(ended_spans) == 1
+    span = ended_spans[0]
+    assert span.name == "article.rag_ingest"
+    assert span.attrs["rag_ingest.skipped"] is True
+    assert span.attrs["rag_ingest.success"] is False
+    assert span.status is not None and span.status[0] is not None
+    # still also queued for the backfill cron
+    assert len(pipeline._rag_skipped_tasks) == 1
 
 
 @pytest.mark.asyncio

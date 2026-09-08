@@ -143,11 +143,12 @@ class AsyncRagIngestionHandler:
                     traceback=format_filtered_exc(exc),
                     correlation_id=get_correlation_id() or None,
                 ))
-                # RateLimitExhausted means the embedding provider's daily
-                # request cap (RPD) is spent and won't recover this run — every
-                # remaining article would fail the same way. Re-raise so the
-                # pipeline can trip its circuit breaker and stop dispatching
-                # RAG for the rest of the run. All other exceptions stay
+                # Re-raise any rate-limit error so CollectionPipeline._run_rag_ingestion
+                # can decide what to do with it by quota dimension: a *daily* cap
+                # (RpdExhausted) or an untyped 429 opens its circuit breaker and
+                # stops dispatching RAG for the rest of the run; a per-minute cap
+                # (RpmExhausted / TpmExhausted) is transient and just fails this
+                # one article (recorded above). All other exceptions stay
                 # swallowed (this article failed; the next one is independent).
                 if isinstance(exc, RateLimitExhausted):
                     raise

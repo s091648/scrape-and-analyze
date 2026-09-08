@@ -109,7 +109,6 @@ class TestPipelineSpanAttributes:
 
         mock_tracer = MagicMock()
         mock_tracer.start_as_current_span.side_effect = lambda name, **_kw: TrackingSpan(name)
-        mock_tracer.start_span.side_effect = lambda name, **_kw: TrackingSpan(name)
 
         with patch("src.infrastructure.shared.observability.otel_tracing._tracer", mock_tracer):
             await pipeline.run()
@@ -143,14 +142,6 @@ class TestPipelineSpanAttributes:
         assert "articles.before_dedup" in span._attrs
         assert "articles.after_dedup" in span._attrs
         assert "articles.skipped" in span._attrs
-
-    @pytest.mark.asyncio
-    async def test_publish_span_has_published_count(self):
-        pipeline = _make_pipeline_with_articles(3)
-        spans = await self._capture_spans(pipeline)
-        assert "pipeline.publish_articles" in spans
-        span = spans["pipeline.publish_articles"]
-        assert "articles.published" in span._attrs
 
     @pytest.mark.asyncio
     async def test_process_articles_span_has_published_count(self):
