@@ -68,6 +68,17 @@ Quota sharing with main.py:
 import argparse
 import asyncio
 
+try:  # optional dependency — RAG SDK isn't always installed
+    from chatbot_plugin_sdk import RateLimitExhausted
+    try:
+        from chatbot_plugin_sdk import RpdExhausted
+    except ImportError:  # pragma: no cover - SDK too old to type limits by dimension
+        RpdExhausted = RateLimitExhausted  # type: ignore[assignment,misc]
+except ModuleNotFoundError:  # pragma: no cover
+    class RateLimitExhausted(Exception):  # type: ignore[no-redef]
+        pass
+    RpdExhausted = RateLimitExhausted  # type: ignore[assignment,misc]
+
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import bind_correlation_id, configure_logging
@@ -84,12 +95,28 @@ if SENTRY_DSN:
 logger = get_logger(__name__)
 
 
-async def _backfill_one(article, use_case, semaphore: asyncio.Semaphore) -> bool:
+async def _backfill_one(article, use_case, semaphore: asyncio.Semaphore,
+                        rpd_state: dict) -> bool:
     """Ingest one article into the vector store. Returns True on success, False
-    if the use case raised."""
+    if the use case raised.
+
+    rpd_state is a shared one-key dict: once any article hits RpdExhausted (the
+    embedding provider's *daily* cap, which won't recover this run), it's set so
+    the remaining articles short-circuit instead of each sitting in the embedding
+    queue only to fail identically. Per-minute limits are not treated this way —
+    they recover within a run, so those articles just fail and are retried on the
+    next backfill run (has_vectors stays FALSE either way)."""
+    if rpd_state.get("exhausted"):
+        return False
     async with semaphore:
+        if rpd_state.get("exhausted"):
+            return False
         try:
             await use_case.execute(article)
+        except RpdExhausted as e:
+            rpd_state["exhausted"] = True
+            logger.warning("rag_backfill_rpd_exhausted", article_id=str(article.id), error=str(e))
+            return False
         except Exception as e:
             logger.warning("article_rag_backfill_failed", article_id=str(article.id), error=str(e))
             return False
@@ -102,8 +129,9 @@ async def _backfill_all(articles, use_case, concurrency: int) -> tuple[int, int]
     """Ingest all articles concurrently (bounded by `concurrency`) and return
     (succeeded_count, failed_count)."""
     semaphore = asyncio.Semaphore(concurrency)
+    rpd_state: dict = {}
     results = await asyncio.gather(*(
-        _backfill_one(article, use_case, semaphore) for article in articles
+        _backfill_one(article, use_case, semaphore, rpd_state) for article in articles
     ))
     succeeded = sum(1 for r in results if r is True)
     failed = sum(1 for r in results if r is False)

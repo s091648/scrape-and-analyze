@@ -83,3 +83,38 @@ async def test_does_not_raise_when_repo_fails():
     handler = FailedTaskPersistenceHandler(failed_task_repository=repo)
     # Should not propagate the exception
     await handler.handle(AnalysisFailedEvent(article_id=uuid.uuid4(), article_url="https://x.com"))
+
+
+@pytest.mark.asyncio
+async def test_reconciles_pipeline_stats_partial_failure_when_provided():
+    """When a pipeline_stats is injected, a downstream-stage failure for an
+    already-saved article must be recorded as a partial failure (the article was
+    counted as `new` at scrape time; the run summary needs to know a later stage
+    failed)."""
+    from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import (
+        FailedTaskPersistenceHandler,
+    )
+    repo = _make_repo()
+    stats = MagicMock()
+    handler = FailedTaskPersistenceHandler(failed_task_repository=repo, pipeline_stats=stats)
+    article_id = uuid.uuid4()
+    await handler.handle(AnalysisFailedEvent(article_id=article_id, article_url="https://x.com"))
+
+    stats.record_partial_failure.assert_called_once_with(article_id)
+    repo.save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_stats_bookkeeping_failure_never_blocks_persistence():
+    """A raise from pipeline_stats.record_partial_failure must be swallowed — the
+    FailedTask still has to be persisted."""
+    from src.modules.intelligence.application.event_handlers.failed_task_persistence_handler import (
+        FailedTaskPersistenceHandler,
+    )
+    repo = _make_repo()
+    stats = MagicMock()
+    stats.record_partial_failure.side_effect = RuntimeError("stats blew up")
+    handler = FailedTaskPersistenceHandler(failed_task_repository=repo, pipeline_stats=stats)
+    await handler.handle(AnalysisFailedEvent(article_id=uuid.uuid4(), article_url="https://x.com"))
+
+    repo.save.assert_called_once()

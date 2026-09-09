@@ -4,6 +4,7 @@ import type { SuggestionOut } from '@/lib/api/tags'
 
 vi.mock('@/lib/api/tags', () => ({
   approveSuggestion: vi.fn(),
+  approveSuggestionsBatch: vi.fn(),
   rejectSuggestion: vi.fn(),
 }))
 
@@ -56,13 +57,17 @@ describe('PendingSuggestions', () => {
 
   it('renders nothing when suggestions list is empty', async () => {
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
-    const { container } = render(<PendingSuggestions suggestions={[]} token="tok" onResolved={vi.fn()} />)
+    const { container } = render(
+      <PendingSuggestions suggestions={[]} token="tok" onResolved={vi.fn()} onBatchResolved={vi.fn()} />
+    )
     expect(container.innerHTML).toBe('')
   })
 
   it('renders suggestion count and items', async () => {
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
-    const { container } = render(<PendingSuggestions suggestions={suggestions} token="tok" onResolved={vi.fn()} />)
+    const { container } = render(
+      <PendingSuggestions suggestions={suggestions} token="tok" onResolved={vi.fn()} onBatchResolved={vi.fn()} />
+    )
     expect(screen.getByText('2 pending suggestions')).toBeInTheDocument()
     // The component uses &ldquo; and &rdquo; which render as curly quotes
     expect(container.innerHTML).toContain('ai')
@@ -75,7 +80,9 @@ describe('PendingSuggestions', () => {
     mockedApprove.mockResolvedValue(undefined)
     const onResolved = vi.fn()
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
-    render(<PendingSuggestions suggestions={suggestions} token="tok" onResolved={onResolved} />)
+    render(
+      <PendingSuggestions suggestions={suggestions} token="tok" onResolved={onResolved} onBatchResolved={vi.fn()} />
+    )
     const mergeButtons = screen.getAllByText('Merge')
     fireEvent.click(mergeButtons[0])
     await waitFor(() => {
@@ -90,7 +97,9 @@ describe('PendingSuggestions', () => {
     mockedReject.mockResolvedValue(undefined)
     const onResolved = vi.fn()
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
-    render(<PendingSuggestions suggestions={suggestions} token="tok" onResolved={onResolved} />)
+    render(
+      <PendingSuggestions suggestions={suggestions} token="tok" onResolved={onResolved} onBatchResolved={vi.fn()} />
+    )
     const keepButtons = screen.getAllByText('Keep Both')
     fireEvent.click(keepButtons[0])
     await waitFor(() => {
@@ -99,9 +108,77 @@ describe('PendingSuggestions', () => {
     })
   })
 
+  it('calls approveSuggestionsBatch once and reports succeeded ids via onBatchResolved (not per-id onResolved)', async () => {
+    const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+    const mockedBatch = vi.mocked(approveSuggestionsBatch)
+    mockedBatch.mockResolvedValue({ succeeded: ['s1', 's2'], failed: [] })
+    const onResolved = vi.fn()
+    const onBatchResolved = vi.fn()
+    const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
+    render(
+      <PendingSuggestions
+        suggestions={suggestions} token="tok" onResolved={onResolved} onBatchResolved={onBatchResolved}
+      />
+    )
+    fireEvent.click(screen.getByText('Merge All'))
+    await waitFor(() => {
+      expect(mockedBatch).toHaveBeenCalledTimes(1)
+      expect(mockedBatch).toHaveBeenCalledWith(['s1', 's2'], 'tok')
+      expect(onBatchResolved).toHaveBeenCalledTimes(1)
+      expect(onBatchResolved).toHaveBeenCalledWith(['s1', 's2'])
+      expect(onResolved).not.toHaveBeenCalled()
+    })
+  })
+
+  it('only reports suggestions the batch actually succeeded on, leaving failures for retry', async () => {
+    const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+    const mockedBatch = vi.mocked(approveSuggestionsBatch)
+    mockedBatch.mockResolvedValue({
+      succeeded: ['s1'],
+      failed: [{ suggestion_id: 's2', error: 'Suggestion not found' }],
+    })
+    const onBatchResolved = vi.fn()
+    const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
+    render(
+      <PendingSuggestions
+        suggestions={suggestions} token="tok" onResolved={vi.fn()} onBatchResolved={onBatchResolved}
+      />
+    )
+    fireEvent.click(screen.getByText('Merge All'))
+    await waitFor(() => {
+      expect(onBatchResolved).toHaveBeenCalledTimes(1)
+      expect(onBatchResolved).toHaveBeenCalledWith(['s1'])
+    })
+  })
+
+  it('recovers when the batch request rejects: nothing resolved, Merge All re-enabled', async () => {
+    const { approveSuggestionsBatch } = await import('@/lib/api/tags')
+    const mockedBatch = vi.mocked(approveSuggestionsBatch)
+    // apiFetch shows its own error toast; the wrapper still rejects.
+    mockedBatch.mockRejectedValue(new Error('Failed to batch approve suggestions'))
+    const onBatchResolved = vi.fn()
+    const onResolved = vi.fn()
+    const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
+    render(
+      <PendingSuggestions
+        suggestions={suggestions} token="tok" onResolved={onResolved} onBatchResolved={onBatchResolved}
+      />
+    )
+    fireEvent.click(screen.getByText('Merge All'))
+    await waitFor(() => {
+      expect(mockedBatch).toHaveBeenCalledTimes(1)
+      expect(onBatchResolved).not.toHaveBeenCalled()
+      expect(onResolved).not.toHaveBeenCalled()
+    })
+    // button is usable again (mergingAll reset in finally)
+    expect(screen.getByText('Merge All').closest('button')).not.toBeDisabled()
+  })
+
   it('toggles collapse on header click', async () => {
     const { PendingSuggestions } = await import('@/components/features/tags/pending-suggestions')
-    render(<PendingSuggestions suggestions={suggestions} token="tok" onResolved={vi.fn()} />)
+    render(
+      <PendingSuggestions suggestions={suggestions} token="tok" onResolved={vi.fn()} onBatchResolved={vi.fn()} />
+    )
     const header = screen.getByText('2 pending suggestions').closest('button')!
     // Initially expanded — items visible
     expect(screen.getAllByText('Merge').length).toBeGreaterThan(0)

@@ -93,6 +93,11 @@ class BatchMoveResult(BaseModel):
     failed: List[dict]
 
 
+class BatchApproveResult(BaseModel):
+    succeeded: List[str]
+    failed: List[dict]
+
+
 class SuggestionOut(BaseModel):
     id: UUID
     new_tag_id: UUID

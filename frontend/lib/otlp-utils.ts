@@ -57,6 +57,29 @@ export function isErrorSpan(span: OtlpSpan): boolean {
   return code === 2 || code === 'STATUS_CODE_ERROR'
 }
 
+export type ArticleRowStatus = 'ok' | 'partial' | 'failed'
+
+/**
+ * Roll a pipeline span + its stage spans into a tri-state status:
+ *  - 'failed'  : the pipeline couldn't even scrape/save the article
+ *                (article.scraped.handle errored, or article.pipeline itself did).
+ *  - 'partial' : the article was scraped, but a later stage failed
+ *                (analysis / tag normalization / translation / RAG ingestion).
+ *                Only our own `article.*` stage spans count — a recovered
+ *                transient error on an auto-instrumented HTTP/DB child span
+ *                (e.g. an LLM call that timed out then retried past it, which
+ *                Tempo shows as `exception.escaped=false`) does NOT flip this.
+ *  - 'ok'      : no stage failure.
+ */
+export function articleRowStatus(pipelineSpan: OtlpSpan, stageSpans: SpanNode[]): ArticleRowStatus {
+  const scraped = stageSpans.find(n => n.span.name === SpanName.ARTICLE_SCRAPED_HANDLE)
+  if ((scraped && isErrorSpan(scraped.span)) || isErrorSpan(pipelineSpan)) return 'failed'
+  const stageFailed = stageSpans.some(
+    n => n.span.name.startsWith('article.') && isErrorSpan(n.span),
+  )
+  return stageFailed ? 'partial' : 'ok'
+}
+
 export function findArticlePipelineSpans(spans: OtlpSpan[]): OtlpSpan[] {
   return spans
     .filter(s => s.name === SpanName.ARTICLE_PIPELINE)
@@ -102,6 +125,19 @@ export function extractTraceSearchEnvironment(trace: TempoTrace): string | undef
   const attr = attrs.find(
     a => a.key === 'deployment.environment' || a.key === 'resource.deployment.environment'
   )
+  return attr?.value?.stringValue
+}
+
+/**
+ * Reads client_type off a Tempo /api/search result trace (same lightweight TempoTrace shape
+ * as extractTraceSearchEnvironment). Requires the TraceQL query to have `| select(span.client_type)`
+ * — see traceQLServiceMatch(). Returns undefined for traces predating the backend
+ * server_request_hook that sets it (so nothing is dropped for them).
+ */
+export function extractTraceClientType(trace: TempoTrace): string | undefined {
+  const spanSet = trace.spanSet ?? trace.spanSets?.[0]
+  const attrs = spanSet?.attributes ?? spanSet?.spans?.[0]?.attributes ?? []
+  const attr = attrs.find(a => a.key === 'client_type' || a.key === 'span.client_type')
   return attr?.value?.stringValue
 }
 

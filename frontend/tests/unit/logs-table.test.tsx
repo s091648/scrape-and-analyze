@@ -424,6 +424,94 @@ describe('LogsTable self-fetch mode', () => {
   })
 })
 
+// ── Country / session_id columns + click-to-filter ──────────────────────────
+
+describe('LogsTable country + session columns', () => {
+  const requestRow = (extra: Record<string, unknown>) => ({
+    status: 'success' as const,
+    data: {
+      resultType: 'streams' as const,
+      result: [{
+        stream: {},
+        values: [[
+          '1700000000000000000',
+          JSON.stringify({ level: 'info', event: 'request', method: 'GET', path: '/articles', ...extra }),
+        ]] as [string, string][],
+      }],
+    },
+  })
+
+  it('renders Country (resolved name) and Session (truncated) when showRequestColumns is set', async () => {
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(
+      <LogsTable title="Logs" query="" refreshInterval={0} showRequestColumns
+        externalData={requestRow({ geo_country: 'TW', session_id: 'abcdef12-3456-7890-abcd-ef1234567890' })} />
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Taiwan')).toBeDefined()
+      expect(screen.getByText('abcdef12…')).toBeDefined()
+    })
+  })
+
+  it('does not render Country/Session columns without showRequestColumns', async () => {
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(
+      <LogsTable title="Logs" query="" refreshInterval={0}
+        externalData={requestRow({ geo_country: 'TW', session_id: 'abcdef12-3456' })} />
+    )
+    await waitFor(() => expect(screen.getByText('GET /articles')).toBeDefined())
+    expect(screen.queryByText('Taiwan')).toBeNull()
+  })
+
+  it('clicking a country cell calls onLogFilterChange, and clicking the active one clears it', async () => {
+    const onLogFilterChange = vi.fn()
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    const { rerender } = render(
+      <LogsTable title="Logs" query="" refreshInterval={0} showRequestColumns
+        externalData={requestRow({ geo_country: 'TW', session_id: 's1' })}
+        onLogFilterChange={onLogFilterChange} />
+    )
+    await waitFor(() => expect(screen.getByText('Taiwan')).toBeDefined())
+
+    fireEvent.click(screen.getByText('Taiwan'))
+    expect(onLogFilterChange).toHaveBeenCalledWith({ type: 'country', value: 'TW' })
+
+    rerender(
+      <LogsTable title="Logs" query="" refreshInterval={0} showRequestColumns
+        externalData={requestRow({ geo_country: 'TW', session_id: 's1' })}
+        logFilter={{ type: 'country', value: 'TW' }}
+        onLogFilterChange={onLogFilterChange} />
+    )
+    fireEvent.click(screen.getByText('Taiwan'))
+    expect(onLogFilterChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('hides rows that do not match an active session logFilter', async () => {
+    const external = {
+      status: 'success' as const,
+      data: {
+        resultType: 'streams' as const,
+        result: [{
+          stream: {},
+          values: [
+            ['1700000002000000000', JSON.stringify({ level: 'info', event: 'keep_me', session_id: 'wanted' })],
+            ['1700000001000000000', JSON.stringify({ level: 'info', event: 'drop_me', session_id: 'other' })],
+          ] as [string, string][],
+        }],
+      },
+    }
+    const { LogsTable } = await import('@/components/features/monitoring/logs-table')
+    render(
+      <LogsTable title="Logs" query="" refreshInterval={0} showRequestColumns
+        externalData={external} logFilter={{ type: 'session', value: 'wanted' }} />
+    )
+    await waitFor(() => {
+      expect(screen.getByText('keep_me')).toBeDefined()
+      expect(screen.queryByText('drop_me')).toBeNull()
+    })
+  })
+})
+
 // ── parseLevel edge cases ────────────────────────────────────────────────────
 
 describe('LogsTable parseLevel edge cases', () => {

@@ -6,6 +6,7 @@ import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, ty
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import { LokiLabel } from '@/lib/observability-constants'
+import { ISO_ALPHA2_TO_NAME } from '@/lib/iso-country-codes'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { flattenSpans, buildSpanTree, findArticlePipelineSpans, findStageSpans, otlpIdToHex, type SpanNode } from '@/lib/otlp-utils'
 import { LogDetailDialog, LEVEL_COLORS, HTTP_METHOD_COLORS, type LogEntry } from './log-detail-dialog'
@@ -13,6 +14,13 @@ import { ArticleWorkflowDialog } from './article-workflow-dialog'
 import { RunWaterfallDialog } from './run-waterfall-dialog'
 
 export type { LogEntry }
+
+/** A click-to-filter selection on the log tables. Owned by LogsTab (so one click narrows all
+ * three level tables), applied client-side against the already-fetched rows. */
+export interface LogFilter {
+  type: 'country' | 'session'
+  value: string
+}
 
 interface LogsTableProps {
   title: string
@@ -37,6 +45,12 @@ interface LogsTableProps {
    * readable name has to be resolved client-side. Missing entries (guest/anonymous, or a
    * user_id not in the admin user list) just show the raw value. */
   callerNames?: Record<string, string>
+  /** Active click-to-filter selection (see LogFilter). When set, only rows whose country /
+   * session_id matches are shown. Client-side narrowing of the already-fetched rows only — it
+   * does NOT re-query Loki, so a match older than the fetched window won't appear. Backend
+   * ("request" event) rows only carry these fields, so this is inert without showRequestColumns. */
+  logFilter?: LogFilter | null
+  onLogFilterChange?: (filter: LogFilter | null) => void
 }
 
 function parseNsTime(t: string): string {
@@ -137,6 +151,8 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
       let method: string | undefined
       let path: string | undefined
       let caller: string | undefined
+      let country: string | undefined
+      let sessionId: string | undefined
       try {
         const obj = JSON.parse(line)
         if (typeof obj.method === 'string') method = obj.method
@@ -145,7 +161,10 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
         // caller is authenticated, otherwise just user_id ("anonymous" for guest/no token).
         if (typeof obj.user_email === 'string') caller = obj.user_email
         else if (typeof obj.user_id === 'string') caller = obj.user_id
-      } catch { /* not JSON — no method/path/caller to extract */ }
+        // geo_country (GeoIP alpha-2) and session_id (X-Session-Id header) — "request" events only.
+        if (typeof obj.geo_country === 'string') country = obj.geo_country
+        if (typeof obj.session_id === 'string') sessionId = obj.session_id
+      } catch { /* not JSON — nothing to extract */ }
       entries.push({
         _ms: ms,
         ts: new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -155,6 +174,8 @@ function flattenStreams(streams: LokiStreamResult[]): LogEntry[] {
         method,
         path,
         caller,
+        country,
+        sessionId,
         message: parseMessage(line),
         details: buildDetails(line),
         raw: line,
@@ -201,6 +222,8 @@ export function LogsTable({
   forcedLevel,
   showRequestColumns,
   callerNames,
+  logFilter,
+  onLogFilterChange,
 }: LogsTableProps) {
   const { t } = useI18n()
   const [entries, setEntries] = useState<LogEntry[]>([])
@@ -279,7 +302,18 @@ export function LogsTable({
     } catch { setTraceLoadFailed(true) }
   }
 
-  const visible = forcedLevel ? entries.filter(e => e.level === forcedLevel) : entries
+  const levelFiltered = forcedLevel ? entries.filter(e => e.level === forcedLevel) : entries
+  const visible = logFilter
+    ? levelFiltered.filter(e =>
+        logFilter.type === 'country' ? e.country === logFilter.value : e.sessionId === logFilter.value,
+      )
+    : levelFiltered
+
+  function toggleLogFilter(type: LogFilter['type'], value: string) {
+    if (!onLogFilterChange) return
+    const isActive = logFilter?.type === type && logFilter.value === value
+    onLogFilterChange(isActive ? null : { type, value })
+  }
 
   const placeholder = notConfigured
     ? t('admin.grafanaNotConfigured')
@@ -291,9 +325,11 @@ export function LogsTable({
     { key: 'ts',      label: t('admin.logColumnTime'),        className: 'w-32' },
     { key: 'level',   label: t('admin.logColumnLevel'),       className: 'w-16' },
     ...(showRequestColumns ? [
-      { key: 'method', label: t('admin.logColumnMethod'), className: 'w-16' },
-      { key: 'path',   label: t('admin.logColumnPath'),   className: 'w-48' },
-      { key: 'caller', label: t('admin.logColumnCaller'), className: 'w-32' },
+      { key: 'method',  label: t('admin.logColumnMethod'),  className: 'w-16' },
+      { key: 'path',    label: t('admin.logColumnPath'),    className: 'w-48' },
+      { key: 'caller',  label: t('admin.logColumnCaller'),  className: 'w-32' },
+      { key: 'country', label: t('admin.logColumnCountry'), className: 'w-28' },
+      { key: 'session', label: t('admin.logColumnSession'), className: 'w-24' },
     ] : []),
     { key: 'env',     label: t('admin.logColumnEnvironment'), className: 'w-24' },
     { key: 'message', label: t('admin.logColumnMessage') },
@@ -343,6 +379,35 @@ export function LogsTable({
                   </td>
                   <td className="px-2 py-1 text-[11px] max-w-0 overflow-hidden">
                     <div className="truncate">{entry.caller ? (callerNames?.[entry.caller] ?? entry.caller) : '—'}</div>
+                  </td>
+                  <td className="px-2 py-1 text-[11px]">
+                    {entry.country ? (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); toggleLogFilter('country', entry.country!) }}
+                        className={cn(
+                          'cursor-pointer hover:underline',
+                          logFilter?.type === 'country' && logFilter.value === entry.country && 'font-semibold text-primary',
+                        )}
+                      >
+                        {ISO_ALPHA2_TO_NAME[entry.country] ?? entry.country}
+                      </button>
+                    ) : '—'}
+                  </td>
+                  <td className="px-2 py-1 font-mono text-[11px] max-w-0 overflow-hidden">
+                    {entry.sessionId ? (
+                      <button
+                        type="button"
+                        title={entry.sessionId}
+                        onClick={e => { e.stopPropagation(); toggleLogFilter('session', entry.sessionId!) }}
+                        className={cn(
+                          'block w-full truncate text-left cursor-pointer hover:underline',
+                          logFilter?.type === 'session' && logFilter.value === entry.sessionId && 'font-semibold text-primary',
+                        )}
+                      >
+                        {entry.sessionId.slice(0, 8)}…
+                      </button>
+                    ) : '—'}
                   </td>
                 </>
               )}

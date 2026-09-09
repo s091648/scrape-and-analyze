@@ -10,6 +10,13 @@
 # fails with "No railway-plan-<env> artifact found for <sha>" — even though its
 # own plan step just produced one. release.yml hit exactly this.
 #
+# NO-OP GUARD: when `railway config plan` reports the environment is already up
+# to date, `railway config apply` is SKIPPED. Applying an empty pinned plan still
+# makes the CLI open a Railway ChangeSet that never reaches a terminal state, so
+# its own poll hangs until it prints "Timed out waiting for Railway ChangeSet
+# apply" and exits 1 (observed repeatedly on staging, 2026-09). There is nothing
+# to apply in that case anyway.
+#
 # `--yes` skips the interactive confirm. NO `--confirm-destructive`: a
 # destructive plan fails loudly rather than landing silently (v1 railway.ts is
 # preserve()-heavy, so today this is a near-no-op).
@@ -24,6 +31,7 @@ set -euo pipefail
 
 ENV_NAME="${1:?usage: railway-config-apply.sh <staging|production>}"
 PLAN_FILE="${RUNNER_TEMP:-/tmp}/railway-plan-${ENV_NAME}.json"
+PLAN_LOG="${RUNNER_TEMP:-/tmp}/railway-plan-${ENV_NAME}.log"
 
 # railway.ts's `import "railway/iac"` runs the SDK's assertMinimumIacCliVersion(),
 # which shells out to `$_ --version`. Under bash `$_` is not the CLI, so pin it —
@@ -32,7 +40,17 @@ RAILWAY_BIN="$(command -v railway)"
 rw() { env _="$RAILWAY_BIN" "$RAILWAY_BIN" "$@"; }
 
 echo "Planning .railway/railway.ts against ${ENV_NAME}…"
-rw config plan --out "$PLAN_FILE"
+# tee so the plan still streams to the CI log while we keep a copy to inspect.
+# pipefail (set above) makes a `railway config plan` failure still abort here.
+rw config plan --out "$PLAN_FILE" 2>&1 | tee "$PLAN_LOG"
+
+# `railway config plan` prints "...configuration is already up to date." when the
+# pinned plan holds no changes. Applying that empty plan is what hangs the CLI on
+# a never-terminating ChangeSet (see NO-OP GUARD above), so short-circuit it.
+if grep -qiE 'already up to date' "$PLAN_LOG"; then
+  echo "No changes in the pinned plan for ${ENV_NAME} — skipping \`railway config apply\`."
+  exit 0
+fi
 
 echo "Applying the pinned plan to ${ENV_NAME}…"
 rw config apply --plan "$PLAN_FILE" --yes

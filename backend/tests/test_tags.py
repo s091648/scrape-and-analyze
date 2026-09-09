@@ -567,6 +567,10 @@ def test_move_tag_to_ungrouped_sets_group_id_null():
 # ── T033: GET normalization suggestions ─────────────────────────────────────
 
 def test_list_suggestions_returns_pending_only():
+    """list_suggestions runs a single joined raw-SQL query (see backend/routers/tags.py) —
+    the WHERE r.status = 'pending' filter and the INNER JOINs are exercised for real by
+    backend/tests/integration/test_tags.py's DB-backed tests; this one just checks the
+    router maps the query's row shape onto SuggestionOut correctly."""
     from backend.main import app
     from backend.database import get_db
     client = TestClient(app)
@@ -574,29 +578,21 @@ def test_list_suggestions_returns_pending_only():
     suggestion_id = uuid.uuid4()
     new_tag_id = uuid.uuid4()
     existing_tag_id = uuid.uuid4()
+    article_id = uuid.uuid4()
 
-    mock_suggestion = MagicMock()
-    mock_suggestion.id = suggestion_id
-    mock_suggestion.new_tag_id = new_tag_id
-    mock_suggestion.existing_tag_id = existing_tag_id
-    mock_suggestion.similarity_score = 0.92
-    mock_suggestion.article_id = uuid.uuid4()
-    mock_suggestion.status = "pending"
-
-    mock_new_tag = MagicMock()
-    mock_new_tag.id = new_tag_id
-    mock_new_tag.name = "real time sync"
-    mock_new_tag.group_def = MagicMock()
-    mock_new_tag.group_def.name = "digital_twin"
-
-    mock_existing_tag = MagicMock()
-    mock_existing_tag.id = existing_tag_id
-    mock_existing_tag.name = "real-time sync"
+    row = {
+        "id": suggestion_id,
+        "new_tag_id": new_tag_id,
+        "new_tag_name": "real time sync",
+        "existing_tag_id": existing_tag_id,
+        "existing_tag_name": "real-time sync",
+        "group_name": "digital_twin",
+        "similarity_score": 0.92,
+        "article_id": article_id,
+    }
 
     mock_db = MagicMock()
-    # First .filter_by for suggestions, then .filter_by for new_tag, then for existing_tag
-    mock_db.query.return_value.filter_by.return_value.all.return_value = [mock_suggestion]
-    mock_db.query.return_value.filter_by.return_value.first.side_effect = [mock_new_tag, mock_existing_tag]
+    mock_db.execute.return_value.mappings.return_value.all.return_value = [row]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
@@ -628,7 +624,8 @@ def test_approve_suggestion_returns_200():
     mock_suggestion.existing_tag_id = uuid.uuid4()
 
     mock_db = MagicMock()
-    mock_db.query.return_value.filter_by.return_value.first.return_value = mock_suggestion
+    # approve_suggestion() now locks the suggestion row via .with_for_update() before .first()
+    mock_db.query.return_value.filter_by.return_value.with_for_update.return_value.first.return_value = mock_suggestion
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:

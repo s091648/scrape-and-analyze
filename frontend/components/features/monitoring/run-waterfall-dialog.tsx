@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/providers'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
-  getAttr, getResourceAttr, findStageSpans, formatDuration,
+  getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName } from '@/lib/observability-constants'
@@ -117,8 +117,12 @@ export function RunWaterfallDialog({
     const hidden = new Set<string>()
     for (const row of allRows) {
       if (collapsed.has(row.span.spanId)) {
-        // Collect all descendant spanIds
-        const stack = tree.get(row.span.spanId) ?? []
+        // Collect all descendant spanIds. Copy the tree's child array — pop()
+        // below would otherwise mutate it in place, emptying tree.get(spanId)
+        // for every consumer downstream in the same render (articleRowStatus's
+        // findStageSpans call, notably, which would then see no stage spans and
+        // report every collapsed article row as 'ok').
+        const stack = [...(tree.get(row.span.spanId) ?? [])]
         while (stack.length) {
           const child = stack.pop()!
           hidden.add(child.spanId)
@@ -195,6 +199,12 @@ export function RunWaterfallDialog({
                 const isDiscoverTask = span.name === SpanName.DISCOVER_TASK
                 const durationMs = spanDurationMs(span)
                 const error = isErrorSpan(span)
+                // For an article.pipeline row: roll up its stage spans so a
+                // downstream-only failure (analysis/translate/RAG) shows as
+                // partial (▲) rather than looking clean.
+                const pipelineStatus = isPipeline
+                  ? articleRowStatus(span, findStageSpans(tree, span.spanId))
+                  : null
                 const isCollapsed = collapsed.has(span.spanId)
                 const methodSpan = !isPipeline && !isTopic && !isDiscoverTask ? splitMethodSpanName(span.name) : null
                 const dbSystem = !isPipeline && !isTopic && !isDiscoverTask ? (getAttr(span, 'db.system') as string | undefined) : undefined
@@ -227,7 +237,10 @@ export function RunWaterfallDialog({
                     }}
                   >
                     <td
-                      className={cn('py-1 pr-4 truncate max-w-0', error && 'text-destructive')}
+                      className={cn(
+                        'py-1 pr-4 truncate max-w-0',
+                        (error || pipelineStatus === 'failed') && 'text-destructive',
+                      )}
                       style={{ paddingLeft: `${depth * 14 + 6}px` }}
                     >
                       <span className="inline-flex items-center gap-0.5">
@@ -247,6 +260,12 @@ export function RunWaterfallDialog({
                         {methodSpan && <HttpMethodBadge method={methodSpan.method} />}
                         {dbSystem && <DbSystemBadge system={dbSystem} />}
                         {label}
+                        {pipelineStatus === 'failed' && (
+                          <span className="text-destructive ml-1" title={t('admin.articleStatusFailed')}>✗</span>
+                        )}
+                        {pipelineStatus === 'partial' && (
+                          <span className="text-amber-500 ml-1" title={t('admin.articleStatusPartial')}>▲</span>
+                        )}
                       </span>
                     </td>
                     <td className="py-1 px-4 text-right tabular-nums text-muted-foreground whitespace-nowrap">

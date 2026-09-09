@@ -84,6 +84,8 @@ export const SpanName = {
   TAG_NORMALIZATION_HANDLE: 'article.tag_normalization.handle',
   ANALYSIS_COMPLETED_HANDLE: 'article.analysis_completed.handle',
   ARTICLE_TRANSLATE_HANDLE: 'article.translate.handle',
+  ARTICLE_RAG_INGEST: 'article.rag_ingest',
+  FAILED_TASK_HANDLE: 'article.failed_task.handle',
   ANALYSIS_FAILED_HANDLE: 'article.analysis_failed.handle',
   TAG_NORMALIZATION_FAILED_HANDLE: 'article.tag_normalization_failed.handle',
   TRANSLATION_FAILED_HANDLE: 'article.translation_failed.handle',
@@ -111,6 +113,10 @@ export const SpanAttribute = {
   RUN_ID: 'run.id',
   CORRELATION_ID: 'run.correlation_id',
   ARTICLE_TOPIC_ID: 'article.topic_id',
+  // Set on the backend HTTP server span by main.py's FastAPIInstrumentor server_request_hook,
+  // mirroring the "request"-log client_type field — lets the monitoring dashboard exclude
+  // bot / synthetic traces the same way it excludes those request logs.
+  CLIENT_TYPE: 'client_type',
 } as const
 
 // ── Tempo TraceQL resource label ─────────────────────────────────────────────
@@ -131,10 +137,13 @@ export function lokiStreamSelector(extra?: Record<string, string>): string {
   return `{${pairs.join(', ')}}`
 }
 
-/** Build a TraceQL resource match with optional environment filter and service name override */
+/** Build a TraceQL resource match with optional environment filter and service name override.
+ * Always `select`s deployment.environment (filtered client-side — see extractTraceSearchEnvironment)
+ * and span.client_type (so bot / synthetic traces can be dropped client-side, same as request logs;
+ * absent on scraper spans, harmless there). */
 export function traceQLServiceMatch(env?: string, serviceName: string = SERVICE_NAME): string {
   const envClause = env ? ` && ${TraceQLResource.DEPLOYMENT_ENVIRONMENT} = "${env}"` : ''
-  return `{ ${TraceQLResource.SERVICE_NAME} = "${serviceName}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
+  return `{ ${TraceQLResource.SERVICE_NAME} = "${serviceName}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT}, span.${SpanAttribute.CLIENT_TYPE})`
 }
 
 /** Build a PromQL increase expression with optional by clause */

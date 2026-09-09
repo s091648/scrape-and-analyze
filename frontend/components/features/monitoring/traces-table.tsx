@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState, useCallback, Fragment } from 'react'
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { queryTraces, queryTraceById, type TempoTrace, type TempoResponse, type OtlpTraceResponse, type OtlpSpan } from '@/lib/api/grafana'
 import { TablePanel } from '@/components/ui/table-panel'
+import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { useI18n } from '@/lib/providers'
 import {
   flattenSpans, buildSpanTree, findArticlePipelineSpans, findWeeklyReportTopicSpans,
   findStageSpans, spanDurationMs, isErrorSpan, formatDuration, getAttr,
-  extractTraceSearchEnvironment,
+  extractTraceSearchEnvironment, articleRowStatus,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { fetchArticleById, type ArticleDetail } from '@/lib/api/articles'
@@ -95,13 +96,16 @@ interface ArticleSubRowProps {
 
 // Columns: expand | traceId | root | service | env | dur | start  (7 total)
 function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: ArticleSubRowProps) {
+  const { t } = useI18n()
   const allAttrs = stageSpans.flatMap(n => n.span.attributes ?? [])
   const title     = allAttrs.find(a => a.key === 'article.title')?.value?.stringValue ?? null
   const articleId = allAttrs.find(a => a.key === 'article.id')?.value?.stringValue ?? null
 
   const url = pipelineSpan.attributes?.find(a => a.key === 'article.url')?.value?.stringValue ?? '—'
   const durationMs = spanDurationMs(pipelineSpan)
-  const error = isErrorSpan(pipelineSpan)
+  // Tri-state: 'failed' (couldn't scrape) / 'partial' (scraped, later stage failed) / 'ok'.
+  const status = articleRowStatus(pipelineSpan, stageSpans)
+  const error = status === 'failed'
   const truncUrl = url.length > 40 ? `…${url.slice(-37)}` : url
 
   return (
@@ -126,10 +130,13 @@ function ArticleSubRow({ pipelineSpan, stageSpans, onView, onPreviewArticle }: A
       </td>
       {/* col 5 (env) — status badge */}
       <td className="px-2 py-1 text-xs text-center">
-        {error
-          ? <span className="text-destructive">✗</span>
-          : <span className="text-emerald-600">✓</span>
-        }
+        {status === 'failed' ? (
+          <span className="text-destructive" title={t('admin.articleStatusFailed')}>✗</span>
+        ) : status === 'partial' ? (
+          <span className="text-amber-500" title={t('admin.articleStatusPartial')}>▲</span>
+        ) : (
+          <span className="text-emerald-600" title={t('admin.articleStatusOk')}>✓</span>
+        )}
       </td>
       {/* col 6 (dur) — duration */}
       <td className="px-2 py-1 text-xs text-right tabular-nums">
@@ -242,6 +249,12 @@ export function TracesTable({
   const [notConfigured, setNotConfigured] = useState(false)
   const [error, setError] = useState(false)
 
+  // Root-span filter — options are derived from whatever's currently loaded (not a fixed
+  // enum) so both the scraper's few run-level root spans (scraper.run, weekly_report.run,
+  // dedup_reconcile.run, rag_backfill.run, refresh_metrics.run) and the backend's many
+  // per-route root spans ("GET /articles", ...) work without hardcoding either shape.
+  const [selectedRoots, setSelectedRoots] = useState<string[]>([])
+
   // expand/collapse state
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [traceDetails, setDetails] = useState<Map<string, OtlpTraceResponse>>(new Map())
@@ -335,6 +348,26 @@ export function TracesTable({
     ? t('admin.grafanaNotConfigured')
     : error ? t('admin.failedToLoadTraces') : undefined
 
+  const rootSpanOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const trace of traces) counts.set(trace.rootTraceName, (counts.get(trace.rootTraceName) ?? 0) + 1)
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      // Separator is " · " not " (N)" on purpose: Rethink Sans has a contextual
+      // ligature that renders "(1)"…"(9)" as circled-digit glyphs (① ② …).
+      .map(([value, count]) => ({ value, label: `${value} · ${count}` }))
+  }, [traces])
+
+  // Drop selections no longer present (e.g. after switching the App/Environment filter
+  // upstream) instead of silently filtering everything out with a stale, invisible pick.
+  useEffect(() => {
+    setSelectedRoots(prev => prev.filter(v => rootSpanOptions.some(o => o.value === v)))
+  }, [rootSpanOptions])
+
+  const visibleTraces = selectedRoots.length === 0
+    ? traces
+    : traces.filter(trace => selectedRoots.includes(trace.rootTraceName))
+
   const columns = [
     { key: 'expand',  label: '',                                      className: 'w-6' },
     { key: 'traceId', label: t('admin.traceColumnTraceId') },
@@ -359,15 +392,24 @@ export function TracesTable({
         loading={loading}
         placeholder={placeholder}
         placeholderError={error}
+        toolbar={rootSpanOptions.length > 0 && (
+          <MultiSelectPopover
+            label={t('admin.traceFilterRootSpan')}
+            options={rootSpanOptions}
+            selected={selectedRoots}
+            onChange={setSelectedRoots}
+            searchPlaceholder={t('admin.traceFilterRootSpanSearch')}
+          />
+        )}
       >
-        {traces.length === 0 ? (
+        {visibleTraces.length === 0 ? (
           <tr>
             <td colSpan={columns.length} className="text-center py-8 text-muted-foreground text-xs">
               {t('admin.noTraces')}
             </td>
           </tr>
         ) : (
-          traces.map(trace => {
+          visibleTraces.map(trace => {
             const isExpanded = expanded.has(trace.traceID)
             const isLoading  = loadingTrace.has(trace.traceID)
             const detail     = traceDetails.get(trace.traceID)

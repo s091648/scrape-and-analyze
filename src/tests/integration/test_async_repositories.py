@@ -99,6 +99,73 @@ async def test_async_failed_task_repository_save(async_db_session):
 
 
 @pytest.mark.asyncio
+async def test_async_failed_task_repository_save_many_persists_all_rows_in_one_commit(async_db_session):
+    """fix/scraper_failure: the RAG circuit breaker queues one FailedTask per
+    skipped article and flushes them in a single bulk write at run end, rather
+    than a per-article session/commit."""
+    from src.infrastructure.persistence.shared.failed_task_async_repo_impl import AsyncSqlAlchemyFailedTaskRepository
+    from src.modules.collection.domain.entities import FailedTask
+    from sqlalchemy import text
+
+    repo = AsyncSqlAlchemyFailedTaskRepository(async_db_session)
+    tasks = [
+        FailedTask(
+            task_type="rag_ingest",
+            article_url=f"https://example.com/bulk/{i}",
+            exception_type="RateLimitExhausted",
+            exception_message="RAG daily request cap (RPD) already exhausted this run",
+            context={"deferred": True, "reason": "RateLimitExhausted"},
+            failed_at=datetime.now(timezone.utc),
+        )
+        for i in range(3)
+    ]
+
+    await repo.save_many(tasks)
+
+    ids = [str(t.id) for t in tasks]
+    rows = (await async_db_session.execute(
+        text("SELECT id, task_type FROM failed_tasks WHERE id = ANY(CAST(:ids AS uuid[]))"),
+        {"ids": ids},
+    )).all()
+    assert {str(r[0]) for r in rows} == set(ids)
+    assert all(r[1] == "rag_ingest" for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_async_failed_task_repository_save_many_empty_is_a_noop(async_db_session):
+    from src.infrastructure.persistence.shared.failed_task_async_repo_impl import AsyncSqlAlchemyFailedTaskRepository
+
+    repo = AsyncSqlAlchemyFailedTaskRepository(async_db_session)
+    async_db_session.commit = AsyncMock()
+
+    await repo.save_many([])
+
+    async_db_session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_failed_task_repository_save_many_rolls_back_on_commit_failure(async_db_session):
+    from src.infrastructure.persistence.shared.failed_task_async_repo_impl import AsyncSqlAlchemyFailedTaskRepository
+    from src.modules.collection.domain.entities import FailedTask
+
+    repo = AsyncSqlAlchemyFailedTaskRepository(async_db_session)
+    tasks = [FailedTask(
+        task_type="rag_ingest",
+        exception_type="RateLimitExhausted",
+        exception_message="boom",
+        failed_at=datetime.now(timezone.utc),
+    )]
+
+    async_db_session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
+    async_db_session.rollback = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.save_many(tasks)
+
+    async_db_session.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_async_analysis_and_translation_repositories_save_and_find(async_db_session, test_topic):
     from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
     from src.infrastructure.persistence.intelligence.analysis_async_repo_impl import AsyncSqlAlchemyAnalysisRepository

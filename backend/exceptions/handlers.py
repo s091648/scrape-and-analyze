@@ -54,6 +54,12 @@ async def domain_error_handler(request: Request, exc: DomainError) -> JSONRespon
             if status_code in _SANITIZED_STATUS_CODES:
                 capture_exception(exc)
                 logger.error("domain_error", code=code, status_code=status_code, error=str(exc))
+            else:
+                # Expected/recoverable per exception-handling.md (400/401/403/404/409) — not
+                # sent to Sentry and not counted in admin.requestErrorRate (5xx-only), but still
+                # logged at warning so a spike (e.g. a real bug that happens to surface as 404s)
+                # is discoverable via the Logs tab instead of leaving zero trace.
+                logger.warning("domain_error", code=code, status_code=status_code, error=str(exc))
             return _build_response(status_code, code, message)
 
     # DomainError raised without a registered shared category — default fallback (FR-007).

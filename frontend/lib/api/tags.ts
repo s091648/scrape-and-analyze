@@ -189,6 +189,24 @@ export async function approveSuggestion(suggestionId: string, token: string): Pr
   if (!res.ok) throw new Error('Failed to approve suggestion')
 }
 
+export interface BatchApproveResult {
+  succeeded: string[]
+  failed: { suggestion_id: string; error: string }[]
+}
+
+export async function approveSuggestionsBatch(
+  suggestionIds: string[],
+  token: string,
+): Promise<BatchApproveResult> {
+  const res = await apiFetch('/tag-normalization-suggestions/approve-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(suggestionIds),
+  })
+  if (!res.ok) throw new Error('Failed to batch approve suggestions')
+  return res.json()
+}
+
 export async function rejectSuggestion(suggestionId: string, token: string): Promise<void> {
   const res = await apiFetch(`/tag-normalization-suggestions/${suggestionId}/reject`, {
     method: 'POST',

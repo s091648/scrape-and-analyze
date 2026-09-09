@@ -35,6 +35,7 @@ import {
   volume,
 } from "railway/iac";
 import {
+  ASYNC_DB_ENV,
   CACHE_REDIS_URL,
   CONTACT_EMAIL,
   GRAFANA_BACKEND_ENV,
@@ -236,6 +237,7 @@ export default defineRailway((ctx) => {
       ...RAG_DENSE_ENV,
       ...RAG_SPARSE_ENV,
       ...RAG_CHUNKING_ENV,
+      ...ASYNC_DB_ENV,
       ...needAll("GEMINI_API_KEY", "GITHUB_PACKAGE_TOKEN", "SENTRY_DSN"),
       ...preserveAll("OPENROUTER_API_KEY"), // hand-managed on Railway
       // REVIEW: SEARCH_* are set on staging only today — production's

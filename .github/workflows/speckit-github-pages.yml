@@ -82,7 +82,7 @@ jobs:
         run: |
           mkdir -p site/guide/architecture/terraform-modules
           for m in github-ci-config; do
-            docker run --rm -v "${{ github.workspace }}/infra/terraform/railway:/terraform-docs:ro" -w /terraform-docs \
+            docker run --rm -v "${{ github.workspace }}/infra/terraform/github:/terraform-docs:ro" -w /terraform-docs \
               quay.io/terraform-docs/terraform-docs:0.20.0 --config /terraform-docs/.terraform-docs.yml markdown table modules/$m \
               | python3 scripts/wrap_terraform_module_doc.py "$m" \
               > site/guide/architecture/terraform-modules/$m.md

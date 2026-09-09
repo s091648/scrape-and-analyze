@@ -18,3 +18,6 @@ class TextPipelineCompletedEvent:
     execution: JobExecutionMeta
     rate_limited_hosts: Tuple[str, ...] = field(default_factory=tuple)
     rate_limited_llm_providers: Tuple[str, ...] = field(default_factory=tuple)
+    # Downstream-stage failures known so far (RAG runs after this barrier, so this
+    # count only reflects analysis / tag / translation failures at Barrier 1).
+    partial_failure_count: int = 0

@@ -108,3 +108,57 @@ def test_build_omits_rate_limited_lines_when_none():
 
     msg = PipelineCompletedMessageBuilder.build(_make_event())
     assert "限流" not in msg.text.replace("\\", "")
+
+
+def test_build_reports_partial_failures_when_scrape_stage_clean():
+    """Articles saved but with a later stage (analysis/translate/RAG) failing are
+    a distinct count from SourceStats.failed — surfaced in both the body and the
+    footer even when no scrape/save failed."""
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    event = PipelineCompletedEvent(
+        stats=[SourceStats(source="arxiv", new=5, duplicate=0, failed=0)],
+        execution=_make_execution(),
+        partial_failure_count=2,
+    )
+    text = PipelineCompletedMessageBuilder.build(event).text.replace("\\", "")
+    assert "部分失敗" in text
+    assert "2" in text
+
+
+def test_build_combines_hard_and_partial_failures_in_footer():
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    event = PipelineCompletedEvent(
+        stats=[SourceStats(source="arxiv", new=4, duplicate=0, failed=3)],
+        execution=_make_execution(),
+        partial_failure_count=1,
+    )
+    text = PipelineCompletedMessageBuilder.build(event).text.replace("\\", "")
+    assert "3" in text and "另有 1 篇部分失敗" in text
+
+
+def test_build_omits_partial_failure_line_when_zero():
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    msg = PipelineCompletedMessageBuilder.build(_make_event())
+    assert "部分失敗" not in msg.text.replace("\\", "")
+
+
+def test_build_surfaces_rag_daily_quota_skips():
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    event = PipelineCompletedEvent(
+        stats=[SourceStats(source="arxiv", new=10, duplicate=0, failed=0)],
+        execution=_make_execution(),
+        rag_rate_limited_skipped=7,
+    )
+    text = PipelineCompletedMessageBuilder.build(event).text.replace("\\", "")
+    assert "RAG" in text and "7" in text and "backfill" in text
+
+
+def test_build_omits_rag_quota_line_when_zero():
+    from src.infrastructure.collection.notifications import PipelineCompletedMessageBuilder
+
+    msg = PipelineCompletedMessageBuilder.build(_make_event())
+    assert "RPD" not in msg.text and "backfill" not in msg.text

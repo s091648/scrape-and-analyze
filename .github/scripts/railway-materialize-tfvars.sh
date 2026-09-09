@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuilds the git-ignored infra/terraform/railway/secrets/*.tfvars from the
+# Rebuilds the git-ignored infra/terraform/github/secrets/*.tfvars from the
 # base64 TF_TFVARS_* repo secrets (the same source terraform.yml consumes), then
 # runs scripts/tfvars_to_env.py to explode the secret / ${{...}}-reference values
 # .railway/railway.ts reads via process.env.X (025-iac-provisioning T6-08c) into
@@ -17,7 +17,7 @@ set -euo pipefail
 
 ENV_NAME="${1:?usage: railway-materialize-tfvars.sh <staging|production>}"
 
-cd "$GITHUB_WORKSPACE/infra/terraform/railway"
+cd "$GITHUB_WORKSPACE/infra/terraform/github"
 printf '%s' "$TF_TFVARS_GITHUB_SHARED"  | base64 -d > secrets/github-shared.tfvars
 printf '%s' "$TF_TFVARS_RAILWAY_SHARED" | base64 -d > secrets/railway-shared.tfvars
 case "$ENV_NAME" in

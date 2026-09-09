@@ -314,10 +314,10 @@ services:
       # RAILWAY_TOKEN / TF_API_TOKEN / TF_GITHUB_TOKEN in .env, and
       # secrets/*.tfvars) must never enter an app container.
       - ./.railway/railway.ts:/app/.railway/railway.ts:ro
-      - ./infra/terraform/railway:/app/infra/terraform/railway:ro
-      - /dev/null:/app/infra/terraform/railway/.env:ro
-      - /app/infra/terraform/railway/secrets
-      - /app/infra/terraform/railway/.terraform
+      - ./infra/terraform/github:/app/infra/terraform/github:ro
+      - /dev/null:/app/infra/terraform/github/.env:ro
+      - /app/infra/terraform/github/secrets
+      - /app/infra/terraform/github/.terraform
       - fastembed_cache:/app/.fastembed_cache
     env_file:
       - .env

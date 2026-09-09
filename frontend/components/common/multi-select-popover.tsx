@@ -34,7 +34,9 @@ export function MultiSelectPopover({
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           {label}
           {selected.length > 0 && (
-            <Badge variant="secondary" className="h-4 px-1 text-[10px]">{selected.length}</Badge>
+            <Badge variant="secondary" className="h-4 min-w-4 rounded-sm px-1 text-[10px] tabular-nums">
+              {selected.length}
+            </Badge>
           )}
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </Button>

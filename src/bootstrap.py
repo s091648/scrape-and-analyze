@@ -377,6 +377,7 @@ def build_async_rag_ingestion_service():
             VECTOR_DB_NAME, VECTOR_DB_USER, VECTOR_DB_PASSWORD,
             VECTOR_DB_HOST, VECTOR_DB_PORT, VECTOR_DB_SCHEMA,
             VECTOR_DB_ARTICLES_TABLE, VECTOR_DB_CHUNKS_TABLE,
+            VECTOR_DB_POOL_SIZE, VECTOR_DB_MAX_OVERFLOW, VECTOR_DB_CONNECT_TIMEOUT,
             RAG_DENSE_PROVIDER, RAG_SPARSE_PROVIDER,
             RAG_EMBED_BATCH_SIZE, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP,
         )
@@ -384,7 +385,7 @@ def build_async_rag_ingestion_service():
 
         dense_provider, sparse_provider = _build_rag_dense_sparse_providers()
 
-        backend = AsyncPgBackend(DatabaseConfig(
+        db_kwargs = dict(
             dbname=VECTOR_DB_NAME,
             user=VECTOR_DB_USER,
             password=VECTOR_DB_PASSWORD,
@@ -393,7 +394,25 @@ def build_async_rag_ingestion_service():
             schema=VECTOR_DB_SCHEMA,
             articles_table=VECTOR_DB_ARTICLES_TABLE,
             chunks_table=VECTOR_DB_CHUNKS_TABLE,
-        ))
+        )
+        # SDK >= 1.3.1: give the RAG engine the same pre-ping + generous connect
+        # timeout the scraper engine has, so its run-start cold connects don't
+        # fail under DNS-executor contention. Skipped on older SDKs whose
+        # DatabaseConfig has no such fields (dependency pin still v1.3.0).
+        try:
+            import dataclasses as _dc
+            _supported = {f.name for f in _dc.fields(DatabaseConfig)}
+            for _k, _v in dict(
+                pool_size=VECTOR_DB_POOL_SIZE,
+                max_overflow=VECTOR_DB_MAX_OVERFLOW,
+                connect_timeout=VECTOR_DB_CONNECT_TIMEOUT,
+            ).items():
+                if _k in _supported:
+                    db_kwargs[_k] = _v
+        except (TypeError, AttributeError):
+            pass  # DatabaseConfig isn't a real dataclass here — base kwargs only
+
+        backend = AsyncPgBackend(DatabaseConfig(**db_kwargs))
         processor = IngestProcessor()
         processor.configure(
             backend=backend,
@@ -449,7 +468,11 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
       每篇文章的 asyncio.Task 各自透過 `get_async_sessionmaker()` 開自己的
       AsyncSession（research.md item 2），從不跨 task 共用。
     """
-    from src.config.settings import RAG_DISPATCH_CONCURRENCY
+    from src.config.settings import (
+        RAG_DISPATCH_CONCURRENCY,
+        RAG_INGEST_TIMEOUT_SECONDS,
+        TEXT_STAGE_CONCURRENCY,
+    )
     from src.infrastructure.persistence.database import get_async_sessionmaker
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
     from src.infrastructure.persistence.shared.failed_task_repo_impl import SqlAlchemyFailedTaskRepository
@@ -509,6 +532,16 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     session = get_session()
     async_sessionmaker_factory = get_async_sessionmaker()
 
+    # Pre-open the async pool now, sequentially, so the Barrier-1 fan-out reuses
+    # warm connections instead of every task racing a cold asyncpg connect
+    # (whose getaddrinfo stampedes asyncio's DNS executor past the connect
+    # timeout — the failure this branch keeps hitting on staging).
+    from src.infrastructure.persistence.database import prewarm_async_engine
+    try:
+        await prewarm_async_engine()
+    except Exception as e:  # never let warm-up abort a run
+        logger.warning("async_engine_prewarm_failed", error=str(e))
+
     # ── Upstream (sync, still-batched — FR-003) repositories ────────────────
     article_repo = SqlAlchemyArticleRepository(session=session)  # find_analyzed_url_hashes only
     setting_repo = SqlAlchemyScraperSettingRepository(session=session)
@@ -522,6 +555,15 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     # ── RAG (async) ──────────────────────────────────────────────────────────
     _rag_ingestion_service, _rag_config_failed_event = build_async_rag_ingestion_service()
     rag_enabled = _rag_ingestion_service is not None
+
+    if rag_enabled:
+        # Same reasoning as the scraper pool above, for the RAG SDK's separate
+        # AsyncPgBackend pool — plus it runs the SDK's one-time schema setup
+        # here rather than on the first (concurrent) RAG tasks.
+        try:
+            await _rag_ingestion_service.prewarm()
+        except Exception as e:
+            logger.warning("rag_backend_prewarm_failed", error=str(e))
 
     # ── Run-level event bus — ONLY the two barrier events are published here.
     # Every per-article event (ArticleScrapedEvent..TagNormalizationCompletedEvent)
@@ -603,16 +645,27 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
             event_bus=bus,
             target_languages=TRANSLATION_LANGUAGES,
         )
-        failed_task_handler = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo_a)
+        failed_task_handler = FailedTaskPersistenceHandler(
+            failed_task_repository=failed_task_repo_a, pipeline_stats=pipeline_stats,
+        )
 
         await bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
-        await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
         if rag_enabled:
-            # Subscribed after article_processed_handler (subscribe-order
-            # dispatch — contracts/event-bus-port.md) though order between
-            # these two doesn't matter functionally, since dispatch_rag
-            # returns near-instantly regardless of position.
+            # Subscribed BEFORE article_processed_handler (subscribe-order
+            # dispatch — contracts/event-bus-port.md): the bus awaits handlers
+            # sequentially, and article_processed_handler runs this article's
+            # whole analyze → tag-normalise → translate chain inline. Putting
+            # dispatch_rag first means the detached RAG task is created (and
+            # starts running) up front and proceeds concurrently with that
+            # chain, instead of only after translation finishes. RAG needs just
+            # event.full_text — no analysis/translation output — so nothing in
+            # the RAG path depends on that chain having run. dispatch_rag itself
+            # still returns near-instantly (asyncio.create_task only); the
+            # article.pipeline span is closed by _ArticleSpanLatch once BOTH the
+            # text stage and the RAG task settle, so RAG finishing first no
+            # longer ends the span out from under a still-running translate.
             await bus.subscribe(ArticleProcessedEvent, dispatch_rag)
+        await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
         await bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
         await bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
         await bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
@@ -628,7 +681,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     if rag_enabled:
         async def rag_downstream_builder(rag_session):
             failed_task_repo_r = AsyncSqlAlchemyFailedTaskRepository(rag_session)
-            failed_task_handler_r = FailedTaskPersistenceHandler(failed_task_repository=failed_task_repo_r)
+            failed_task_handler_r = FailedTaskPersistenceHandler(
+                failed_task_repository=failed_task_repo_r, pipeline_stats=pipeline_stats,
+            )
             rag_bus = AsyncInMemoryEventBus()
             await rag_bus.subscribe(RagIngestionFailedEvent, failed_task_handler_r.handle)
             use_case = AsyncIngestArticleForRagUseCase(_rag_ingestion_service)
@@ -729,6 +784,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         llm_service=llm_service,
         rag_service_aclose=_rag_ingestion_service.aclose if rag_enabled else None,
         rag_dispatch_concurrency=RAG_DISPATCH_CONCURRENCY,
+        rag_ingest_timeout=RAG_INGEST_TIMEOUT_SECONDS,
+        failed_task_repo_factory=AsyncSqlAlchemyFailedTaskRepository,
+        text_stage_concurrency=TEXT_STAGE_CONCURRENCY,
     )
 
     logger.info(

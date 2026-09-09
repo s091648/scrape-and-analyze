@@ -296,7 +296,13 @@ export function MetricsChart({
                 isAnimationActive={false}
                 cursor={{ fill: 'hsl(var(--border))', opacity: 0.15 }}
               />
-              {seriesKeys.length > 1 && (
+              {/* Show the legend even with a single active series when the panel declares fixed
+                  seriesColors — that signals a known categorical breakdown (e.g. bot/browser,
+                  error/warn/info) where one category legitimately being absent from the current
+                  window shouldn't leave the remaining bar/line unlabeled. Panels without
+                  seriesColors keep the old ">1 series" gate so a plain single-metric chart
+                  doesn't grow an uninformative one-item legend. */}
+              {(seriesKeys.length > 1 || (seriesKeys.length === 1 && seriesColors)) && (
                 <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
                   onClick={(d: any) => handleLegendClick(d)}
                   formatter={(value: string) => (
@@ -317,7 +323,13 @@ export function MetricsChart({
                 isAnimationActive={false}
                 cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 2' }}
               />
-              {seriesKeys.length > 1 && (
+              {/* Show the legend even with a single active series when the panel declares fixed
+                  seriesColors — that signals a known categorical breakdown (e.g. bot/browser,
+                  error/warn/info) where one category legitimately being absent from the current
+                  window shouldn't leave the remaining bar/line unlabeled. Panels without
+                  seriesColors keep the old ">1 series" gate so a plain single-metric chart
+                  doesn't grow an uninformative one-item legend. */}
+              {(seriesKeys.length > 1 || (seriesKeys.length === 1 && seriesColors)) && (
                 <Legend wrapperStyle={{ fontSize: 10, cursor: 'pointer' }}
                   onClick={(d: any) => handleLegendClick(d)}
                   formatter={(value: string) => (

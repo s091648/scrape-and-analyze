@@ -76,6 +76,16 @@ class AsyncRagSdkIngestionService:
             duration_seconds=round(duration, 3),
         )
 
+    async def prewarm(self, connections: int | None = None) -> None:
+        """Run the SDK's first-use schema setup and pre-open its AsyncPgBackend
+        connection pool now, at bootstrap, instead of on the first (concurrent)
+        RAG tasks — whose cold connects otherwise race the scraper engine's for
+        asyncio's DNS executor. Best-effort; no-op on older SDKs without
+        IngestProcessor.prewarm()."""
+        prewarm = getattr(self._processor, "prewarm", None)
+        if prewarm is not None:
+            await prewarm(connections)
+
     async def aclose(self) -> None:
         """024-async-pipeline-refactor US6: releases the SDK's
         EmbeddingBatchCoordinator worker task (research.md item 11)."""

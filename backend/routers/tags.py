@@ -20,6 +20,7 @@ from backend.schemas.tag import (
     TagUpdate,
     TagMoveItem,
     BatchMoveResult,
+    BatchApproveResult,
     SuggestionOut,
     TagGroupMergeRequest,
     TagGroupReorderItem,
@@ -31,6 +32,8 @@ from backend.services.tag_service import (
     ungrouped_tag_outs,
     merge_tag_groups,
     build_tag_groups_payload,
+    lock_tags_for_update,
+    repoint_pending_suggestions_before_tag_delete,
 )
 
 router = APIRouter(tags=["tags"])
@@ -284,39 +287,61 @@ def list_suggestions(
     db: Session = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    from models.tag_normalization_suggestion import TagNormalizationSuggestion
-    from models.tag import Tag
-    rows = db.query(TagNormalizationSuggestion).filter_by(status="pending").all()
-    result = []
-    for r in rows:
-        new_tag = db.query(Tag).filter_by(id=r.new_tag_id).first()
-        existing_tag = db.query(Tag).filter_by(id=r.existing_tag_id).first()
-        if not new_tag or not existing_tag:
-            continue
-        result.append(SuggestionOut(
-            id=r.id, new_tag_id=r.new_tag_id, new_tag_name=new_tag.name,
-            existing_tag_id=r.existing_tag_id, existing_tag_name=existing_tag.name,
-            group_name=new_tag.group_def.name if new_tag.group_def else "ungrouped",
-            similarity_score=r.similarity_score,
-            article_id=r.article_id,
-        ))
-    return result
+    # Single joined query instead of the old per-row `db.query(Tag)...first()` x2
+    # (+ a lazy-loaded group_def) — that N+1 pattern also pulled each Tag's full
+    # ORM row (768-dim `embedding` vector included) across the wire twice per
+    # suggestion, which is what made this endpoint slow with more than a
+    # handful of pending rows. INNER JOIN on tags reproduces the old "skip rows
+    # whose tag is gone" guard for free — with both FKs ON DELETE CASCADE, a
+    # suggestion can never actually outlive its tags, so this never drops rows
+    # in practice, but keeps the same defensive shape as the query it replaces.
+    rows = db.execute(text("""
+        SELECT
+            r.id, r.new_tag_id, nt.name AS new_tag_name,
+            r.existing_tag_id, et.name AS existing_tag_name,
+            COALESCE(ntgd.name, 'ungrouped') AS group_name,
+            r.similarity_score, r.article_id
+        FROM tag_normalization_suggestions r
+        INNER JOIN tags nt ON nt.id = r.new_tag_id
+        INNER JOIN tags et ON et.id = r.existing_tag_id
+        LEFT JOIN tag_group_definitions ntgd ON ntgd.id = nt.tag_group_id
+        WHERE r.status = 'pending'
+    """)).mappings().all()
+    return [
+        SuggestionOut(
+            id=row["id"], new_tag_id=row["new_tag_id"], new_tag_name=row["new_tag_name"],
+            existing_tag_id=row["existing_tag_id"], existing_tag_name=row["existing_tag_name"],
+            group_name=row["group_name"], similarity_score=row["similarity_score"],
+            article_id=row["article_id"],
+        )
+        for row in rows
+    ]
 
 
-@router.post("/tag-normalization-suggestions/{suggestion_id}/approve", status_code=200, responses=error_responses(401, 403, 404))
-def approve_suggestion(
-    suggestion_id: UUID,
-    db: Session = Depends(get_db),
-    admin: dict = Depends(require_admin),
-    cache_gateway: CacheGateway = Depends(get_cache_gateway),
-):
-    from models.tag_normalization_suggestion import TagNormalizationSuggestion
-    suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).first()
-    if not suggestion:
-        raise NotFoundError("Suggestion not found")
+def _approve_suggestion_row(db: Session, suggestion) -> None:
+    """Merge new_tag into existing_tag for one suggestion. Does not commit —
+    callers decide transaction boundaries (single approve vs. batch). Callers must
+    lock_tags_for_update() both tag ids before calling this — see approve_suggestion /
+    approve_suggestions_batch.
 
+    Deleting new_tag below cascades (ON DELETE CASCADE on both FK columns) to
+    delete every tag_normalization_suggestions row that references it — not
+    just this one. repoint_pending_suggestions_before_tag_delete() below is what
+    stops that cascade from silently destroying any *other* still-pending
+    suggestion that happens to reference the same tag (e.g. one created earlier in
+    the same article/run that got auto-merged into this new_tag, or a genuine
+    duplicate suggestion for the same tag) — the root cause of the "Suggestion not
+    found" 404s seen mid-merge-all: the frontend's next sequential approve call hit
+    a suggestion id that the previous approve's cascade already deleted out from
+    under it.
+    """
     new_tag_id = str(suggestion.new_tag_id)
     existing_tag_id = str(suggestion.existing_tag_id)
+
+    repoint_pending_suggestions_before_tag_delete(
+        db, dropped_tag_id=new_tag_id, keep_tag_id=existing_tag_id,
+        exclude_suggestion_id=suggestion.id,
+    )
 
     db.execute(text("""
         INSERT INTO article_tags (article_id, tag_id)
@@ -330,6 +355,59 @@ def approve_suggestion(
     db.execute(text("DELETE FROM article_tags WHERE tag_id = :new_id"), {"new_id": new_tag_id})
     db.expunge(suggestion)
     db.execute(text("DELETE FROM tags WHERE id = :new_id"), {"new_id": new_tag_id})
+
+
+@router.post(
+    "/tag-normalization-suggestions/approve-batch",
+    response_model=BatchApproveResult,
+    responses=error_responses(401, 403),
+)
+def approve_suggestions_batch(
+    body: List[UUID],
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
+):
+    """Approve many suggestions in one request instead of the frontend firing
+    one sequential POST per suggestion (which also used to abort entirely on
+    the first cascade-induced 404 — see _approve_suggestion_row). Mirrors
+    batch_move_tags's best-effort shape: each id gets its own try/commit, one
+    failure doesn't block the rest."""
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    succeeded = []
+    failed = []
+    for suggestion_id in body:
+        try:
+            suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).with_for_update().first()
+            if not suggestion:
+                failed.append({"suggestion_id": str(suggestion_id), "error": "Suggestion not found"})
+                continue
+            lock_tags_for_update(db, [suggestion.new_tag_id, suggestion.existing_tag_id])
+            _approve_suggestion_row(db, suggestion)
+            db.commit()
+            succeeded.append(str(suggestion_id))
+        except Exception as e:
+            db.rollback()
+            failed.append({"suggestion_id": str(suggestion_id), "error": str(e)})
+    if succeeded:
+        _bump_tag_scoped_caches(cache_gateway)
+    return BatchApproveResult(succeeded=succeeded, failed=failed)
+
+
+@router.post("/tag-normalization-suggestions/{suggestion_id}/approve", status_code=200, responses=error_responses(401, 403, 404))
+def approve_suggestion(
+    suggestion_id: UUID,
+    db: Session = Depends(get_db),
+    admin: dict = Depends(require_admin),
+    cache_gateway: CacheGateway = Depends(get_cache_gateway),
+):
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    suggestion = db.query(TagNormalizationSuggestion).filter_by(id=suggestion_id).with_for_update().first()
+    if not suggestion:
+        raise NotFoundError("Suggestion not found")
+
+    lock_tags_for_update(db, [suggestion.new_tag_id, suggestion.existing_tag_id])
+    _approve_suggestion_row(db, suggestion)
     db.commit()
     _bump_tag_scoped_caches(cache_gateway)
     return {"status": "approved"}

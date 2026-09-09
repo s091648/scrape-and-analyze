@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
 import { queryTracesBatch, queryLogs, type LokiStreamResult } from '@/lib/api/grafana'
 import type { SpanNode } from '@/lib/otlp-utils'
-import { getAttr, spanDurationMs, formatDuration, otlpIdToHex } from '@/lib/otlp-utils'
+import { getAttr, spanDurationMs, formatDuration, otlpIdToHex, articleRowStatus } from '@/lib/otlp-utils'
 import { lokiStreamSelector } from '@/lib/observability-constants'
 import { StageCard, type SpanPercentileThresholds } from './stage-card'
 import { LogDetailDialog, type LogEntry } from './log-detail-dialog'
@@ -82,6 +82,7 @@ export function ArticleWorkflowDialog({
   const url    = getAttr(pipelineSpan, 'article.url') as string | undefined
   const source = getAttr(pipelineSpan, 'article.source') as string | undefined
   const totalMs = spanDurationMs(pipelineSpan)
+  const status = articleRowStatus(pipelineSpan, stageSpans)
 
   // article.title lives on the article.processed.handle child span
   const title = stageSpans
@@ -182,6 +183,13 @@ export function ArticleWorkflowDialog({
             {title ?? url ?? t('admin.articlePipelineTitle')}
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
+            {status === 'failed' ? (
+              <span className="text-destructive font-medium">✗ {t('admin.articleStatusFailed')} · </span>
+            ) : status === 'partial' ? (
+              <span className="text-amber-500 font-medium">▲ {t('admin.articleStatusPartial')} · </span>
+            ) : (
+              <span className="text-emerald-600 font-medium">✓ {t('admin.articleStatusOk')} · </span>
+            )}
             {formatDuration(totalMs)}
             {source && <> · {t('admin.articlePipelineSource')}: <span className="font-mono">{source}</span></>}
           </p>

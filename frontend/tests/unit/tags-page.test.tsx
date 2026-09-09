@@ -33,6 +33,7 @@ vi.mock('@/lib/api/tags', () => ({
   createTagGroup: vi.fn(),
   moveTag: vi.fn(),
   batchMoveTags: vi.fn(),
+  approveSuggestionsBatch: vi.fn(),
   reorderTagGroups: vi.fn(),
   mergeTagGroups: vi.fn(),
 }))

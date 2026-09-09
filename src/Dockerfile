@@ -12,7 +12,7 @@ COPY pyproject.toml uv.lock ./
 
 # Which src/ dependency groups this service needs (space-separated).
 # Railway auto-injects a same-named service variable into build ARGs — UV_GROUP
-# is a Terraform-managed service variable (infra/terraform/railway/<service>.tf,
+# is a Terraform-managed service variable (infra/terraform/github/<service>.tf,
 # var.uv_group_<service>), NOT a manual dashboard entry:
 #   scrape-and-analyze → (no override; the default below) "scraper llm http-clients"
 #   weekly-report      → "llm http-clients"

@@ -196,6 +196,31 @@ def test_concurrency_flag_bounds_in_flight_execute_calls():
     assert max_observed <= 2
 
 
+def test_backfill_short_circuits_the_rest_after_rpd_exhausted():
+    """A *daily* embedding cap (RpdExhausted) won't recover this run — once one
+    article hits it, the remaining candidates should short-circuit instead of
+    each queuing an embed call only to fail identically. Per-minute limits are
+    NOT short-circuited (they recover; those articles just fail and retry next
+    run)."""
+    from src.entrypoints.cli.backfill_rag import _backfill_all, RpdExhausted
+
+    executed = []
+
+    async def execute(article):
+        executed.append(article.id)
+        if len(executed) == 1:
+            raise RpdExhausted("daily cap")
+
+    use_case = _mock_use_case(execute_side_effect=execute)
+    articles = [_mock_article() for _ in range(10)]
+
+    succeeded, failed = asyncio.run(_backfill_all(articles, use_case, concurrency=1))
+
+    assert succeeded == 0
+    assert failed == 10
+    assert len(executed) == 1  # the other 9 short-circuited, no embed call
+
+
 @patch("src.bootstrap.build_rag_backfill_pipeline")
 @patch("src.entrypoints.cli.backfill_rag.init_default_client")
 @patch("src.entrypoints.cli.backfill_rag.configure_logging")

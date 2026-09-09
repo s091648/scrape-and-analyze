@@ -897,3 +897,61 @@ describe('TracesTable self-fetch mode', () => {
     expect(queryTraces).not.toHaveBeenCalled()
   })
 })
+
+// ── Root-span filter ─────────────────────────────────────────────────────────
+
+describe('TracesTable root-span filter', () => {
+  function twoRootKinds(): TempoResponse {
+    return {
+      traces: [
+        {
+          traceID: 'aaaaaaaaaaaaaaaa', rootServiceName: 'scraper',
+          rootTraceName: 'scraper.run', startTimeUnixNano: '1700000000000000000', durationMs: 10,
+        },
+        {
+          traceID: 'bbbbbbbbbbbbbbbb', rootServiceName: 'backend',
+          rootTraceName: 'GET /articles', startTimeUnixNano: '1700000000000000000', durationMs: 20,
+        },
+        {
+          traceID: 'cccccccccccccccc', rootServiceName: 'backend',
+          rootTraceName: 'GET /articles', startTimeUnixNano: '1700000000000000000', durationMs: 30,
+        },
+      ],
+    }
+  }
+
+  it('shows no root-span filter toolbar when there are no traces', async () => {
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={{ traces: [] }} />)
+    await waitFor(() => expect(screen.getByText('admin.noTraces')).toBeDefined())
+    expect(screen.queryByRole('button', { name: /admin\.traceFilterRootSpan/ })).toBeNull()
+  })
+
+  it('offers a root-span option per distinct root name, labelled with its count', async () => {
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={twoRootKinds()} />)
+
+    const trigger = await screen.findByRole('button', { name: /admin\.traceFilterRootSpan/ })
+    fireEvent.click(trigger)
+
+    // Counted + sorted by frequency: "GET /articles" (2) before "scraper.run" (1).
+    expect(await screen.findByText('GET /articles · 2')).toBeDefined()
+    expect(screen.getByText('scraper.run · 1')).toBeDefined()
+  })
+
+  it('narrows the visible trace rows to the selected root span', async () => {
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={twoRootKinds()} />)
+
+    await waitFor(() => expect(screen.getByText('scraper.run')).toBeDefined())
+
+    fireEvent.click(await screen.findByRole('button', { name: /admin\.traceFilterRootSpan/ }))
+    fireEvent.click(await screen.findByText('scraper.run · 1'))
+
+    await waitFor(() => {
+      // scraper.run trace stays; the two "GET /articles" traces are filtered out.
+      expect(screen.getByText('aaaaaaaa…')).toBeDefined()
+      expect(screen.queryByText('bbbbbbbb…')).toBeNull()
+    })
+  })
+})

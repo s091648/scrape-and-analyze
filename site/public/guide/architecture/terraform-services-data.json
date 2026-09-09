@@ -1,8 +1,8 @@
 {
   "generated_from": [
     ".railway/railway.ts",
-    "infra/terraform/railway/railway-services.json",
-    "infra/terraform/railway/github-ci.tf"
+    "infra/terraform/github/railway-services.json",
+    "infra/terraform/github/github-ci.tf"
   ],
   "services": [
     {

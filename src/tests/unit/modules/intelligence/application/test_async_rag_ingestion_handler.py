@@ -3,7 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import AsyncRagIngestionHandler
+from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import (
+    AsyncRagIngestionHandler,
+    RateLimitExhausted,
+)
 from src.modules.intelligence.application.events.rag_ingestion_failed import RagIngestionFailedEvent
 from src.modules.intelligence.application.use_cases.ingest_article_for_rag import AsyncIngestArticleForRagUseCase
 from src.shared.application.events.article_processed import ArticleProcessedEvent
@@ -70,6 +73,28 @@ async def test_async_handle_publishes_failed_event_on_error():
     assert isinstance(published, RagIngestionFailedEvent)
     assert published.article_id == article.id
     assert published.exception_type == "RuntimeError"
+
+
+@pytest.mark.asyncio
+async def test_async_handle_reraises_rate_limit_exhausted_after_publishing_failed_event():
+    """fix/scraper_failure: RateLimitExhausted means the embedding provider's
+    daily request cap is spent — every remaining article would fail identically.
+    Unlike every other exception (swallowed so the next article proceeds), this
+    one is re-raised so CollectionPipeline can trip its circuit breaker. The
+    per-article FailedTask must still have been published before it re-raises."""
+    use_case = MagicMock(spec=AsyncIngestArticleForRagUseCase)
+    use_case.execute = AsyncMock(side_effect=RateLimitExhausted("daily cap spent"))
+    handler, event_bus = _make_handler(use_case)
+    article = _make_article()
+    event = ArticleProcessedEvent(article=article, full_text="some text")
+
+    with pytest.raises(RateLimitExhausted):
+        await handler.handle(event)
+
+    event_bus.publish.assert_awaited_once()
+    published = event_bus.publish.call_args[0][0]
+    assert isinstance(published, RagIngestionFailedEvent)
+    assert published.exception_type == "RateLimitExhausted"
 
 
 @pytest.mark.asyncio

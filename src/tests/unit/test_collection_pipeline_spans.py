@@ -89,7 +89,7 @@ class TestCollectionPipelineSpans:
         assert "pipeline.fetch" in span_names
 
     @pytest.mark.asyncio
-    async def test_publish_articles_span_created(self):
+    async def test_process_articles_span_created(self):
         pipeline, _ = _make_pipeline()
         mock_span = MagicMock()
         mock_span.__enter__ = MagicMock(return_value=mock_span)
@@ -101,7 +101,7 @@ class TestCollectionPipelineSpans:
             await pipeline.run()
 
         span_names = [c.args[0] for c in mock_tracer.start_as_current_span.call_args_list]
-        assert "pipeline.publish_articles" in span_names
+        assert "pipeline.process_articles" in span_names
 
     @pytest.mark.asyncio
     async def test_no_span_error_when_tracer_is_noop(self):
