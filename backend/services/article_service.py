@@ -2,7 +2,7 @@ from datetime import date
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
 from backend.schemas.article import ArticleOut, PaginatedArticles
 
@@ -233,6 +233,9 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
         .outerjoin(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
+        # Reuse the outer join above to populate tag.group_def — the loop below
+        # touches it for every tag, which would otherwise be one lazy query each.
+        .options(contains_eager(Tag.group_def))
         .filter(at.c.article_id == article_id)
         .order_by(TagGroupDefinition.name, Tag.name)
         .all()
