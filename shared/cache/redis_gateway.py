@@ -7,6 +7,7 @@ import structlog
 from opentelemetry import trace
 
 from .gateway import CacheResult
+from .request_cache_status import record_cache_lookup
 
 # structlog bound logger (not plain stdlib logging) so every event here — including the
 # read/write/version/decode/bump/warmup-publish failure warnings below — gets JSON-rendered
@@ -85,6 +86,10 @@ class RedisCacheGateway:
             span.set_attribute("cache.status", result.status)
             span.set_attribute("cache.lang", lang)
             event_logger.info("cache_lookup", namespace=namespace, status=result.status, lang=lang)
+            # Also fold this outcome into the current request's one-line rollup (backend's
+            # RequestLoggingMiddleware reads it back as the `cache_status` field on the
+            # `event="request"` line). No-op outside a request — CLI / scraper use.
+            record_cache_lookup(result.status)
             return result
 
     def _get_or_set(

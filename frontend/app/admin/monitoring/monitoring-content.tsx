@@ -167,13 +167,39 @@ function applyBotExclusion(query: string): string {
     : `${query} ${stages}`
 }
 
-/** Swap in the selected app, layer the environment filter, then (backend + toggle off) strip
- * bot / synthetic request traffic. */
+/**
+ * Drops the monitoring dashboard's own Grafana-proxy traffic (`/grafana/*`, backend/routers/
+ * grafana.py) from every backend "request"-event panel. Rationale: opening or refreshing this
+ * page fires the queryLoki/Logs/Traces/Metrics batch calls, so the dashboard would be measuring
+ * itself — and those calls proxy to Grafana Cloud, so their latency (Tempo/Loki query time,
+ * often 100ms–2s) would wreck the request-duration percentiles. Splices
+ * `| route!~"/grafana/.*"` before the range vector, same shape as applyBotExclusion.
+ *
+ * - Skips non-"request" queries (cache_lookup / search / chat / execution_* / raw level
+ *   queries) — no `route` label there, nothing to exclude.
+ * - Skips queries that already scope `/grafana/` themselves (the by-endpoint charts bake the
+ *   filter into buildQuery) so it isn't added twice.
+ * - `route` is the templated path (backend/middleware/logging.py); pre-`route` log lines have
+ *   no such label and `route!~"…"` keeps them (empty string never matches the pattern).
+ */
+function applyInternalPathExclusion(query: string): string {
+  if (!query.includes('event="request"')) return query
+  if (query.includes('/grafana/')) return query
+  const stage = '| route!~"/grafana/.*"'
+  return /\[\d+[smhd]\]/.test(query)
+    ? query.replace(/\s*(\[\d+[smhd]\])/g, ` ${stage} $1`)
+    : `${query} ${stage}`
+}
+
+/** Swap in the selected app, layer the environment filter, then for the backend app strip the
+ * dashboard's own /grafana/* traffic and (toggle off) bot / synthetic request traffic. */
 function applyLokiFilters(
   query: string, app: AppValue, environment: Environment, showBotTraffic: boolean,
 ): string {
-  const q = applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
-  return app === LokiAppValue.BACKEND && !showBotTraffic ? applyBotExclusion(q) : q
+  let q = applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
+  if (app !== LokiAppValue.BACKEND) return q
+  q = applyInternalPathExclusion(q)
+  return showBotTraffic ? q : applyBotExclusion(q)
 }
 
 interface MonitoringContentProps {
@@ -263,12 +289,22 @@ const OPS_SCRAPER_CHARTS: ChartPanelDef[] = [
 const OPS_BACKEND_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.cacheHitRate',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.cacheHitRateTooltip' },
   { queryType: 'loki', titleKey: 'admin.requestCount',        buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                                    step: '3600', tooltipKey: 'admin.requestCountTooltip' },
+  // status_code >= 500 only — deliberately NARROWER than requestErrorsByPathChart below
+  // (>= 400). This stat is a health signal (5xx = the server broke); 4xx (401/404/422) is
+  // normal client traffic and would only add noise here. The titles say so: "Server Error
+  // Rate 5xx" vs the chart's "Request Errors by Path (4xx+)".
   { queryType: 'loki', titleKey: 'admin.requestErrorRate',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 500 [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.requestErrorRateTooltip' },
   // quantile_over_time (not avg_over_time) — a true percentile, unlike avg() which one slow
-  // outlier can barely move. avg() wrapper just collapses to one series if there's ever more
-  // than one backend replica; with a single replica it's a no-op.
-  { queryType: 'loki', titleKey: 'admin.requestDurationP50',    buildQuery: rv => `avg(quantile_over_time(0.5, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                     step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP50Tooltip' },
-  { queryType: 'loki', titleKey: 'admin.requestDurationP90',    buildQuery: rv => `avg(quantile_over_time(0.9, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                     step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP90Tooltip' },
+  // outlier can barely move. The `by ()` on the range vector is load-bearing: without it Loki
+  // computes the quantile *per stream*, and `| json` puts every request on its own stream
+  // (unique trace_id/span_id per line) so each stream holds a single duration sample — the
+  // quantile of one sample is that sample regardless of φ, so p50/p95 both collapsed to the
+  // same number (the arithmetic mean). `by ()` folds every sample into one group first.
+  // The outer avg() is then just a multi-replica collapse; with a single replica it's a no-op.
+  // p50 + p95 shown together here (the Traces tab used to carry a duplicate p95); the trend
+  // chart below plots the same two.
+  { queryType: 'loki', titleKey: 'admin.requestDurationP50',    buildQuery: rv => `avg(quantile_over_time(0.5, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]) by ())`,                     step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP50Tooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestDurationP95',    buildQuery: rv => `avg(quantile_over_time(0.95, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]) by ())`,                    step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP95Tooltip' },
   { queryType: 'loki', titleKey: 'admin.cacheFailureCount',   buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event=~"cache_read_failed|cache_write_failed|cache_version_read_failed|cache_version_malformed|cache_decode_failed|cache_bump_version_failed|cache_warmup_publish_failed" [${rv}]))`, step: '3600', tooltipKey: 'admin.cacheFailureCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.chatRequestCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="chat_request" [${rv}]))`,                                                step: '3600', tooltipKey: 'admin.chatRequestCountTooltip' },
   { queryType: 'loki', titleKey: 'admin.searchQueryCount',    buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event=~"search_query_executed|search_autocomplete_executed" [${rv}]))`,        step: '3600', tooltipKey: 'admin.searchQueryCountTooltip' },
@@ -282,16 +318,30 @@ const OPS_BACKEND_STATS: StatPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.botRequestRate',      buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" | client_type="bot" [${rv}])) / sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.botRequestRateTooltip' },
 ]
 
+// Hourly tiles (step '3600' → `[1h]` range-vector, see chartFetchParams/effectiveChartStep) for
+// every trend chart here. The daily '86400' tiles these used to carry collapsed to a single bar
+// at the 6h/24h filter options (chartFetchParams shifts `start` forward one whole tile) and lost
+// the leading day at 3d/7d — so short windows showed no trend at all. requestsByCountryChart
+// stays on its own StatPanelDef-style convention (last-point only, see its comment).
 const OPS_BACKEND_CHARTS: ChartPanelDef[] = [
-  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart',     buildQuery: rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}]))`,                          step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.cacheHitRateByNamespaceChart',  buildQuery: rv => `sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheHitRateByNamespaceChartTooltip' },
-  // avg() collapses per-request series from unwrap into a single time series, same shape as admin.runDurationChart
-  { queryType: 'loki', titleKey: 'admin.requestDurationTrendChart',     buildQuery: rv => `avg(avg_over_time(${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,                          step: '3600',  height: 240, tooltipKey: 'admin.requestDurationTrendChartTooltip' },
-  // topk(10, ...) on all by-label breakdowns below — path/country cardinality is unbounded
-  // (every distinct route or every visiting country becomes its own bar/series), so without a
-  // cap a busy day turns the chart into an unreadable wall of slivers instead of a ranked list.
-  { queryType: 'loki', titleKey: 'admin.requestsByPathChart',           buildQuery: rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`,                        step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByPathChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.requestErrorsByPathChart',      buildQuery: rv => `topk(10, sum by (path) (count_over_time(${lokiStreamSelector()} | json | event="request" | status_code >= 400 [${rv}])))`,    step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestErrorsByPathChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheLookupsByStatusChart',     buildQuery: rv => `sum by (status) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}]))`,                          step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheLookupsByStatusChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.cacheHitRateByNamespaceChart',  buildQuery: rv => `sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" | status="HIT" [${rv}])) / sum by (namespace) (count_over_time(${lokiStreamSelector()} | json | event="cache_lookup" [${rv}])) * 100`, step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.cacheHitRateByNamespaceChartTooltip' },
+  // Two trend lines (p50 + p95), matching the two stat cards above — not a mean (which one
+  // slow outlier barely moves). `quantile_over_time(...) by ()` folds every request's duration
+  // sample into one group per hourly tile (see the P50 stat's comment for why `by ()` is
+  // required); `label_replace` tags each result so `or` keeps them as two distinct series
+  // instead of colliding on an empty label set.
+  { queryType: 'loki', titleKey: 'admin.requestDurationTrendChart',     buildQuery: rv => `label_replace(quantile_over_time(0.5, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]) by (), "quantile", "p50", "", "") or label_replace(quantile_over_time(0.95, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]) by (), "quantile", "p95", "", "")`, step: '3600',  height: 240, tooltipKey: 'admin.requestDurationTrendChartTooltip', seriesColors: { p50: 'hsl(217,91%,60%)', p95: 'hsl(38,92%,50%)' } },
+  // `sum by (route)`, not `by (path)` — route is the matched template (/tag-groups/{group_id}),
+  // so per-id URLs roll up into one bar instead of fragmenting the top-10 into noise. The
+  // `label_format` coalesces route<-path for log lines written before the backend `route` field
+  // existed (they age out within the max 7d window). `| route!~"/grafana/.*"` drops this
+  // dashboard's own proxy calls (it's baked in here, so applyInternalPathExclusion skips it).
+  // topk(10) still caps the bar count — even bounded, a backend has plenty of routes.
+  { queryType: 'loki', titleKey: 'admin.requestsByPathChart',           buildQuery: rv => `topk(10, sum by (route) (count_over_time(${lokiStreamSelector()} | json | event="request" | label_format route="{{ if .route }}{{ .route }}{{ else }}{{ .path }}{{ end }}" | route!~"/grafana/.*" [${rv}])))`,                        step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByPathChartTooltip' },
+  // status_code >= 400 — deliberately WIDER than the requestErrorRate stat (5xx only): this
+  // breakdown is for spotting which routes throw 401/404/422 too, not just server failures.
+  { queryType: 'loki', titleKey: 'admin.requestErrorsByPathChart',      buildQuery: rv => `topk(10, sum by (route) (count_over_time(${lokiStreamSelector()} | json | event="request" | label_format route="{{ if .route }}{{ .route }}{{ else }}{{ .path }}{{ end }}" | route!~"/grafana/.*" | status_code >= 400 [${rv}])))`,    step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.requestErrorsByPathChartTooltip' },
   // No topk cap here (unlike the path/error breakdowns above) — a choropleth is naturally
   // bounded to ~174 countries by geography, and capping to a top-N would wrongly render
   // every country outside it as "no traffic" gray instead of its actual (smaller) count.
@@ -302,22 +352,21 @@ const OPS_BACKEND_CHARTS: ChartPanelDef[] = [
   //
   // Unlike every other chart below, this one's *consumer* (CountryMap/CountryTable) collapses
   // the whole series down to one static total per country instead of rendering a per-bucket
-  // trend — so it uses the StatPanelDef convention instead of these other charts' hardcoded
-  // `[1d]` daily-tile pattern: `rv` is the *entire* selected time range (not a fixed day), and
-  // `step: '3600'` guarantees a point lands exactly on "now" for all four time-range filter
-  // options (6h/24h/3d/7d are all whole multiples of an hour) — extractCountryTotals &co. then
-  // read only that last point (see lastValue() in country-map.tsx). The old `[1d]`/step=86400
-  // pairing double-counted: summing every returned point included one extra trailing day of
-  // stale data outside the selected window, for every one of the four filter options.
+  // trend — so `rv` is the *entire* selected time range (not an hourly tile like the trend
+  // charts above), and `step: '3600'` guarantees a point lands exactly on "now" for all four
+  // time-range filter options (6h/24h/3d/7d are all whole multiples of an hour) —
+  // extractCountryTotals &co. then read only that last point (see lastValue() in
+  // country-map.tsx). An hourly/daily *tile* here would double-count: summing every returned
+  // point includes buckets of stale data outside the selected window.
   { queryType: 'loki', titleKey: 'admin.requestsByCountryChart',        buildQuery: rv => `sum by (user_role, geo_country, geo_city) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                 step: '3600', height: 240, renderAs: 'map', tooltipKey: 'admin.requestsByCountryChartTooltip' },
   // backend/middleware/logging.py's _extract_user() always sets user_role (defaults to
   // "guest" for no-token/guest-token/decode-failure), so this always shows a real
   // guest/user/admin split instead of guest traffic falling into an unlabeled "(other)" bucket.
-  { queryType: 'loki', titleKey: 'admin.requestsByRoleChart',           buildQuery: rv => `sum by (user_role) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByRoleChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestsByRoleChart',           buildQuery: rv => `sum by (user_role) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByRoleChartTooltip' },
   // Same count-distinct idiom as admin.uniqueVisitors, kept per-role here instead of collapsed
   // to one scalar.
-  { queryType: 'loki', titleKey: 'admin.uniqueVisitorsByRoleChart',     buildQuery: rv => `count by (user_role) (count by (user_role, user_id) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`, step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.uniqueVisitorsByRoleChartTooltip' },
-  { queryType: 'loki', titleKey: 'admin.requestsByClientTypeChart',     buildQuery: rv => `sum by (client_type) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                              step: '86400', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByClientTypeChartTooltip', seriesColors: CLIENT_TYPE_CHART_COLORS },
+  { queryType: 'loki', titleKey: 'admin.uniqueVisitorsByRoleChart',     buildQuery: rv => `count by (user_role) (count by (user_role, user_id) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}])))`, step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.uniqueVisitorsByRoleChartTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestsByClientTypeChart',     buildQuery: rv => `sum by (client_type) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                              step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByClientTypeChartTooltip', seriesColors: CLIENT_TYPE_CHART_COLORS },
 ]
 
 // ── Logs panel descriptors ─────────────────────────────────────────────────
@@ -331,7 +380,10 @@ const LOG_LEVEL_CHART_COLORS: Record<string, string> = {
 const LOGS_VOLUME_CHART: ChartPanelDef = {
   titleKey: 'admin.logVolumeChart',
   buildQuery: rv => `sum by (${LokiLabel.DETECTED_LEVEL}) (count_over_time(${lokiStreamSelector()}[${rv}]))`,
-  step: '60',
+  // Hourly tile, like every other trend chart. A 1-minute tile asked Loki for ~10k points at
+  // the 7d filter option (168 for hourly) — near Loki's 11k-points-per-series ceiling and far
+  // finer than a 180px sparkline can show.
+  step: '3600',
   height: 180,
   tooltipKey: 'admin.logVolumeChartTooltip',
   seriesColors: LOG_LEVEL_CHART_COLORS,
@@ -346,7 +398,14 @@ const LOGS_STAT_PANELS: StatPanelDef[] = [
 const LOGS_TABLE_PANELS: LogTablePanelDef[] = [
   { titleKey: 'admin.errorLogs',   query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "${LogLevel.ERROR}"`, height: 300, tooltipKey: 'admin.errorLogsTooltip' },
   { titleKey: 'admin.warningLogs', query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "warn"`,              height: 300, tooltipKey: 'admin.warningLogsTooltip' },
-  { titleKey: 'admin.infoLogs',    query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "${LogLevel.INFO}"`,  height: 300, tooltipKey: 'admin.infoLogsTooltip' },
+  // Two things hidden from the raw INFO table (backend only — scraper lines have neither
+  // field, so `!=` / `!~` keep them all):
+  //   `event != "cache_lookup"` — redis_gateway.py emits one per cached-endpoint hit; high
+  //     volume, low signal now that each "request" line carries a `cache_status` field. The
+  //     event still reaches Loki for Operations' cache panels.
+  //   `route !~ "/grafana/.*"` — this dashboard's own Grafana-proxy polling (see
+  //     applyInternalPathExclusion), same self-measurement noise it strips from the metric panels.
+  { titleKey: 'admin.infoLogs',    query: `${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "${LogLevel.INFO}" | json | event != "cache_lookup" | route !~ "/grafana/.*"`,  height: 300, tooltipKey: 'admin.infoLogsTooltip' },
 ]
 
 // ── Traces panel descriptors ───────────────────────────────────────────────
@@ -370,19 +429,23 @@ const TRACES_SCRAPER_SPAN_CHART: ChartPanelDef = {
   tooltipKey: 'admin.spanRateChartTooltip',
 }
 
+// These two stats are the same Loki queries as Operations' Backend Requests / Log Error Count
+// (kept here as at-a-glance context beside the Recent Traces table) — so they reuse those exact
+// title keys rather than a "Traces Count" / "Error Spans" label that implies a Tempo span count.
+// p95 lives on the Operations tab now, not duplicated here.
 const TRACES_BACKEND_STATS: StatPanelDef[] = [
-  { queryType: 'loki', titleKey: 'admin.tracesCount',          buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                                            step: '3600', tooltipKey: 'admin.tracesCountBackendTooltip' },
-  { queryType: 'loki', titleKey: 'admin.requestDurationP95',   buildQuery: rv => `avg(quantile_over_time(0.95, ${lokiStreamSelector()} | json | event="request" | unwrap duration_ms [${rv}]))`,               step: '3600', unit: 'ms', tooltipKey: 'admin.requestDurationP95Tooltip' },
-  { queryType: 'loki', titleKey: 'admin.errorSpans',           buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,                               step: '3600', tooltipKey: 'admin.errorSpansTooltip' },
+  { queryType: 'loki', titleKey: 'admin.requestCount',   buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                        step: '3600', tooltipKey: 'admin.requestCountTooltip' },
+  { queryType: 'loki', titleKey: 'admin.logErrorCount',  buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | ${LokiLabel.DETECTED_LEVEL} = "error" [${rv}]))`,        step: '3600', tooltipKey: 'admin.logErrorCountTooltip' },
 ]
 
 const TRACES_BACKEND_SPAN_CHART: ChartPanelDef = {
   queryType: 'loki',
-  titleKey: 'admin.requestRateChart',
+  // Hourly count of "request" events, not a per-second rate — the title says "per hour".
+  titleKey: 'admin.requestsPerHourChart',
   buildQuery: rv => `sum(count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,
   step: '3600',
   height: 240,
-  tooltipKey: 'admin.requestRateChartTooltip',
+  tooltipKey: 'admin.requestsPerHourChartTooltip',
 }
 
 const TRACES_TABLE_PANEL: TracesTablePanelDef = {

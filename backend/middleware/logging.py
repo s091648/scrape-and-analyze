@@ -6,6 +6,7 @@ import structlog
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from backend.config import NEXTAUTH_SECRET
+from shared.cache import begin_request_cache_status, summarize_request_cache_status
 
 logger = structlog.get_logger()
 
@@ -46,6 +47,25 @@ def classify_client_from_headers(raw_headers: dict[bytes, bytes]) -> str:
         return "synthetic"
     ua = raw_headers.get(b"user-agent")
     return _classify_client(ua.decode("latin-1") if ua else "")
+
+
+def route_template_from_scope(scope: Scope) -> str:
+    """The matched route's template (e.g. "/tag-groups/{group_id}") rather than the concrete
+    URL, so the monitoring dashboard's by-endpoint panels group per-id requests into one series
+    instead of fragmenting into thousands (and so unbounded-cardinality paths like
+    /grafana/traces/<hex> don't each get their own series). Reconstructed by swapping each
+    matched path-param value back out of the raw path — Starlette 0.52 puts the values in
+    scope["path_params"] but not the route object itself. Static routes and unmatched 404s
+    have no path params, so this returns the raw path unchanged."""
+    path = scope.get("path", "")
+    params = scope.get("path_params") or {}
+    if not params:
+        return path
+    by_value = {str(v): k for k, v in params.items()}
+    return "/".join(
+        f"{{{by_value[seg]}}}" if seg in by_value else seg
+        for seg in path.split("/")
+    )
 
 
 def _redact(value):
@@ -113,6 +133,9 @@ class RequestLoggingMiddleware:
 
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        # Arm the per-request cache-outcome accumulator: any get_or_set() this request runs
+        # appends its HIT/MISS/BYPASS here, folded into the `cache_status` field below.
+        begin_request_cache_status()
 
         raw_headers: dict[bytes, bytes] = dict(scope.get("headers") or [])
         status_code = 500
@@ -203,12 +226,22 @@ class RequestLoggingMiddleware:
                 except Exception:
                     pass
 
+        # One-line rollup of every cache lookup this request made (see request_cache_status.py):
+        # "HIT"/"MISS"/"BYPASS" when they agreed, "PARTIAL" when they didn't, absent when the
+        # endpoint never touched the cache. Lets the Logs table show a Cache column without
+        # joining against the separate cache_lookup events.
+        cache_status = summarize_request_cache_status()
+
         log_fields = {
             "method": scope["method"],
             "path": scope["path"],
+            # Templated path for by-endpoint dashboard aggregation; raw `path` kept above for
+            # the log table (which needs the real URL to look a specific request up).
+            "route": route_template_from_scope(scope),
             "status_code": status_code,
             "duration_ms": duration_ms,
             "client_type": client_type,
+            **({"cache_status": cache_status} if cache_status else {}),
             **user_info,
             **({"session_id": session_id} if session_id else {}),
             **({"ip": ip} if ip else {}),
