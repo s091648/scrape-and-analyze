@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-03T22:38:14.021Z",
+  "generated_at": "2026-09-09T20:57:24.473Z",
   "providers": [
     {
       "id": "session",
@@ -40,7 +40,7 @@
       "children": [
         "guestMode"
       ],
-      "consumerCount": 70,
+      "consumerCount": 72,
       "description": "Locale, translations, t(), localStorage"
     },
     {
@@ -73,7 +73,7 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 695,
+          "line": 865,
           "destructured": "{ data: session }"
         },
         {
@@ -305,27 +305,27 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 500,
+          "line": 648,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 565,
+          "line": 714,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 604,
+          "line": 765,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 636,
+          "line": 797,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 694,
+          "line": 864,
           "destructured": "{ t }"
         },
         {
@@ -505,12 +505,17 @@
         },
         {
           "file": "components/features/monitoring/log-detail-dialog.tsx",
-          "line": 125,
+          "line": 130,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/log-filter-chip.tsx",
+          "line": 17,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/logs-table.tsx",
-          "line": 205,
+          "line": 228,
           "destructured": "{ t }"
         },
         {
@@ -520,17 +525,22 @@
         },
         {
           "file": "components/features/monitoring/stage-card.tsx",
-          "line": 235,
+          "line": 253,
           "destructured": "{ t }"
         },
         {
           "file": "components/features/monitoring/traces-table.tsx",
-          "line": 54,
+          "line": 55,
           "destructured": "{ locale }"
         },
         {
           "file": "components/features/monitoring/traces-table.tsx",
-          "line": 239,
+          "line": 99,
+          "destructured": "{ t }"
+        },
+        {
+          "file": "components/features/monitoring/traces-table.tsx",
+          "line": 246,
           "destructured": "{ t }"
         },
         {
@@ -585,7 +595,7 @@
         },
         {
           "file": "components/features/tags/pending-suggestions.tsx",
-          "line": 16,
+          "line": 17,
           "destructured": "{ t }"
         },
         {
@@ -711,7 +721,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 123,
+    "totalConsumerSites": 125,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

@@ -23,11 +23,13 @@
   ],
   "app/admin/monitoring/monitoring-content.tsx": [
     "components/features/monitoring/country-panel.tsx",
+    "components/features/monitoring/log-filter-chip.tsx",
     "components/features/monitoring/logs-table.tsx",
     "components/features/monitoring/metrics-chart.tsx",
     "components/features/monitoring/stat-card.tsx",
     "components/features/monitoring/traces-table.tsx",
     "components/ui/button.tsx",
+    "components/ui/checkbox.tsx",
     "components/ui/dropdown.tsx",
     "components/ui/tabs.tsx",
     "components/ui/tooltip.tsx",
@@ -376,6 +378,11 @@
     "lib/providers/index.tsx",
     "lib/utils.ts"
   ],
+  "components/features/monitoring/log-filter-chip.tsx": [
+    "components/features/monitoring/logs-table.tsx",
+    "lib/iso-country-codes.ts",
+    "lib/providers/index.tsx"
+  ],
   "components/features/monitoring/logs-table.tsx": [
     "components/features/monitoring/article-workflow-dialog.tsx",
     "components/features/monitoring/log-detail-dialog.tsx",
@@ -383,6 +390,7 @@
     "components/ui/dialog.tsx",
     "components/ui/table-panel.tsx",
     "lib/api/grafana.ts",
+    "lib/iso-country-codes.ts",
     "lib/observability-constants.ts",
     "lib/otlp-utils.ts",
     "lib/providers/index.tsx",
@@ -418,6 +426,7 @@
     "lib/utils.ts"
   ],
   "components/features/monitoring/traces-table.tsx": [
+    "components/common/multi-select-popover.tsx",
     "components/features/articles/article-detail-dialog.tsx",
     "components/features/monitoring/article-workflow-dialog.tsx",
     "components/features/monitoring/log-detail-dialog.tsx",
@@ -621,7 +630,8 @@
     "lib/api/client.ts"
   ],
   "lib/api/client.ts": [
-    "lib/auth-token-store.ts"
+    "lib/auth-token-store.ts",
+    "lib/session-id.ts"
   ],
   "lib/api/grafana.ts": [],
   "lib/api/graph.ts": [
@@ -767,6 +777,7 @@
     "lib/cookies/constants.ts",
     "lib/env.server.ts"
   ],
+  "lib/session-id.ts": [],
   "lib/stores/admin-users-store.ts": [
     "lib/api/auth.ts"
   ],
