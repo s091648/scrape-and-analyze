@@ -65,10 +65,25 @@ Pipeline Flow 頁籤的各 stage 是由 AST 解析 `src/bootstrap.py` 自動推�
 3. **提取訂閱關係**：掃描 `event_bus.subscribe(EventClass, handler.handle)` 呼叫，支援 `with_span(...)` 等 decorator 包裝（透過 `ast.walk` 遞迴找 `.handle` attribute）
 4. **掃描 publish 呼叫**：對每個 handler class，掃描其 `handle()` 方法中的 `*.publish(EventClass(...))` 呼叫，得出各 handler 會 emit 哪些事件
 5. **拓撲切分 main vs terminal**：不依賴事件名稱字串，而是看 entry events 的 handler 是否還有後續 publish — 有的是 main chain，沒有的（純通知/log）是 terminal chain
-6. **兩階段 BFS 拓撲排序**：main chain 先展開，terminal chain 後展開（確保通知類 handler 排在文章處理主鏈之後）
+6. **兩階段 BFS 拓撲排序**：main chain 先展開，terminal chain 後展開（確保通知類 handler 排在文章處理主鏈之後）。terminal 事件依 `bootstrap.py` 中 `subscribe()` 出現順序排列，所以 `TextPipelineCompletedEvent` barrier（搜尋索引＋快取）會排在 `PipelineCompletedEvent` barrier（metrics／通知）之前，不會因 set 迭代順序而每次翻轉
 7. **Branch 支線**：`*FailedEvent` 被視為 branch，以側欄呈現不打斷主鏈順序
 
 新增一個 handler 並在 `bootstrap.py` 裡 `event_bus.subscribe(...)` 後，下次執行 `make uml-backend` 時 pipeline 圖就會自動更新。新增 `src/modules/` 下的子目錄也會自動出現在 Business Module 分頁，**無需修改任何設定檔**。
+
+### Span 補強（024-async-pipeline-refactor 之後）
+
+024 的 async 重構把兩個 stage 移出了「`subscribe()` → `handle()` → `publish(Event(...))`」這條骨幹，純靠上述推斷會漏掉：
+
+- **RAG ingestion**：由 `CollectionPipeline._dispatch_rag`（在 `bootstrap.py` 裡以參數名 `dispatch_rag` 傳進 `article_downstream_builder`）以裸 callable 訂閱 `ArticleProcessedEvent`，內部再 `asyncio.create_task()` 開 detached task。它不是 `<var>.handle`，所以 handler 解析看不到。
+- **per-article translation**：`AnalysisCompletedHandler.handle()` 裡直接呼叫 translate use case，不再 publish 後續事件。handler 有被抓到，但名字取自它的觸發事件（「Analysis Completed」）而非它做的事。
+
+這兩者在 OTel／Tempo trace 裡都是一等公民（`shared/enums/observability.py` 的 `SpanName`，有 TS mirror 與同步測試），所以 `generate_uml.py` 往 span 靠攏來補：
+
+1. `_build_class_span_map()`：掃 `src/` 每個 class body 裡的 `start_as_current_span(SpanName.X | "字面字串")`，`SpanName.*` 的值從 `shared/enums/observability.py` 解析。一個 handler 可對應多個 span（含 `handle()` 內的巢狀 per-item span，例如 `AnalysisCompletedHandler` 的 `article.translate.handle`）。
+2. `_BARE_CALLABLE_HANDLERS`：把 `subscribe()` 第二參數是裸函式名（目前只有 `dispatch_rag`）對應到要歸屬的 handler class（`AsyncRagIngestionHandler`）＋相關 use case。這樣 RAG 就成為 `ArticleProcessedEvent` 的第二個 handler，BFS 會自動把它和 analyze 鏈放進同一個 fan-out parallel group。
+3. `_relabel_stages_from_spans()`：最後一步。當某 stage 的 handler 開的 span 比它的 class 名更精確地描述動作（`_SPAN_LABEL_OVERRIDES`：`article.translate.handle` → 「Translation」、`article.rag_ingest` → 「RAG Ingestion」）就改名／換 icon。**只動有 override 命中的 stage，其餘 stage 的 label／icon 完全不變**，對既有推斷零回歸。
+
+要新增／改動這類 stage：加一個 `SpanName` member（開 span 時本來就要加），必要時在 `_SPAN_LABEL_OVERRIDES` 或 `_BARE_CALLABLE_HANDLERS` 補一列。`scripts/tests/test_generate_uml.py` 會擋 override 清單與 `SpanName` enum 漂移。
 
 ## 命名規則（自動解析的前提）
 

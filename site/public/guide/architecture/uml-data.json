@@ -9875,7 +9875,7 @@
     {
       "step": 3,
       "id": "articleprocessedhandler",
-      "parallel_group": "",
+      "parallel_group": "pg_articleprocessedevent",
       "icon": "🧠",
       "label": "Article Processed",
       "desc": "ArticleProcessedEvent -> ArticleProcessedHandler -> AnalysisCompletedEvent",
@@ -9962,12 +9962,44 @@
     },
     {
       "step": 4,
+      "id": "ragingestion",
+      "parallel_group": "pg_articleprocessedevent",
+      "icon": "🧬",
+      "label": "RAG Ingestion",
+      "desc": "ArticleProcessedEvent -> AsyncRagIngestionHandler",
+      "color": "#44BB99",
+      "classes": [
+        "AsyncRagIngestionHandler",
+        "AsyncIngestArticleForRagUseCase"
+      ],
+      "receives": [
+        "ArticleProcessedEvent"
+      ],
+      "emits": [],
+      "branches": [
+        {
+          "label": "Rag Ingestion Failed",
+          "color": "#e94560",
+          "emits": [
+            "RagIngestionFailedEvent"
+          ],
+          "classes": [
+            "FailedTaskPersistenceHandler",
+            "AsyncSqlAlchemyFailedTaskRepository"
+          ],
+          "desc": "RagIngestionFailedEvent → FailedTaskPersistenceHandler"
+        }
+      ],
+      "di": []
+    },
+    {
+      "step": 5,
       "id": "tagnormalizationhandler",
       "parallel_group": "",
       "icon": "🏷️",
       "label": "Tag Normalization",
       "desc": "AnalysisCompletedEvent -> TagNormalizationHandler -> TagNormalizationCompletedEvent",
-      "color": "#44BB99",
+      "color": "#77AADD",
       "classes": [
         "TagNormalizationHandler",
         "NormalizeTagsUseCase"
@@ -10018,13 +10050,13 @@
       ]
     },
     {
-      "step": 5,
-      "id": "analysiscompletedhandler",
+      "step": 6,
+      "id": "translation",
       "parallel_group": "",
-      "icon": "⚙️",
-      "label": "Analysis Completed",
+      "icon": "🌐",
+      "label": "Translation",
       "desc": "TagNormalizationCompletedEvent -> AnalysisCompletedHandler",
-      "color": "#77AADD",
+      "color": "#EE8866",
       "classes": [
         "AnalysisCompletedHandler",
         "AsyncTranslateArticleUseCase",
@@ -10150,24 +10182,6 @@
       ]
     },
     {
-      "step": 6,
-      "id": "otelmetricshandler",
-      "parallel_group": "",
-      "icon": "📊",
-      "label": "Otel Metrics",
-      "desc": "PipelineCompletedEvent -> OtelMetricsHandler",
-      "color": "#EE8866",
-      "classes": [
-        "OtelMetricsHandler"
-      ],
-      "receives": [
-        "PipelineCompletedEvent"
-      ],
-      "emits": [],
-      "branches": [],
-      "di": []
-    },
-    {
       "step": 7,
       "id": "searchindexrebuildhandler",
       "parallel_group": "pg_textpipelinecompletedevent",
@@ -10263,6 +10277,24 @@
           "deps": []
         }
       ]
+    },
+    {
+      "step": 10,
+      "id": "otelmetricshandler",
+      "parallel_group": "",
+      "icon": "📊",
+      "label": "Otel Metrics",
+      "desc": "PipelineCompletedEvent -> OtelMetricsHandler",
+      "color": "#44BB99",
+      "classes": [
+        "OtelMetricsHandler"
+      ],
+      "receives": [
+        "PipelineCompletedEvent"
+      ],
+      "emits": [],
+      "branches": [],
+      "di": []
     }
   ]
 }
