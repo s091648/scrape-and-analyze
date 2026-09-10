@@ -27,6 +27,7 @@ from backend.routers.weekly_reports import router as weekly_reports_router
 from backend.routers.metric_definitions import router as metric_definitions_router
 from backend.routers.bootstrap import router as bootstrap_router
 from backend.routers.search import router as search_router
+from backend.routers.analytics import router as analytics_router
 from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV, GEOIP_DB_PATH
 from backend.schemas.error import error_responses
 from backend.observability import configure_logging, setup_tracing
@@ -135,6 +136,7 @@ app.include_router(weekly_reports_router)
 app.include_router(metric_definitions_router)
 app.include_router(bootstrap_router)
 app.include_router(search_router)
+app.include_router(analytics_router)
 
 
 @app.get("/health", tags=["health"])
