@@ -113,6 +113,18 @@ def test_overview_window_excludes_rows_older_than_days(db_session, api_client):
     assert body["trending"][0]["window_views"] == 3
 
 
+def test_overview_clamps_unsupported_days_value_to_default(db_session, api_client):
+    # ALLOWED_DAYS is (7, 30, 90) — anything else (a stray value, not something the
+    # frontend's selector can send) is silently clamped to DEFAULT_DAYS rather than 422'd.
+    a = _article(db_session, "Clamped window")
+    _views(db_session, a, _utc_today(), 9)
+    db_session.commit()
+
+    r = api_client.get("/admin/analytics/overview?days=14", headers=_ADMIN_HDR)
+    assert r.status_code == 200
+    assert r.json()["days"] == 30
+
+
 def test_overview_all_time_top_reads_article_metrics(db_session, api_client):
     from models.article_metrics import ArticleMetrics
     a = _article(db_session, "Evergreen")

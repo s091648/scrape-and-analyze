@@ -266,6 +266,30 @@ async def test_async_tag_repository_save_link_and_find_similar(async_db_session,
 
 
 @pytest.mark.asyncio
+async def test_async_tag_repository_save_reselects_on_concurrent_insert_conflict(async_db_session, tag_group):
+    """save()'s INSERT ... ON CONFLICT DO NOTHING returns no row when another
+    concurrent task already won the race to create the same (name, group) tag —
+    exercised here by saving the same brand-new name+group twice in a row without
+    an intervening commit, which self-conflicts against the still-uncommitted
+    first insert exactly like two concurrent per-article transactions would.
+    save() must then re-SELECT the existing row instead of raising."""
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    tag_repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    name = f"async-conflict-tag-{uuid.uuid4().hex[:8]}"
+
+    first = await tag_repo.save(
+        name=name, tag_group_name=tag_group.name, embedding=[0.1] * 768, topic_id=tag_group.topic_id,
+    )
+    second = await tag_repo.save(
+        name=name, tag_group_name=tag_group.name, embedding=[0.2] * 768, topic_id=tag_group.topic_id,
+    )
+    await tag_repo.commit()
+
+    assert second.id == first.id  # re-selected the winning row, not a duplicate
+
+
+@pytest.mark.asyncio
 async def test_async_tag_translation_repository_save_and_find_without_translation(async_db_session, tag_group):
     from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
     from src.infrastructure.persistence.intelligence.tag_translation_async_repo_impl import AsyncSqlAlchemyTagTranslationRepository
