@@ -301,6 +301,12 @@ export default defineRailway((ctx) => {
     env: {
       ...appEnv,
       SWAGGER_TRY_IT_OUT_ENABLED: "false",
+      // Pins the public domain's target port. Without this, Railway's public
+      // edge routes to whatever it auto-detects/injects for $PORT (observed
+      // 8080) while uvicorn listens on the literal 8000 from `start` above —
+      // the mismatch is what caused the `x-railway-fallback` 502s this was
+      // added to fix. Keep in sync with the `--port 8000` in `start`.
+      PORT: "8000",
       CACHE_REDIS_URL,
       SEARCH_INDEX_REDIS_URL,
       ...databaseUrl,
