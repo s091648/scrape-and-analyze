@@ -1,4 +1,11 @@
 {
+  "app/admin/analytics/page.tsx": [
+    "components/features/analytics/charts.tsx",
+    "components/ui/skeleton.tsx",
+    "lib/api/analytics.ts",
+    "lib/providers/index.tsx",
+    "lib/utils.ts"
+  ],
   "app/admin/layout.tsx": [
     "app/settings/layout.tsx"
   ],
@@ -223,6 +230,9 @@
     "components/ui/checkbox.tsx",
     "components/ui/command.tsx",
     "components/ui/popover.tsx"
+  ],
+  "components/features/analytics/charts.tsx": [
+    "lib/api/analytics.ts"
   ],
   "components/features/articles/article-card-skeleton.tsx": [
     "components/ui/skeleton.tsx"
@@ -622,6 +632,9 @@
   ],
   "hooks/use-debounced-value.ts": [],
   "hooks/use-pagination.ts": [],
+  "lib/api/analytics.ts": [
+    "lib/api/client.ts"
+  ],
   "lib/api/articles.ts": [
     "lib/api/client.ts",
     "lib/cache/lru-cache.ts"

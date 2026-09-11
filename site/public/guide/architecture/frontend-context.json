@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-09T20:57:24.473Z",
+  "generated_at": "2026-09-10T23:43:44.711Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 25,
+      "consumerCount": 26,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -40,7 +40,7 @@
       "children": [
         "guestMode"
       ],
-      "consumerCount": 72,
+      "consumerCount": 73,
       "description": "Locale, translations, t(), localStorage"
     },
     {
@@ -62,6 +62,11 @@
       "hookName": "useSession",
       "sites": [
         {
+          "file": "app/admin/analytics/page.tsx",
+          "line": 20,
+          "destructured": "{ data: session, status }"
+        },
+        {
           "file": "app/admin/llm-providers/page.tsx",
           "line": 496,
           "destructured": "{ data: session, status }"
@@ -73,7 +78,7 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 865,
+          "line": 928,
           "destructured": "{ data: session }"
         },
         {
@@ -118,7 +123,7 @@
         },
         {
           "file": "app/settings/layout.tsx",
-          "line": 25,
+          "line": 26,
           "destructured": "{ data: session, status }"
         },
         {
@@ -239,7 +244,7 @@
         },
         {
           "file": "app/settings/layout.tsx",
-          "line": 32,
+          "line": 33,
           "destructured": "{ selectedTopic }"
         },
         {
@@ -259,7 +264,7 @@
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 118,
+          "line": 120,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -284,6 +289,11 @@
       "hookName": "useI18n",
       "sites": [
         {
+          "file": "app/admin/analytics/page.tsx",
+          "line": 18,
+          "destructured": "{ t }"
+        },
+        {
           "file": "app/admin/llm-providers/page.tsx",
           "line": 59,
           "destructured": "{ t }"
@@ -305,27 +315,27 @@
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 648,
+          "line": 711,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 714,
+          "line": 777,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 765,
+          "line": 828,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 797,
+          "line": 860,
           "destructured": "{ t }"
         },
         {
           "file": "app/admin/monitoring/monitoring-content.tsx",
-          "line": 864,
+          "line": 927,
           "destructured": "{ t }"
         },
         {
@@ -415,7 +425,7 @@
         },
         {
           "file": "app/settings/layout.tsx",
-          "line": 26,
+          "line": 27,
           "destructured": "{ t }"
         },
         {
@@ -666,7 +676,7 @@
         },
         {
           "file": "app/settings/layout.tsx",
-          "line": 27,
+          "line": 28,
           "destructured": "{ isGuestMode }"
         },
         {
@@ -721,7 +731,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 125,
+    "totalConsumerSites": 127,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }

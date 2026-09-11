@@ -122,14 +122,14 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 179,
+          "line": 180,
           "function": "update_tag_group",
           "snippet": "raise ConflictError(\"A tag group with this name already exists in this topic\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 230,
+          "line": 231,
           "function": "rename_tag",
           "snippet": "raise ConflictError(\"Tag name already exists in target group\")",
           "status_code": null
@@ -485,14 +485,14 @@
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 243,
+          "line": 283,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
           "status_code": 404
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 245,
+          "line": 285,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
           "status_code": 400
@@ -834,49 +834,49 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 150,
+          "line": 151,
           "function": "get_tag_group._load",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 173,
+          "line": 174,
           "function": "update_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 202,
+          "line": 203,
           "function": "delete_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 219,
+          "line": 220,
           "function": "rename_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 251,
+          "line": 252,
           "function": "delete_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 407,
+          "line": 432,
           "function": "approve_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 426,
+          "line": 451,
           "function": "reject_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
