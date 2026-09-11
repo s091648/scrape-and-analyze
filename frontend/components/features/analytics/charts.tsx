@@ -24,7 +24,7 @@ export function ViewsTrendChart({ data, height = 220 }: { data: DailyViews[]; he
         <XAxis dataKey="day" tickFormatter={fmtDay} stroke={AXIS} fontSize={11} tickMargin={8} minTickGap={24} />
         <YAxis stroke={AXIS} fontSize={11} width={40} allowDecimals={false} />
         <Tooltip
-          labelFormatter={(l: string) => fmtDay(l)}
+          labelFormatter={(l) => fmtDay(String(l))}
           contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid var(--border, #ddd)', background: 'var(--background, #fff)' }}
         />
         <Line type="monotone" dataKey="views" stroke={ACCENT} strokeWidth={2} dot={false} />

@@ -61,8 +61,9 @@ def _views(db_session, article, day, views):
 # ---------------------------------------------------------------------------
 
 def test_overview_requires_admin(api_client):
-    # require_admin: guest token -> 401, valid non-admin user -> 403, no token -> 401
-    assert api_client.get("/admin/analytics/overview").status_code == 401  # default guest token
+    # require_admin has no guest-specific branch: a guest token has no `role` claim,
+    # so it falls through the role check to 403, same as any other non-admin token.
+    assert api_client.get("/admin/analytics/overview").status_code == 403  # default guest token
     assert api_client.get(
         "/admin/analytics/overview", headers={"Authorization": f"Bearer {user_token()}"}
     ).status_code == 403
