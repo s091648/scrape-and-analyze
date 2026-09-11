@@ -1,7 +1,8 @@
 """
 Unit tests for AnalysisCompletedHandler — covers auto-translation after
-tag normalization, English content prerequisite, failure event publishing,
-article body translation, and tag/group translation error swallowing.
+analysis completes (independently of tag normalization — fix/sanitize),
+English content prerequisite, failure event publishing, article body
+translation, and tag/group translation error swallowing.
 """
 import uuid
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -12,7 +13,7 @@ from src.modules.intelligence.application.event_handlers.analysis_completed_hand
     AnalysisCompletedHandler,
 )
 from src.modules.intelligence.application.events import (
-    TagNormalizationCompletedEvent,
+    AnalysisCompletedEvent,
     TranslationFailedEvent,
 )
 from src.modules.intelligence.domain.value_objects import AnalysesTranslationResult, AnalysesTranslationContent
@@ -22,13 +23,8 @@ from src.modules.intelligence.domain.value_objects.analyses_translation_content 
 )
 
 
-def _event(article_title="Test Title", article_content="Test content body."):
-    return TagNormalizationCompletedEvent(
-        analysis_id=uuid.uuid4(),
-        article_id=uuid.uuid4(),
-        article_title=article_title,
-        article_content=article_content,
-    )
+def _event():
+    return AnalysisCompletedEvent(analysis_id=uuid.uuid4(), article_id=uuid.uuid4())
 
 
 def _en_content():
@@ -67,17 +63,20 @@ def _body_failure(event, lang="zh-TW"):
     )
 
 
-def _handler(target_languages=None):
+def _handler(target_languages=None, article_title="Test Title", article_content="Test content body."):
     translate_article_uc = AsyncMock()
     translate_tags_uc = AsyncMock()
     translate_body_uc = AsyncMock()
     analyses_translation_repo = AsyncMock()
+    article_repo = AsyncMock()
+    article_repo.find_by_id.return_value = MagicMock(title=article_title, content=article_content)
     event_bus = AsyncMock()
     handler = AnalysisCompletedHandler(
         translate_article_uc=translate_article_uc,
         translate_tags_uc=translate_tags_uc,
         translate_body_uc=translate_body_uc,
         analyses_translation_repo=analyses_translation_repo,
+        article_repo=article_repo,
         event_bus=event_bus,
         target_languages=target_languages or ["zh-TW"],
     )
@@ -116,8 +115,8 @@ async def test_skips_analysis_translation_when_no_english_content_but_body_still
     article_uc.execute.assert_not_called()
     body_uc.execute.assert_called_once_with(
         article_id=event.article_id,
-        title=event.article_title,
-        content=event.article_content,
+        title="Test Title",
+        content="Test content body.",
         target_language="zh-TW",
     )
 
@@ -219,8 +218,10 @@ async def test_swallows_group_translation_exceptions():
 
 @pytest.mark.asyncio
 async def test_calls_translate_body_for_each_language():
-    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
-    event = _event(article_title="My Title", article_content="My Content")
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(
+        target_languages=["zh-TW", "ja"], article_title="My Title", article_content="My Content",
+    )
+    event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
     article_uc.execute.return_value = _analysis_success(event)
@@ -291,6 +292,36 @@ async def test_publishes_translate_article_body_failed_event_with_correct_task_t
     failed = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
     assert any(e.task_type == "translate_article_body" for e in failed)
     assert any(e.article_id == event.article_id for e in failed)
+
+
+# ── fix/sanitize: article body fetch failure skips only body translation ────
+
+@pytest.mark.asyncio
+async def test_article_body_fetch_failure_skips_body_translation_but_not_others():
+    """A failure fetching the article body (e.g. transient DB error) must not
+    abort analysis translation or tag/group translation — those don't need
+    the article body at all. Reported once as a single TranslationFailedEvent,
+    not once per language."""
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler(target_languages=["zh-TW", "ja"])
+    handler._article_repo.find_by_id.side_effect = RuntimeError("db read failed")
+    event = _event()
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+
+    await handler.handle(event)  # Should not raise
+
+    body_uc.execute.assert_not_called()
+    assert article_uc.execute.call_count == 2
+    tags_uc.translate_tags.assert_called()
+    tags_uc.translate_groups.assert_called()
+
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    body_fetch_failures = [
+        e for e in published_events
+        if isinstance(e, TranslationFailedEvent) and e.exception_type == "RuntimeError"
+    ]
+    assert len(body_fetch_failures) == 1
 
 
 # ── Span attribute tests ──────────────────────────────────────────────────────

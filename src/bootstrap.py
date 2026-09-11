@@ -472,6 +472,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         RAG_DISPATCH_CONCURRENCY,
         RAG_INGEST_TIMEOUT_SECONDS,
         TEXT_STAGE_CONCURRENCY,
+        TRANSLATION_DISPATCH_CONCURRENCY,
     )
     from src.infrastructure.persistence.database import get_async_sessionmaker
     from src.infrastructure.persistence.shared.article_repo_impl import SqlAlchemyArticleRepository
@@ -521,7 +522,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     from src.modules.intelligence.application.use_cases.ingest_article_for_rag import AsyncIngestArticleForRagUseCase
     from src.modules.intelligence.application.events import (
         AnalysisFailedEvent, AnalysisCompletedEvent,
-        TagNormalizationCompletedEvent, TagNormalizationFailedEvent,
+        TagNormalizationFailedEvent,
         TranslationFailedEvent, RagIngestionFailedEvent,
     )
     from src.shared.application.events import ArticleProcessedEvent
@@ -587,9 +588,6 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         article_repo_a = AsyncSqlAlchemyArticleRepository(article_session)
         article_metrics_repo_a = AsyncSqlAlchemyArticleMetricsRepository(article_session)
         analysis_repo_a = AsyncSqlAlchemyAnalysisRepository(article_session)
-        analyses_translation_repo_a = AsyncSqlAlchemyAnalysesTranslationRepository(article_session)
-        tag_translation_repo_a = AsyncSqlAlchemyTagTranslationRepository(article_session)
-        article_translation_repo_a = AsyncSqlAlchemyArticleTranslationRepository(article_session)
         tag_repo_a = AsyncSqlAlchemyTagRepository(article_session)
         tag_group_def_repo_a = AsyncSqlAlchemyTagGroupDefinitionRepository(article_session)
         topic_repo_a = AsyncSqlAlchemyTopicRepository(article_session)
@@ -609,22 +607,6 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
             prompt=prompt_factory.analysis_prompt(),
             embedding_service=embedding_service,
         )
-        translate_article_uc = AsyncTranslateArticleUseCase(
-            llm_service=llm_service,
-            translation_repository=analyses_translation_repo_a,
-            prompt=prompt_factory.article_translation_prompt(),
-        )
-        translate_tags_uc = AsyncTranslateTagsUseCase(
-            llm_service=llm_service,
-            tag_translation_repository=tag_translation_repo_a,
-            tag_prompt=prompt_factory.tag_translation_prompt(),
-            group_prompt=prompt_factory.group_translation_prompt(),
-        )
-        translate_body_uc = AsyncTranslateArticleBodyUseCase(
-            llm_service=llm_service,
-            translation_repository=article_translation_repo_a,
-            prompt=prompt_factory.article_body_translation_prompt(),
-        )
         normalize_tags_uc = NormalizeTagsUseCase(
             embedding_service=embedding_service,
             tag_repository=tag_repo_a,
@@ -637,14 +619,6 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         tag_normalization_handler = TagNormalizationHandler(
             use_case=normalize_tags_uc, event_bus=bus, session=article_session,
         )
-        analysis_completed_handler = AnalysisCompletedHandler(
-            translate_article_uc=translate_article_uc,
-            translate_tags_uc=translate_tags_uc,
-            translate_body_uc=translate_body_uc,
-            analyses_translation_repo=analyses_translation_repo_a,
-            event_bus=bus,
-            target_languages=TRANSLATION_LANGUAGES,
-        )
         failed_task_handler = FailedTaskPersistenceHandler(
             failed_task_repository=failed_task_repo_a, pipeline_stats=pipeline_stats,
         )
@@ -654,23 +628,75 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
             # Subscribed BEFORE article_processed_handler (subscribe-order
             # dispatch — contracts/event-bus-port.md): the bus awaits handlers
             # sequentially, and article_processed_handler runs this article's
-            # whole analyze → tag-normalise → translate chain inline. Putting
-            # dispatch_rag first means the detached RAG task is created (and
-            # starts running) up front and proceeds concurrently with that
-            # chain, instead of only after translation finishes. RAG needs just
-            # event.full_text — no analysis/translation output — so nothing in
-            # the RAG path depends on that chain having run. dispatch_rag itself
+            # analyze → tag-normalise chain inline. Putting dispatch_rag first
+            # means the detached RAG task is created (and starts running) up
+            # front and proceeds concurrently with that chain. RAG needs just
+            # event.full_text — no analysis output — so nothing in the RAG
+            # path depends on that chain having run. dispatch_rag itself
             # still returns near-instantly (asyncio.create_task only); the
             # article.pipeline span is closed by _ArticleSpanLatch once BOTH the
             # text stage and the RAG task settle, so RAG finishing first no
             # longer ends the span out from under a still-running translate.
             await bus.subscribe(ArticleProcessedEvent, dispatch_rag)
         await bus.subscribe(ArticleProcessedEvent, article_processed_handler.handle)
+        # fix/sanitize: translation (CollectionPipeline._dispatch_translation)
+        # is subscribed to this same AnalysisCompletedEvent directly by
+        # CollectionPipeline itself, BEFORE this builder runs (see
+        # _process_article_text) — not wired here — so tag normalization
+        # failing/being slow never blocks or delays translation, and vice
+        # versa. See TagNormalizationCompletedEvent's docstring: it no longer
+        # has any subscriber (translation used to chain off it).
         await bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
-        await bus.subscribe(TagNormalizationCompletedEvent, analysis_completed_handler.handle)
         await bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
         await bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
         await bus.subscribe(TranslationFailedEvent, failed_task_handler.handle)
+
+    # ── Translation downstream wiring (closure) — called once per detached
+    # translation task, given that task's own fresh AsyncSession (fix/sanitize,
+    # translation fan-out). Mirrors rag_downstream_builder below: own session,
+    # own small event bus (just for TranslationFailedEvent -> FailedTask),
+    # own repos/use-cases bound to that session — never shares the per-article
+    # text-stage session, which may already be closed by the time this task
+    # is scheduled to run (CollectionPipeline._run_translation docstring). ──
+    async def translation_downstream_builder(translation_session):
+        analyses_translation_repo_t = AsyncSqlAlchemyAnalysesTranslationRepository(translation_session)
+        tag_translation_repo_t = AsyncSqlAlchemyTagTranslationRepository(translation_session)
+        article_translation_repo_t = AsyncSqlAlchemyArticleTranslationRepository(translation_session)
+        article_repo_t = AsyncSqlAlchemyArticleRepository(translation_session)
+        failed_task_repo_t = AsyncSqlAlchemyFailedTaskRepository(translation_session)
+
+        translate_article_uc = AsyncTranslateArticleUseCase(
+            llm_service=llm_service,
+            translation_repository=analyses_translation_repo_t,
+            prompt=prompt_factory.article_translation_prompt(),
+        )
+        translate_tags_uc = AsyncTranslateTagsUseCase(
+            llm_service=llm_service,
+            tag_translation_repository=tag_translation_repo_t,
+            tag_prompt=prompt_factory.tag_translation_prompt(),
+            group_prompt=prompt_factory.group_translation_prompt(),
+        )
+        translate_body_uc = AsyncTranslateArticleBodyUseCase(
+            llm_service=llm_service,
+            translation_repository=article_translation_repo_t,
+            prompt=prompt_factory.article_body_translation_prompt(),
+        )
+
+        translation_bus = AsyncInMemoryEventBus()
+        failed_task_handler_t = FailedTaskPersistenceHandler(
+            failed_task_repository=failed_task_repo_t, pipeline_stats=pipeline_stats,
+        )
+        await translation_bus.subscribe(TranslationFailedEvent, failed_task_handler_t.handle)
+
+        return AnalysisCompletedHandler(
+            translate_article_uc=translate_article_uc,
+            translate_tags_uc=translate_tags_uc,
+            translate_body_uc=translate_body_uc,
+            analyses_translation_repo=analyses_translation_repo_t,
+            article_repo=article_repo_t,
+            event_bus=translation_bus,
+            target_languages=TRANSLATION_LANGUAGES,
+        )
 
     # ── RAG downstream wiring (closure) — only built if RAG is enabled ──────
     # Called once per detached RAG task, given that task's own fresh
@@ -787,6 +813,8 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         rag_ingest_timeout=RAG_INGEST_TIMEOUT_SECONDS,
         failed_task_repo_factory=AsyncSqlAlchemyFailedTaskRepository,
         text_stage_concurrency=TEXT_STAGE_CONCURRENCY,
+        translation_downstream_builder=translation_downstream_builder,
+        translation_dispatch_concurrency=TRANSLATION_DISPATCH_CONCURRENCY,
     )
 
     logger.info(
