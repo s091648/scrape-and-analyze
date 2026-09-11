@@ -47,9 +47,33 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
         ]
 
     async def save(self, name: str, tag_group_name: str, embedding: List[float], topic_id: Optional[UUID]) -> TagData:
-        """Create or update a tag with its embedding vector under the given group and topic."""
+        """Create or update a tag with its embedding vector under the given group and topic.
+
+        2026-09-10 incident: this used to be SELECT-then-INSERT (see git
+        history) — a plain check-then-act race. Each article in the pipeline
+        runs its own AsyncSession/transaction (TEXT_STAGE_CONCURRENCY
+        concurrent per-article tasks, see CollectionPipeline docstring), so
+        two articles normalizing the same brand-new tag name in the same
+        group could both SELECT "not found" and both INSERT, and the loser
+        blew up with a raw asyncpg UniqueViolationError on uq_tag_name_group
+        instead of a handled outcome.
+        Fixed with a single atomic `INSERT ... ON CONFLICT DO NOTHING` against
+        that same unique index, rather than an app-level catch-IntegrityError-
+        and-retry loop: Postgres itself blocks the losing INSERT until the
+        winner's transaction resolves, then either proceeds (winner rolled
+        back) or reports the conflict (winner committed) — so one re-SELECT
+        on conflict is always enough, no retry/backoff loop needed. A retry
+        loop would also have to wrap the failed statement in its own
+        SAVEPOINT (`session.begin_nested()`) to avoid poisoning the rest of
+        this session's transaction — NormalizeTagsUseCase.execute() commits
+        once for the *whole* tag_groups batch, so letting IntegrityError
+        propagate past a plain flush() would abort every other tag already
+        flushed-but-uncommitted alongside it. ON CONFLICT DO NOTHING never
+        raises, so none of that applies.
+        """
         from models.tag import Tag
         from models.tag_group import TagGroupDefinition
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
 
         if topic_id is None:
             raise ValidationError("topic_id is required to save a tag")
@@ -61,19 +85,31 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
         if not group:
             raise NotFoundError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
 
-        result = await self._session.execute(
-            select(Tag).filter_by(name=name, tag_group_id=group.id)
+        insert_stmt = (
+            pg_insert(Tag)
+            .values(name=name, tag_group_id=group.id)
+            .on_conflict_do_nothing(
+                index_elements=[Tag.name, Tag.tag_group_id],
+                # Must match uq_tag_name_group's partial predicate exactly
+                # (models/tag.py) for Postgres to pick it as the arbiter index.
+                index_where=text("tag_group_id IS NOT NULL"),
+            )
+            .returning(Tag.id)
         )
-        tag = result.scalars().first()
-        if not tag:
-            tag = Tag(name=name, tag_group_id=group.id)
-            self._session.add(tag)
-            await self._session.flush()
+        tag_id = (await self._session.execute(insert_stmt)).scalar_one_or_none()
 
-        stmt, params = update_tag_embedding_stmt(tag.id, embedding)
+        if tag_id is None:
+            # Conflict: a concurrent task's insert of this exact
+            # (name, tag_group_id) won the race and has already committed —
+            # re-select it instead of retrying the insert.
+            tag_id = (
+                await self._session.execute(select(Tag.id).filter_by(name=name, tag_group_id=group.id))
+            ).scalar_one()
+
+        stmt, params = update_tag_embedding_stmt(tag_id, embedding)
         await self._session.execute(stmt, params)
 
-        return TagData(id=tag.id, name=tag.name, tag_group_name=tag_group_name, embedding=embedding)
+        return TagData(id=tag_id, name=name, tag_group_name=tag_group_name, embedding=embedding)
 
     async def link_to_article(self, tag_id: UUID, article_id: UUID) -> None:
         """Associate a tag with an article if not already linked (direct upsert, see class docstring)."""
