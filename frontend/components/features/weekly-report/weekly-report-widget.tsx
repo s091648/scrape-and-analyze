@@ -66,6 +66,13 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
   // we've already been seeded with server-side, while still letting that first run's background
   // fetch (full reports list, available weeks) proceed normally.
   const hasSeededReport = useRef(!!initialReport)
+  // The rotateY entrance flip below should only play when the user switches to a
+  // *different* report — never on this component's own first render, where the card
+  // content is already in the SSR HTML / already on screen. A post-hydration remount
+  // (locale resolving late, a hydration mismatch) would otherwise re-run the whole
+  // "panel opens" animation.
+  const isFirstReportRender = useRef(true)
+  useEffect(() => { isFirstReportRender.current = false }, [])
   const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
   const [collapsed, setCollapsed] = useState(false)
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
@@ -135,9 +142,15 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
   useEffect(() => {
     if (!topicId) return
     let cancelled = false
-    // Only the very first run of this effect can be a no-flash seeded run, and only when no
-    // specific deep-linked week was requested (that path needs its own fetch regardless).
-    const skipLoadingFlash = hasSeededReport.current && !initialWeek
+    // Suppress the loading-skeleton swap whenever there's already a report on screen —
+    // the first run when server-seeded (hasSeededReport), and every later re-run that's
+    // just a background refresh of content we already have (e.g. `locale` resolving after
+    // first paint re-fires this effect). Without the `hasContent` arm, that re-run would
+    // unmount the report card for the skeleton and, on resolve, remount it — replaying the
+    // rotateY entrance animation after hydration. A deep-linked `initialWeek` always needs
+    // its own fetch, so it never qualifies.
+    const hasContent = reports.some(r => r.id === selectedId)
+    const skipLoadingFlash = (hasSeededReport.current || hasContent) && !initialWeek
     hasSeededReport.current = false
 
     async function load() {
@@ -268,7 +281,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
         <AnimatePresence mode="wait">
           <motion.div
             key={selected.id}
-            initial={{ rotateY: -90, opacity: 0 }}
+            initial={isFirstReportRender.current ? false : { rotateY: -90, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
             exit={{ rotateY: 90, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}

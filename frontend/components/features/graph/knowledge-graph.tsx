@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { useI18n, useGuestMode } from '@/lib/providers'
+import { useI18n, useGuestMode, useTheme } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
 import { fetchAnalysesGraph, fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
@@ -114,8 +114,18 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
   const { status } = useSession()
   const { t, locale } = useI18n()
   const { isGuestMode } = useGuestMode()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const isPaywall = status === 'unauthenticated' && !isGuestMode
   const { selectedTopicId } = useTopic()
+
+  // react-force-graph-2d's default linkColor is rgba(0,0,0,0.15) — invisible on
+  // the dark canvas. Resolve it against the active theme instead (canvas draws
+  // outside the DOM, so CSS `--border` etc. can't reach it).
+  const linkColor = useMemo(
+    () => () => (isDark ? 'rgba(148, 163, 184, 0.55)' : 'rgba(71, 85, 105, 0.35)'),
+    [isDark],
+  )
 
   const [graphFilters, setGraphFilters] = useState<Omit<GraphFilters, 'topic_id'>>({
     published_after: (() => {
@@ -289,6 +299,8 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
               width={graphDims.width}
               height={graphDims.height}
               nodeRelSize={6}
+              linkColor={linkColor}
+              linkWidth={1.5}
               onEngineStop={() => {
                 // Configure d3 forces once after first cooldown, then reheat
                 if (forcesConfigured.current || !graphRef.current) return
@@ -410,7 +422,7 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
 
                   const tagFontSize = Math.max(9 / globalScale, 2)
                   ctx.font = `${tagFontSize}px sans-serif`
-                  ctx.fillStyle = '#374151'
+                  ctx.fillStyle = isDark ? '#cbd5e1' : '#374151'
                   ctx.textAlign = 'center'
                   ctx.textBaseline = 'top'
                   const truncTag = (node.label || '').length > 18
@@ -431,7 +443,7 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
                     const truncated = label.length > 32 ? label.slice(0, 30) + '…' : label
                     const fontSize = Math.max(9 / globalScale, 2)
                     ctx.font = `${fontSize}px sans-serif`
-                    ctx.fillStyle = '#111827'
+                    ctx.fillStyle = isDark ? '#f1f5f9' : '#111827'
                     ctx.textAlign = 'center'
                     ctx.textBaseline = 'top'
                     ctx.fillText(truncated, node.x, node.y + radius + 3)

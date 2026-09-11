@@ -611,6 +611,51 @@ def test_merge_deduplicates_tags_with_same_name(api_client, db_session):
     assert tag_names.count("shared_tag") == 1
 
 
+def test_merge_absorbs_source_tag_into_existing_result_group_tag_of_same_name(api_client, db_session):
+    # result_name matches neither source group's name but does match a *third*,
+    # already-existing group — merge_tag_groups()'s `elif existing_result:` branch
+    # reuses that group as the destination. When one of the merged-in source tags
+    # shares a name with a tag already in that destination group, the second dedup
+    # pass (over existing_result_tags) must absorb the source tag into the
+    # existing one rather than leave a duplicate name behind.
+    topic = _topic(db_session)
+    grp_a = _group(db_session, topic, name="reuse_src_a")
+    grp_b = _group(db_session, topic, name="reuse_src_b")
+    grp_existing = _group(db_session, topic, name="reuse_dest")
+
+    dup_in_a = _tag(db_session, name="dup_name", group=grp_a)
+    dup_in_a_id = dup_in_a.id  # captured before merge deletes the row (id access after would re-fetch and 404)
+    only_in_b = _tag(db_session, name="only_in_b", group=grp_b)
+    dup_in_existing = _tag(db_session, name="dup_name", group=grp_existing)
+
+    art = _article(db_session, topic)
+    _link(db_session, art, dup_in_existing)
+    _link(db_session, art, only_in_b)
+
+    r = api_client.post(
+        "/tag-groups/merge",
+        json={
+            "group_a_id": str(grp_a.id),
+            "group_b_id": str(grp_b.id),
+            "result_name": "reuse_dest",
+            "result_display_name": "Reuse Dest",
+            "result_color_hex": None,
+            "result_description": None,
+        },
+        headers=_ADMIN_HDR,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["name"] == "reuse_dest"
+    tag_names = [t["name"] for t in data["tags"]]
+    assert tag_names.count("dup_name") == 1  # absorbed, not duplicated
+    assert "only_in_b" in tag_names
+
+    from models.tag import Tag
+    db_session.expire_all()  # merge_tag_groups deleted the row via its own flush/commit
+    assert db_session.query(Tag).filter_by(id=dup_in_a_id).first() is None  # dropped
+
+
 # ---------------------------------------------------------------------------
 # Tag normalization suggestions
 # ---------------------------------------------------------------------------

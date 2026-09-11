@@ -154,11 +154,17 @@ def test_t018_analysis_completed_event_subscription():
     assert len(handlers) == 1, f"expected 1 handler for AnalysisCompletedEvent, got {len(handlers)}"
 
 
-def test_t019_tag_normalization_completed_event_subscription():
-    """TagNormalizationCompletedEvent must have exactly one handler (AnalysisCompletedHandler)."""
+def test_t019_tag_normalization_completed_event_has_no_subscriber():
+    """fix/sanitize: TagNormalizationCompletedEvent no longer has a subscriber
+    — translation used to chain off it (via AnalysisCompletedHandler) but now
+    fans out independently off AnalysisCompletedEvent instead (Barrier 1.5,
+    CollectionPipeline._dispatch_translation), so tag normalization failing
+    or being slow no longer blocks or delays translation. The event is still
+    published by TagNormalizationHandler as a success signal, just with no
+    current consumer."""
     bus = _build_article_bus()
     handlers = bus._handlers.get(TagNormalizationCompletedEvent, [])
-    assert len(handlers) == 1, f"expected 1 handler for TagNormalizationCompletedEvent, got {len(handlers)}"
+    assert len(handlers) == 0, f"expected 0 handlers for TagNormalizationCompletedEvent, got {len(handlers)}"
 
 
 def test_t020_failed_event_subscriptions():
@@ -320,6 +326,21 @@ def test_build_collection_pipeline_wires_rag_downstream_builder_when_enabled():
     from src.modules.intelligence.application.event_handlers.rag_ingestion_handler import AsyncRagIngestionHandler
     rag_handler = asyncio.run(pipeline._rag_downstream_builder(MagicMock()))
     assert isinstance(rag_handler, AsyncRagIngestionHandler)
+
+
+def test_build_collection_pipeline_wires_translation_downstream_builder():
+    """fix/sanitize: build_collection_pipeline() must always set a working
+    translation_downstream_builder on the pipeline (translation fan-out is
+    unconditional, unlike RAG which is gated on DB config) — and it must
+    build a real AnalysisCompletedHandler given a session."""
+    pipeline, *_ = _build_pipeline_with_mocks()
+    assert pipeline._translation_downstream_builder is not None
+
+    from src.modules.intelligence.application.event_handlers.analysis_completed_handler import (
+        AnalysisCompletedHandler,
+    )
+    handler = asyncio.run(pipeline._translation_downstream_builder(MagicMock()))
+    assert isinstance(handler, AnalysisCompletedHandler)
 
 
 def test_t022_repositories_share_same_session():

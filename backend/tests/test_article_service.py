@@ -327,6 +327,7 @@ def test_get_tag_groups_for_article_en_groups_tags():
     q = db.query.return_value
     q.join.return_value = q
     q.outerjoin.return_value = q
+    q.options.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
 
@@ -356,6 +357,7 @@ def test_get_tag_groups_for_article_ungrouped_tag():
     q = db.query.return_value
     q.join.return_value = q
     q.outerjoin.return_value = q
+    q.options.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
 
@@ -380,6 +382,7 @@ def test_get_tag_groups_for_article_multiple_groups():
     q = db.query.return_value
     q.join.return_value = q
     q.outerjoin.return_value = q
+    q.options.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
 
@@ -429,6 +432,7 @@ def test_get_tag_groups_for_article_sorted_ungrouped_last():
     q = db.query.return_value
     q.join.return_value = q
     q.outerjoin.return_value = q
+    q.options.return_value = q
     q.filter.return_value = q
     q.order_by.return_value = q
 
@@ -569,7 +573,8 @@ async def test_flush_view_counts_updates_metrics_for_each_key():
         flushed = await flush_view_counts(db)
 
     assert flushed == 1
-    db.execute.assert_called_once()
+    # One update (article_metrics.view_count) + one upsert (article_view_daily) per key.
+    assert db.execute.call_count == 2
     db.commit.assert_called_once()
     mock_redis.aclose.assert_awaited_once()
 

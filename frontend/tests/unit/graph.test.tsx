@@ -8,24 +8,33 @@ const mockApiFetch = vi.fn().mockResolvedValue({
 })
 
 vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
+// knowledge-graph.tsx loads react-force-graph-2d via next/dynamic — mocking dynamic()
+// itself (rather than the 'react-force-graph-2d' module, which this stub never imports)
+// is what actually intercepts it. Captures the last props it was rendered with, so tests
+// can invoke its canvas-drawing callbacks (nodeCanvasObject, linkColor) directly —
+// react-force-graph-2d itself only calls them from inside an actual <canvas> render loop,
+// which jsdom doesn't run.
+let lastForceGraphProps: any = null
 vi.mock('next/dynamic', () => ({
   default: (_loader: any, _opts?: any) =>
-    ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>,
+    (props: any) => {
+      lastForceGraphProps = props
+      return <div data-testid="graph-canvas">{JSON.stringify(props.graphData)}</div>
+    },
 }))
 vi.mock('@/lib/providers/topic-provider', () => ({
   useTopic: () => ({ selectedTopicId: 'test-topic-id' }),
-}))
-vi.mock('react-force-graph-2d', () => ({
-  default: ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>
 }))
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
   SessionProvider: ({ children }: any) => children,
 }))
+let mockTheme: 'light' | 'dark' = 'light'
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ t: (k: string) => k, locale: 'en', setLocale: vi.fn(), availableLanguages: [], resolvedLanguage: 'en', isLoading: false }),
   useTopic: () => ({ selectedTopicId: 'test-topic-id', topics: [], selectedTopic: null, setSelectedTopicId: vi.fn(), refresh: vi.fn(), isLoading: false }),
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
+  useTheme: () => ({ theme: mockTheme, mode: mockTheme, setMode: vi.fn(), cycleMode: vi.fn() }),
 }))
 
 let KnowledgeGraph: ComponentType<{ articleIdFilter?: Set<string> }>
@@ -180,6 +189,59 @@ describe('KnowledgeGraph initialData seeding', () => {
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after=2020-01-01'), expect.anything(), expect.anything())
     }, { timeout: 2000 })
+  })
+})
+
+describe('KnowledgeGraph theme-aware canvas drawing', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    mockTheme = 'light'
+    lastForceGraphProps = null
+  })
+
+  function fakeCtx() {
+    return {
+      beginPath: vi.fn(), arc: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
+      fillText: vi.fn(), setLineDash: vi.fn(), save: vi.fn(), restore: vi.fn(),
+    } as any
+  }
+
+  it('linkColor resolves to the light-theme link color', async () => {
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    expect(lastForceGraphProps.linkColor()).toBe('rgba(71, 85, 105, 0.35)')
+  })
+
+  it('linkColor resolves to the dark-theme link color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    expect(lastForceGraphProps.linkColor()).toBe('rgba(148, 163, 184, 0.55)')
+  })
+
+  it('draws tag node labels in the dark-theme color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    const ctx = fakeCtx()
+    lastForceGraphProps.nodeCanvasObject({ type: 'tag', label: 'test-tag', x: 0, y: 0 }, ctx, 1)
+    expect(ctx.fillStyle).toBe('#cbd5e1')
+  })
+
+  it('draws the hovered article label in the dark-theme color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />)
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    // Hover sets the internal hoveredNodeIdRef synchronously for 'article' nodes.
+    lastForceGraphProps.onNodeHover({ type: 'article', id: 'a1' })
+    const ctx = fakeCtx()
+    lastForceGraphProps.nodeCanvasObject({ type: 'article', id: 'a1', label: 'Hovered article', x: 0, y: 0 }, ctx, 1)
+    expect(ctx.fillStyle).toBe('#f1f5f9')
   })
 })
 

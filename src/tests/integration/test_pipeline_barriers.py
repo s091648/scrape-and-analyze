@@ -27,7 +27,8 @@ async def _fake_session():
     yield MagicMock()
 
 
-def _make_pipeline(article_downstream_builder, *, rag_downstream_builder, event_bus, n_articles):
+def _make_pipeline(article_downstream_builder, *, rag_downstream_builder, event_bus, n_articles,
+                    translation_downstream_builder=None):
     articles = [
         ScrapedArticle(title=f"A{i}", url=f"https://example.com/{i}", source="test",
                         content=f"c{i}", published_at=None)
@@ -57,6 +58,7 @@ def _make_pipeline(article_downstream_builder, *, rag_downstream_builder, event_
         event_bus_factory=AsyncInMemoryEventBus,
         executor=mock_executor,
         article_repo=None,
+        translation_downstream_builder=translation_downstream_builder,
     )
 
 
@@ -117,6 +119,60 @@ async def test_barrier_one_handlers_complete_before_slow_rag_task_resolves():
 
     barrier_one_finished_at = max(t for _, t in barrier_one_call_order)
     assert barrier_one_finished_at < min(rag_done_at)
+
+
+# ---------------------------------------------------------------------------
+# fix/sanitize: Barrier 1.5 — unlike RAG, a slow translation task MUST
+# complete before TextPipelineCompletedEvent fires, since search-index
+# rebuild needs already-committed translated (zh-TW) content.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_barrier_one_waits_for_slow_translation_task():
+    import uuid
+    from src.modules.collection.application.events import ArticleScrapedEvent
+    from src.modules.intelligence.application.events import AnalysisCompletedEvent
+
+    TRANSLATION_DELAY = 0.3
+    barrier_one_call_order = []
+    translation_done_at = []
+
+    async def _search_index_rebuild_stub(event):
+        barrier_one_call_order.append(("search_index_rebuild", time.monotonic()))
+
+    async def _tracking_builder(session, bus, dispatch_rag):
+        async def _on_scraped(event):
+            await bus.publish(AnalysisCompletedEvent(analysis_id=uuid.uuid4(), article_id=uuid.uuid4()))
+        await bus.subscribe(ArticleScrapedEvent, _on_scraped)
+
+    class _SlowTranslationHandler:
+        async def handle(self, event):
+            await asyncio.sleep(TRANSLATION_DELAY)
+            translation_done_at.append(time.monotonic())
+
+    async def _translation_downstream_builder(session):
+        return _SlowTranslationHandler()
+
+    from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEventBus
+    event_bus = AsyncInMemoryEventBus()
+    await event_bus.subscribe(TextPipelineCompletedEvent, _search_index_rebuild_stub)
+
+    pipeline = _make_pipeline(
+        _tracking_builder,
+        rag_downstream_builder=None,
+        event_bus=event_bus,
+        n_articles=2,
+        translation_downstream_builder=_translation_downstream_builder,
+    )
+
+    await pipeline.run()
+
+    assert len(translation_done_at) == 2, "both articles' translation tasks must have run"
+    barrier_one_finished_at = max(t for _, t in barrier_one_call_order)
+    assert barrier_one_finished_at >= max(translation_done_at), (
+        "TextPipelineCompletedEvent must not fire before every dispatched "
+        "translation task has settled (Barrier 1.5)"
+    )
 
 
 # ---------------------------------------------------------------------------

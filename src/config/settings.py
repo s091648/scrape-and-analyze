@@ -245,6 +245,18 @@ TEXT_STAGE_CONCURRENCY: int = int(os.environ.get("TEXT_STAGE_CONCURRENCY", "8"))
 # rate-limited embedding worker). 0 disables the cap.
 RAG_INGEST_TIMEOUT_SECONDS: float = float(os.environ.get("RAG_INGEST_TIMEOUT_SECONDS", "900"))
 
+# Max number of articles' translation (analysis + body + tag/group) allowed to
+# be concurrently in flight (holding open an AsyncSession) in the live
+# pipeline (fix/sanitize: translation fan-out — Barrier 1.5). Unlike RAG
+# (Barrier 2, never awaited by run()), translation IS awaited before
+# TextPipelineCompletedEvent fires — search-index rebuild needs already-
+# committed translated content, so the run can't consider Barrier 1 settled
+# until every dispatched translation task has too. Keep
+# TEXT_STAGE_CONCURRENCY + RAG_DISPATCH_CONCURRENCY + this at or under the
+# async pool cap (ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW), leaving a
+# little headroom for run-level/housekeeping sessions (8 + 4 + 4 = 16 of 20).
+TRANSLATION_DISPATCH_CONCURRENCY: int = int(os.environ.get("TRANSLATION_DISPATCH_CONCURRENCY", "4"))
+
 
 def missing_rag_config() -> list[str]:
     """Returns names of missing required RAG env vars.

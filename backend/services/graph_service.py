@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 
 def load_group_defs(db: Session, lang: str = "en") -> dict:
@@ -51,6 +51,9 @@ def query_analyses(
     from models.article import Article
     query = (
         db.query(Analysis)
+        # build_graph() walks analysis.article + analysis.article.tags for every
+        # row — eager-load both here so an N-analysis graph costs 3 queries, not 1 + 2N.
+        .options(selectinload(Analysis.article).selectinload(Article.tags))
         .join(Article, Article.id == Analysis.article_id)
         .filter(Article.merged_into_id.is_(None))
     )
@@ -98,6 +101,8 @@ def query_group_articles(
     from models.tag_group import TagGroupDefinition
     query = (
         db.query(Analysis)
+        # Callers (graph.py get_group, build_graph) walk analysis.article + .article.tags.
+        .options(selectinload(Analysis.article).selectinload(Article.tags))
         .join(Article, Article.id == Analysis.article_id)
         .join(at, at.c.article_id == Article.id)
         .join(Tag, Tag.id == at.c.tag_id)

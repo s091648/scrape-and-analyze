@@ -1,0 +1,376 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="1. Pipeline Overview" id="rs-page1-overview">
+    <mxGraphModel dx="1174" dy="685" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p1-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;" value="Scraper Pipeline &#8212; Request / Concurrency Overview" vertex="1">
+          <mxGeometry x="40" y="16" width="820" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-subtitle" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontColor=#666666;" value="src/entrypoints/cli/main.py &#8594; CollectionPipeline.run()" vertex="1">
+          <mxGeometry x="40" y="48" width="820" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-guard" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="main.py process guard&lt;br&gt;Startup jitter: random 0&#8211;180s (skipped if RUN_IMMEDIATELY=1) &#8594; asyncio.run(_build_and_run()) &#8594; 50-min MAX_EXECUTION_TIME soft cap via asyncio.timeout() around pipeline.run()" vertex="1">
+          <mxGeometry x="40" y="80" width="920" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-seqbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Batched &amp; sequential (024-async-pipeline-refactor FR-003)" vertex="1">
+          <mxGeometry x="40" y="160" width="340" height="420" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-discover" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9312; Discover&lt;br&gt;ScrapeExecutor.run_discover()&lt;br&gt;thread pool &#8804;5 (dynamic: min(5,#hosts))&lt;br&gt;per-host BoundedSemaphore(1)&lt;br&gt;per-domain token bucket (rate_limiter.py)" vertex="1">
+          <mxGeometry x="60" y="200" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-fetch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9313; Fetch&lt;br&gt;ScrapeExecutor.run_fetch_only()&lt;br&gt;5 fetch worker threads&lt;br&gt;fetch_delay = 5.0s / worker&lt;br&gt;robots.txt respected (blogs)" vertex="1">
+          <mxGeometry x="60" y="320" width="300" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-dedup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9314; Pre-dedup&lt;br&gt;UrlHash dedup &#8212; applied pre-fetch (discover filter) + post-fetch (pipeline.dedup span, also collapses within-batch dupes)&lt;br&gt;batched, synchronous" vertex="1">
+          <mxGeometry x="60" y="440" width="300" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-e1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-discover" target="p1-fetch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-fetch" target="p1-dedup">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-publish" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9315; Publish&lt;br&gt;asyncio.Task per article, own AsyncSession + fresh AsyncInMemoryEventBus &#8212; ArticleScrapedEvent" vertex="1">
+          <mxGeometry x="60" y="610" width="880" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-dedup" target="p1-publish">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-b1bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Barrier 1 &#8212; Text stage (concurrent, per-article)" vertex="1">
+          <mxGeometry x="40" y="730" width="460" height="370" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-b2bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Barrier 2 &#8212; RAG ingestion (concurrent, detached)" vertex="1">
+          <mxGeometry x="520" y="730" width="460" height="370" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-gate1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="_text_stage_semaphore&lt;br&gt;BoundedSemaphore(TEXT_STAGE_CONCURRENCY=8)" vertex="1">
+          <mxGeometry x="60" y="770" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-process" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="Process &#8594; Analyze &#8594; Translate&lt;br&gt;ProcessScrapedArticleUseCase &#8594; AnalyzeArticleUseCase (AsyncResilientLLMService, see p.3) &#8594; auto-translate (AnalysisCompletedHandler)" vertex="1">
+          <mxGeometry x="60" y="850" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-gather1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="asyncio.gather(*, return_exceptions=True) &#8212; settle semantics (succeeded or permanently failed, never blocking on one slow article)" vertex="1">
+          <mxGeometry x="60" y="960" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-event1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=6;" value="TextPipelineCompletedEvent &#8594; search-index rebuild + cache invalidation/warmup" vertex="1">
+          <mxGeometry x="60" y="1050" width="420" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-dispatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="_dispatch_rag(): asyncio.create_task(...) &#8212; detached, never awaited inline" vertex="1">
+          <mxGeometry x="540" y="770" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-gate2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="_rag_dispatch_semaphore&lt;br&gt;BoundedSemaphore(RAG_DISPATCH_CONCURRENCY=4)" vertex="1">
+          <mxGeometry x="540" y="850" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-ragingest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="RAG ingestion&lt;br&gt;per-task backstop asyncio.wait_for(900s)&lt;br&gt;RPD circuit breaker (see p.4)" vertex="1">
+          <mxGeometry x="540" y="930" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-gather2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="asyncio.gather(*rag_tasks, return_exceptions=True) &#8212; settle semantics" vertex="1">
+          <mxGeometry x="540" y="1030" width="420" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-event2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=6;" value="PipelineCompletedEvent &#8594; Telegram notify + OTel metrics" vertex="1">
+          <mxGeometry x="540" y="1050" width="420" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-e4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-publish" target="p1-gate1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-publish" target="p1-dispatch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e6" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-gate1" target="p1-process">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e7" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-process" target="p1-gather1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e8" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-gather1" target="p1-event1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e9" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-dispatch" target="p1-gate2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e10" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-gate2" target="p1-ragingest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e11" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-ragingest" target="p1-gather2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1-e12" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p1-gather2" target="p1-event2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-invariant" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="Invariant (comment-only, not asserted at runtime): TEXT_STAGE_CONCURRENCY(8) + RAG_DISPATCH_CONCURRENCY(4) = 12 &#8804; ASYNC_DB_POOL_SIZE + ASYNC_DB_MAX_OVERFLOW (10+10=20) &#8212; see p.4" vertex="1">
+          <mxGeometry x="40" y="1120" width="940" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="2. HTTP Rate Limiting" id="rs-page2-http">
+    <mxGraphModel dx="1174" dy="685" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1050" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p2-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;" value="Outbound HTTP Rate Limiting &amp; Scrape Concurrency" vertex="1">
+          <mxGeometry x="40" y="16" width="920" height="34" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2-leftbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="DomainRateLimiter &#8212; src/infrastructure/shared/http/rate_limiter.py" vertex="1">
+          <mxGeometry x="40" y="70" width="460" height="850" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-rightbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="ScrapeExecutor &#8212; src/infrastructure/collection/executor/" vertex="1">
+          <mxGeometry x="540" y="70" width="460" height="850" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2-seq1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="acquire(domain)&lt;br&gt;&#9312; raise_if_tripped() &#8212; fail fast if this domain already saw a 429 this run" vertex="1">
+          <mxGeometry x="60" y="120" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-seq2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9313; _TokenBucket.acquire()&lt;br&gt;blocks until 1 token available&lt;br&gt;refill = rpm/60 tokens/s, starts with 1 token&lt;br&gt;polls is_tripped() every 1s while waiting (_TRIP_POLL_INTERVAL_SECONDS)" vertex="1">
+          <mxGeometry x="60" y="210" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-seq3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9314; connection(): semaphore.acquire()&lt;br&gt;arXiv domains (export.arxiv.org, arxiv.org): Semaphore(1) &#8212; TOS&lt;br&gt;all other domains: Semaphore(10)" vertex="1">
+          <mxGeometry x="60" y="330" width="420" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-seq4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="&#9315; raise_if_tripped() again &#8212; catches a trip that happened while this call was waiting on the bucket" vertex="1">
+          <mxGeometry x="60" y="430" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-seq1" target="p2-seq2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-seq2" target="p2-seq3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-seq3" target="p2-seq4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2-rpm" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="Default RPM overrides&lt;br&gt;&#8226; general: 10&lt;br&gt;&#8226; export.arxiv.org / arxiv.org: 3 (TOS &#8804;1 req/3s, shared IP budget)&lt;br&gt;&#8226; api.semanticscholar.org: 1 (unauth ~100/day &#8594; &#8804;50 in a 50-min run)&lt;br&gt;&#8226; api.openalex.org: 300 (&#8776;5 rps; polite pool allows 10 rps)&lt;br&gt;&#8226; known anti-bot sites (e.g. iotworldtoday.com): 2" vertex="1">
+          <mxGeometry x="60" y="530" width="420" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-circuit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=6;" value="Circuit breaker&lt;br&gt;note_rate_limited() on any 429 &#8594; DomainCircuitOpenError for the rest of this process (external quota/pool exhaustion won't recover mid-run)" vertex="1">
+          <mxGeometry x="60" y="700" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-thread" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="Thread-safe throughout &#8212; threading.Lock guards each bucket + the tripped-domain set" vertex="1">
+          <mxGeometry x="60" y="810" width="420" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2-r1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="ThreadPoolExecutor&lt;br&gt;5 fetch workers + up to 5 discover workers&lt;br&gt;discover workers = min(5, #distinct hosts due this run)" vertex="1">
+          <mxGeometry x="560" y="120" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="fetch_delay = 5.0s &#8212; sleep per worker after each fetch" vertex="1">
+          <mxGeometry x="560" y="230" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="HostQueueMap&lt;br&gt;1 Queue + BoundedSemaphore(1) per host &#8594; at most 1 in-flight request per host" vertex="1">
+          <mxGeometry x="560" y="310" width="420" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="WeightedRoundRobinQueueSelector (default)&lt;br&gt;drains the host with the deepest backlog first&lt;br&gt;RoundRobinQueueSelector also exists, currently unused" vertex="1">
+          <mxGeometry x="560" y="410" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="_try_claim()&lt;br&gt;non-blocking semaphore.acquire(blocking=False) + polling loop (time.sleep(0.05))" vertex="1">
+          <mxGeometry x="560" y="520" width="420" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=6;" value="RateLimitedProviderTracker&lt;br&gt;a host's first 429 &#8594; mark_exhausted() &#8594; remaining discover tasks for that host are skipped for the rest of this run" vertex="1">
+          <mxGeometry x="560" y="620" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-r7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="contextvars.copy_context()&lt;br&gt;propagates OTel span context into each worker thread (needed on Python &lt; 3.12)" vertex="1">
+          <mxGeometry x="560" y="730" width="420" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-r1" target="p2-r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-r2" target="p2-r3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e6" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-r3" target="p2-r4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e7" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-r4" target="p2-r5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2-e8" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p2-r5" target="p2-r6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p2-footer" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="discover / fetch / pre-dedup stay batched &amp; sequential (024-async-pipeline-refactor FR-003) &#8212; each phase is bridged into the async CollectionPipeline via asyncio.to_thread() so it never blocks the event loop (see p.1)" vertex="1">
+          <mxGeometry x="40" y="940" width="960" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="3. LLM Quota &amp; Provider Chain" id="rs-page3-llm">
+    <mxGraphModel dx="1174" dy="685" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1050" pageHeight="1030" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p3-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;" value="LLM / Embedding Quota &amp; Provider Resilience Chain" vertex="1">
+          <mxGeometry x="40" y="16" width="920" height="34" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-swbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="SlidingWindowStrategy &#8212; per-provider quota (rate_limit/sliding_window_strategy.py)" vertex="1">
+          <mxGeometry x="40" y="70" width="960" height="320" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-s1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="Rolling 60s window&lt;br&gt;RPM: timestamp deque&lt;br&gt;TPM: (timestamp, tokens) deque" vertex="1">
+          <mxGeometry x="60" y="110" width="290" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-s2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=6;" value="Hard daily cap (RPD)&lt;br&gt;_daily_count &#8805; rpd &#8594; raise RateLimitExhausted" vertex="1">
+          <mxGeometry x="370" y="110" width="290" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-s3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="threading.Lock&lt;br&gt;makes check-and-reserve atomic (_compute_wait)" vertex="1">
+          <mxGeometry x="680" y="110" width="290" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-s4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="acquire()&lt;br&gt;blocking sleep-loop until wait() returns 0" vertex="1">
+          <mxGeometry x="60" y="220" width="290" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-s5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="try_acquire() / has_capacity()&lt;br&gt;non-blocking reserve-if-available / side-effect-free peek" vertex="1">
+          <mxGeometry x="370" y="220" width="290" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-s6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="Token estimate: len(content)//4&lt;br&gt;(rough &#8212; biased for non-English / code); NoOpStrategy for unlimited providers" vertex="1">
+          <mxGeometry x="680" y="220" width="290" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-chainbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Provider resilience chain &#8212; resilient_llm_service.py" vertex="1">
+          <mxGeometry x="40" y="420" width="960" height="430" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-p1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="ResilientLLMService (sync)&lt;br&gt;used by: weekly-report / release-notes / tag-embedding backfill&lt;br&gt;handlers sorted by priority, tried in order&lt;br&gt;&#9888; file's own comment: NOT concurrency-safe &#8212; no ProviderSelector" vertex="1">
+          <mxGeometry x="60" y="460" width="460" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-p2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="AsyncResilientLLMService (async)&lt;br&gt;used by build_collection_pipeline() only&lt;br&gt;same priority-fallback shape + capacity-aware dispatch" vertex="1">
+          <mxGeometry x="540" y="460" width="440" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-p3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=6;" value="On RateLimitExhausted:&lt;br&gt;handlers.remove(handler); handlers.append(handler)&lt;br&gt;&#8594; demoted to end of list; tracked in exhausted_providers (used in completion notification)" vertex="1">
+          <mxGeometry x="60" y="580" width="460" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-p4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="ProviderSelector.select() &#8594; _dispatch_order()&lt;br&gt;handlers with has_capacity() dispatched first, remaining handlers appended in priority order&lt;br&gt;&#8594; spreads concurrent article tasks across every model with headroom instead of queuing behind priority #1" vertex="1">
+          <mxGeometry x="540" y="580" width="440" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-p5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="Non-blocking-first pattern&lt;br&gt;try_acquire() sync on the event-loop thread first (atomic vs. other gather tasks)&lt;br&gt;only on a miss: await asyncio.to_thread(strategy.acquire) (blocking, offloaded)" vertex="1">
+          <mxGeometry x="540" y="700" width="440" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-p6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="Other exceptions:&lt;br&gt;logged, falls through to the next handler in this pass (not demoted &#8212; only RateLimitExhausted demotes)" vertex="1">
+          <mxGeometry x="60" y="700" width="460" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-e1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p3-p1" target="p3-p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-e2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p3-p3" target="p3-p6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-e3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p3-p2" target="p3-p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3-e4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p3-p4" target="p3-p5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-footer" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="Same shape reused for:&lt;br&gt;&#8226; Embedding provider chain (ResilientEmbeddingService / async sibling)&lt;br&gt;&#8226; Metrics provider chain (OpenAlex / Semantic Scholar) &#8212; NOT interchangeable; priority orders which provider *can* answer (identifier coverage), not a pure rate-limit fallback" vertex="1">
+          <mxGeometry x="40" y="880" width="960" height="90" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram name="4. Async Concurrency &amp; DB Pool" id="rs-page4-async">
+    <mxGraphModel dx="1174" dy="685" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1050" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="p4-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;" value="Async Pipeline Concurrency, Barriers &amp; DB Pool" vertex="1">
+          <mxGeometry x="40" y="16" width="920" height="34" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-gate1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="_text_stage_semaphore&lt;br&gt;BoundedSemaphore(TEXT_STAGE_CONCURRENCY=8)&lt;br&gt;gates entry to the per-article text stage &#8212; holds a pooled DB connection + runs the LLM chain" vertex="1">
+          <mxGeometry x="40" y="70" width="460" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-gate2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=6;" value="_rag_dispatch_semaphore&lt;br&gt;BoundedSemaphore(RAG_DISPATCH_CONCURRENCY=4)&lt;br&gt;gates entry to the RAG task BODY, not task creation &#8212; a waiting task holds no session yet" vertex="1">
+          <mxGeometry x="540" y="70" width="460" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-invariant" parent="1" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=6;verticalAlign=middle;" value="Manual invariant (comment-only, not asserted at runtime): TEXT_STAGE(8) + RAG_DISPATCH(4) = 12 &#8804; ASYNC_DB_POOL_SIZE(10) + ASYNC_DB_MAX_OVERFLOW(10) = 20" vertex="1">
+          <mxGeometry x="40" y="200" width="960" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-b1bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Barrier 1 &#8212; text stage" vertex="1">
+          <mxGeometry x="40" y="290" width="460" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-b2bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Barrier 2 &#8212; RAG ingestion" vertex="1">
+          <mxGeometry x="540" y="290" width="460" height="260" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-gather1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="asyncio.gather(*text_tasks, return_exceptions=True)&lt;br&gt;settle semantics &#8212; one slow/failed article never blocks the rest &#8594; TextPipelineCompletedEvent (see p.1)" vertex="1">
+          <mxGeometry x="60" y="330" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-latch1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="_ArticleSpanLatch.mark_text()&lt;br&gt;article.pipeline span ends only once BOTH mark_text() + mark_rag() have fired (either order) &#8212; single event loop, no lock needed" vertex="1">
+          <mxGeometry x="60" y="440" width="420" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-dispatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="RAG dispatched via asyncio.create_task() &#8212; detached, never awaited inline" vertex="1">
+          <mxGeometry x="560" y="330" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-gather2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="asyncio.gather(*rag_tasks, return_exceptions=True) &#8212; settle semantics &#8594; PipelineCompletedEvent (see p.1)" vertex="1">
+          <mxGeometry x="560" y="410" width="420" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-latch2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="_ArticleSpanLatch.mark_rag()" vertex="1">
+          <mxGeometry x="560" y="500" width="420" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-e1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p4-gate1" target="p4-gather1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-e2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p4-gather1" target="p4-latch1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-e3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p4-gate2" target="p4-dispatch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-e4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p4-dispatch" target="p4-gather2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-e5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#000000;" edge="1" source="p4-gather2" target="p4-latch2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-cbbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="RAG RPD circuit breaker" vertex="1">
+          <mxGeometry x="40" y="580" width="960" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-cb1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=6;" value="First RpdExhausted / untyped 429 &#8594; _rag_rate_limited = True&lt;br&gt;&#8594; every remaining RAG task is skipped, bulk-written to the FailedTask ledger &#8594; picked up later by the RAG-backfill cron&lt;br&gt;rpm/tpm exceptions stay transient &#8212; fail only that one article" vertex="1">
+          <mxGeometry x="60" y="620" width="460" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-cb2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="Per-article RAG backstop&lt;br&gt;asyncio.wait_for(coro, timeout=RAG_INGEST_TIMEOUT_SECONDS=900)&lt;br&gt;&#8212; hard wall-clock cap regardless of circuit-breaker state" vertex="1">
+          <mxGeometry x="540" y="620" width="460" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p4-dbbg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=8;fontStyle=1;fontSize=13;" value="Async DB pool &amp; event-loop executor &#8212; database.py / main.py" vertex="1">
+          <mxGeometry x="40" y="810" width="960" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-db1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="Bounded QueuePool (NOT NullPool)&lt;br&gt;ASYNC_DB_POOL_SIZE=10 + ASYNC_DB_MAX_OVERFLOW=10 = 20 hard cap&lt;br&gt;ASYNC_DB_POOL_TIMEOUT=120s &#183; pool_recycle=1800s &#183; pool_pre_ping=True" vertex="1">
+          <mxGeometry x="60" y="850" width="460" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-db2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="prewarm_async_engine()&lt;br&gt;opens &amp; returns POOL_SIZE connections before Barrier-1's first fan-out &#8212; avoids a cold-connect burst" vertex="1">
+          <mxGeometry x="540" y="850" width="460" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-db3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=6;" value="dispose_async_engine()&lt;br&gt;called in finally, inside the same asyncio.run() event loop, before teardown" vertex="1">
+          <mxGeometry x="60" y="980" width="460" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p4-db4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=6;" value="Event loop default executor (main.py)&lt;br&gt;ThreadPoolExecutor(PIPELINE_EXECUTOR_MAX_WORKERS=32)&lt;br&gt;runs asyncio.getaddrinfo (DNS) + every asyncio.to_thread call &#8212; default size (~5-6) was starved by the scraper+RAG SDK cold-connect burst" vertex="1">
+          <mxGeometry x="540" y="960" width="460" height="140" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

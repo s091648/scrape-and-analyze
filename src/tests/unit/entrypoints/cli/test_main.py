@@ -1,21 +1,6 @@
-import time
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 import pytest
-
-from src.entrypoints.cli.main import check_timeout, MAX_EXECUTION_TIME, signal_handler, _shutdown_requested
-
-
-# ── Existing tests (preserved) ────────────────────────────────────────────
-
-def test_check_timeout_returns_true_when_exceeded():
-    start_time = time.time() - MAX_EXECUTION_TIME - 1
-    assert check_timeout(start_time) is True
-
-
-def test_check_timeout_returns_false_when_not_exceeded():
-    start_time = time.time()
-    assert check_timeout(start_time) is False
 
 
 # ── T005: main() raises ValueError when DATABASE_URL not set ──────────────
@@ -32,7 +17,7 @@ def test_main_raises_valueerror_when_database_url_missing(monkeypatch):
 
 # ── T006: main() calls time.sleep() in [0, 180] when RUN_IMMEDIATELY not set ─
 
-def test_main_sleeps_when_run_immediately_not_set(monkeypatch, mock_validate_config, mock_configure_logging, mock_build_pipeline, mock_shutdown_tracing, mock_init_run_context, mock_bind_correlation_id, mock_get_run_id, mock_signal, mock_init_default_client, mock_http_client_build, mock_get_tracer):
+def test_main_sleeps_when_run_immediately_not_set(monkeypatch, mock_validate_config, mock_configure_logging, mock_build_pipeline, mock_shutdown_tracing, mock_init_run_context, mock_bind_correlation_id, mock_get_run_id, mock_init_default_client, mock_http_client_build, mock_get_tracer):
     monkeypatch.delenv("RUN_IMMEDIATELY", raising=False)
     with patch("src.entrypoints.cli.main.time.sleep") as mock_sleep:
         from src.entrypoints.cli.main import main
@@ -57,17 +42,6 @@ def test_main_generates_run_context(all_mocks):
     main()
     all_mocks["init_run_context"].assert_called_once()
     all_mocks["bind_correlation_id"].assert_called_once_with("test-correlation-id")
-
-
-# ── T009: main() registers signal handlers for SIGTERM and SIGINT ─────────
-
-def test_main_registers_signal_handlers(all_mocks):
-    from src.entrypoints.cli.main import main
-    import signal as sig
-    main()
-    calls = all_mocks["signal"].call_args_list
-    assert call(sig.SIGTERM, signal_handler) in calls or any(c[0][0] == sig.SIGTERM for c in calls)
-    assert call(sig.SIGINT, signal_handler) in calls or any(c[0][0] == sig.SIGINT for c in calls)
 
 
 # ── T010: main() calls build_collection_pipeline() then pipeline.run() ──
@@ -152,37 +126,25 @@ def test_shutdown_tracing_failure_does_not_raise(all_mocks):
         main()
 
 
-# ── T035: signal_handler sets _shutdown_requested and logs ────────────────
+# ── T039: main() enforces MAX_EXECUTION_TIME via asyncio.timeout() ────────
 
-def test_signal_handler_sets_shutdown_flag():
-    import src.entrypoints.cli.main as main_mod
-    main_mod._shutdown_requested = False
-    with patch.object(main_mod, "logger") as mock_logger:
-        main_mod.signal_handler(15, None)
-        assert main_mod._shutdown_requested is True
-        mock_logger.warning.assert_called_once_with("shutdown_signal_received", signal=15)
+def test_main_enforces_max_execution_time(all_mocks):
+    """pipeline.run() runs inside `async with asyncio.timeout(MAX_EXECUTION_TIME)`;
+    a run that overshoots is cancelled, surfaces as TimeoutError, and teardown
+    (shutdown_tracing) still runs."""
+    from src.entrypoints.cli import main as main_mod
 
+    async def _too_slow():
+        import asyncio as _asyncio
+        await _asyncio.sleep(1)
 
-# ── T036: _shutdown_requested is not checked by pipeline ───────────────────
+    _, mock_pipeline = all_mocks["build_pipeline"]
+    mock_pipeline.run.side_effect = _too_slow
 
-def test_shutdown_flag_not_checked_by_pipeline():
-    """Verify that _shutdown_requested is a standalone flag with no consumers."""
-    import src.entrypoints.cli.main as main_mod
-    # The flag exists but no code reads it in the pipeline path.
-    # This test confirms the attribute exists and documents the gap.
-    assert hasattr(main_mod, "_shutdown_requested")
-
-
-# ── T037/T038: check_timeout() existing tests (already above, preserved) ──
-
-
-# ── T039: check_timeout() is NOT called in main() execution path ──────────
-
-def test_check_timeout_not_called_in_main(all_mocks):
-    from src.entrypoints.cli.main import main
-    with patch("src.entrypoints.cli.main.check_timeout") as mock_check:
-        main()
-        mock_check.assert_not_called()
+    with patch.object(main_mod, "MAX_EXECUTION_TIME", 0.01):
+        with pytest.raises(TimeoutError):
+            main_mod.main()
+    all_mocks["shutdown_tracing"].assert_called_once()
 
 
 # ── T045: main() initializes default HTTP client ──────────────────────────

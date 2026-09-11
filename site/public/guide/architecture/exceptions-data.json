@@ -122,14 +122,14 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 176,
+          "line": 180,
           "function": "update_tag_group",
           "snippet": "raise ConflictError(\"A tag group with this name already exists in this topic\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 227,
+          "line": 231,
           "function": "rename_tag",
           "snippet": "raise ConflictError(\"Tag name already exists in target group\")",
           "status_code": null
@@ -166,7 +166,7 @@
       "raise_sites": [
         {
           "file": "src/entrypoints/cli/backfill_rag.py",
-          "line": 192,
+          "line": 220,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -180,7 +180,7 @@
         },
         {
           "file": "src/entrypoints/cli/main.py",
-          "line": 114,
+          "line": 127,
           "function": "main",
           "snippet": "raise",
           "status_code": null
@@ -327,8 +327,15 @@
         },
         {
           "file": "src/infrastructure/persistence/shared/failed_task_async_repo_impl.py",
-          "line": 41,
+          "line": 43,
           "function": "AsyncSqlAlchemyFailedTaskRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/shared/failed_task_async_repo_impl.py",
+          "line": 74,
+          "function": "AsyncSqlAlchemyFailedTaskRepository.save_many",
           "snippet": "raise",
           "status_code": null
         },
@@ -336,6 +343,13 @@
           "file": "src/infrastructure/persistence/shared/failed_task_repo_impl.py",
           "line": 38,
           "function": "SqlAlchemyFailedTaskRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
+          "line": 154,
+          "function": "AsyncRagIngestionHandler.handle",
           "snippet": "raise",
           "status_code": null
         }
@@ -471,14 +485,14 @@
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 170,
+          "line": 283,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
           "status_code": 404
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 172,
+          "line": 285,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
           "status_code": 400
@@ -638,14 +652,14 @@
       "raise_sites": [
         {
           "file": "src/infrastructure/persistence/database.py",
-          "line": 41,
+          "line": 58,
           "function": "get_async_sessionmaker",
           "snippet": "raise MissingDatabaseUrlError(\"DATABASE_URL environment variable is required\")",
           "status_code": null
         },
         {
           "file": "src/infrastructure/persistence/database.py",
-          "line": 50,
+          "line": 123,
           "function": "create_engine_with_nullpool",
           "snippet": "raise MissingDatabaseUrlError(\"DATABASE_URL environment variable is required\")",
           "status_code": null
@@ -820,49 +834,49 @@
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 147,
+          "line": 151,
           "function": "get_tag_group._load",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 170,
+          "line": 174,
           "function": "update_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 199,
+          "line": 203,
           "function": "delete_tag_group",
           "snippet": "raise NotFoundError(\"Tag group not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 216,
+          "line": 220,
           "function": "rename_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 248,
+          "line": 252,
           "function": "delete_tag",
           "snippet": "raise NotFoundError(\"Tag not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 316,
+          "line": 432,
           "function": "approve_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/tags.py",
-          "line": 348,
+          "line": 451,
           "function": "reject_suggestion",
           "snippet": "raise NotFoundError(\"Suggestion not found\")",
           "status_code": null
@@ -1017,10 +1031,10 @@
       "bases": [
         "Exception"
       ],
-      "docstring": "Raised when a provider's daily request cap is reached and no more calls should be made.",
+      "docstring": "Fallback stand-in so `except RateLimitExhausted` is always valid.",
       "defined_at": {
-        "file": "src/infrastructure/intelligence/llm/rate_limit/sliding_window_strategy.py",
-        "line": 9
+        "file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
+        "line": 7
       },
       "raise_sites": [
         {
@@ -1204,6 +1218,22 @@
           "file": "src/infrastructure/collection/scrapers/semantic_scholar_scraper.py",
           "line": 51,
           "function": "SemanticScholarScraper.discover",
+          "snippet": "raise",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "TimeoutError",
+      "category": "builtin",
+      "bases": [],
+      "docstring": null,
+      "defined_at": null,
+      "raise_sites": [
+        {
+          "file": "src/entrypoints/cli/main.py",
+          "line": 114,
+          "function": "main._build_and_run",
           "snippet": "raise",
           "status_code": null
         }
@@ -1583,14 +1613,14 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 774,
+          "line": 832,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
         },
         {
           "file": "src/config/settings.py",
-          "line": 211,
+          "line": 285,
           "function": "validate_config",
           "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
           "status_code": null
