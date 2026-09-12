@@ -1,3 +1,4 @@
+import { SWRProvider } from '@/lib/swr/provider'
 import SessionProviderWrapper from './session-provider'
 import { I18nProvider } from './i18n-provider'
 import { TopicProvider } from './topic-provider'
@@ -21,6 +22,7 @@ interface AppProvidersProps {
 
 export function AppProviders({ children, initialTopicId, initialLocale }: AppProvidersProps) {
   return (
+    <SWRProvider>
     <ThemeProvider>
       <SessionProviderWrapper>
         <AuthTokenProvider>
@@ -47,6 +49,7 @@ export function AppProviders({ children, initialTopicId, initialLocale }: AppPro
         </AuthTokenProvider>
       </SessionProviderWrapper>
     </ThemeProvider>
+    </SWRProvider>
   )
 }
 

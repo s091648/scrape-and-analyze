@@ -1,6 +1,7 @@
 // frontend/tests/graph.test.tsx
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import type { ComponentType } from 'react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const mockApiFetch = vi.fn().mockResolvedValue({
   ok: true,
@@ -57,7 +58,7 @@ describe('Knowledge Graph', () => {
 
   it('fetches graph data with published_after on initial load', async () => {
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
@@ -65,7 +66,7 @@ describe('Knowledge Graph', () => {
 
   it('renders graph canvas element', async () => {
     const { render, screen } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('graph-canvas').length).toBeGreaterThan(0)
     })
@@ -80,7 +81,7 @@ describe('Knowledge Graph', () => {
   it('days filter change triggers re-fetch with updated published_after', async () => {
     const { render, screen } = await import('@testing-library/react')
     const { fireEvent } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
@@ -104,7 +105,7 @@ describe('Knowledge Graph', () => {
     const promise = new Promise(r => { resolvePromise = r })
     mockApiFetch.mockReturnValueOnce(promise)
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     // Resolve the promise to unblock
     resolvePromise!({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
     // Verify component fetched data
@@ -149,7 +150,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('renders the seeded graph immediately without fetching', async () => {
     const { render, screen } = await import('@testing-library/react')
-    render(<KnowledgeGraph initialData={seededData as any} />)
+    render(<KnowledgeGraph initialData={seededData as any} />, { wrapper: SWRTestWrapper })
 
     // Other tests in this file leave their own rendered trees in the document (no cleanup
     // between tests), so this instance's canvas is the last match, not the only one.
@@ -162,7 +163,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('fetches normally (no seed) when initialData is not provided', async () => {
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalled()
     })
@@ -170,7 +171,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('still fetches on a later filter change after a seeded mount', async () => {
     const { render, screen, fireEvent } = await import('@testing-library/react')
-    render(<KnowledgeGraph initialData={seededData as any} />)
+    render(<KnowledgeGraph initialData={seededData as any} />, { wrapper: SWRTestWrapper })
     expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
 
     // The FilterBar UI has no native <select> — filters live behind a toggled panel, and apply
@@ -209,7 +210,7 @@ describe('KnowledgeGraph theme-aware canvas drawing', () => {
 
   it('linkColor resolves to the light-theme link color', async () => {
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
     expect(lastForceGraphProps.linkColor()).toBe('rgba(71, 85, 105, 0.35)')
   })
@@ -217,7 +218,7 @@ describe('KnowledgeGraph theme-aware canvas drawing', () => {
   it('linkColor resolves to the dark-theme link color', async () => {
     mockTheme = 'dark'
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
     expect(lastForceGraphProps.linkColor()).toBe('rgba(148, 163, 184, 0.55)')
   })
@@ -225,7 +226,7 @@ describe('KnowledgeGraph theme-aware canvas drawing', () => {
   it('draws tag node labels in the dark-theme color', async () => {
     mockTheme = 'dark'
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
     const ctx = fakeCtx()
     lastForceGraphProps.nodeCanvasObject({ type: 'tag', label: 'test-tag', x: 0, y: 0 }, ctx, 1)
@@ -235,7 +236,7 @@ describe('KnowledgeGraph theme-aware canvas drawing', () => {
   it('draws the hovered article label in the dark-theme color', async () => {
     mockTheme = 'dark'
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
     // Hover sets the internal hoveredNodeIdRef synchronously for 'article' nodes.
     lastForceGraphProps.onNodeHover({ type: 'article', id: 'a1' })

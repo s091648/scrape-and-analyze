@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
+
+// Every test below shares the same (topicId, locale, initialWeek) SWR key ('topic-1'/'en'/null
+// in most cases) — without a fresh cache per render(), one test's cached response would leak
+// into the next (see tests/test-utils/swr.tsx's own doc comment).
+function renderWidget(ui: ReactElement) {
+  return render(ui, { wrapper: SWRTestWrapper })
+}
 
 // jsdom does not implement scrollIntoView (used by CitedContent's citation-click handler)
 Element.prototype.scrollIntoView = vi.fn()
@@ -97,7 +106,7 @@ describe('WeeklyReportWidget', () => {
 
   it('renders nothing when topicId is null', async () => {
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    const { container } = render(<WeeklyReportWidget topicId={null} />)
+    const { container } = renderWidget(<WeeklyReportWidget topicId={null} />)
     expect(container.firstChild).toBeNull()
   })
 
@@ -106,7 +115,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [], total: 0, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByText(/no report for this week yet/i)).toBeInTheDocument()
@@ -118,7 +127,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
@@ -130,7 +139,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByText('A great week in AI research.')).toBeInTheDocument()
@@ -143,7 +152,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByRole('listbox')).toBeInTheDocument()
@@ -156,7 +165,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
@@ -173,7 +182,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     // Source pills are collapsed by default (2026-07-14, US10) — expand via the article-count toggle first.
     const disclosure = await screen.findByText('5 articles')
@@ -194,7 +203,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     // Click the inline [1] marker directly, without expanding the source list first.
     const marker = await screen.findByTitle('Paper One')
@@ -212,7 +221,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
@@ -232,7 +241,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     const pinButton = await screen.findByLabelText("Ask AI about this week's report")
     fireEvent.click(pinButton)
@@ -260,7 +269,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     const pinButton = await screen.findByLabelText("Remove this report's articles from AI chat")
     fireEvent.click(pinButton)
@@ -274,7 +283,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => {
       expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
@@ -300,7 +309,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [citedReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await screen.findByText('5 articles')
     expect(screen.queryByRole('button', { name: /paper one/i })).not.toBeInTheDocument()
@@ -319,7 +328,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
     fireEvent.click(screen.getByText('5 articles'))
@@ -338,7 +347,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     capturedOnDragEnd?.({
@@ -416,7 +425,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     capturedOnDragEnd?.({
@@ -435,7 +444,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, report2], total: 2, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     capturedOnSelectWeek?.(new Date(2026, 5, 9)) // local midnight, June 9 2026 — avoids UTC offset drift
@@ -451,7 +460,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReportByWeek).mockResolvedValue(fetchedReport)
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     capturedOnSelectWeek?.(new Date(2026, 4, 26)) // local midnight, May 26 2026
@@ -466,7 +475,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReportByWeek).mockResolvedValue(null)
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     capturedOnSelectWeek?.(new Date(2026, 4, 5)) // local midnight, May 5 2026
@@ -483,7 +492,7 @@ describe('WeeklyReportWidget', () => {
     vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
 
     const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-    render(<WeeklyReportWidget topicId="topic-1" />)
+    renderWidget(<WeeklyReportWidget topicId="topic-1" />)
     await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
 
     const toggle = screen.getByLabelText('weeklyReport.collapse')
@@ -727,7 +736,7 @@ describe('WeeklyReportWidget', () => {
       vi.mocked(fetchWeeklyReports).mockReturnValue(new Promise(() => {}))
 
       const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
 
       expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
       expect(screen.getByText('A great week in AI research.')).toBeInTheDocument()
@@ -738,7 +747,7 @@ describe('WeeklyReportWidget', () => {
       vi.mocked(fetchWeeklyReports).mockReturnValue(new Promise(() => {}))
 
       const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-      render(<WeeklyReportWidget topicId="topic-1" />)
+      renderWidget(<WeeklyReportWidget topicId="topic-1" />)
 
       expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
       expect(screen.queryByText(/no report for this week yet/i)).not.toBeInTheDocument()
@@ -750,7 +759,7 @@ describe('WeeklyReportWidget', () => {
       vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [updatedReport], total: 1, page: 1, size: 10 })
 
       const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
 
       // Seeded value is visible immediately...
       expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
@@ -768,7 +777,7 @@ describe('WeeklyReportWidget', () => {
       vi.mocked(fetchWeeklyReportByWeek).mockReturnValue(new Promise(() => {}))
 
       const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
-      render(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} initialWeek="2026-05-01" />)
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} initialWeek="2026-05-01" />)
 
       expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
     })

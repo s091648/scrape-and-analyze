@@ -78,6 +78,7 @@ export const SpanName = {
   PIPELINE_DISCOVER: 'pipeline.discover',
   DISCOVER_TASK: 'discover.task',
   PIPELINE_FETCH: 'pipeline.fetch',
+  FETCH_TASK: 'fetch.task',
   ARTICLE_PIPELINE: 'article.pipeline',
   ARTICLE_SCRAPED_HANDLE: 'article.scraped.handle',
   ARTICLE_PROCESSED_HANDLE: 'article.processed.handle',

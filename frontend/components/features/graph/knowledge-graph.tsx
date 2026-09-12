@@ -4,8 +4,10 @@ import { useSession } from 'next-auth/react'
 import { useI18n, useGuestMode, useTheme } from '@/lib/providers'
 import { useTopic } from '@/lib/providers/topic-provider'
 import dynamic from 'next/dynamic'
-import { fetchAnalysesGraph, fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
+import { fetchAnalysesGraphGroup, type GraphFilters } from '@/lib/api/graph'
 import { fetchArticleById } from '@/lib/api/articles'
+import { useArticleDetail } from '@/hooks/use-article-detail'
+import { useGraphData } from '@/hooks/use-graph-data'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ExternalLink, X, Globe, Clock } from 'lucide-react'
@@ -27,6 +29,10 @@ interface GraphNode {
 }
 interface GraphEdge { source: string; target: string }
 interface GraphData { nodes: GraphNode[]; edges: GraphEdge[] }
+
+// Stable reference so useMemo deps below (displayGraphData/mergedGraphData) don't recompute on
+// every render just because "no data yet" was expressed as a fresh object literal each time.
+const EMPTY_GRAPH: GraphData = { nodes: [], edges: [] }
 
 // Fake graph shown to guests — API is never called
 const GUEST_GRAPH: GraphData = {
@@ -132,7 +138,6 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
       const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10)
     })(),
   })
-  const [graphData, setGraphData] = useState<GraphData>(initialData ?? { nodes: [], edges: [] })
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const [expandedGroupLabel, setExpandedGroupLabel] = useState('')
   const [expandedGroupColor, setExpandedGroupColor] = useState('#6b7280')
@@ -141,12 +146,51 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
   // Article selection state
   const [selectedArticle, setSelectedArticle] = useState<GroupArticle | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [dialogDetail, setDialogDetail] = useState<any>(null)
-  const [dialogLoading, setDialogLoading] = useState(false)
-  const [graphLoading, setGraphLoading] = useState(!initialData)
-  // Consumed on the fetch effect's first run that actually reaches the real fetch — skips
-  // exactly the one fetch that would otherwise duplicate the SSR-seeded graphData.
-  const skipNextFetch = useRef(!!initialData)
+  const [dialogArticleId, setDialogArticleId] = useState<string | null>(null)
+  // Cached (and shared with article-card.tsx's dialog) by id+locale — see the hook's doc comment.
+  const { detail: dialogDetail, loading: dialogLoading } = useArticleDetail(dialogOpen ? dialogArticleId : null, locale)
+
+  const fullGraphFilters = useMemo(
+    () => (selectedTopicId ? { topic_id: selectedTopicId, ...graphFilters } : null),
+    [selectedTopicId, graphFilters]
+  )
+  // fallbackData (below) is only ever wired up while fullGraphFilters still matches the very
+  // first render's filters — i.e. still the exact params app/graph/page.tsx's SSR fetch used.
+  // The moment the visitor changes anything (topic switch, date range, source filters, …) this
+  // permanently flips and every future render fetches normally instead of reusing the SSR seed
+  // — mirrors the old skipNextFetch ref's "skip exactly one duplicate fetch" semantics.
+  // Uses React's "adjust state during rendering" pattern (state, not a mutated ref, so reading it
+  // during render stays pure) — see https://react.dev/reference/react/useState#storing-information-from-previous-renders.
+  const currentGraphFingerprint = fullGraphFilters ? JSON.stringify(fullGraphFilters) : null
+  // Latches the first *non-null* fingerprint it sees (selectedTopicId can still be resolving on
+  // an early render) rather than a plain one-shot useState initializer, which would wrongly latch
+  // `null` itself as "the initial state" if that happened on the very first render.
+  const [initialGraphFingerprint, setInitialGraphFingerprint] = useState(currentGraphFingerprint)
+  if (initialGraphFingerprint === null && currentGraphFingerprint !== null) {
+    setInitialGraphFingerprint(currentGraphFingerprint)
+  }
+  const [graphFiltersDiverged, setGraphFiltersDiverged] = useState(false)
+  if (
+    !graphFiltersDiverged &&
+    currentGraphFingerprint !== null &&
+    initialGraphFingerprint !== null &&
+    currentGraphFingerprint !== initialGraphFingerprint
+  ) {
+    setGraphFiltersDiverged(true)
+  }
+  const [graphSeed] = useState(initialData)
+  const graphFallbackData = graphFiltersDiverged ? undefined : graphSeed
+
+  const { data: fetchedGraphData, isLoading: fetchedGraphLoading } = useGraphData({
+    enabled: !isPaywall && !!fullGraphFilters,
+    filters: fullGraphFilters,
+    locale,
+    fallbackData: graphFallbackData,
+  })
+  const graphData: GraphData = isPaywall ? GUEST_GRAPH : (fetchedGraphData ?? EMPTY_GRAPH)
+  // Waiting on selectedTopicId to resolve (not yet known) is still a loading state, same as the
+  // old effect's `if (!selectedTopicId) return` leaving graphLoading untouched at `true`.
+  const graphLoading = isPaywall ? false : !fullGraphFilters ? true : fetchedGraphLoading
 
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<any>(null)
@@ -163,24 +207,6 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
   useEffect(() => { groupDataRef.current = groupData }, [groupData])
   useEffect(() => { expandedGroupRef.current = expandedGroup }, [expandedGroup])
   useEffect(() => { selectedArticleRef.current = selectedArticle }, [selectedArticle])
-
-  useEffect(() => {
-    if (isPaywall) {
-      setGraphData(GUEST_GRAPH)
-      setGraphLoading(false)
-      return
-    }
-    if (!selectedTopicId) return
-    if (skipNextFetch.current) {
-      skipNextFetch.current = false
-      setGraphLoading(false)
-      return
-    }
-    setGraphLoading(true)
-    fetchAnalysesGraph({ topic_id: selectedTopicId, ...graphFilters }, locale)
-      .then(data => setGraphData({ nodes: data.nodes, edges: data.edges }))
-      .finally(() => setGraphLoading(false))
-  }, [graphFilters, selectedTopicId, isPaywall, locale])
 
   // Clear article hover cache when locale changes (stale translations)
   useEffect(() => { articleCacheRef.current.clear() }, [locale])
@@ -241,14 +267,8 @@ export function KnowledgeGraph({ articleIdFilter, initialData }: KnowledgeGraphP
   }
 
   function openArticleDialog(articleId: string) {
+    setDialogArticleId(articleId)
     setDialogOpen(true)
-    if (!dialogDetail || dialogDetail.id !== articleId) {
-      setDialogLoading(true)
-      setDialogDetail(null)
-      fetchArticleById(articleId, locale)
-        .then(data => { setDialogDetail(data); setDialogLoading(false) })
-        .catch(() => setDialogLoading(false))
-    }
   }
 
   return (

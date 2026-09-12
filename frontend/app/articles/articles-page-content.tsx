@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { fetchArticles, type Article } from '@/lib/api/articles'
-import { searchArticles } from '@/lib/api/search'
+import { type Article, type ArticleListParams } from '@/lib/api/articles'
+import { useArticlesFeed } from '@/hooks/use-articles-feed'
 import { ArticleCard, ArticleCardSkeleton } from '@/components/features/articles/article-card'
 import { FilterBar } from '@/components/features/articles/filter-bar'
 import { SortSelect } from '@/components/features/articles/sort-select'
@@ -54,18 +54,6 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
     publishedAfter, publishedBefore, scrapedAfter, scrapedBefore,
     activeFilterCount,
   } = usePagination()
-  const [articles, setArticles] = useState<Article[]>(initialArticles ?? [])
-  const firstVectorArticleId = useMemo(
-    () => articles.find(a => a.has_vectors)?.id,
-    [articles]
-  )
-  const [total, setTotal] = useState(initialTotal ?? 0)
-  const [isLoading, setIsLoading] = useState(initialArticles === undefined)
-  // Consumed on the first effect run that actually reaches the fetch below (i.e. once
-  // selectedTopicId has resolved) — skips exactly the one fetch that would otherwise duplicate
-  // the SSR-seeded data for the current URL, while every subsequent params change still fetches
-  // normally (FR-003/SC-004).
-  const skipNextFetch = useRef(initialArticles !== undefined)
   const { selectedTopicId } = useTopic()
   const [openArticleId, setOpenArticleId] = useState<string | null>(
     () => searchParams.get('article')
@@ -74,18 +62,6 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
   // literally contain the query — this lets a visitor narrow back down to just the ones
   // that do (backend/services/search_service.py's exact_match flag). Defaults to on.
   const [exactMatchOnly, setExactMatchOnly] = useState(true)
-
-  const fetchSearchParamsString = useMemo(() => {
-    const p = new URLSearchParams(searchParams.toString())
-    p.delete('article')
-    // Favorites-only is applied client-side below (see displayedArticles), not re-fetched.
-    p.delete('favorites_only')
-    // topic is already tracked via selectedTopicId below; TopicUrlSync writing
-    // it back into the URL after selection shouldn't itself trigger a second,
-    // redundant fetch with identical params.
-    p.delete('topic')
-    return p.toString()
-  }, [searchParams])
 
   // history.replaceState (not next/navigation's router.replace) so opening/closing the article
   // dialog only updates the URL for deep-linking/back-forward — it doesn't trigger a fresh
@@ -102,88 +78,80 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
     window.history.replaceState(null, '', `/articles?${params.toString()}`)
   }, [searchParams])
 
-  useEffect(() => {
-    if (isPaywall) { setIsLoading(false); return }
-    if (!selectedTopicId) return
-    if (searchQuery) return // handled by the search effect below instead
-    // Session resolution is itself async (useSession() starts at status: 'loading' with
-    // token: undefined even for an already-signed-in visitor) — waiting for it to settle
-    // before consuming skipNextFetch is what keeps the *real* first fetch (not this
-    // transient one) from being the one that discards the SSR-seeded articles.
-    if (status === 'loading') return
-    if (skipNextFetch.current) {
-      skipNextFetch.current = false
-      setIsLoading(false)
-      return
-    }
-    setIsLoading(true)
+  const listParams: ArticleListParams = useMemo(() => ({
+    page: isGuestMode ? 1 : page,
+    topic_id: selectedTopicId ?? undefined,
+    sort,
+    order,
+    aggregator: aggregators,
+    original_source: originalSources,
+    tag: tags,
+    tag_group: tagGroups,
+    published_after: publishedAfter,
+    published_before: publishedBefore,
+    scraped_after: scrapedAfter,
+    scraped_before: scrapedBefore,
+  }), [isGuestMode, page, selectedTopicId, sort, order, aggregators, originalSources, tags, tagGroups, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore])
 
-    fetchArticles(
-      {
-        page: isGuestMode ? 1 : page,
-        topic_id: selectedTopicId,
-        sort,
-        order,
-        aggregator: aggregators,
-        original_source: originalSources,
-        tag: tags,
-        tag_group: tagGroups,
-        published_after: publishedAfter,
-        published_before: publishedBefore,
-        scraped_after: scrapedAfter,
-        scraped_before: scrapedBefore,
-      },
-      locale,
-      token,
-    )
-      .then(data => { setArticles(data.items); setTotal(data.total) })
-      .finally(() => setIsLoading(false))
-  }, [fetchSearchParamsString, selectedTopicId, isPaywall, isGuestMode, locale, token, status, searchQuery])
+  // FR-002/FR-006: hybrid search results replace the normal listing while a query is applied.
+  // `sort`/`order` are forwarded only when `hasExplicitSort` (the visitor actually picked one):
+  // search's default ordering is RRF relevance, not a date sort, so unconditionally sending the
+  // URL's default `sort=scraped_at` would silently replace relevance ranking with a date sort on
+  // every search (023-article-search follow-up regression).
+  const searchExtra = useMemo(() => ({
+    topic_id: selectedTopicId ?? undefined,
+    page,
+    exact_match_only: exactMatchOnly,
+    aggregator: aggregators, original_source: originalSources, tag: tags, tag_group: tagGroups,
+    published_after: publishedAfter, published_before: publishedBefore,
+    scraped_after: scrapedAfter, scraped_before: scrapedBefore,
+    ...(hasExplicitSort ? { sort, order } : {}),
+  }), [selectedTopicId, page, exactMatchOnly, aggregators, originalSources, tags, tagGroups, publishedAfter, publishedBefore, scrapedAfter, scrapedBefore, hasExplicitSort, sort, order])
 
-  // FR-002/FR-006: hybrid search results replace the normal listing while a query is
-  // applied. AbortController discards a superseded in-flight request's response so a
-  // slow earlier search can never overwrite a faster later one (closes the gap flagged
-  // in /speckit-analyze — FR-006 covers stale *search* responses, not just autocomplete).
-  //
-  // Filters (aggregator/original_source/tag/tag_group/date ranges) and `page` are always
-  // forwarded — same as the plain-listing effect above. `sort`/`order` are forwarded only
-  // when `hasExplicitSort` (the visitor actually picked one): search's default ordering is
-  // RRF relevance, not a date sort, so unconditionally sending the URL's default
-  // `sort=scraped_at` would silently replace relevance ranking with a date sort on every
-  // search (023-article-search follow-up regression — filters/sort were previously dropped
-  // entirely the moment a search was active; see backend/services/search_service.py).
-  // `fetchSearchParamsString` (not individually-listed filter/sort deps) is what makes this
-  // effect re-run on a filter/sort change while a search is already active — same pattern
-  // the plain-listing effect above already relies on.
-  useEffect(() => {
-    if (isPaywall || !selectedTopicId || !searchQuery) return
-    // A search actually running means we're past the "just mounted, must match the SSR
-    // seed" window this guard exists for — if it's still true here (e.g. the page was
-    // loaded directly at a `?q=...` URL, so the listing effect below hit its own
-    // `!searchQuery` guard first and never got a chance to consume it), leaving it set
-    // would wrongly skip the listing effect's *next* real fetch — the one that runs when
-    // this search is later cleared — leaving stale search results on screen forever.
-    skipNextFetch.current = false
-    setIsLoading(true)
-    const controller = new AbortController()
+  // Waiting on session resolution (status: 'loading') and on selectedTopicId are both still
+  // "not ready to fetch" — same gating the old effects had, now expressed as `enabled`. SWR's
+  // own key-swap race protection (a resolved response for a since-changed key is simply never
+  // surfaced) replaces the old search effect's manual AbortController.
+  const feedEnabled = !isPaywall && !!selectedTopicId && status !== 'loading'
 
-    searchArticles(
-      {
-        q: searchQuery, topic_id: selectedTopicId, page, exact_match_only: exactMatchOnly,
-        aggregator: aggregators, original_source: originalSources, tag: tags, tag_group: tagGroups,
-        published_after: publishedAfter, published_before: publishedBefore,
-        scraped_after: scrapedAfter, scraped_before: scrapedBefore,
-        ...(hasExplicitSort ? { sort, order } : {}),
-      },
-      locale, token, controller.signal,
-    )
-      .then(data => { setArticles(data.items); setTotal(data.total) })
-      .catch(err => { if ((err as Error)?.name !== 'AbortError') throw err })
-      .finally(() => { if (!controller.signal.aborted) setIsLoading(false) })
+  // fallbackData is only ever wired up while the params still match the very first render's
+  // params — i.e. still the exact URL app/articles/page.tsx's SSR fetch used. The moment the
+  // visitor changes anything (page, filters, sort, search, …) this permanently flips and every
+  // future render fetches normally — mirrors the old skipNextFetch ref's "skip exactly one
+  // duplicate fetch" semantics (FR-003/SC-004), without needing to match on session/token timing.
+  // Uses React's "adjust state during rendering" pattern (state, not a mutated ref, so reading it
+  // during render stays pure) — see https://react.dev/reference/react/useState#storing-information-from-previous-renders.
+  const currentFeedFingerprint = JSON.stringify(
+    searchQuery ? { mode: 'search', searchQuery, searchExtra } : { mode: 'list', listParams }
+  )
+  const [initialFeedFingerprint] = useState(() => currentFeedFingerprint)
+  const [feedDiverged, setFeedDiverged] = useState(false)
+  if (!feedDiverged && currentFeedFingerprint !== initialFeedFingerprint) setFeedDiverged(true)
+  const [feedSeed] = useState(() => (
+    initialArticles !== undefined ? { items: initialArticles, total: initialTotal ?? 0 } : undefined
+  ))
+  // app/articles/page.tsx's SSR fetch (buildArticlesQuery) never forwards `q` — it always seeds
+  // the plain listing — so `initialArticles` must never be used as fallback for a search-mode
+  // key, even on the very first render (a direct load at a `?q=...` URL starts in search mode
+  // immediately, before anything has "diverged" from it): that would wrongly skip the real
+  // search fetch this SSR data was never a substitute for.
+  const feedFallbackData = (!searchQuery && !feedDiverged) ? feedSeed : undefined
 
-    return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchSearchParamsString, selectedTopicId, searchQuery, exactMatchOnly, isPaywall, locale, token, hasExplicitSort])
+  const { data: feed, isLoading } = useArticlesFeed({
+    enabled: feedEnabled,
+    searchQuery,
+    listParams,
+    searchExtra,
+    locale,
+    token,
+    fallbackData: feedFallbackData,
+  })
+  const articles = feed.items
+  const total = feed.total
+  const firstVectorArticleId = useMemo(
+    () => articles.find(a => a.has_vectors)?.id,
+    [articles]
+  )
 
   // A search keyword's match is language-specific (search_service.py's `lang`-scoped
   // inverted index/translation text) — a term that matched in one language's article text

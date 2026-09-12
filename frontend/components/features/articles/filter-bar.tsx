@@ -5,9 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { SlidersHorizontal, X, Heart } from 'lucide-react'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { DateFilter } from '@/components/common/date-filter'
-import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
-import { fetchTagGroups, type TagGroupOut } from '@/lib/api/tags'
-import { fetchSourceCategories, type SourceEntry } from '@/lib/api/source-categories'
+import { useFilterOptions } from '@/hooks/use-filter-options'
 import { useI18n, useTopic } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
@@ -60,9 +58,7 @@ export function FilterBar({
   const { status } = useSession()
   const isAuthenticated = status === 'authenticated'
   const [open, setOpen] = useState(false)
-  const [aggregatorOptions, setAggregatorOptions] = useState<SourceEntry[]>([])
-  const [originalSourceOptions, setOriginalSourceOptions] = useState<string[]>([])
-  const [tagGroupOptions, setTagGroupOptions] = useState<TagGroupOut[]>([])
+  const { aggregatorOptions, originalSourceOptions, tagGroupOptions } = useFilterOptions(selectedTopicId ?? undefined, locale)
 
   const [draftAggregators, setDraftAggregators] = useState(activeAggregators)
   const [draftOriginalSources, setDraftOriginalSources] = useState(activeOriginalSources)
@@ -72,14 +68,6 @@ export function FilterBar({
   const [draftPubBefore, setDraftPubBefore] = useState(publishedBefore)
   const [draftScrapedAfter, setDraftScrapedAfter] = useState(scrapedAfter)
   const [draftScrapedBefore, setDraftScrapedBefore] = useState(scrapedBefore)
-
-  useEffect(() => {
-    void Promise.allSettled([
-      fetchSourceCategories().then(cats => setAggregatorOptions(cats.aggregator ?? [])),
-      fetchArticleFilterOriginalSources(selectedTopicId ?? undefined, locale).then(data => setOriginalSourceOptions(Array.isArray(data) ? data : [])),
-      fetchTagGroups(selectedTopicId ?? undefined).then(setTagGroupOptions),
-    ])
-  }, [locale, selectedTopicId])
 
   useEffect(() => {
     setDraftAggregators(activeAggregators)
