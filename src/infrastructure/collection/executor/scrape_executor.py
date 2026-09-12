@@ -318,26 +318,52 @@ class ScrapeExecutor:
                     time.sleep(0.05)
                     continue
 
-                try:
+                host = self._host_for_queue(host_queue_map, claimed_idx)
+                with get_tracer().start_as_current_span(SpanName.FETCH_TASK) as span:
+                    span.set_attribute("fetch.host", host)
                     try:
-                        task = host_queue_map.queues[claimed_idx].get_nowait()
-                    except queue.Empty:
-                        continue
-
-                    if isinstance(task, FetchTask):
                         try:
-                            result = task.execute()
-                            if result is not None:
-                                on_result(result)
-                                fetched += 1
-                            else:
-                                logger.warning("task_returned_none", url=task.url)
-                        except Exception as e:
-                            logger.error("task_execute_failed", url=task.url, error=str(e))
+                            task = host_queue_map.queues[claimed_idx].get_nowait()
+                        except queue.Empty:
+                            span.set_attribute("fetch.empty_claim", True)
+                            continue
 
-                finally:
-                    time.sleep(self._fetch_delay)
-                    host_queue_map.semaphores[claimed_idx].release()
+                        span.set_attribute("fetch.url", task.url)
+                        span.set_attribute("fetch.source", task.source)
+
+                        if isinstance(task, FetchTask):
+                            exec_start = time.monotonic()
+                            try:
+                                result = task.execute()
+                                span.set_attribute(
+                                    "fetch.execute_seconds", round(time.monotonic() - exec_start, 3)
+                                )
+                                if result is not None:
+                                    on_result(result)
+                                    fetched += 1
+                                else:
+                                    span.set_attribute("fetch.result", "none")
+                                    logger.warning("task_returned_none", url=task.url)
+                            except Exception as e:
+                                span.set_attribute(
+                                    "fetch.execute_seconds", round(time.monotonic() - exec_start, 3)
+                                )
+                                span.set_status(StatusCode.ERROR, str(e))
+                                logger.error("task_execute_failed", url=task.url, error=str(e))
+
+                    finally:
+                        # Fixed per-worker politeness delay (default 5s), held before
+                        # releasing this host's semaphore — same as before this span
+                        # was added, just now measured so a trace can show whether
+                        # pipeline.fetch's wall time is dominated by this flat delay
+                        # (many tasks queued behind few hosts) vs. slow requests
+                        # themselves (fetch.execute_seconds).
+                        delay_start = time.monotonic()
+                        time.sleep(self._fetch_delay)
+                        span.set_attribute(
+                            "fetch.post_delay_seconds", round(time.monotonic() - delay_start, 3)
+                        )
+                        host_queue_map.semaphores[claimed_idx].release()
 
             logger.info("worker_stopped", worker_id=worker_id, fetched=fetched)
             return fetched
