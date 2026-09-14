@@ -2898,6 +2898,12 @@
           "value": null
         },
         {
+          "name": "DRAWIO_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
           "name": "RAILWAY_SERVICE_ID_CHATBOT_PLUGIN",
           "managed": true,
           "sensitive": false,
@@ -3029,6 +3035,12 @@
       "variables": [
         {
           "name": "BACKEND_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "DRAWIO_URL",
           "managed": true,
           "sensitive": false,
           "value": null
