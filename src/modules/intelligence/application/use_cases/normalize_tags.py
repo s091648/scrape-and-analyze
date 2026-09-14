@@ -5,6 +5,7 @@ from uuid import UUID
 from shared.observability.traceback_filter import format_filtered_exc
 from src.modules.intelligence.domain.repositories import AsyncTagRepository
 from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
+from src.modules.intelligence.domain.services import AsyncEmbeddingService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ class NormalizeTagsUseCase:
 
     def __init__(
         self,
-        embedding_service,
+        embedding_service: AsyncEmbeddingService,
         tag_repository: AsyncTagRepository,
         auto_merge_threshold: float = 0.95,
         suggest_threshold: float = 0.90,
@@ -95,6 +96,15 @@ class NormalizeTagsUseCase:
 
         if not tagged:
             return
+
+        # Sort into a globally consistent order before touching the DB — every
+        # article's tag-normalization task processes tags in the same order
+        # regardless of what order the LLM happened to list them in, so two
+        # concurrently-running articles can never acquire tag row locks in
+        # opposite order (the classic precondition for a deadlock). This
+        # doesn't remove the wait when two articles share a tag, just
+        # guarantees the wait can never form a cycle.
+        tagged.sort(key=lambda t: (t[1], t[0]))  # (group_name, tag_name)
 
         embeddings = await self._embedding_service.embed_batch([t for t, _ in tagged])
 

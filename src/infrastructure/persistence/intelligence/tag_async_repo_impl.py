@@ -96,18 +96,33 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
             )
             .returning(Tag.id)
         )
-        tag_id = (await self._session.execute(insert_stmt)).scalar_one_or_none()
+        inserted_id = (await self._session.execute(insert_stmt)).scalar_one_or_none()
 
-        if tag_id is None:
+        if inserted_id is not None:
+            # Freshly created — this is the only time this tag has ever
+            # needed an embedding written, so do it now.
+            tag_id = inserted_id
+            stmt, params = update_tag_embedding_stmt(tag_id, embedding)
+            await self._session.execute(stmt, params)
+        else:
             # Conflict: a concurrent task's insert of this exact
             # (name, tag_group_id) won the race and has already committed —
-            # re-select it instead of retrying the insert.
-            tag_id = (
-                await self._session.execute(select(Tag.id).filter_by(name=name, tag_group_id=group.id))
-            ).scalar_one()
-
-        stmt, params = update_tag_embedding_stmt(tag_id, embedding)
-        await self._session.execute(stmt, params)
+            # re-select it instead of retrying the insert. It almost always
+            # already has an embedding from whenever it was first created;
+            # re-writing the same value here would just take an unnecessary
+            # exclusive row lock (and queue behind whichever concurrent task
+            # is currently holding it) for no benefit. Only write if it's
+            # genuinely missing one (e.g. a legacy row predating the
+            # embedding column, ordinarily caught by `make backfill` instead).
+            existing = (
+                await self._session.execute(
+                    select(Tag.id, Tag.embedding).filter_by(name=name, tag_group_id=group.id)
+                )
+            ).one()
+            tag_id = existing.id
+            if existing.embedding is None:
+                stmt, params = update_tag_embedding_stmt(tag_id, embedding)
+                await self._session.execute(stmt, params)
 
         return TagData(id=tag_id, name=name, tag_group_name=tag_group_name, embedding=embedding)
 
