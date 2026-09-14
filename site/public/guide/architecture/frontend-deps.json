@@ -117,9 +117,9 @@
     "components/ui/button.tsx",
     "components/ui/checkbox.tsx",
     "components/ui/tooltip.tsx",
+    "hooks/use-articles-feed.ts",
     "hooks/use-pagination.ts",
     "lib/api/articles.ts",
-    "lib/api/search.ts",
     "lib/providers/index.tsx"
   ],
   "app/articles/page.tsx": [
@@ -214,6 +214,7 @@
     "components/ui/button.tsx",
     "components/ui/skeleton.tsx",
     "components/ui/switch.tsx",
+    "hooks/use-tag-groups-feed.ts",
     "lib/api/tags.ts",
     "lib/api/topics.ts",
     "lib/providers/index.tsx"
@@ -244,6 +245,7 @@
     "components/features/articles/source-utils.ts",
     "components/features/articles/use-metric-definitions.ts",
     "components/ui/card.tsx",
+    "hooks/use-article-detail.ts",
     "lib/api/articles.ts",
     "lib/api/user.ts",
     "lib/highlight-match.tsx",
@@ -274,9 +276,7 @@
     "components/ui/badge.tsx",
     "components/ui/button.tsx",
     "hooks/use-debounced-value.ts",
-    "lib/api/articles.ts",
-    "lib/api/source-categories.ts",
-    "lib/api/tags.ts",
+    "hooks/use-filter-options.ts",
     "lib/providers/index.tsx"
   ],
   "components/features/articles/grouped-tag-select.tsx": [
@@ -346,6 +346,8 @@
     "components/features/articles/filter-bar.tsx",
     "components/ui/dialog.tsx",
     "components/ui/skeleton.tsx",
+    "hooks/use-article-detail.ts",
+    "hooks/use-graph-data.ts",
     "lib/api/articles.ts",
     "lib/api/graph.ts",
     "lib/providers/index.tsx",
@@ -562,6 +564,7 @@
     "components/features/weekly-report/weekly-report-skeleton.tsx",
     "components/features/weekly-report/weekly-report-stepper.tsx",
     "components/ui/tooltip.tsx",
+    "hooks/use-weekly-report-feed.ts",
     "lib/api/weekly-reports.ts",
     "lib/providers/index.tsx"
   ],
@@ -630,14 +633,34 @@
     "components/ui/popover.tsx",
     "lib/utils.ts"
   ],
+  "hooks/use-article-detail.ts": [
+    "lib/api/articles.ts"
+  ],
+  "hooks/use-articles-feed.ts": [
+    "lib/api/articles.ts",
+    "lib/api/search.ts"
+  ],
   "hooks/use-debounced-value.ts": [],
+  "hooks/use-filter-options.ts": [
+    "lib/api/articles.ts",
+    "lib/api/source-categories.ts",
+    "lib/api/tags.ts"
+  ],
+  "hooks/use-graph-data.ts": [
+    "lib/api/graph.ts"
+  ],
   "hooks/use-pagination.ts": [],
+  "hooks/use-tag-groups-feed.ts": [
+    "lib/api/tags.ts"
+  ],
+  "hooks/use-weekly-report-feed.ts": [
+    "lib/api/weekly-reports.ts"
+  ],
   "lib/api/analytics.ts": [
     "lib/api/client.ts"
   ],
   "lib/api/articles.ts": [
-    "lib/api/client.ts",
-    "lib/cache/lru-cache.ts"
+    "lib/api/client.ts"
   ],
   "lib/api/auth.ts": [
     "lib/api/client.ts"
@@ -698,7 +721,6 @@
   "lib/auth.ts": [
     "lib/env.server.ts"
   ],
-  "lib/cache/lru-cache.ts": [],
   "lib/chat-session.ts": [],
   "lib/chat/chat-storage.ts": [],
   "lib/cookies/constants.ts": [],
@@ -754,7 +776,8 @@
     "lib/providers/session-provider.tsx",
     "lib/providers/theme-provider.tsx",
     "lib/providers/topic-provider.tsx",
-    "lib/providers/tutorial-provider.tsx"
+    "lib/providers/tutorial-provider.tsx",
+    "lib/swr/provider.tsx"
   ],
   "lib/providers/inline-chat-provider.tsx": [
     "components/features/chat/types.ts",
@@ -794,5 +817,6 @@
   "lib/stores/admin-users-store.ts": [
     "lib/api/auth.ts"
   ],
+  "lib/swr/provider.tsx": [],
   "lib/utils.ts": []
 }

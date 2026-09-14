@@ -278,7 +278,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 108,
+          "line": 159,
           "function": "AsyncSqlAlchemyTagRepository.commit",
           "snippet": "raise",
           "status_code": null
@@ -348,7 +348,7 @@
         },
         {
           "file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
-          "line": 154,
+          "line": 161,
           "function": "AsyncRagIngestionHandler.handle",
           "snippet": "raise",
           "status_code": null
@@ -897,7 +897,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 62,
+          "line": 86,
           "function": "AsyncSqlAlchemyTagRepository.save",
           "snippet": "raise NotFoundError(f\"Tag group '{tag_group_name}' not found for topic {topic_id}\")",
           "status_code": null
@@ -1034,7 +1034,7 @@
       "docstring": "Fallback stand-in so `except RateLimitExhausted` is always valid.",
       "defined_at": {
         "file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
-        "line": 7
+        "line": 9
       },
       "raise_sites": [
         {
@@ -1562,7 +1562,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
-          "line": 55,
+          "line": 79,
           "function": "AsyncSqlAlchemyTagRepository.save",
           "snippet": "raise ValidationError(\"topic_id is required to save a tag\")",
           "status_code": null
@@ -1613,14 +1613,14 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 832,
+          "line": 860,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null
         },
         {
           "file": "src/config/settings.py",
-          "line": 285,
+          "line": 297,
           "function": "validate_config",
           "snippet": "raise ValueError(f\"Configuration errors: {', '.join(errors)}\")",
           "status_code": null

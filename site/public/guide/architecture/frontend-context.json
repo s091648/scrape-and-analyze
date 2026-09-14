@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-10T23:43:44.711Z",
+  "generated_at": "2026-09-14T12:00:10.852Z",
   "providers": [
     {
       "id": "session",
@@ -12,7 +12,7 @@
       "children": [
         "topic"
       ],
-      "consumerCount": 26,
+      "consumerCount": 24,
       "description": "Wraps next-auth SessionProvider, refetchOnWindowFocus=false"
     },
     {
@@ -107,11 +107,6 @@
           "destructured": "{ data: session, status }"
         },
         {
-          "file": "app/articles/articles-page-content.tsx",
-          "line": 109,
-          "destructured": ""
-        },
-        {
           "file": "app/graph/graph-page-content.tsx",
           "line": 21,
           "destructured": "{ status }"
@@ -138,13 +133,8 @@
         },
         {
           "file": "app/tags/tags-page-content.tsx",
-          "line": 417,
+          "line": 418,
           "destructured": "{ data: session, status }"
-        },
-        {
-          "file": "app/tags/tags-page-content.tsx",
-          "line": 757,
-          "destructured": ""
         },
         {
           "file": "components/features/articles/article-card.tsx",
@@ -153,7 +143,7 @@
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 60,
+          "line": 58,
           "destructured": "{ status }"
         },
         {
@@ -163,7 +153,7 @@
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 114,
+          "line": 120,
           "destructured": "{ status }"
         },
         {
@@ -229,7 +219,7 @@
         },
         {
           "file": "app/articles/articles-page-content.tsx",
-          "line": 69,
+          "line": 57,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -249,7 +239,7 @@
         },
         {
           "file": "app/tags/tags-page-content.tsx",
-          "line": 420,
+          "line": 421,
           "destructured": "{ selectedTopic, refresh: refreshTopics }"
         },
         {
@@ -259,12 +249,12 @@
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 59,
+          "line": 57,
           "destructured": "{ selectedTopicId }"
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 120,
+          "line": 126,
           "destructured": "{ selectedTopicId }"
         },
         {
@@ -440,12 +430,12 @@
         },
         {
           "file": "app/tags/tags-page-content.tsx",
-          "line": 82,
+          "line": 83,
           "destructured": "{ t }"
         },
         {
           "file": "app/tags/tags-page-content.tsx",
-          "line": 421,
+          "line": 422,
           "destructured": "{ t }"
         },
         {
@@ -465,7 +455,7 @@
         },
         {
           "file": "components/features/articles/filter-bar.tsx",
-          "line": 58,
+          "line": 56,
           "destructured": "{ t, locale }"
         },
         {
@@ -505,7 +495,7 @@
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 115,
+          "line": 121,
           "destructured": "{ t, locale }"
         },
         {
@@ -640,7 +630,7 @@
         },
         {
           "file": "components/features/weekly-report/weekly-report-widget.tsx",
-          "line": 60,
+          "line": 61,
           "destructured": "{ t, locale }"
         },
         {
@@ -696,7 +686,7 @@
         },
         {
           "file": "components/features/graph/knowledge-graph.tsx",
-          "line": 116,
+          "line": 122,
           "destructured": "{ isGuestMode }"
         },
         {
@@ -731,7 +721,7 @@
   ],
   "summary": {
     "totalProviders": 4,
-    "totalConsumerSites": 127,
+    "totalConsumerSites": 125,
     "maxNestingDepth": 3,
     "mostConsumedContext": "i18n"
   }
