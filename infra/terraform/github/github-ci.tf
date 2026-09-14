@@ -31,6 +31,7 @@ module "github_ci_repo" {
   variables = {
     BACKEND_URL   = var.gh_var_backend_url
     STORYBOOK_URL = var.gh_var_storybook_url
+    DRAWIO_URL    = var.gh_var_drawio_url
 
     RAILWAY_SERVICE_ID_DASHBOARD_BACKEND  = var.service_id_dashboard_backend
     RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND = var.service_id_dashboard_frontend

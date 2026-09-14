@@ -113,6 +113,10 @@ variable "gh_var_storybook_url" {
   type    = string
   default = null
 }
+variable "gh_var_drawio_url" {
+  type    = string
+  default = null
+}
 
 # environment-scoped GitHub Actions secrets (per "scraper / <env>")
 variable "gh_env_database_url" {

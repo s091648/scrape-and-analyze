@@ -154,6 +154,7 @@ export default defineConfig({
   themeConfig: {
     storybookUrl: process.env.STORYBOOK_URL || '',
     backendUrl: process.env.BACKEND_URL || '',
+    drawioUrl: process.env.DRAWIO_URL || '',
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Speckit Guide', link: '/guide/speckit' },

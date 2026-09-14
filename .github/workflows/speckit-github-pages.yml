@@ -122,6 +122,7 @@ jobs:
           VITEPRESS_BASE: "${{ steps.pages.outputs.base_path }}/"
           STORYBOOK_URL: "${{ vars.STORYBOOK_URL }}"
           BACKEND_URL: "${{ vars.BACKEND_URL }}"
+          DRAWIO_URL: "${{ vars.DRAWIO_URL }}"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

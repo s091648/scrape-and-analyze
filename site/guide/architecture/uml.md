@@ -9,6 +9,19 @@ aside: false
 
 <UmlViewer />
 
+## Drawio 流程圖
+
+<DrawioViewer />
+
+這個面板直接 iframe 嵌入 drawio 的公開檢視連結（`viewer.diagrams.net`），不是自動生成的 — 圖表內容由外部 drawio 檔案（存放於 Google Drive）維護，需要手動更新。
+
+`DRAWIO_URL` 的來源：
+
+- **CI（GitHub Pages 部署）**：讀取 repo variable `DRAWIO_URL`（跟 `BACKEND_URL` / `STORYBOOK_URL` 同一套機制，由 Terraform `github-ci.tf` 的 `module.github_ci_repo` 管理，無環境差異，只需一份 repo-level variable），在 `npm run generate` 時寫入 `site/.vitepress/config.js` 的 `themeConfig.drawioUrl`。
+- **本機預覽**：`DRAWIO_URL=<drawio 公開連結> npm run generate`。
+
+沒有設定 `DRAWIO_URL` 時，這個面板會顯示提示訊息，不會出現壞掉的 iframe。
+
 ## 資料生成方式
 
 所有 UML 資料（class 清單、屬性、方法、docstring、pipeline 流程）都在 CI 時由 `scripts/generate_uml.py` 自動產生，**不需要手動維護**。執行 `make uml-backend` 可在本機重新產生。
