@@ -171,12 +171,28 @@ class AnalysisCompletedHandler:
                     except Exception as e:
                         lang_span.record_exception(e)
                         _logger.error("auto_tag_translation_error", language=lang, error=str(e))
+                        await self._event_bus.publish(TranslationFailedEvent(
+                            analysis_id=event.analysis_id,
+                            article_id=event.article_id,
+                            task_type="translate_tags",
+                            exception_type=type(e).__name__,
+                            exception_message=str(e),
+                            context={"language": lang},
+                        ))
 
                     try:
                         await self._translate_tags_uc.translate_groups(lang, limit=50)
                     except Exception as e:
                         lang_span.record_exception(e)
                         _logger.error("auto_group_translation_error", language=lang, error=str(e))
+                        await self._event_bus.publish(TranslationFailedEvent(
+                            analysis_id=event.analysis_id,
+                            article_id=event.article_id,
+                            task_type="translate_groups",
+                            exception_type=type(e).__name__,
+                            exception_message=str(e),
+                            context={"language": lang},
+                        ))
 
     async def _fetch_article_body(self, article_id) -> tuple[str, str]:
         """Fetch article title and content from the database.

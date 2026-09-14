@@ -54,16 +54,9 @@ class ArticleProcessedHandler:
                 span.set_attribute("llm.input_tokens", meta.input_tokens)
                 span.set_attribute("llm.output_tokens", meta.output_tokens)
                 span.set_attribute("analysis.id", str(result.analysis.id))
-                logger.info(
-                    "analysis_completed",
-                    article_id=str(result.article_id),
-                    url=event.article.url,
-                    source=event.article.source,
-                    original_source=event.article.original_source,
-                    model=meta.model_used,
-                    input_tokens=meta.input_tokens,
-                    output_tokens=meta.output_tokens,
-                )
+                # AnalyzeArticleUseCase.execute() already logs "analysis_completed"
+                # with this same detail — this branch owns the span attributes and
+                # next-event construction only, not a second log line.
                 raw_tag_groups = tuple(
                     (tg.group_name, list(tg.tags))
                     for tg in (result.analysis.analysis_content.tag_groups or [])
