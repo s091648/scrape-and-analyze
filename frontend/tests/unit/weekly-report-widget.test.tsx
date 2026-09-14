@@ -781,5 +781,67 @@ describe('WeeklyReportWidget', () => {
 
       expect(screen.queryByText('AI Weekly Highlights')).not.toBeInTheDocument()
     })
+
+    it('resolves a deep-linked initialWeek that is already present in the fetched list', async () => {
+      const olderReport = { ...mockReport, id: 'report-old', week_start_date: '2026-05-01', title: 'Older Report' }
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+      vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport, olderReport], total: 2, page: 1, size: 10 })
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialWeek="2026-05-01" />)
+
+      // The already-in-list match must win over fetchLatestWeeklyReport's "latest" — no extra
+      // fetchWeeklyReportByWeek call needed since it was already in the list.
+      await waitFor(() => expect(screen.getByText('Older Report')).toBeInTheDocument())
+      expect(fetchWeeklyReportByWeek).not.toHaveBeenCalled()
+    })
+
+    it('resolves a deep-linked initialWeek that is missing from the list via fetchWeeklyReportByWeek', async () => {
+      const deepLinked = { ...mockReport, id: 'report-deep', week_start_date: '2026-04-20', title: 'Deep Linked Report' }
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+      vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+      vi.mocked(fetchWeeklyReportByWeek).mockResolvedValue(deepLinked)
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialWeek="2026-04-20" />)
+
+      await waitFor(() => expect(screen.getByText('Deep Linked Report')).toBeInTheDocument())
+      expect(fetchWeeklyReportByWeek).toHaveBeenCalledWith('topic-1', '2026-04-20', 'en')
+    })
+
+    it('selects reports[0] when fetchLatestWeeklyReport resolves to null but the list is non-empty', async () => {
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(null)
+      vi.mocked(fetchWeeklyReports).mockResolvedValue({ items: [mockReport], total: 1, page: 1, size: 10 })
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      renderWidget(<WeeklyReportWidget topicId="topic-1" />)
+
+      await waitFor(() => expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument())
+    })
+
+    it('keeps the seeded report visible (does not clear to []) when the list fetch itself rejects and no initialWeek is set', async () => {
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(mockReport)
+      vi.mocked(fetchWeeklyReports).mockRejectedValue(new Error('list down'))
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      renderWidget(<WeeklyReportWidget topicId="topic-1" initialReport={mockReport} />)
+
+      // Seeded synchronously, and must still be there once the rejected background fetch settles.
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+      await waitFor(() => expect(fetchWeeklyReports).toHaveBeenCalled())
+      expect(screen.getByText('AI Weekly Highlights')).toBeInTheDocument()
+    })
+
+    it('clears reports to [] when the list fetch rejects and there is no seeded initialReport', async () => {
+      vi.mocked(fetchLatestWeeklyReport).mockResolvedValue(null)
+      vi.mocked(fetchWeeklyReports).mockRejectedValue(new Error('list down'))
+
+      const { WeeklyReportWidget } = await import('@/components/features/weekly-report/weekly-report-widget')
+      renderWidget(<WeeklyReportWidget topicId="topic-1" />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/no report for this week yet/i)).toBeInTheDocument()
+      })
+    })
   })
 })

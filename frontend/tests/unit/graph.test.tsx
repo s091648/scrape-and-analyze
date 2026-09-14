@@ -23,8 +23,11 @@ vi.mock('next/dynamic', () => ({
       return <div data-testid="graph-canvas">{JSON.stringify(props.graphData)}</div>
     },
 }))
+// Mutable (not a fixed object) so tests can simulate selectedTopicId resolving on a later
+// render — e.g. the "initial fingerprint latches late" test below.
+let mockSelectedTopicId: string | null = 'test-topic-id'
 vi.mock('@/lib/providers/topic-provider', () => ({
-  useTopic: () => ({ selectedTopicId: 'test-topic-id' }),
+  useTopic: () => ({ selectedTopicId: mockSelectedTopicId }),
 }))
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
@@ -37,6 +40,10 @@ vi.mock('@/lib/providers', () => ({
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
   useTheme: () => ({ theme: mockTheme, mode: mockTheme, setMode: vi.fn(), cycleMode: vi.fn() }),
 }))
+
+beforeEach(() => {
+  mockSelectedTopicId = 'test-topic-id'
+})
 
 let KnowledgeGraph: ComponentType<{ articleIdFilter?: Set<string> }>
 let applyArticleFilter: (data: any, filter: Set<string>) => any
@@ -243,6 +250,52 @@ describe('KnowledgeGraph theme-aware canvas drawing', () => {
     const ctx = fakeCtx()
     lastForceGraphProps.nodeCanvasObject({ type: 'article', id: 'a1', label: 'Hovered article', x: 0, y: 0 }, ctx, 1)
     expect(ctx.fillStyle).toBe('#f1f5f9')
+  })
+})
+
+describe('KnowledgeGraph selectedTopicId resolving late', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+  })
+
+  it('starts fetching once selectedTopicId resolves from null on a later render (latches the initial fingerprint)', async () => {
+    mockSelectedTopicId = null
+    const { render } = await import('@testing-library/react')
+    const { rerender } = render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
+
+    mockSelectedTopicId = 'test-topic-id'
+    rerender(<KnowledgeGraph />)
+
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
+    })
+  })
+})
+
+describe('KnowledgeGraph article dialog', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    lastForceGraphProps = null
+  })
+
+  it('clicking an article node not inside an expanded group opens the article detail dialog', async () => {
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+
+    // No group is expanded, so groupDataRef.current is empty — handleNodeClick's 'article'
+    // branch falls through to openArticleDialog(node.id) directly.
+    lastForceGraphProps.onNodeClick({ type: 'article', id: 'a1' })
+
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/articles/a1'), expect.anything(), expect.anything(), expect.anything(),
+      )
+    })
   })
 })
 

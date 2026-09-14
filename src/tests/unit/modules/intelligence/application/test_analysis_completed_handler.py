@@ -324,6 +324,59 @@ async def test_article_body_fetch_failure_skips_body_translation_but_not_others(
     assert len(body_fetch_failures) == 1
 
 
+# ── Body translation itself throwing (as opposed to returning success=False) ─
+
+@pytest.mark.asyncio
+async def test_publishes_failed_event_when_body_translation_throws_exception():
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
+    event = _event()
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.side_effect = RuntimeError("body provider crashed")
+
+    await handler.handle(event)  # Should not raise
+
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
+    body_failures = [
+        e for e in failed_events
+        if e.task_type == "translate_article_body" and e.exception_type == "RuntimeError"
+    ]
+    assert len(body_failures) == 1
+    assert "body provider crashed" in body_failures[0].exception_message
+    # tag/group translation for this language still runs — one bad UC doesn't abort the rest
+    tags_uc.translate_tags.assert_called_once()
+
+
+# ── _fetch_article_body: article row not found (as opposed to a DB error) ────
+
+@pytest.mark.asyncio
+async def test_fetch_article_body_returns_empty_strings_when_article_not_found():
+    """article_repo.find_by_id() returning None (row genuinely missing, not a
+    DB error) must not be treated as a fetch failure — no TranslationFailedEvent
+    for it — but body translation still runs, with empty title/content."""
+    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
+    handler._article_repo.find_by_id.return_value = None
+    event = _event()
+    en = _en_content()
+    repo.find_by_analysis_id_and_language.return_value = en
+    article_uc.execute.return_value = _analysis_success(event)
+    body_uc.execute.return_value = _body_success(event)
+
+    await handler.handle(event)
+
+    body_uc.execute.assert_called_once_with(
+        article_id=event.article_id, title="", content="", target_language="zh-TW",
+    )
+    published_events = [c[0][0] for c in bus.publish.call_args_list]
+    body_fetch_failures = [
+        e for e in published_events
+        if isinstance(e, TranslationFailedEvent) and e.exception_type != "TranslationError"
+    ]
+    assert body_fetch_failures == []
+
+
 # ── Span attribute tests ──────────────────────────────────────────────────────
 
 def _mock_tracer(mock_span):
