@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import ArticlesPageContent from '@/app/articles/articles-page-content'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const { mockFetchArticles, mockSearchArticles } = vi.hoisted(() => ({
   mockFetchArticles: vi.fn(),
@@ -56,37 +57,31 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'machine learning' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'machine learning basics')], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     expect(mockFetchArticles).not.toHaveBeenCalled()
     expect(mockSearchArticles).toHaveBeenCalledWith(
       expect.objectContaining({ q: 'machine learning', topic_id: 'topic-1' }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
   })
 
   it('discards a stale (superseded) search response — only the later query result renders', async () => {
     currentSearchParams.current = new URLSearchParams({ q: 'first query' })
 
-    // Mirrors real fetch/AbortController semantics (client.ts threads the caller's signal
-    // into the underlying fetch, which rejects with AbortError on abort) — the mock must
-    // behave the same way for this test to actually exercise the component's abort wiring,
-    // not just its own promise bookkeeping.
-    let firstSignal!: AbortSignal
-    mockSearchArticles.mockImplementationOnce((_p, _l, _t, signal: AbortSignal) => {
-      firstSignal = signal
-      return new Promise((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
-      })
-    })
+    // Left pending (never resolved yet) through the rerender below — this is what actually
+    // exercises the race: the first query's request is still in flight when the second query's
+    // key takes over.
+    let resolveFirst!: (value: { items: unknown[]; total: number }) => void
+    mockSearchArticles.mockImplementationOnce(
+      () => new Promise(resolve => { resolveFirst = resolve })
+    )
 
-    const { rerender } = render(<ArticlesPageContent />)
+    const { rerender } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
-    // Second query fires (and resolves) before the first one ever does — its rerender
-    // triggers the effect's cleanup, which aborts firstSignal (and rejects the mocked
-    // first call above, exactly as a real aborted fetch would).
+    // Second query fires while the first is still pending.
     currentSearchParams.current = new URLSearchParams({ q: 'second query' })
     mockSearchArticles.mockResolvedValueOnce({ items: [article('a2', 'second query result')], total: 1 })
     rerender(<ArticlesPageContent />)
@@ -101,15 +96,24 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
         screen.getByText((_content, element) => element?.tagName === 'SPAN' && element.textContent === 'Second Query Result')
       ).toBeInTheDocument()
     })
-    expect(firstSignal.aborted).toBe(true)
+
+    // The stale first-query request finally resolves *after* the second query already rendered
+    // — SWR's own key-race protection (a resolved response for a since-superseded key is simply
+    // never surfaced) must still discard it instead of overwriting the current result, even
+    // without a hand-rolled AbortController.
+    resolveFirst({ items: [article('a1', 'first query result')], total: 1 })
+    await new Promise(r => setTimeout(r, 50))
     expect(screen.queryByText('First Query Result')).not.toBeInTheDocument()
+    expect(
+      screen.getByText((_content, element) => element?.tagName === 'SPAN' && element.textContent === 'Second Query Result')
+    ).toBeInTheDocument()
   })
 
   it('reverts to fetchArticles when the search query is cleared', async () => {
     currentSearchParams.current = new URLSearchParams({ q: 'machine learning' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'search result')], total: 1 })
 
-    const { rerender } = render(<ArticlesPageContent />)
+    const { rerender } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
     currentSearchParams.current = new URLSearchParams()
@@ -131,7 +135,8 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'search result')], total: 1 })
 
     const { rerender } = render(
-      <ArticlesPageContent initialArticles={[article('seed', 'seeded listing')]} initialTotal={1} />
+      <ArticlesPageContent initialArticles={[article('seed', 'seeded listing')]} initialTotal={1} />,
+      { wrapper: SWRTestWrapper }
     )
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
@@ -148,7 +153,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
   it('does not render the exact-match-only checkbox when there is no active search', async () => {
     mockFetchArticles.mockResolvedValue({ items: [article('a1', 'normal listing')], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockFetchArticles).toHaveBeenCalledTimes(1))
 
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -163,14 +168,14 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'literal hit', true)], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
     const checkbox = await screen.findByRole('checkbox')
     expect(checkbox).toHaveAttribute('data-state', 'checked')
     expect(mockSearchArticles).toHaveBeenCalledWith(
       expect.objectContaining({ q: 'cyberattacks', exact_match_only: true }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
     expect(await screen.findByText('Literal Hit')).toBeInTheDocument()
   })
@@ -179,7 +184,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValueOnce({ items: [article('a1', 'literal hit', true)], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     await screen.findByText('Literal Hit')
 
@@ -193,7 +198,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(2))
     expect(mockSearchArticles).toHaveBeenLastCalledWith(
       expect.objectContaining({ q: 'cyberattacks', exact_match_only: false }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
     expect(await screen.findByText('Semantic Neighbor')).toBeInTheDocument()
     expect(screen.getByText('Literal Hit')).toBeInTheDocument()
@@ -203,7 +208,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'literal hit', true)], total: 1 })
 
-    const { container } = render(<ArticlesPageContent />)
+    const { container } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     await screen.findByRole('checkbox')
 
@@ -213,7 +218,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
   it('does not render the tooltip icon when there is no active search', async () => {
     mockFetchArticles.mockResolvedValue({ items: [article('a1', 'normal listing')], total: 1 })
 
-    const { container } = render(<ArticlesPageContent />)
+    const { container } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockFetchArticles).toHaveBeenCalledTimes(1))
 
     expect(container.querySelector('.cursor-help')).not.toBeInTheDocument()
@@ -228,14 +233,14 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'literal hit', true)], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     expect(mockSearchArticles).toHaveBeenCalledWith(
       expect.objectContaining({
         q: 'cyberattacks', aggregator: ['techcrunch'], tag: ['AI'], published_after: '2026-01-01',
       }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
   })
 
@@ -243,7 +248,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'result')], total: 1 })
 
-    const { rerender } = render(<ArticlesPageContent />)
+    const { rerender } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks', aggregator: 'techcrunch' })
@@ -252,7 +257,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(2))
     expect(mockSearchArticles).toHaveBeenLastCalledWith(
       expect.objectContaining({ aggregator: ['techcrunch'] }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
   })
 
@@ -260,7 +265,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'result')], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     const callArgs = mockSearchArticles.mock.calls[0][0]
@@ -272,12 +277,12 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks', sort: 'published_at', order: 'asc' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'result')], total: 1 })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     expect(mockSearchArticles).toHaveBeenCalledWith(
       expect.objectContaining({ sort: 'published_at', order: 'asc' }),
-      'en', 'test-token', expect.anything(),
+      'en', 'test-token',
     )
   })
 
@@ -292,7 +297,7 @@ describe('ArticlesPageContent — search (023-article-search)', () => {
       total: 1, // server already applied exact_match_only=true — total reflects just this
     })
 
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
     await screen.findByText('Literal Hit')
 
@@ -305,7 +310,7 @@ describe('ArticlesPageContent — locale change clears an active search', () => 
     currentSearchParams.current = new URLSearchParams({ q: 'cyberattacks' })
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'result')], total: 1 })
 
-    const { rerender } = render(<ArticlesPageContent />)
+    const { rerender } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
     const pushStateSpy = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
@@ -323,7 +328,7 @@ describe('ArticlesPageContent — locale change clears an active search', () => 
     mockSearchArticles.mockResolvedValue({ items: [article('a1', 'result')], total: 1 })
 
     const pushStateSpy = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockSearchArticles).toHaveBeenCalledTimes(1))
 
     expect(pushStateSpy).not.toHaveBeenCalled()
@@ -334,7 +339,7 @@ describe('ArticlesPageContent — locale change clears an active search', () => 
     currentSearchParams.current = new URLSearchParams()
     mockFetchArticles.mockResolvedValue({ items: [article('a1', 'listing')], total: 1 })
 
-    const { rerender } = render(<ArticlesPageContent />)
+    const { rerender } = render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(mockFetchArticles).toHaveBeenCalledTimes(1))
 
     const pushStateSpy = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})

@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch'
 import { TagModeSelector, type TagMode } from '@/components/features/tags/tag-mode-selector'
 import { useTopic, useI18n } from '@/lib/providers'
 import {
-  fetchTagGroups, fetchTagGroup, fetchPendingSuggestions, createTagGroup, moveTag, batchMoveTags,
+  fetchTagGroups, fetchTagGroup, createTagGroup, moveTag, batchMoveTags,
   reorderTagGroups,
   type TagGroupOut, type SuggestionOut, type TagGroupCreate, type TagOut,
 } from '@/lib/api/tags'
+import { useTagGroupsFeed } from '@/hooks/use-tag-groups-feed'
 import { TagGroupCard } from '@/components/features/tags/tag-group-card'
 import { PendingSuggestions } from '@/components/features/tags/pending-suggestions'
 import { PendingChangesPanel } from '@/components/features/tags/pending-changes-panel'
@@ -427,9 +428,6 @@ export default function TagsPageContent({ initialGroups }: TagsPageContentProps)
   const [suggestions, setSuggestions] = useState<SuggestionOut[]>([])
   const [loading, setLoading] = useState(!hasSeed)
   const [showAddGroup, setShowAddGroup] = useState(false)
-  // Consumed on the fetch effect's first run that actually reaches the real fetch — skips
-  // exactly the one fetch that would otherwise duplicate the SSR-seeded groups.
-  const skipNextFetch = useRef(hasSeed)
 
   const [tagMode, setTagMode] = useState<TagMode>(
     (selectedTopic?.tag_mode ?? 'unsupervised') as TagMode
@@ -752,30 +750,49 @@ export default function TagsPageContent({ initialGroups }: TagsPageContentProps)
     }
   }
 
+  const topicId = selectedTopic?.id
+  const includeSimilarity = isAdmin && showSimilarities
+
+  // fallbackData is only wired up for the exact (topicId, includeSimilarity) combination the
+  // very first render started with — i.e. still what app/tags/page.tsx's SSR fetch used. The
+  // moment either changes (topic switch, similarities toggle) this permanently flips and every
+  // future load fetches for real — mirrors the old skipNextFetch ref's "skip exactly one
+  // duplicate fetch" semantics, without needing to match on session/token timing.
+  // Uses React's "adjust state during rendering" pattern (state, not a mutated ref, so reading it
+  // during render stays pure) — see https://react.dev/reference/react/useState#storing-information-from-previous-renders.
+  const currentFeedFingerprint = JSON.stringify({ topicId: topicId ?? null, includeSimilarity })
+  const [initialFeedFingerprint] = useState(() => currentFeedFingerprint)
+  const [feedDiverged, setFeedDiverged] = useState(false)
+  if (!feedDiverged && currentFeedFingerprint !== initialFeedFingerprint) setFeedDiverged(true)
+  const [feedSeed] = useState(() => (
+    hasSeed ? { groups: initialGroups!, suggestions: [] as SuggestionOut[] } : undefined
+  ))
+  const feedFallbackData = feedDiverged ? undefined : feedSeed
+
+  const { data: feedData } = useTagGroupsFeed({
+    enabled: !isGuest && status !== 'loading',
+    topicId, includeSimilarity, isAdmin, token,
+    fallbackData: feedFallbackData,
+  })
+
+  // Local groups/suggestions stay fully local/optimistic once loaded (unchanged from before this
+  // hook existed — every drag/merge/move handler below mutates them directly, not through SWR's
+  // cache) — this effect only ever *replaces* them wholesale when the (topicId, includeSimilarity)
+  // combination itself changes, exactly matching the old effect's re-fetch-and-replace triggers.
+  // A background revalidation of the *same* combination updating feedData does NOT re-run this
+  // (syncedFingerprintRef already matches), so it can never clobber an in-progress drag/pending
+  // move with stale-relative-to-local-edits server data.
+  const syncedFingerprintRef = useRef<string | null>(null)
   useEffect(() => {
     if (isGuest) { setLoading(false); return }
-    // Session resolution is itself async (useSession() starts at status: 'loading' with
-    // token: undefined even for an already-signed-in visitor) — waiting for it to settle
-    // before consuming skipNextFetch is what keeps the *real* first fetch (not this
-    // transient one) from being the one that discards the SSR-seeded groups.
     if (status === 'loading') return
-    if (skipNextFetch.current) {
-      skipNextFetch.current = false
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const topicId = selectedTopic?.id
-    let cancelled = false
-    Promise.all([
-      fetchTagGroups(topicId, isAdmin && showSimilarities),
-      isAdmin && token ? fetchPendingSuggestions(token) : Promise.resolve([]),
-    ])
-      .then(([g, s]) => { if (!cancelled) { setGroups(g); setSuggestions(s) } })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [selectedTopic?.id, isAdmin, token, isGuest, showSimilarities, status])
+    if (!feedData) { setLoading(true); return }
+    if (syncedFingerprintRef.current === currentFeedFingerprint) return
+    syncedFingerprintRef.current = currentFeedFingerprint
+    setGroups(feedData.groups)
+    setSuggestions(feedData.suggestions)
+    setLoading(false)
+  }, [feedData, currentFeedFingerprint, isGuest, status])
 
   // Cancel merge mode on Escape
   useEffect(() => {

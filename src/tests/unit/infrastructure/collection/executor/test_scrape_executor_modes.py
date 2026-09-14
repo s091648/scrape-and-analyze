@@ -4,10 +4,12 @@ Tests for the new ScrapeExecutor modes added in PR #60:
   - run_fetch_only()        — fetch pre-built FetchTasks
   - _discover_worker_loop_collect — used internally by run_discover
 """
+import queue as queue_module
 from unittest.mock import MagicMock
 
 from src.infrastructure.collection.executor.discover_task import DiscoverTask
 from src.infrastructure.collection.executor.fetch_task import FetchTask
+from src.infrastructure.collection.executor.host_queue_map import HostQueueMap
 from src.infrastructure.collection.executor.scrape_executor import ScrapeExecutor
 from src.infrastructure.collection.clients.arxiv_client import ArxivRateLimitedError
 from src.modules.collection.domain.entities import ScrapeJob
@@ -152,6 +154,61 @@ def test_run_fetch_only_handles_task_exception_gracefully():
     collected = []
     executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
     total = executor.run_fetch_only([bad_task], on_result=collected.append)
+
+    assert total == 0
+    assert collected == []
+
+
+def test_run_fetch_only_handles_on_result_exception_gracefully():
+    """FetchTask.execute() itself swallows its own scraper errors (returns
+    None) — the only way the fetch worker's outer except Exception (which
+    records the OTel span as ERROR) fires for a real FetchTask is a failure
+    in on_result() itself, after a successful fetch."""
+    tasks = [_make_fetch_task("https://boom.com/1", "src")]
+
+    def _raising_on_result(article):
+        raise RuntimeError("on_result blew up")
+
+    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    total = executor.run_fetch_only(tasks, on_result=_raising_on_result)
+
+    # The task's own fetch succeeded; on_result's failure doesn't count it,
+    # but must not crash the worker or the run.
+    assert total == 0
+
+
+def test_fetch_worker_handles_queue_empty_race_after_claim():
+    """Defensive path: _try_claim() confirmed the queue non-empty and holds
+    its semaphore, but another thread could in principle still have drained
+    it before get_nowait() runs — the worker must catch queue.Empty, record
+    it on the span, and move on instead of crashing."""
+    class _RacyQueue:
+        """Reports non-empty once (so _try_claim claims it), then raises
+        queue.Empty from get_nowait() — simulating the race — and reports
+        empty afterwards so the worker loop can cleanly terminate.
+        qsize() is needed too — WeightedRoundRobinQueueSelector (the default
+        selector) calls it to rank candidates before _try_claim ever checks
+        empty()/get_nowait()."""
+        def __init__(self):
+            self._raised = False
+
+        def empty(self):
+            return self._raised
+
+        def qsize(self):
+            return 0 if self._raised else 1
+
+        def get_nowait(self):
+            self._raised = True
+            raise queue_module.Empty()
+
+    host_queue_map = HostQueueMap()
+    idx = host_queue_map.get_or_create("racy.com")
+    host_queue_map.queues[idx] = _RacyQueue()
+
+    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    collected = []
+    total = executor._run_fetch_workers(host_queue_map, on_result=collected.append)
 
     assert total == 0
     assert collected == []

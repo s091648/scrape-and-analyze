@@ -2,7 +2,8 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, distinct, text
+from sqlalchemy import delete, distinct, func, literal, select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from backend.schemas.tag import TagOut, SimilarGroupOut, TagGroupOut
@@ -156,12 +157,13 @@ def lock_tags_for_update(db: Session, tag_ids) -> None:
     touches them (approve_suggestion(s_batch), merge_tag_groups). Always locks in a
     stable id order — two transactions locking the same tags in different orders is
     exactly how you deadlock instead of just serializing."""
+    from models.tag import Tag
+
     ids = sorted({str(t) for t in tag_ids if t is not None})
     if not ids:
         return
     db.execute(
-        text("SELECT id FROM tags WHERE id = ANY(CAST(:ids AS uuid[])) ORDER BY id FOR UPDATE"),
-        {"ids": ids},
+        select(Tag.id).where(Tag.id.in_(ids)).order_by(Tag.id).with_for_update()
     )
 
 
@@ -180,40 +182,76 @@ def repoint_pending_suggestions_before_tag_delete(
     them here first is what stops that cascade from destroying merge intent that
     was never actually resolved.
     """
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion as TNS
+
     dropped_id = str(dropped_tag_id)
     keep_id = str(keep_tag_id)
-    exclude_clause = "AND id != :exclude_id" if exclude_suggestion_id is not None else ""
-    params = {"existing_id": keep_id, "new_id": dropped_id}
-    if exclude_suggestion_id is not None:
-        params["exclude_id"] = str(exclude_suggestion_id)
+
+    def _pending(*extra):
+        conds = [TNS.status == "pending", *extra]
+        if exclude_suggestion_id is not None:
+            conds.append(TNS.id != str(exclude_suggestion_id))
+        return conds
+
+    # These bulk statements deliberately don't sync the ORM session (matching the
+    # old raw SQL) — the merge/approve flows commit right after and never re-read
+    # these rows in the same unit of work.
+    _no_sync = {"synchronize_session": False}
 
     # A reciprocal pending suggestion (new_tag_id = keep_tag, existing_tag_id =
     # dropped_tag) would be turned into a self-referential row — both IDs = keep_tag
     # — by the repoint below, and later approval of that row would then delete
     # keep_tag itself along with its article links. This merge already resolves the
     # pair, so drop those rows outright before repointing.
-    db.execute(text(f"""
-        DELETE FROM tag_normalization_suggestions
-        WHERE existing_tag_id = :new_id AND new_tag_id = :existing_id
-          AND status = 'pending' {exclude_clause}
-    """), params)
+    db.execute(
+        delete(TNS)
+        .where(*_pending(TNS.existing_tag_id == dropped_id, TNS.new_tag_id == keep_id))
+        .execution_options(**_no_sync)
+    )
 
     # Any other pending suggestion pointing at dropped_tag as ITS existing_tag would
     # otherwise be cascade-deleted when dropped_tag is removed — repoint it at
     # keep_tag so it survives to be approved/rejected later.
-    db.execute(text(f"""
-        UPDATE tag_normalization_suggestions
-        SET existing_tag_id = :existing_id
-        WHERE existing_tag_id = :new_id AND status = 'pending' {exclude_clause}
-    """), params)
+    db.execute(
+        update(TNS)
+        .where(*_pending(TNS.existing_tag_id == dropped_id))
+        .values(existing_tag_id=keep_id)
+        .execution_options(**_no_sync)
+    )
 
     # Any other pending suggestion for the very same dropped_tag is redundant — this
     # merge already resolves that tag, so drop it rather than let the cascade below
     # silently remove it without ever recording a decision.
-    db.execute(text(f"""
-        DELETE FROM tag_normalization_suggestions
-        WHERE new_tag_id = :new_id AND status = 'pending' {exclude_clause}
-    """), params)
+    db.execute(
+        delete(TNS)
+        .where(*_pending(TNS.new_tag_id == dropped_id))
+        .execution_options(**_no_sync)
+    )
+
+
+def _absorb_tag(db: Session, keep_tag_id, drop_tag_id) -> None:
+    """Re-point every article_tags link from drop_tag onto keep_tag (skipping links
+    keep_tag already has), then delete drop_tag and its now-orphaned links. The
+    session is intentionally not synced — callers flush()/commit() right after and
+    don't re-read these rows in the same unit of work."""
+    from models.tag import Tag, article_tags
+
+    keep_id = str(keep_tag_id)
+    drop_id = str(drop_tag_id)
+
+    moved_links = select(
+        article_tags.c.article_id,
+        literal(keep_id, type_=article_tags.c.tag_id.type),
+    ).where(article_tags.c.tag_id == drop_id)
+    db.execute(
+        pg_insert(article_tags)
+        .from_select(["article_id", "tag_id"], moved_links)
+        .on_conflict_do_nothing()
+    )
+    db.execute(delete(article_tags).where(article_tags.c.tag_id == drop_id))
+    db.execute(
+        delete(Tag).where(Tag.id == drop_id).execution_options(synchronize_session=False)
+    )
 
 
 def merge_tag_groups(
@@ -233,8 +271,10 @@ def merge_tag_groups(
     # touching either group serializes instead of racing with this one.
     group_ids_sorted = sorted([str(group_a_id), str(group_b_id)])
     db.execute(
-        text("SELECT id FROM tag_group_definitions WHERE id = ANY(CAST(:ids AS uuid[])) ORDER BY id FOR UPDATE"),
-        {"ids": group_ids_sorted},
+        select(TagGroupDefinition.id)
+        .where(TagGroupDefinition.id.in_(group_ids_sorted))
+        .order_by(TagGroupDefinition.id)
+        .with_for_update()
     )
 
     group_a = db.query(TagGroupDefinition).filter_by(id=group_a_id).first()
@@ -283,7 +323,7 @@ def merge_tag_groups(
 
     # Lock every tag under the source groups and the destination group up front (stable
     # id order) so a concurrent approve/merge touching one of the same tags can't
-    # interleave with the raw DELETE/INSERT statements below.
+    # interleave with the link-move / delete statements below.
     candidate_tag_ids = [
         row[0] for row in db.query(Tag.id).filter(
             Tag.tag_group_id.in_(source_ids + [result_group.id])
@@ -297,13 +337,7 @@ def merge_tag_groups(
         if t.name in seen:
             keep, drop = seen[t.name], t
             repoint_pending_suggestions_before_tag_delete(db, dropped_tag_id=drop.id, keep_tag_id=keep.id)
-            db.execute(text("""
-                INSERT INTO article_tags (article_id, tag_id)
-                SELECT article_id, :keep FROM article_tags WHERE tag_id = :drop
-                ON CONFLICT DO NOTHING
-            """), {"keep": str(keep.id), "drop": str(drop.id)})
-            db.execute(text("DELETE FROM article_tags WHERE tag_id = :drop"), {"drop": str(drop.id)})
-            db.execute(text("DELETE FROM tags WHERE id = :drop"), {"drop": str(drop.id)})
+            _absorb_tag(db, keep_tag_id=keep.id, drop_tag_id=drop.id)
         else:
             seen[t.name] = t
     db.flush()
@@ -315,13 +349,7 @@ def merge_tag_groups(
         if name in seen:
             drop = seen.pop(name)
             repoint_pending_suggestions_before_tag_delete(db, dropped_tag_id=drop.id, keep_tag_id=existing_t.id)
-            db.execute(text("""
-                INSERT INTO article_tags (article_id, tag_id)
-                SELECT article_id, :keep FROM article_tags WHERE tag_id = :drop
-                ON CONFLICT DO NOTHING
-            """), {"keep": str(existing_t.id), "drop": str(drop.id)})
-            db.execute(text("DELETE FROM article_tags WHERE tag_id = :drop"), {"drop": str(drop.id)})
-            db.execute(text("DELETE FROM tags WHERE id = :drop"), {"drop": str(drop.id)})
+            _absorb_tag(db, keep_tag_id=existing_t.id, drop_tag_id=drop.id)
     db.flush()
 
     db.query(Tag).filter(

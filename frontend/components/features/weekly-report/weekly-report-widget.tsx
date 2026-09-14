@@ -9,7 +9,8 @@ import {
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, MessageSquare, Newspaper, Sparkles } from 'lucide-react'
 import { WeeklyReportSkeleton } from './weekly-report-skeleton'
 import { WeeklyReportStepper } from './weekly-report-stepper'
-import { fetchLatestWeeklyReport, fetchWeeklyReportByWeek, fetchWeeklyReports, fetchWeeklyReportWeeks, type WeeklyReport } from '@/lib/api/weekly-reports'
+import { fetchWeeklyReportByWeek, type WeeklyReport } from '@/lib/api/weekly-reports'
+import { useWeeklyReportFeed, type WeeklyReportFeedResult } from '@/hooks/use-weekly-report-feed'
 import { useI18n, usePinnedReport } from '@/lib/providers'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CitedContent } from '@/components/features/chat/cited-content'
@@ -62,10 +63,18 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
   const [reports, setReports] = useState<WeeklyReport[]>(initialReport ? [initialReport] : [])
   const [selectedId, setSelectedId] = useState<string | null>(initialReport?.id ?? null)
   const [loading, setLoading] = useState(false)
-  // Consumed on the effect's first run only — suppresses the loading-skeleton flash for a report
-  // we've already been seeded with server-side, while still letting that first run's background
-  // fetch (full reports list, available weeks) proceed normally.
-  const hasSeededReport = useRef(!!initialReport)
+  // Mirrors `reports` for use inside the sync effect below without listing it as a dependency
+  // (that effect must only re-run when the feed itself changes, not on every local mutation
+  // handleJumpToWeek makes to `reports`) — same pattern as tags-page-content.tsx's currentGroupsRef.
+  const reportsRef = useRef<WeeklyReport[]>(reports)
+  useEffect(() => { reportsRef.current = reports }, [reports])
+  // The rotateY entrance flip below should only play when the user switches to a
+  // *different* report — never on this component's own first render, where the card
+  // content is already in the SSR HTML / already on screen. A post-hydration remount
+  // (locale resolving late, a hydration mismatch) would otherwise re-run the whole
+  // "panel opens" animation.
+  const isFirstReportRender = useRef(true)
+  useEffect(() => { isFirstReportRender.current = false }, [])
   const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
   const [collapsed, setCollapsed] = useState(false)
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
@@ -132,59 +141,79 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
     if (next === 'chat') setHasUnreadChatResponse(false)
   }
 
+  // SSR seed for the very first paint (app/page.tsx's fetchWeeklyReportSSR) — see
+  // use-weekly-report-feed.ts's doc comment on why this doesn't skip the real background fetch,
+  // only the loading-skeleton flash. Stable across the component's lifetime (useState lazy init)
+  // so its object identity can be compared against later to tell "still the seed" from "a real
+  // fetch resolved" — see the sync effect below.
+  const [feedFallbackData] = useState<WeeklyReportFeedResult | undefined>(() => (
+    initialReport && !initialWeek
+      ? { latest: initialReport, reports: [initialReport], availableWeeks: [], deepLinkedReport: null }
+      : undefined
+  ))
+
+  const { data: feedData } = useWeeklyReportFeed({
+    enabled: !!topicId,
+    topicId, locale, initialWeek,
+    fallbackData: feedFallbackData,
+  })
+
+  const feedFingerprint = JSON.stringify({ topicId, locale, initialWeek: initialWeek ?? null })
+  // Tracks what's already been applied to local state so a background revalidation (focus/
+  // reconnect firing on the *same* fingerprint) never clobbers a manual handleJumpToWeek
+  // selection — only a genuine fingerprint change (topic/locale/initialWeek) or the one-time
+  // fallback→real-data upgrade re-syncs. Both refs are mutated only inside the effect below,
+  // never during render.
+  const syncedFingerprintRef = useRef<string | null>(null)
+  const processedRealDataForRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!topicId) return
-    let cancelled = false
-    // Only the very first run of this effect can be a no-flash seeded run, and only when no
-    // specific deep-linked week was requested (that path needs its own fetch regardless).
-    const skipLoadingFlash = hasSeededReport.current && !initialWeek
-    hasSeededReport.current = false
-
-    async function load() {
+    if (!feedData) {
+      // A deep-linked initialWeek always forces its own fetch/skeleton, even if the currently
+      // selected report happens to already be in `reports` (e.g. still the seeded one) — it
+      // targets a specific different week, so showing stale content here would be misleading.
+      const hasContent = reportsRef.current.some(r => r.id === selectedId)
+      const skipLoadingFlash = hasContent && !initialWeek
       if (!skipLoadingFlash) setLoading(true)
-      try {
-        const [latestResult, listResult] = await Promise.allSettled([
-          fetchLatestWeeklyReport(topicId as string, locale),
-          fetchWeeklyReports(topicId as string, 10, 0, locale),
-        ])
-        if (cancelled) return
-        if (listResult.status === 'fulfilled') {
-          setReports(listResult.value.items)
-        } else if (!initialReport) {
-          setReports([])
-        }
-        // A rejected listResult with an initialReport keeps the seeded report visible
-        // instead of blanking the card to "no report yet" over a transient failure.
-        const list = listResult.status === 'fulfilled' ? listResult.value.items : reports
+      return
+    }
+    const isFallback = feedData === feedFallbackData
+    const alreadySyncedFallback = isFallback && syncedFingerprintRef.current === feedFingerprint
+    const alreadyProcessedReal = !isFallback && processedRealDataForRef.current === feedFingerprint
+    if (alreadySyncedFallback || alreadyProcessedReal) return
+    syncedFingerprintRef.current = feedFingerprint
+    if (!isFallback) processedRealDataForRef.current = feedFingerprint
 
-        fetchWeeklyReportWeeks(topicId as string).then(weeks => {
-          if (!cancelled) setAvailableWeeks(new Set(weeks.map(w => w.slice(0, 10))))
-        })
+    // A `reports: null` feed result (list fetch itself failed) with an initialReport keeps the
+    // seeded report visible instead of blanking the card to "no report yet" over a transient
+    // failure — matches the pre-SWR load()'s same comment.
+    if (feedData.reports !== null) {
+      setReports(feedData.reports)
+    } else if (!initialReport) {
+      setReports([])
+    }
+    const list = feedData.reports ?? reportsRef.current
+    setAvailableWeeks(new Set(feedData.availableWeeks.map(w => w.slice(0, 10))))
 
-        if (initialWeek) {
-          const match = list.find(r => r.week_start_date.slice(0, 10) === initialWeek)
-          const target = match ?? (await fetchWeeklyReportByWeek(topicId as string, initialWeek, locale))
-          if (cancelled) return
-          if (target) {
-            if (!match) setReports(prev => mergeReport(prev, target))
-            setSelectedId(target.id)
-            return
-          }
-        }
-
-        if (latestResult.status === 'fulfilled' && latestResult.value) {
-          setSelectedId(latestResult.value.id)
-        } else if (list.length > 0) {
-          setSelectedId(list[0].id)
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
+    if (initialWeek) {
+      const match = list.find(r => r.week_start_date.slice(0, 10) === initialWeek)
+      const target = match ?? feedData.deepLinkedReport
+      if (target) {
+        if (!match) setReports(prev => mergeReport(prev, target))
+        setSelectedId(target.id)
+        setLoading(false)
+        return
       }
     }
 
-    void load()
-    return () => { cancelled = true }
-  }, [topicId, locale, initialWeek, initialReport])
+    if (feedData.latest) {
+      setSelectedId(feedData.latest.id)
+    } else if (list.length > 0) {
+      setSelectedId(list[0].id)
+    }
+    setLoading(false)
+  }, [feedData, feedFingerprint, topicId, initialWeek, initialReport, feedFallbackData, selectedId])
 
   async function handleJumpToWeek(monday: Date) {
     if (!topicId) return
@@ -268,7 +297,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
         <AnimatePresence mode="wait">
           <motion.div
             key={selected.id}
-            initial={{ rotateY: -90, opacity: 0 }}
+            initial={isFirstReportRender.current ? false : { rotateY: -90, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
             exit={{ rotateY: 90, opacity: 0 }}
             transition={{ duration: 0.35, ease: 'easeInOut' }}

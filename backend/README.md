@@ -24,7 +24,7 @@ backend/
 │   └── handlers.py              # Central DomainError → HTTP status mapping (see below)
 ├── middleware/
 │   └── logging.py               # Structured request/response logging (structlog)
-├── routers/                     # 15 routers, one per resource — see table below
+├── routers/                     # 16 routers, one per resource — see table below
 ├── schemas/                     # Pydantic request/response models, one file per resource
 └── services/                    # Business logic called by routers
 ```
@@ -79,9 +79,10 @@ Every domain exception raised anywhere in `src/`/`backend/` subclasses `DomainEr
 | `languages.py` | — | `require_any_token` |
 | `llm_providers.py` | `/llm-providers` | All `require_admin` |
 | `metric_definitions.py` | — | `GET /metric-definitions` public; `/admin/metric-definitions` `require_admin` |
-| `monitoring.py` | — | **No auth dependency** — a gap, not a designed public tier (every sibling data router was migrated to `require_any_token`; this one appears to have been missed) |
+| `monitoring.py` | — | `GET /failed-tasks` `require_admin` |
 | `scraper_keywords.py` | `/scraper-keywords` | All `require_admin` |
 | `scraper_settings.py` | `/scraper-settings` | All `require_admin` |
+| `search.py` | — | `GET /search` + `GET /search/autocomplete` `require_any_token` |
 | `tags.py` | — | Read (`GET /tag-groups*`) `require_any_token`; writes `require_admin` |
 | `topics.py` | `/topics` | `GET /topics` `require_any_token`; writes `require_admin` |
 | `user.py` | `/user` | All `require_user` (guest tokens rejected — these are account-scoped) |
@@ -232,6 +233,13 @@ All `require_admin`. Each returns `503 {"error": "not_configured"}` if the relev
 | `GET` | `/grafana/traces/{trace_id}` | Single trace detail |
 | `POST` | `/grafana/traces/batch` | Batch trace queries |
 
+### Search
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/search` | any token | Full-text article search (pg_trgm / `search_terms`); paginated, filters by `topic_id`, `lang` |
+| `GET` | `/search/autocomplete` | any token | Term suggestions for a `prefix` (`topic_id`, `lang`); capped at `SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN` |
+
 ### Other
 
 | Method | Path | Auth | Description |
@@ -254,8 +262,9 @@ All `require_admin`. Each returns `503 {"error": "not_configured"}` if the relev
 |---------|------|
 | Production | `Dockerfile` (multi-stage; downloads MaxMind GeoLite2 DB) |
 | Development | `Dockerfile.dev` |
-| Config | `railway.toml` (Railway service definition) |
+| Build stub | `backend/railway.toml` (`[build]` dockerfile pointer only) |
+| Deploy config | `.railway/railway.ts` (`railway config plan/apply`) — env vars, restart policy, etc. |
 
 Deployed via this monorepo's CI (`railway up` — staging on PR, production on version tag; see the root `.specify/memory/constitution.md` Principle V), not Railway's own branch-watch auto-deploy.
 
-Environment variables read by `backend/config.py` (19 total): `DATABASE_URL`, `FRONTEND_ORIGIN`, `VIEW_COUNT_FLUSH_INTERVAL`, `SWAGGER_TRY_IT_OUT_ENABLED`, `NEXTAUTH_SECRET`, `APP_ENV`, `REDIS_URL`, `CHAT_SERVICE_URL`, `CHAT_SERVICE_API_KEY`, `GEMINI_API_KEY`, `SENTRY_DSN`, `GRAFANA_PROMETHEUS_URL`, `GRAFANA_PROMETHEUS_USER`, `GRAFANA_API_KEY`, `GRAFANA_LOKI_URL`, `GRAFANA_LOKI_USER`, `GRAFANA_TEMPO_URL`, `GRAFANA_TEMPO_USER`, `GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_USER`. Required at minimum: `DATABASE_URL`, `NEXTAUTH_SECRET`, `FRONTEND_ORIGIN`. Default port: `8000` (overridable via `PORT`).
+Environment variables are all read in `backend/config.py` (no `os.environ` reads elsewhere — 025-iac-provisioning FR-017). **Required at minimum:** `DATABASE_URL`, `NEXTAUTH_SECRET`, `FRONTEND_ORIGIN`. **Optional, by concern:** chat proxy (`CHAT_SERVICE_URL`, `CHAT_SERVICE_API_KEY`), caching / search index (`REDIS_URL`, `CACHE_REDIS_URL`, `SEARCH_INDEX_REDIS_URL`, `SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN`, `VIEW_COUNT_FLUSH_INTERVAL`), RAG (`RAG_DENSE_*`, `RAG_SPARSE_*`), observability (`SENTRY_DSN`, `GRAFANA_*`, `GEOIP_DB_PATH`), misc (`APP_ENV`, `GEMINI_API_KEY`, `SWAGGER_TRY_IT_OUT_ENABLED`). See `backend/config.py` for the authoritative list and defaults. Default port: `8000` (overridable via `PORT`).

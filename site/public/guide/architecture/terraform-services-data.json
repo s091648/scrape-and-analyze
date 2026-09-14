@@ -344,7 +344,7 @@
       "key": "dashboard_backend",
       "service_name": "dashboard-backend",
       "cron_schedule": null,
-      "start_command": ".venv/bin/uvicorn backend.main:app --host :: --port 8000",
+      "start_command": ".venv/bin/uvicorn backend.main:app --host '' --port 8000",
       "restart_policy": null,
       "network_endpoint": "dashboard-backend2",
       "deploy_config_source": ".railway/railway.ts",
@@ -2898,6 +2898,12 @@
           "value": null
         },
         {
+          "name": "DRAWIO_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
           "name": "RAILWAY_SERVICE_ID_CHATBOT_PLUGIN",
           "managed": true,
           "sensitive": false,
@@ -3029,6 +3035,12 @@
       "variables": [
         {
           "name": "BACKEND_URL",
+          "managed": true,
+          "sensitive": false,
+          "value": null
+        },
+        {
+          "name": "DRAWIO_URL",
           "managed": true,
           "sensitive": false,
           "value": null

@@ -51,9 +51,10 @@ class ArticleScrapedHandler:
 
             span.set_attribute("article.outcome", outcome.value)
             if outcome == ArticleOutcome.FAILED:
+                # ProcessScrapedArticleUseCase.execute() already logs
+                # "article_save_failed" with the underlying exception detail —
+                # this branch owns the span status only, not a second log line.
                 span.set_status(StatusCode.ERROR, "article scrape outcome: failed")
-                logger.error("article_scrape_failed", url=event.url, source=event.source,
-                             original_source=original_source)
             elif outcome == ArticleOutcome.DUPLICATE:
                 logger.info("article_duplicate_skipped", url=event.url, source=event.source,
                             original_source=original_source)

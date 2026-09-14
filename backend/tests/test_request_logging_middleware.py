@@ -262,6 +262,101 @@ def test_middleware_sets_valid_uuid4_request_id():
     assert str(parsed) == request_id
 
 
+# ── cache_status rollup ───────────────────────────────────────────────────────
+# RedisCacheGateway.get_or_set() records each lookup's outcome (see
+# shared/cache/request_cache_status.py); the middleware folds them into one
+# `cache_status` field on the request line so the Logs table gets a Cache column
+# without joining against the separate cache_lookup events.
+
+def _app_recording_cache_lookups(*statuses):
+    """One-route app whose handler simulates `statuses` cache lookups (exactly as
+    RedisCacheGateway.get_or_set() would) before responding."""
+    from backend.middleware.logging import RequestLoggingMiddleware
+    from shared.cache.request_cache_status import record_cache_lookup
+
+    async def route(request):
+        for s in statuses:
+            record_cache_lookup(s)
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/", route)])
+    app.add_middleware(RequestLoggingMiddleware)
+    return app
+
+
+def test_middleware_omits_cache_status_when_request_makes_no_lookups():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/")
+    assert "cache_status" not in mock_logger.info.call_args.kwargs
+
+
+def test_middleware_logs_cache_status_for_single_lookup():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(_app_recording_cache_lookups("HIT"))
+        client.get("/")
+    assert mock_logger.info.call_args.kwargs.get("cache_status") == "HIT"
+
+
+def test_middleware_folds_agreeing_cache_lookups_into_one_status():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(_app_recording_cache_lookups("HIT", "HIT"))
+        client.get("/")
+    assert mock_logger.info.call_args.kwargs.get("cache_status") == "HIT"
+
+
+def test_middleware_marks_cache_status_partial_when_lookups_disagree():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(_app_recording_cache_lookups("HIT", "MISS"))
+        client.get("/")
+    assert mock_logger.info.call_args.kwargs.get("cache_status") == "PARTIAL"
+
+
+def test_middleware_cache_status_is_armed_fresh_per_request():
+    """A HIT on one request must not bleed onto the next request that makes no
+    lookups (the test client can reuse the same worker thread / task)."""
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        TestClient(_app_recording_cache_lookups("HIT")).get("/")
+        assert mock_logger.info.call_args.kwargs.get("cache_status") == "HIT"
+        TestClient(make_app()).get("/")
+        assert "cache_status" not in mock_logger.info.call_args.kwargs
+
+
+# ── route template (by-endpoint dashboard aggregation) ───────────────────────
+
+def test_middleware_logs_route_template_and_raw_path_for_parametrized_route():
+    """`route` collapses per-id URLs to the matched template so the monitoring dashboard's
+    by-endpoint panels don't fragment; `path` still carries the concrete URL."""
+    async def item(request):
+        return PlainTextResponse("ok")
+
+    from backend.middleware.logging import RequestLoggingMiddleware
+    app = Starlette(routes=[Route("/tag-groups/{group_id}", item)])
+    app.add_middleware(RequestLoggingMiddleware)
+
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(app)
+        client.get("/tag-groups/2058f94a-94cd-4d9e-9ae0-08221234abcd")
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs["route"] == "/tag-groups/{group_id}"
+    assert kwargs["path"] == "/tag-groups/2058f94a-94cd-4d9e-9ae0-08221234abcd"
+
+
+def test_middleware_route_equals_path_for_static_route():
+    with patch("backend.middleware.logging.logger") as mock_logger, \
+         patch("shared.utils.geoip.get_geo", return_value={}):
+        client = TestClient(make_app())
+        client.get("/")
+    kwargs = mock_logger.info.call_args.kwargs
+    assert kwargs["route"] == "/" == kwargs["path"]
+
+
 # ── Streaming pass-through (regression) ─────────────────────────────────────────
 # This middleware is deliberately pure ASGI, not starlette.middleware.base.BaseHTTPMiddleware —
 # BaseHTTPMiddleware relays the downstream response through an internal buffer to hand dispatch()

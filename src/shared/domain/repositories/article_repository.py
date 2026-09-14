@@ -36,10 +36,14 @@ class AsyncArticleRepository(Protocol):
     """024-async-pipeline-refactor: async sibling, not a replacement for
     ArticleRepository above (still used by the batched fetch/dedup phase's
     find_analyzed_url_hashes, which stays sync — FR-003 — so it is
-    deliberately NOT mirrored here). Covers only what
+    deliberately NOT mirrored here). Covers what
     ProcessScrapedArticleUseCase/DedupService actually call per-article in
     the now-concurrent downstream path: find_by_url_hash + has_analysis
     (dedup check) and save. See contracts/async-repository-ports.md.
+
+    find_by_id added for the translation fan-out (AnalysisCompletedHandler
+    fetching its own article title/content now that translation no longer
+    goes through TagNormalizationHandler's relay of those fields).
     """
 
     async def find_by_url_hash(self, url_hash: str) -> Optional[Article]:
@@ -49,4 +53,7 @@ class AsyncArticleRepository(Protocol):
         ...
 
     async def has_analysis(self, article_id: UUID) -> bool:
+        ...
+
+    async def find_by_id(self, article_id: UUID) -> Optional[Article]:
         ...

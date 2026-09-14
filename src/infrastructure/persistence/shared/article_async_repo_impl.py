@@ -49,3 +49,12 @@ class AsyncSqlAlchemyArticleRepository(AsyncArticleRepository):
             select(Analysis.id).filter_by(article_id=article_id)
         )
         return result.scalars().first() is not None
+
+    async def find_by_id(self, article_id) -> Optional[Article]:
+        """Look up an article by its primary key; returns None if not found."""
+        from models.article import Article as ArticleModel
+        result = await self._session.execute(
+            select(ArticleModel).filter_by(id=article_id)
+        )
+        row = result.scalars().first()
+        return to_article_entity(row) if row else None

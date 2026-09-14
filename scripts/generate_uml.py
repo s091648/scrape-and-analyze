@@ -838,6 +838,110 @@ _STAGE_COLORS = ["#EEDD88", "#44BB99", "#44BB99", "#77AADD", "#EE8866", "#EE8866
 # Classes to skip when listing "related use cases" per stage
 _RELATED_SKIP = {"InMemoryEventBus", "PipelineStats", "FakeBus"}
 
+# ── Span-driven augmentation (024-async-pipeline-refactor) ─────────────────────
+# The subscribe()/publish() topology in bootstrap.py stopped being the whole
+# story once the async refactor moved two stages off the event-bus spine:
+#   - RAG ingestion is dispatched as a bare callable (CollectionPipeline
+#     ._dispatch_rag, passed into article_downstream_builder as `dispatch_rag`)
+#     that fires a detached asyncio.Task — never `handler.handle`, so
+#     _find_handle_attr can't see it.
+#   - per-article translation runs inside AnalysisCompletedHandler.handle() as a
+#     direct use-case call; the handler is captured, but named after its trigger
+#     event ("Analysis Completed") rather than what it does.
+# Both ARE first-class in the OTel/Tempo trace via shared.enums.observability
+# .SpanName, so we lean on that: _build_class_span_map() records which SpanName
+# each handler opens, and _relabel_stages_from_spans() renames a stage when a
+# span reveals an action its class name hides. Keep this list aligned with the
+# SpanName enum — a span here that no handler opens is silently ignored.
+_SPAN_LABEL_OVERRIDES = {
+    # span value (SpanName.*.value) → (stage label, icon)
+    "article.translate.handle": ("Translation", "🌐"),
+    "article.rag_ingest": ("RAG Ingestion", "🧬"),
+}
+
+# subscribe() 2nd-arg names that are bare callables, not `<var>.handle`.
+#   name → (handler class to attribute the stage to, [related use-case classes])
+_BARE_CALLABLE_HANDLERS = {
+    "dispatch_rag": ("AsyncRagIngestionHandler", ["AsyncIngestArticleForRagUseCase"]),
+}
+
+
+def _load_span_name_values() -> dict[str, str]:
+    """SpanName.ARTICLE_RAG_INGEST → 'article.rag_ingest', parsed from
+    shared/enums/observability.py (the single source of truth, TS-mirrored and
+    test-locked). Empty on any parse failure — the span pass then just no-ops."""
+    path = REPO_ROOT / "shared" / "enums" / "observability.py"
+    out: dict[str, str] = {}
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except Exception:
+        return out
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.ClassDef) and node.name == "SpanName"):
+            continue
+        for stmt in node.body:
+            if (
+                isinstance(stmt, ast.Assign)
+                and len(stmt.targets) == 1
+                and isinstance(stmt.targets[0], ast.Name)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            ):
+                out[stmt.targets[0].id] = stmt.value.value
+    return out
+
+
+def _build_class_span_map() -> dict[str, list[str]]:
+    """{ClassName: [span value, ...]} — every span a class opens via
+    start_as_current_span(SpanName.X | "literal"), anywhere in its body (so a
+    handler's nested per-item spans like "article.translate.handle" count too),
+    de-duped in source order."""
+    span_values = _load_span_name_values()
+    result: dict[str, list[str]] = {}
+    for py_file in collect_py_files():
+        try:
+            tree = ast.parse(py_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for class_node in ast.walk(tree):
+            if not isinstance(class_node, ast.ClassDef):
+                continue
+            spans: list[str] = []
+            for sub in ast.walk(class_node):
+                if not (
+                    isinstance(sub, ast.Call)
+                    and isinstance(sub.func, ast.Attribute)
+                    and sub.func.attr == "start_as_current_span"
+                    and sub.args
+                ):
+                    continue
+                arg = sub.args[0]
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    spans.append(arg.value)
+                elif (
+                    isinstance(arg, ast.Attribute)
+                    and isinstance(arg.value, ast.Name)
+                    and arg.value.id == "SpanName"
+                ):
+                    spans.append(span_values.get(arg.attr, arg.attr))
+            if spans:
+                result[class_node.name] = list(dict.fromkeys(spans))
+    return result
+
+
+def _relabel_stages_from_spans(stages: list[dict], class_span_map: dict[str, list[str]]) -> None:
+    """Rename a stage in place when the span its handler opens names the action
+    more precisely than the handler class does (see _SPAN_LABEL_OVERRIDES).
+    Leaves every other stage's label/icon untouched — zero regression for the
+    stages the bootstrap topology already gets right."""
+    for st in stages:
+        handler = st.get("classes", [None])[0]
+        for span in class_span_map.get(handler, []):
+            if span in _SPAN_LABEL_OVERRIDES:
+                st["label"], st["icon"] = _SPAN_LABEL_OVERRIDES[span]
+                st["id"] = re.sub(r"[^a-z0-9]", "", st["label"].lower()) or st["id"]
+                break
+
 
 def _camel_to_label(name: str) -> str:
     """ArticleScrapedHandler → Article Scraped (strips trailing Handler)."""
@@ -955,12 +1059,22 @@ def build_pipeline_from_bootstrap() -> list[dict]:
             continue
         event_class = event_arg.id
         handler_var, handler_class = _find_handle_attr(call.args[1], var_to_class)
+        related_override: list[str] | None = None
+        if not handler_class and isinstance(call.args[1], ast.Name):
+            # Bare callable, e.g. `bus.subscribe(ArticleProcessedEvent, dispatch_rag)`
+            # — not a `<var>.handle`, so _find_handle_attr came back empty. Give the
+            # known ones (see _BARE_CALLABLE_HANDLERS) an explicit stage identity.
+            mapped = _BARE_CALLABLE_HANDLERS.get(call.args[1].id)
+            if mapped:
+                handler_class, related_override = mapped[0], list(mapped[1])
+                handler_var = ""
         if handler_class and handler_class[0].isupper():
             # Skip factory functions (lowercase first char) like build_notification_handler()
             subscriptions.append({
                 "event": event_class,
                 "handler_class": handler_class,
                 "handler_var": handler_var or "",
+                **({"related_override": related_override} if related_override is not None else {}),
             })
 
     if not subscriptions:
@@ -968,8 +1082,9 @@ def build_pipeline_from_bootstrap() -> list[dict]:
 
     print(f"Pipeline: found {len(subscriptions)} event subscriptions in bootstrap.py")
 
-    # ── 3. Scan handler sources for published events ───────────────────────────
+    # ── 3. Scan handler sources for published events + opened spans ────────────
     class_publish_map = _build_class_publish_map()
+    class_span_map = _build_class_span_map()
 
     # ── 4. Build helper maps ──────────────────────────────────────────────────
     # event → [handler_class, ...]  (multiple handlers can subscribe to same event)
@@ -982,6 +1097,10 @@ def build_pipeline_from_bootstrap() -> list[dict]:
     for s in subscriptions:
         hc = s["handler_class"]
         if hc in handler_related:
+            continue
+        if "related_override" in s:
+            # Bare-callable stage (RAG) — no bootstrap var to walk for kwargs.
+            handler_related[hc] = list(s["related_override"])
             continue
         related: list[str] = []
         for dep in var_to_kwargs_vars.get(s["handler_var"], []):
@@ -1002,12 +1121,17 @@ def build_pipeline_from_bootstrap() -> list[dict]:
         if hc in {s["handler_class"] for s in subscriptions}
         for ev in evs
     }
-    all_subscribed = set(event_to_handlers.keys())
-    # Entry events: subscribed-to but not published by any handler.
+    # Entry events: subscribed-to but not published by any handler. Kept in
+    # bootstrap subscribe() order (not set order) so the terminal stages stay in
+    # a stable, meaningful sequence — the TextPipelineCompletedEvent barrier
+    # (search + cache) is wired before the PipelineCompletedEvent barrier
+    # (metrics + notify) in build_collection_pipeline(), and the diagram should
+    # reflect that rather than flip run-to-run on dict/set iteration order.
+    _subscribed_order = list(dict.fromkeys(s["event"] for s in subscriptions))
     # Split into "main chain" events (reachable from scrapers) vs "terminal" events
     # (like PipelineCompletedEvent, which is published by CollectionPipeline itself at the
     # very end — no handler publishes it, but it's also not the start of the article chain).
-    all_entry = all_subscribed - all_handler_publishes
+    all_entry = [e for e in _subscribed_order if e not in all_handler_publishes]
     # Topology: main-chain entries are entry events whose non-Failed handlers publish further
     # events (i.e., the chain continues). Terminal entries are leaf nodes — handlers that only
     # notify / log and don't publish anything. No string-pattern heuristics needed.
@@ -1132,6 +1256,11 @@ def build_pipeline_from_bootstrap() -> list[dict]:
         "branches": [],
         "di": collection_di,
     })
+
+    # ── 7. Span-driven relabel — rename stages whose OTel span names an action
+    #       their handler class doesn't (translation, RAG). Runs last so it wins
+    #       over _camel_to_label / _infer_stage_icon. ─────────────────────────
+    _relabel_stages_from_spans(ordered_stages, class_span_map)
 
     print(f"Pipeline: generated {len(ordered_stages)} stages")
     return ordered_stages

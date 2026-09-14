@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Protocol
 
 
 class EmbeddingService(ABC):
@@ -12,5 +12,20 @@ class EmbeddingService(ABC):
 
     @abstractmethod
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Return embedding vectors for a list of texts (max 100 per call)."""
+        ...
+
+
+class AsyncEmbeddingService(Protocol):
+    """024-async-pipeline-refactor: async sibling of EmbeddingService, same
+    pattern as AsyncLLMService/AsyncRagIngestionService. Consumed by
+    AnalyzeArticleUseCase (batch-embedding LLM-generated tag group names) and
+    NormalizeTagsUseCase (batch-embedding tag names for similarity matching)."""
+
+    async def embed(self, text: str) -> List[float]:
+        """Return a 768-dimensional embedding vector for the given text."""
+        ...
+
+    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Return embedding vectors for a list of texts (max 100 per call)."""
         ...

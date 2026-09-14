@@ -286,12 +286,27 @@ export default defineRailway((ctx) => {
   const dashboardBackend = service("dashboard-backend", {
     source: srcRepo,
     build: df("/backend/Dockerfile"),
-    start: ".venv/bin/uvicorn backend.main:app --host :: --port 8000",
+    // --host '' (empty) binds EVERY interface — asyncio opens both an IPv4 and an
+    // IPv6 listening socket. `--host ::` looks dual-stack but asyncio pins every
+    // AF_INET6 server socket to IPV6_V6ONLY=1 (regardless of the kernel
+    // net.ipv6.bindv6only sysctl), so it only ever listens on IPv6. Railway's
+    // private networking (*.railway.internal) reaches this over IPv6, but the
+    // public edge proxy reaches the container over IPv4 — with `::` the edge gets
+    // connection-refused and every public request returns `x-railway-fallback`
+    // 502 while private traffic keeps working. Bind both. Keep in sync with
+    // backend/Dockerfile's CMD.
+    start: ".venv/bin/uvicorn backend.main:app --host '' --port 8000",
     replicas,
     networking: { privateNetworkEndpoint: "dashboard-backend2" },
     env: {
       ...appEnv,
       SWAGGER_TRY_IT_OUT_ENABLED: "false",
+      // Pins the public domain's target port. Without this, Railway's public
+      // edge routes to whatever it auto-detects/injects for $PORT (observed
+      // 8080) while uvicorn listens on the literal 8000 from `start` above —
+      // the mismatch is what caused the `x-railway-fallback` 502s this was
+      // added to fix. Keep in sync with the `--port 8000` in `start`.
+      PORT: "8000",
       CACHE_REDIS_URL,
       SEARCH_INDEX_REDIS_URL,
       ...databaseUrl,

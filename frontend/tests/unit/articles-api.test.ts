@@ -5,8 +5,7 @@ vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
 
 beforeEach(async () => {
   vi.clearAllMocks()
-  const { __resetArticleDetailCacheForTests, __resetViewedThisSessionForTests } = await import('@/lib/api/articles')
-  __resetArticleDetailCacheForTests()
+  const { __resetViewedThisSessionForTests } = await import('@/lib/api/articles')
   __resetViewedThisSessionForTests()
 })
 
@@ -133,62 +132,15 @@ describe('articles API', () => {
       expect(mockApiFetch).toHaveBeenCalledWith('/articles/a1', {}, 'zh-TW', { silent: undefined })
     })
 
-    it('serves a repeat call for the same id+locale from cache, without calling apiFetch again', async () => {
+    // No caching test here anymore — repeat-call dedup/caching for the same (id, locale) is now
+    // owned by hooks/use-article-detail.ts's SWR hook, not this function. See its own tests.
+    it('always calls apiFetch again on a repeat call — no caching at this layer', async () => {
       const article = { id: 'a1', title: 'T', tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null }
       mockOk(article)
       const { fetchArticleById } = await import('@/lib/api/articles')
-      const first = await fetchArticleById('a1', 'zh-TW')
-      const second = await fetchArticleById('a1', 'zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledTimes(1)
-      expect(second).toEqual(first)
-    })
-
-    it('treats the same id under a different locale as a separate cache entry', async () => {
-      const article = { id: 'a1', title: 'T', tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null }
-      mockOk(article)
-      const { fetchArticleById } = await import('@/lib/api/articles')
-      await fetchArticleById('a1', 'en')
+      await fetchArticleById('a1', 'zh-TW')
       await fetchArticleById('a1', 'zh-TW')
       expect(mockApiFetch).toHaveBeenCalledTimes(2)
-    })
-
-    it('evicts the least-recently-used entry once the cache exceeds 10 articles', async () => {
-      const { fetchArticleById } = await import('@/lib/api/articles')
-      const articleFor = (id: string) => ({ id, title: id, tags: [], tag_groups: [], content: '', source: 'rss', url: '', published_at: null, scraped_at: null, pain_points: null, insights: null, innovations: null, model_used: null })
-
-      for (let i = 0; i < 11; i++) {
-        mockOk(articleFor(`a${i}`))
-        await fetchArticleById(`a${i}`)
-      }
-      expect(mockApiFetch).toHaveBeenCalledTimes(11)
-
-      // a0 was the first inserted and never re-touched, so it's the LRU victim once a10 pushed
-      // the cache past capacity 10 — refetching it must hit the network again.
-      mockOk(articleFor('a0'))
-      await fetchArticleById('a0')
-      expect(mockApiFetch).toHaveBeenCalledTimes(12)
-
-      // a10 (most recently inserted) should still be cached.
-      mockApiFetch.mockClear()
-      await fetchArticleById('a10')
-      expect(mockApiFetch).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('fetchArticleFilterSources', () => {
-    it('fetches sources list', async () => {
-      mockOk(['rss', 'arxiv'])
-      const { fetchArticleFilterSources } = await import('@/lib/api/articles')
-      const result = await fetchArticleFilterSources()
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/sources', {}, undefined)
-      expect(result).toEqual(['rss', 'arxiv'])
-    })
-
-    it('passes locale', async () => {
-      mockOk([])
-      const { fetchArticleFilterSources } = await import('@/lib/api/articles')
-      await fetchArticleFilterSources('zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/sources', {}, 'zh-TW')
     })
   })
 
@@ -206,23 +158,6 @@ describe('articles API', () => {
       const { fetchArticleFilterOriginalSources } = await import('@/lib/api/articles')
       await fetchArticleFilterOriginalSources('t1')
       expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/original-sources?topic_id=t1', {}, undefined)
-    })
-  })
-
-  describe('fetchArticleFilterTags', () => {
-    it('fetches tags filter list', async () => {
-      mockOk(['ai', 'ml'])
-      const { fetchArticleFilterTags } = await import('@/lib/api/articles')
-      const result = await fetchArticleFilterTags()
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/tags', {}, undefined)
-      expect(result).toEqual(['ai', 'ml'])
-    })
-
-    it('passes locale', async () => {
-      mockOk([])
-      const { fetchArticleFilterTags } = await import('@/lib/api/articles')
-      await fetchArticleFilterTags('zh-TW')
-      expect(mockApiFetch).toHaveBeenCalledWith('/articles/filters/tags', {}, 'zh-TW')
     })
   })
 

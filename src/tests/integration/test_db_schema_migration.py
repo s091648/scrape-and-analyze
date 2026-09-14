@@ -14,7 +14,7 @@ EXPECTED_TABLES = {
     "core": {"articles", "articles_translation", "topics"},
     "collection": {
         "scraper_settings", "scraper_keywords", "failed_tasks",
-        "article_metrics", "article_metric_values",
+        "article_metrics", "article_metric_values", "article_view_daily",
     },
     "intelligence": {
         "analyses", "analyses_translation", "tags", "article_tags",

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import TagsPageContent from '@/app/tags/tags-page-content'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const { mockFetchTagGroups } = vi.hoisted(() => ({ mockFetchTagGroups: vi.fn() }))
 vi.mock('@/lib/api/tags', () => ({
@@ -59,7 +60,7 @@ beforeEach(() => {
 
 describe('TagsPageContent — SSR seed guard (021-ssr-public-pages)', () => {
   it('does NOT call fetchTagGroups on mount when seeded with initialGroups', async () => {
-    render(<TagsPageContent initialGroups={[seededGroup]} />)
+    render(<TagsPageContent initialGroups={[seededGroup]} />, { wrapper: SWRTestWrapper })
 
     expect(await screen.findByText('Seeded Group')).toBeInTheDocument()
     await new Promise(r => setTimeout(r, 50))
@@ -67,14 +68,14 @@ describe('TagsPageContent — SSR seed guard (021-ssr-public-pages)', () => {
   })
 
   it('DOES call fetchTagGroups on mount when not seeded (undefined initialGroups)', async () => {
-    render(<TagsPageContent />)
+    render(<TagsPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockFetchTagGroups).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Client Fetched Group')).toBeInTheDocument()
   })
 
   it('treats an empty seeded array as real seeded data (still skips the mount fetch)', async () => {
-    render(<TagsPageContent initialGroups={[]} />)
+    render(<TagsPageContent initialGroups={[]} />, { wrapper: SWRTestWrapper })
     await new Promise(r => setTimeout(r, 50))
     expect(mockFetchTagGroups).not.toHaveBeenCalled()
   })

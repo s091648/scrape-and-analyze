@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import ArticlesPageContent from '@/app/articles/articles-page-content'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const { mockFetchArticles } = vi.hoisted(() => ({ mockFetchArticles: vi.fn() }))
 vi.mock('@/lib/api/articles', async (importOriginal) => {
@@ -67,7 +68,7 @@ beforeEach(() => {
 
 describe('ArticlesPageContent — SSR seed guard (021-ssr-public-pages FR-003/SC-004)', () => {
   it('does NOT call fetchArticles on mount when seeded with initialArticles', async () => {
-    render(<ArticlesPageContent initialArticles={[seededArticle]} initialTotal={1} />)
+    render(<ArticlesPageContent initialArticles={[seededArticle]} initialTotal={1} />, { wrapper: SWRTestWrapper })
 
     expect(await screen.findByText('Seeded Article Marker')).toBeInTheDocument()
     // Give any stray effect a tick to fire, then confirm it never did.
@@ -76,14 +77,17 @@ describe('ArticlesPageContent — SSR seed guard (021-ssr-public-pages FR-003/SC
   })
 
   it('DOES call fetchArticles on mount when not seeded (undefined initialArticles)', async () => {
-    render(<ArticlesPageContent />)
+    render(<ArticlesPageContent />, { wrapper: SWRTestWrapper })
 
     await waitFor(() => expect(mockFetchArticles).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Client Fetched Article Marker')).toBeInTheDocument()
   })
 
   it('still fetches normally once a real dependency (selectedTopicId) changes after a seeded mount', async () => {
-    const { rerender } = render(<ArticlesPageContent initialArticles={[seededArticle]} initialTotal={1} />)
+    const { rerender } = render(
+      <ArticlesPageContent initialArticles={[seededArticle]} initialTotal={1} />,
+      { wrapper: SWRTestWrapper }
+    )
     await screen.findByText('Seeded Article Marker')
     expect(mockFetchArticles).not.toHaveBeenCalled()
 
@@ -97,7 +101,7 @@ describe('ArticlesPageContent — SSR seed guard (021-ssr-public-pages FR-003/SC
   })
 
   it('treats an empty seeded array as real seeded data (still skips the mount fetch)', async () => {
-    render(<ArticlesPageContent initialArticles={[]} initialTotal={0} />)
+    render(<ArticlesPageContent initialArticles={[]} initialTotal={0} />, { wrapper: SWRTestWrapper })
     await new Promise(r => setTimeout(r, 50))
     expect(mockFetchArticles).not.toHaveBeenCalled()
   })

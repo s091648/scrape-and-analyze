@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { useSession } from 'next-auth/react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -90,20 +91,20 @@ describe('ArticleCard', () => {
 
   it('renders title and source', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText('Test Article')).toBeInTheDocument()
     expect(screen.getByText('rss')).toBeInTheDocument()
   })
 
   it('renders formatted published date', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText(/jan 1, 2026/i)).toBeInTheDocument()
   })
 
   it('clicking card opens dialog', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -114,7 +115,7 @@ describe('ArticleCard', () => {
     const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
       expect(screen.getByText('Key pain points here.')).toBeInTheDocument()
@@ -125,7 +126,7 @@ describe('ArticleCard', () => {
     const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     await act(async () => { fireEvent.click(screen.getByText('Test Article')) })
     await waitFor(() => {
       expect(screen.getByText('Key insights here.')).toBeInTheDocument()
@@ -136,7 +137,7 @@ describe('ArticleCard', () => {
     const { fetchArticleById } = await import('@/lib/api/articles')
     vi.mocked(fetchArticleById).mockResolvedValue(detailFixture as any)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {
       expect(screen.getByText('AI')).toBeInTheDocument()
@@ -146,57 +147,57 @@ describe('ArticleCard', () => {
 
   it('renders scraped_at date when provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     // scraped_at '2026-01-02T00:00:00Z' → Jan 2
     expect(screen.getByText(/jan 2/i)).toBeInTheDocument()
   })
 
   it('renders via_source badge when provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} via_source="arxiv" />)
+    render(<ArticleCard {...fixture} via_source="arxiv" />, { wrapper: SWRTestWrapper })
     expect(screen.getByText(/arxiv/i)).toBeInTheDocument()
   })
 
   it('renders scraped_at date when provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText(/jan 2/i)).toBeInTheDocument()
   })
 
   it('renders via_source badge when provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} via_source="arxiv" />)
+    render(<ArticleCard {...fixture} via_source="arxiv" />, { wrapper: SWRTestWrapper })
     expect(screen.getByText(/arxiv/i)).toBeInTheDocument()
   })
 
   it('uses translated_title over original title when provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} translated_title="翻譯標題" />)
+    render(<ArticleCard {...fixture} translated_title="翻譯標題" />, { wrapper: SWRTestWrapper })
     expect(screen.getByText('翻譯標題')).toBeInTheDocument()
   })
 
   it('renders external link icon next to title', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     const link = screen.getAllByRole('link').find(l => l.getAttribute('href') === 'https://example.com')
     expect(link).toBeTruthy()
   })
 
   it('does not show dialog before card is clicked', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('sets tutorial target id on the pin button when isFirstTutorialTarget and has_vectors', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    const { container } = render(<ArticleCard {...fixture} has_vectors isFirstTutorialTarget />)
+    const { container } = render(<ArticleCard {...fixture} has_vectors isFirstTutorialTarget />, { wrapper: SWRTestWrapper })
     expect(container.querySelector('#tutorial-target-chat-pin')).toBeInTheDocument()
   })
 
   it('does not set tutorial target id on the pin button when isFirstTutorialTarget is false', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    const { container } = render(<ArticleCard {...fixture} has_vectors />)
+    const { container } = render(<ArticleCard {...fixture} has_vectors />, { wrapper: SWRTestWrapper })
     expect(container.querySelector('#tutorial-target-chat-pin')).not.toBeInTheDocument()
   })
 
@@ -207,14 +208,14 @@ describe('ArticleCard', () => {
       citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
     })
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText('42')).toBeInTheDocument()
   })
 
   it('does not render a badge for a metric that is not currently enabled', async () => {
     mockUseMetricDefinitions.mockReturnValue({})
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByText('42')).not.toBeInTheDocument()
   })
 
@@ -224,7 +225,7 @@ describe('ArticleCard', () => {
       impact_factor: { metric_key: 'impact_factor', label_i18n_key: 'metrics.impact_factor', icon_name: null, format_hint: 'decimal', unit: null },
     })
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} metrics={{ citation_count: 42, impact_factor: 3.5 }} />)
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 42, impact_factor: 3.5 }} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText('42')).toBeInTheDocument()
     expect(screen.getByText('3.5')).toBeInTheDocument()
   })
@@ -234,7 +235,7 @@ describe('ArticleCard', () => {
       citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
     })
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} metrics={{ citation_count: 0 }} />)
+    render(<ArticleCard {...fixture} metrics={{ citation_count: 0 }} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
@@ -243,7 +244,7 @@ describe('ArticleCard', () => {
       citation_count: { metric_key: 'citation_count', label_i18n_key: 'metrics.citation_count', icon_name: 'quote', format_hint: 'integer', unit: null },
     })
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    const { container } = render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />)
+    const { container } = render(<ArticleCard {...fixture} metrics={{ citation_count: 42 }} />, { wrapper: SWRTestWrapper })
     const badge = screen.getByText('42').closest('span')
     expect(badge?.querySelector('svg')).toBeInTheDocument()
   })
@@ -252,25 +253,25 @@ describe('ArticleCard', () => {
 
   it('renders view_count badge when greater than 0', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} view_count={123} />)
+    render(<ArticleCard {...fixture} view_count={123} />, { wrapper: SWRTestWrapper })
     expect(screen.getByText('123')).toBeInTheDocument()
   })
 
   it('does not render view_count badge when 0', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} view_count={0} />)
+    render(<ArticleCard {...fixture} view_count={0} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
   it('does not render view_count badge when undefined', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    const { container } = render(<ArticleCard {...fixture} />)
+    const { container } = render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(container.querySelector('#tutorial-target-article-view-count')).not.toBeInTheDocument()
   })
 
   it('sets tutorial target id on view_count badge when isStatsTutorialTarget', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    const { container } = render(<ArticleCard {...fixture} view_count={5} isStatsTutorialTarget />)
+    const { container } = render(<ArticleCard {...fixture} view_count={5} isStatsTutorialTarget />, { wrapper: SWRTestWrapper })
     expect(container.querySelector('#tutorial-target-article-view-count')).toBeInTheDocument()
   })
 
@@ -278,21 +279,21 @@ describe('ArticleCard', () => {
 
   it('does not render the favorite button when unauthenticated', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByLabelText('Add to favorites')).not.toBeInTheDocument()
   })
 
   it('renders the favorite button when authenticated', async () => {
     mockAuthenticated()
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.getByLabelText('Add to favorites')).toBeInTheDocument()
   })
 
   it('shows "Remove from favorites" label when is_favorited is true', async () => {
     mockAuthenticated()
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} is_favorited />)
+    render(<ArticleCard {...fixture} is_favorited />, { wrapper: SWRTestWrapper })
     expect(screen.getByLabelText('Remove from favorites')).toBeInTheDocument()
   })
 
@@ -300,7 +301,7 @@ describe('ArticleCard', () => {
     mockAuthenticated('my-token')
     mockAddFavorite.mockResolvedValue(undefined)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
 
     fireEvent.click(screen.getByLabelText('Add to favorites'))
 
@@ -314,7 +315,7 @@ describe('ArticleCard', () => {
     mockAuthenticated('my-token')
     mockRemoveFavorite.mockResolvedValue(undefined)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} is_favorited />)
+    render(<ArticleCard {...fixture} is_favorited />, { wrapper: SWRTestWrapper })
 
     fireEvent.click(screen.getByLabelText('Remove from favorites'))
 
@@ -328,7 +329,7 @@ describe('ArticleCard', () => {
     mockAuthenticated()
     mockAddFavorite.mockRejectedValue(new Error('network error'))
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
 
     fireEvent.click(screen.getByLabelText('Add to favorites'))
     // optimistic update happens synchronously
@@ -343,7 +344,7 @@ describe('ArticleCard', () => {
     mockAuthenticated()
     mockAddFavorite.mockResolvedValue(undefined)
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
 
     fireEvent.click(screen.getByLabelText('Add to favorites'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

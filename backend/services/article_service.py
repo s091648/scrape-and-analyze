@@ -1,8 +1,10 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session, contains_eager
 
 from backend.schemas.article import ArticleOut, PaginatedArticles
 
@@ -233,6 +235,9 @@ def get_tag_groups_for_article(db: Session, article_id: UUID, lang: str = "en") 
         db.query(Tag)
         .join(at, Tag.id == at.c.tag_id)
         .outerjoin(TagGroupDefinition, Tag.tag_group_id == TagGroupDefinition.id)
+        # Reuse the outer join above to populate tag.group_def — the loop below
+        # touches it for every tag, which would otherwise be one lazy query each.
+        .options(contains_eager(Tag.group_def))
         .filter(at.c.article_id == article_id)
         .order_by(TagGroupDefinition.name, Tag.name)
         .all()
@@ -299,13 +304,20 @@ def get_filter_original_sources(db: Session, topic_id: Optional[UUID] = None) ->
 
 
 async def flush_view_counts(db: Session) -> int:
-    """Scan Redis view:* keys, flush accumulated counts to article_metrics, return flushed count."""
+    """Scan Redis view:* keys, flush accumulated counts to article_metrics, return flushed count.
+
+    Each flushed batch is applied twice: to the cumulative article_metrics.view_count (the
+    authoritative all-time total) and, added into the current UTC day's row in
+    article_view_daily (the time-windowed history behind /admin/analytics). The per-day upsert
+    keys on (article_id, day) so several flushes in the same day accumulate.
+    """
     import redis.asyncio as aioredis
     from models.article_metrics import ArticleMetrics
-    from sqlalchemy import text
+    from models.article_view_daily import ArticleViewDaily
     from backend.config import REDIS_URL
 
     r = aioredis.from_url(REDIS_URL)
+    today_utc = datetime.now(timezone.utc).date()
     flushed = 0
     try:
         cursor = 0
@@ -318,13 +330,22 @@ async def flush_view_counts(db: Session) -> int:
                 count = int(raw)
                 if count <= 0:
                     continue
-                article_id_str = key.decode().split(":", 1)[1]
+                article_id = key.decode().split(":", 1)[1]
+
                 db.execute(
-                    text(
-                        "UPDATE article_metrics SET view_count = view_count + :count "
-                        "WHERE article_id = :article_id"
-                    ),
-                    {"count": count, "article_id": article_id_str},
+                    update(ArticleMetrics)
+                    .where(ArticleMetrics.article_id == article_id)
+                    .values(view_count=ArticleMetrics.view_count + count)
+                )
+
+                bucket = pg_insert(ArticleViewDaily).values(
+                    article_id=article_id, day=today_utc, views=count
+                )
+                db.execute(
+                    bucket.on_conflict_do_update(
+                        index_elements=["article_id", "day"],
+                        set_={"views": ArticleViewDaily.views + bucket.excluded.views},
+                    )
                 )
                 flushed += 1
             if cursor == 0:
@@ -333,6 +354,123 @@ async def flush_view_counts(db: Session) -> int:
     finally:
         await r.aclose()
     return flushed
+
+
+def get_analytics_overview(db: Session, days: int) -> dict:
+    """Everything the /admin/analytics page needs in one payload, over the last `days` UTC days:
+    site-wide daily view totals, the top-20 trending articles (with a per-article daily
+    sparkline), a per-topic breakdown, and the all-time top-10 (from article_metrics, no
+    window). Read-only."""
+    from models.article import Article
+    from models.article_metrics import ArticleMetrics
+    from models.article_view_daily import ArticleViewDaily
+    from models.topic import Topic
+
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
+    in_window = ArticleViewDaily.day >= cutoff
+    source_col = func.coalesce(Article.original_source, Article.source)
+
+    daily_totals = [
+        {"day": row.day, "views": int(row.views)}
+        for row in db.execute(
+            select(ArticleViewDaily.day, func.sum(ArticleViewDaily.views).label("views"))
+            .where(in_window)
+            .group_by(ArticleViewDaily.day)
+            .order_by(ArticleViewDaily.day)
+        )
+    ]
+
+    window_views = func.sum(ArticleViewDaily.views).label("window_views")
+    total_views = func.coalesce(ArticleMetrics.view_count, 0).label("total_views")
+    trending_rows = db.execute(
+        select(
+            ArticleViewDaily.article_id.label("article_id"),
+            window_views,
+            Article.title.label("title"),
+            source_col.label("source"),
+            Topic.display_name.label("topic"),
+            total_views,
+        )
+        .join(Article, Article.id == ArticleViewDaily.article_id)
+        .outerjoin(Topic, Topic.id == Article.topic_id)
+        .outerjoin(ArticleMetrics, ArticleMetrics.article_id == ArticleViewDaily.article_id)
+        .where(in_window, Article.merged_into_id.is_(None))
+        .group_by(
+            ArticleViewDaily.article_id, Article.title, Article.original_source,
+            Article.source, Topic.display_name, ArticleMetrics.view_count,
+        )
+        .order_by(window_views.desc(), total_views.desc())
+        .limit(20)
+    ).all()
+
+    trending_ids = [row.article_id for row in trending_rows]
+    sparklines: dict = {aid: [] for aid in trending_ids}
+    if trending_ids:
+        for row in db.execute(
+            select(ArticleViewDaily.article_id, ArticleViewDaily.day, ArticleViewDaily.views)
+            .where(ArticleViewDaily.article_id.in_(trending_ids), in_window)
+            .order_by(ArticleViewDaily.article_id, ArticleViewDaily.day)
+        ):
+            sparklines[row.article_id].append({"day": row.day, "views": int(row.views)})
+
+    trending = [
+        {
+            "article_id": row.article_id,
+            "title": row.title,
+            "source": row.source,
+            "topic": row.topic,
+            "window_views": int(row.window_views),
+            "total_views": int(row.total_views),
+            "sparkline": sparklines.get(row.article_id, []),
+        }
+        for row in trending_rows
+    ]
+
+    topic_label = func.coalesce(Topic.display_name, "(no topic)").label("topic")
+    topic_views = func.sum(ArticleViewDaily.views).label("views")
+    by_topic = [
+        {"topic": row.topic, "views": int(row.views)}
+        for row in db.execute(
+            select(topic_label, topic_views)
+            .join(Article, Article.id == ArticleViewDaily.article_id)
+            .outerjoin(Topic, Topic.id == Article.topic_id)
+            .where(in_window, Article.merged_into_id.is_(None))
+            .group_by(topic_label)
+            .order_by(topic_views.desc())
+        )
+    ]
+
+    all_time_top = [
+        {
+            "article_id": row.article_id,
+            "title": row.title,
+            "source": row.source,
+            "topic": row.topic,
+            "total_views": int(row.total_views),
+        }
+        for row in db.execute(
+            select(
+                ArticleMetrics.article_id.label("article_id"),
+                ArticleMetrics.view_count.label("total_views"),
+                Article.title.label("title"),
+                source_col.label("source"),
+                Topic.display_name.label("topic"),
+            )
+            .join(Article, Article.id == ArticleMetrics.article_id)
+            .outerjoin(Topic, Topic.id == Article.topic_id)
+            .where(Article.merged_into_id.is_(None), ArticleMetrics.view_count > 0)
+            .order_by(ArticleMetrics.view_count.desc())
+            .limit(10)
+        )
+    ]
+
+    return {
+        "days": days,
+        "daily_totals": daily_totals,
+        "trending": trending,
+        "by_topic": by_topic,
+        "all_time_top": all_time_top,
+    }
 
 
 def get_filter_tags(db: Session, topic_id: Optional[UUID] = None) -> list:

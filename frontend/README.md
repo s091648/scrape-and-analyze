@@ -58,6 +58,7 @@ frontend/
 │   ├── api/                          # Typed API client modules (one per backend router) — see below
 │   ├── providers/                    # React context providers — see Auth Flow below
 │   ├── auth.ts                       # NextAuth config (JWT, Google providers)
+│   ├── env.server.ts / env.client.ts # Centralized env access — no direct process.env elsewhere (025 FR-018)
 │   ├── auth-token-store.ts           # Module-level bearer-token store apiFetch() reads from
 │   ├── chat-session.ts               # Chat session/thread state helpers
 │   ├── loki-logger.ts                # Client-side Loki log shipping
@@ -133,8 +134,9 @@ npm run format
 |---------|------|
 | Production | `Dockerfile` (multi-stage Node build) |
 | Development | `Dockerfile.dev` |
-| Config | `railway.toml` (Railway service definition) |
+| Build stub | `frontend/railway.toml` (`[build]` + restart policy only) |
+| Deploy config | `.railway/railway.ts` (`railway config plan/apply`) — env vars, etc. |
 
 Deployed via this monorepo's CI (`railway up` — staging on PR, production on version tag; see the root `.specify/memory/constitution.md` Principle V), not Railway's own branch-watch auto-deploy.
 
-Environment variables required: `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `NEXT_PUBLIC_API_URL`. Optional: `SENTRY_DSN` (shared with the backend, exposed via `next.config.ts`'s `env`). Default port: `3000`.
+Every non-`NEXT_PUBLIC_` env var is read through `lib/env.server.ts` (server) / `lib/env.client.ts` (client-safe) — no direct `process.env` in app code (025-iac-provisioning FR-018). **Required:** `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BACKEND_URL` (the proxy's upstream — server-side, **not** a `NEXT_PUBLIC_*` var). **Optional:** `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (Google OAuth), `SENTRY_DSN`, `APP_ENV`, and `GRAFANA_URL` / `GRAFANA_SA_TOKEN` / `GRAFANA_LOKI_*` / `GRAFANA_API_KEY` (admin monitoring embeds). Default port: `3000`.

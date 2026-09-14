@@ -18,6 +18,7 @@ const adminItems = [
   { href: '/admin/metric-definitions', labelKey: 'admin.metricDefinitions' },
   { href: '/admin/user-management', labelKey: 'admin.userManagement' },
   { href: '/admin/monitoring', labelKey: 'admin.monitoring' },
+  { href: '/admin/analytics', labelKey: 'admin.analytics' },
 ]
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {

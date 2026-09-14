@@ -5,19 +5,27 @@
     "changes": [
       {
         "type": "feat",
-        "description": "Enhanced the analytics dashboard with new visitor charts, session tracking, and city-level geographic data."
+        "description": "Introduced a new analytics dashboard for tracking article readership."
+      },
+      {
+        "type": "feat",
+        "description": "Enhanced the monitoring dashboard with detailed request logs and cache status tracking."
       },
       {
         "type": "fix",
-        "description": "Improved the tag management system with support for batch approvals and safer tag merging."
+        "description": "Updated the knowledge graph to support theme-aware colors for better visibility in light and dark modes."
       },
       {
         "type": "fix",
-        "description": "Resolved stability issues in the scraper pipeline to prevent data processing interruptions."
+        "description": "Prevented the weekly report entrance animation from replaying on every page refresh."
       },
       {
-        "type": "chore",
-        "description": "Updated the user documentation to reflect the latest application changes."
+        "type": "fix",
+        "description": "Resolved a data conflict issue that could occur when saving tags simultaneously."
+      },
+      {
+        "type": "fix",
+        "description": "Improved dashboard availability by ensuring the backend service is accessible across all network interfaces."
       }
     ]
   },

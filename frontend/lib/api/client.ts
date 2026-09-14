@@ -118,14 +118,32 @@ export async function apiFetch(
     if (sessionId) headers.set('X-Session-Id', sessionId)
   }
 
-  const response = await fetchWithRetry(url, { ...options, headers })
+  let response = await fetchWithRetry(url, { ...options, headers })
 
   if (response.status === 401) {
     const session = await getSession()
     if (session) {
-      await signOut({ redirect: true, callbackUrl: '/login' })
+      // getSession() just re-ran NextAuth's jwt() callback (auth.ts) — if the
+      // access token had expired, that callback already exchanged it for a
+      // fresh one via POST /auth/refresh before returning. Retry once with it
+      // before giving up: without this, every open tab gets force-signed-out
+      // on its very first API call past the 1h access-token TTL even though a
+      // valid (30-day) refresh token exists — the refresh path would only
+      // ever help on the *next* page load, never the request that triggered it.
+      const refreshedToken = (session as any).accessToken as string | undefined
+      const refreshedAuthHeader = refreshedToken ? `Bearer ${refreshedToken}` : undefined
+      if (refreshedAuthHeader && refreshedAuthHeader !== headers.get('Authorization')) {
+        headers.set('Authorization', refreshedAuthHeader)
+        response = await fetchWithRetry(url, { ...options, headers })
+      }
+      if (response.status === 401) {
+        await signOut({ redirect: true, callbackUrl: '/login' })
+        return response
+      }
     }
-  } else if (!response.ok) {
+  }
+
+  if (response.status !== 401 && !response.ok) {
     // Fire-and-forget: don't block the caller (which still gets the raw
     // Response to inspect/parse itself). .clone() so the body stream is
     // still readable by the caller afterwards.

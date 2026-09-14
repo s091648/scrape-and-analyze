@@ -2,9 +2,10 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import func, distinct, text
+from sqlalchemy import delete, distinct, func, literal, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from shared.domain.exceptions import NotFoundError, ConflictError
 from shared.cache import CacheGateway, DEFAULT_TTL_SECONDS
@@ -245,11 +246,11 @@ def delete_tag(
     _: dict = Depends(require_admin),
     cache_gateway: CacheGateway = Depends(get_cache_gateway),
 ):
-    from models.tag import Tag
+    from models.tag import Tag, article_tags as article_tags_table
     tag = db.query(Tag).filter_by(id=tag_id).first()
     if not tag:
         raise NotFoundError("Tag not found")
-    db.execute(text("DELETE FROM article_tags WHERE tag_id = :id"), {"id": str(tag_id)})
+    db.execute(delete(article_tags_table).where(article_tags_table.c.tag_id == str(tag_id)))
     db.delete(tag)
     db.commit()
     _bump_tag_scoped_caches(cache_gateway)
@@ -291,22 +292,33 @@ def list_suggestions(
     # (+ a lazy-loaded group_def) — that N+1 pattern also pulled each Tag's full
     # ORM row (768-dim `embedding` vector included) across the wire twice per
     # suggestion, which is what made this endpoint slow with more than a
-    # handful of pending rows. INNER JOIN on tags reproduces the old "skip rows
-    # whose tag is gone" guard for free — with both FKs ON DELETE CASCADE, a
+    # handful of pending rows. The inner joins on tags reproduce the old "skip
+    # rows whose tag is gone" guard for free — with both FKs ON DELETE CASCADE, a
     # suggestion can never actually outlive its tags, so this never drops rows
     # in practice, but keeps the same defensive shape as the query it replaces.
-    rows = db.execute(text("""
-        SELECT
-            r.id, r.new_tag_id, nt.name AS new_tag_name,
-            r.existing_tag_id, et.name AS existing_tag_name,
-            COALESCE(ntgd.name, 'ungrouped') AS group_name,
-            r.similarity_score, r.article_id
-        FROM tag_normalization_suggestions r
-        INNER JOIN tags nt ON nt.id = r.new_tag_id
-        INNER JOIN tags et ON et.id = r.existing_tag_id
-        LEFT JOIN tag_group_definitions ntgd ON ntgd.id = nt.tag_group_id
-        WHERE r.status = 'pending'
-    """)).mappings().all()
+    from models.tag_normalization_suggestion import TagNormalizationSuggestion
+    from models.tag import Tag
+    from models.tag_group import TagGroupDefinition
+
+    new_tag = aliased(Tag)
+    existing_tag = aliased(Tag)
+    rows = db.execute(
+        select(
+            TagNormalizationSuggestion.id,
+            TagNormalizationSuggestion.new_tag_id,
+            new_tag.name.label("new_tag_name"),
+            TagNormalizationSuggestion.existing_tag_id,
+            existing_tag.name.label("existing_tag_name"),
+            func.coalesce(TagGroupDefinition.name, "ungrouped").label("group_name"),
+            TagNormalizationSuggestion.similarity_score,
+            TagNormalizationSuggestion.article_id,
+        )
+        .select_from(TagNormalizationSuggestion)
+        .join(new_tag, new_tag.id == TagNormalizationSuggestion.new_tag_id)
+        .join(existing_tag, existing_tag.id == TagNormalizationSuggestion.existing_tag_id)
+        .outerjoin(TagGroupDefinition, TagGroupDefinition.id == new_tag.tag_group_id)
+        .where(TagNormalizationSuggestion.status == "pending")
+    ).mappings().all()
     return [
         SuggestionOut(
             id=row["id"], new_tag_id=row["new_tag_id"], new_tag_name=row["new_tag_name"],
@@ -335,6 +347,9 @@ def _approve_suggestion_row(db: Session, suggestion) -> None:
     a suggestion id that the previous approve's cascade already deleted out from
     under it.
     """
+    from models.tag import Tag, article_tags as article_tags_table
+    from models.article import Article
+
     new_tag_id = str(suggestion.new_tag_id)
     existing_tag_id = str(suggestion.existing_tag_id)
 
@@ -343,18 +358,28 @@ def _approve_suggestion_row(db: Session, suggestion) -> None:
         exclude_suggestion_id=suggestion.id,
     )
 
-    db.execute(text("""
-        INSERT INTO article_tags (article_id, tag_id)
-        SELECT at.article_id, :existing_id
-        FROM article_tags at
-        INNER JOIN articles a ON a.id = at.article_id
-        WHERE at.tag_id = :new_id
-        ON CONFLICT DO NOTHING
-    """), {"existing_id": existing_tag_id, "new_id": new_tag_id})
+    # Copy new_tag's article links onto existing_tag, but only for links whose
+    # article row still exists (the INNER JOIN on articles) — same guard the raw
+    # statement this replaces had.
+    moved_links = (
+        select(
+            article_tags_table.c.article_id,
+            literal(existing_tag_id, type_=article_tags_table.c.tag_id.type),
+        )
+        .join_from(article_tags_table, Article, Article.id == article_tags_table.c.article_id)
+        .where(article_tags_table.c.tag_id == new_tag_id)
+    )
+    db.execute(
+        pg_insert(article_tags_table)
+        .from_select(["article_id", "tag_id"], moved_links)
+        .on_conflict_do_nothing()
+    )
 
-    db.execute(text("DELETE FROM article_tags WHERE tag_id = :new_id"), {"new_id": new_tag_id})
+    db.execute(delete(article_tags_table).where(article_tags_table.c.tag_id == new_tag_id))
     db.expunge(suggestion)
-    db.execute(text("DELETE FROM tags WHERE id = :new_id"), {"new_id": new_tag_id})
+    db.execute(
+        delete(Tag).where(Tag.id == new_tag_id).execution_options(synchronize_session=False)
+    )
 
 
 @router.post(

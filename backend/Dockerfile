@@ -55,4 +55,10 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", ".venv/bin/uvicorn backend.main:app --host :: --port ${PORT:-8000}"]
+# --host '' binds every interface — asyncio opens BOTH an IPv4 and an IPv6 socket.
+# `--host ::` would be IPv6-only: asyncio forces IPV6_V6ONLY=1 on every AF_INET6
+# server socket, so Railway's public edge (which reaches the container over IPv4)
+# gets connection-refused and every public request 502s, even though private
+# networking over IPv6 keeps working. Keep in sync with .railway/railway.ts's
+# dashboard-backend `start`.
+CMD ["sh", "-c", ".venv/bin/uvicorn backend.main:app --host '' --port ${PORT:-8000}"]

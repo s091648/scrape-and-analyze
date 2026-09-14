@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const fixture = {
   id: 'abc',
@@ -59,7 +60,7 @@ describe('ArticleCard — share button', () => {
 
   it('renders share button with aria-label', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.getByRole('button', { name: 'copy.shareArticle' })).toBeInTheDocument()
   })
 
@@ -71,7 +72,7 @@ describe('ArticleCard — share button', () => {
     })
 
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: 'copy.shareArticle' }))
 
     await waitFor(() => {
@@ -88,7 +89,7 @@ describe('ArticleCard — share button', () => {
     })
     const { toast } = await import('sonner')
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: 'copy.shareArticle' }))
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith('copy.success')
@@ -102,7 +103,7 @@ describe('ArticleCard — share button', () => {
     })
     const { toast } = await import('sonner')
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: 'copy.shareArticle' }))
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('copy.failed')
@@ -117,7 +118,7 @@ describe('ArticleCard — share button', () => {
     })
     const onOpenChange = vi.fn()
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} open={false} onOpenChange={onOpenChange} />)
+    render(<ArticleCard {...fixture} open={false} onOpenChange={onOpenChange} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: 'copy.shareArticle' }))
     await waitFor(() => expect(writeText).toHaveBeenCalled())
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -129,7 +130,7 @@ describe('ArticleCard — controlled open prop', () => {
 
   it('shows dialog immediately when open=true without clicking card', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} open={true} onOpenChange={vi.fn()} />)
+    render(<ArticleCard {...fixture} open={true} onOpenChange={vi.fn()} />, { wrapper: SWRTestWrapper })
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
@@ -137,21 +138,21 @@ describe('ArticleCard — controlled open prop', () => {
 
   it('does not show dialog when open=false', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} open={false} onOpenChange={vi.fn()} />)
+    render(<ArticleCard {...fixture} open={false} onOpenChange={vi.fn()} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('calls onOpenChange(true) when card is clicked in controlled mode', async () => {
     const onOpenChange = vi.fn()
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} open={false} onOpenChange={onOpenChange} />)
+    render(<ArticleCard {...fixture} open={false} onOpenChange={onOpenChange} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('Test Article'))
     expect(onOpenChange).toHaveBeenCalledWith(true)
   })
 
   it('falls back to internal state when open prop is not provided', async () => {
     const { ArticleCard } = await import('@/components/features/articles/article-card')
-    render(<ArticleCard {...fixture} />)
+    render(<ArticleCard {...fixture} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Test Article'))
     await waitFor(() => {

@@ -21,8 +21,20 @@ from src.infrastructure.collection.clients.semantic_scholar_client import SEMANT
 from shared.enums.observability import SpanName
 from src.infrastructure.collection.executor import DiscoverTask, ScrapeExecutor
 from src.infrastructure.collection.scrapers import ConcreteScraperFactory
+from src.infrastructure.shared.events.settling_task_group import SettlingTaskGroup
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
+# fix/sanitize (translation fan-out): CollectionPipeline owns the translation
+# dispatch/settle machinery itself (SettlingTaskGroup + semaphore + Barrier
+# 1.5 gather, mirroring the RAG _dispatch_rag/_rag_tasks pattern below), so it
+# subscribes AnalysisCompletedEvent -> self._dispatch_translation directly on
+# the per-article bus rather than threading a closure through
+# article_downstream_builder the way dispatch_rag is (dispatch_rag needs that
+# per-article span_latch/rag_task_box state that only bootstrap.py's builder
+# closure has — translation needs no such per-article state, so there's no
+# reason to route it through that parameter). This is the one place this
+# module reaches into the intelligence module for an event type.
+from src.modules.intelligence.application.events import AnalysisCompletedEvent
 from src.modules.collection.domain.repositories import ScraperSettingRepository
 from src.modules.collection.domain.value_objects import ScrapedArticle, UrlHash
 from src.modules.collection.application.events import (
@@ -127,6 +139,8 @@ class CollectionPipeline:
         rag_ingest_timeout: float = 0.0,
         failed_task_repo_factory: Optional[Callable[[Any], Any]] = None,
         text_stage_concurrency: int = 10,
+        translation_downstream_builder: Optional[Callable[..., Awaitable[Any]]] = None,
+        translation_dispatch_concurrency: int = 4,
     ) -> None:
         self._setting_repo = setting_repo
         self._scraper_factory = scraper_factory
@@ -194,6 +208,23 @@ class CollectionPipeline:
         # get a slot just waits (bounded by pool_timeout), it isn't dropped.
         self._text_stage_semaphore = asyncio.BoundedSemaphore(text_stage_concurrency)
 
+        # ── Translation fan-out (fix/sanitize, Barrier 1.5) ─────────────────
+        # Callable[[AsyncSession], Awaitable[AnalysisCompletedHandler]] — None
+        # disables translation dispatch entirely (e.g. tests that don't wire
+        # it), mirroring rag_downstream_builder's None-disables convention.
+        self._translation_downstream_builder = translation_downstream_builder
+        # Tracks every dispatched translation task across the whole run (not
+        # per-article, like _rag_tasks) — settled once, right after Barrier
+        # 1's per-article gather and before TextPipelineCompletedEvent fires,
+        # so search-index rebuild never runs ahead of translated content.
+        self._translation_group = SettlingTaskGroup()
+        # Bounds how many articles' translation concurrently hold an open
+        # AsyncSession — separate from _text_stage_semaphore (held only
+        # through the text stage's own bus.publish()) and from
+        # _rag_dispatch_semaphore. Keep text_stage_concurrency +
+        # rag_dispatch_concurrency + this at or under the async pool cap.
+        self._translation_dispatch_semaphore = asyncio.BoundedSemaphore(translation_dispatch_concurrency)
+
     def _build_execution_meta(self, started_at: datetime, start: float) -> JobExecutionMeta:
         return JobExecutionMeta(
             started_at=started_at,
@@ -230,6 +261,35 @@ class CollectionPipeline:
         task = asyncio.create_task(self._run_rag_ingestion(event, span_latch))
         self._rag_tasks.append(task)
         return task
+
+    async def _dispatch_translation(self, event) -> Optional[asyncio.Task]:
+        """Fire translation as a detached asyncio.Task, tracked in
+        self._translation_group for Barrier 1.5 — deliberately NOT awaited
+        here, so tag normalization failing or being slow never blocks
+        translation for this article (or vice versa), and one article's
+        translation never blocks another's.
+
+        Unlike RAG (Barrier 2, never awaited by run() at all), this task IS
+        awaited by run() — right after Barrier 1's per-article gather, before
+        TextPipelineCompletedEvent fires — because search-index rebuild needs
+        already-committed translated (zh-TW) content."""
+        if self._translation_downstream_builder is None:
+            return None
+        return self._translation_group.dispatch(self._run_translation(event))
+
+    async def _run_translation(self, event) -> None:
+        """Owns its own AsyncSession for the whole task lifetime — separate
+        from (and may outlive) the text-stage task's session, which closes as
+        soon as that article's bus.publish() call returns. AnalysisCompletedHandler
+        already catches and reports its own per-language/per-stage failures
+        (publishing TranslationFailedEvent) rather than raising, so nothing
+        here needs its own try/except — an unexpected exception still
+        propagates to Barrier 1.5's settle(), which logs it without affecting
+        any other article's translation."""
+        async with self._translation_dispatch_semaphore:
+            async with self._async_sessionmaker_factory() as session:
+                handler = await self._translation_downstream_builder(session)
+                await handler.handle(event)
 
     def _make_rag_dispatcher(self, span_latch, rag_task_box: List[asyncio.Task]):
         """Per-article ArticleProcessedEvent subscriber: delegates to
@@ -421,6 +481,15 @@ class CollectionPipeline:
                     span.set_attribute("article.url", article.url)
                     async with self._async_sessionmaker_factory() as session:
                         bus = self._event_bus_factory()
+                        # Subscribed BEFORE article_downstream_builder (which
+                        # subscribes tag_normalization_handler to the same
+                        # AnalysisCompletedEvent) — same subscribe-order
+                        # reasoning as dispatch_rag above: firing the detached
+                        # translation task first lets it run concurrently with
+                        # tag normalization's own (still inline/awaited) work,
+                        # instead of only starting once that finishes.
+                        if self._translation_downstream_builder is not None:
+                            await bus.subscribe(AnalysisCompletedEvent, self._dispatch_translation)
                         dispatch_rag = self._make_rag_dispatcher(latch, rag_task_box)
                         await self._article_downstream_builder(session, bus, dispatch_rag)
                         event = ArticleScrapedEvent.from_scraped_article(article)
@@ -590,6 +659,20 @@ class CollectionPipeline:
                             error_type=type(outcome).__name__,
                         )
                 process_span.set_attribute("articles.task_failed", failed)
+
+                # ── Barrier 1.5: every dispatched translation task also
+                # settled — still inside process_span, still before
+                # TextPipelineCompletedEvent, so search-index rebuild never
+                # runs ahead of translated (zh-TW) content. Unlike Barrier 2
+                # (RAG), this one blocks Barrier 1 on purpose.
+                translation_outcomes = await self._translation_group.settle()
+                for outcome in translation_outcomes:
+                    if isinstance(outcome, BaseException):
+                        logger.error(
+                            "translation_task_failed",
+                            error=str(outcome),
+                            error_type=type(outcome).__name__,
+                        )
 
             stats = self._pipeline_stats.get_results()
             text_execution = self._build_execution_meta(started_at, start)

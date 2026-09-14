@@ -69,12 +69,6 @@ def mock_get_run_id():
 
 
 @pytest.fixture()
-def mock_signal():
-    with patch("src.entrypoints.cli.main.signal.signal") as m:
-        yield m
-
-
-@pytest.fixture()
 def mock_init_default_client():
     with patch("src.entrypoints.cli.main.init_default_client") as m:
         yield m
@@ -117,7 +111,6 @@ def all_mocks(
     mock_init_run_context,
     mock_bind_correlation_id,
     mock_get_run_id,
-    mock_signal,
     mock_init_default_client,
     mock_http_client_build,
     mock_get_tracer,
@@ -132,7 +125,6 @@ def all_mocks(
         "init_run_context": mock_init_run_context,
         "bind_correlation_id": mock_bind_correlation_id,
         "get_run_id": mock_get_run_id,
-        "signal": mock_signal,
         "init_default_client": mock_init_default_client,
         "http_client_build": mock_http_client_build,
         "get_tracer": mock_get_tracer,

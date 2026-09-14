@@ -1,6 +1,7 @@
 // frontend/tests/graph.test.tsx
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import type { ComponentType } from 'react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 const mockApiFetch = vi.fn().mockResolvedValue({
   ok: true,
@@ -8,25 +9,41 @@ const mockApiFetch = vi.fn().mockResolvedValue({
 })
 
 vi.mock('@/lib/api/client', () => ({ apiFetch: mockApiFetch }))
+// knowledge-graph.tsx loads react-force-graph-2d via next/dynamic — mocking dynamic()
+// itself (rather than the 'react-force-graph-2d' module, which this stub never imports)
+// is what actually intercepts it. Captures the last props it was rendered with, so tests
+// can invoke its canvas-drawing callbacks (nodeCanvasObject, linkColor) directly —
+// react-force-graph-2d itself only calls them from inside an actual <canvas> render loop,
+// which jsdom doesn't run.
+let lastForceGraphProps: any = null
 vi.mock('next/dynamic', () => ({
   default: (_loader: any, _opts?: any) =>
-    ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>,
+    (props: any) => {
+      lastForceGraphProps = props
+      return <div data-testid="graph-canvas">{JSON.stringify(props.graphData)}</div>
+    },
 }))
+// Mutable (not a fixed object) so tests can simulate selectedTopicId resolving on a later
+// render — e.g. the "initial fingerprint latches late" test below.
+let mockSelectedTopicId: string | null = 'test-topic-id'
 vi.mock('@/lib/providers/topic-provider', () => ({
-  useTopic: () => ({ selectedTopicId: 'test-topic-id' }),
-}))
-vi.mock('react-force-graph-2d', () => ({
-  default: ({ graphData }: any) => <div data-testid="graph-canvas">{JSON.stringify(graphData)}</div>
+  useTopic: () => ({ selectedTopicId: mockSelectedTopicId }),
 }))
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { accessToken: 'test-token' }, status: 'authenticated' }),
   SessionProvider: ({ children }: any) => children,
 }))
+let mockTheme: 'light' | 'dark' = 'light'
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ t: (k: string) => k, locale: 'en', setLocale: vi.fn(), availableLanguages: [], resolvedLanguage: 'en', isLoading: false }),
   useTopic: () => ({ selectedTopicId: 'test-topic-id', topics: [], selectedTopic: null, setSelectedTopicId: vi.fn(), refresh: vi.fn(), isLoading: false }),
   useGuestMode: () => ({ isGuestMode: false, enterGuestMode: vi.fn(), exitGuestMode: vi.fn() }),
+  useTheme: () => ({ theme: mockTheme, mode: mockTheme, setMode: vi.fn(), cycleMode: vi.fn() }),
 }))
+
+beforeEach(() => {
+  mockSelectedTopicId = 'test-topic-id'
+})
 
 let KnowledgeGraph: ComponentType<{ articleIdFilter?: Set<string> }>
 let applyArticleFilter: (data: any, filter: Set<string>) => any
@@ -48,7 +65,7 @@ describe('Knowledge Graph', () => {
 
   it('fetches graph data with published_after on initial load', async () => {
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
@@ -56,7 +73,7 @@ describe('Knowledge Graph', () => {
 
   it('renders graph canvas element', async () => {
     const { render, screen } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(screen.getAllByTestId('graph-canvas').length).toBeGreaterThan(0)
     })
@@ -71,7 +88,7 @@ describe('Knowledge Graph', () => {
   it('days filter change triggers re-fetch with updated published_after', async () => {
     const { render, screen } = await import('@testing-library/react')
     const { fireEvent } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
     })
@@ -95,7 +112,7 @@ describe('Knowledge Graph', () => {
     const promise = new Promise(r => { resolvePromise = r })
     mockApiFetch.mockReturnValueOnce(promise)
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     // Resolve the promise to unblock
     resolvePromise!({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
     // Verify component fetched data
@@ -140,7 +157,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('renders the seeded graph immediately without fetching', async () => {
     const { render, screen } = await import('@testing-library/react')
-    render(<KnowledgeGraph initialData={seededData as any} />)
+    render(<KnowledgeGraph initialData={seededData as any} />, { wrapper: SWRTestWrapper })
 
     // Other tests in this file leave their own rendered trees in the document (no cleanup
     // between tests), so this instance's canvas is the last match, not the only one.
@@ -153,7 +170,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('fetches normally (no seed) when initialData is not provided', async () => {
     const { render } = await import('@testing-library/react')
-    render(<KnowledgeGraph />)
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalled()
     })
@@ -161,7 +178,7 @@ describe('KnowledgeGraph initialData seeding', () => {
 
   it('still fetches on a later filter change after a seeded mount', async () => {
     const { render, screen, fireEvent } = await import('@testing-library/react')
-    render(<KnowledgeGraph initialData={seededData as any} />)
+    render(<KnowledgeGraph initialData={seededData as any} />, { wrapper: SWRTestWrapper })
     expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/analyses/graph'), expect.anything(), expect.anything())
 
     // The FilterBar UI has no native <select> — filters live behind a toggled panel, and apply
@@ -180,6 +197,105 @@ describe('KnowledgeGraph initialData seeding', () => {
     await vi.waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after=2020-01-01'), expect.anything(), expect.anything())
     }, { timeout: 2000 })
+  })
+})
+
+describe('KnowledgeGraph theme-aware canvas drawing', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    mockTheme = 'light'
+    lastForceGraphProps = null
+  })
+
+  function fakeCtx() {
+    return {
+      beginPath: vi.fn(), arc: vi.fn(), fill: vi.fn(), stroke: vi.fn(),
+      fillText: vi.fn(), setLineDash: vi.fn(), save: vi.fn(), restore: vi.fn(),
+    } as any
+  }
+
+  it('linkColor resolves to the light-theme link color', async () => {
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    expect(lastForceGraphProps.linkColor()).toBe('rgba(71, 85, 105, 0.35)')
+  })
+
+  it('linkColor resolves to the dark-theme link color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    expect(lastForceGraphProps.linkColor()).toBe('rgba(148, 163, 184, 0.55)')
+  })
+
+  it('draws tag node labels in the dark-theme color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    const ctx = fakeCtx()
+    lastForceGraphProps.nodeCanvasObject({ type: 'tag', label: 'test-tag', x: 0, y: 0 }, ctx, 1)
+    expect(ctx.fillStyle).toBe('#cbd5e1')
+  })
+
+  it('draws the hovered article label in the dark-theme color', async () => {
+    mockTheme = 'dark'
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+    // Hover sets the internal hoveredNodeIdRef synchronously for 'article' nodes.
+    lastForceGraphProps.onNodeHover({ type: 'article', id: 'a1' })
+    const ctx = fakeCtx()
+    lastForceGraphProps.nodeCanvasObject({ type: 'article', id: 'a1', label: 'Hovered article', x: 0, y: 0 }, ctx, 1)
+    expect(ctx.fillStyle).toBe('#f1f5f9')
+  })
+})
+
+describe('KnowledgeGraph selectedTopicId resolving late', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+  })
+
+  it('starts fetching once selectedTopicId resolves from null on a later render (latches the initial fingerprint)', async () => {
+    mockSelectedTopicId = null
+    const { render } = await import('@testing-library/react')
+    const { rerender } = render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
+
+    mockSelectedTopicId = 'test-topic-id'
+    rerender(<KnowledgeGraph />)
+
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(expect.stringContaining('published_after='), expect.anything(), expect.anything())
+    })
+  })
+})
+
+describe('KnowledgeGraph article dialog', () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset()
+    mockApiFetch.mockResolvedValue({ ok: true, json: async () => ({ nodes: [], edges: [] }) })
+    lastForceGraphProps = null
+  })
+
+  it('clicking an article node not inside an expanded group opens the article detail dialog', async () => {
+    const { render } = await import('@testing-library/react')
+    render(<KnowledgeGraph />, { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => expect(lastForceGraphProps).not.toBeNull())
+
+    // No group is expanded, so groupDataRef.current is empty — handleNodeClick's 'article'
+    // branch falls through to openArticleDialog(node.id) directly.
+    lastForceGraphProps.onNodeClick({ type: 'article', id: 'a1' })
+
+    await vi.waitFor(() => {
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/articles/a1'), expect.anything(), expect.anything(), expect.anything(),
+      )
+    })
   })
 })
 

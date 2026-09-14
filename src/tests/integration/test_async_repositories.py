@@ -42,6 +42,24 @@ async def test_async_article_repository_save_find_has_analysis(async_db_session,
 
 
 @pytest.mark.asyncio
+async def test_async_article_repository_find_by_id(async_db_session, test_topic):
+    from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
+
+    repo = AsyncSqlAlchemyArticleRepository(async_db_session)
+    article = _make_article(test_topic)
+
+    saved = await repo.save(article)
+    await async_db_session.commit()
+
+    found = await repo.find_by_id(saved.id)
+    assert found is not None
+    assert found.id == saved.id
+    assert found.url == article.url
+
+    assert await repo.find_by_id(uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
 async def test_async_article_metrics_repository_upsert(async_db_session, test_topic):
     from src.infrastructure.persistence.shared.article_async_repo_impl import AsyncSqlAlchemyArticleRepository
     from src.infrastructure.persistence.collection.article_metrics_async_repo_impl import AsyncSqlAlchemyArticleMetricsRepository
@@ -263,6 +281,60 @@ async def test_async_tag_repository_save_link_and_find_similar(async_db_session,
 
     similar = await tag_repo.find_similar(embedding, tag_group.name, tag_group.topic_id, threshold=0.99)
     assert any(t.id == tag.id for t, _score in similar)
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_save_reselects_on_concurrent_insert_conflict(async_db_session, tag_group):
+    """save()'s INSERT ... ON CONFLICT DO NOTHING returns no row when another
+    concurrent task already won the race to create the same (name, group) tag —
+    exercised here by saving the same brand-new name+group twice in a row without
+    an intervening commit, which self-conflicts against the still-uncommitted
+    first insert exactly like two concurrent per-article transactions would.
+    save() must then re-SELECT the existing row instead of raising."""
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    tag_repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    name = f"async-conflict-tag-{uuid.uuid4().hex[:8]}"
+
+    first = await tag_repo.save(
+        name=name, tag_group_name=tag_group.name, embedding=[0.1] * 768, topic_id=tag_group.topic_id,
+    )
+    second = await tag_repo.save(
+        name=name, tag_group_name=tag_group.name, embedding=[0.2] * 768, topic_id=tag_group.topic_id,
+    )
+    await tag_repo.commit()
+
+    assert second.id == first.id  # re-selected the winning row, not a duplicate
+
+
+@pytest.mark.asyncio
+async def test_async_tag_repository_save_backfills_embedding_on_conflict_when_missing(async_db_session, tag_group):
+    """Same re-select-on-conflict path as above, but the pre-existing row has
+    no embedding yet (e.g. a legacy row predating the embedding column, per
+    the docstring in tag_async_repo_impl.save()) — save() must then write the
+    embedding it was given instead of silently keeping the row embedding-less."""
+    from models.tag import Tag
+    from models.tag_group import TagGroupDefinition
+    from sqlalchemy import select
+    from src.infrastructure.persistence.intelligence.tag_async_repo_impl import AsyncSqlAlchemyTagRepository
+
+    name = f"async-conflict-no-embedding-tag-{uuid.uuid4().hex[:8]}"
+    group_id = (await async_db_session.execute(
+        select(TagGroupDefinition.id).filter_by(name=tag_group.name, topic_id=tag_group.topic_id)
+    )).scalar_one()
+    async_db_session.add(Tag(name=name, tag_group_id=group_id, embedding=None))
+    await async_db_session.commit()
+
+    tag_repo = AsyncSqlAlchemyTagRepository(async_db_session)
+    embedding = [0.3] * 768
+    result = await tag_repo.save(
+        name=name, tag_group_name=tag_group.name, embedding=embedding, topic_id=tag_group.topic_id,
+    )
+    await tag_repo.commit()
+
+    assert result.embedding == embedding
+    row = (await async_db_session.execute(select(Tag).filter_by(id=result.id))).scalar_one()
+    assert row.embedding is not None
 
 
 @pytest.mark.asyncio

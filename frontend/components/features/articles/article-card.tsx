@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ExternalLink, Clock, Globe, Share2, Check, Download, Sparkles, Eye, Heart } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,7 +9,7 @@ import { ArticleCardSkeleton } from './article-card-skeleton'
 import { ArticleDetailDialog } from './article-detail-dialog'
 import { useI18n, useTopic, usePinnedArticle } from '@/lib/providers'
 import { useSession } from 'next-auth/react'
-import type { ArticleDetail } from '@/lib/api/articles'
+import { useArticleDetail } from '@/hooks/use-article-detail'
 import { useMetricDefinitions } from './use-metric-definitions'
 import { resolveMetricIcon } from './metric-icons'
 import { highlightMatch } from '@/lib/highlight-match'
@@ -46,8 +46,9 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
   const setOpen = isControlled
     ? (v: boolean) => controlledOnOpenChange?.(v)
     : setInternalOpen
-  const [detail, setDetail] = useState<ArticleDetail | null>(null)
-  const [loading, setLoading] = useState(false)
+  // Fetches (and caches, keyed by id+locale — see the hook's own doc comment) only while the
+  // dialog is actually open, matching the previous open-gated useEffect's behavior.
+  const { detail, loading } = useArticleDetail(open ? id : null, locale)
   const [copied, setCopied] = useState(false)
   const [favorited, setFavorited] = useState(!!is_favorited)
 
@@ -100,14 +101,6 @@ export function ArticleCard({ id, title, source, via_source, original_source, co
       toast.error(t('copy.failed'))
     }
   }
-
-  useEffect(() => {
-    if (!open) return
-    setLoading(true)
-    fetchArticleById(id, locale)
-      .then(data => { setDetail(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [open, locale, id])
 
   return (
     <>

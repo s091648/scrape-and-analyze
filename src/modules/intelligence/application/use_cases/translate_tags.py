@@ -1,7 +1,7 @@
 from typing import Dict
 
 from src.shared.logging import get_logger
-from src.modules.intelligence.domain.services import LLMService
+from src.modules.intelligence.domain.services import LLMService, AsyncLLMService
 from src.modules.intelligence.domain.repositories import TagTranslationRepository
 from src.modules.intelligence.domain.value_objects import (
     TagTranslationPrompt,
@@ -111,7 +111,7 @@ class AsyncTranslateTagsUseCase:
 
     def __init__(
         self,
-        llm_service,
+        llm_service: AsyncLLMService,
         tag_translation_repository: TagTranslationRepository,
         tag_prompt: TagTranslationPrompt,
         group_prompt: GroupTranslationPrompt,

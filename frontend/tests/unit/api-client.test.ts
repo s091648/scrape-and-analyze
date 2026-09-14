@@ -51,6 +51,50 @@ describe('apiFetch', () => {
     expect(mockSignOut).not.toHaveBeenCalled()
   })
 
+  // ── refresh-and-retry-once: getSession() re-runs auth.ts's jwt() callback,
+  // which exchanges an expired access token for a fresh one before returning ──
+
+  it('retries once with the refreshed accessToken and returns that response on success', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' }, accessToken: 'refreshed-token' })
+    ;(global.fetch as any)
+      .mockResolvedValueOnce({ status: 401, ok: false })
+      .mockResolvedValueOnce({ status: 200, ok: true })
+
+    await markTokenResolved('stale-token')
+    const { apiFetch } = await import('@/lib/api/client')
+    const result = await apiFetch('/articles')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const [, retryOptions] = (global.fetch as any).mock.calls[1]
+    expect((retryOptions.headers as Headers).get('Authorization')).toBe('Bearer refreshed-token')
+    expect(mockSignOut).not.toHaveBeenCalled()
+    expect(result.status).toBe(200)
+  })
+
+  it('signs out when the retry with the refreshed accessToken still gets a 401', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' }, accessToken: 'refreshed-token' })
+    ;(global.fetch as any).mockResolvedValue({ status: 401, ok: false })
+
+    await markTokenResolved('stale-token')
+    const { apiFetch } = await import('@/lib/api/client')
+    await apiFetch('/articles')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: true, callbackUrl: '/login' })
+  })
+
+  it('does not retry (and still signs out) when getSession returns no new accessToken', async () => {
+    mockGetSession.mockResolvedValue({ user: { role: 'admin' } })
+    ;(global.fetch as any).mockResolvedValue({ status: 401, ok: false })
+
+    await markTokenResolved('stale-token')
+    const { apiFetch } = await import('@/lib/api/client')
+    await apiFetch('/articles')
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: true, callbackUrl: '/login' })
+  })
+
   it('prepends /api/proxy to path by default', async () => {
     ;(global.fetch as any).mockResolvedValue({ status: 200, ok: true })
 

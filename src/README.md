@@ -20,8 +20,12 @@ src/
 │   └── settings.py                 # App config: SENTRY_DSN, TRANSLATION_LANGUAGES, etc.
 ├── entrypoints/
 │   └── cli/
-│       ├── main.py                 # Process lifecycle: logging, OTel, Sentry, signals, jitter
-│       └── translate.py            # Standalone translation entrypoint
+│       ├── main.py                 # Scheduled scrape→analyze→translate→RAG pipeline (logging, OTel, Sentry, jitter, 50-min timeout)
+│       ├── translate.py            # Standalone translation entrypoint
+│       ├── backfill_rag.py         # RAG vector backfill for articles missing chunks
+│       ├── refresh_metrics.py      # Recurring citation-metric refresh (OpenAlex / Semantic Scholar)
+│       ├── weekly_report.py        # Per-topic weekly report generation
+│       └── dedup_reconcile.py      # Reconcile OpenAlex articles deduped after scrape
 ├── modules/                        # Domain-Driven Design bounded contexts
 │   ├── collection/                 # Article discovery & ingestion
 │   │   ├── domain/                 # Entities: ScrapeJob, ArxivMetadata, ScraperSetting
@@ -68,8 +72,8 @@ src/
     │   ├── llm/
     │   │   ├── providers/          #   GeminiProvider, ClaudeProvider, OpenRouterProvider
     │   │   ├── embedding/          #   GeminiEmbeddingProvider
-    │   │   ├── rate_limit/         #   SlidingWindowStrategy, NoOpStrategy
-    │   │   └── resilient_llm_service.py  # Ordered fallback across providers
+    │   │   ├── rate_limit/         #   SlidingWindowStrategy, NoOpStrategy, ProviderSelector
+    │   │   └── resilient_llm_service.py  # Ordered provider fallback — sync (ResilientLLMService) + async (AsyncResilientLLMService, capacity-aware) siblings
     │   └── prompt/
     │       └── prompt_factory.py   #   ConcretePromptFactory (analysis, translation, tag prompts)
     ├── persistence/
@@ -77,9 +81,10 @@ src/
     │   ├── collection/             #   SqlAlchemyScraperSettingRepository, ArxivMetadataRepository
     │   ├── intelligence/           #   SqlAlchemyAnalysisRepository, TagRepository,
     │   │                           #   TagGroupDefinitionRepository, translation repos
-    │   └── database.py             #   init_db(), get_session() (NullPool for short-lived runs)
+    │   └── database.py             #   sync NullPool (get_session, batch/cron jobs) + async bounded QueuePool
+    │                               #   (get_async_sessionmaker, prewarm/dispose — the concurrent pipeline)
     └── shared/
-        ├── events/                 #   InMemoryEventBus
+        ├── events/                 #   InMemoryEventBus (sync) + AsyncInMemoryEventBus (per-article, run-level)
         ├── http/                   #   HttpClient, rate_limiter, retry, proxy, user_agent
         ├── logging.py              #   configure_logging(), bind_correlation_id()
         ├── notifications/          #   NotificationService, TelegramNotifier
@@ -88,42 +93,47 @@ src/
 
 ## Pipeline Event Flow
 
-The pipeline is fully event-driven via `InMemoryEventBus`. `bootstrap.py` wires all subscriptions before `pipeline.run()` is called:
+`CollectionPipeline.run()` is `async`. Discover / fetch / pre-dedup stay **batched and sequential** (024-async-pipeline-refactor FR-003); from Publish onward **every article runs in its own `asyncio.Task`** with its own `AsyncSession` and its own fresh `AsyncInMemoryEventBus` (built per-article by `bootstrap.py`), so one article's chain never blocks another's. Completion is reported by **two barriers**, not one.
 
 ```
 CollectionPipeline.run()
   │
-  ├─ [per scraper source]
-  │    ├─ ScrapeExecutor.discover()  →  List[ScrapeJob]
-  │    ├─ pre-dedup (UrlHash filter)
-  │    └─ ScrapeExecutor.fetch()     →  ScrapedArticle
-  │         └─ publish ArticleScrapedEvent
+  ├─ Discover (batched)  — ScrapeExecutor.run_discover() → scrapers' discover() → List[ScrapeJob]
+  ├─ Pre-dedup           — drop URLs already analyzed (UrlHash), as a pre-fetch filter
+  ├─ Fetch   (batched)   — ScrapeExecutor.run_fetch_only() (5 workers, per-host BoundedSemaphore(1)) → ScrapedArticle
+  ├─ Post-dedup          — collapse within-batch dupes + re-check already-analyzed
   │
-  ├─ ArticleScrapedHandler
-  │    └─ ProcessScrapedArticleUseCase (dedup + save Article + ArxivMetadata)
-  │         └─ publish ArticleProcessedEvent
+  ├─ [per article — own asyncio.Task, own AsyncSession, own AsyncInMemoryEventBus,
+  │   bounded by TEXT_STAGE_CONCURRENCY]
+  │    ├─ publish ArticleScrapedEvent
+  │    │    └─ ProcessScrapedArticleUseCase (dedup + save Article + ArxivMetadata + free metric seeds)
+  │    │         └─ publish ArticleProcessedEvent
+  │    │              ├─ dispatch_rag → AsyncRagIngestionHandler as a DETACHED asyncio.Task
+  │    │              │   (never awaited inline; bounded by RAG_DISPATCH_CONCURRENCY; RPD circuit breaker;
+  │    │              │    RAG_INGEST_TIMEOUT_SECONDS backstop) — tracked for Barrier 2
+  │    │              └─ AnalyzeArticleUseCase (LLM chain → tags + analysis)
+  │    │                   └─ publish AnalysisCompletedEvent  (or AnalysisFailedEvent)
+  │    ├─ TagNormalizationHandler (on AnalysisCompletedEvent)
+  │    │    └─ NormalizeTagsUseCase (embedding similarity → TagNormalizationSuggestion)
+  │    │         └─ publish TagNormalizationCompletedEvent  (or TagNormalizationFailedEvent)
+  │    ├─ AnalysisCompletedHandler (on TagNormalizationCompletedEvent)
+  │    │    └─ TranslateArticleUseCase + TranslateTagsUseCase (for configured TRANSLATION_LANGUAGES)
+  │    │         └─ publish TranslationCompletedEvent  (or TranslationFailedEvent)
+  │    └─ FailedTaskPersistenceHandler — saves FailedTask on any *FailedEvent
   │
-  ├─ ArticleProcessedHandler
-  │    └─ AnalyzeArticleUseCase (LLM chain → tags + analysis + embeddings)
-  │         └─ publish AnalysisCompletedEvent  (or AnalysisFailedEvent)
+  ├─ Barrier 1: every article's text-stage Task has settled (asyncio.gather, return_exceptions=True)
+  │    └─ publish TextPipelineCompletedEvent
+  │         ├─ SearchIndexRebuildHandler  (RebuildSearchIndexUseCase → Redis search index)
+  │         ├─ CacheInvalidationHandler
+  │         └─ CacheWarmupHandler          (strictly after invalidation)
   │
-  ├─ TagNormalizationHandler  (on AnalysisCompletedEvent)
-  │    └─ NormalizeTagsUseCase (embedding similarity → TagNormalizationSuggestion)
-  │         └─ publish TagNormalizationCompletedEvent  (or TagNormalizationFailedEvent)
-  │
-  ├─ AnalysisCompletedHandler  (on TagNormalizationCompletedEvent)
-  │    └─ TranslateArticleUseCase + TranslateTagsUseCase
-  │         (auto-triggers for configured TRANSLATION_LANGUAGES)
-  │
-  ├─ FailedTaskPersistenceHandler
-  │    └─ saves FailedTask on AnalysisFailedEvent / TagNormalizationFailedEvent / TranslationFailedEvent
-  │
-  └─ [on PipelineCompletedEvent]
-       ├─ OtelMetricsHandler  (push counters/histograms to Grafana Cloud)
-       └─ NotificationHandler (Telegram summary)
+  └─ Barrier 2: every detached RAG Task has also settled
+       └─ publish PipelineCompletedEvent
+            ├─ OtelMetricsHandler   (push counters/histograms to Grafana Cloud)
+            └─ NotificationHandler  (Telegram summary, incl. partial-failure count + rate-limited hosts/providers)
 ```
 
-All handlers are wrapped with OpenTelemetry span decorators (`with_span`, `with_span_deferred`, `with_article_pipeline_span`) so the full article lifecycle appears as a trace tree.
+The `article.pipeline` span per article is kept open (via `_ArticleSpanLatch`) until **both** its text stage and its detached RAG Task have settled, so its subtree contains `article.rag_ingest`. Barrier-1 handlers only depend on text content, so they don't wait on RAG.
 
 ## Scrapers
 
@@ -143,9 +153,9 @@ All scrapers extend `BaseScraper` and implement `discover() → List[ScrapeJob]`
 
 Providers are loaded at startup from the **`llm_providers` database table** (managed via `/admin/llm-providers` in the frontend). Each row specifies name, model, `api_key_env`, priority, `is_active`, and rate limits (`rpm`/`tpm`/`rpd`).
 
-`ResilientLLMService` holds an ordered list of `ProviderHandler` objects sorted by priority. On `analyze()`, it walks providers in priority order and falls back on `RateLimitExhausted` or any exception. `SlidingWindowStrategy` enforces per-window RPM/TPM/RPD limits.
+`ResilientLLMService` holds an ordered list of `ProviderHandler` objects sorted by priority. On `analyze()`, it walks providers in priority order and falls back on `RateLimitExhausted` or any exception. `SlidingWindowStrategy` enforces per-window RPM/TPM/RPD limits. The concurrent pipeline uses the async sibling `AsyncResilientLLMService`, which additionally scans for a provider with spare capacity (`ProviderSelector`) before dispatching so concurrent article tasks spread across every model with headroom.
 
-`ResilientEmbeddingService` follows the same pattern for embedding providers (currently `GeminiEmbeddingProvider`). Embeddings (`vector(768)`) are stored on the `tags` table via pgvector and used by `NormalizeTagsUseCase` for tag deduplication suggestions.
+`ResilientEmbeddingService` follows the same pattern for embedding providers (currently `GeminiEmbeddingProvider`). Tag embeddings (`vector(768)`) live on the `tags` table via pgvector and feed `NormalizeTagsUseCase`'s dedup suggestions. RAG ingestion is separate: dense/sparse embeddings for article chunks (`vectors` schema, migration 21) are produced by the RAG SDK's own provider stack, configured via `RAG_DENSE_*` / `RAG_SPARSE_*` env vars, and written on a detached per-article task (Barrier 2).
 
 ## Process Lifecycle (`main.py`)
 
@@ -154,12 +164,11 @@ Providers are loaded at startup from the **`llm_providers` database table** (man
 3. **Startup jitter** — random 0–180 s sleep (skip with `RUN_IMMEDIATELY=1`)
 4. `init_default_client()` — shared `HttpClient` with retry/proxy
 5. `init_run_context()` — generates `run_id` + `correlation_id`; bound to every log entry
-6. Signal handlers — SIGTERM/SIGINT set `_shutdown_requested` flag
-7. **OTel root span** `scraper.run` wraps `build_collection_pipeline()` + `pipeline.run()`
-8. On completion — logs per-source stats (new / duplicate / failed articles)
-9. `shutdown_tracing()` — flushes `BatchSpanProcessor` after root span ends
+6. **OTel root span** `scraper.run` wraps `build_collection_pipeline()` + `pipeline.run()`
+7. On completion — logs per-source stats (new / duplicate / failed articles)
+8. `shutdown_tracing()` — flushes `BatchSpanProcessor` after root span ends
 
-Hard timeout: **50 minutes**.
+Hard timeout: **50 minutes**, enforced by `asyncio.timeout(MAX_EXECUTION_TIME)` around `pipeline.run()` (cancels the run, disposes the async engine, still flushes final telemetry). No custom signal handlers — SIGTERM terminates directly, platform SIGKILL is the backstop.
 
 ## Observability
 
@@ -177,6 +186,6 @@ Hard timeout: **50 minutes**.
 |---|---|
 | Production | `Dockerfile` (multi-stage, `uv` for dependency install) |
 | Development | `Dockerfile.dev` (hot-reload) |
-| Config | `railway.toml` (Railway cron job trigger) |
+| Deploy config | `.railway/railway.ts` (`railway config plan/apply`) — cron schedule, env vars, restart policy. `railway.toml` no longer holds service config. |
 
-Required environment variables: `DATABASE_URL`, one or more LLM API keys (configured via `api_key_env` in `llm_providers` table), `TELEGRAM_BOT_TOKEN`, `SENTRY_DSN` (optional), `MAXMIND_LICENSE_KEY` (optional).
+Required environment variables: `DATABASE_URL`, one or more LLM API keys (configured via `api_key_env` in `llm_providers` table), `TELEGRAM_BOT_TOKEN`. Optional: `SENTRY_DSN`, `MAXMIND_LICENSE_KEY`. RAG ingestion is enabled when `VECTOR_DB_*` are set and configured via `RAG_DENSE_*` / `RAG_SPARSE_*`; async-pipeline concurrency via `TEXT_STAGE_CONCURRENCY`, `RAG_DISPATCH_CONCURRENCY`, `ASYNC_DB_POOL_SIZE`, `PIPELINE_EXECUTOR_MAX_WORKERS` (see `src/config/settings.py`).

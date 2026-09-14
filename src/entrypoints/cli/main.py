@@ -2,8 +2,8 @@
 Entry point — frequency-based scrape dispatch.
 
 Responsibilities here:
-  - Process-level setup (logging, HTTP client, OTel, Sentry, signals)
-  - Timeout guard
+  - Process-level setup (logging, HTTP client, OTel, Sentry)
+  - Timeout guard (asyncio.timeout around pipeline.run())
   - Wiring composition root → RunScraperUseCase
   - Observability teardown (metrics push, tracing shutdown, notifications)
 
@@ -11,7 +11,6 @@ All domain/application logic lives in src/app/ and src/ingestion/.
 """
 import asyncio
 import time
-import signal
 import random
 
 from src.config.settings import APP_ENV, SENTRY_DSN, validate_config, get_run_immediately
@@ -29,26 +28,7 @@ if SENTRY_DSN:
 
 logger = get_logger(__name__)
 
-MAX_EXECUTION_TIME = 50 * 60  # 50 minutes
-
-_shutdown_requested = False
-
-
-def signal_handler(signum, frame):
-    """Sets the shutdown flag when SIGTERM or SIGINT is received."""
-    global _shutdown_requested
-    logger.warning("shutdown_signal_received", signal=signum)
-    _shutdown_requested = True
-
-
-def check_timeout(start_time: float) -> bool:
-    """Returns True if execution has exceeded the 50-minute hard timeout."""
-    elapsed = time.time() - start_time
-    if elapsed >= MAX_EXECUTION_TIME:
-        logger.warning("execution_timeout_reached", elapsed_seconds=elapsed)
-        return True
-    return False
-
+MAX_EXECUTION_TIME = 50 * 60  # 50 minutes — enforced by asyncio.timeout() in main()
 
 
 def main() -> None:
@@ -72,9 +52,6 @@ def main() -> None:
 
     run_id, correlation_id = init_run_context()
     bind_correlation_id(correlation_id)
-
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
 
     started_at, t0 = log_execution_started(
         logger, run_id=run_id, correlation_id=correlation_id, jitter_seconds=jitter_seconds,
@@ -119,7 +96,22 @@ def main() -> None:
                 )
                 try:
                     pipeline, pipeline_stats = await build_collection_pipeline(jitter_seconds=jitter_seconds)
-                    await pipeline.run()
+                    # Hard wall-clock cap on the pipeline run itself. asyncio.timeout()
+                    # cancels pipeline.run() in place on expiry; the `finally` below
+                    # still disposes the engine cleanly inside this same event loop,
+                    # and main()'s outer `finally` still flushes pipeline_stats
+                    # telemetry. The platform's own SIGKILL is the backstop if the
+                    # run doesn't unwind promptly; startup jitter (<=180s) is
+                    # deliberately not counted against this budget.
+                    try:
+                        async with asyncio.timeout(MAX_EXECUTION_TIME):
+                            await pipeline.run()
+                    except TimeoutError:
+                        logger.warning(
+                            "execution_timeout_reached",
+                            timeout_seconds=MAX_EXECUTION_TIME,
+                        )
+                        raise
                 finally:
                     # Close the async engine's pooled connections inside this same
                     # event loop, before asyncio.run() tears it down.

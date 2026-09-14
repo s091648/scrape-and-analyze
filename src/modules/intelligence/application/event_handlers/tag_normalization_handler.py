@@ -1,6 +1,3 @@
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from shared.enums.observability import SpanName
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
@@ -21,23 +18,31 @@ class TagNormalizationHandler:
     constructed only once, only inside build_collection_pipeline(). Takes the
     per-article-task's own AsyncSession now (never shared across concurrently
     running article tasks).
+
+    fix/sanitize: no longer fetches the article body (title/content) — that
+    was only ever done as a courtesy relay for translation, which used to
+    chain off TagNormalizationCompletedEvent to receive those fields.
+    Translation now fans out independently off AnalysisCompletedEvent and
+    fetches its own article body (AnalysisCompletedHandler), so a transient
+    DB read failure here can no longer be mislabeled as "tag normalization
+    failed" (and can no longer block translation either) when tag
+    normalization itself actually succeeded.
     """
 
-    def __init__(self, use_case: NormalizeTagsUseCase, event_bus, session: AsyncSession) -> None:
+    def __init__(self, use_case: NormalizeTagsUseCase, event_bus, session=None) -> None:
         self._use_case = use_case
         self._event_bus = event_bus
+        # session kept for backwards-compatible construction — no longer used
+        # by this handler itself (see class docstring), but bootstrap.py may
+        # still pass the per-article session through unchanged.
         self._session = session
 
     async def handle(self, event: AnalysisCompletedEvent) -> None:
         """Run tag normalization on the analysis result and publish outcome.
 
         024-async-pipeline-refactor follow-up: owns its own span (see
-        ArticleScrapedHandler.handle's docstring for why). Exactly one
-        follow-up event is always published, after the span closes, so it's
-        a sibling under article.pipeline rather than nested inside
-        article.tag_normalization.handle.
+        ArticleScrapedHandler.handle's docstring for why).
         """
-        next_event = None
         with get_tracer().start_as_current_span(SpanName.TAG_NORMALIZATION_HANDLE) as span:
             span.set_attribute("analysis.id", str(event.analysis_id))
             span.set_attribute("article.id", str(event.article_id))
@@ -62,24 +67,11 @@ class TagNormalizationHandler:
                     analysis_id=str(event.analysis_id),
                     article_id=str(event.article_id),
                 )
-                try:
-                    article_title, article_content = await self._fetch_article_body(event.article_id)
-                except Exception as e:
-                    logger.error("article_body_fetch_failed", article_id=str(event.article_id), error=str(e))
-                    next_event = TagNormalizationFailedEvent(
-                        analysis_id=event.analysis_id,
-                        article_id=event.article_id,
-                        exception_type=type(e).__name__,
-                        exception_message=str(e),
-                    )
-                else:
-                    next_event = TagNormalizationCompletedEvent(
-                        analysis_id=event.analysis_id,
-                        article_id=event.article_id,
-                        article_title=article_title,
-                        article_content=article_content,
-                        topic_id=event.topic_id,
-                    )
+                next_event = TagNormalizationCompletedEvent(
+                    analysis_id=event.analysis_id,
+                    article_id=event.article_id,
+                    topic_id=event.topic_id,
+                )
             else:
                 if result.exception_type:
                     span.set_attribute("normalization.error_type", result.exception_type)
@@ -92,15 +84,3 @@ class TagNormalizationHandler:
                 )
 
         await self._event_bus.publish(next_event)
-
-    async def _fetch_article_body(self, article_id) -> tuple[str, str]:
-        """Fetch article title and content from the database.
-
-        Raises on DB failure so the caller can publish a TagNormalizationFailedEvent.
-        """
-        from models.article import Article
-        result = await self._session.execute(select(Article).filter_by(id=article_id))
-        row = result.scalars().first()
-        if row:
-            return row.title or "", row.content or ""
-        return "", ""

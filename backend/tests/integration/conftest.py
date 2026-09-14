@@ -56,6 +56,7 @@ def db_engine():
     from models.failed_task import FailedTask            # noqa: F401
     from models.article_metrics import ArticleMetrics    # noqa: F401
     from models.article_metric_value import ArticleMetricValue  # noqa: F401
+    from models.article_view_daily import ArticleViewDaily  # noqa: F401
     from models.weekly_report import WeeklyReport        # noqa: F401
     from models.weekly_report_translation import WeeklyReportTranslation  # noqa: F401
     from models.user_subscription import (               # noqa: F401

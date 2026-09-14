@@ -4,6 +4,7 @@ import { fetchArticleFilterOriginalSources } from '@/lib/api/articles'
 import { fetchTagGroups } from '@/lib/api/tags'
 import type { TagGroupOut } from '@/lib/api/tags'
 import type { ComponentType } from 'react'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 vi.mock('@/lib/api/articles', () => ({
   fetchArticleFilterOriginalSources: vi.fn(),
@@ -95,40 +96,40 @@ describe('FilterBar', () => {
   })
 
   it('"Filters" toggle button is always rendered', async () => {
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument()
     })
   })
 
   it('clicking "Filters" reveals Source and Tag popover triggers', async () => {
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.getByRole('button', { name: /source/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /tag/i })).toBeInTheDocument()
   })
 
   it('"Clear" button is hidden when activeFilterCount is 0', async () => {
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.queryByRole('button', { name: /clear/i })).not.toBeInTheDocument()
   })
 
   it('"Clear" button is visible when activeFilterCount > 0', async () => {
-    render(<FilterBar {...defaultProps} activeFilterCount={2} />)
+    render(<FilterBar {...defaultProps} activeFilterCount={2} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.getByRole('button', { name: /clear/i })).toBeInTheDocument()
   })
 
   it('has no separate "Apply" button — filters apply themselves', async () => {
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.queryByRole('button', { name: /^apply$/i })).not.toBeInTheDocument()
   })
 
   it('"Clear" resets filters and calls onApply with empty values', async () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} originalSources={['arxiv']} onApply={onApply} activeFilterCount={1} />)
+    render(<FilterBar {...defaultProps} originalSources={['arxiv']} onApply={onApply} activeFilterCount={1} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
     expect(onApply).toHaveBeenCalledWith({
@@ -137,7 +138,7 @@ describe('FilterBar', () => {
   })
 
   it('fetches original source options and tag groups on mount', async () => {
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     await waitFor(() => {
       expect(fetchArticleFilterOriginalSources).toHaveBeenCalledWith('topic-1', 'en')
       expect(fetchTagGroups).toHaveBeenCalledWith('topic-1')
@@ -145,7 +146,7 @@ describe('FilterBar', () => {
   })
 
   it('renders sort slot content passed as children next to the Filters button', async () => {
-    render(<FilterBar {...defaultProps}><button>Sort slot</button></FilterBar>)
+    render(<FilterBar {...defaultProps}><button>Sort slot</button></FilterBar>, { wrapper: SWRTestWrapper })
     expect(screen.getByRole('button', { name: 'Sort slot' })).toBeInTheDocument()
   })
 })
@@ -158,14 +159,14 @@ describe('FilterBar — Favorites Only', () => {
 
   it('is hidden for unauthenticated users', async () => {
     mockSessionStatus = 'unauthenticated'
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
   })
 
   it('appears inside the filter panel (not the always-visible top row) for authenticated users', async () => {
     mockSessionStatus = 'authenticated'
-    render(<FilterBar {...defaultProps} />)
+    render(<FilterBar {...defaultProps} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByRole('button', { name: /favorites only/i })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     expect(screen.getByRole('button', { name: /favorites only/i })).toBeInTheDocument()
@@ -174,7 +175,7 @@ describe('FilterBar — Favorites Only', () => {
   it('calls onFavoritesToggle with the flipped value when clicked', async () => {
     mockSessionStatus = 'authenticated'
     const onFavoritesToggle = vi.fn()
-    render(<FilterBar {...defaultProps} favoritesOnly={false} onFavoritesToggle={onFavoritesToggle} />)
+    render(<FilterBar {...defaultProps} favoritesOnly={false} onFavoritesToggle={onFavoritesToggle} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     fireEvent.click(screen.getByRole('button', { name: /favorites only/i }))
     expect(onFavoritesToggle).toHaveBeenCalledWith(true)
@@ -207,7 +208,7 @@ describe('FilterBar — debounced auto-apply', () => {
 
   it('does not call onApply immediately on a filter change', () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} onApply={onApply} />)
+    render(<FilterBar {...defaultProps} onApply={onApply} />, { wrapper: SWRTestWrapper })
     const dateInput = openAfterDateInput()
     fireEvent.change(dateInput, { target: { value: '2026-01-01' } })
     expect(onApply).not.toHaveBeenCalled()
@@ -215,7 +216,7 @@ describe('FilterBar — debounced auto-apply', () => {
 
   it('calls onApply once the debounce delay elapses', () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} onApply={onApply} />)
+    render(<FilterBar {...defaultProps} onApply={onApply} />, { wrapper: SWRTestWrapper })
     const dateInput = openAfterDateInput()
     fireEvent.change(dateInput, { target: { value: '2026-01-01' } })
     act(() => { vi.advanceTimersByTime(500) })
@@ -224,7 +225,7 @@ describe('FilterBar — debounced auto-apply', () => {
 
   it('collapses rapid successive edits (e.g. setting both ends of a range) into a single call for the final value', () => {
     const onApply = vi.fn()
-    render(<FilterBar {...defaultProps} onApply={onApply} />)
+    render(<FilterBar {...defaultProps} onApply={onApply} />, { wrapper: SWRTestWrapper })
     const dateInput = openAfterDateInput()
 
     fireEvent.change(dateInput, { target: { value: '2026-01-01' } })
@@ -240,7 +241,7 @@ describe('FilterBar — debounced auto-apply', () => {
 
   it('does not re-apply once the parent has echoed the applied value back down as props', () => {
     const onApply = vi.fn()
-    const { rerender } = render(<FilterBar {...defaultProps} onApply={onApply} />)
+    const { rerender } = render(<FilterBar {...defaultProps} onApply={onApply} />, { wrapper: SWRTestWrapper })
     const dateInput = openAfterDateInput()
     fireEvent.change(dateInput, { target: { value: '2026-01-01' } })
     act(() => { vi.advanceTimersByTime(500) })

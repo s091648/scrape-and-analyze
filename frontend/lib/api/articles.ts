@@ -1,5 +1,4 @@
 import { apiFetch } from './client'
-import { LRUCache } from '@/lib/cache/lru-cache'
 
 export interface Article {
   id: string
@@ -83,36 +82,14 @@ export async function fetchArticles(
   return res.json()
 }
 
-// Per-session (in-memory, cleared on reload — no sessionStorage/localStorage) cache of article
-// detail responses, so re-opening a dialog for a recently viewed article skips the network
-// round-trip. Capacity 10, evicted LRU. Keyed by locale+id since translated_title/content differ
-// per locale. view_count/metrics are cached along with everything else (unlike the backend's own
-// cache, which deliberately excludes them for freshness — see backend/routers/articles.py) since
-// staleness here is bounded to one browser tab's session and a few minutes, not worth a second
-// endpoint just to keep them live.
-const ARTICLE_DETAIL_CACHE_CAPACITY = 10
-const articleDetailCache = new LRUCache<string, ArticleDetail>(ARTICLE_DETAIL_CACHE_CAPACITY)
-
+// No module-level cache here anymore — repeat lookups of the same (id, locale) are cached by
+// the caller's useArticleDetail() SWR hook (hooks/use-article-detail.ts) instead, which is what
+// actually consumes this function. That gives every caller (article-card.tsx's dialog,
+// knowledge-graph.tsx's dialog) a single shared cache entry per (id, locale) — one LRU keyed
+// the same way used to exist here, but scoped to a single call site instead of shared app-wide.
 export async function fetchArticleById(id: string, locale?: string, silent?: boolean): Promise<ArticleDetail> {
-  const cacheKey = `${locale ?? 'en'}:${id}`
-  const cached = articleDetailCache.get(cacheKey)
-  if (cached) return cached
-
   const res = await apiFetch(`/articles/${id}`, {}, locale, { silent })
   if (!res.ok) throw new Error(`${res.status}`)
-  const data: ArticleDetail = await res.json()
-  articleDetailCache.set(cacheKey, data)
-  return data
-}
-
-/** Test-only escape hatch — the cache above is a module singleton, so tests that reuse the
- * same (id, locale) across cases need a way to reset it between runs. */
-export function __resetArticleDetailCacheForTests(): void {
-  articleDetailCache.clear()
-}
-
-export async function fetchArticleFilterSources(locale?: string): Promise<string[]> {
-  const res = await apiFetch('/articles/filters/sources', {}, locale)
   return res.json()
 }
 
@@ -122,18 +99,13 @@ export async function fetchArticleFilterOriginalSources(topicId?: string, locale
   return res.json()
 }
 
-export async function fetchArticleFilterTags(locale?: string): Promise<string[]> {
-  const res = await apiFetch('/articles/filters/tags', {}, locale)
-  return res.json()
-}
-
-// Per-session, unbounded (article ids are tiny strings — no LRU/capacity needed the way the
-// content cache above needs one) record of "already sent a view POST for this article", keyed by
-// id alone (not locale — viewing the same article in a different language still counts as having
-// viewed it, so this is intentionally coarser than articleDetailCache's key). The backend already
-// deduplicates repeat views per-IP over 24h (see backend/routers/articles.py's `viewed:{ip}:{id}`
-// Redis key), so this is purely an optimization to skip the network round-trip for the common
-// case of reopening the same article within one tab session — it is never the source of truth for
+// Per-session, unbounded (article ids are tiny strings — no capacity limit needed) record of
+// "already sent a view POST for this article", keyed by id alone (not locale — viewing the same
+// article in a different language still counts as having viewed it, so this is intentionally
+// coarser than useArticleDetail's (id, locale) cache key). The backend already deduplicates
+// repeat views per-IP over 24h (see backend/routers/articles.py's `viewed:{ip}:{id}` Redis key),
+// so this is purely an optimization to skip the network round-trip for the common case of
+// reopening the same article within one tab session — it is never the source of truth for
 // whether a view counts.
 const viewedThisSession = new Set<string>()
 
@@ -145,7 +117,8 @@ export function recordArticleView(id: string): void {
   })
 }
 
-/** Test-only escape hatch, mirrors __resetArticleDetailCacheForTests. */
+/** Test-only escape hatch — the set above is a module singleton, so tests that reuse the same id
+ * across cases need a way to reset it between runs. */
 export function __resetViewedThisSessionForTests(): void {
   viewedThisSession.clear()
 }
