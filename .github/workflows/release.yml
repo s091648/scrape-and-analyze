@@ -23,6 +23,15 @@ name: Release to Production
 on:
   push:
     tags: ['v*']
+  # Manual fallback for when a tag push never triggers this workflow at all —
+  # e.g. GitHub silently skips push-triggered runs (branch or tag) whenever the
+  # pushed ref's HEAD commit message contains a skip-ci directive like
+  # `[skip ci]`. This bit us when the Dependency graph auto-update feature
+  # landed a `[skip ci]` lockfile-sync commit right on master's tip and a
+  # release tag got cut on top of it. To recover: re-run this workflow via
+  # workflow_dispatch, picking the affected tag as the ref to run from (so
+  # github.ref_name/github.sha resolve exactly as a real tag push would).
+  workflow_dispatch:
 
 permissions:
   contents: write
