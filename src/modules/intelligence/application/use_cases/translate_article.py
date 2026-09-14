@@ -2,7 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from src.shared.logging import get_logger
-from src.modules.intelligence.domain.services import LLMService
+from src.modules.intelligence.domain.services import LLMService, AsyncLLMService
 from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository
 from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.value_objects import (
@@ -166,7 +166,7 @@ class AsyncTranslateArticleUseCase:
 
     def __init__(
         self,
-        llm_service,
+        llm_service: AsyncLLMService,
         translation_repository: AnalysesTranslationRepository,
         prompt: ArticleTranslationPrompt,
     ) -> None:

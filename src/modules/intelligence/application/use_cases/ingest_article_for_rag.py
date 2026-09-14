@@ -1,4 +1,8 @@
-from src.modules.intelligence.domain.services.rag_ingestion_service import RagIngestionService
+from src.modules.intelligence.domain.services.rag_ingestion_service import (
+    RagIngestionService,
+    AsyncRagIngestionService,
+)
+from src.shared.domain.entities import Article
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +36,7 @@ class IngestArticleForRagUseCase:
     def __init__(self, rag_ingestion_service: RagIngestionService) -> None:
         self._rag_ingestion_service = rag_ingestion_service
 
-    def execute(self, article, full_text: str = "") -> None:
+    def execute(self, article: Article, full_text: str = "") -> None:
         if not full_text or not full_text.strip():
             full_text = self._build_full_text(article)
 
@@ -56,7 +60,7 @@ class IngestArticleForRagUseCase:
         self._rag_ingestion_service.ingest(article, full_text)
         logger.debug("rag_ingested", article_id=str(article.id), chars=len(full_text))
 
-    def _build_full_text(self, article) -> str:
+    def _build_full_text(self, article: Article) -> str:
         """Fallback: assemble text from persisted article fields."""
         parts: list[str] = []
         if article.title:
@@ -85,10 +89,10 @@ class AsyncIngestArticleForRagUseCase:
     research.md item 11. Same logic as the sync version, `execute` is
     `async def` and awaits the injected AsyncRagIngestionService."""
 
-    def __init__(self, rag_ingestion_service) -> None:
+    def __init__(self, rag_ingestion_service: AsyncRagIngestionService) -> None:
         self._rag_ingestion_service = rag_ingestion_service
 
-    async def execute(self, article, full_text: str = "") -> None:
+    async def execute(self, article: Article, full_text: str = "") -> None:
         if not full_text or not full_text.strip():
             full_text = self._build_full_text(article)
 
@@ -116,7 +120,7 @@ class AsyncIngestArticleForRagUseCase:
         once per run, after every execute() call has settled."""
         await self._rag_ingestion_service.aclose()
 
-    def _build_full_text(self, article) -> str:
+    def _build_full_text(self, article: Article) -> str:
         """Fallback: assemble text from persisted article fields."""
         parts: list[str] = []
         if article.title:

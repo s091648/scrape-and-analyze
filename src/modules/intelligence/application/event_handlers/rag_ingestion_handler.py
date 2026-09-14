@@ -1,5 +1,7 @@
+from typing import Optional
+
 from opentelemetry import trace as _otel_trace
-from opentelemetry.trace import StatusCode
+from opentelemetry.trace import Span, StatusCode
 
 try:  # optional dependency — RAG SDK isn't always installed (see build_rag_ingestion_service)
     from chatbot_plugin_sdk import RateLimitExhausted
@@ -9,8 +11,13 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only where the SDK i
 
 from shared.enums.observability import SpanName
 from shared.observability.traceback_filter import format_filtered_exc
-from src.modules.intelligence.application.use_cases.ingest_article_for_rag import IngestArticleForRagUseCase
+from src.modules.intelligence.application.use_cases.ingest_article_for_rag import (
+    AsyncIngestArticleForRagUseCase,
+    IngestArticleForRagUseCase,
+)
 from src.modules.intelligence.application.events.rag_ingestion_failed import RagIngestionFailedEvent
+from src.shared.application.events import ArticleProcessedEvent
+from src.shared.application.ports import EventBus
 from src.shared.logging import get_logger
 from src.infrastructure.shared.logging import get_correlation_id
 
@@ -19,11 +26,11 @@ _tracer = _otel_trace.get_tracer(__name__)
 
 
 class RagIngestionHandler:
-    def __init__(self, use_case: IngestArticleForRagUseCase, event_bus) -> None:
+    def __init__(self, use_case: IngestArticleForRagUseCase, event_bus: EventBus) -> None:
         self._use_case = use_case
         self._event_bus = event_bus
 
-    def handle(self, event) -> None:
+    def handle(self, event: ArticleProcessedEvent) -> None:
         import time as _time
         article_id = event.article.id
         article_url = event.article.url
@@ -89,11 +96,11 @@ class AsyncRagIngestionHandler:
     contain the RAG work.
     """
 
-    def __init__(self, use_case, event_bus) -> None:
+    def __init__(self, use_case: AsyncIngestArticleForRagUseCase, event_bus: EventBus) -> None:
         self._use_case = use_case
         self._event_bus = event_bus
 
-    async def handle(self, event, parent_span=None) -> None:
+    async def handle(self, event: ArticleProcessedEvent, parent_span: Optional[Span] = None) -> None:
         import time as _time
         article_id = event.article.id
         article_url = event.article.url

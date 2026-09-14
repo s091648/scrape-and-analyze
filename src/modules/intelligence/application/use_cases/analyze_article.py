@@ -10,6 +10,7 @@ from src.modules.intelligence.domain.repositories import (
     AsyncAnalysisRepository,
     AsyncTagGroupDefinitionRepository,
 )
+from src.modules.intelligence.domain.services import AsyncLLMService, AsyncEmbeddingService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup, AnalysisTagGroup
 from .analysis_result import AnalysisResult
 
@@ -28,12 +29,12 @@ class AnalyzeArticleUseCase:
 
     def __init__(
         self,
-        llm_service,
+        llm_service: AsyncLLMService,
         analysis_repository: AsyncAnalysisRepository,
         topic_repository: AsyncTopicRepository,
         tag_group_definition_repository: AsyncTagGroupDefinitionRepository,
         prompt: AnalysisPrompt,
-        embedding_service=None,
+        embedding_service: Optional[AsyncEmbeddingService] = None,
     ) -> None:
         self._llm_service = llm_service
         self._analysis_repository = analysis_repository
