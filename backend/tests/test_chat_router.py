@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.services.chat_service import DAILY_LIMIT_GUEST
+
 os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
 
 
@@ -72,12 +74,16 @@ def test_chat_completions_no_token_returns_401():
     assert response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
-def test_chat_completions_rate_limit_exceeded_returns_429():
+def test_chat_completions_daily_quota_exceeded_returns_429():
+    """026-rate-limit-codegen research.md Decision 3: this endpoint's daily-quota
+    refusal now goes through the shared RateLimitExceededError/ErrorResponse
+    contract instead of its former one-off HTTPException(429) body shape."""
     from backend.main import app
 
     client = TestClient(app)
     mock_redis = make_mock_redis()
     mock_redis.incr = AsyncMock(return_value=100)
+    mock_redis.ttl = AsyncMock(return_value=3600)
 
     with patch("backend.routers.chat._make_redis", return_value=mock_redis):
         response = client.post(
@@ -87,8 +93,65 @@ def test_chat_completions_rate_limit_exceeded_returns_429():
         )
 
     assert response.status_code == 429
-    data = response.json()
-    assert "limit" in data["detail"]
+    body = response.json()
+    assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert body["error"]["retry_after_seconds"] == 3600
+
+
+def test_chat_completions_burst_limit_exceeded_returns_429_independent_of_daily_quota():
+    """The short-window chat_burst policy (backend/rate_limit/limiter.py) is a
+    separate check from the daily quota above — exceeding it refuses the request
+    even though the daily quota (mocked here as freshly-used, count=1) has plenty
+    of remaining allowance."""
+    from backend.main import app
+
+    client = TestClient(app)
+    daily_quota_redis = make_mock_redis()  # incr() defaults to 1 — nowhere near DAILY_LIMIT_GUEST
+
+    burst_redis = AsyncMock()
+    burst_redis.incr = AsyncMock(return_value=999)
+    burst_redis.expire = AsyncMock()
+    burst_redis.ttl = AsyncMock(return_value=8)
+    burst_redis.aclose = AsyncMock()
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=daily_quota_redis),
+        patch("backend.rate_limit.limiter._make_redis", return_value=burst_redis),
+    ):
+        response = client.post(
+            "/chat/completions",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+            headers=guest_headers(),
+        )
+
+    assert response.status_code == 429
+    body = response.json()
+    assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert body["error"]["retry_after_seconds"] == 8
+    daily_quota_redis.incr.assert_not_called()  # burst check ran first, via Depends()
+
+
+def test_chat_quota_unaffected_by_burst_limit():
+    """GET /chat/quota reports the daily allowance only — it has no chat_burst
+    Depends() of its own, so a burst-exhausted identity still sees its real
+    remaining daily quota when just checking it."""
+    from backend.main import app
+
+    client = TestClient(app)
+    mock_redis = make_quota_redis(count=1)
+
+    burst_redis = AsyncMock()
+    burst_redis.incr = AsyncMock(return_value=999)
+    burst_redis.aclose = AsyncMock()
+
+    with (
+        patch("backend.routers.chat._make_redis", return_value=mock_redis),
+        patch("backend.rate_limit.limiter._make_redis", return_value=burst_redis),
+    ):
+        response = client.get("/chat/quota", headers=guest_headers())
+
+    assert response.status_code == 200
+    assert response.json()["remaining"] == DAILY_LIMIT_GUEST - 1
 
 
 def test_chat_completions_admin_bypasses_rate_limit():

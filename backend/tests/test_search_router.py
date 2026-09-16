@@ -292,3 +292,55 @@ def test_autocomplete_defaults_lang_to_en():
 
     _, kwargs = mock_suggest.call_args
     assert kwargs["lang"] == "en"
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting (026-rate-limit-codegen US3) — conftest's _no_rate_limit_by_default
+# autouse fixture keeps every test above unaffected; these override it.
+# ---------------------------------------------------------------------------
+
+
+def _exceeded_rate_limit_redis():
+    redis = AsyncMock()
+    redis.incr = AsyncMock(return_value=999)
+    redis.expire = AsyncMock()
+    redis.ttl = AsyncMock(return_value=5)
+    redis.aclose = AsyncMock()
+    return redis
+
+
+def test_search_rate_limit_exceeded_returns_429_without_calling_service():
+    from backend.main import app
+    client = TestClient(app)
+    mock_hybrid = AsyncMock(return_value=_paginated_articles())
+    with (
+        patch("backend.routers.search.search_articles_hybrid", mock_hybrid),
+        patch("backend.rate_limit.limiter._make_redis", return_value=_exceeded_rate_limit_redis()),
+    ):
+        response = client.get("/search", params={"q": "test"}, headers=_guest_headers())
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    mock_hybrid.assert_not_called()
+
+
+def test_autocomplete_rate_limit_exceeded_returns_429_without_calling_service():
+    from backend.main import app
+    client = TestClient(app)
+    mock_suggest = MagicMock(return_value=_autocomplete_response())
+    with (
+        patch("backend.routers.search.suggest_terms", mock_suggest),
+        patch("backend.rate_limit.limiter._make_redis", return_value=_exceeded_rate_limit_redis()),
+    ):
+        response = client.get("/search/autocomplete", params={"prefix": "lear"}, headers=_guest_headers())
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    mock_suggest.assert_not_called()
+
+
+def test_search_compliant_pace_never_refused():
+    from backend.main import app
+    client = TestClient(app)
+    with patch("backend.routers.search.search_articles_hybrid", AsyncMock(return_value=_paginated_articles())):
+        for _ in range(3):
+            response = client.get("/search", params={"q": "test"}, headers=_guest_headers())
+            assert response.status_code == 200

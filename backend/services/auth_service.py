@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from shared.domain.exceptions import UnauthorizedError
 from backend.config import NEXTAUTH_SECRET
+from backend.rate_limit.client_origin import get_client_origin
 from backend.schemas.user import AdminUpdateUserRequest
 
 GUEST_ACCESS_TOKEN_TTL_SECONDS = 60 * 60
@@ -136,10 +137,7 @@ def verify_password(password: str, hashed: str) -> bool:
 def compute_guest_id(request: Request) -> str:
     """Stable per-visitor identifier derived from IP + User-Agent (research.md §3),
     reused verbatim from chat.py's pre-existing ip-hash logic."""
-    client_ip = (
-        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )
+    client_ip = get_client_origin(request) or "unknown"
     user_agent = request.headers.get("user-agent", "")
     return hashlib.sha256(f"{client_ip}{user_agent}".encode()).hexdigest()[:16]
 

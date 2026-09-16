@@ -45,6 +45,19 @@ CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
 CHAT_SERVICE_URL: str = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
 CHAT_SERVICE_API_KEY: str = os.environ.get("CHAT_SERVICE_API_KEY", "")
 
+# 026-rate-limit-codegen: one MAX/WINDOW_SECONDS pair per protected capability, each
+# independently tunable without touching the others (spec.md FR-008). Counters live in
+# REDIS_URL (db 0, shared with chat's daily quota above) — see research.md Decision 1/4
+# for why not a dedicated DB index (db3 is reserved for the search-index rebuild swap).
+RATE_LIMIT_GUEST_TOKEN_MAX: int = int(os.environ.get("RATE_LIMIT_GUEST_TOKEN_MAX", "5"))
+RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS", "60"))
+RATE_LIMIT_AUTH_ATTEMPT_MAX: int = int(os.environ.get("RATE_LIMIT_AUTH_ATTEMPT_MAX", "10"))
+RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS", "60"))
+RATE_LIMIT_CHAT_BURST_MAX: int = int(os.environ.get("RATE_LIMIT_CHAT_BURST_MAX", "5"))
+RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS", "10"))
+RATE_LIMIT_SEARCH_MAX: int = int(os.environ.get("RATE_LIMIT_SEARCH_MAX", "30"))
+RATE_LIMIT_SEARCH_WINDOW_SECONDS: int = int(os.environ.get("RATE_LIMIT_SEARCH_WINDOW_SECONDS", "10"))
+
 # 023-article-search follow-up: GET /search's dense/sparse query embedding, via
 # chatbot_plugin_sdk's provider classes (backend/services/search_service.py). Mirrors
 # src/config/settings.py's RAG_DENSE_*/RAG_SPARSE_* block exactly (same var names, same
