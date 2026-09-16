@@ -1,16 +1,11 @@
 import { apiFetch } from './client'
 import type { ArticleSource } from '@/components/features/chat/types'
+import type { components } from './generated-types'
 
-export interface WeeklyReport {
-  id: string
-  topic_id: string | null
-  week_start_date: string
-  title: string
-  summary_text: string
-  cover_image_url: string | null
-  article_count: number
-  status: string
-  created_at: string | null
+// `sources` is kept as the pre-existing ArticleSource type (shared with the chat feature)
+// rather than the generated ArticleSourceOut — everything else comes from the backend
+// contract so it can't silently drift.
+export type WeeklyReport = Omit<components['schemas']['WeeklyReportOut'], 'sources'> & {
   sources: ArticleSource[]
 }
 

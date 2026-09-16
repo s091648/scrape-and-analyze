@@ -1,42 +1,33 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface Article {
-  id: string
-  title: string
-  source: string
-  via_source?: string | null
-  original_source?: string | null
-  content: string
-  published_at: string | null
-  scraped_at: string | null
-  url: string
-  translated_title?: string | null
-  translated_content?: string | null
+// has_vectors/metrics/view_count/is_favorited are non-optional in the backend
+// contract (they always default in) but kept optional here — lots of existing
+// tests/mocks construct partial Article-shaped objects relying on that.
+type _ArticleOptionalFields = 'has_vectors' | 'metrics' | 'view_count' | 'is_favorited'
+export type Article = Omit<components['schemas']['ArticleOut'], _ArticleOptionalFields> & {
   has_vectors?: boolean
   metrics?: Record<string, number>
   view_count?: number
   is_favorited?: boolean
-  /** Only ever set by /search (RRF hybrid search) — undefined for the normal listing
-   * endpoint, where "exact match" isn't a meaningful concept. */
-  exact_match?: boolean
 }
 
-export interface TagGroup {
-  group_name: string
-  display_name: string
-  color: string
-  tags: string[]
-}
+export type TagGroup = components['schemas']['ArticleTagGroupOut']
 
-export interface ArticleDetail extends Article {
-  tags: string[]
-  tag_groups: TagGroup[]
+// Same has_vectors/metrics/view_count optionality restore as Article above, plus
+// pain_points/insights/innovations/model_used kept required (existing consumers
+// read them unconditionally as string | null, never string | null | undefined).
+export type ArticleDetail = Omit<
+  components['schemas']['ArticleDetailOut'],
+  _ArticleOptionalFields | 'pain_points' | 'insights' | 'innovations' | 'model_used'
+> & {
+  has_vectors?: boolean
+  metrics?: Record<string, number>
+  view_count?: number
   pain_points: string | null
   insights: string | null
   innovations: string | null
   model_used: string | null
-  translated_title?: string | null
-  translated_content?: string | null
 }
 
 export interface ArticleListParams {

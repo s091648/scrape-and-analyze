@@ -1,21 +1,11 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface MetricDefinitionDisplay {
-  metric_key: string
-  label_i18n_key: string
-  icon_name: string | null
-  format_hint: string | null
-  unit: string | null
-}
+export type MetricDefinitionDisplay = components['schemas']['MetricDefinitionDisplayOut']
 
 // 2026-07-12: one row per metric_key (not per provider) — provider/priority extraction
 // config lives in a separate maintainer-only table and is never exposed to the admin UI.
-export interface MetricDefinitionAdmin extends MetricDefinitionDisplay {
-  id: string
-  enabled: boolean
-  created_at?: string | null
-  updated_at?: string | null
-}
+export type MetricDefinitionAdmin = components['schemas']['MetricDefinitionAdminOut']
 
 function authHeader(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}

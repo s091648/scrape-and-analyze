@@ -1,5 +1,6 @@
 import { apiFetch } from './client'
 import type { Article } from './articles'
+import type { components } from './generated-types'
 
 export interface SearchParams {
   q: string
@@ -28,10 +29,7 @@ export interface SearchParams {
   order?: string
 }
 
-export interface AutocompleteSuggestion {
-  term: string
-  occurrence_count: number
-}
+export type AutocompleteSuggestion = components['schemas']['SearchSuggestion']
 
 export async function fetchAutocompleteSuggestions(
   prefix: string,

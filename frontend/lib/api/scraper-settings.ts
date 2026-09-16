@@ -1,15 +1,11 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface ScraperSource {
-  id: string
-  source_type: 'rss' | 'blog' | 'arxiv' | 'semantic_scholar' | 'openalex'
-  name: string
-  url: string
-  frequency: number
-  is_active: boolean
-  selector_config?: Record<string, unknown> | null
-  last_scraped_at?: string | null
-  activity?: number[]
+// source_type is widened to `string` on the response schema (FastAPI can't narrow an
+// enum on an output model here) — restore the same union ScraperSettingCreate already
+// uses, since existing consumers switch/compare on the literal values.
+export type ScraperSource = Omit<components['schemas']['ScraperSettingOut'], 'source_type'> & {
+  source_type: components['schemas']['ScraperSettingCreate']['source_type']
 }
 
 function authHeader(token?: string): Record<string, string> {

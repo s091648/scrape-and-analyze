@@ -1,12 +1,8 @@
 import { apiFetch } from './client'
 import { authHeaders } from './auth'
+import type { components } from './generated-types'
 
-export interface NotificationSettings {
-  email_enabled: boolean
-  telegram_chat_id: string | null
-  telegram_enabled: boolean
-  locale: string
-}
+export type NotificationSettings = components['schemas']['NotificationSettingsOut']
 
 export async function getFavorites(token: string): Promise<{ article_ids: string[] }> {
   const res = await apiFetch('/user/favorites', { headers: authHeaders(token) })
