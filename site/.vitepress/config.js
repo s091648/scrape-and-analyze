@@ -375,6 +375,21 @@ export default defineConfig({
           { text: 'Contract: Railway Variables Module', link: '/specs/025-iac-provisioning/contracts/railway-variables-module' },
         ],
       },
+      {
+        text: '026 · Rate Limit Codegen',
+        collapsed: true,
+        items: [
+          { text: 'Spec', link: '/specs/026-rate-limit-codegen/spec' },
+          { text: 'Plan', link: '/specs/026-rate-limit-codegen/plan' },
+          { text: 'Data Model', link: '/specs/026-rate-limit-codegen/data-model' },
+          { text: 'Tasks', link: '/specs/026-rate-limit-codegen/tasks' },
+          { text: 'Research', link: '/specs/026-rate-limit-codegen/research' },
+          { text: 'Quick Start', link: '/specs/026-rate-limit-codegen/quickstart' },
+          { text: 'Requirements', link: '/specs/026-rate-limit-codegen/checklists/requirements' },
+          { text: 'Contract: API Type Generation Workflow', link: '/specs/026-rate-limit-codegen/contracts/api-type-generation-workflow' },
+          { text: 'Contract: Rate Limit Response', link: '/specs/026-rate-limit-codegen/contracts/rate-limit-response' },
+        ],
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/s091648/scrape-and-analyze' },
