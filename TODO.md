@@ -150,49 +150,6 @@ least); (c) give fetch failures a `PipelineStats`/`ArticleOutcome`-equivalent
 recording so they're visible in run-completion stats, not just logs. Not urgent —
 no incident has surfaced from this gap yet.
 
-## `ProcessScrapedArticleUseCase` save-failure has no `FailedTask` record, unlike every other failure path in the per-article chain
-
-**Where**: `src/modules/collection/application/use_cases/process_scraped_article.py`,
-`src/modules/collection/application/event_handlers/article_scraped_handler.py`
-
-When `await self._article_repo.save(article)` raises, `ProcessScrapedArticleUseCase.execute()`
-logs `article_save_failed` and returns `(ArticleOutcome.FAILED, None)`
-(`process_scraped_article.py:57-61`); `ArticleScrapedHandler.handle()` records this
-into `PipelineStats` and sets an ERROR-status span (`article_scraped_handler.py:53-56`)
-— but **no `FailedTask` row is ever written** for this failure. Every later failure
-point in the same per-article chain *does* get one: discover's rate-limit abort
-(`bootstrap.py`'s `_on_discover_failed`), `AnalysisFailedEvent` →
-`FailedTaskPersistenceHandler`, `TagNormalizationFailedEvent`/`TranslationFailedEvent`
-→ the same handler, and the RAG circuit-breaker's bulk write
-(`_record_rag_skipped`). This one save-failure path is the odd one out.
-
-**Why a naive fix isn't free**: the failure happens inside the article's own
-per-article `AsyncSession`, mid-`flush()` — after a failed flush, that session's
-transaction is typically left in a state where it must be rolled back before any
-further query (including an INSERT into `failed_tasks`) can run on it. So "just
-call `failed_task_repo.save()` right after catching the exception, on the same
-session" would likely raise again for the subset of failures caused by a genuine
-DB-connectivity problem — worth being honest that this session is exactly the
-scenario the discover-side `_on_discover_failed` avoids by using a completely
-separate sync session/repo instead of the one that just failed.
-
-**Why it's still worth recording, not left as intentional**: most of this failure's
-realistic causes are *not* a dead DB — e.g. a `url_hash` unique-constraint race (two
-concurrently-discovered candidates for the same underlying article slipping past the
-earlier hash-based dedup checks) — where the connection is fine and only this one
-`INSERT` failed; a rollback + retry on the same session would succeed there. And
-unlike a fetch-stage failure (the URL usually reappears in the source feed/API next
-run), an article that reaches this point has already survived discover+fetch+dedup —
-if this insert fails, its content is gone with only a log line as a trace; there's
-currently no durable record that this article was ever seen.
-
-**Suggested fix**: mirror the discover-side pattern — roll back the per-article
-session (or use a separate session/connection, to also cover the genuine
-DB-outage case) and write a `FailedTask` row for this outcome too, so a save
-failure leaves the same kind of durable trace every other failure branch in this
-chain already leaves. Not urgent — no incident has surfaced from this gap yet,
-this was found by inspection during an architecture walkthrough.
-
 ## Article's commit is incidental — piggybacks on the metrics-upsert's commit, not an explicit decision by `ProcessScrapedArticleUseCase`
 
 **Where**: `src/modules/collection/application/use_cases/process_scraped_article.py`,
@@ -309,45 +266,57 @@ owning use case. Not urgent: `PipelineStats` is imported via
 `use_cases/__init__.py` re-exports from enough call sites that moving it is a
 mechanical but non-trivial import-path change, not worth doing on its own.
 
+## Failure logging now lives entirely in the handler, not the use case — superseded an earlier, opposite convention
+
 **Where**: `src/modules/collection/application/event_handlers/article_scraped_handler.py`,
 `src/modules/intelligence/application/event_handlers/article_processed_handler.py`,
-`src/modules/intelligence/application/use_cases/analyze_article.py`
+`src/modules/intelligence/application/event_handlers/tag_normalization_handler.py`,
+`src/modules/collection/application/use_cases/process_scraped_article.py`,
+`src/modules/intelligence/application/use_cases/analyze_article.py`,
+`src/modules/intelligence/application/use_cases/normalize_tags.py`
 
-No convention for "which layer logs an outcome" is written down anywhere (CLAUDE.md
-or otherwise), but it can be reverse-engineered from the cleanest of the three
-pairs: `NormalizeTagsUseCase`/`TagNormalizationHandler`. The use case's own
-`except` branch logs the failure detail once (`normalize_tags_failed` — it has
-the raw exception, richer context than any summarized result object a handler
-receives), and the handler logs the success/completion milestone once
-(`tag_normalization_completed`, right where it's about to publish the
-corresponding `Completed` event) — each layer owns exactly one branch, zero
-overlap.
+**This entry replaces an earlier, now-superseded version of itself** — that
+version held up `NormalizeTagsUseCase`/`TagNormalizationHandler` as the clean
+model and stated the rule as "the use case logs failure detail (it has the raw
+exception), the handler logs the success/completion milestone." The
+error-handling unification described elsewhere in this codebase's history
+(use cases raise instead of returning a failure-shaped Result; each handler
+wraps its `use_case.execute()` call in one `try/except` that is the single
+place converting *any* exception — anticipated or not — into a `*FailedEvent`)
+flipped failure-logging ownership to the opposite layer:
 
-The other two pairs each duplicate exactly one branch instead of splitting cleanly:
+- `AnalyzeArticleUseCase.execute()` no longer logs on failure at all (no more
+  `llm_analysis_failed`/`analysis_save_failed`) — it just raises.
+  `ArticleProcessedHandler`'s `except` branch now owns the single
+  `logger.exception("article_analysis_failed", ..., error_type=...)` call.
+- `ProcessScrapedArticleUseCase.execute()` no longer logs `article_save_failed`
+  on a save failure — it raises. `ArticleScrapedHandler`'s `except` branch owns
+  `logger.exception("article_save_failed", ...)` instead (same event name,
+  moved up one layer).
+- `NormalizeTagsUseCase.execute()` no longer logs `normalize_tags_failed` on
+  the primary failure — it still has its own `try/except`, but only to roll
+  back the shared per-article session before re-raising (and logs only if that
+  *rollback itself* fails, via `normalize_tags_rollback_failed` — a genuinely
+  use-case-owned side effect, not outcome logging).
+  `TagNormalizationHandler`'s `except` branch owns
+  `logger.exception("tag_normalization_failed", ...)`.
 
-- ~~`ArticleScrapedHandler` duplicated the `FAILED` branch~~ **(fixed)** —
-  `ProcessScrapedArticleUseCase.execute()` already logs `article_save_failed` on
-  save failure; `ArticleScrapedHandler.handle()`'s `FAILED` branch used to *also*
-  call `logger.error("article_scrape_failed", ...)` with mostly overlapping
-  fields. Removed the handler-level log, kept `span.set_status(ERROR, ...)` and
-  `pipeline_stats.record(...)` (genuinely handler-level concerns).
-- ~~`ArticleProcessedHandler` duplicated the **success** branch instead~~
-  **(fixed)** — `AnalyzeArticleUseCase.execute()`'s success path already logs
-  `"analysis_completed"` (article_id, source, model, input/output tokens);
-  `ArticleProcessedHandler.handle()`'s success branch used to log the **same
-  event name** again with nearly identical fields, right before publishing
-  `AnalysisCompletedEvent`. Removed the handler-level log, kept the span
-  attribute sets and the `AnalysisCompletedEvent` construction.
+Success-path logging is unchanged by this: each use case still logs its own
+completion milestone once (`article_saved`, `analysis_completed`,
+`tag_normalization_completed` stays handler-side since the use case itself
+returns `None` on success), and no handler duplicates it — so the "log each
+outcome exactly once" property this entry originally called out still holds,
+just with failure ownership now consistently on the handler side across all
+three pairs instead of split.
 
-**Why it hadn't mattered before fixing**: harmless duplication in both cases,
-not a correctness bug — just noise in the logs (two entries where the clean
-pair produces one).
-
-Both instances found in this chain are now fixed; the rule going forward
-(demonstrated by `NormalizeTagsUseCase`/`TagNormalizationHandler`, now matched
-by the other two pairs) is: the use case logs failure detail (it has the raw
-exception), the handler logs the success/completion milestone — each outcome
-logged exactly once, by whichever layer has the most relevant context for it.
+**Why the convention flipped**: centralizing every failure's `logger.exception(...)`
+call at the one `try/except` per handler also guarantees that call site is the
+one place building the corresponding `*FailedEvent` — the two responsibilities
+(log the failure, record it as a `FailedTask`) can't drift out of sync or be
+forgotten independently anymore, which a `NormalizeTagsUseCase`-style "use case
+logs, handler builds the event" split made easier to get wrong (as evidenced by
+`ProcessScrapedArticleUseCase`'s save failure never having built a `FailedEvent`
+at all — the pattern this fix closed).
 
 ## The three translation use cases repeat the same boilerplate skeleton — worth extracting, not worth merging
 
@@ -360,9 +329,22 @@ logged exactly once, by whichever layer has the most relevant context for it.
 file — 6 classes total) all repeat the same five-step skeleton nearly verbatim:
 check whether a translation already exists (return it if so) → render an
 injected prompt template → call `llm_service.translate("", rendered.content)`
-→ parse the raw LLM text response → persist via the repository, the whole
-thing wrapped in `try/except Exception: logger.error(...); return a
-failure-shaped Result`.
+→ parse the raw LLM text response → persist via the repository.
+
+**Note (post error-handling unification)**: this skeleton used to end with "the
+whole thing wrapped in `try/except Exception: logger.error(...); return a
+failure-shaped Result`" for all three — that's no longer accurate for
+`TranslateArticleUseCase`/`TranslateArticleBodyUseCase`, which now raise
+directly on any failure (LLM exhausted, unparseable response, or persistence
+failing) with no internal `try/except` and no `success`/`exception_type`
+fields left on their Result dataclasses at all — the caller
+(`AnalysisCompletedHandler`) owns catching and logging now, same as every
+other use case/handler pair in this codebase. `TranslateTagsUseCase` was never
+quite this shape to begin with (no top-level `try/except` — only its
+per-item `save()` calls are individually caught so one bad item doesn't sink
+the whole batch — and it returns a `{total, success, failed}` count dict, not
+a Result object), so it's unaffected. The four remaining shared steps above
+are still duplicated across all three/six classes as described.
 
 **Why they're still three separate classes, not one merged with different
 injected content** — verified by reading all three in full, the actual
@@ -386,15 +368,17 @@ parsing strategy — effectively reinventing a Strategy-pattern generic
 translator, which is more complex than three small single-purpose classes, not
 less. Not a merge candidate.
 
-**What is worth doing**: extract the repeated boilerplate (the exists-check
-early-return, and the "call LLM inside try/except, log and return a failure
-Result on any exception" wrapper) into a shared helper function or mixin that
-all three (and their async siblings) call into, while keeping each class's own
-`execute()`/`translate_tags()`/`translate_groups()`, its own repository
-dependency, its own prompt template(s), and its own response-parsing logic
-exactly as they are today. Reduces literal duplicated lines without collapsing
-three genuinely different responsibilities into one. Not urgent — found during
-an architecture walkthrough, no bug involved.
+**What is worth doing**: extract the repeated exists-check early-return into a
+shared helper function or mixin that all three (and their async siblings) call
+into, while keeping each class's own `execute()`/`translate_tags()`/
+`translate_groups()`, its own repository dependency, its own prompt
+template(s), and its own response-parsing logic exactly as they are today.
+Reduces literal duplicated lines without collapsing three genuinely different
+responsibilities into one. (The other half of the original suggestion — extract
+the error-handling wrapper — is now moot for `TranslateArticleUseCase`/
+`TranslateArticleBodyUseCase` per the note above; there's no per-use-case error
+wrapper left to extract, since that responsibility now lives once in the
+handler.) Not urgent — found during an architecture walkthrough, no bug involved.
 
 ## Recording a `FailedTask` has three different, inconsistent call paths across the codebase
 
@@ -413,10 +397,13 @@ row" in this codebase — three different paths exist, each wired differently:
    + the run-end `repo.save_many(self._rag_skipped_tasks)` call) — also calls
    the repository **directly**, no handler, no event, no use case — a batch
    write done once at run-end.
-3. **Analysis / tag-normalization / translation / RAG-ingestion failures** — go
-   through `FailedTaskPersistenceHandler.handle()`, subscribed to each stage's
-   own `XxxFailedEvent` on that stage's own event bus (see the "polymorphic
-   failure sink" pattern discussed in this session).
+3. **Scrape-save / analysis / tag-normalization / translation / RAG-ingestion
+   failures** — go through `FailedTaskPersistenceHandler.handle()`, subscribed
+   to each stage's own `XxxFailedEvent` on that stage's own event bus (see the
+   "polymorphic failure sink" pattern; `ArticleSaveFailedEvent` was the most
+   recent addition to this list — `ProcessScrapedArticleUseCase`'s save
+   failure used to fall through this classification entirely with no
+   `FailedTask` record at all, now fixed by routing it through this same path).
 
 Only path 3 is event-driven and reusable across stages; paths 1 and 2 each
 re-implement their own inline "build a `FailedTask`, call save()" logic instead
