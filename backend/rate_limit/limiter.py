@@ -10,6 +10,20 @@ from shared.domain.exceptions import RateLimitExceededError
 
 logger = structlog.get_logger()
 
+# INCR and EXPIRE must be atomic: if the process is cancelled (or EXPIRE itself
+# fails) after INCR but before EXPIRE, the key is left with no TTL. Only
+# count==1 sets the expiry, so no later request repairs it — that origin/
+# identity would stay rate-limited forever once it reaches the max (CodeRabbit
+# review, 026-rate-limit-codegen PR #127). A single Lua script run by Redis
+# guarantees both happen together or neither does.
+_INCR_AND_EXPIRE_SCRIPT = """
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+    redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+return count
+"""
+
 
 def _make_redis():
     return aioredis.from_url(REDIS_URL)
@@ -32,9 +46,7 @@ async def _check_policy(policy: RateLimitPolicy, key_suffix: str) -> None:
     redis_client = _make_redis()
     try:
         try:
-            count = await redis_client.incr(key)
-            if count == 1:
-                await redis_client.expire(key, policy.window_seconds)
+            count = await redis_client.eval(_INCR_AND_EXPIRE_SCRIPT, 1, key, policy.window_seconds)
         except Exception:
             # Fail open (research.md Decision 5): a Redis blip must not take down every
             # rate-limited endpoint. Observability principle: fail silently with a no-op

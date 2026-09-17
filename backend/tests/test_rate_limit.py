@@ -12,17 +12,17 @@ os.environ.setdefault("NEXTAUTH_SECRET", "test-secret")
 
 def make_counting_redis(ttl=30):
     """A minimal fake honoring real Redis INCR semantics: per-key counters, keyed by
-    the exact string passed to incr()/expire() — good enough to prove two different
-    keys (different origins/identities/policies) never share a counter."""
+    the exact key passed to the atomic INCR+EXPIRE Lua script (limiter.py) — good
+    enough to prove two different keys (different origins/identities/policies)
+    never share a counter."""
     redis = AsyncMock()
     counts: dict[str, int] = {}
 
-    async def incr(key):
+    async def eval_incr_and_expire(script, numkeys, key, window_seconds):
         counts[key] = counts.get(key, 0) + 1
         return counts[key]
 
-    redis.incr = AsyncMock(side_effect=incr)
-    redis.expire = AsyncMock()
+    redis.eval = AsyncMock(side_effect=eval_incr_and_expire)
     redis.ttl = AsyncMock(return_value=ttl)
     redis.aclose = AsyncMock()
     redis._counts = counts
@@ -151,11 +151,31 @@ async def test_chat_burst_key_is_namespaced_separately_from_daily_quota_key():
     with patch("backend.rate_limit.limiter._make_redis", return_value=mock_redis):
         await chat_burst_limit(guest_payload)
 
-    used_key = mock_redis.incr.call_args_list[0][0][0]
+    used_key = mock_redis.eval.call_args_list[0][0][2]
     assert used_key == "ratelimit:chat_burst:guest:known-guest-id"
     # chat_service.py's existing daily quota uses a "rate:guest:{id}:{date}" shape —
     # confirm the two mechanisms can never collide even though they share a Redis DB.
     assert not used_key.startswith("rate:guest:")
+
+
+@pytest.mark.asyncio
+async def test_increment_and_expiry_use_one_atomic_eval_call():
+    """CodeRabbit review (026-rate-limit-codegen PR #127): INCR and EXPIRE must
+    happen in a single atomic Redis script, not two separate round-trips —
+    otherwise a cancellation between them leaves the key with no TTL and the
+    origin/identity stays rate-limited forever once it hits the max."""
+    from backend.rate_limit.limiter import guest_token_limit, _INCR_AND_EXPIRE_SCRIPT
+    from backend.config import RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS
+
+    mock_redis = make_counting_redis()
+    request = make_scoped_request(client_host="7.7.7.7")
+
+    with patch("backend.rate_limit.limiter._make_redis", return_value=mock_redis):
+        await guest_token_limit(request)
+
+    mock_redis.eval.assert_called_once_with(
+        _INCR_AND_EXPIRE_SCRIPT, 1, "ratelimit:guest_token:7.7.7.7", RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS
+    )
 
 
 @pytest.mark.asyncio
@@ -168,7 +188,7 @@ async def test_chat_burst_admin_bypasses_like_the_existing_daily_quota_does():
     with patch("backend.rate_limit.limiter._make_redis", return_value=mock_redis):
         await chat_burst_limit(admin_payload)
 
-    mock_redis.incr.assert_not_called()
+    mock_redis.eval.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +201,7 @@ async def test_redis_error_during_check_fails_open():
     from backend.rate_limit.limiter import guest_token_limit
 
     failing_redis = AsyncMock()
-    failing_redis.incr = AsyncMock(side_effect=ConnectionError("redis unreachable"))
+    failing_redis.eval = AsyncMock(side_effect=ConnectionError("redis unreachable"))
     failing_redis.aclose = AsyncMock()
 
     request = make_scoped_request(client_host="1.2.3.4")

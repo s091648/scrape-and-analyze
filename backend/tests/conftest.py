@@ -167,8 +167,7 @@ def _no_rate_limit_by_default(request):
     from unittest.mock import AsyncMock, patch
 
     never_exceeds_redis = AsyncMock()
-    never_exceeds_redis.incr = AsyncMock(return_value=1)
-    never_exceeds_redis.expire = AsyncMock()
+    never_exceeds_redis.eval = AsyncMock(return_value=1)  # limiter.py's atomic INCR+EXPIRE script
     never_exceeds_redis.ttl = AsyncMock(return_value=60)
     never_exceeds_redis.aclose = AsyncMock()
 

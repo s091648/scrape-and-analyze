@@ -20,26 +20,32 @@ class AsyncSqlAlchemyArticleTranslationRepository(AsyncArticleTranslationReposit
         self._session = session
 
     async def save(self, article_id: UUID, language: str, title: str, content: Optional[str]) -> None:
+        """The whole body — including the initial lookup SELECT, not just commit()
+        — is one rollback-and-reraise guard: this session is shared with
+        FailedTaskPersistenceHandler (bootstrap.py's translation_downstream_builder),
+        so a failure left un-rolled-back would leave the session unusable for that
+        handler's own later commit(), silently losing the failure record
+        (CodeRabbit review, 026-rate-limit-codegen PR #127)."""
         from models.article_translation import ArticleTranslation
 
-        result = await self._session.execute(
-            select(ArticleTranslation).filter_by(article_id=article_id, language=language)
-        )
-        existing = result.scalars().first()
-
-        if existing:
-            existing.title = title
-            existing.content = content
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            self._session.add(ArticleTranslation(
-                article_id=article_id,
-                language=language,
-                title=title,
-                content=content,
-            ))
-
         try:
+            result = await self._session.execute(
+                select(ArticleTranslation).filter_by(article_id=article_id, language=language)
+            )
+            existing = result.scalars().first()
+
+            if existing:
+                existing.title = title
+                existing.content = content
+                existing.updated_at = datetime.now(timezone.utc)
+            else:
+                self._session.add(ArticleTranslation(
+                    article_id=article_id,
+                    language=language,
+                    title=title,
+                    content=content,
+                ))
+
             await self._session.commit()
         except Exception:
             await self._session.rollback()

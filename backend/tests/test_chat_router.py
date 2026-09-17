@@ -109,8 +109,7 @@ def test_chat_completions_burst_limit_exceeded_returns_429_independent_of_daily_
     daily_quota_redis = make_mock_redis()  # incr() defaults to 1 — nowhere near DAILY_LIMIT_GUEST
 
     burst_redis = AsyncMock()
-    burst_redis.incr = AsyncMock(return_value=999)
-    burst_redis.expire = AsyncMock()
+    burst_redis.eval = AsyncMock(return_value=999)
     burst_redis.ttl = AsyncMock(return_value=8)
     burst_redis.aclose = AsyncMock()
 
@@ -141,7 +140,7 @@ def test_chat_quota_unaffected_by_burst_limit():
     mock_redis = make_quota_redis(count=1)
 
     burst_redis = AsyncMock()
-    burst_redis.incr = AsyncMock(return_value=999)
+    burst_redis.eval = AsyncMock(return_value=999)
     burst_redis.aclose = AsyncMock()
 
     with (

@@ -302,8 +302,7 @@ def test_autocomplete_defaults_lang_to_en():
 
 def _exceeded_rate_limit_redis():
     redis = AsyncMock()
-    redis.incr = AsyncMock(return_value=999)
-    redis.expire = AsyncMock()
+    redis.eval = AsyncMock(return_value=999)
     redis.ttl = AsyncMock(return_value=5)
     redis.aclose = AsyncMock()
     return redis

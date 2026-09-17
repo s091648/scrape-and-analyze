@@ -10,7 +10,7 @@ from src.modules.intelligence.domain.value_objects import (
     AnalysesTranslationContent,
     AnalysesTranslationResult,
 )
-from .exceptions import LLMTranslationError
+from .exceptions import LLMTranslationError, TranslationParseError
 
 logger = get_logger(__name__)
 
@@ -82,6 +82,7 @@ class TranslateArticleUseCase:
         if translated_text is None:
             raise LLMTranslationError("LLM returned no translation output")
         translated = self._parse_sections(translated_text)
+        self._validate_parsed(translated, translated_text)
 
         # Save translation
         translation = AnalysesContent(
@@ -101,6 +102,17 @@ class TranslateArticleUseCase:
             language=target_language,
             content=translated,
         )
+
+    @staticmethod
+    def _validate_parsed(translated: AnalysesTranslationContent, raw_text: str) -> None:
+        """Guard against _parse_sections silently returning all-empty fields when the
+        LLM's response contains none of the expected headers — without this, an
+        unparseable response was saved as a blank translation and reported as
+        success (CodeRabbit review, 026-rate-limit-codegen PR #127)."""
+        if not any([translated.summary, translated.pain_points, translated.insights, translated.innovations]):
+            raise TranslationParseError(
+                f"Could not parse any expected section from LLM translation response: {raw_text[:200]!r}"
+            )
 
     @staticmethod
     def _parse_sections(text: str) -> AnalysesTranslationContent:
@@ -176,6 +188,7 @@ class AsyncTranslateArticleUseCase:
         if translated_text is None:
             raise LLMTranslationError("LLM returned no translation output")
         translated = TranslateArticleUseCase._parse_sections(translated_text)
+        TranslateArticleUseCase._validate_parsed(translated, translated_text)
 
         translation = AnalysesContent(
             analysis_id=analysis_id,

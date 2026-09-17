@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.modules.intelligence.application.use_cases.translate_article import AsyncTranslateArticleUseCase
-from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError, TranslationParseError
 from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.value_objects import ArticleTranslationPrompt
 
@@ -149,6 +149,23 @@ async def test_empty_fields_substituted_with_empty_string_in_prompt(deps):
     call_args = deps["llm_service"].translate.call_args
     prompt_content = call_args[0][1]
     assert "(empty)" in prompt_content
+
+
+# ── Unparseable LLM response: raises instead of saving a blank translation ──
+
+@pytest.mark.asyncio
+async def test_raises_translation_parse_error_when_no_sections_recognized(deps):
+    aid = _analysis_id()
+    deps["translation_repository"].exists.return_value = False
+    deps["llm_service"].translate.return_value = "This response has no recognizable headers at all."
+    uc = _make_uc(deps)
+
+    with pytest.raises(TranslationParseError):
+        await uc.execute(
+            analysis_id=aid, summary="s", pain_points="p",
+            insights="i", innovations="n", target_language="zh-TW"
+        )
+    deps["translation_repository"].save.assert_not_awaited()
 
 
 # ── LLM exception: propagates ────────────────────────────────────────────────

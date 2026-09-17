@@ -9,8 +9,11 @@ Domains listed in _SINGLE_CONNECTION_DOMAINS additionally enforce
 matching the arXiv API TOS requirement.
 
 Default limits (RPM):
-  - export.arxiv.org  → 15  (arXiv API TOS: ≤ 1 req/3s ≈ 20 RPM, single connection — 25% margin)
-  - arxiv.org         → 15  (PDF downloads — same TOS, same IP budget)
+  - export.arxiv.org + arxiv.org → 15 combined (arXiv API TOS: ≤ 1 req/3s ≈ 20 RPM,
+    single connection, applies per IP across every host under our control — a
+    separate 15 RPM bucket per host would let the two combine to 30 RPM against
+    that same shared budget, so both hosts share one bucket and one connection
+    semaphore; see _SHARED_BUCKET_GROUPS)
   - everything else   → 15
 """
 import time
@@ -30,17 +33,29 @@ _TRIP_POLL_INTERVAL_SECONDS = 1.0
 # Hardcoded conservative defaults; can be overridden via env or constructor.
 # Sites marked with ⚠ have known anti-bot protections — keep RPM very low.
 _BUILTIN_OVERRIDES: dict[str, float] = {
-    "export.arxiv.org": 15.0,  # arXiv TOS: ≤1 req/3s ≈ 20 RPM; single-connection semaphore already serialises
-    "arxiv.org": 15.0,   # arXiv TOS: same budget as API domain (shared IP)
+    "arxiv.org": 15.0,  # arXiv TOS: ≤1 req/3s ≈ 20 RPM, one shared budget across
+                         # export.arxiv.org + arxiv.org — see _SHARED_BUCKET_GROUPS
     "www.iotworldtoday.com": 2.0,   # ⚠ anti-bot (Cloudflare)
     "iotworldtoday.com": 2.0,
     "api.semanticscholar.org": 1.0,  # unauthenticated: ~100 req/day; scraper max 50-min run → ≤50 req/day
     "api.openalex.org": 450.0,        # official: 10 req/sec (600 RPM) + 100k/day; leaves headroom under the daily cap
 }
 
-# Domains that must also enforce "single connection at a time" (arXiv TOS).
+# Domains that draw from the same arXiv TOS budget (same IP allowance) and must
+# therefore share one token bucket + one "single connection at a time"
+# semaphore, keyed under the mapped canonical domain — otherwise each domain's
+# own 15 RPM bucket would let the pair combine to 30 RPM / 2 concurrent
+# connections against that one shared budget (CodeRabbit review,
+# 026-rate-limit-codegen PR #127).
+_SHARED_BUCKET_GROUPS: dict[str, str] = {
+    "export.arxiv.org": "arxiv.org",
+    "arxiv.org": "arxiv.org",
+}
+
+# Domains that must also enforce "single connection at a time" (arXiv TOS) —
+# checked against the resolved bucket-group key, so export.arxiv.org and
+# arxiv.org share the same semaphore instance.
 _SINGLE_CONNECTION_DOMAINS: frozenset[str] = frozenset({
-    "export.arxiv.org",
     "arxiv.org",
 })
 
@@ -174,17 +189,22 @@ class DomainRateLimiter:
     # ── internal ──────────────────────────────────────────────────────────
 
     def _get_or_create(self, domain: str) -> _TokenBucket:
-        """Return the token bucket for domain, creating one with the configured RPM if new."""
+        """Return the token bucket for domain (or its shared bucket-group key, for
+        domains that must draw from the same budget — see _SHARED_BUCKET_GROUPS),
+        creating one with the configured RPM if new."""
+        key = _SHARED_BUCKET_GROUPS.get(domain, domain)
         with self._lock:
-            if domain not in self._buckets:
-                rpm = self._rpm_map.get(domain, _DEFAULT_RPM)
-                self._buckets[domain] = _TokenBucket(rpm)
-            return self._buckets[domain]
+            if key not in self._buckets:
+                rpm = self._rpm_map.get(domain, self._rpm_map.get(key, _DEFAULT_RPM))
+                self._buckets[key] = _TokenBucket(rpm)
+            return self._buckets[key]
 
     def _get_semaphore(self, domain: str) -> threading.Semaphore:
-        """Return the concurrency semaphore for domain, single-slot for arXiv TOS domains."""
+        """Return the concurrency semaphore for domain (or its shared bucket-group
+        key), single-slot for arXiv TOS domains."""
+        key = _SHARED_BUCKET_GROUPS.get(domain, domain)
         with self._lock:
-            if domain not in self._semaphores:
-                limit = 1 if domain in _SINGLE_CONNECTION_DOMAINS else 10
-                self._semaphores[domain] = threading.Semaphore(limit)
-            return self._semaphores[domain]
+            if key not in self._semaphores:
+                limit = 1 if key in _SINGLE_CONNECTION_DOMAINS else 10
+                self._semaphores[key] = threading.Semaphore(limit)
+            return self._semaphores[key]

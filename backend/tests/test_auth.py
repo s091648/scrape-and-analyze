@@ -686,10 +686,30 @@ def test_refresh_guest_token_rejects_access_token_used_as_refresh():
 # ---------------------------------------------------------------------------
 
 def _exceeded_rate_limit_redis():
+    """Every policy's key is already past its max_requests — used by tests that
+    exercise a single policy's own 429 path."""
     from unittest.mock import AsyncMock
     redis = AsyncMock()
-    redis.incr = AsyncMock(return_value=999)  # already past any policy's max_requests
-    redis.expire = AsyncMock()
+    redis.eval = AsyncMock(return_value=999)  # already past any policy's max_requests
+    redis.ttl = AsyncMock(return_value=30)
+    redis.aclose = AsyncMock()
+    return redis
+
+
+def _rate_limit_redis_exceeded_only_for(policy_name):
+    """Only `policy_name`'s own Redis key (ratelimit:{policy_name}:*) is already
+    past its max_requests — every other policy's key starts fresh at 1. Lets a
+    test prove one policy's refusal doesn't leak into another policy's counter,
+    rather than asserting on a mock that makes every policy look exceeded
+    regardless of whether the keys are actually isolated (CodeRabbit review,
+    026-rate-limit-codegen PR #127)."""
+    from unittest.mock import AsyncMock
+
+    async def eval_side_effect(script, numkeys, key, window_seconds):
+        return 999 if key.startswith(f"ratelimit:{policy_name}:") else 1
+
+    redis = AsyncMock()
+    redis.eval = AsyncMock(side_effect=eval_side_effect)
     redis.ttl = AsyncMock(return_value=30)
     redis.aclose = AsyncMock()
     return redis
@@ -709,16 +729,21 @@ def test_issue_guest_token_rate_limit_exceeded_returns_429():
 
 def test_issue_guest_token_rate_limit_does_not_block_other_endpoints():
     """A guest_token policy refusal must not leak into auth_attempt's separate
-    counter — /auth/verify still gets evaluated normally."""
+    counter — /auth/verify still reaches credential validation (401 for bad
+    credentials) instead of being refused by a policy it was never subject to."""
     from backend.main import app
     from unittest.mock import patch
     client = TestClient(app)
-    with patch("backend.rate_limit.limiter._make_redis", return_value=_exceeded_rate_limit_redis()):
+    with patch(
+        "backend.rate_limit.limiter._make_redis",
+        return_value=_rate_limit_redis_exceeded_only_for("guest_token"),
+    ):
         guest_response = client.post("/auth/guest")
         verify_response = client.post("/auth/verify", json={"username": "nope", "password": "nope"})
     assert guest_response.status_code == 429
-    assert verify_response.status_code == 429  # exceeded too, but via its own auth_attempt policy check
-    assert guest_response.json()["error"]["code"] == verify_response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert guest_response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert verify_response.status_code == 401
+    assert verify_response.json()["error"]["code"] == "UNAUTHORIZED"
 
 
 @pytest.mark.parametrize(

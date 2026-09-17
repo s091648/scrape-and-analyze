@@ -47,42 +47,54 @@ class AsyncSqlAlchemyTagGroupDefinitionRepository(AsyncTagGroupDefinitionReposit
         description: Optional[str] = None,
         embedding: Optional[List[float]] = None,
     ) -> None:
-        """Insert a new tag group or update its embedding if it already exists."""
+        """Insert a new tag group or update its embedding if it already exists.
+
+        The caller (AnalyzeArticleUseCase._upsert_generated_tag_groups) treats
+        this as best-effort per tag group and swallows any exception without
+        failing the whole analysis — but must still get a clean session back:
+        this session is shared with FailedTaskPersistenceHandler (bootstrap.py's
+        article_downstream_builder) and with the analysis save() that runs right
+        after this, so a failure left un-rolled-back here would leave the session
+        unusable for both (CodeRabbit review, 026-rate-limit-codegen PR #127)."""
         from models.tag_group import TagGroupDefinition
 
-        result = await self._session.execute(
-            select(TagGroupDefinition).filter_by(name=name, topic_id=topic_id)
-        )
-        existing = result.scalars().first()
+        try:
+            result = await self._session.execute(
+                select(TagGroupDefinition).filter_by(name=name, topic_id=topic_id)
+            )
+            existing = result.scalars().first()
 
-        if existing:
-            if embedding is not None and existing.embedding is None:
+            if existing:
+                if embedding is not None and existing.embedding is None:
+                    vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+                    await self._session.execute(
+                        text(
+                            "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector)"
+                            " WHERE id = :id"
+                        ),
+                        {"vec": vec_str, "id": str(existing.id)},
+                    )
+                return
+
+            grp = TagGroupDefinition(
+                name=name,
+                display_name=display_name,
+                topic_id=topic_id,
+                description=description,
+            )
+            self._session.add(grp)
+            await self._session.flush()
+
+            if embedding is not None:
                 vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
                 await self._session.execute(
                     text(
                         "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector)"
                         " WHERE id = :id"
                     ),
-                    {"vec": vec_str, "id": str(existing.id)},
+                    {"vec": vec_str, "id": str(grp.id)},
                 )
-            return
-
-        grp = TagGroupDefinition(
-            name=name,
-            display_name=display_name,
-            topic_id=topic_id,
-            description=description,
-        )
-        self._session.add(grp)
-        await self._session.flush()
-
-        if embedding is not None:
-            vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
-            await self._session.execute(
-                text(
-                    "UPDATE tag_group_definitions SET embedding = CAST(:vec AS vector)"
-                    " WHERE id = :id"
-                ),
-                {"vec": vec_str, "id": str(grp.id)},
-            )
-        logger.info("tag_group_definition_created", name=name, topic_id=str(topic_id))
+            logger.info("tag_group_definition_created", name=name, topic_id=str(topic_id))
+        except Exception:
+            await self._session.rollback()
+            raise

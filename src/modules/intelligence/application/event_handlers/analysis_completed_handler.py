@@ -90,9 +90,32 @@ class AnalysisCompletedHandler:
                     traceback=format_filtered_exc(e),
                 ))
 
-            en_content = await self._analyses_translation_repo.find_by_analysis_id_and_language(
-                event.analysis_id, 'en'
-            )
+            try:
+                en_content = await self._analyses_translation_repo.find_by_analysis_id_and_language(
+                    event.analysis_id, 'en'
+                )
+            except Exception as e:
+                # Roll back so this shared session stays usable for whatever runs
+                # next on it (body/tag translation below, and FailedTaskPersistenceHandler
+                # itself) — an un-rolled-back failure here would otherwise silently
+                # lose every failure record this handler publishes afterward
+                # (CodeRabbit review, 026-rate-limit-codegen PR #127).
+                span.record_exception(e)
+                logger.exception(
+                    "english_content_lookup_failed",
+                    analysis_id=str(event.analysis_id), error=str(e), error_type=type(e).__name__,
+                )
+                await self._analyses_translation_repo.rollback()
+                en_content = None
+                await self._event_bus.publish(TranslationFailedEvent(
+                    analysis_id=event.analysis_id,
+                    article_id=event.article_id,
+                    task_type="translate_article",
+                    exception_type=type(e).__name__,
+                    exception_message=str(e),
+                    traceback=format_filtered_exc(e),
+                ))
+
             if not en_content:
                 logger.warning("no_english_content_found", analysis_id=str(event.analysis_id))
 

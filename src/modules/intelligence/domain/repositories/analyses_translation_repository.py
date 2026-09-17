@@ -37,9 +37,10 @@ class AnalysesTranslationRepository(ABC):
 
 
 class AsyncAnalysesTranslationRepository(Protocol):
-    """024-async-pipeline-refactor: async sibling. Covers exists/find_by_*/save
-    — what TranslateArticleUseCase actually calls. find_analyses_without_translation
-    is only used by the out-of-scope standalone translate CLI job."""
+    """024-async-pipeline-refactor: async sibling. Covers exists/find_by_*/save/
+    rollback — what TranslateArticleUseCase and AnalysisCompletedHandler actually
+    call. find_analyses_without_translation is only used by the out-of-scope
+    standalone translate CLI job."""
 
     async def save(self, content: AnalysesContent) -> None:
         ...
@@ -50,4 +51,7 @@ class AsyncAnalysesTranslationRepository(Protocol):
         ...
 
     async def exists(self, analysis_id: UUID, language: str) -> bool:
+        ...
+
+    async def rollback(self) -> None:
         ...

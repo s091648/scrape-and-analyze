@@ -1,5 +1,7 @@
 import importlib
 import os
+
+import pytest
 from unittest.mock import patch
 
 
@@ -106,3 +108,54 @@ def test_swagger_try_it_out_enabled_false_for_other_values():
     with patch.dict(os.environ, {"SWAGGER_TRY_IT_OUT_ENABLED": "no"}):
         m = _reload()
         assert m.SWAGGER_TRY_IT_OUT_ENABLED is False
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit config validation (026-rate-limit-codegen CodeRabbit review) —
+# a zero/negative window disables enforcement (Redis expires the counter
+# immediately), a zero/negative max rejects every request — both must fail
+# fast at startup instead of silently misbehaving.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("name", [
+    "RATE_LIMIT_GUEST_TOKEN_MAX",
+    "RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS",
+    "RATE_LIMIT_AUTH_ATTEMPT_MAX",
+    "RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS",
+    "RATE_LIMIT_CHAT_BURST_MAX",
+    "RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS",
+    "RATE_LIMIT_SEARCH_MAX",
+    "RATE_LIMIT_SEARCH_WINDOW_SECONDS",
+])
+@pytest.mark.parametrize("bad_value", ["0", "-1"])
+def test_rate_limit_vars_reject_non_positive_values(name, bad_value):
+    with patch.dict(os.environ, {name: bad_value}):
+        with pytest.raises(ValueError):
+            _reload()
+
+
+def test_rate_limit_vars_have_positive_defaults():
+    with patch.dict(os.environ, {}, clear=False):
+        for name in (
+            "RATE_LIMIT_GUEST_TOKEN_MAX", "RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS",
+            "RATE_LIMIT_AUTH_ATTEMPT_MAX", "RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS",
+            "RATE_LIMIT_CHAT_BURST_MAX", "RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS",
+            "RATE_LIMIT_SEARCH_MAX", "RATE_LIMIT_SEARCH_WINDOW_SECONDS",
+        ):
+            os.environ.pop(name, None)
+        m = _reload()
+        assert m.RATE_LIMIT_GUEST_TOKEN_MAX > 0
+        assert m.RATE_LIMIT_SEARCH_WINDOW_SECONDS > 0
+
+
+def test_trusted_proxy_hops_defaults_to_one():
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("TRUSTED_PROXY_HOPS", None)
+        m = _reload()
+        assert m.TRUSTED_PROXY_HOPS == 1
+
+
+def test_trusted_proxy_hops_reads_env():
+    with patch.dict(os.environ, {"TRUSTED_PROXY_HOPS": "2"}):
+        m = _reload()
+        assert m.TRUSTED_PROXY_HOPS == 2

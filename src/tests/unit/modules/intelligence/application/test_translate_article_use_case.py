@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.modules.intelligence.application.use_cases.translate_article import TranslateArticleUseCase
-from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError, TranslationParseError
 from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.value_objects import (
     AnalysesTranslationContent,
@@ -125,6 +125,40 @@ def test_raises_when_save_raises(deps):
             analysis_id=aid, summary="s", pain_points="p",
             insights="i", innovations="n", target_language="zh-TW"
         )
+
+
+# ── Unparseable LLM response: raises instead of saving a blank translation ──
+
+def test_raises_translation_parse_error_when_no_sections_recognized(deps):
+    """CodeRabbit review (026-rate-limit-codegen PR #127): a response with none of
+    the expected headers used to be saved as an all-empty translation and
+    reported as success — must raise instead."""
+    aid = _analysis_id()
+    deps["translation_repository"].exists.return_value = False
+    deps["llm_service"].translate.return_value = "This response has no recognizable headers at all."
+    uc = _make_uc(deps)
+
+    with pytest.raises(TranslationParseError):
+        uc.execute(
+            analysis_id=aid, summary="s", pain_points="p",
+            insights="i", innovations="n", target_language="zh-TW"
+        )
+    deps["translation_repository"].save.assert_not_called()
+
+
+def test_does_not_raise_when_at_least_one_section_parsed(deps):
+    aid = _analysis_id()
+    deps["translation_repository"].exists.return_value = False
+    deps["llm_service"].translate.return_value = "Summary: Only a summary"
+    uc = _make_uc(deps)
+
+    result = uc.execute(
+        analysis_id=aid, summary="s", pain_points="p",
+        insights="i", innovations="n", target_language="zh-TW"
+    )
+
+    assert result.content.summary == "Only a summary"
+    deps["translation_repository"].save.assert_called_once()
 
 
 # ── _parse_sections: various formats ─────────────────────────────────────────
