@@ -1,9 +1,9 @@
+from opentelemetry.trace import StatusCode
 from shared.enums.observability import SpanName
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
-    TagNormalizationCompletedEvent,
     TagNormalizationFailedEvent,
 )
 from src.modules.intelligence.application.use_cases import NormalizeTagsUseCase
@@ -21,12 +21,17 @@ class TagNormalizationHandler:
 
     fix/sanitize: no longer fetches the article body (title/content) — that
     was only ever done as a courtesy relay for translation, which used to
-    chain off TagNormalizationCompletedEvent to receive those fields.
+    chain off a TagNormalizationCompletedEvent to receive those fields.
     Translation now fans out independently off AnalysisCompletedEvent and
     fetches its own article body (AnalysisCompletedHandler), so a transient
     DB read failure here can no longer be mislabeled as "tag normalization
     failed" (and can no longer block translation either) when tag
     normalization itself actually succeeded.
+
+    On success, this now publishes nothing — TagNormalizationCompletedEvent
+    was removed (it had permanently zero subscribers after the translation
+    decoupling above, which just made every successful run log a spurious
+    event_no_handlers warning).
     """
 
     def __init__(self, use_case: NormalizeTagsUseCase, event_bus, session=None) -> None:
@@ -67,20 +72,17 @@ class TagNormalizationHandler:
                     analysis_id=str(event.analysis_id),
                     article_id=str(event.article_id),
                 )
-                next_event = TagNormalizationCompletedEvent(
-                    analysis_id=event.analysis_id,
-                    article_id=event.article_id,
-                    topic_id=event.topic_id,
-                )
-            else:
-                if result.exception_type:
-                    span.set_attribute("normalization.error_type", result.exception_type)
-                next_event = TagNormalizationFailedEvent(
-                    analysis_id=event.analysis_id,
-                    article_id=event.article_id,
-                    exception_type=result.exception_type,
-                    exception_message=result.exception_message,
-                    traceback=result.traceback,
-                )
+                return
 
-        await self._event_bus.publish(next_event)
+            if result.exception_type:
+                span.set_attribute("normalization.error_type", result.exception_type)
+            span.set_status(StatusCode.ERROR, result.exception_type or "TagNormalizationError")
+            failed_event = TagNormalizationFailedEvent(
+                analysis_id=event.analysis_id,
+                article_id=event.article_id,
+                exception_type=result.exception_type,
+                exception_message=result.exception_message,
+                traceback=result.traceback,
+            )
+
+        await self._event_bus.publish(failed_event)

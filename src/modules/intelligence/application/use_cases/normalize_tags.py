@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
+from shared.domain.exceptions import NotFoundError
 from shared.observability.traceback_filter import format_filtered_exc
 from src.modules.intelligence.domain.repositories import AsyncTagRepository
 from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
@@ -119,34 +120,47 @@ class NormalizeTagsUseCase:
         embedding: List[float],
         topic_id: Optional[UUID],
     ) -> None:
-        """Check embedding similarity and auto-merge, suggest, or create the tag."""
-        similar = await self._tag_repository.find_similar(
-            embedding, group_name, topic_id, self._suggest_threshold
-        )
+        """Check embedding similarity and auto-merge, suggest, or create the tag.
 
-        if similar:
-            best_tag, best_score = similar[0]
+        The tag group name here was chosen by the LLM against the set of
+        groups that existed when analysis started (AnalyzeArticleUseCase's
+        prompt); analysis latency leaves a window where an admin can rename
+        or merge that group away (backend/routers/tags.py's merge endpoint)
+        before this runs. tag_repository.save() raises NotFoundError in that
+        case — caught here so only this one tag is skipped instead of the
+        whole article's tag batch being rolled back and marked failed.
+        """
+        try:
+            similar = await self._tag_repository.find_similar(
+                embedding, group_name, topic_id, self._suggest_threshold
+            )
 
-            if best_score >= self._auto_merge_threshold:
-                await self._tag_repository.link_to_article(best_tag.id, article_id)
-                logger.info("tag_auto_merged", tag=tag_name, merged_into=best_tag.name,
-                            similarity=best_score)
-                return
+            if similar:
+                best_tag, best_score = similar[0]
 
-            if best_score >= self._suggest_threshold:
-                new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
-                await self._tag_repository.link_to_article(new_tag.id, article_id)
-                suggestion = TagNormalizationSuggestion(
-                    new_tag_id=new_tag.id,
-                    existing_tag_id=best_tag.id,
-                    similarity_score=best_score,
-                    article_id=article_id,
-                )
-                await self._tag_repository.save_suggestion(suggestion)
-                logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
-                            similarity=best_score)
-                return
+                if best_score >= self._auto_merge_threshold:
+                    await self._tag_repository.link_to_article(best_tag.id, article_id)
+                    logger.info("tag_auto_merged", tag=tag_name, merged_into=best_tag.name,
+                                similarity=best_score)
+                    return
 
-        new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
-        await self._tag_repository.link_to_article(new_tag.id, article_id)
-        logger.info("tag_created", tag=tag_name, group=group_name)
+                if best_score >= self._suggest_threshold:
+                    new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
+                    await self._tag_repository.link_to_article(new_tag.id, article_id)
+                    suggestion = TagNormalizationSuggestion(
+                        new_tag_id=new_tag.id,
+                        existing_tag_id=best_tag.id,
+                        similarity_score=best_score,
+                        article_id=article_id,
+                    )
+                    await self._tag_repository.save_suggestion(suggestion)
+                    logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
+                                similarity=best_score)
+                    return
+
+            new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
+            await self._tag_repository.link_to_article(new_tag.id, article_id)
+            logger.info("tag_created", tag=tag_name, group=group_name)
+        except NotFoundError:
+            logger.warning("tag_group_vanished_skip", tag=tag_name, group=group_name,
+                            topic_id=str(topic_id) if topic_id else None)

@@ -19,6 +19,9 @@ class AnalysesTranslationResult:
     language: str
     content: AnalysesTranslationContent
     success: bool
+    exception_type: Optional[str] = None
+    exception_message: Optional[str] = None
+    traceback: Optional[str] = None
 
 
 @dataclass
@@ -35,3 +38,6 @@ class ArticleBodyTranslationResult:
     language: str
     content: ArticleBodyTranslationContent
     success: bool
+    exception_type: Optional[str] = None
+    exception_message: Optional[str] = None
+    traceback: Optional[str] = None

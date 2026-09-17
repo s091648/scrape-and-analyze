@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID
 
+from shared.observability.traceback_filter import format_filtered_exc
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService, AsyncLLMService
 from src.modules.intelligence.domain.repositories import AnalysesTranslationRepository
@@ -75,7 +76,7 @@ class TranslateArticleUseCase:
         )
 
         # Translate using LLM
-        translated = self._call_llm(rendered.content)
+        translated, llm_exc = self._call_llm(rendered.content)
 
         if translated is None:
             logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
@@ -89,6 +90,9 @@ class TranslateArticleUseCase:
                     innovations=None,
                 ),
                 success=False,
+                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
+                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
+                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
             )
 
         # Save translation
@@ -116,6 +120,9 @@ class TranslateArticleUseCase:
                     innovations=None,
                 ),
                 success=False,
+                exception_type=type(e).__name__,
+                exception_message=str(e),
+                traceback=format_filtered_exc(e),
             )
 
         return AnalysesTranslationResult(
@@ -125,16 +132,16 @@ class TranslateArticleUseCase:
             success=True,
         )
 
-    def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
+    def _call_llm(self, prompt_content: str) -> Tuple[Optional[AnalysesTranslationContent], Optional[Exception]]:
         """Translate content using LLM service."""
         try:
             translated_text = self._llm_service.translate("", prompt_content)
             if translated_text is None:
-                return None
-            return self._parse_sections(translated_text)
+                return None, None
+            return self._parse_sections(translated_text), None
         except Exception as e:
             logger.error("llm_translation_error", error=str(e))
-            return None
+            return None, e
 
     @staticmethod
     def _parse_sections(text: str) -> AnalysesTranslationContent:
@@ -207,7 +214,7 @@ class AsyncTranslateArticleUseCase:
             innovations=innovations or "(empty)",
         )
 
-        translated = await self._call_llm(rendered.content)
+        translated, llm_exc = await self._call_llm(rendered.content)
 
         if translated is None:
             logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
@@ -218,6 +225,9 @@ class AsyncTranslateArticleUseCase:
                     summary=None, pain_points=None, insights=None, innovations=None,
                 ),
                 success=False,
+                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
+                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
+                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
             )
 
         translation = AnalysesContent(
@@ -241,6 +251,9 @@ class AsyncTranslateArticleUseCase:
                     summary=None, pain_points=None, insights=None, innovations=None,
                 ),
                 success=False,
+                exception_type=type(e).__name__,
+                exception_message=str(e),
+                traceback=format_filtered_exc(e),
             )
 
         return AnalysesTranslationResult(
@@ -250,12 +263,12 @@ class AsyncTranslateArticleUseCase:
             success=True,
         )
 
-    async def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
+    async def _call_llm(self, prompt_content: str) -> Tuple[Optional[AnalysesTranslationContent], Optional[Exception]]:
         try:
             translated_text = await self._llm_service.translate("", prompt_content)
             if translated_text is None:
-                return None
-            return TranslateArticleUseCase._parse_sections(translated_text)
+                return None, None
+            return TranslateArticleUseCase._parse_sections(translated_text), None
         except Exception as e:
             logger.error("llm_translation_error", error=str(e))
-            return None
+            return None, e

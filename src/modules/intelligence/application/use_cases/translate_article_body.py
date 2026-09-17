@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Tuple
 from uuid import UUID
 
+from shared.observability.traceback_filter import format_filtered_exc
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService, AsyncLLMService
 from src.modules.intelligence.domain.repositories.article_translation_repository import ArticleTranslationRepository
@@ -54,7 +55,7 @@ class TranslateArticleBodyUseCase:
             content=content or "(empty)",
         )
 
-        translated_text = self._call_llm(rendered.content)
+        translated_text, llm_exc = self._call_llm(rendered.content)
         if translated_text is None:
             logger.error("article_body_translation_llm_failed", article_id=str(article_id), language=target_language)
             return ArticleBodyTranslationResult(
@@ -62,6 +63,9 @@ class TranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
+                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
+                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
             )
 
         translated_title, translated_content = ArticleBodyTranslationPrompt.parse_response(translated_text)
@@ -73,6 +77,8 @@ class TranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type="TranslationParseError",
+                exception_message=f"Could not parse title/content from LLM response: {translated_text[:500]!r}",
             )
 
         try:
@@ -90,6 +96,9 @@ class TranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type=type(e).__name__,
+                exception_message=str(e),
+                traceback=format_filtered_exc(e),
             )
 
         return ArticleBodyTranslationResult(
@@ -99,12 +108,12 @@ class TranslateArticleBodyUseCase:
             success=True,
         )
 
-    def _call_llm(self, prompt_content: str) -> Optional[str]:
+    def _call_llm(self, prompt_content: str) -> Tuple[Optional[str], Optional[Exception]]:
         try:
-            return self._llm_service.translate("", prompt_content)
+            return self._llm_service.translate("", prompt_content), None
         except Exception as e:
             logger.error("llm_article_body_translation_error", error=str(e))
-            return None
+            return None, e
 
 
 class AsyncTranslateArticleBodyUseCase:
@@ -147,7 +156,7 @@ class AsyncTranslateArticleBodyUseCase:
             content=content or "(empty)",
         )
 
-        translated_text = await self._call_llm(rendered.content)
+        translated_text, llm_exc = await self._call_llm(rendered.content)
         if translated_text is None:
             logger.error("article_body_translation_llm_failed", article_id=str(article_id), language=target_language)
             return ArticleBodyTranslationResult(
@@ -155,6 +164,9 @@ class AsyncTranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
+                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
+                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
             )
 
         translated_title, translated_content = ArticleBodyTranslationPrompt.parse_response(translated_text)
@@ -166,6 +178,8 @@ class AsyncTranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type="TranslationParseError",
+                exception_message=f"Could not parse title/content from LLM response: {translated_text[:500]!r}",
             )
 
         try:
@@ -183,6 +197,9 @@ class AsyncTranslateArticleBodyUseCase:
                 language=target_language,
                 content=ArticleBodyTranslationContent(title=None, content=None),
                 success=False,
+                exception_type=type(e).__name__,
+                exception_message=str(e),
+                traceback=format_filtered_exc(e),
             )
 
         return ArticleBodyTranslationResult(
@@ -192,9 +209,9 @@ class AsyncTranslateArticleBodyUseCase:
             success=True,
         )
 
-    async def _call_llm(self, prompt_content: str) -> Optional[str]:
+    async def _call_llm(self, prompt_content: str) -> Tuple[Optional[str], Optional[Exception]]:
         try:
-            return await self._llm_service.translate("", prompt_content)
+            return await self._llm_service.translate("", prompt_content), None
         except Exception as e:
             logger.error("llm_article_body_translation_error", error=str(e))
-            return None
+            return None, e

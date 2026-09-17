@@ -163,7 +163,13 @@ export function ArticleWorkflowDialog({
     return () => { cancelled = true }
   }, [open, stageSpans])
 
-  // Build parent → children map for depth > 0 spans
+  // Build parent → children map for depth > 0 spans. Keyed by parentSpanId,
+  // so it already holds every descendant level (grandchildren included) —
+  // renderChildren below recurses through it instead of stopping one level
+  // deep, otherwise a span nested under a depth-1 node (e.g. the
+  // article.failed_task.handle child of article.translate.handle) would
+  // silently never render even though it's the one card that explains a
+  // partial-failure row.
   const topLevel = stageSpans.filter(n => n.depth === 0)
   const childMap = new Map<string, SpanNode[]>()
   for (const node of stageSpans) {
@@ -171,6 +177,38 @@ export function ArticleWorkflowDialog({
       if (!childMap.has(node.span.parentSpanId)) childMap.set(node.span.parentSpanId, [])
       childMap.get(node.span.parentSpanId)!.push(node)
     }
+  }
+
+  function renderChildren(parentSpanId: string) {
+    const children = childMap.get(parentSpanId) ?? []
+    if (children.length === 0) return null
+    return (
+      <div className="w-full ml-6 mt-1 pl-3 border-l-2 border-muted-foreground/25 space-y-1">
+        {children.map((child, ci) => {
+          const isChildHighlighted = !!highlightedSpanId && otlpIdToHex(child.span.spanId) === highlightedSpanId
+          return (
+            <div
+              key={child.span.spanId}
+              className="flex flex-col items-start"
+              ref={isChildHighlighted ? highlightedRef : undefined}
+            >
+              <StageCard
+                span={child.span}
+                className="w-full"
+                thresholds={percentileMap.get(child.span.name)}
+                labelOverride={getLabelOverride(child.span, t)}
+                isHighlighted={isChildHighlighted}
+                onViewLogs={() => handleViewLogs(child.span)}
+              />
+              {renderChildren(child.span.spanId)}
+              {ci < children.length - 1 && (
+                <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/40 my-0.5 ml-4 shrink-0" strokeWidth={2} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
@@ -226,33 +264,8 @@ export function ArticleWorkflowDialog({
                       onViewLogs={() => handleViewLogs(node.span)}
                     />
 
-                    {/* Child spans (e.g. Translate jobs under Analysis Done) */}
-                    {hasChildren && !isCollapsed && (
-                      <div className="w-full ml-6 mt-1 pl-3 border-l-2 border-muted-foreground/25 space-y-1">
-                        {children.map((child, ci) => {
-                          const isChildHighlighted = !!highlightedSpanId && otlpIdToHex(child.span.spanId) === highlightedSpanId
-                          return (
-                            <div
-                              key={child.span.spanId}
-                              className="flex flex-col items-start"
-                              ref={isChildHighlighted ? highlightedRef : undefined}
-                            >
-                              <StageCard
-                                span={child.span}
-                                className="w-full"
-                                thresholds={percentileMap.get(child.span.name)}
-                                labelOverride={getLabelOverride(child.span, t)}
-                                isHighlighted={isChildHighlighted}
-                                onViewLogs={() => handleViewLogs(child.span)}
-                              />
-                              {ci < children.length - 1 && (
-                                <ArrowDown className="h-3.5 w-3.5 text-muted-foreground/40 my-0.5 ml-4 shrink-0" strokeWidth={2} />
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                    {/* Child spans (e.g. Translate jobs under Analysis Done), recursed to any depth */}
+                    {hasChildren && !isCollapsed && renderChildren(node.span.spanId)}
 
                     {/* Arrow between top-level stages only */}
                     {!isLast && (

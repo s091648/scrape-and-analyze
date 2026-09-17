@@ -1,6 +1,7 @@
 from typing import List, Optional
 from uuid import UUID
 
+from shared.observability.traceback_filter import format_filtered_exc
 from src.shared.domain.entities import Article
 from src.shared.domain.repositories import AsyncTopicRepository
 from src.shared.domain.value_objects.tag_mode import TagMode
@@ -95,6 +96,7 @@ class AnalyzeArticleUseCase:
                 article_url=article.url,
                 exception_type=type(e).__name__,
                 exception_message=str(e),
+                traceback=format_filtered_exc(e),
                 topic_display_name=topic_display_name,
             )
 

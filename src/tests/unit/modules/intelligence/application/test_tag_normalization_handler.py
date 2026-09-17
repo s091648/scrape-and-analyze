@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
-    TagNormalizationCompletedEvent,
     TagNormalizationFailedEvent,
 )
 from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsResult
@@ -35,7 +34,10 @@ def _make_event(tag_groups=(("digital_twin", ["virtual replica"]),)):
 
 
 @pytest.mark.asyncio
-async def test_publishes_completed_event_on_success():
+async def test_publishes_nothing_on_success():
+    """TagNormalizationCompletedEvent was removed — it had permanently zero
+    subscribers after translation decoupled from it, so every successful run
+    only ever produced a spurious event_no_handlers warning."""
     handler, uc, bus = _make_handler()
     uc.execute.return_value = NormalizeTagsResult(
         success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
@@ -43,10 +45,7 @@ async def test_publishes_completed_event_on_success():
     event = _make_event()
     await handler.handle(event)
 
-    bus.publish.assert_called_once()
-    published = bus.publish.call_args[0][0]
-    assert isinstance(published, TagNormalizationCompletedEvent)
-    assert published.analysis_id == event.analysis_id
+    bus.publish.assert_not_called()
 
 
 @pytest.mark.asyncio

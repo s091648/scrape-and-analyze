@@ -1,3 +1,4 @@
+from opentelemetry.trace import StatusCode
 from shared.enums.observability import SpanName
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
@@ -70,11 +71,13 @@ class ArticleProcessedHandler:
             else:
                 if result.exception_type:
                     span.set_attribute("analysis.error_type", result.exception_type)
+                span.set_status(StatusCode.ERROR, result.exception_type or "AnalysisError")
                 next_event = AnalysisFailedEvent(
                     article_id=result.article_id,
                     article_url=result.article_url,
                     exception_type=result.exception_type,
                     exception_message=result.exception_message,
+                    traceback=result.traceback,
                 )
 
         await self._event_bus.publish(next_event)
