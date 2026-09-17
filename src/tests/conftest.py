@@ -70,9 +70,9 @@ def fast_http_retry(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fast_scrape_executor(monkeypatch):
-    """Zero out all time.sleep in scrape_executor so fetch_delay (default 5 s) and
-    discover cooldowns don't stall unit tests. Per-host semaphore serialisation
-    is unaffected because it relies on threading locks, not sleep."""
+    """Zero out all time.sleep in scrape_executor (queue-claim polling backoffs,
+    etc.) so unit tests don't stall. Per-host semaphore serialisation is
+    unaffected because it relies on threading locks, not sleep."""
     try:
         import src.infrastructure.collection.executor.scrape_executor as _exec_mod
         monkeypatch.setattr(_exec_mod.time, 'sleep', lambda _secs: None)

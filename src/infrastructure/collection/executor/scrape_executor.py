@@ -58,7 +58,6 @@ class ScrapeExecutor:
                            discover per host regardless of pool size, so raising this
                            only lets *independent* hosts overlap (e.g. a slow/rate-limited
                            host no longer blocks every other host's discover behind it).
-        fetch_delay:       Seconds to sleep between fetches per worker (default 5.0).
         selector:          QueueSelector strategy.
     """
 
@@ -66,13 +65,11 @@ class ScrapeExecutor:
         self,
         num_workers: int = 5,
         discover_workers: int = 5,
-        fetch_delay: float = 5.0,
         selector: Optional[QueueSelector] = None,
         on_discover_failed: Optional[Callable] = None,
     ) -> None:
         self._num_workers = num_workers
         self._discover_workers = discover_workers
-        self._fetch_delay = fetch_delay
         self._selector = selector or WeightedRoundRobinQueueSelector()
         self._on_discover_failed = on_discover_failed
         self._rate_limit_tracker = RateLimitedProviderTracker()
@@ -352,17 +349,13 @@ class ScrapeExecutor:
                                 logger.error("task_execute_failed", url=task.url, error=str(e))
 
                     finally:
-                        # Fixed per-worker politeness delay (default 5s), held before
-                        # releasing this host's semaphore — same as before this span
-                        # was added, just now measured so a trace can show whether
-                        # pipeline.fetch's wall time is dominated by this flat delay
-                        # (many tasks queued behind few hosts) vs. slow requests
-                        # themselves (fetch.execute_seconds).
-                        delay_start = time.monotonic()
-                        time.sleep(self._fetch_delay)
-                        span.set_attribute(
-                            "fetch.post_delay_seconds", round(time.monotonic() - delay_start, 3)
-                        )
+                        # Per-host politeness is fully owned by DomainRateLimiter now
+                        # (src/infrastructure/shared/http/rate_limiter.py) — it's wired
+                        # into every HttpClient call (discover AND fetch alike, whichever
+                        # phase makes it), stateful for the whole run, and blocks the
+                        # actual HTTP call itself rather than an executor-level guess at
+                        # how long to wait. No extra cooldown needed here on top of that
+                        # (mirrors the discover worker loop below).
                         host_queue_map.semaphores[claimed_idx].release()
 
             logger.info("worker_stopped", worker_id=worker_id, fetched=fetched)

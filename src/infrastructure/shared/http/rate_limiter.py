@@ -9,16 +9,16 @@ Domains listed in _SINGLE_CONNECTION_DOMAINS additionally enforce
 matching the arXiv API TOS requirement.
 
 Default limits (RPM):
-  - export.arxiv.org  → 3   (arXiv API TOS: ≤ 1 req/3s, single connection)
-  - arxiv.org         → 3   (PDF downloads — same TOS, same IP budget)
-  - everything else   → 10
+  - export.arxiv.org  → 15  (arXiv API TOS: ≤ 1 req/3s ≈ 20 RPM, single connection — 25% margin)
+  - arxiv.org         → 15  (PDF downloads — same TOS, same IP budget)
+  - everything else   → 15
 """
 import time
 import threading
 from contextlib import contextmanager
 from typing import Callable, Optional
 
-_DEFAULT_RPM: float = 10.0
+_DEFAULT_RPM: float = 15.0
 
 # How often a blocked acquire() re-checks whether its domain's circuit tripped
 # while it waits for the next token. Without this, a caller that entered the
@@ -30,12 +30,12 @@ _TRIP_POLL_INTERVAL_SECONDS = 1.0
 # Hardcoded conservative defaults; can be overridden via env or constructor.
 # Sites marked with ⚠ have known anti-bot protections — keep RPM very low.
 _BUILTIN_OVERRIDES: dict[str, float] = {
-    "export.arxiv.org": 3.0,
-    "arxiv.org": 3.0,   # arXiv TOS: same budget as API domain (shared IP)
+    "export.arxiv.org": 15.0,  # arXiv TOS: ≤1 req/3s ≈ 20 RPM; single-connection semaphore already serialises
+    "arxiv.org": 15.0,   # arXiv TOS: same budget as API domain (shared IP)
     "www.iotworldtoday.com": 2.0,   # ⚠ anti-bot (Cloudflare)
     "iotworldtoday.com": 2.0,
     "api.semanticscholar.org": 1.0,  # unauthenticated: ~100 req/day; scraper max 50-min run → ≤50 req/day
-    "api.openalex.org": 300.0,        # polite pool: 10 req/sec; conservative default of 5 req/sec (values here are RPM, not RPS)
+    "api.openalex.org": 450.0,        # official: 10 req/sec (600 RPM) + 100k/day; leaves headroom under the daily cap
 }
 
 # Domains that must also enforce "single connection at a time" (arXiv TOS).
