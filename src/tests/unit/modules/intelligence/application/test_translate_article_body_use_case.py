@@ -5,7 +5,10 @@ response parsing, failure handling, and empty field substitution.
 import uuid
 from unittest.mock import MagicMock, call
 
+import pytest
+
 from src.modules.intelligence.application.use_cases.translate_article_body import TranslateArticleBodyUseCase
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError
 from src.modules.intelligence.domain.value_objects.translation_prompt import ArticleBodyTranslationPrompt
 from src.modules.intelligence.domain.value_objects.analyses_translation_content import ArticleBodyTranslationContent
 
@@ -38,7 +41,6 @@ def test_returns_existing_when_already_translated():
         target_language="zh-TW"
     )
 
-    assert result.success is True
     assert result.content.title == "已翻譯標題"
     llm.translate.assert_not_called()
 
@@ -57,7 +59,6 @@ def test_calls_llm_parses_and_saves_on_success():
         target_language="zh-TW",
     )
 
-    assert result.success is True
     assert result.content.title == "Translated Title"
     assert result.content.content == "Translated body text."
     llm.translate.assert_called_once()
@@ -69,19 +70,17 @@ def test_calls_llm_parses_and_saves_on_success():
     )
 
 
-# ── LLM returns None: failure ────────────────────────────────────────────────
+# ── LLM returns None: raises ─────────────────────────────────────────────────
 
-def test_returns_failure_when_llm_returns_none():
+def test_raises_when_llm_returns_none():
     uc, repo, llm = _make_uc()
     llm.translate.return_value = None
 
-    result = uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
+    with pytest.raises(LLMTranslationError):
+        uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
-    assert result.success is False
-    assert result.content.title is None
-    assert result.content.content is None
     repo.save.assert_not_called()
 
 
@@ -109,30 +108,28 @@ def test_none_title_and_content_substituted_with_empty_placeholder():
     assert "(empty)" in prompt_content
 
 
-# ── Save raises: failure ─────────────────────────────────────────────────────
+# ── Save raises: propagates ──────────────────────────────────────────────────
 
-def test_returns_failure_when_save_raises():
+def test_raises_when_save_raises():
     uc, repo, llm = _make_uc()
     llm.translate.return_value = "Title: t\nContent: c"
     repo.save.side_effect = Exception("db error")
 
-    result = uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
-
-    assert result.success is False
-    assert result.content.title is None
+    with pytest.raises(Exception, match="db error"):
+        uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
 
-# ── LLM raises exception: failure ────────────────────────────────────────────
+# ── LLM raises exception: propagates ─────────────────────────────────────────
 
-def test_returns_failure_when_llm_throws_exception():
+def test_raises_when_llm_throws_exception():
     uc, repo, llm = _make_uc()
     llm.translate.side_effect = RuntimeError("provider down")
 
-    result = uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
+    with pytest.raises(RuntimeError, match="provider down"):
+        uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
-    assert result.success is False
     repo.save.assert_not_called()

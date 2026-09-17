@@ -3108,7 +3108,7 @@ wheels = [
 
 [[package]]
 name = "scrape-analyzer"
-version = "1.7.0"
+version = "1.7.2"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },

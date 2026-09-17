@@ -509,7 +509,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
 
     from src.modules.collection.domain.services import AsyncDedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
-    from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent, TextPipelineCompletedEvent
+    from src.modules.collection.application.events import ArticleSaveFailedEvent, ArticleScrapedEvent, PipelineCompletedEvent, TextPipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, NormalizeTagsUseCase
     from src.modules.intelligence.application.use_cases.translate_article import AsyncTranslateArticleUseCase
@@ -567,7 +567,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
             logger.warning("rag_backend_prewarm_failed", error=str(e))
 
     # ── Run-level event bus — ONLY the two barrier events are published here.
-    # Every per-article event (ArticleScrapedEvent..TagNormalizationCompletedEvent)
+    # Every per-article event (ArticleScrapedEvent..TagNormalizationFailedEvent)
     # goes through a fresh bus built by article_downstream_builder below, bound
     # to that article's own AsyncSession. ─────────────────────────────────────
     event_bus = AsyncInMemoryEventBus()
@@ -624,6 +624,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         )
 
         await bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
+        await bus.subscribe(ArticleSaveFailedEvent, failed_task_handler.handle)
         if rag_enabled:
             # Subscribed BEFORE article_processed_handler (subscribe-order
             # dispatch — contracts/event-bus-port.md): the bus awaits handlers
@@ -644,8 +645,10 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         # CollectionPipeline itself, BEFORE this builder runs (see
         # _process_article_text) — not wired here — so tag normalization
         # failing/being slow never blocks or delays translation, and vice
-        # versa. See TagNormalizationCompletedEvent's docstring: it no longer
-        # has any subscriber (translation used to chain off it).
+        # versa. Translation used to chain off a TagNormalizationCompletedEvent
+        # published on success, but that event was removed — it had
+        # permanently zero subscribers after this decoupling, so it only ever
+        # produced a spurious event_no_handlers warning.
         await bus.subscribe(AnalysisCompletedEvent, tag_normalization_handler.handle)
         await bus.subscribe(AnalysisFailedEvent, failed_task_handler.handle)
         await bus.subscribe(TagNormalizationFailedEvent, failed_task_handler.handle)
@@ -772,6 +775,8 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         now fires for any provider's rate-limit abort (arxiv/openalex/semantic_scholar),
         not just arxiv, since ScrapeExecutor catches the shared ProviderRateLimitedError base.
         """
+        from shared.observability.traceback_filter import format_filtered_exc
+
         source = getattr(getattr(task, "setting", None), "source", "unknown")
         task_type = f"{source}_discover"
         with _tracer.start_as_current_span("scraper.discover_failed") as span:
@@ -783,6 +788,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
                 task_type=task_type,
                 exception_type=type(exc).__name__,
                 exception_message=str(exc),
+                traceback=format_filtered_exc(exc),
                 failed_at=datetime.now(timezone.utc),
             )
             try:

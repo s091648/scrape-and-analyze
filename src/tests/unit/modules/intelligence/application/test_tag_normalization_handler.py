@@ -4,10 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
-    TagNormalizationCompletedEvent,
     TagNormalizationFailedEvent,
 )
-from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsResult
+
+
+class EmbeddingError(Exception):
+    pass
 
 
 def _make_handler():
@@ -35,27 +37,22 @@ def _make_event(tag_groups=(("digital_twin", ["virtual replica"]),)):
 
 
 @pytest.mark.asyncio
-async def test_publishes_completed_event_on_success():
+async def test_publishes_nothing_on_success():
+    """TagNormalizationCompletedEvent was removed — it had permanently zero
+    subscribers after translation decoupled from it, so every successful run
+    only ever produced a spurious event_no_handlers warning."""
     handler, uc, bus = _make_handler()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
-    )
+    uc.execute.return_value = None
     event = _make_event()
     await handler.handle(event)
 
-    bus.publish.assert_called_once()
-    published = bus.publish.call_args[0][0]
-    assert isinstance(published, TagNormalizationCompletedEvent)
-    assert published.analysis_id == event.analysis_id
+    bus.publish.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_publishes_failed_event_on_failure():
     handler, uc, bus = _make_handler()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=False, analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
-        exception_type="EmbeddingError", exception_message="quota exceeded",
-    )
+    uc.execute.side_effect = EmbeddingError("quota exceeded")
     event = _make_event()
     await handler.handle(event)
 
@@ -81,9 +78,7 @@ def _mock_tracer(mock_span):
 async def test_span_records_analysis_and_article_ids():
     handler, uc, _bus = _make_handler()
     event = _make_event()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=event.analysis_id, article_id=event.article_id
-    )
+    uc.execute.return_value = None
     mock_span = MagicMock()
 
     with patch("src.modules.intelligence.application.event_handlers.tag_normalization_handler.get_tracer",
@@ -101,9 +96,7 @@ async def test_span_records_tag_counts():
         ("technology", ["AI", "ML"]),
         ("industry", ["finance"]),
     ))
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=event.analysis_id, article_id=event.article_id
-    )
+    uc.execute.return_value = None
     mock_span = MagicMock()
 
     with patch("src.modules.intelligence.application.event_handlers.tag_normalization_handler.get_tracer",
@@ -118,9 +111,7 @@ async def test_span_records_tag_counts():
 async def test_span_records_normalization_success():
     handler, uc, _bus = _make_handler()
     event = _make_event()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=event.analysis_id, article_id=event.article_id
-    )
+    uc.execute.return_value = None
     mock_span = MagicMock()
 
     with patch("src.modules.intelligence.application.event_handlers.tag_normalization_handler.get_tracer",
@@ -134,10 +125,7 @@ async def test_span_records_normalization_success():
 async def test_span_records_error_type_on_failure():
     handler, uc, _bus = _make_handler()
     event = _make_event()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=False, analysis_id=event.analysis_id, article_id=event.article_id,
-        exception_type="EmbeddingError", exception_message="quota",
-    )
+    uc.execute.side_effect = EmbeddingError("quota")
     mock_span = MagicMock()
 
     with patch("src.modules.intelligence.application.event_handlers.tag_normalization_handler.get_tracer",

@@ -11,6 +11,7 @@ from src.modules.intelligence.application.events import (
     AnalysisFailedEvent,
 )
 from src.modules.intelligence.application.use_cases.analysis_result import AnalysisResult
+from src.modules.intelligence.application.use_cases.exceptions import LLMAnalysisError
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata
 from src.modules.intelligence.domain.entities import Analysis
 from src.shared.application.events import ArticleProcessedEvent
@@ -56,7 +57,7 @@ async def test_publishes_analysis_completed_on_success():
     article = _make_article()
     analysis = _make_analysis(article.id)
     use_case.execute.return_value = AnalysisResult(
-        success=True, article_id=article.id, article_url=article.url, analysis=analysis
+        article_id=article.id, article_url=article.url, analysis=analysis
     )
     await handler.handle(ArticleProcessedEvent(article=article))
     event_bus.publish.assert_called_once()
@@ -68,13 +69,13 @@ async def test_publishes_analysis_completed_on_success():
 async def test_publishes_analysis_failed_on_failure():
     handler, use_case, event_bus = _make_handler()
     article = _make_article()
-    use_case.execute.return_value = AnalysisResult(
-        success=False, article_id=article.id, article_url=article.url,
-        exception_type="LLMAnalysisError", exception_message="all providers failed",
-    )
+    use_case.execute.side_effect = LLMAnalysisError("all providers failed")
     await handler.handle(ArticleProcessedEvent(article=article))
     published = event_bus.publish.call_args[0][0]
     assert isinstance(published, AnalysisFailedEvent)
+    assert published.article_id == article.id
+    assert published.article_url == article.url
+    assert published.exception_type == "LLMAnalysisError"
 
 
 # ── Span attribute tests ──────────────────────────────────────────────────────
@@ -96,7 +97,7 @@ async def test_span_records_article_id_and_source():
     article = _make_article()
     analysis = _make_analysis(article.id)
     use_case.execute.return_value = AnalysisResult(
-        success=True, article_id=article.id, article_url=article.url, analysis=analysis
+        article_id=article.id, article_url=article.url, analysis=analysis
     )
     mock_span = MagicMock()
 
@@ -114,7 +115,7 @@ async def test_span_records_llm_metadata_on_success():
     article = _make_article()
     analysis = _make_analysis(article.id)
     use_case.execute.return_value = AnalysisResult(
-        success=True, article_id=article.id, article_url=article.url, analysis=analysis
+        article_id=article.id, article_url=article.url, analysis=analysis
     )
     mock_span = MagicMock()
 
@@ -133,10 +134,7 @@ async def test_span_records_llm_metadata_on_success():
 async def test_span_records_error_type_on_failure():
     handler, use_case, event_bus = _make_handler()
     article = _make_article()
-    use_case.execute.return_value = AnalysisResult(
-        success=False, article_id=article.id, article_url=article.url,
-        exception_type="LLMAnalysisError", exception_message="all providers failed",
-    )
+    use_case.execute.side_effect = LLMAnalysisError("all providers failed")
     mock_span = MagicMock()
 
     with patch("src.modules.intelligence.application.event_handlers.article_processed_handler.get_tracer",

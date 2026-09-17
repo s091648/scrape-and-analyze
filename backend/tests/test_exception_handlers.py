@@ -12,6 +12,7 @@ from shared.domain.exceptions import (
     UnauthorizedError,
     ForbiddenError,
     ExternalDependencyError,
+    RateLimitExceededError,
 )
 
 
@@ -27,6 +28,7 @@ def client():
             "forbidden": ForbiddenError("admin role required"),
             "not_found": NotFoundError("topic not found"),
             "conflict": ConflictError("email already taken"),
+            "rate_limited": RateLimitExceededError("too many requests", retry_after_seconds=42),
             "external_dependency": ExternalDependencyError("all LLM providers exhausted"),
             "unmapped_domain": DomainError("unmapped category"),
             "non_domain": IntegrityError("stmt", "params", Exception("duplicate key value violates unique constraint")),
@@ -44,6 +46,7 @@ def client():
         ("forbidden", 403, "FORBIDDEN"),
         ("not_found", 404, "NOT_FOUND"),
         ("conflict", 409, "CONFLICT"),
+        ("rate_limited", 429, "RATE_LIMIT_EXCEEDED"),
         ("external_dependency", 502, "EXTERNAL_DEPENDENCY_ERROR"),
         ("unmapped_domain", 500, "INTERNAL_ERROR"),
         ("non_domain", 500, "INTERNAL_ERROR"),
@@ -75,6 +78,14 @@ def test_500_message_is_generic_and_never_leaks_exception_text(client, category)
     assert "unmapped category" not in message
 
 
+def test_rate_limited_response_includes_retry_after_seconds(client):
+    with patch("backend.exceptions.handlers.capture_exception"):
+        response = client.get("/__test/raise/rate_limited")
+    body = response.json()
+    assert body["error"]["retry_after_seconds"] == 42
+    assert set(body["error"].keys()) == {"code", "message", "request_id", "retry_after_seconds"}
+
+
 def test_502_message_is_generic_and_never_leaks_exception_text(client):
     with patch("backend.exceptions.handlers.capture_exception"):
         response = client.get("/__test/raise/external_dependency")
@@ -91,6 +102,7 @@ def test_502_message_is_generic_and_never_leaks_exception_text(client):
         ("forbidden", False),
         ("not_found", False),
         ("conflict", False),
+        ("rate_limited", False),
         ("external_dependency", True),
         ("unmapped_domain", True),
         ("non_domain", True),

@@ -733,6 +733,11 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
+          # For a same-repo PR, check out the PR's own head branch (not the default
+          # detached merge ref) so the auto-commit step below can push straight back
+          # to it. github.head_ref is empty on `push` events, so this falls back to
+          # the normal ref there — see the auto-commit step's own same-repo/fork guard.
+          ref: ${{ github.head_ref || github.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -744,6 +749,63 @@ jobs:
         run: npm ci
         env:
           GITHUB_PACKAGE_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # 026-rate-limit-codegen research.md Decision 8: re-derives backend/openapi.json
+      # and frontend/lib/api/generated-types.ts the same way `make generate-api-types`
+      # does. Unlike this repo's other generated/derived docs (UML, DB schema,
+      # site.vitepress/config.js via speckit-github-pages.yml) — which are pure
+      # documentation nobody's build depends on, so a stale commit just means a stale
+      # docs-site page until the next release regenerates it — generated-types.ts is
+      # `import`ed straight into frontend/lib/api/*.ts, so a stale commit can silently
+      # ship a wrong contract. Doesn't need postgres/redis — the export only imports
+      # backend.main:app, never connects to either.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend dependencies (for OpenAPI export)
+        working-directory: .
+        run: |
+          pip install uv
+          uv sync --frozen --group backend --group observability
+        env:
+          UV_SYSTEM_PYTHON: "1"
+
+      - name: Regenerate API types from the backend contract
+        working-directory: .
+        run: |
+          uv run python scripts/export_openapi_schema.py
+          npm --prefix frontend run generate:api-types
+        env:
+          PYTHONPATH: .
+          NEXTAUTH_SECRET: test-secret
+          DATABASE_URL: postgresql://user:pass@localhost/testdb
+
+      - name: Auto-commit regenerated API types if stale
+        working-directory: .
+        run: |
+          if git diff --quiet -- backend/openapi.json frontend/lib/api/generated-types.ts; then
+            echo "backend/openapi.json and frontend/lib/api/generated-types.ts are already up to date."
+            exit 0
+          fi
+
+          # Only push back on a same-repo pull_request — GITHUB_TOKEN can't push to a
+          # fork's branch (GitHub blocks this regardless of the workflow's permissions:
+          # block), and a plain `push` to master has no PR branch to commit back onto
+          # (that path should only ever fire if someone bypassed the PR gate below).
+          if [ "${{ github.event_name }}" != "pull_request" ] || \
+             [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "::error::backend/openapi.json or frontend/lib/api/generated-types.ts is stale — run 'make generate-api-types' and commit the result."
+            git diff --stat -- backend/openapi.json frontend/lib/api/generated-types.ts
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/openapi.json frontend/lib/api/generated-types.ts
+          git commit -m "🤖 [CHORE] regenerate API types from backend contract [skip ci]"
+          git push origin "HEAD:${{ github.head_ref }}"
 
       - name: Run vitest with coverage
         run: npm run test:coverage -- --reporter=verbose --reporter=json --outputFile=test-results.json

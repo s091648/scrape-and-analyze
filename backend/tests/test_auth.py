@@ -677,3 +677,93 @@ def test_refresh_guest_token_rejects_access_token_used_as_refresh():
     pair = client.post("/auth/guest").json()
     response = client.post("/auth/guest/refresh", json={"refresh_token": pair["access_token"]})
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting (026-rate-limit-codegen US1/US2) — conftest's
+# _no_rate_limit_by_default autouse fixture keeps every test above unaffected;
+# these override it to exercise the actual 429 path.
+# ---------------------------------------------------------------------------
+
+def _exceeded_rate_limit_redis():
+    """Every policy's key is already past its max_requests — used by tests that
+    exercise a single policy's own 429 path."""
+    from unittest.mock import AsyncMock
+    redis = AsyncMock()
+    redis.eval = AsyncMock(return_value=999)  # already past any policy's max_requests
+    redis.ttl = AsyncMock(return_value=30)
+    redis.aclose = AsyncMock()
+    return redis
+
+
+def _rate_limit_redis_exceeded_only_for(policy_name):
+    """Only `policy_name`'s own Redis key (ratelimit:{policy_name}:*) is already
+    past its max_requests — every other policy's key starts fresh at 1. Lets a
+    test prove one policy's refusal doesn't leak into another policy's counter,
+    rather than asserting on a mock that makes every policy look exceeded
+    regardless of whether the keys are actually isolated (CodeRabbit review,
+    026-rate-limit-codegen PR #127)."""
+    from unittest.mock import AsyncMock
+
+    async def eval_side_effect(script, numkeys, key, window_seconds):
+        return 999 if key.startswith(f"ratelimit:{policy_name}:") else 1
+
+    redis = AsyncMock()
+    redis.eval = AsyncMock(side_effect=eval_side_effect)
+    redis.ttl = AsyncMock(return_value=30)
+    redis.aclose = AsyncMock()
+    return redis
+
+
+def test_issue_guest_token_rate_limit_exceeded_returns_429():
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    with patch("backend.rate_limit.limiter._make_redis", return_value=_exceeded_rate_limit_redis()):
+        response = client.post("/auth/guest")
+    assert response.status_code == 429
+    body = response.json()
+    assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert body["error"]["retry_after_seconds"] == 30
+
+
+def test_issue_guest_token_rate_limit_does_not_block_other_endpoints():
+    """A guest_token policy refusal must not leak into auth_attempt's separate
+    counter — /auth/verify still reaches credential validation (401 for bad
+    credentials) instead of being refused by a policy it was never subject to."""
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    with patch(
+        "backend.rate_limit.limiter._make_redis",
+        return_value=_rate_limit_redis_exceeded_only_for("guest_token"),
+    ):
+        guest_response = client.post("/auth/guest")
+        verify_response = client.post("/auth/verify", json={"username": "nope", "password": "nope"})
+    assert guest_response.status_code == 429
+    assert guest_response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert verify_response.status_code == 401
+    assert verify_response.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+@pytest.mark.parametrize(
+    "make_request",
+    [
+        lambda client: client.post("/auth/verify", json={"username": "u", "password": "p"}),
+        lambda client: client.post("/auth/register", json={"email": "a@b.com", "name": "A", "username": "u", "password": "p"}),
+        lambda client: client.post("/auth/google/authorize", json={"email": "a@b.com", "google_id": "g-1"}),
+        lambda client: client.post("/auth/refresh", json={"refresh_token": "whatever"}),
+        lambda client: client.post("/auth/guest/refresh", json={"refresh_token": "whatever"}),
+    ],
+    ids=["verify", "register", "google_authorize", "refresh", "guest_refresh"],
+)
+def test_auth_attempt_endpoints_return_429_when_rate_limited_before_credentials_are_checked(make_request):
+    """The rate-limit refusal must win even for a malformed/nonexistent credential —
+    it's a Depends() that runs before the route body evaluates anything (FR-002)."""
+    from backend.main import app
+    from unittest.mock import patch
+    client = TestClient(app)
+    with patch("backend.rate_limit.limiter._make_redis", return_value=_exceeded_rate_limit_redis()):
+        response = make_request(client)
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"

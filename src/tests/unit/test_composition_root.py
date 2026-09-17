@@ -12,7 +12,6 @@ from src.modules.collection.application.events import (
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
     AnalysisFailedEvent,
-    TagNormalizationCompletedEvent,
     TagNormalizationFailedEvent,
     TranslationFailedEvent,
 )
@@ -104,8 +103,8 @@ def test_t015_build_collection_pipeline_raises_when_no_llm_providers():
 # T016-T021 — Event bus subscription verification
 #
 # 024-async-pipeline-refactor: per-article events (ArticleScrapedEvent,
-# ArticleProcessedEvent, AnalysisCompletedEvent, TagNormalizationCompletedEvent,
-# the three *FailedEvent types) are no longer subscribed on pipeline._event_bus
+# ArticleProcessedEvent, AnalysisCompletedEvent, the three *FailedEvent types)
+# are no longer subscribed on pipeline._event_bus
 # at all — they're subscribed fresh, per article, on a bus built by
 # pipeline._article_downstream_builder(session, bus, dispatch_rag) inside each
 # article's own asyncio.Task (data-model.md). Only the two barrier events
@@ -152,19 +151,6 @@ def test_t018_analysis_completed_event_subscription():
     bus = _build_article_bus()
     handlers = bus._handlers.get(AnalysisCompletedEvent, [])
     assert len(handlers) == 1, f"expected 1 handler for AnalysisCompletedEvent, got {len(handlers)}"
-
-
-def test_t019_tag_normalization_completed_event_has_no_subscriber():
-    """fix/sanitize: TagNormalizationCompletedEvent no longer has a subscriber
-    — translation used to chain off it (via AnalysisCompletedHandler) but now
-    fans out independently off AnalysisCompletedEvent instead (Barrier 1.5,
-    CollectionPipeline._dispatch_translation), so tag normalization failing
-    or being slow no longer blocks or delays translation. The event is still
-    published by TagNormalizationHandler as a success signal, just with no
-    current consumer."""
-    bus = _build_article_bus()
-    handlers = bus._handlers.get(TagNormalizationCompletedEvent, [])
-    assert len(handlers) == 0, f"expected 0 handlers for TagNormalizationCompletedEvent, got {len(handlers)}"
 
 
 def test_t020_failed_event_subscriptions():

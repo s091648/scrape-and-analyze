@@ -11,6 +11,7 @@ from shared.domain.exceptions import (
     UnauthorizedError,
     ForbiddenError,
     ExternalDependencyError,
+    RateLimitExceededError,
 )
 from backend.schemas.error import ErrorResponse, ErrorBody
 
@@ -25,6 +26,7 @@ _CATEGORY_MAPPING = [
     (ForbiddenError, 403, "FORBIDDEN"),
     (NotFoundError, 404, "NOT_FOUND"),
     (ConflictError, 409, "CONFLICT"),
+    (RateLimitExceededError, 429, "RATE_LIMIT_EXCEEDED"),
     (ExternalDependencyError, 502, "EXTERNAL_DEPENDENCY_ERROR"),
 ]
 
@@ -42,9 +44,15 @@ def _request_id() -> str:
     return structlog.contextvars.get_contextvars().get("request_id", "unknown")
 
 
-def _build_response(status_code: int, code: str, message: str) -> JSONResponse:
-    body = ErrorResponse(error=ErrorBody(code=code, message=message, request_id=_request_id()))
-    return JSONResponse(status_code=status_code, content=body.model_dump())
+def _build_response(status_code: int, code: str, message: str, *, retry_after_seconds: int | None = None) -> JSONResponse:
+    body = ErrorResponse(error=ErrorBody(
+        code=code, message=message, request_id=_request_id(),
+        retry_after_seconds=retry_after_seconds,
+    ))
+    # exclude_none=True keeps retry_after_seconds out of every non-rate-limit response's
+    # JSON entirely (it's None for all of them) rather than emitting `"retry_after_seconds":
+    # null` on every error — preserves the {code, message, request_id} contract elsewhere.
+    return JSONResponse(status_code=status_code, content=body.model_dump(exclude_none=True))
 
 
 async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
@@ -60,7 +68,8 @@ async def domain_error_handler(request: Request, exc: DomainError) -> JSONRespon
                 # logged at warning so a spike (e.g. a real bug that happens to surface as 404s)
                 # is discoverable via the Logs tab instead of leaving zero trace.
                 logger.warning("domain_error", code=code, status_code=status_code, error=str(exc))
-            return _build_response(status_code, code, message)
+            retry_after_seconds = getattr(exc, "retry_after_seconds", None)
+            return _build_response(status_code, code, message, retry_after_seconds=retry_after_seconds)
 
     # DomainError raised without a registered shared category — default fallback (FR-007).
     capture_exception(exc)

@@ -93,8 +93,7 @@ async def test_empty_tag_name_is_skipped():
 
 
 @pytest.mark.asyncio
-async def test_execute_returns_success_result():
-    from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsResult
+async def test_execute_returns_none_and_commits_on_success():
     uc, embed_svc, tag_repo = _make_use_case()
     a_id = uuid.uuid4()
     tag_repo.find_similar.return_value = []
@@ -104,8 +103,8 @@ async def test_execute_returns_success_result():
     result = await uc.execute(analysis_id=a_id, article_id=uuid.uuid4(),
                         tag_groups=[("g", ["t"])])
 
-    assert result.success is True
-    assert result.analysis_id == a_id
+    assert result is None
+    tag_repo.commit.assert_called_once()
 
 
 # ── T007: Auto-merge log entry ──────────────────────────────────────────────
@@ -183,13 +182,12 @@ async def test_rollback_on_exception_no_commit():
     uc, embed_svc, tag_repo = _make_use_case()
     embed_svc.embed_batch.side_effect = RuntimeError("embedding service down")
 
-    result = await uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
-                        tag_groups=[("g", ["t"])])
+    with pytest.raises(RuntimeError, match="embedding service down"):
+        await uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
+                          tag_groups=[("g", ["t"])])
 
-    assert result.success is False
     tag_repo.commit.assert_not_called()
-    assert result.exception_type == "RuntimeError"
-    assert "embedding service down" in result.exception_message
+    tag_repo.rollback.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -199,10 +197,10 @@ async def test_rollback_on_repo_save_exception():
     tag_repo.find_similar.return_value = []
     tag_repo.save.side_effect = RuntimeError("db write failed")
 
-    result = await uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
-                        tag_groups=[("g", ["t"])])
+    with pytest.raises(RuntimeError, match="db write failed"):
+        await uc.execute(analysis_id=uuid.uuid4(), article_id=uuid.uuid4(),
+                          tag_groups=[("g", ["t"])])
 
-    assert result.success is False
     tag_repo.commit.assert_not_called()
 
 
@@ -314,13 +312,10 @@ async def test_handler_calls_commit_on_success():
     from src.modules.intelligence.application.event_handlers.tag_normalization_handler import (
         TagNormalizationHandler,
     )
-    from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsResult
 
     uc = AsyncMock()
     bus = AsyncMock()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
-    )
+    uc.execute.return_value = None
     session = AsyncMock()
     execute_result = MagicMock()
     execute_result.scalars.return_value.first.return_value = None
@@ -344,13 +339,10 @@ async def test_handler_passes_tag_groups_to_use_case():
     from src.modules.intelligence.application.event_handlers.tag_normalization_handler import (
         TagNormalizationHandler,
     )
-    from src.modules.intelligence.application.use_cases.normalize_tags import NormalizeTagsResult
 
     uc = AsyncMock()
     bus = AsyncMock()
-    uc.execute.return_value = NormalizeTagsResult(
-        success=True, analysis_id=uuid.uuid4(), article_id=uuid.uuid4()
-    )
+    uc.execute.return_value = None
     session = AsyncMock()
     execute_result = MagicMock()
     execute_result.scalars.return_value.first.return_value = None

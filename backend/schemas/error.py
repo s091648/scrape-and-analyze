@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -5,6 +7,11 @@ class ErrorBody(BaseModel):
     code: str
     message: str
     request_id: str
+    # Only set for RATE_LIMIT_EXCEEDED (026-rate-limit-codegen) — every other error
+    # category leaves this unset, and _build_response's exclude_none=True dump keeps
+    # it out of those responses' JSON entirely, preserving the existing {code, message,
+    # request_id} contract for them.
+    retry_after_seconds: Optional[int] = None
 
 
 class ErrorResponse(BaseModel):

@@ -1,25 +1,14 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface TagOut {
-  id: string
-  name: string
-  article_count: number
-}
-
-export interface SimilarGroupOut {
-  id: string
-  similarity_score: number
-}
-
-export interface TagGroupOut {
-  id: string | null  // null for virtual "Ungrouped" group
-  name: string
-  display_name: string
-  description: string | null
-  color_hex: string | null
-  topic_id: string | null  // null for virtual "Ungrouped" group
-  tags: TagOut[]
-  similar_groups: SimilarGroupOut[]
+export type TagOut = components['schemas']['TagOut']
+export type SimilarGroupOut = components['schemas']['SimilarGroupOut']
+// id/topic_id are optional (`?`) in the backend contract but kept required-and-nullable
+// here (null for the virtual "Ungrouped" group) — existing consumers read them
+// unconditionally as string | null, never string | null | undefined.
+export type TagGroupOut = Omit<components['schemas']['TagGroupOut'], 'id' | 'topic_id'> & {
+  id: string | null
+  topic_id: string | null
 }
 
 export interface TagGroupCreate {
@@ -37,16 +26,7 @@ export interface TagGroupUpdate {
   description?: string
 }
 
-export interface SuggestionOut {
-  id: string
-  new_tag_id: string
-  new_tag_name: string
-  existing_tag_id: string
-  existing_tag_name: string
-  group_name: string
-  similarity_score: number
-  article_id: string | null
-}
+export type SuggestionOut = components['schemas']['SuggestionOut']
 
 export async function fetchTagGroup(groupId: string): Promise<TagGroupOut> {
   const res = await apiFetch(`/tag-groups/${groupId}`, {}, undefined, { silent: true })

@@ -143,6 +143,38 @@ def _no_cache_by_default(request):
     app.dependency_overrides.pop(get_cache_gateway, None)
 
 
+@pytest.fixture(autouse=True)
+def _no_rate_limit_by_default(request):
+    """026-rate-limit-codegen: rate-limit policies are backed by a real Redis-backed
+    counter (backend/rate_limit/limiter.py's own _make_redis — REDIS_URL db 0, the
+    same Redis instance chat's daily quota already uses, but a different client
+    factory than backend.routers.chat._make_redis). Tests that don't explicitly
+    override this would otherwise all share one real Redis key namespace (keyed by
+    origin/identity, not per-test) for the whole session — same failure mode
+    _no_cache_by_default above guards against for the cache gateway.
+
+    Unlike _no_cache_by_default, this applies to @pytest.mark.integration tests too
+    (no `if ... integration: yield; return` carve-out): nothing in
+    backend/tests/integration/ is testing rate-limit *behavior* — they're testing
+    real DB/Redis-backed search/cache/etc. behavior, and a handful of them (e.g.
+    test_search.py's autocomplete latency test) legitimately fire more requests in a
+    tight loop than a rate-limit policy's default window allows, from the same
+    origin/identity, across the same real Redis instance the cache gateway also
+    uses. Real rate-limit *behavior* is already covered by the unit-level tests in
+    test_rate_limit.py and the router tests in test_auth.py/test_chat_router.py/
+    test_search_router.py, which override this fixture themselves via their own
+    `with patch("backend.rate_limit.limiter._make_redis", ...)` block."""
+    from unittest.mock import AsyncMock, patch
+
+    never_exceeds_redis = AsyncMock()
+    never_exceeds_redis.eval = AsyncMock(return_value=1)  # limiter.py's atomic INCR+EXPIRE script
+    never_exceeds_redis.ttl = AsyncMock(return_value=60)
+    never_exceeds_redis.aclose = AsyncMock()
+
+    with patch("backend.rate_limit.limiter._make_redis", return_value=never_exceeds_redis):
+        yield
+
+
 def make_mock_suggestion(**kwargs):
     """Create a mock TagNormalizationSuggestion ORM instance."""
     defaults = dict(

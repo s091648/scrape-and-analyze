@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from shared.domain.exceptions import ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError
 from backend.database import get_db
 from backend.auth.guards import require_admin, require_user
+from backend.rate_limit.limiter import guest_token_limit, auth_attempt_limit
 from backend.schemas.error import error_responses
 from backend.schemas.auth import LoginRequest, RefreshRequest, AccessTokenOut
 from backend.schemas.guest import GuestTokenPairOut, GuestAccessTokenOut, GuestRefreshRequest
@@ -57,8 +58,8 @@ def _to_auth_response(user) -> AuthUserOut:
     )
 
 
-@router.post("/verify", responses=error_responses(401, 403))
-def verify_credentials(data: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/verify", responses=error_responses(401, 403, 429))
+def verify_credentials(data: LoginRequest, db: Session = Depends(get_db), _rl: None = Depends(auth_attempt_limit)):
     user = _get_user_by_username(db, data.username)
     if not user:
         raise UnauthorizedError("Invalid credentials")
@@ -73,8 +74,8 @@ def verify_credentials(data: LoginRequest, db: Session = Depends(get_db)):
             "expires_in": USER_ACCESS_TOKEN_TTL_SECONDS}
 
 
-@router.post("/register", response_model=AuthUserOut, status_code=201, responses=error_responses(400, 409))
-def register(data: dict, db: Session = Depends(get_db)):
+@router.post("/register", response_model=AuthUserOut, status_code=201, responses=error_responses(400, 409, 429))
+def register(data: dict, db: Session = Depends(get_db), _rl: None = Depends(auth_attempt_limit)):
     try:
         if "google_id" in data:
             req = RegisterGoogleRequest(**data)
@@ -101,8 +102,8 @@ def register(data: dict, db: Session = Depends(get_db)):
         raise ConflictError("Email or username already taken")
 
 
-@router.post("/google/authorize", response_model=AuthUserOut, responses=error_responses(403, 404, 409))
-def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db)):
+@router.post("/google/authorize", response_model=AuthUserOut, responses=error_responses(403, 404, 409, 429))
+def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db), _rl: None = Depends(auth_attempt_limit)):
     user = _get_user_by_email(db, data.email)
     if not user:
         raise NotFoundError("Email not registered")
@@ -113,8 +114,8 @@ def google_authorize(data: GoogleAuthorizeRequest, db: Session = Depends(get_db)
     return _to_auth_response(user)
 
 
-@router.post("/refresh", response_model=AccessTokenOut, responses=error_responses(401))
-def refresh_user_token(data: RefreshRequest, db: Session = Depends(get_db)):
+@router.post("/refresh", response_model=AccessTokenOut, responses=error_responses(401, 429))
+def refresh_user_token(data: RefreshRequest, db: Session = Depends(get_db), _rl: None = Depends(auth_attempt_limit)):
     payload = decode_user_refresh_token(data.refresh_token)
     user = _get_user_by_id(db, UUID(payload["sub"]))
     if not user or not user.is_allowed:
@@ -241,8 +242,8 @@ def unlink_google(payload: dict = Depends(require_user), db: Session = Depends(g
     return Response(status_code=204)
 
 
-@router.post("/guest", response_model=GuestTokenPairOut)
-def issue_guest_token(request: Request):
+@router.post("/guest", response_model=GuestTokenPairOut, responses=error_responses(429))
+def issue_guest_token(request: Request, _rl: None = Depends(guest_token_limit)):
     guest_id = compute_guest_id(request)
     return GuestTokenPairOut(
         access_token=create_guest_access_token(guest_id),
@@ -251,8 +252,8 @@ def issue_guest_token(request: Request):
     )
 
 
-@router.post("/guest/refresh", response_model=GuestAccessTokenOut, responses=error_responses(401))
-def refresh_guest_token(data: GuestRefreshRequest):
+@router.post("/guest/refresh", response_model=GuestAccessTokenOut, responses=error_responses(401, 429))
+def refresh_guest_token(data: GuestRefreshRequest, _rl: None = Depends(auth_attempt_limit)):
     payload = decode_guest_refresh_token(data.refresh_token)
     return GuestAccessTokenOut(
         access_token=create_guest_access_token(payload["guest_id"]),

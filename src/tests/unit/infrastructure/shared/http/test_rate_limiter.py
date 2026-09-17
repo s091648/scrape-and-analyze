@@ -87,3 +87,35 @@ def test_straggler_bails_within_poll_interval_after_mid_wait_trip():
     # Should bail within ~1 poll interval of the trip, nowhere near the ~60s
     # the straggler would otherwise have waited for its own token.
     assert result["elapsed"] < 5.0
+
+
+def test_export_arxiv_and_arxiv_share_one_token_bucket():
+    """CodeRabbit review (026-rate-limit-codegen PR #127): export.arxiv.org and
+    arxiv.org draw from the same arXiv TOS budget (same IP allowance) — giving
+    each its own 15 RPM bucket would let the pair combine to 30 RPM against
+    that one shared budget. They must resolve to the same underlying bucket."""
+    from src.infrastructure.shared.http.rate_limiter import _SHARED_BUCKET_GROUPS
+
+    limiter = DomainRateLimiter()
+    export_bucket = limiter._get_or_create("export.arxiv.org")
+    arxiv_bucket = limiter._get_or_create("arxiv.org")
+
+    assert export_bucket is arxiv_bucket
+    assert _SHARED_BUCKET_GROUPS["export.arxiv.org"] == "arxiv.org"
+
+
+def test_export_arxiv_and_arxiv_share_one_connection_semaphore():
+    limiter = DomainRateLimiter()
+    export_sem = limiter._get_semaphore("export.arxiv.org")
+    arxiv_sem = limiter._get_semaphore("arxiv.org")
+
+    assert export_sem is arxiv_sem
+
+
+def test_consuming_a_token_via_export_arxiv_depletes_arxiv_orgs_bucket():
+    """Acquiring through one hostname must consume from the pair's single shared
+    bucket, observable from the other hostname's own bucket lookup."""
+    limiter = DomainRateLimiter(overrides={"arxiv.org": 60.0})
+    limiter.acquire("export.arxiv.org")  # consumes the only starting token
+
+    assert limiter._get_or_create("arxiv.org")._tokens < 1.0

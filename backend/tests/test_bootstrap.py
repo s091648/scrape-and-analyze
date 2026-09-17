@@ -151,7 +151,9 @@ def test_bootstrap_forwarded_for_header_is_used():
 
     assert response.status_code == 200
     assert response.json()["languages"]["resolved"] == "zh-TW"
-    mock_resolve.assert_called_once_with("1.2.3.4")
+    # get_client_origin trusts only the last TRUSTED_PROXY_HOPS (default 1) hop —
+    # the one appended by our own reverse proxy — never the leftmost, client-supplied one.
+    mock_resolve.assert_called_once_with("10.0.0.1")
 
 
 class _InMemoryFakeCacheGateway:

@@ -7,6 +7,7 @@ from backend.database import get_db
 from backend.schemas.bootstrap import BootstrapOut
 from backend.schemas.topic import TopicOut
 from backend.schemas.language import LanguagesResponse
+from backend.rate_limit.client_origin import get_client_origin
 from backend.services.auth_service import (
     compute_guest_id,
     create_guest_access_token,
@@ -47,10 +48,7 @@ def get_bootstrap(
         "topics", {"include_inactive": False}, DEFAULT_TTL_SECONDS, _load_topics,
     )
 
-    client_ip = request.client.host if request.client else None
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
+    client_ip = get_client_origin(request)
     resolved = resolve_language_from_ip(client_ip) if client_ip else "en"
 
     return BootstrapOut(

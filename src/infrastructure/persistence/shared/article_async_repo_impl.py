@@ -31,14 +31,27 @@ class AsyncSqlAlchemyArticleRepository(AsyncArticleRepository):
         return to_article_entity(row) if row else None
 
     async def save(self, article: Article) -> Article:
-        """Persist a new article and return the entity with DB-generated fields."""
+        """Persist a new article and return the entity with DB-generated fields.
+
+        Deliberately flush()es without committing — the caller commits together
+        with whatever else runs on this same per-article session afterward (e.g.
+        AsyncSqlAlchemyAnalysisRepository.save()). Still rolls back on failure:
+        this session is shared with FailedTaskPersistenceHandler (bootstrap.py's
+        article_downstream_builder), so a flush() failure left un-rolled-back
+        would leave the session unusable for that handler's own later commit(),
+        silently losing the failure record (CodeRabbit review, 026-rate-limit-
+        codegen PR #127)."""
         from models.article import Article as ArticleModel
         row = ArticleModel(
             **to_article_model_kwargs(article),
             correlation_id=uuid4(),  # legacy NOT NULL column; no longer in domain model
         )
         self._session.add(row)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except Exception:
+            await self._session.rollback()
+            raise
         logger.info("article_saved", url=article.url, article_id=str(row.id))
         return to_article_entity(row)
 

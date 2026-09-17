@@ -35,7 +35,6 @@ def test_fetches_untranslated_and_calls_execute(mock_validate, mock_logging, moc
     aid = uuid.uuid4()
     article_id = uuid.uuid4()
     mock_result = MagicMock()
-    mock_result.success = True
 
     mock_translate_uc = MagicMock()
     mock_translate_uc.execute.return_value = mock_result
@@ -76,7 +75,6 @@ def test_fetches_untranslated_and_calls_execute(mock_validate, mock_logging, moc
 def test_calls_tag_and_group_translation(mock_validate, mock_logging, mock_http, mock_pipeline):
     mock_translate_uc = MagicMock()
     mock_result = MagicMock()
-    mock_result.success = True
     mock_translate_uc.execute.return_value = mock_result
 
     mock_repo = MagicMock()

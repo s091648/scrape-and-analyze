@@ -15,6 +15,7 @@
 	test-src test-src-cov test-src-integration test-src-integration-cov \
 	test-backend test-backend-cov test-backend-integration test-backend-integration-cov \
 	test-frontend test-frontend-cov test-frontend-e2e test-all \
+	generate-api-types \
 	storybook build-storybook \
 	lighthouse-check \
 	site-preview uml uml-backend uml-db-schema uml-exceptions uml-terraform-docs uml-terraform-modules uml-frontend uml-frontend-deps uml-frontend-context \
@@ -289,6 +290,19 @@ test-frontend-cov:
 # (fast no-op when the cached browsers already match the installed playwright-core version).
 test-frontend-e2e:
 	docker compose run --rm frontend sh -c "npx playwright install && npm run test:e2e"
+
+# ─── generated frontend API types (026-rate-limit-codegen) ────────────────────
+
+# Exports backend/openapi.json from the live FastAPI app object (no running server
+# needed, see scripts/export_openapi_schema.py), then generates
+# frontend/lib/api/generated-types.ts from it. The frontend service's own volumes
+# only mount ./frontend, so the freshly-written openapi.json is bind-mounted in for
+# just this one command at the relative path frontend/'s own "generate:api-types"
+# npm script (../backend/openapi.json) expects. Both outputs are checked in — CI
+# re-runs this and fails on any diff (see .github/workflows/ci.yml).
+generate-api-types:
+	docker compose run --rm job_service python scripts/export_openapi_schema.py
+	docker compose run --rm -v "$(CURDIR)/backend/openapi.json:/backend/openapi.json:ro" frontend npm run generate:api-types
 
 # ─── lighthouse performance check ──────────────────────────────────────────────
 

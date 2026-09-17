@@ -1,15 +1,17 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface Topic {
-  id: string
-  name: string
-  display_name: string
+// description/color_hex/prompt_override/sort_order are optional (`?`) in the backend
+// contract (they default to null) but kept required-and-nullable here, matching every
+// existing consumer that reads them unconditionally.
+export type Topic = Omit<
+  components['schemas']['TopicOut'],
+  'description' | 'color_hex' | 'prompt_override' | 'sort_order'
+> & {
   description: string | null
   color_hex: string | null
   prompt_override: string | null
   sort_order: number | null
-  is_active: boolean
-  tag_mode: 'unsupervised' | 'semi_supervised' | 'supervised'
 }
 
 function authHeader(token?: string): Record<string, string> {

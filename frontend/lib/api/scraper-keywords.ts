@@ -1,11 +1,10 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface ScraperKeyword {
-  id: string
-  keyword: string
-  keyword_type: string
-  topic_id: string
-}
+// Note: the backend never returns topic_id on a keyword (it's a query-time filter,
+// not a stored per-keyword field) — the pre-migration hand-written type claimed one
+// anyway; nothing in this codebase actually read it.
+export type ScraperKeyword = components['schemas']['ScraperKeywordOut']
 
 function authHeader(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}

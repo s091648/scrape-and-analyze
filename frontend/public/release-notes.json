@@ -1,8 +1,21 @@
 [
   {
-    "version": "v1.7.2",
-    "date": "2026-09-14",
-    "changes": []
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Implemented rate limiting for authentication, chat, and search endpoints to enhance platform stability and security."
+      },
+      {
+        "type": "feat",
+        "description": "Improved application reliability by synchronizing the user interface with the latest backend API specifications."
+      },
+      {
+        "type": "chore",
+        "description": "Updated the documentation portal with new architectural specifications and improved site navigation."
+      }
+    ]
   },
   {
     "version": "v1.7.0",

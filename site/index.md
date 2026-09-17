@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Article Analyzer
   text: Specification Documentation
-  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 25 features
+  tagline: SDD artifacts — specs, plans, data models, and interface contracts for all 26 features
   actions:
     - theme: brand
       text: Speckit SDD Guide
@@ -92,4 +92,7 @@ features:
   - title: '025 · Iac Provisioning'
     details: '我需要實作一個新的 feature ，那就是實作 IaC (preferably terraform) 。我目前是把我的 app 部署在 railway 平台上面，而且會根據不同的使用情境 (PR時使用 staging: ci.yml , 正式 release 時使用 production: release.yml ) 而有不同的 environment 。目前 deploy 的工作主要都是透過 railway CLI 去做，但是環境變數的設置等等都是我自己要在 railway 平台上面手動操作，這非常的不方便。而且我之後也希望可以有其他平台部署的支援方案，所以希望能夠使用類似 terraform 這樣的 IaC 語言去構築我的 stack 。'
     link: '/specs/025-iac-provisioning/spec'
+  - title: '026 · Rate Limit Codegen'
+    details: '我會需要開一個新的 spec, 要來實作上面說的 rate limit 以及 codegen。" (Implement rate limiting for the public API and adopt contract-driven generation of the frontend''s API types, as previously discussed.)'
+    link: '/specs/026-rate-limit-codegen/spec'
 ---

@@ -35,7 +35,6 @@ def test_executor_aborts_remaining_arxiv_discovers_after_429():
     executor = ScrapeExecutor(
         num_workers=1,
         discover_workers=1,
-        fetch_delay=0.0,
         on_discover_failed=lambda task, exc: failed_tasks.append(task.setting.source),
     )
     executor.run_discover([task1, task2])
@@ -67,7 +66,6 @@ def test_executor_non_arxiv_source_unaffected_by_arxiv_429():
     executor = ScrapeExecutor(
         num_workers=2,
         discover_workers=1,
-        fetch_delay=0.0,
         on_discover_failed=lambda *_: None,
     )
     fetch_tasks = executor.run_discover([arxiv_task, rss_task])

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from shared.domain.exceptions import ValidationError
 from backend.database import get_db
+from backend.rate_limit.limiter import search_limit
 from backend.schemas.error import error_responses
 from backend.schemas.article import PaginatedArticles
 from backend.schemas.search import AutocompleteResponse
@@ -15,7 +16,7 @@ from backend.auth.guards import require_any_token
 router = APIRouter(tags=["search"])
 
 
-@router.get("/search", response_model=PaginatedArticles, responses=error_responses(400, 401))
+@router.get("/search", response_model=PaginatedArticles, responses=error_responses(400, 401, 429))
 async def search(
     q: str = Query(...),
     topic_id: Optional[UUID] = Query(default=None),
@@ -49,6 +50,7 @@ async def search(
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
     _token: dict = Depends(require_any_token),
+    _rl: None = Depends(search_limit),
 ):
     query = q.strip()
     if not query:
@@ -64,13 +66,14 @@ async def search(
     )
 
 
-@router.get("/search/autocomplete", response_model=AutocompleteResponse, responses=error_responses(400, 401))
+@router.get("/search/autocomplete", response_model=AutocompleteResponse, responses=error_responses(400, 401, 429))
 def autocomplete(
     prefix: str = Query(...),
     topic_id: Optional[UUID] = Query(default=None),
     lang: str = Query(default="en"),
     db: Session = Depends(get_db),
     _token: dict = Depends(require_any_token),
+    _rl: None = Depends(search_limit),
 ):
     typed = prefix.strip()
     if not typed:

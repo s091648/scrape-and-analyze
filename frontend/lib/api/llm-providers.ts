@@ -1,19 +1,10 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface LlmProvider {
-  id: string
-  name: string
-  model: string
-  api_key_env: string
-  priority: number
-  is_active: boolean
-  type: 'llm' | 'embedding' | 'multimodal'
-  rpm: number | null
-  tpm: number | null
-  rpd: number | null
-  usage_24h: number
-  created_at?: string | null
-  updated_at?: string | null
+// type is widened to `string` on the response schema (FastAPI can't narrow an enum on
+// an output model here) — restore the same union LlmProviderCreate already uses.
+export type LlmProvider = Omit<components['schemas']['LlmProviderOut'], 'type'> & {
+  type: components['schemas']['LlmProviderCreate']['type']
 }
 
 function authHeader(token?: string): Record<string, string> {

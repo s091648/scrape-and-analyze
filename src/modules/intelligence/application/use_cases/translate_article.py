@@ -10,6 +10,7 @@ from src.modules.intelligence.domain.value_objects import (
     AnalysesTranslationContent,
     AnalysesTranslationResult,
 )
+from .exceptions import LLMTranslationError, TranslationParseError
 
 logger = get_logger(__name__)
 
@@ -46,7 +47,10 @@ class TranslateArticleUseCase:
         """
         Translate article analysis to target language.
 
-        Returns AnalysesTranslationResult with translated content or failure flag.
+        Returns AnalysesTranslationResult on success — raises on any failure
+        (all LLM providers exhausted, unparseable response, or persistence
+        failing). The caller is responsible for catching, logging, and
+        publishing a TranslationFailedEvent.
         """
         # Check if translation already exists
         if self._translation_repository.exists(analysis_id, target_language):
@@ -62,7 +66,6 @@ class TranslateArticleUseCase:
                         insights=existing.insights,
                         innovations=existing.innovations,
                     ),
-                    success=True,
                 )
 
         # Render prompt from injected template
@@ -75,21 +78,11 @@ class TranslateArticleUseCase:
         )
 
         # Translate using LLM
-        translated = self._call_llm(rendered.content)
-
-        if translated is None:
-            logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
-            return AnalysesTranslationResult(
-                analysis_id=analysis_id,
-                language=target_language,
-                content=AnalysesTranslationContent(
-                    summary=None,
-                    pain_points=None,
-                    insights=None,
-                    innovations=None,
-                ),
-                success=False,
-            )
+        translated_text = self._llm_service.translate("", rendered.content)
+        if translated_text is None:
+            raise LLMTranslationError("LLM returned no translation output")
+        translated = self._parse_sections(translated_text)
+        self._validate_parsed(translated, translated_text)
 
         # Save translation
         translation = AnalysesContent(
@@ -101,40 +94,25 @@ class TranslateArticleUseCase:
             innovations=translated.innovations,
         )
 
-        try:
-            self._translation_repository.save(translation)
-            logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
-        except Exception as e:
-            logger.error("translation_save_failed", analysis_id=str(analysis_id), error=str(e))
-            return AnalysesTranslationResult(
-                analysis_id=analysis_id,
-                language=target_language,
-                content=AnalysesTranslationContent(
-                    summary=None,
-                    pain_points=None,
-                    insights=None,
-                    innovations=None,
-                ),
-                success=False,
-            )
+        self._translation_repository.save(translation)
+        logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
 
         return AnalysesTranslationResult(
             analysis_id=analysis_id,
             language=target_language,
             content=translated,
-            success=True,
         )
 
-    def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
-        """Translate content using LLM service."""
-        try:
-            translated_text = self._llm_service.translate("", prompt_content)
-            if translated_text is None:
-                return None
-            return self._parse_sections(translated_text)
-        except Exception as e:
-            logger.error("llm_translation_error", error=str(e))
-            return None
+    @staticmethod
+    def _validate_parsed(translated: AnalysesTranslationContent, raw_text: str) -> None:
+        """Guard against _parse_sections silently returning all-empty fields when the
+        LLM's response contains none of the expected headers — without this, an
+        unparseable response was saved as a blank translation and reported as
+        success (CodeRabbit review, 026-rate-limit-codegen PR #127)."""
+        if not any([translated.summary, translated.pain_points, translated.insights, translated.innovations]):
+            raise TranslationParseError(
+                f"Could not parse any expected section from LLM translation response: {raw_text[:200]!r}"
+            )
 
     @staticmethod
     def _parse_sections(text: str) -> AnalysesTranslationContent:
@@ -196,7 +174,6 @@ class AsyncTranslateArticleUseCase:
                         insights=existing.insights,
                         innovations=existing.innovations,
                     ),
-                    success=True,
                 )
 
         rendered = self._prompt.render(
@@ -207,18 +184,11 @@ class AsyncTranslateArticleUseCase:
             innovations=innovations or "(empty)",
         )
 
-        translated = await self._call_llm(rendered.content)
-
-        if translated is None:
-            logger.error("translation_llm_failed", analysis_id=str(analysis_id), language=target_language)
-            return AnalysesTranslationResult(
-                analysis_id=analysis_id,
-                language=target_language,
-                content=AnalysesTranslationContent(
-                    summary=None, pain_points=None, insights=None, innovations=None,
-                ),
-                success=False,
-            )
+        translated_text = await self._llm_service.translate("", rendered.content)
+        if translated_text is None:
+            raise LLMTranslationError("LLM returned no translation output")
+        translated = TranslateArticleUseCase._parse_sections(translated_text)
+        TranslateArticleUseCase._validate_parsed(translated, translated_text)
 
         translation = AnalysesContent(
             analysis_id=analysis_id,
@@ -229,33 +199,11 @@ class AsyncTranslateArticleUseCase:
             innovations=translated.innovations,
         )
 
-        try:
-            await self._translation_repository.save(translation)
-            logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
-        except Exception as e:
-            logger.error("translation_save_failed", analysis_id=str(analysis_id), error=str(e))
-            return AnalysesTranslationResult(
-                analysis_id=analysis_id,
-                language=target_language,
-                content=AnalysesTranslationContent(
-                    summary=None, pain_points=None, insights=None, innovations=None,
-                ),
-                success=False,
-            )
+        await self._translation_repository.save(translation)
+        logger.info("translation_saved", analysis_id=str(analysis_id), language=target_language)
 
         return AnalysesTranslationResult(
             analysis_id=analysis_id,
             language=target_language,
             content=translated,
-            success=True,
         )
-
-    async def _call_llm(self, prompt_content: str) -> Optional[AnalysesTranslationContent]:
-        try:
-            translated_text = await self._llm_service.translate("", prompt_content)
-            if translated_text is None:
-                return None
-            return TranslateArticleUseCase._parse_sections(translated_text)
-        except Exception as e:
-            logger.error("llm_translation_error", error=str(e))
-            return None

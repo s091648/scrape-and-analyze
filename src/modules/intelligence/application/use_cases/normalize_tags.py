@@ -1,25 +1,13 @@
-from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from shared.observability.traceback_filter import format_filtered_exc
+from shared.domain.exceptions import NotFoundError
 from src.modules.intelligence.domain.repositories import AsyncTagRepository
 from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
 from src.modules.intelligence.domain.services import AsyncEmbeddingService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class NormalizeTagsResult:
-    """Outcome of tag normalization carrying success flag and optional error info."""
-    success: bool
-    analysis_id: UUID
-    article_id: UUID
-    exception_type: Optional[str] = None
-    exception_message: Optional[str] = None
-    traceback: Optional[str] = None
 
 
 class NormalizeTagsUseCase:
@@ -48,14 +36,16 @@ class NormalizeTagsUseCase:
         article_id: UUID,
         tag_groups: List[Tuple[str, List[str]]],
         topic_id: Optional[UUID] = None,
-    ) -> NormalizeTagsResult:
-        """Embed and normalize all tags, auto-merge or create suggestions, then commit."""
+    ) -> None:
+        """Embed and normalize all tags, auto-merge or create suggestions, then commit.
+
+        Raises on any failure — the caller (TagNormalizationHandler) is
+        responsible for catching, logging, and publishing a
+        TagNormalizationFailedEvent."""
         try:
             await self._process(analysis_id, article_id, tag_groups, topic_id)
             await self._tag_repository.commit()
-            return NormalizeTagsResult(success=True, analysis_id=analysis_id, article_id=article_id)
-        except Exception as e:
-            logger.error("normalize_tags_failed", analysis_id=str(analysis_id), error=str(e))
+        except Exception:
             # The article_session is shared with FailedTaskPersistenceHandler
             # (same per-article downstream chain, see bootstrap.py's
             # article_downstream_builder) — if _process left the session with
@@ -71,14 +61,7 @@ class NormalizeTagsUseCase:
                     analysis_id=str(analysis_id),
                     error=str(rollback_error),
                 )
-            return NormalizeTagsResult(
-                success=False,
-                analysis_id=analysis_id,
-                article_id=article_id,
-                exception_type=type(e).__name__,
-                exception_message=str(e),
-                traceback=format_filtered_exc(e),
-            )
+            raise
 
     async def _process(
         self,
@@ -119,34 +102,47 @@ class NormalizeTagsUseCase:
         embedding: List[float],
         topic_id: Optional[UUID],
     ) -> None:
-        """Check embedding similarity and auto-merge, suggest, or create the tag."""
-        similar = await self._tag_repository.find_similar(
-            embedding, group_name, topic_id, self._suggest_threshold
-        )
+        """Check embedding similarity and auto-merge, suggest, or create the tag.
 
-        if similar:
-            best_tag, best_score = similar[0]
+        The tag group name here was chosen by the LLM against the set of
+        groups that existed when analysis started (AnalyzeArticleUseCase's
+        prompt); analysis latency leaves a window where an admin can rename
+        or merge that group away (backend/routers/tags.py's merge endpoint)
+        before this runs. tag_repository.save() raises NotFoundError in that
+        case — caught here so only this one tag is skipped instead of the
+        whole article's tag batch being rolled back and marked failed.
+        """
+        try:
+            similar = await self._tag_repository.find_similar(
+                embedding, group_name, topic_id, self._suggest_threshold
+            )
 
-            if best_score >= self._auto_merge_threshold:
-                await self._tag_repository.link_to_article(best_tag.id, article_id)
-                logger.info("tag_auto_merged", tag=tag_name, merged_into=best_tag.name,
-                            similarity=best_score)
-                return
+            if similar:
+                best_tag, best_score = similar[0]
 
-            if best_score >= self._suggest_threshold:
-                new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
-                await self._tag_repository.link_to_article(new_tag.id, article_id)
-                suggestion = TagNormalizationSuggestion(
-                    new_tag_id=new_tag.id,
-                    existing_tag_id=best_tag.id,
-                    similarity_score=best_score,
-                    article_id=article_id,
-                )
-                await self._tag_repository.save_suggestion(suggestion)
-                logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
-                            similarity=best_score)
-                return
+                if best_score >= self._auto_merge_threshold:
+                    await self._tag_repository.link_to_article(best_tag.id, article_id)
+                    logger.info("tag_auto_merged", tag=tag_name, merged_into=best_tag.name,
+                                similarity=best_score)
+                    return
 
-        new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
-        await self._tag_repository.link_to_article(new_tag.id, article_id)
-        logger.info("tag_created", tag=tag_name, group=group_name)
+                if best_score >= self._suggest_threshold:
+                    new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
+                    await self._tag_repository.link_to_article(new_tag.id, article_id)
+                    suggestion = TagNormalizationSuggestion(
+                        new_tag_id=new_tag.id,
+                        existing_tag_id=best_tag.id,
+                        similarity_score=best_score,
+                        article_id=article_id,
+                    )
+                    await self._tag_repository.save_suggestion(suggestion)
+                    logger.info("tag_suggestion_created", tag=tag_name, similar_to=best_tag.name,
+                                similarity=best_score)
+                    return
+
+            new_tag = await self._tag_repository.save(tag_name, group_name, embedding, topic_id)
+            await self._tag_repository.link_to_article(new_tag.id, article_id)
+            logger.info("tag_created", tag=tag_name, group=group_name)
+        except NotFoundError:
+            logger.warning("tag_group_vanished_skip", tag=tag_name, group=group_name,
+                            topic_id=str(topic_id) if topic_id else None)

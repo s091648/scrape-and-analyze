@@ -24,3 +24,11 @@ class ForbiddenError(DomainError):
 
 class ExternalDependencyError(DomainError):
     """A required external dependency (LLM provider, metrics API, etc.) failed or was exhausted."""
+
+
+class RateLimitExceededError(DomainError):
+    """The caller has exceeded an enforced rate limit for this capability (026-rate-limit-codegen)."""
+
+    def __init__(self, message: str = "Rate limit exceeded", *, retry_after_seconds: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds

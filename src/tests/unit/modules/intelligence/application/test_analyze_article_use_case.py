@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
+from src.modules.intelligence.domain.entities import Analysis
 from src.shared.domain.entities import Article
 from src.modules.intelligence.application.use_cases import AnalysisResult
+from src.modules.intelligence.application.use_cases.exceptions import LLMAnalysisError
 from src.modules.intelligence.domain.value_objects import AnalysisContent, AnalysisMetadata, AnalysisPrompt
 
 
@@ -59,7 +61,6 @@ async def test_execute_success_saves_analysis_and_returns_result(deps):
 
     result = await uc.execute(_make_article())
 
-    assert result.success is True
     assert result.analysis is not None
     deps["analysis_repository"].save.assert_called_once()
 
@@ -67,63 +68,58 @@ async def test_execute_success_saves_analysis_and_returns_result(deps):
 # ── LLM failure ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_execute_returns_failure_result_when_llm_returns_none(deps):
+async def test_execute_raises_when_llm_returns_none(deps):
     deps["llm_service"].analyze.return_value = None
     uc = _make_uc(deps)
     article = _make_article()
 
-    result = await uc.execute(article)
+    with pytest.raises(LLMAnalysisError):
+        await uc.execute(article)
 
-    assert result.success is False
-    assert result.article_id == article.id
-    assert result.article_url == article.url
-    assert result.exception_type == "LLMAnalysisError"
     deps["analysis_repository"].save.assert_not_called()
 
 
 # ── save failure ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_execute_returns_failure_result_when_save_raises(deps):
+async def test_execute_raises_when_save_raises(deps):
     deps["llm_service"].analyze.return_value = _make_llm_result()
     deps["analysis_repository"].save.side_effect = RuntimeError("DB down")
     uc = _make_uc(deps)
     article = _make_article()
 
-    result = await uc.execute(article)
-
-    assert result.success is False
-    assert result.exception_type == "RuntimeError"
-    assert "DB down" in result.exception_message
+    with pytest.raises(RuntimeError, match="DB down"):
+        await uc.execute(article)
 
 
 # ── AnalysisResult dataclass ────────────────────────────────────────────
 
-@pytest.mark.asyncio
-async def test_analysis_result_is_frozen():
+def _make_analysis(article_id: uuid.UUID) -> Analysis:
+    content = AnalysisContent(tag_groups=[], pain_points="p", insights="i", innovations="n", summary="s")
+    metadata = AnalysisMetadata(model_used="test-model", input_tokens=1, output_tokens=1)
+    return Analysis(article_id=article_id, analysis_content=content, analysis_metadata=metadata)
+
+
+def test_analysis_result_is_frozen():
     article_id = uuid.uuid4()
     result = AnalysisResult(
-        success=False,
         article_id=article_id,
         article_url="https://x.com",
-        exception_type="SomeError",
-        exception_message="details",
+        analysis=_make_analysis(article_id),
     )
     assert result.article_id == article_id
     with pytest.raises((TypeError, AttributeError)):
-        result.success = True  # type: ignore[misc]
+        result.article_id = uuid.uuid4()  # type: ignore[misc]
 
 
-@pytest.mark.asyncio
-async def test_analysis_result_optional_fields_default_to_none():
+def test_analysis_result_topic_display_name_defaults_to_none():
+    article_id = uuid.uuid4()
     result = AnalysisResult(
-        success=False,
-        article_id=uuid.uuid4(),
+        article_id=article_id,
         article_url="https://x.com",
+        analysis=_make_analysis(article_id),
     )
-    assert result.analysis is None
-    assert result.exception_type is None
-    assert result.exception_message is None
+    assert result.topic_display_name is None
 
 
 @pytest.mark.asyncio
@@ -241,7 +237,6 @@ async def test_analysis_metadata_recorded_on_success(deps):
 
     result = await uc.execute(_make_article())
 
-    assert result.success is True
     assert result.analysis.analysis_metadata.model_used == "gemini-3-flash"
     assert result.analysis.analysis_metadata.input_tokens == 1234
     assert result.analysis.analysis_metadata.output_tokens == 567
@@ -344,7 +339,7 @@ async def test_embedding_failure_does_not_block_analysis_persistence(deps):
     uc = AnalyzeArticleUseCase(**deps, embedding_service=embedding_svc, prompt=AnalysisPrompt())
     result = await uc.execute(_make_article(topic_id=uuid.uuid4()))
 
-    assert result.success is True
+    assert result.analysis is not None
     deps["analysis_repository"].save.assert_called_once()
 
 

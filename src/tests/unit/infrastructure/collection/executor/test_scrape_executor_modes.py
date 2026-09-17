@@ -43,7 +43,7 @@ def _make_fetch_task(url: str, source: str) -> FetchTask:
 # ── run_discover ───────────────────────────────────────────────────────────────
 
 def test_run_discover_returns_empty_list_for_no_discover_tasks():
-    executor = ScrapeExecutor(discover_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(discover_workers=1)
     result = executor.run_discover([])
     assert result == []
 
@@ -59,7 +59,7 @@ def test_run_discover_returns_fetch_tasks_from_all_sources():
     task_a = _make_discover_task("src-a", "a.com", articles_a)
     task_b = _make_discover_task("src-b", "b.com", articles_b)
 
-    executor = ScrapeExecutor(discover_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(discover_workers=1)
     fetch_tasks = executor.run_discover([task_a, task_b])
 
     urls = {ft.url for ft in fetch_tasks}
@@ -76,7 +76,7 @@ def test_run_discover_applies_pre_fetch_filter():
     def _filter(tasks: list) -> list:
         return [t for t in tasks if "keep" in t.url]
 
-    executor = ScrapeExecutor(discover_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(discover_workers=1)
     fetch_tasks = executor.run_discover([task], pre_fetch_filter=_filter)
 
     urls = [ft.url for ft in fetch_tasks]
@@ -91,7 +91,6 @@ def test_run_discover_calls_on_discover_failed_on_rate_limit():
     failed = []
     executor = ScrapeExecutor(
         discover_workers=1,
-        fetch_delay=0.0,
         on_discover_failed=lambda t, exc: failed.append(t.setting.source),
     )
     fetch_tasks = executor.run_discover([task])
@@ -112,7 +111,6 @@ def test_run_discover_calls_on_discover_failed_for_aborted_host():
     failed = []
     executor = ScrapeExecutor(
         discover_workers=1,
-        fetch_delay=0.0,
         on_discover_failed=lambda t, exc: failed.append(t.setting.source),
     )
     executor.run_discover([task1, task2])
@@ -125,7 +123,7 @@ def test_run_discover_calls_on_discover_failed_for_aborted_host():
 # ── run_fetch_only ─────────────────────────────────────────────────────────────
 
 def test_run_fetch_only_returns_zero_for_empty_list():
-    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1)
     assert executor.run_fetch_only([], on_result=lambda _: None) == 0
 
 
@@ -136,7 +134,7 @@ def test_run_fetch_only_executes_all_tasks_and_calls_on_result():
         _make_fetch_task("https://b.com/1", "src"),
     ]
     collected = []
-    executor = ScrapeExecutor(num_workers=2, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=2)
     total = executor.run_fetch_only(tasks, on_result=collected.append)
 
     assert total == 3
@@ -152,7 +150,7 @@ def test_run_fetch_only_handles_task_exception_gracefully():
     bad_task = FetchTask(url="https://fail.com/1", source="src", job=job, scraper=scraper)
 
     collected = []
-    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1)
     total = executor.run_fetch_only([bad_task], on_result=collected.append)
 
     assert total == 0
@@ -169,7 +167,7 @@ def test_run_fetch_only_handles_on_result_exception_gracefully():
     def _raising_on_result(article):
         raise RuntimeError("on_result blew up")
 
-    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1)
     total = executor.run_fetch_only(tasks, on_result=_raising_on_result)
 
     # The task's own fetch succeeded; on_result's failure doesn't count it,
@@ -206,7 +204,7 @@ def test_fetch_worker_handles_queue_empty_race_after_claim():
     idx = host_queue_map.get_or_create("racy.com")
     host_queue_map.queues[idx] = _RacyQueue()
 
-    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1)
     collected = []
     total = executor._run_fetch_workers(host_queue_map, on_result=collected.append)
 
@@ -221,7 +219,7 @@ def test_run_fetch_only_skips_none_results():
     null_task = FetchTask(url="https://none.com/1", source="src", job=job, scraper=scraper)
 
     collected = []
-    executor = ScrapeExecutor(num_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1)
     total = executor.run_fetch_only([null_task], on_result=collected.append)
 
     assert total == 0
@@ -238,7 +236,7 @@ def test_discover_then_fetch_only_pipeline():
     ]
     task = _make_discover_task("src", "src.com", articles)
 
-    executor = ScrapeExecutor(num_workers=1, discover_workers=1, fetch_delay=0.0)
+    executor = ScrapeExecutor(num_workers=1, discover_workers=1)
     fetch_tasks = executor.run_discover([task])
     assert len(fetch_tasks) == 2
 

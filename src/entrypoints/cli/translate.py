@@ -94,21 +94,24 @@ def main():
                 article_id=str(analysis_data["article_id"])
             )
 
-            result = translate_use_case.execute(
-                analysis_id=analysis_id,
-                summary=analysis_data["summary"],
-                pain_points=analysis_data["pain_points"],
-                insights=analysis_data["insights"],
-                innovations=analysis_data["innovations"],
-                target_language=args.language,
-            )
-
-            if result.success:
+            try:
+                translate_use_case.execute(
+                    analysis_id=analysis_id,
+                    summary=analysis_data["summary"],
+                    pain_points=analysis_data["pain_points"],
+                    insights=analysis_data["insights"],
+                    innovations=analysis_data["innovations"],
+                    target_language=args.language,
+                )
+            except Exception as e:
+                failed_count += 1
+                logger.exception(
+                    "translation_failed",
+                    analysis_id=str(analysis_id), error=str(e), error_type=type(e).__name__,
+                )
+            else:
                 success_count += 1
                 logger.info("translation_completed", analysis_id=str(analysis_id))
-            else:
-                failed_count += 1
-                logger.warning("translation_failed", analysis_id=str(analysis_id))
 
         # ── 完成 ───────────────────────────────────────────────────────────
         logger.info(
@@ -132,16 +135,22 @@ def main():
             body_success = 0
             body_failed = 0
             for article_data in articles_to_translate:
-                result = body_translate_use_case.execute(
-                    article_id=article_data["article_id"],
-                    title=article_data["title"] or "",
-                    content=article_data["content"] or "",
-                    target_language=args.language,
-                )
-                if result.success:
-                    body_success += 1
-                else:
+                try:
+                    body_translate_use_case.execute(
+                        article_id=article_data["article_id"],
+                        title=article_data["title"] or "",
+                        content=article_data["content"] or "",
+                        target_language=args.language,
+                    )
+                except Exception as e:
                     body_failed += 1
+                    logger.exception(
+                        "body_translation_failed",
+                        article_id=str(article_data["article_id"]),
+                        error=str(e), error_type=type(e).__name__,
+                    )
+                else:
+                    body_success += 1
             print(f"Body translation complete: {body_success}/{len(articles_to_translate)} successful")
 
     # ── 翻譯 tags & tag groups ─────────────────────────────────────────────

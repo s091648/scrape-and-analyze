@@ -1,6 +1,8 @@
 from opentelemetry import trace as _otel_trace
+from opentelemetry.trace import StatusCode
 
 from shared.enums.observability import SpanName
+from shared.observability.traceback_filter import format_filtered_exc
 from src.shared.logging import get_logger
 from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
@@ -12,7 +14,7 @@ from src.modules.intelligence.application.use_cases.translate_article_body impor
 from src.modules.intelligence.domain.repositories import AsyncAnalysesTranslationRepository
 from src.shared.domain.repositories import AsyncArticleRepository
 
-_logger = get_logger(__name__)
+logger = get_logger(__name__)
 _tracer = _otel_trace.get_tracer(__name__)
 
 
@@ -73,7 +75,11 @@ class AnalysisCompletedHandler:
                 article_title, article_content = await self._fetch_article_body(event.article_id)
             except Exception as e:
                 span.record_exception(e)
-                _logger.error("article_body_fetch_failed", article_id=str(event.article_id), error=str(e))
+                span.set_status(StatusCode.ERROR, type(e).__name__)
+                logger.exception(
+                    "article_body_fetch_failed",
+                    article_id=str(event.article_id), error=str(e), error_type=type(e).__name__,
+                )
                 article_title, article_content = None, None
                 await self._event_bus.publish(TranslationFailedEvent(
                     analysis_id=event.analysis_id,
@@ -81,13 +87,37 @@ class AnalysisCompletedHandler:
                     task_type="translate_article_body",
                     exception_type=type(e).__name__,
                     exception_message=str(e),
+                    traceback=format_filtered_exc(e),
                 ))
 
-            en_content = await self._analyses_translation_repo.find_by_analysis_id_and_language(
-                event.analysis_id, 'en'
-            )
+            try:
+                en_content = await self._analyses_translation_repo.find_by_analysis_id_and_language(
+                    event.analysis_id, 'en'
+                )
+            except Exception as e:
+                # Roll back so this shared session stays usable for whatever runs
+                # next on it (body/tag translation below, and FailedTaskPersistenceHandler
+                # itself) — an un-rolled-back failure here would otherwise silently
+                # lose every failure record this handler publishes afterward
+                # (CodeRabbit review, 026-rate-limit-codegen PR #127).
+                span.record_exception(e)
+                logger.exception(
+                    "english_content_lookup_failed",
+                    analysis_id=str(event.analysis_id), error=str(e), error_type=type(e).__name__,
+                )
+                await self._analyses_translation_repo.rollback()
+                en_content = None
+                await self._event_bus.publish(TranslationFailedEvent(
+                    analysis_id=event.analysis_id,
+                    article_id=event.article_id,
+                    task_type="translate_article",
+                    exception_type=type(e).__name__,
+                    exception_message=str(e),
+                    traceback=format_filtered_exc(e),
+                ))
+
             if not en_content:
-                _logger.warning("no_english_content_found", analysis_id=str(event.analysis_id))
+                logger.warning("no_english_content_found", analysis_id=str(event.analysis_id))
 
             for lang in self._target_languages:
                 with _tracer.start_as_current_span("article.translate.handle") as lang_span:
@@ -98,7 +128,7 @@ class AnalysisCompletedHandler:
                     # ── Analysis translation (skipped if English content missing) ──
                     if en_content:
                         try:
-                            result = await self._translate_article_uc.execute(
+                            await self._translate_article_uc.execute(
                                 analysis_id=event.analysis_id,
                                 summary=en_content.summary,
                                 pain_points=en_content.pain_points,
@@ -106,28 +136,24 @@ class AnalysisCompletedHandler:
                                 innovations=en_content.innovations,
                                 target_language=lang,
                             )
-                            if result.success:
-                                lang_span.set_attribute("translation.success", True)
-                                _logger.info("auto_translation_completed", analysis_id=str(event.analysis_id), language=lang)
-                            else:
-                                lang_span.set_attribute("translation.success", False)
-                                await self._event_bus.publish(TranslationFailedEvent(
-                                    analysis_id=event.analysis_id,
-                                    article_id=event.article_id,
-                                    task_type="translate_article",
-                                    exception_type="TranslationError",
-                                    exception_message=f"Translation failed for lang={lang}",
-                                    context={"language": lang},
-                                ))
+                            lang_span.set_attribute("translation.success", True)
+                            logger.info("auto_translation_completed", analysis_id=str(event.analysis_id), language=lang)
                         except Exception as e:
+                            lang_span.set_attribute("translation.success", False)
                             lang_span.record_exception(e)
-                            _logger.error("auto_translation_error", analysis_id=str(event.analysis_id), language=lang, error=str(e))
+                            lang_span.set_status(StatusCode.ERROR, type(e).__name__)
+                            logger.exception(
+                                "auto_translation_error",
+                                analysis_id=str(event.analysis_id), language=lang,
+                                error=str(e), error_type=type(e).__name__,
+                            )
                             await self._event_bus.publish(TranslationFailedEvent(
                                 analysis_id=event.analysis_id,
                                 article_id=event.article_id,
                                 task_type="translate_article",
                                 exception_type=type(e).__name__,
                                 exception_message=str(e),
+                                traceback=format_filtered_exc(e),
                                 context={"language": lang},
                             ))
 
@@ -136,32 +162,28 @@ class AnalysisCompletedHandler:
                     # per-language) ─────────────────────────────────────────────
                     if article_title is not None:
                         try:
-                            body_result = await self._translate_body_uc.execute(
+                            await self._translate_body_uc.execute(
                                 article_id=event.article_id,
                                 title=article_title,
                                 content=article_content,
                                 target_language=lang,
                             )
-                            if not body_result.success:
-                                await self._event_bus.publish(TranslationFailedEvent(
-                                    analysis_id=event.analysis_id,
-                                    article_id=event.article_id,
-                                    task_type="translate_article_body",
-                                    exception_type="TranslationError",
-                                    exception_message=f"Body translation failed for lang={lang}",
-                                    context={"language": lang},
-                                ))
-                            else:
-                                _logger.info("auto_body_translation_completed", article_id=str(event.article_id), language=lang)
+                            logger.info("auto_body_translation_completed", article_id=str(event.article_id), language=lang)
                         except Exception as e:
                             lang_span.record_exception(e)
-                            _logger.error("auto_body_translation_error", article_id=str(event.article_id), language=lang, error=str(e))
+                            lang_span.set_status(StatusCode.ERROR, type(e).__name__)
+                            logger.exception(
+                                "auto_body_translation_error",
+                                article_id=str(event.article_id), language=lang,
+                                error=str(e), error_type=type(e).__name__,
+                            )
                             await self._event_bus.publish(TranslationFailedEvent(
                                 analysis_id=event.analysis_id,
                                 article_id=event.article_id,
                                 task_type="translate_article_body",
                                 exception_type=type(e).__name__,
                                 exception_message=str(e),
+                                traceback=format_filtered_exc(e),
                                 context={"language": lang},
                             ))
 
@@ -170,13 +192,18 @@ class AnalysisCompletedHandler:
                         await self._translate_tags_uc.translate_tags(lang, limit=50)
                     except Exception as e:
                         lang_span.record_exception(e)
-                        _logger.error("auto_tag_translation_error", language=lang, error=str(e))
+                        lang_span.set_status(StatusCode.ERROR, type(e).__name__)
+                        logger.exception(
+                            "auto_tag_translation_error",
+                            language=lang, error=str(e), error_type=type(e).__name__,
+                        )
                         await self._event_bus.publish(TranslationFailedEvent(
                             analysis_id=event.analysis_id,
                             article_id=event.article_id,
                             task_type="translate_tags",
                             exception_type=type(e).__name__,
                             exception_message=str(e),
+                            traceback=format_filtered_exc(e),
                             context={"language": lang},
                         ))
 
@@ -184,13 +211,18 @@ class AnalysisCompletedHandler:
                         await self._translate_tags_uc.translate_groups(lang, limit=50)
                     except Exception as e:
                         lang_span.record_exception(e)
-                        _logger.error("auto_group_translation_error", language=lang, error=str(e))
+                        lang_span.set_status(StatusCode.ERROR, type(e).__name__)
+                        logger.exception(
+                            "auto_group_translation_error",
+                            language=lang, error=str(e), error_type=type(e).__name__,
+                        )
                         await self._event_bus.publish(TranslationFailedEvent(
                             analysis_id=event.analysis_id,
                             article_id=event.article_id,
                             task_type="translate_groups",
                             exception_type=type(e).__name__,
                             exception_message=str(e),
+                            traceback=format_filtered_exc(e),
                             context={"language": lang},
                         ))
 

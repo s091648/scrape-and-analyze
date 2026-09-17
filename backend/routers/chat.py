@@ -1,12 +1,13 @@
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace as _otel_trace
 
 from backend.auth.guards import require_any_token
 from backend.config import CHAT_SERVICE_URL, REDIS_URL
+from backend.rate_limit.limiter import chat_burst_limit
 from backend.schemas.error import error_responses
 from backend.services.chat_service import (
     DAILY_LIMIT_GUEST,
@@ -16,6 +17,7 @@ from backend.services.chat_service import (
     RateLimitExceeded,
     RateLimitService,
 )
+from shared.domain.exceptions import RateLimitExceededError
 
 logger = structlog.get_logger()
 router = APIRouter(tags=["chat"])
@@ -55,12 +57,13 @@ def _identity_from_payload(payload: dict) -> ChatIdentity:
     return ChatIdentity(tier="user", user_id=user_id)
 
 
-@router.post("/chat/completions", description=_CHAT_COMPLETIONS_DESCRIPTION, responses=error_responses(401))
+@router.post("/chat/completions", description=_CHAT_COMPLETIONS_DESCRIPTION, responses=error_responses(401, 429))
 async def chat_completions(
     request: Request,
     x_topic_id: Optional[str] = Header(default=None),
     x_pinned_article_ids: Optional[str] = Header(default=None),
     payload: dict = Depends(require_any_token),
+    _rl: None = Depends(chat_burst_limit),
 ):
     span = _otel_trace.get_current_span()
     span.set_attribute("chat.topic_id", x_topic_id or "")
@@ -79,13 +82,19 @@ async def chat_completions(
         rate_svc = RateLimitService(redis_client)
         remaining, limit = await rate_svc.check_rate_limit(identity)
     except RateLimitExceeded as exc:
+        # 026-rate-limit-codegen research.md Decision 3: retires this endpoint's former
+        # one-off HTTPException(429) carve-out (specs/017-exception-handling-guideline/
+        # router-audit.md) now that RATE_LIMIT_EXCEEDED is a proper DomainError category
+        # shared with the new guest-token/auth-attempt/chat-burst/search policies.
         tier_label = "訪客" if identity.tier == "guest" else "用戶"
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "detail": f"每日問答次數已達上限（{tier_label}：{exc.limit}次/天）",
-                "limit": exc.limit,
-            },
+        key, _ = rate_svc._key_and_limit(identity)
+        try:
+            ttl = await redis_client.ttl(key)
+        except Exception:
+            ttl = None
+        raise RateLimitExceededError(
+            f"每日問答次數已達上限（{tier_label}：{exc.limit}次/天）",
+            retry_after_seconds=ttl if ttl and ttl > 0 else 86400,
         ) from exc
     finally:
         await redis_client.aclose()

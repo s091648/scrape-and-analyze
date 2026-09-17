@@ -1,9 +1,11 @@
+from opentelemetry.trace import StatusCode
 from shared.enums.observability import SpanName
+from shared.observability.traceback_filter import format_filtered_exc
 from src.infrastructure.shared.observability import get_tracer
 from src.shared.logging import get_logger
 from src.shared.application.events import ArticleProcessedEvent
 from src.shared.application.ports import EventBus
-from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, AnalysisResult
+from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase
 from src.modules.intelligence.application.events import AnalysisCompletedEvent, AnalysisFailedEvent
 
 logger = get_logger(__name__)
@@ -23,6 +25,12 @@ class ArticleProcessedHandler:
         ArticleScrapedHandler.handle's docstring for why). The follow-up
         event is published after the span closes so it's a sibling under
         article.pipeline, not nested inside article.processed.handle.
+
+        The use case raises on any failure (all LLM providers exhausted, or
+        persistence failing) rather than returning a failure Result — this
+        try/except is the single place that converts any such exception
+        (anticipated or not) into an AnalysisFailedEvent, so a failure can
+        never silently skip the FailedTask ledger.
         """
         next_event = None
         with get_tracer().start_as_current_span(SpanName.ARTICLE_PROCESSED_HANDLE) as span:
@@ -43,12 +51,30 @@ class ArticleProcessedHandler:
                 source=event.article.source,
                 original_source=event.article.original_source,
             )
-            result = await self._use_case.execute(event.article)
-
-            if result.topic_display_name:
-                span.set_attribute("article.topic_display_name", result.topic_display_name)
-            span.set_attribute("analysis.success", result.success)
-            if result.success and result.analysis:
+            try:
+                result = await self._use_case.execute(event.article)
+            except Exception as e:
+                span.set_attribute("analysis.success", False)
+                span.set_attribute("analysis.error_type", type(e).__name__)
+                span.record_exception(e)
+                span.set_status(StatusCode.ERROR, type(e).__name__)
+                logger.exception(
+                    "article_analysis_failed",
+                    article_id=str(event.article.id),
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+                next_event = AnalysisFailedEvent(
+                    article_id=event.article.id,
+                    article_url=event.article.url,
+                    exception_type=type(e).__name__,
+                    exception_message=str(e),
+                    traceback=format_filtered_exc(e),
+                )
+            else:
+                if result.topic_display_name:
+                    span.set_attribute("article.topic_display_name", result.topic_display_name)
+                span.set_attribute("analysis.success", True)
                 meta = result.analysis.analysis_metadata
                 span.set_attribute("llm.model", meta.model_used)
                 span.set_attribute("llm.input_tokens", meta.input_tokens)
@@ -66,15 +92,6 @@ class ArticleProcessedHandler:
                     article_id=result.article_id,
                     topic_id=event.article.topic_id,
                     tag_groups=raw_tag_groups,
-                )
-            else:
-                if result.exception_type:
-                    span.set_attribute("analysis.error_type", result.exception_type)
-                next_event = AnalysisFailedEvent(
-                    article_id=result.article_id,
-                    article_url=result.article_url,
-                    exception_type=result.exception_type,
-                    exception_message=result.exception_message,
                 )
 
         await self._event_bus.publish(next_event)

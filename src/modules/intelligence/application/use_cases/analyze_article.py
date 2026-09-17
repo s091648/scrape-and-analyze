@@ -13,6 +13,7 @@ from src.modules.intelligence.domain.repositories import (
 from src.modules.intelligence.domain.services import AsyncLLMService, AsyncEmbeddingService
 from src.modules.intelligence.domain.value_objects import AnalysisPrompt, TagGroup, AnalysisTagGroup
 from .analysis_result import AnalysisResult
+from .exceptions import LLMAnalysisError
 
 logger = get_logger(__name__)
 
@@ -44,7 +45,11 @@ class AnalyzeArticleUseCase:
         self._embedding_service = embedding_service
 
     async def execute(self, article: Article) -> AnalysisResult:
-        """Analyze the article via LLM, persist the result, and return an AnalysisResult."""
+        """Analyze the article via LLM and persist the result.
+
+        Raises on any failure (all LLM providers exhausted, or persistence
+        failing) — the caller (ArticleProcessedHandler) is responsible for
+        catching, logging, and publishing an AnalysisFailedEvent."""
         content = article.get_analysis_content()
         topic_display_name: Optional[str] = None
         if article.topic_id is not None:
@@ -55,15 +60,7 @@ class AnalyzeArticleUseCase:
         result = await self._llm_service.analyze(content, prompt)
 
         if result is None:
-            logger.error("llm_analysis_failed", article_id=str(article.id))
-            return AnalysisResult(
-                success=False,
-                article_id=article.id,
-                article_url=article.url,
-                exception_type="LLMAnalysisError",
-                exception_message="All LLM providers returned None",
-                topic_display_name=topic_display_name,
-            )
+            raise LLMAnalysisError("All LLM providers returned None")
 
         analysis_content, analysis_metadata = result
 
@@ -85,18 +82,7 @@ class AnalyzeArticleUseCase:
             analysis_metadata=analysis_metadata,
         )
 
-        try:
-            await self._analysis_repository.save(analysis)
-        except Exception as e:
-            logger.error("analysis_save_failed", article_id=str(article.id), error=str(e))
-            return AnalysisResult(
-                success=False,
-                article_id=article.id,
-                article_url=article.url,
-                exception_type=type(e).__name__,
-                exception_message=str(e),
-                topic_display_name=topic_display_name,
-            )
+        await self._analysis_repository.save(analysis)
 
         logger.info(
             "analysis_completed",
@@ -108,7 +94,6 @@ class AnalyzeArticleUseCase:
         )
 
         return AnalysisResult(
-            success=True,
             article_id=article.id,
             article_url=article.url,
             analysis=analysis,

@@ -19,6 +19,18 @@ def _bool(name: str) -> bool:
     return bool(os.environ.get(name, "").strip())
 
 
+def _positive_int(name: str, default: str) -> int:
+    """Fails fast at import time (config.py is loaded first thing in
+    backend/main.py) rather than letting a zero/negative rate-limit value
+    silently disable enforcement (window_seconds<=0 makes Redis expire the
+    counter immediately) or reject every request (max_requests<=0 makes the
+    first increment always exceed it)."""
+    value = int(os.environ.get(name, default))
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive integer, got {value}")
+    return value
+
+
 DATABASE_URL: str = os.environ.get("DATABASE_URL", "")
 
 FRONTEND_ORIGIN: str = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
@@ -44,6 +56,27 @@ CACHE_REDIS_URL: str = os.environ.get("CACHE_REDIS_URL", "redis://redis:6379/1")
 
 CHAT_SERVICE_URL: str = os.environ.get("CHAT_SERVICE_URL", "").rstrip("/")
 CHAT_SERVICE_API_KEY: str = os.environ.get("CHAT_SERVICE_API_KEY", "")
+
+# 026-rate-limit-codegen: one MAX/WINDOW_SECONDS pair per protected capability, each
+# independently tunable without touching the others (spec.md FR-008). Counters live in
+# REDIS_URL (db 0, shared with chat's daily quota above) — see research.md Decision 1/4
+# for why not a dedicated DB index (db3 is reserved for the search-index rebuild swap).
+RATE_LIMIT_GUEST_TOKEN_MAX: int = _positive_int("RATE_LIMIT_GUEST_TOKEN_MAX", "5")
+RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS: int = _positive_int("RATE_LIMIT_GUEST_TOKEN_WINDOW_SECONDS", "60")
+RATE_LIMIT_AUTH_ATTEMPT_MAX: int = _positive_int("RATE_LIMIT_AUTH_ATTEMPT_MAX", "10")
+RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS: int = _positive_int("RATE_LIMIT_AUTH_ATTEMPT_WINDOW_SECONDS", "60")
+RATE_LIMIT_CHAT_BURST_MAX: int = _positive_int("RATE_LIMIT_CHAT_BURST_MAX", "5")
+RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS: int = _positive_int("RATE_LIMIT_CHAT_BURST_WINDOW_SECONDS", "10")
+RATE_LIMIT_SEARCH_MAX: int = _positive_int("RATE_LIMIT_SEARCH_MAX", "30")
+RATE_LIMIT_SEARCH_WINDOW_SECONDS: int = _positive_int("RATE_LIMIT_SEARCH_WINDOW_SECONDS", "10")
+
+# Number of trusted reverse-proxy hops in front of this service — Railway's edge is the
+# only proxy between the internet and the backend in every deployed environment, so the
+# client's real address is always exactly the *last* hop of X-Forwarded-For, never the
+# first (leftmost hops are attacker-supplied; see backend/rate_limit/client_origin.py).
+# 0 disables trusting X-Forwarded-For entirely (falls back to the socket peer address) —
+# only appropriate for a deployment with no reverse proxy in front of it.
+TRUSTED_PROXY_HOPS: int = int(os.environ.get("TRUSTED_PROXY_HOPS", "1"))
 
 # 023-article-search follow-up: GET /search's dense/sparse query embedding, via
 # chatbot_plugin_sdk's provider classes (backend/services/search_service.py). Mirrors

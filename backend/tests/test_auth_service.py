@@ -384,10 +384,13 @@ def test_compute_guest_id_differs_for_different_user_agent():
 
 
 def test_compute_guest_id_prefers_x_forwarded_for():
+    """The trusted (rightmost) X-Forwarded-For hop — the one our own reverse proxy
+    appended — is used over the socket peer address, which is that proxy itself,
+    not the original client."""
     from backend.services.auth_service import compute_guest_id
 
-    via_proxy = _make_request(ip="1.2.3.4", forwarded_for="9.9.9.9, 1.2.3.4")
-    direct = _make_request(ip="9.9.9.9")
+    via_proxy = _make_request(ip="10.0.0.1", forwarded_for="9.9.9.9, 1.2.3.4")
+    direct = _make_request(ip="1.2.3.4")
     assert compute_guest_id(via_proxy) == compute_guest_id(direct)
 
 

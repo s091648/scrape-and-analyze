@@ -1,20 +1,39 @@
 <!--
 Sync Impact Report:
-- Version change: 1.7.0 → 1.8.0 (MINOR: documented the new automatic
-  data-migration CI/CD step added by 019-cicd-data-migrations — a purely
-  additive behavior description, no existing principle rewritten or removed.)
+- Version change: 1.8.0 → 1.9.0 (MINOR: seven new principles distilled from
+  specs 016-026, which had accumulated project-wide, non-negotiable rules
+  never propagated back into the constitution; one existing principle
+  amended with an additive bullet; two stale references to the retired
+  providers.toml LLM config corrected to the current DB-driven design.)
 - Modified principles:
-  - V. Added a new "Data migrations run alongside schema migrations" bullet
-    describing the `scripts/run_data_migrations.py` step now added
-    immediately after `alembic upgrade head` in both `ci.yml`'s `migrate`
-    job and `release.yml`, its exclusion from the three ephemeral-test-DB
-    jobs, its `requires_api` gating, and its transactional fail-fast/
-    non-rollback-of-schema failure semantics.
-- Added sections: None
+  - I. Added a bullet requiring the shared `DbSchema` enum for every
+    model's schema assignment (016-db-schema-brushup), instead of a
+    hardcoded string literal — a DB-layer manifestation of the existing
+    DDD/bounded-context principle.
+  - IX. Environment-variable-discipline paragraph now points to the new
+    Principle XII instead of restating a now-outdated, narrower version
+    of the same rule.
+- Added principles:
+  - X. Centralized Exception Handling (017-exception-handling-guideline)
+  - XI. Public API Authentication Floor (018-public-api-auth)
+  - XII. Environment Variable Discipline (016-db-schema-brushup,
+    025-iac-provisioning)
+  - XIII. Fail-Open Auxiliary Infrastructure (020-redis-caching-layer,
+    026-rate-limit-codegen)
+  - XIV. Generated Artifact Integrity (016-db-schema-brushup,
+    026-rate-limit-codegen; generalizes the existing UML-specific
+    Principle VIII)
+  - XV. Infrastructure & Secrets Management (025-iac-provisioning)
+  - XVI. Infrastructure Minimalism (020-redis-caching-layer,
+    023-article-search)
+- Corrected (non-semantic): Technology Stack table's "LLM Providers" row
+  and the "LLM Provider Configuration" Development Workflow section both
+  referenced the retired `providers.toml`; both now describe the current
+  DB-driven `llm_providers` table design.
 - Removed sections: None
 - Templates requiring updates:
-  - .specify/templates/tasks-template.md: ✅ compatible (no deployment references)
-  - .specify/templates/plan-template.md: ✅ compatible
+  - .specify/templates/tasks-template.md: ✅ compatible (no principle-specific references)
+  - .specify/templates/plan-template.md: ✅ compatible (Constitution Check gate is generic)
   - .specify/templates/spec-template.md: ✅ compatible
 - Follow-up TODOs: None
 -->
@@ -47,6 +66,11 @@ layer separation:
   notifications, and observability. Implements domain interfaces.
 - **Composition root** (`src/bootstrap.py`): Manual dependency wiring;
   no DI container. All cross-layer assembly happens here.
+- **Schema assignment**: Every SQLAlchemy model MUST declare its
+  PostgreSQL schema via the shared `DbSchema` enum (`models/db_schema.py`)
+  in `__table_args__`, never a hardcoded schema string literal — the
+  bounded-context-to-schema mapping stays in one place the diagram
+  generator can also read from.
 
 Rationale: DDD prevents domain logic leakage into infrastructure and
 keeps the scraper pipeline testable, replaceable, and resilient to
@@ -361,11 +385,12 @@ Each Python microservice (`backend/`, `chatbot-plugin/`,
   yields → teardown), creates `FastAPI(lifespan=lifespan)`, calls
   `app.include_router(...)`.
 
-**Environment variable discipline**: All env vars MUST appear in
-`.env.example` (the Railway shared-variable source of truth).
-Hardcoded values in `docker-compose.yml` `environment:` blocks are
-forbidden; always use `env_file: .env` and declare defaults only in
-`config.py`.
+**Environment variable discipline**: See Principle XII for the full,
+CI-enforced rule (one centralized module per service, no direct
+`os.environ` elsewhere). All env vars MUST also appear in `.env.example`
+(the Railway shared-variable source of truth); hardcoded values in
+`docker-compose.yml` `environment:` blocks are forbidden — always use
+`env_file: .env` and declare defaults only in `config.py`.
 
 **Log format** (all microservices, compatible with scraper structlog):
 
@@ -376,6 +401,186 @@ forbidden; always use `env_file: .env` and declare defaults only in
 Rationale: Consistent structure across services reduces onboarding
 friction and ensures Loki/Grafana queries work identically whether
 targeting the scraper, backend, or embedding service.
+
+### X. Centralized Exception Handling
+
+- Every exception that reaches an HTTP API boundary MUST resolve to a
+  status code through exactly one central `DomainError`→HTTP-status
+  mapping (`backend/exceptions/handlers.py`); routers MUST NOT construct
+  `HTTPException` directly, with one documented exception (`chat.py`'s
+  429 rate-limit response, since 429 predates the `DomainError` category
+  mapping).
+- Every domain exception raised anywhere in `src/`/`backend/` MUST
+  subclass `DomainError` (`shared/domain/exceptions.py`) via one of its
+  shared categories (`ValidationError`, `NotFoundError`, `ConflictError`,
+  `UnauthorizedError`, `ForbiddenError`, `ExternalDependencyError`) — a
+  new bounded-context root or leaf exception MUST fit into this hierarchy
+  rather than raising a bare built-in exception (`ValueError`,
+  `Exception`) at an API-facing layer.
+- Authentication/authorization guards MUST raise a shared domain
+  exception rather than constructing their own `HTTPException` — they go
+  through the same central mapping as every other domain exception, not
+  a parallel bypass path.
+- Any exception reaching the API boundary with no explicit entry in the
+  mapping MUST default to HTTP 500, so an unmapped exception never
+  surfaces an inconsistent or undefined status code.
+- This requirement applies only to code paths that terminate in an HTTP
+  response; background/async pipeline code (the scheduled scraper,
+  periodic view-count flush) keeps using the same domain exception
+  hierarchy for consistency but has no status-code mapping to satisfy.
+
+Rationale: Before this was codified, authentication guards bypassed the
+domain exception hierarchy by raising `HTTPException` directly, producing
+two parallel error paths that could silently diverge
+(specs/017-exception-handling-guideline). A single mapping keeps error
+responses consistent and auditable regardless of which layer raised the
+failure.
+
+### XI. Public API Authentication Floor
+
+- Every backend endpoint MUST require at least `require_any_token` (a
+  valid guest-or-real JWT) unless it is one of the small, explicitly
+  documented exceptions: the guest-token bootstrap itself
+  (`POST /auth/guest`, `POST /auth/guest/refresh`) and any endpoint
+  already gated by a stronger requirement (`require_user`,
+  `require_admin`). "Fully public, zero authentication" MUST NOT be a
+  state a new endpoint can silently launch in.
+- A guest access token grants no access beyond "has a valid token" — it
+  MUST continue to be refused by every endpoint that requires a specific
+  logged-in user or `admin` role, with no new permission tier introduced
+  by the existence of guest tokens.
+- Guest tokens MUST remain stateless (self-signed JWTs verified through
+  the same signing/verification path as real login tokens,
+  `backend/auth/guards.py`) — no new DB-backed session table or
+  per-guest revocation mechanism.
+
+Rationale: This closes a real gap where public-looking endpoints had no
+auth check at all, letting any external consumer bypass the frontend
+entirely (specs/018-public-api-auth). Defaulting new endpoints to the
+`require_any_token` floor, rather than defaulting to public, keeps that
+gap from reopening as the API surface grows.
+
+### XII. Environment Variable Discipline
+
+- Every Python service (`backend/`, `chatbot-plugin/`, `fastembed/`, and
+  the scraper's shared `src/`) MUST read every environment variable
+  exactly once, through that service's own centralized config/settings
+  module. No other module in that service's runtime code path —
+  including its own shared utility modules — may call `os.environ`
+  directly.
+- Shared utility code (e.g. `shared/`) MUST NOT read environment
+  variables itself, even when only one service currently calls it; it
+  MUST receive the value as an explicit parameter from the calling
+  service's centralized config.
+- The frontend MUST route all environment access through a centralized
+  module split into a server-only file (full `process.env`, for Server
+  Components/Route Handlers) and a client-safe file (`NEXT_PUBLIC_*`
+  only, for Client Components). Client Components MUST NOT call
+  `process.env` directly outside the client-safe module.
+- Where a value must be read fresh rather than import-time-frozen (e.g.
+  for test observability), the centralized module MUST expose an
+  explicit re-readable accessor — a direct `os.environ`/`process.env`
+  call outside the module is never an acceptable substitute, including
+  for test convenience.
+- An automated CI check (lint rule or repo-wide grep) MUST catch a direct
+  `os.environ`/`process.env` call added outside the designated modules.
+  Documentation alone is insufficient — this rule has already eroded
+  once and been re-established (specs/016-db-schema-brushup,
+  specs/025-iac-provisioning).
+
+Rationale: A single centralized module per service makes every
+environment dependency discoverable in one place and testable without
+monkeypatching scattered call sites. CI enforcement exists because the
+convention silently eroded under documentation alone before 025
+re-established it — a rule with no automated check is not a rule future
+contributors can be expected to remember.
+
+### XIII. Fail-Open Auxiliary Infrastructure
+
+- Auxiliary infrastructure that accelerates or protects the system —
+  caching (Redis) and rate limiting — MUST fail open: if the backing
+  store is unavailable, requests MUST still succeed (cache: fall back to
+  the database; rate limiting: allow the request through) rather than
+  fail the request.
+- Bounded TTLs are the accepted backstop against a missed cache
+  invalidation, not a reason to fail closed instead.
+- This does not apply to infrastructure that is itself the primary
+  guarantee being requested (e.g. a payment or auth check) — only to
+  auxiliary systems whose unavailability should degrade performance or
+  throttling, never core functionality.
+
+Rationale: An outage in a caching or rate-limiting store must never
+become an outage of the product itself — availability of the core
+feature always outranks the auxiliary concern it's paired with
+(specs/020-redis-caching-layer, specs/026-rate-limit-codegen).
+
+### XIV. Generated Artifact Integrity
+
+- Any artifact auto-generated from source code (the UML pipeline/class
+  diagram, the DB schema diagram, the exception catalog, frontend API
+  types generated from the backend OpenAPI contract) MUST hard-fail its
+  generation step if it cannot fully and correctly represent its source
+  — a partial or best-effort artifact MUST NOT be silently produced.
+- Any consumer of a generated artifact that can drift out of sync with
+  its source (e.g. frontend API types vs. the backend OpenAPI contract)
+  MUST have an automated CI check that fails when the artifact is stale,
+  rather than relying on reviewer diligence to notice.
+- See Principle VIII for the concrete, currently most-detailed instance
+  of this pattern (the UML diagram generator's code-structure
+  conventions).
+
+Rationale: This pattern has recurred across three separate features (UML
+diagrams, the DB schema diagram, generated frontend API types) — each
+time because a stale or silently-wrong generated artifact is worse than
+no artifact, since it actively misleads. Codifying the general rule here
+means the next generated artifact inherits the same guarantee without
+waiting for its own incident.
+
+### XV. Infrastructure & Secrets Management
+
+- A secret value (API key, database URL, token) MUST NOT be stored in
+  plaintext in any version-controlled file, pull request diff, or CI
+  log.
+- The IaC tool's applied-state record — which necessarily contains
+  plaintext secret values once a secret has been applied — MUST be
+  stored in a remote backend that is encrypted at rest and
+  access-restricted to the CI/CD pipeline and maintainer, never
+  committed to the repository.
+- Secret values MUST continue to originate from the GitHub Actions
+  secrets store and be injected into the apply step at run time, not
+  authored directly into declarative infrastructure files — GitHub
+  Actions secrets remain the single source of truth for what a secret's
+  value *is*; the IaC tool is only responsible for applying it.
+- Railway's own managed database services (Redis, Postgres) remain
+  manually provisioned and stay outside the declarative infrastructure
+  definition's scope — only the app-service variables that reference
+  them are declared.
+- The bootstrap credentials that authenticate the IaC tool to its own
+  state backend, GitHub, and Railway MUST be the only standing manual
+  exceptions to full declarative management, and MUST be documented as
+  such wherever the infrastructure is defined.
+
+Rationale: Infrastructure-as-code that leaks the secrets it manages, or
+that hides an unencrypted copy of every secret in its own state file,
+defeats the point of moving secrets out of ad-hoc scripts in the first
+place (specs/025-iac-provisioning).
+
+### XVI. Infrastructure Minimalism
+
+- A new feature requiring backend capability MUST first evaluate whether
+  already-deployed infrastructure can satisfy it before introducing a
+  new infrastructure dependency or service.
+- Deviating from this default (adding a new datastore, search engine, or
+  external service) MUST be justified in the plan's Complexity Tracking
+  section — reuse is the default, not one option among equals.
+
+Rationale: Two independent features chose to extend existing
+infrastructure (pgvector, already populated for embeddings) over
+standing up a new one (a dedicated search engine) purely because the
+reuse path was available and sufficient (specs/020-redis-caching-layer,
+specs/023-article-search). Stating this as a default keeps that judgment
+call consistent across future features instead of re-litigating it each
+time.
 
 ## Technology Stack
 
@@ -393,7 +598,7 @@ targeting the scraper, backend, or embedding service.
 | Auth (Frontend) | NextAuth v4 | JWT strategy |
 | Auth (Backend) | python-jose | HS256 JWT |
 | UI Components | Shadcn/UI + Radix UI + Tailwind CSS v4 | — |
-| LLM Providers | Gemini, Claude, OpenRouter | via `providers.toml` |
+| LLM Providers | Gemini, Claude, OpenRouter | DB-driven (`llm_providers` table) |
 | Observability | OpenTelemetry, Sentry, Loki, structlog | — |
 | Testing (Python) | pytest + pytest-cov + pytest-asyncio | — |
 | Testing (Frontend) | Vitest + Playwright + Storybook | — |
@@ -419,11 +624,13 @@ targeting the scraper, backend, or embedding service.
 
 ### LLM Provider Configuration
 
-- Provider priority and rate limits are configured in `providers.toml`
-  at project root. New providers MUST be added there, not hardcoded.
-- `ResilientLLMService` walks providers in priority order with
-  `SlidingWindowStrategy` rate limiting. Falls back on
-  `RateLimitExhausted` or any exception.
+- Provider priority, rate limits, and model config are DB-driven via the
+  `llm_providers` table (`models/llm_provider.py`), not a config file —
+  new providers MUST be added as rows (via the admin
+  `/admin/llm-providers` dashboard or a migration), not hardcoded.
+- `ResilientLLMService`/`AsyncResilientLLMService` walk providers in
+  priority order with `SlidingWindowStrategy` rate limiting. Falls back
+  on `RateLimitExhausted` or any exception.
 
 ### Frontend API Access
 
@@ -456,4 +663,4 @@ targeting the scraper, backend, or embedding service.
   this constitution provides the authoritative principles that CLAUDE.md
   references.
 
-**Version**: 1.8.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-07-26
+**Version**: 1.9.0 | **Ratified**: 2026-05-28 | **Last Amended**: 2026-09-16

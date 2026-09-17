@@ -1,26 +1,8 @@
 import { apiFetch } from './client'
+import type { components } from './generated-types'
 
-export interface UserProfile {
-  id: string
-  username: string | null
-  name: string | null
-  email: string | null
-  icon: string | null
-  role: string
-  google_id: string | null
-}
-
-export interface AdminUser {
-  id: string
-  email: string | null
-  name: string | null
-  username: string | null
-  role: 'admin' | 'user'
-  is_allowed: boolean
-  icon: string | null
-  google_id: string | null
-  created_at: string | null
-}
+export type UserProfile = components['schemas']['UserProfileOut']
+export type AdminUser = components['schemas']['UserOut']
 
 export function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` }

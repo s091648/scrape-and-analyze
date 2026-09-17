@@ -137,7 +137,6 @@ def test_translate_article_body_use_case_end_to_end(db_session, translation_repo
         target_language="zh-TW",
     )
 
-    assert result.success is True
     assert result.content.title == "翻譯後標題"
     assert result.content.content == "翻譯後內文。"
 
@@ -173,5 +172,4 @@ def test_translate_article_body_use_case_dedup_skips_llm(db_session, translation
         target_language="zh-TW",
     )
 
-    assert result.success is True
     mock_llm.translate.assert_not_called()
