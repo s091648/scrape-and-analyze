@@ -3,7 +3,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.shared.domain.entities import Article
 from src.modules.collection.application.use_cases import ArticleOutcome, PipelineStats
-from src.modules.collection.application.events import ArticleScrapedEvent
+from src.modules.collection.application.events import ArticleSaveFailedEvent, ArticleScrapedEvent
 
 
 def _make_dto(source="arxiv") -> ArticleScrapedEvent:
@@ -51,7 +51,7 @@ async def test_handle_duplicate_article_records_duplicate_and_returns_true():
 async def test_handle_failed_article_records_failed_and_returns_false():
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     use_case = AsyncMock()
-    use_case.execute.return_value = (ArticleOutcome.FAILED, None)
+    use_case.execute.side_effect = RuntimeError("DB down")
     stats = PipelineStats()
     event_bus = AsyncMock()
 
@@ -60,7 +60,10 @@ async def test_handle_failed_article_records_failed_and_returns_false():
 
     assert result is False
     assert stats.get_results()[0].failed == 1
-    event_bus.publish.assert_not_called()
+    event_bus.publish.assert_called_once()
+    published = event_bus.publish.call_args[0][0]
+    assert isinstance(published, ArticleSaveFailedEvent)
+    assert published.exception_type == "RuntimeError"
 
 
 @pytest.mark.asyncio

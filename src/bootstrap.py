@@ -509,7 +509,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
 
     from src.modules.collection.domain.services import AsyncDedupService
     from src.modules.collection.application.use_cases import ProcessScrapedArticleUseCase, PipelineStats
-    from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent, TextPipelineCompletedEvent
+    from src.modules.collection.application.events import ArticleSaveFailedEvent, ArticleScrapedEvent, PipelineCompletedEvent, TextPipelineCompletedEvent
     from src.modules.collection.application.event_handlers import ArticleScrapedHandler
     from src.modules.intelligence.application.use_cases import AnalyzeArticleUseCase, NormalizeTagsUseCase
     from src.modules.intelligence.application.use_cases.translate_article import AsyncTranslateArticleUseCase
@@ -624,6 +624,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
         )
 
         await bus.subscribe(ArticleScrapedEvent, article_scraped_handler.handle)
+        await bus.subscribe(ArticleSaveFailedEvent, failed_task_handler.handle)
         if rag_enabled:
             # Subscribed BEFORE article_processed_handler (subscribe-order
             # dispatch — contracts/event-bus-port.md): the bus awaits handlers

@@ -40,16 +40,14 @@ async def test_execute_returns_new_outcome_and_article_for_unknown_url():
 
 
 @pytest.mark.asyncio
-async def test_execute_returns_failed_outcome_when_save_raises():
+async def test_execute_raises_when_save_raises():
     dedup = AsyncMock()
     dedup.find_existing.return_value = None
     repo = AsyncMock()
     repo.save.side_effect = Exception("DB error")
 
-    outcome, result = await _make_uc(dedup, repo).execute(_make_event())
-
-    assert outcome == ArticleOutcome.FAILED
-    assert result is None
+    with pytest.raises(Exception, match="DB error"):
+        await _make_uc(dedup, repo).execute(_make_event())
 
 
 @pytest.mark.asyncio

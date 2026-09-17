@@ -42,7 +42,11 @@ class ProcessScrapedArticleUseCase:
         self._article_metrics_repo = article_metrics_repo
 
     async def execute(self, event: ArticleScrapedEvent) -> tuple[ArticleOutcome, Optional[Article]]:
-        """Deduplicate and persist the scraped article, returning the outcome and saved Article (or None on failure/duplicate)."""
+        """Deduplicate and persist the scraped article, returning the outcome and saved Article (or None on duplicate).
+
+        Raises if persisting a genuinely new article fails — the caller
+        (ArticleScrapedHandler) is responsible for catching, logging, and
+        publishing an ArticleSaveFailedEvent."""
         existing = await self._dedup_service.find_existing(event.url)
 
         if existing is not None:
@@ -53,12 +57,7 @@ class ProcessScrapedArticleUseCase:
             return ArticleOutcome.DUPLICATE_NEEDS_ANALYSIS, existing
 
         article = self._build_article(event)
-
-        try:
-            saved = await self._article_repo.save(article)
-        except Exception as e:
-            logger.error("article_save_failed", url=event.url, error=str(e))
-            return ArticleOutcome.FAILED, None
+        saved = await self._article_repo.save(article)
 
         logger.info("article_saved", article_id=str(saved.id), url=event.url)
 
