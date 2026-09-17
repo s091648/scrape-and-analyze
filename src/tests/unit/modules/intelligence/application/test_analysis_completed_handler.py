@@ -16,6 +16,7 @@ from src.modules.intelligence.application.events import (
     AnalysisCompletedEvent,
     TranslationFailedEvent,
 )
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError
 from src.modules.intelligence.domain.value_objects import AnalysesTranslationResult, AnalysesTranslationContent
 from src.modules.intelligence.domain.value_objects.analyses_translation_content import (
     ArticleBodyTranslationContent,
@@ -43,7 +44,6 @@ def _analysis_success(event, lang="zh-TW"):
     return AnalysesTranslationResult(
         analysis_id=event.analysis_id, language=lang,
         content=AnalysesTranslationContent(summary="s", pain_points="p", insights="i", innovations="n"),
-        success=True,
     )
 
 
@@ -51,15 +51,6 @@ def _body_success(event, lang="zh-TW"):
     return ArticleBodyTranslationResult(
         article_id=event.article_id, language=lang,
         content=ArticleBodyTranslationContent(title="已翻譯標題", content="已翻譯內容"),
-        success=True,
-    )
-
-
-def _body_failure(event, lang="zh-TW"):
-    return ArticleBodyTranslationResult(
-        article_id=event.article_id, language=lang,
-        content=ArticleBodyTranslationContent(title=None, content=None),
-        success=False,
     )
 
 
@@ -119,29 +110,6 @@ async def test_skips_analysis_translation_when_no_english_content_but_body_still
         content="Test content body.",
         target_language="zh-TW",
     )
-
-
-# ── Publishes TranslationFailedEvent when article translation fails ─────────
-
-@pytest.mark.asyncio
-async def test_publishes_failed_event_when_translation_returns_failure():
-    handler, article_uc, tags_uc, body_uc, repo, bus = _handler()
-    event = _event()
-    en = _en_content()
-    repo.find_by_analysis_id_and_language.return_value = en
-    article_uc.execute.return_value = AnalysesTranslationResult(
-        analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary=None, pain_points=None, insights=None, innovations=None),
-        success=False,
-    )
-    body_uc.execute.return_value = _body_success(event)
-
-    await handler.handle(event)
-
-    published_events = [c[0][0] for c in bus.publish.call_args_list]
-    failed_events = [e for e in published_events if isinstance(e, TranslationFailedEvent)]
-    assert any(e.task_type == "translate_article" for e in failed_events)
-    assert any(e.analysis_id == event.analysis_id for e in failed_events)
 
 
 # ── Publishes TranslationFailedEvent when article translation throws ────────
@@ -261,11 +229,7 @@ async def test_publishes_translate_article_failed_event_with_correct_task_type()
     event = _event()
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
-    article_uc.execute.return_value = AnalysesTranslationResult(
-        analysis_id=event.analysis_id, language="zh-TW",
-        content=AnalysesTranslationContent(summary=None, pain_points=None, insights=None, innovations=None),
-        success=False,
-    )
+    article_uc.execute.side_effect = LLMTranslationError("all providers failed")
     body_uc.execute.return_value = _body_success(event)
 
     await handler.handle(event)
@@ -284,7 +248,7 @@ async def test_publishes_translate_article_body_failed_event_with_correct_task_t
     en = _en_content()
     repo.find_by_analysis_id_and_language.return_value = en
     article_uc.execute.return_value = _analysis_success(event)
-    body_uc.execute.return_value = _body_failure(event)
+    body_uc.execute.side_effect = LLMTranslationError("all providers failed")
 
     await handler.handle(event)
 
@@ -324,7 +288,7 @@ async def test_article_body_fetch_failure_skips_body_translation_but_not_others(
     assert len(body_fetch_failures) == 1
 
 
-# ── Body translation itself throwing (as opposed to returning success=False) ─
+# ── Body translation itself throwing ─────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_publishes_failed_event_when_body_translation_throws_exception():

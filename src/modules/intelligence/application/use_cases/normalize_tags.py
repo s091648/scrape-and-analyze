@@ -1,26 +1,13 @@
-from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from uuid import UUID
 
 from shared.domain.exceptions import NotFoundError
-from shared.observability.traceback_filter import format_filtered_exc
 from src.modules.intelligence.domain.repositories import AsyncTagRepository
 from src.modules.intelligence.domain.entities import TagNormalizationSuggestion
 from src.modules.intelligence.domain.services import AsyncEmbeddingService
 from src.shared.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class NormalizeTagsResult:
-    """Outcome of tag normalization carrying success flag and optional error info."""
-    success: bool
-    analysis_id: UUID
-    article_id: UUID
-    exception_type: Optional[str] = None
-    exception_message: Optional[str] = None
-    traceback: Optional[str] = None
 
 
 class NormalizeTagsUseCase:
@@ -49,14 +36,16 @@ class NormalizeTagsUseCase:
         article_id: UUID,
         tag_groups: List[Tuple[str, List[str]]],
         topic_id: Optional[UUID] = None,
-    ) -> NormalizeTagsResult:
-        """Embed and normalize all tags, auto-merge or create suggestions, then commit."""
+    ) -> None:
+        """Embed and normalize all tags, auto-merge or create suggestions, then commit.
+
+        Raises on any failure — the caller (TagNormalizationHandler) is
+        responsible for catching, logging, and publishing a
+        TagNormalizationFailedEvent."""
         try:
             await self._process(analysis_id, article_id, tag_groups, topic_id)
             await self._tag_repository.commit()
-            return NormalizeTagsResult(success=True, analysis_id=analysis_id, article_id=article_id)
-        except Exception as e:
-            logger.error("normalize_tags_failed", analysis_id=str(analysis_id), error=str(e))
+        except Exception:
             # The article_session is shared with FailedTaskPersistenceHandler
             # (same per-article downstream chain, see bootstrap.py's
             # article_downstream_builder) — if _process left the session with
@@ -72,14 +61,7 @@ class NormalizeTagsUseCase:
                     analysis_id=str(analysis_id),
                     error=str(rollback_error),
                 )
-            return NormalizeTagsResult(
-                success=False,
-                analysis_id=analysis_id,
-                article_id=article_id,
-                exception_type=type(e).__name__,
-                exception_message=str(e),
-                traceback=format_filtered_exc(e),
-            )
+            raise
 
     async def _process(
         self,

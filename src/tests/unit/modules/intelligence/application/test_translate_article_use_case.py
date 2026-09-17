@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.modules.intelligence.application.use_cases.translate_article import TranslateArticleUseCase
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError
 from src.modules.intelligence.domain.entities import AnalysesContent
 from src.modules.intelligence.domain.value_objects import (
     AnalysesTranslationContent,
@@ -65,7 +66,6 @@ def test_returns_existing_translation_when_already_exists(deps):
         insights="i", innovations="n", target_language="zh-TW"
     )
 
-    assert result.success is True
     assert result.content.summary == "existing_s"
     deps["llm_service"].translate.assert_not_called()
 
@@ -86,7 +86,6 @@ def test_calls_llm_and_parses_and_saves_when_no_existing(deps):
         insights="i", innovations="n", target_language="zh-TW"
     )
 
-    assert result.success is True
     assert result.content.summary == "translated s"
     assert result.content.pain_points == "translated p"
     assert result.content.insights == "translated i"
@@ -95,29 +94,24 @@ def test_calls_llm_and_parses_and_saves_when_no_existing(deps):
     deps["translation_repository"].save.assert_called_once()
 
 
-# ── LLM returns None: failure result ────────────────────────────────────────
+# ── LLM returns None: raises ─────────────────────────────────────────────────
 
-def test_returns_failure_when_llm_returns_none(deps):
+def test_raises_when_llm_returns_none(deps):
     aid = _analysis_id()
     deps["translation_repository"].exists.return_value = False
     deps["llm_service"].translate.return_value = None
     uc = _make_uc(deps)
 
-    result = uc.execute(
-        analysis_id=aid, summary="s", pain_points="p",
-        insights="i", innovations="n", target_language="zh-TW"
-    )
-
-    assert result.success is False
-    assert result.content.summary is None
-    assert result.content.pain_points is None
-    assert result.content.insights is None
-    assert result.content.innovations is None
+    with pytest.raises(LLMTranslationError):
+        uc.execute(
+            analysis_id=aid, summary="s", pain_points="p",
+            insights="i", innovations="n", target_language="zh-TW"
+        )
 
 
-# ── Save failure: returns failure ───────────────────────────────────────────
+# ── Save failure: raises ────────────────────────────────────────────────────
 
-def test_returns_failure_when_save_raises(deps):
+def test_raises_when_save_raises(deps):
     aid = _analysis_id()
     deps["translation_repository"].exists.return_value = False
     deps["llm_service"].translate.return_value = (
@@ -126,13 +120,11 @@ def test_returns_failure_when_save_raises(deps):
     deps["translation_repository"].save.side_effect = Exception("db error")
     uc = _make_uc(deps)
 
-    result = uc.execute(
-        analysis_id=aid, summary="s", pain_points="p",
-        insights="i", innovations="n", target_language="zh-TW"
-    )
-
-    assert result.success is False
-    assert result.content.summary is None
+    with pytest.raises(Exception, match="db error"):
+        uc.execute(
+            analysis_id=aid, summary="s", pain_points="p",
+            insights="i", innovations="n", target_language="zh-TW"
+        )
 
 
 # ── _parse_sections: various formats ─────────────────────────────────────────
@@ -191,18 +183,16 @@ def test_empty_fields_substituted_with_empty_string_in_prompt(deps):
     assert "(empty)" in prompt_content
 
 
-# ── LLM exception: returns failure ──────────────────────────────────────────
+# ── LLM exception: propagates ────────────────────────────────────────────────
 
-def test_returns_failure_when_llm_throws_exception(deps):
+def test_raises_when_llm_throws_exception(deps):
     aid = _analysis_id()
     deps["translation_repository"].exists.return_value = False
     deps["llm_service"].translate.side_effect = Exception("provider down")
     uc = _make_uc(deps)
 
-    result = uc.execute(
-        analysis_id=aid, summary="s", pain_points="p",
-        insights="i", innovations="n", target_language="zh-TW"
-    )
-
-    assert result.success is False
-    assert result.content.summary is None
+    with pytest.raises(Exception, match="provider down"):
+        uc.execute(
+            analysis_id=aid, summary="s", pain_points="p",
+            insights="i", innovations="n", target_language="zh-TW"
+        )

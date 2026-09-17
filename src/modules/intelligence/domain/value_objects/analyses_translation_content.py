@@ -14,14 +14,10 @@ class AnalysesTranslationContent:
 
 @dataclass
 class AnalysesTranslationResult:
-    """Result of a translation operation, including content and outcome status."""
+    """Return value of TranslateArticleUseCase.execute() on success — a failure raises instead."""
     analysis_id: UUID
     language: str
     content: AnalysesTranslationContent
-    success: bool
-    exception_type: Optional[str] = None
-    exception_message: Optional[str] = None
-    traceback: Optional[str] = None
 
 
 @dataclass
@@ -33,11 +29,7 @@ class ArticleBodyTranslationContent:
 
 @dataclass
 class ArticleBodyTranslationResult:
-    """Result of an article body translation operation."""
+    """Return value of TranslateArticleBodyUseCase.execute() on success — a failure raises instead."""
     article_id: UUID
     language: str
     content: ArticleBodyTranslationContent
-    success: bool
-    exception_type: Optional[str] = None
-    exception_message: Optional[str] = None
-    traceback: Optional[str] = None

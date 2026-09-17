@@ -1,7 +1,5 @@
-from typing import Optional, Tuple
 from uuid import UUID
 
-from shared.observability.traceback_filter import format_filtered_exc
 from src.shared.logging import get_logger
 from src.modules.intelligence.domain.services import LLMService, AsyncLLMService
 from src.modules.intelligence.domain.repositories.article_translation_repository import ArticleTranslationRepository
@@ -10,6 +8,7 @@ from src.modules.intelligence.domain.value_objects.analyses_translation_content 
     ArticleBodyTranslationContent,
     ArticleBodyTranslationResult,
 )
+from .exceptions import LLMTranslationError, TranslationParseError
 
 logger = get_logger(__name__)
 
@@ -36,7 +35,10 @@ class TranslateArticleBodyUseCase:
     ) -> ArticleBodyTranslationResult:
         """Translate article title and content to target_language.
 
-        Returns ArticleBodyTranslationResult with translated fields or failure flag.
+        Returns ArticleBodyTranslationResult on success — raises on any
+        failure (all LLM providers exhausted, unparseable response, or
+        persistence failing). The caller is responsible for catching,
+        logging, and publishing a TranslationFailedEvent.
         """
         if self._translation_repository.exists(article_id, target_language):
             logger.info("article_body_translation_exists", article_id=str(article_id), language=target_language)
@@ -46,7 +48,6 @@ class TranslateArticleBodyUseCase:
                     article_id=article_id,
                     language=target_language,
                     content=existing,
-                    success=True,
                 )
 
         rendered = self._prompt.render(
@@ -55,65 +56,30 @@ class TranslateArticleBodyUseCase:
             content=content or "(empty)",
         )
 
-        translated_text, llm_exc = self._call_llm(rendered.content)
+        translated_text = self._llm_service.translate("", rendered.content)
         if translated_text is None:
-            logger.error("article_body_translation_llm_failed", article_id=str(article_id), language=target_language)
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
-                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
-                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
-            )
+            raise LLMTranslationError("LLM returned no translation output")
 
         translated_title, translated_content = ArticleBodyTranslationPrompt.parse_response(translated_text)
 
         if translated_title is None and translated_content is None:
-            logger.error("article_body_translation_parse_failed", article_id=str(article_id), language=target_language)
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type="TranslationParseError",
-                exception_message=f"Could not parse title/content from LLM response: {translated_text[:500]!r}",
+            raise TranslationParseError(
+                f"Could not parse title/content from LLM response: {translated_text[:500]!r}"
             )
 
-        try:
-            self._translation_repository.save(
-                article_id=article_id,
-                language=target_language,
-                title=translated_title or "",
-                content=translated_content,
-            )
-            logger.info("article_body_translation_saved", article_id=str(article_id), language=target_language)
-        except Exception as e:
-            logger.error("article_body_translation_save_failed", article_id=str(article_id), error=str(e))
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type=type(e).__name__,
-                exception_message=str(e),
-                traceback=format_filtered_exc(e),
-            )
+        self._translation_repository.save(
+            article_id=article_id,
+            language=target_language,
+            title=translated_title or "",
+            content=translated_content,
+        )
+        logger.info("article_body_translation_saved", article_id=str(article_id), language=target_language)
 
         return ArticleBodyTranslationResult(
             article_id=article_id,
             language=target_language,
             content=ArticleBodyTranslationContent(title=translated_title, content=translated_content),
-            success=True,
         )
-
-    def _call_llm(self, prompt_content: str) -> Tuple[Optional[str], Optional[Exception]]:
-        try:
-            return self._llm_service.translate("", prompt_content), None
-        except Exception as e:
-            logger.error("llm_article_body_translation_error", error=str(e))
-            return None, e
 
 
 class AsyncTranslateArticleBodyUseCase:
@@ -147,7 +113,6 @@ class AsyncTranslateArticleBodyUseCase:
                     article_id=article_id,
                     language=target_language,
                     content=existing,
-                    success=True,
                 )
 
         rendered = self._prompt.render(
@@ -156,62 +121,27 @@ class AsyncTranslateArticleBodyUseCase:
             content=content or "(empty)",
         )
 
-        translated_text, llm_exc = await self._call_llm(rendered.content)
+        translated_text = await self._llm_service.translate("", rendered.content)
         if translated_text is None:
-            logger.error("article_body_translation_llm_failed", article_id=str(article_id), language=target_language)
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type=type(llm_exc).__name__ if llm_exc else "LLMTranslationError",
-                exception_message=str(llm_exc) if llm_exc else "LLM returned no translation output",
-                traceback=format_filtered_exc(llm_exc) if llm_exc else None,
-            )
+            raise LLMTranslationError("LLM returned no translation output")
 
         translated_title, translated_content = ArticleBodyTranslationPrompt.parse_response(translated_text)
 
         if translated_title is None and translated_content is None:
-            logger.error("article_body_translation_parse_failed", article_id=str(article_id), language=target_language)
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type="TranslationParseError",
-                exception_message=f"Could not parse title/content from LLM response: {translated_text[:500]!r}",
+            raise TranslationParseError(
+                f"Could not parse title/content from LLM response: {translated_text[:500]!r}"
             )
 
-        try:
-            await self._translation_repository.save(
-                article_id=article_id,
-                language=target_language,
-                title=translated_title or "",
-                content=translated_content,
-            )
-            logger.info("article_body_translation_saved", article_id=str(article_id), language=target_language)
-        except Exception as e:
-            logger.error("article_body_translation_save_failed", article_id=str(article_id), error=str(e))
-            return ArticleBodyTranslationResult(
-                article_id=article_id,
-                language=target_language,
-                content=ArticleBodyTranslationContent(title=None, content=None),
-                success=False,
-                exception_type=type(e).__name__,
-                exception_message=str(e),
-                traceback=format_filtered_exc(e),
-            )
+        await self._translation_repository.save(
+            article_id=article_id,
+            language=target_language,
+            title=translated_title or "",
+            content=translated_content,
+        )
+        logger.info("article_body_translation_saved", article_id=str(article_id), language=target_language)
 
         return ArticleBodyTranslationResult(
             article_id=article_id,
             language=target_language,
             content=ArticleBodyTranslationContent(title=translated_title, content=translated_content),
-            success=True,
         )
-
-    async def _call_llm(self, prompt_content: str) -> Tuple[Optional[str], Optional[Exception]]:
-        try:
-            return await self._llm_service.translate("", prompt_content), None
-        except Exception as e:
-            logger.error("llm_article_body_translation_error", error=str(e))
-            return None, e

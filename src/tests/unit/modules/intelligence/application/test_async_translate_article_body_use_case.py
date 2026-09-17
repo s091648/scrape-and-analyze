@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.modules.intelligence.application.use_cases.translate_article_body import AsyncTranslateArticleBodyUseCase
+from src.modules.intelligence.application.use_cases.exceptions import LLMTranslationError, TranslationParseError
 from src.modules.intelligence.domain.value_objects.translation_prompt import ArticleBodyTranslationPrompt
 from src.modules.intelligence.domain.value_objects.analyses_translation_content import ArticleBodyTranslationContent
 
@@ -43,7 +44,6 @@ async def test_returns_existing_when_already_translated():
         target_language="zh-TW"
     )
 
-    assert result.success is True
     assert result.content.title == "已翻譯標題"
     llm.translate.assert_not_awaited()
 
@@ -63,7 +63,6 @@ async def test_calls_llm_parses_and_saves_on_success():
         target_language="zh-TW",
     )
 
-    assert result.success is True
     assert result.content.title == "Translated Title"
     assert result.content.content == "Translated body text."
     llm.translate.assert_awaited_once()
@@ -75,37 +74,33 @@ async def test_calls_llm_parses_and_saves_on_success():
     )
 
 
-# ── LLM returns None: failure ────────────────────────────────────────────────
+# ── LLM returns None: raises ─────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_returns_failure_when_llm_returns_none():
+async def test_raises_when_llm_returns_none():
     uc, repo, llm = _make_uc()
     llm.translate.return_value = None
 
-    result = await uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
+    with pytest.raises(LLMTranslationError):
+        await uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
-    assert result.success is False
-    assert result.content.title is None
-    assert result.content.content is None
     repo.save.assert_not_awaited()
 
 
-# ── Parse failure (no recognizable headers): failure ─────────────────────────
+# ── Parse failure (no recognizable headers): raises ───────────────────────────
 
 @pytest.mark.asyncio
-async def test_returns_failure_when_response_has_no_parseable_sections():
+async def test_raises_when_response_has_no_parseable_sections():
     uc, repo, llm = _make_uc()
     llm.translate.return_value = "gibberish with no section headers at all"
 
-    result = await uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
+    with pytest.raises(TranslationParseError):
+        await uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
-    assert result.success is False
-    assert result.content.title is None
-    assert result.content.content is None
     repo.save.assert_not_awaited()
 
 
@@ -135,32 +130,30 @@ async def test_none_title_and_content_substituted_with_empty_placeholder():
     assert "(empty)" in prompt_content
 
 
-# ── Save raises: failure ─────────────────────────────────────────────────────
+# ── Save raises: propagates ──────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_returns_failure_when_save_raises():
+async def test_raises_when_save_raises():
     uc, repo, llm = _make_uc()
     llm.translate.return_value = "Title: t\nContent: c"
     repo.save.side_effect = Exception("db error")
 
-    result = await uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
-
-    assert result.success is False
-    assert result.content.title is None
+    with pytest.raises(Exception, match="db error"):
+        await uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
 
-# ── LLM raises exception: failure ────────────────────────────────────────────
+# ── LLM raises exception: propagates ─────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_returns_failure_when_llm_throws_exception():
+async def test_raises_when_llm_throws_exception():
     uc, repo, llm = _make_uc()
     llm.translate.side_effect = RuntimeError("provider down")
 
-    result = await uc.execute(
-        article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
-    )
+    with pytest.raises(RuntimeError, match="provider down"):
+        await uc.execute(
+            article_id=uuid.uuid4(), title="t", content="c", target_language="zh-TW"
+        )
 
-    assert result.success is False
     repo.save.assert_not_awaited()
