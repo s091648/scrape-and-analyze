@@ -572,6 +572,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/grafana/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Profile
+         * @description CPU flamebearer for the backend service over [start, end] (unix seconds) —
+         *     the root span's own time window (RunWaterfallDialog), not a per-sub-span query:
+         *     profiling is CPU sampling, and a whole-request window has enough samples to be
+         *     statistically meaningful in a way a handful-of-milliseconds child span wouldn't.
+         *     Scraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),
+         *     so this endpoint is backend-only — there's nothing to query for scraper traces.
+         */
+        get: operations["query_profile_grafana_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/grafana/traces": {
         parameters: {
             query?: never;
@@ -4424,6 +4449,47 @@ export interface operations {
                 "application/json": components["schemas"]["MetricsBatchItem"][];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    query_profile_grafana_profile_get: {
+        parameters: {
+            query: {
+                start: number;
+                end: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
