@@ -180,12 +180,17 @@ def test_list_tag_groups_with_topic_id_returns_tags_with_counts():
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
-    # tag_outs_for_groups' batched ORM query chain: join(article_tags).join(Article)
-    # .join(TagGroupDefinition).filter(tag_group_id in).filter(topic_id match).group_by()
-    # .order_by().all() — rows are plain (tag_group_id, tag_id, tag_name, article_count)
-    # tuples (unpacked positionally in tag_service.py), not attribute-style objects.
+    # build_tag_groups_payload()'s db.execute() call order (topic_id is set, no
+    # include_similarity here): tag_outs_for_groups() — rows are plain
+    # (tag_group_id, tag_id, tag_name, article_count) tuples read from
+    # intelligence.tag_article_counts (a materialized view), unpacked positionally
+    # in tag_service.py — then ungrouped_tag_outs() (3-tuple rows; empty here,
+    # this test only asserts on the grouped tags).
     mock_tag_row = (grp_id, tag_id, "Transformer", 3)
-    mock_db.query.return_value.join.return_value.join.return_value.join.return_value.filter.return_value.filter.return_value.group_by.return_value.order_by.return_value.all.return_value = [mock_tag_row]
+    mock_db.execute.side_effect = [
+        MagicMock(fetchall=lambda: [mock_tag_row]),  # tag counts
+        MagicMock(fetchall=lambda: []),  # ungrouped tag counts
+    ]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     try:
@@ -252,9 +257,14 @@ def test_list_tag_groups_include_similarity_returns_similar_groups():
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_group]
-    # Tags use ORM (db.query), not db.execute; only similarity uses db.execute
+    # build_tag_groups_payload()'s db.execute() call order: tag_outs_for_groups()
+    # (tag counts from the materialized view), then get_similar_groups() per
+    # group, then ungrouped_tag_outs() (topic_id is set here) — this test only
+    # asserts on similar_groups, so the others return empty.
     mock_db.execute.side_effect = [
+        MagicMock(fetchall=lambda: []),  # tag counts
         MagicMock(fetchall=lambda: [(similar_id, 0.85)]),  # similarity
+        MagicMock(fetchall=lambda: []),  # ungrouped tag counts
     ]
 
     app.dependency_overrides[get_db] = lambda: mock_db

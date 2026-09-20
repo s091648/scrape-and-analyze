@@ -109,6 +109,7 @@ class SpanName(StrEnum):
     CACHE_INVALIDATION_HANDLE = "cache.invalidation.handle"
     CACHE_WARMUP_HANDLE = "cache.warmup.handle"
     SEARCH_INDEX_REBUILD_HANDLE = "search.index_rebuild.handle"
+    TAG_COUNTS_REFRESH_HANDLE = "tags.article_counts_refresh.handle"
     WEEKLY_REPORT_RUN = "weekly_report.run"
     WEEKLY_REPORT_TOPIC = "weekly_report.topic"
     WEEKLY_REPORT_SUMMARIZE = "weekly_report.summarize"

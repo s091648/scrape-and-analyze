@@ -175,11 +175,12 @@ def test_t021_pipeline_completed_event_subscriptions():
 
 
 def test_text_pipeline_completed_event_subscriptions():
-    """TextPipelineCompletedEvent (Barrier 1) must have three handlers:
-    SearchIndexRebuildHandler, CacheInvalidationHandler, CacheWarmupHandler."""
+    """TextPipelineCompletedEvent (Barrier 1) must have four handlers:
+    SearchIndexRebuildHandler, TagCountsRefreshHandler, CacheInvalidationHandler,
+    CacheWarmupHandler."""
     pipeline, *_ = _build_pipeline_with_mocks()
     handlers = pipeline._event_bus._handlers.get(TextPipelineCompletedEvent, [])
-    assert len(handlers) == 3, f"expected 3 handlers for TextPipelineCompletedEvent, got {len(handlers)}"
+    assert len(handlers) == 4, f"expected 4 handlers for TextPipelineCompletedEvent, got {len(handlers)}"
 
 
 def test_cache_invalidation_handler_subscribed_to_text_pipeline_completed_event():

@@ -492,6 +492,8 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     from src.infrastructure.persistence.intelligence import SqlAlchemySearchTermRepository
     from src.modules.search.application.use_cases import RebuildSearchIndexUseCase
     from src.modules.search.application.event_handlers import SearchIndexRebuildHandler
+    from src.modules.intelligence.application.use_cases import RefreshTagArticleCountsUseCase
+    from src.modules.intelligence.application.event_handlers import TagCountsRefreshHandler
     from src.infrastructure.shared.http import get_default_client
     from src.infrastructure.intelligence.prompt.prompt_factory import ConcretePromptFactory
 
@@ -732,6 +734,14 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     )
     search_index_rebuild_handler = SearchIndexRebuildHandler(rebuild_search_index_uc)
     await event_bus.subscribe(TextPipelineCompletedEvent, search_index_rebuild_handler.handle)
+
+    # fix/db_imprv: intelligence.tag_article_counts (materialized view backing
+    # GET /tag-groups's per-tag article_count) — same trigger point as the search
+    # index rebuild above, since both are read models derived from tag/article
+    # text content that only changes once the text stage settles.
+    refresh_tag_counts_uc = RefreshTagArticleCountsUseCase(session=session)
+    tag_counts_refresh_handler = TagCountsRefreshHandler(refresh_tag_counts_uc)
+    await event_bus.subscribe(TextPipelineCompletedEvent, tag_counts_refresh_handler.handle)
 
     scraper_cache_gateway = RedisCacheGateway(redis_url=CACHE_REDIS_URL)
     cache_invalidation_handler = CacheInvalidationHandler(scraper_cache_gateway)

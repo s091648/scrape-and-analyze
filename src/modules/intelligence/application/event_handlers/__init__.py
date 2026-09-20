@@ -3,6 +3,7 @@ from .article_processed_handler import ArticleProcessedHandler
 from .analysis_completed_handler import AnalysisCompletedHandler
 from .failed_task_persistence_handler import FailedTaskPersistenceHandler
 from .rag_ingestion_handler import RagIngestionHandler
+from .tag_counts_refresh_handler import TagCountsRefreshHandler
 
 __all__ = [
     'AnalysisFailedHandler',
@@ -10,4 +11,5 @@ __all__ = [
     'AnalysisCompletedHandler',
     'FailedTaskPersistenceHandler',
     'RagIngestionHandler',
+    'TagCountsRefreshHandler',
 ]
