@@ -23,6 +23,8 @@ os.environ["GRAFANA_OTLP_USER"] = ""
 os.environ["GRAFANA_OTLP_ENDPOINT"] = ""
 os.environ["GRAFANA_LOKI_URL"] = ""
 os.environ["GRAFANA_LOKI_USER"] = ""
+os.environ["GRAFANA_PROFILES_URL"] = ""
+os.environ["GRAFANA_PROFILES_USER"] = ""
 
 SECRET = os.environ["NEXTAUTH_SECRET"]
 

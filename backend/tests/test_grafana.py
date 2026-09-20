@@ -25,7 +25,12 @@ _TEMPO_ENV = {
     "GRAFANA_TEMPO_USER": "12345",
     "GRAFANA_API_KEY": "glc_test",
 }
-_UNCONFIGURED = {"GRAFANA_PROMETHEUS_URL": "", "GRAFANA_PROMETHEUS_USER": "", "GRAFANA_LOKI_URL": "", "GRAFANA_LOKI_USER": "", "GRAFANA_TEMPO_URL": "", "GRAFANA_TEMPO_USER": "", "GRAFANA_API_KEY": ""}
+_PROFILES_ENV = {
+    "GRAFANA_PROFILES_URL": "https://profiles.example.com",
+    "GRAFANA_PROFILES_USER": "12345",
+    "GRAFANA_API_KEY": "glc_test",
+}
+_UNCONFIGURED = {"GRAFANA_PROMETHEUS_URL": "", "GRAFANA_PROMETHEUS_USER": "", "GRAFANA_LOKI_URL": "", "GRAFANA_LOKI_USER": "", "GRAFANA_TEMPO_URL": "", "GRAFANA_TEMPO_USER": "", "GRAFANA_PROFILES_URL": "", "GRAFANA_PROFILES_USER": "", "GRAFANA_API_KEY": ""}
 
 
 @contextmanager
@@ -107,6 +112,11 @@ def test_traces_batch_no_auth_returns_401():
     assert TestClient(app).post("/grafana/traces/batch", json=[]).status_code == 401
 
 
+def test_profile_no_auth_returns_401():
+    from backend.main import app
+    assert TestClient(app).get("/grafana/profile", params={"start": 0, "end": 1}).status_code == 401
+
+
 # ── Not-configured (503) ────────────────────────────────────────────────────────
 
 def test_metrics_not_configured_returns_503():
@@ -158,6 +168,13 @@ def test_traces_batch_not_configured_returns_503():
     with _unconfigured() as app:
         resp = TestClient(app).post("/grafana/traces/batch", json=[{}], headers=auth())
     assert resp.status_code == 503
+
+
+def test_profile_not_configured_returns_503():
+    with _unconfigured() as app:
+        resp = TestClient(app).get("/grafana/profile", params={"start": 0, "end": 1}, headers=auth())
+    assert resp.status_code == 503
+    assert resp.json()["error"] == "not_configured"
 
 
 # ── Happy path ─────────────────────────────────────────────────────────────────
@@ -217,6 +234,31 @@ def test_traces_returns_tempo_body():
             resp = TestClient(app).get("/grafana/traces", params={"q": '{service.name="backend"}'}, headers=auth())
     assert resp.status_code == 200
     assert "traces" in resp.json()
+
+
+def test_profile_returns_flamebearer_body_with_correct_query_selector():
+    """Confirms both the response pass-through and the exact query selector this
+    endpoint builds server-side — <profile-type>{service_name="..."} — verified
+    against a real pushed sample in Grafana Cloud Profiles (fix/db_imprv spike)."""
+    body = {
+        "version": 1,
+        "flamebearer": {"names": ["total"], "levels": [[0, 100, 0, 0]], "numTicks": 100, "maxSelf": 0},
+        "metadata": {"format": "single", "sampleRate": 1000000000, "units": "samples", "name": "cpu"},
+    }
+    mock_client = _mock_httpx(200, body)
+    with _grafana_env(_PROFILES_ENV) as app:
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            resp = TestClient(app).get(
+                "/grafana/profile", params={"start": 1000, "end": 2000}, headers=auth(),
+            )
+    assert resp.status_code == 200
+    assert resp.json()["flamebearer"]["names"] == ["total"]
+
+    call_kwargs = mock_client.get.call_args.kwargs
+    assert call_kwargs["params"]["query"] == 'process_cpu:cpu:nanoseconds:cpu:nanoseconds{service_name="scrape-analyzer-backend"}'
+    assert call_kwargs["params"]["from"] == 1000
+    assert call_kwargs["params"]["until"] == 2000
+    assert call_kwargs["params"]["format"] == "json"
 
 
 def test_trace_by_id_normalises_resource_spans_to_batches():

@@ -134,3 +134,9 @@ GRAFANA_TEMPO_USER: str = os.environ.get("GRAFANA_TEMPO_USER", "")
 # Backend's own log/trace shipping (observability.py)
 GRAFANA_OTLP_ENDPOINT: str = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").rstrip("/")
 GRAFANA_OTLP_USER: str = os.environ.get("GRAFANA_OTLP_USER", "")
+
+# Backend's own continuous profiling (observability.py::setup_profiling) — same
+# GRAFANA_API_KEY as Loki/Tempo/OTLP above, a separate Grafana Cloud Profiles
+# (Pyroscope) push endpoint + instance user.
+GRAFANA_PROFILES_URL: str = os.environ.get("GRAFANA_PROFILES_URL", "").rstrip("/")
+GRAFANA_PROFILES_USER: str = os.environ.get("GRAFANA_PROFILES_USER", "")

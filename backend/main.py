@@ -30,7 +30,7 @@ from backend.routers.search import router as search_router
 from backend.routers.analytics import router as analytics_router
 from backend.config import FRONTEND_ORIGIN, VIEW_COUNT_FLUSH_INTERVAL, SWAGGER_TRY_IT_OUT_ENABLED, SENTRY_DSN, APP_ENV, GEOIP_DB_PATH
 from backend.schemas.error import error_responses
-from backend.observability import configure_logging, setup_tracing
+from backend.observability import configure_logging, setup_tracing, setup_profiling
 from shared.utils.geoip import configure as configure_geoip
 
 if SENTRY_DSN:
@@ -39,6 +39,7 @@ if SENTRY_DSN:
 
 configure_logging(APP_ENV)
 _tracer_provider = setup_tracing(APP_ENV)
+setup_profiling(APP_ENV)
 configure_geoip(GEOIP_DB_PATH)
 
 

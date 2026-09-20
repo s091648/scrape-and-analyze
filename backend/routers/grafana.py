@@ -15,6 +15,8 @@ from backend.config import (
     GRAFANA_LOKI_USER,
     GRAFANA_TEMPO_URL,
     GRAFANA_TEMPO_USER,
+    GRAFANA_PROFILES_URL,
+    GRAFANA_PROFILES_USER,
 )
 from backend.schemas.grafana import (
     MetricsBatchItem,
@@ -23,6 +25,16 @@ from backend.schemas.grafana import (
     TracesBatchItem,
 )
 from backend.services.grafana_service import auth_headers, grafana_get
+from shared.enums.observability import SERVICE_NAME_BACKEND
+
+# fix/db_imprv: the only profile type pyroscope.configure() (backend/observability.py)
+# ever pushes is CPU — this is Pyroscope's fixed type-id format
+# <name>:<sample-type>:<sample-unit>:<period-type>:<period-unit>, confirmed against a
+# real pushed sample (Grafana Cloud Profiles is on the legacy Pyroscope HTTP API, not
+# the newer Connect-RPC querier). Hardcoded server-side rather than accepted as a query
+# param — there's only ever one value, and it keeps Pyroscope's query-selector syntax
+# off the client entirely (this endpoint takes a time range, nothing else).
+_PROFILE_TYPE = "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
 
 router = APIRouter(prefix="/grafana", tags=["grafana"])
 
@@ -219,6 +231,31 @@ async def get_trace_by_id(
         body["batches"] = body.pop("resourceSpans")
 
     return JSONResponse(body, status_code=resp.status_code)
+
+
+@router.get("/profile")
+async def query_profile(
+    start: int = Query(...),
+    end: int = Query(...),
+    _: dict = Depends(require_admin),
+) -> JSONResponse:
+    """CPU flamebearer for the backend service over [start, end] (unix seconds) —
+    the root span's own time window (RunWaterfallDialog), not a per-sub-span query:
+    profiling is CPU sampling, and a whole-request window has enough samples to be
+    statistically meaningful in a way a handful-of-milliseconds child span wouldn't.
+    Scraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),
+    so this endpoint is backend-only — there's nothing to query for scraper traces."""
+    url = GRAFANA_PROFILES_URL
+    user = GRAFANA_PROFILES_USER
+    api_key = GRAFANA_API_KEY
+    if not url or not user or not api_key:
+        return JSONResponse({"error": "not_configured"}, status_code=503)
+    query = f'{_PROFILE_TYPE}{{service_name="{SERVICE_NAME_BACKEND}"}}'
+    return await grafana_get(
+        f"{url}/pyroscope/render",
+        {"query": query, "from": start, "until": end, "format": "json"},
+        user, api_key,
+    )
 
 
 @router.post("/traces/batch")
