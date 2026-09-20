@@ -135,7 +135,7 @@ def _build_pipeline(no_analyze: bool):
         from src.infrastructure.persistence.intelligence import SqlAlchemyAnalysesTranslationRepository, SqlAlchemyTagTranslationRepository
         from src.config.settings import TRANSLATION_LANGUAGES
 
-        llm_service = build_llm_service()
+        llm_service, _, _ = build_llm_service(session)
         analyze_uc = AnalyzeArticleUseCase(
             llm_service=llm_service,
             analysis_repository=analysis_repo,
