@@ -225,3 +225,84 @@ class Analysis(Base):
     assert 'cluster_core' in dot
     assert 'cluster_intelligence' in dot
     assert '#e94560' in dot  # cross-schema edge color present
+
+
+def test_render_dot_uses_crows_foot_notation_for_fk_cardinality(enum_members):
+    """FK end (the "many" side) is drawn as a crow's foot, PK end (the "one" side)
+    as a tee — real Graphviz ER arrow shapes, not the codebase's own notation.
+    A nullable FK column draws a hollow `ocrow` (zero-or-many); a required one
+    draws a solid `crow` (one-or-many)."""
+    _, models_dir = enum_members
+    _write(models_dir, "article.py", '''
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import UUID
+from models.base import Base
+from models.db_schema import DbSchema
+
+class Article(Base):
+    __tablename__ = 'articles'
+    __table_args__ = {'schema': DbSchema.CORE.value}
+    id = Column(UUID(as_uuid=True), primary_key=True)
+''')
+    _write(models_dir, "analysis.py", '''
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from models.base import Base
+from models.db_schema import DbSchema
+
+class Analysis(Base):
+    __tablename__ = 'analyses'
+    __table_args__ = {'schema': DbSchema.INTELLIGENCE.value}
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    required_article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id'), nullable=False)
+    optional_article_id = Column(UUID(as_uuid=True), ForeignKey('core.articles.id'), nullable=True)
+''')
+    all_tables = collect_all_tables()
+
+    dot = render_dot(all_tables)
+    assert 'arrowhead=tee' in dot
+    required_line = next(l for l in dot.splitlines() if 'required_article_id' in l and '->' in l)
+    optional_line = next(l for l in dot.splitlines() if 'optional_article_id' in l and '->' in l)
+    assert 'arrowtail="crow"' in required_line
+    assert 'arrowtail="ocrow"' in optional_line
+
+
+def test_render_dot_marks_uq_for_every_unique_constraint_form(enum_members):
+    """All three SQLAlchemy spellings of "this column is unique" — Column(unique=True),
+    a standalone UniqueConstraint(...), and Index(..., unique=True) — should surface as
+    a `UQ` marker, not the generic `IDX` (a unique constraint is always backed by a
+    unique index in Postgres, so `UQ` alone is more informative than showing both)."""
+    _, models_dir = enum_members
+    _write(models_dir, "widget.py", '''
+from sqlalchemy import Column, Text, Index, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID
+from models.base import Base
+from models.db_schema import DbSchema
+
+class Widget(Base):
+    __tablename__ = 'widgets'
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    slug = Column(Text, unique=True)          # Column(unique=True)
+    a = Column(Text)                          # UniqueConstraint('a', 'b')
+    b = Column(Text)
+    c = Column(Text)                          # Index(..., unique=True)
+    plain_indexed = Column(Text)              # Index(...) — NOT unique, stays IDX
+    __table_args__ = (
+        UniqueConstraint('a', 'b', name='uq_widgets_a_b'),
+        Index('uq_widgets_c', 'c', unique=True),
+        Index('idx_widgets_plain', 'plain_indexed'),
+        {'schema': DbSchema.CORE.value},
+    )
+''')
+    all_tables = collect_all_tables()
+    widget = next(t for t in all_tables if t.name == 'widgets')
+    by_name = {c.name: c for c in widget.columns}
+
+    for col in ('slug', 'a', 'b', 'c'):
+        assert by_name[col].is_unique, f"{col} should be marked unique"
+    assert not by_name['plain_indexed'].is_unique
+    assert by_name['plain_indexed'].is_indexed
+
+    dot = render_dot(all_tables)
+    assert '<b>UQ</b>' in dot
+    assert '<b>IDX</b>' in dot

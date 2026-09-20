@@ -54,7 +54,13 @@ function setupHoverInteractions(svg) {
     if (!srcSig || !dstSig) return
 
     const path = edge.querySelector('path')
-    const arrowhead = edge.querySelector('polygon')
+    // Crow's-foot notation (scripts/generate_db_schema.py's `dir=both,
+    // arrowtail=crow/ocrow, arrowhead=tee`) draws a shape at BOTH ends of the
+    // edge, not just the head — the tee's crossbar is a separate `polyline`
+    // alongside its `polygon`. Grab everything so hover highlights the full
+    // cardinality marker at both ends, not just whichever the old single
+    // arrowhead-only edge happened to have.
+    const arrowShapes = edge.querySelectorAll('polygon, polyline')
     const titleText = edge.querySelector('title')?.textContent || ''
     const dstIsWholeTable = dstSig.startsWith('tbl_')
     const dstShapes = () =>
@@ -67,10 +73,10 @@ function setupHoverInteractions(svg) {
         path.style.stroke = EDGE_HIGHLIGHT_COLOR
         path.style.strokeWidth = '3'
       }
-      if (arrowhead) {
-        arrowhead.style.fill = EDGE_HIGHLIGHT_COLOR
-        arrowhead.style.stroke = EDGE_HIGHLIGHT_COLOR
-      }
+      arrowShapes.forEach((shape) => {
+        shape.style.fill = EDGE_HIGHLIGHT_COLOR
+        shape.style.stroke = EDGE_HIGHLIGHT_COLOR
+      })
       cellShapes(srcSig).forEach((shape) => { shape.style.fill = CELL_HIGHLIGHT_COLOR })
       dstShapes().forEach((shape) => { shape.style.fill = CELL_HIGHLIGHT_COLOR })
 
@@ -88,10 +94,10 @@ function setupHoverInteractions(svg) {
         path.style.stroke = ''
         path.style.strokeWidth = ''
       }
-      if (arrowhead) {
-        arrowhead.style.fill = ''
-        arrowhead.style.stroke = ''
-      }
+      arrowShapes.forEach((shape) => {
+        shape.style.fill = ''
+        shape.style.stroke = ''
+      })
       cellShapes(srcSig).forEach((shape) => { shape.style.fill = '' })
       dstShapes().forEach((shape) => { shape.style.fill = '' })
 

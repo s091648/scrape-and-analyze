@@ -39,6 +39,7 @@ class ColumnInfo:
     nullable: bool
     is_primary_key: bool
     is_indexed: bool = False
+    is_unique: bool = False
 
 
 @dataclass
@@ -121,19 +122,40 @@ def _extract_schema_from_table_args(table_args: ast.AST, enum_members: dict, sou
     raise ModelParseError(f"{source_file}: __table_args__ dict has no 'schema' key")
 
 
-def _extract_indexed_columns(table_args: ast.AST) -> set[str]:
+def _extract_indexed_columns(table_args: ast.AST) -> tuple[set[str], set[str]]:
     """Column names covered by an `Index('name', 'col1', 'col2', ...)` entry
-    in a tuple-form __table_args__ (single-column and composite alike)."""
+    in a tuple-form __table_args__ (single-column and composite alike). Returns
+    (indexed, unique) — `unique` is the subset also covered by a *unique*
+    index (`Index(..., unique=True)`) or a standalone `UniqueConstraint(...)`,
+    so render_dot() can mark those `UQ` instead of the generic `IDX` (every
+    unique constraint is backed by a unique index in Postgres, so `UQ` implies
+    indexed — no need to show both)."""
     if not isinstance(table_args, ast.Tuple):
-        return set()
+        return set(), set()
 
     indexed: set[str] = set()
+    unique: set[str] = set()
     for elt in table_args.elts:
-        if isinstance(elt, ast.Call) and isinstance(elt.func, ast.Name) and elt.func.id == "Index":
-            for arg in elt.args[1:]:  # args[0] is the index name
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    indexed.add(arg.value)
-    return indexed
+        if not (isinstance(elt, ast.Call) and isinstance(elt.func, ast.Name)):
+            continue
+        if elt.func.id == "Index":
+            cols = {
+                arg.value for arg in elt.args[1:]  # args[0] is the index name
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            }
+            indexed |= cols
+            is_unique_index = any(
+                kw.arg == "unique" and isinstance(kw.value, ast.Constant) and kw.value.value
+                for kw in elt.keywords
+            )
+            if is_unique_index:
+                unique |= cols
+        elif elt.func.id == "UniqueConstraint":
+            unique |= {
+                arg.value for arg in elt.args
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            }
+    return indexed, unique
 
 
 def _sanitize_port(name: str) -> str:
@@ -183,10 +205,14 @@ def _column_name_from_target(node: ast.AST) -> str | None:
     return None
 
 
-def _parse_columns_and_fks(class_or_call_body, source_file: str, table_name: str, indexed_columns: set | None = None):
+def _parse_columns_and_fks(
+    class_or_call_body, source_file: str, table_name: str,
+    indexed_columns: set | None = None, unique_columns: set | None = None,
+):
     columns: list[ColumnInfo] = []
     fks: list[ForeignKeyInfo] = []
     indexed_columns = indexed_columns or set()
+    unique_columns = unique_columns or set()
 
     def handle_column_call(col_name: str, call: ast.Call):
         # Column('db_col_name', Type, ...) overrides the DB column name via a
@@ -196,14 +222,18 @@ def _parse_columns_and_fks(class_or_call_body, source_file: str, table_name: str
         type_repr = _type_repr(type_args[0]) if type_args else "?"
         nullable = True
         is_pk = False
+        is_unique_col = False
         for kw in call.keywords:
             if kw.arg == "nullable" and isinstance(kw.value, ast.Constant):
                 nullable = bool(kw.value.value)
             if kw.arg == "primary_key" and isinstance(kw.value, ast.Constant):
                 is_pk = bool(kw.value.value)
+            if kw.arg == "unique" and isinstance(kw.value, ast.Constant):
+                is_unique_col = bool(kw.value.value)
         columns.append(ColumnInfo(
             name=col_name, type_repr=type_repr, nullable=nullable, is_primary_key=is_pk,
             is_indexed=col_name in indexed_columns,
+            is_unique=is_unique_col or col_name in unique_columns,
         ))
 
         fk = _extract_foreign_key(call, source_file)
@@ -276,18 +306,19 @@ def parse_model_file(path: Path, enum_members: dict) -> list[TableInfo]:
         tablename = None
         schema = "public"
         indexed_columns: set[str] = set()
+        unique_columns: set[str] = set()
         for stmt in node.body:
             if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
                 if stmt.targets[0].id == "__tablename__" and isinstance(stmt.value, ast.Constant):
                     tablename = stmt.value.value
                 if stmt.targets[0].id == "__table_args__":
                     schema = _extract_schema_from_table_args(stmt.value, enum_members, source_file)
-                    indexed_columns = _extract_indexed_columns(stmt.value)
+                    indexed_columns, unique_columns = _extract_indexed_columns(stmt.value)
 
         if tablename is None:
             continue  # not every Base subclass necessarily maps a table in a way we care about
 
-        columns, fks = _parse_columns_and_fks(node.body, source_file, tablename, indexed_columns)
+        columns, fks = _parse_columns_and_fks(node.body, source_file, tablename, indexed_columns, unique_columns)
         tables.append(TableInfo(
             name=tablename, schema=schema, model_class=node.name,
             source_file=source_file, columns=columns, foreign_keys=fks,
@@ -348,7 +379,12 @@ def render_dot(tables: list[TableInfo]) -> str:
                     markers.append("PK")
                 if c.name in fk_columns:
                     markers.append("FK")
-                if c.is_indexed:
+                if c.is_unique:
+                    markers.append("UQ")
+                elif c.is_indexed:
+                    # A unique constraint/index is always backed by a unique
+                    # index in Postgres, so UQ already implies indexed —
+                    # showing both would be redundant.
                     markers.append("IDX")
                 # Graphviz's HTML-like label grammar rejects an empty <b></b> —
                 # a single bad node aborts parsing of the whole label, so leave
@@ -416,10 +452,22 @@ def render_dot(tables: list[TableInfo]) -> str:
                 f"{fk.target_schema}.{fk.target_table}.{fk.target_column}"
             )
 
+            # Crow's-foot ERD cardinality, drawn with Graphviz's built-in ER arrow
+            # shapes rather than switching renderers: `crow` ("many") sits at the
+            # FK/child end (tail), `tee` ("exactly one") at the referenced PK/parent
+            # end (head) — a FK row always references at most one parent row. An
+            # `o` prefix draws the shape hollow (zero-or-many) when the FK column
+            # itself is nullable, vs a solid crow (one-or-many) when it's required.
+            fk_col_nullable = next(
+                (c.nullable for c in t.columns if c.name == fk.column), True
+            )
+            arrowtail = "ocrow" if fk_col_nullable else "crow"
+
             cross_schema = fk.target_schema != t.schema
             style = 'color="#e94560", penwidth=1.5' if cross_schema else 'color="#888888"'
             lines.append(
                 f'  {src} -> {dst} [id="fkedge--{src_sig}--{dst_sig}", tooltip="{tooltip}", '
+                f'dir=both, arrowtail="{arrowtail}", arrowhead=tee, '
                 f'{style}, label="{fk.column}"];'
             )
 
