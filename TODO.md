@@ -474,3 +474,57 @@ of these classes — a mechanical but non-trivial, repo-wide rename, not a
 one-file patch. Not urgent (no functional impact), but flagged because
 imprecise naming here is actively disliked, not just a minor nit to defer
 indefinitely.
+
+## No database-side observability — only the backend app's own CPU is profiled
+
+**Where**: `backend/observability.py` (`setup_profiling`), `backend/routers/grafana.py`,
+`.railway/railway.ts`, `docker-compose.yml`
+
+The Grafana Cloud Profiles integration just added (`setup_profiling()`, `GET
+/grafana/profile`, the flame graph in `RunWaterfallDialog`) measures **only the
+backend pod's own CPU** — `pyroscope.configure()` runs inside `backend/main.py`'s
+process, and Postgres is a completely separate process Railway manages, which this
+profiler never touches. A "Postgres SELECT" span barely registers in the flame graph
+even when its trace duration is nonzero, because CPU profiling only samples time the
+CPU is actually busy — the wall-clock time spent blocked waiting on the DB's response
+(almost all of a fast query's duration) is invisible to it by design. So there is
+currently **no way to see the database server's own resource usage** (its own CPU,
+memory, disk I/O, connection counts, cache hit ratio, per-query cost) from anywhere
+in this stack.
+
+**Why `node_exporter` (the obvious first answer) doesn't work here**: it needs to run
+on the same host as what it's measuring, reading `/proc`/`/sys` directly. Railway's
+managed Postgres gives no host/SSH access at all, so there's no machine to install it
+on — ruled out during this same conversation.
+
+**What does work**: `postgres_exporter` (prometheuscommunity/postgres-exporter)
+doesn't need host access — it just needs a normal SQL connection string
+(`DATA_SOURCE_NAME`) and scrapes `pg_stat_activity`/`pg_stat_database`/
+`pg_stat_user_tables`/etc. via ordinary queries, exposing them as `/metrics` for
+Prometheus-style scraping. This is the piece to add.
+
+**Two decisions still open (asked, not yet answered) before implementing**:
+
+1. **Scope**: local dev only (`docker-compose.yml`, pointed at the local `postgres`
+   service — safe, no cost, but doesn't show anything about the actual
+   production/Railway-managed DB) vs. also production (a **new, persistent Railway
+   service** — real ongoing cost, not just a code change, needs `.railway/railway.ts` +
+   `.railway/constants.ts` wiring following the existing per-service pattern).
+2. **How the metrics actually reach Grafana Cloud**: `postgres_exporter` only exposes
+   `/metrics` for something else to *scrape* — Grafana Cloud does not reach out and
+   pull from arbitrary user endpoints (no Private Datasource Connect set up here), so
+   a scrape-and-remote-write agent (Grafana Alloy / grafana-agent) is also needed in
+   front of it. Grafana Cloud's own Connections page has a guided "PostgreSQL
+   integration" flow that generates the correct Alloy config + remote-write
+   credentials directly — that needs the account owner to click through it (same as
+   the Profiles endpoint/user setup earlier in this project), not something codeable
+   from here blind. The alternative is hand-writing an Alloy scrape config once the
+   remote-write endpoint/credentials are known.
+
+**Suggested fix, when resuming**: get answers to the two questions above, then (if
+production is in scope) add `postgres_exporter` + the chosen shipping mechanism as new
+Railway service(s) via `.railway/railway.ts`, following the same
+`service("name", {...})` pattern the 10 existing services already use — and/or add a
+`postgres_exporter` service to `docker-compose.yml` for local dev visibility. Not
+urgent — flagged mid-conversation, no incident driving it, just a real observability
+gap now that the CPU-only nature of the profiler is understood.
