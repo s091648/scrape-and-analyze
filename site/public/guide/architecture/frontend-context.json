@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T12:32:42.804Z",
+  "generated_at": "2026-09-20T01:22:22.549Z",
   "providers": [
     {
       "id": "session",
@@ -505,7 +505,7 @@
         },
         {
           "file": "components/features/monitoring/log-detail-dialog.tsx",
-          "line": 130,
+          "line": 131,
           "destructured": "{ t }"
         },
         {
