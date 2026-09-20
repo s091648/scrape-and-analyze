@@ -47,7 +47,8 @@ export const HTTP_METHOD_COLORS: Record<string, string> = {
  * FastAPIInstrumentor names its request spans with. */
 const HTTP_METHOD_SPAN_RE = /^(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+(\/.*)$/
 
-export function splitMethodSpanName(name: string): { method: string; path: string } | null {
+export function splitMethodSpanName(name: string | undefined): { method: string; path: string } | null {
+  if (!name) return null
   const match = name.match(HTTP_METHOD_SPAN_RE)
   return match ? { method: match[1], path: match[2] } : null
 }
