@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { layoutFlamebearer, timelineToCpuSeries } from '@/components/features/monitoring/flame-graph-dialog'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { layoutFlamebearer, timelineToCpuSeries, renderCpuTooltip } from '@/components/features/monitoring/flame-graph-dialog'
 import type { Flamebearer, FlamebearerResponse } from '@/lib/api/grafana'
 
 vi.mock('@/lib/providers', () => ({
@@ -8,7 +8,13 @@ vi.mock('@/lib/providers', () => ({
 }))
 
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog">{children}</div> : null),
+  Dialog: ({ children, open, onOpenChange }: any) =>
+    open ? (
+      <div data-testid="dialog">
+        {children}
+        <button data-testid="close-dialog" onClick={() => onOpenChange?.(false)} />
+      </div>
+    ) : null,
   DialogContent: ({ children }: any) => <div>{children}</div>,
   DialogHeader: ({ children }: any) => <div>{children}</div>,
   DialogTitle: ({ children }: any) => <h1>{children}</h1>,
@@ -207,5 +213,75 @@ describe('FlameGraphDialog', () => {
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
     render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
     await waitFor(() => expect(screen.getByText('admin.profileNoData')).toBeTruthy())
+  })
+
+  it('shows the load-error message when the fetch itself rejects (network error)', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'))
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    await waitFor(() => expect(screen.getByText('admin.profileLoadError')).toBeTruthy())
+  })
+
+  it('calls onClose when the dialog is dismissed', async () => {
+    mockFetchOnce({ error: 'not_configured' })
+    const onClose = vi.fn()
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={onClose} start={1000} end={1010} />)
+    fireEvent.click(screen.getByTestId('close-dialog'))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('does not update state after unmount when a pending fetch later rejects', async () => {
+    let reject: (err: unknown) => void
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise((_resolve, rej) => { reject = rej })
+    )
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    const { unmount } = render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    unmount()
+    reject!(new Error('network down'))
+    await Promise.resolve()
+    await Promise.resolve() // no assertion needed — must simply not throw/warn after unmount
+  })
+
+  it('drops a frame narrower than the minimum renderable width instead of rendering an unreadable sliver', async () => {
+    const total = 1_000_000_000
+    const flamebearer = {
+      names: ['total', 'visible_fn', 'invisible_fn'],
+      levels: [[0, total, 0, 0], [0, 999_900_000, 999_900_000, 1, 0, 100_000, 100_000, 2]],
+      numTicks: total,
+      maxSelf: 999_900_000,
+    }
+    const body: FlamebearerResponse = {
+      version: 1,
+      flamebearer,
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+    }
+    mockFetchOnce(body)
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    await waitFor(() => expect(screen.getByText(/^visible_fn/)).toBeTruthy())
+    // invisible_fn is 0.01% of total — below MIN_WIDTH_PCT (0.05%) — dropped entirely.
+    expect(screen.queryByTitle(/invisible_fn/)).toBeNull()
+  })
+})
+
+// ── renderCpuTooltip ─────────────────────────────────────────────────────────
+
+describe('renderCpuTooltip', () => {
+  it('renders nothing when inactive', () => {
+    expect(renderCpuTooltip({ active: false, payload: [{ value: 42 }], label: '10:00:00' })).toBeNull()
+  })
+
+  it('renders nothing when there is no payload', () => {
+    expect(renderCpuTooltip({ active: true, payload: [], label: '10:00:00' })).toBeNull()
+  })
+
+  it('renders the label and CPU% when active with a payload', () => {
+    const { container } = render(
+      <>{renderCpuTooltip({ active: true, payload: [{ value: 42 }], label: '10:00:00' })}</>
+    )
+    expect(container.textContent).toContain('10:00:00')
+    expect(container.textContent).toContain('42%')
   })
 })

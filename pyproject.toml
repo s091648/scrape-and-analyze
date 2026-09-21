@@ -132,6 +132,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-asyncio",
+    "pytest-timeout",
     "responses",
     "httpx",
     "starlette",

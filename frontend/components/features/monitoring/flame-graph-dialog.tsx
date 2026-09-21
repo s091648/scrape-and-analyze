@@ -102,7 +102,7 @@ export function timelineToCpuSeries(timeline: FlamebearerTimeline, sampleRate: n
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function renderCpuTooltip(props: any) {
+export function renderCpuTooltip(props: any) {
   const { active, payload, label } = props as {
     active?: boolean
     payload?: Array<{ value: number }>

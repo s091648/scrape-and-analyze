@@ -219,6 +219,24 @@ def test_search_index_rebuild_handler_subscribed_to_pipeline_completed_event():
     assert SearchIndexRebuildHandler in bound_classes
 
 
+def test_tag_counts_refresh_handler_subscribed_to_text_pipeline_completed_event():
+    """fix/db_imprv: build_collection_pipeline() must wire TagCountsRefreshHandler
+    (backed by RefreshTagArticleCountsUseCase) to TextPipelineCompletedEvent so
+    intelligence.tag_article_counts is refreshed once per completed scrape cycle,
+    same trigger point as the search index rebuild above."""
+    from src.modules.intelligence.application.event_handlers import TagCountsRefreshHandler
+    from src.modules.intelligence.application.use_cases import RefreshTagArticleCountsUseCase
+
+    pipeline, *_ = _build_pipeline_with_mocks()
+    handlers = pipeline._event_bus._handlers.get(TextPipelineCompletedEvent, [])
+    bound_handlers = [h.__self__ for h in handlers]
+    bound_classes = [h.__class__ for h in bound_handlers]
+    assert TagCountsRefreshHandler in bound_classes
+
+    tag_counts_handler = next(h for h in bound_handlers if isinstance(h, TagCountsRefreshHandler))
+    assert isinstance(tag_counts_handler._use_case, RefreshTagArticleCountsUseCase)
+
+
 # ---------------------------------------------------------------------------
 # T022 — get_session() called exactly once (sync, upstream/config phase only)
 # ---------------------------------------------------------------------------

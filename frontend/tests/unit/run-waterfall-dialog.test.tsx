@@ -238,6 +238,46 @@ describe('RunWaterfallDialog header', () => {
     expect(start).toBe(1789896395 - 10)
     expect(end).toBe(1789896395 + 10)
   })
+
+  it('closes the flame graph dialog when dismissed', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('admin.viewProfile'))
+    // FlameGraphDialog renders first in JSX order, so its own Dialog/close-dialog
+    // button is the first of the two now mounted (main dialog is always open too).
+    expect(screen.getAllByTestId('dialog').length).toBe(2)
+    fireEvent.click(screen.getAllByTestId('close-dialog')[0])
+    expect(screen.getAllByTestId('dialog').length).toBe(1)
+  })
+
+  it('renders without crashing when the trace has no root span', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([])}
+      />
+    )
+    // No root -> startDate falls back to '—', no View Profile button, no crash.
+    expect(screen.getByTestId('dialog')).toBeDefined()
+    expect(screen.queryByText('admin.viewProfile')).toBeNull()
+  })
 })
 
 describe('RunWaterfallDialog waterfall rows', () => {

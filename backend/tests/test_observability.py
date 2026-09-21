@@ -187,3 +187,44 @@ def test_add_otel_context_noop_without_active_span():
     event_dict = _add_otel_context(None, "info", {"event": "hi"})
     assert "trace_id" not in event_dict
     assert "span_id" not in event_dict
+
+
+# ---------------------------------------------------------------------------
+# setup_profiling
+# ---------------------------------------------------------------------------
+
+def test_setup_profiling_skipped_without_env():
+    from backend.observability import setup_profiling
+    with patch("backend.observability.GRAFANA_PROFILES_URL", ""), \
+         patch("backend.observability.GRAFANA_PROFILES_USER", ""), \
+         patch("backend.observability.GRAFANA_API_KEY", ""):
+        assert setup_profiling("local") is None
+
+
+def test_setup_profiling_configures_pyroscope_with_env():
+    from backend.observability import setup_profiling
+    mock_pyroscope = MagicMock()
+    with patch("backend.observability.GRAFANA_PROFILES_URL", "https://profiles.example.com"), \
+         patch("backend.observability.GRAFANA_PROFILES_USER", "profiles-user"), \
+         patch("backend.observability.GRAFANA_API_KEY", "api-key"), \
+         patch.dict("sys.modules", {"pyroscope": mock_pyroscope}):
+        setup_profiling("production")
+
+    mock_pyroscope.configure.assert_called_once()
+    _, kwargs = mock_pyroscope.configure.call_args
+    assert kwargs["server_address"] == "https://profiles.example.com"
+    assert kwargs["basic_auth_username"] == "profiles-user"
+    assert kwargs["basic_auth_password"] == "api-key"
+    assert kwargs["tags"] == {"env": "production"}
+
+
+def test_setup_profiling_failure_is_swallowed():
+    """If pyroscope.configure() raises, setup_profiling() must not raise."""
+    from backend.observability import setup_profiling
+    mock_pyroscope = MagicMock()
+    mock_pyroscope.configure.side_effect = Exception("connection refused")
+    with patch("backend.observability.GRAFANA_PROFILES_URL", "https://profiles.example.com"), \
+         patch("backend.observability.GRAFANA_PROFILES_USER", "profiles-user"), \
+         patch("backend.observability.GRAFANA_API_KEY", "api-key"), \
+         patch.dict("sys.modules", {"pyroscope": mock_pyroscope}):
+        setup_profiling("local")  # must not raise

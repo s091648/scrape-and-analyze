@@ -177,6 +177,39 @@ def _no_rate_limit_by_default(request):
         yield
 
 
+@pytest.fixture(autouse=True)
+def _no_real_cache_warmup_listener(request):
+    """backend/main.py's lifespan unconditionally starts
+    cache_warmup_listener.listen_for_warmup_signals() as a background asyncio task —
+    it's a local import inside the lifespan function, so patching the source module's
+    attribute here (before lifespan runs) is picked up correctly. Unmocked, every
+    `with TestClient(app) as client:` in this directory opens a real Pub/Sub
+    connection to the redis service and tears it down again on __exit__; running many
+    of these back-to-back in one session was observed to occasionally leave the
+    asyncio runner's shutdown (_cancel_all_tasks) waiting forever for that task's
+    cancellation/socket teardown to actually finish — with no timeout anywhere in this
+    suite, that hangs the whole run instead of failing a single test. Integration
+    tests are unaffected: their TestClient is never entered as a context manager, so
+    lifespan (and this task) never runs there regardless.
+
+    test_cache_warmup_listener.py is the one exception — it imports and calls the
+    real listen_for_warmup_signals() directly to test its own reconnect/warm/
+    health-check behavior, so patching it out here would break the very thing it's
+    testing."""
+    if request.node.fspath.basename == "test_cache_warmup_listener.py":
+        yield
+        return
+
+    from unittest.mock import patch
+
+    async def _fake_listener():
+        import asyncio
+        await asyncio.Event().wait()
+
+    with patch("backend.cache_warmup_listener.listen_for_warmup_signals", _fake_listener):
+        yield
+
+
 def make_mock_suggestion(**kwargs):
     """Create a mock TagNormalizationSuggestion ORM instance."""
     defaults = dict(
