@@ -2,7 +2,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, distinct, func, literal, select, text, update
+from sqlalchemy import delete, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -45,67 +45,58 @@ def get_similar_groups(db: Session, group_id: UUID, topic_id: UUID, threshold: f
 
 
 def tag_outs_for_group(db: Session, grp) -> List[TagOut]:
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
-    q = (
-        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-        .join(Article, Article.id == article_tags_table.c.article_id)
-        .filter(Tag.tag_group_id == grp.id)
-    )
-    if grp.topic_id:
-        q = q.filter(Article.topic_id == grp.topic_id)
-    rows = q.group_by(Tag.id, Tag.name).order_by(Tag.name).all()
-    return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+    """Reads intelligence.tag_article_counts — a materialized view refreshed after
+    every completed scrape pipeline run (TagCountsRefreshHandler) — instead of
+    live-joining tags/article_tags/articles on every call (fix/db_imprv). Raw
+    text() SQL: the view isn't mapped as a Base ORM model, see
+    alembic/versions/28_add_tag_article_counts_mv.py for why. Filters on the
+    joined t.tag_group_id (live), not the view's own stored c.tag_group_id,
+    so a merge/move/ungroup is reflected immediately instead of only after the
+    view's next scrape-triggered refresh — the count itself can still lag, only
+    membership can't."""
+    rows = db.execute(text("""
+        SELECT c.tag_id, t.name, c.article_count
+        FROM intelligence.tag_article_counts c
+        JOIN intelligence.tags t ON t.id = c.tag_id
+        WHERE t.tag_group_id = :group_id AND c.topic_id = :topic_id
+        ORDER BY t.name
+    """), {"group_id": str(grp.id), "topic_id": str(grp.topic_id)}).fetchall()
+    return [TagOut(id=tag_id, name=name, article_count=article_count) for tag_id, name, article_count in rows]
 
 
 def tag_outs_for_groups(db: Session, groups: list) -> dict:
     """Batched equivalent of calling tag_outs_for_group() once per group in a loop — a
-    single query for every group's tags instead of one query per group (was an N+1:
-    GET /tag-groups with N groups issued 1 + N queries). TagGroupDefinition.topic_id is
-    NOT NULL (see models/tag_group.py), so joining it in lets each row's article count
-    stay scoped to its own group's topic — same semantics as tag_outs_for_group()'s
-    per-group `Article.topic_id == grp.topic_id` filter, just correlated per-row instead
-    of re-run once per group."""
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
-    from models.tag_group import TagGroupDefinition
-
+    single query for every group's tags instead of one query per group. Reads the same
+    materialized view as tag_outs_for_group(); the join onto tag_group_definitions
+    reproduces that function's `topic_id == grp.topic_id` scoping per-row instead of
+    per-group. Groups/filters on the joined t.tag_group_id — see tag_outs_for_group()."""
     result: dict = {grp.id: [] for grp in groups}
     if not groups:
         return result
 
-    rows = (
-        db.query(
-            Tag.tag_group_id, Tag.id, Tag.name,
-            func.count(distinct(article_tags_table.c.article_id)).label("article_count"),
-        )
-        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-        .join(Article, Article.id == article_tags_table.c.article_id)
-        .join(TagGroupDefinition, TagGroupDefinition.id == Tag.tag_group_id)
-        .filter(Tag.tag_group_id.in_([grp.id for grp in groups]))
-        .filter(Article.topic_id == TagGroupDefinition.topic_id)
-        .group_by(Tag.tag_group_id, Tag.id, Tag.name)
-        .order_by(Tag.name)
-        .all()
-    )
+    rows = db.execute(text("""
+        SELECT t.tag_group_id, c.tag_id, t.name, c.article_count
+        FROM intelligence.tag_article_counts c
+        JOIN intelligence.tags t ON t.id = c.tag_id
+        JOIN intelligence.tag_group_definitions g ON g.id = t.tag_group_id
+        WHERE t.tag_group_id = ANY(:group_ids ::uuid[]) AND c.topic_id = g.topic_id
+        ORDER BY t.name
+    """), {"group_ids": [str(grp.id) for grp in groups]}).fetchall()
     for tag_group_id, tag_id, tag_name, article_count in rows:
         result[tag_group_id].append(TagOut(id=tag_id, name=tag_name, article_count=article_count))
     return result
 
 
 def ungrouped_tag_outs(db: Session, topic_id: UUID) -> List[TagOut]:
-    from models.tag import Tag, article_tags as article_tags_table
-    from models.article import Article
-    q = (
-        db.query(Tag.id, Tag.name, func.count(distinct(article_tags_table.c.article_id)).label("article_count"))
-        .join(article_tags_table, article_tags_table.c.tag_id == Tag.id)
-        .join(Article, Article.id == article_tags_table.c.article_id)
-        .filter(Tag.tag_group_id.is_(None))
-        .filter(Article.topic_id == topic_id)
-    )
-    rows = q.group_by(Tag.id, Tag.name).order_by(Tag.name).all()
-    return [TagOut(id=r.id, name=r.name, article_count=r.article_count) for r in rows]
+    """Reads intelligence.tag_article_counts — see tag_outs_for_group() above."""
+    rows = db.execute(text("""
+        SELECT c.tag_id, t.name, c.article_count
+        FROM intelligence.tag_article_counts c
+        JOIN intelligence.tags t ON t.id = c.tag_id
+        WHERE t.tag_group_id IS NULL AND c.topic_id = :topic_id
+        ORDER BY t.name
+    """), {"topic_id": str(topic_id)}).fetchall()
+    return [TagOut(id=tag_id, name=name, article_count=article_count) for tag_id, name, article_count in rows]
 
 
 def build_tag_groups_payload(

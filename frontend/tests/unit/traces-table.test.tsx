@@ -954,4 +954,28 @@ describe('TracesTable root-span filter', () => {
       expect(screen.queryByText('bbbbbbbb…')).toBeNull()
     })
   })
+
+  it('falls back to "—" for a trace with no rootTraceName, both in the filter options and the row', async () => {
+    const { TracesTable } = await import('@/components/features/monitoring/traces-table')
+    const data: TempoResponse = {
+      traces: [
+        {
+          traceID: 'dddddddddddddddd', rootServiceName: 'unknown',
+          startTimeUnixNano: '1700000000000000000', durationMs: 5,
+        },
+      ],
+    }
+    render(<TracesTable title="Traces" refreshInterval={0} externalData={data} />)
+
+    await waitFor(() => expect(screen.getByText('dddddddd…')).toBeDefined())
+    // "—" appears twice on the row: root-span column (missing rootTraceName) and
+    // environment column (missing deployment.environment) — both fall back the same way.
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
+
+    fireEvent.click(await screen.findByRole('button', { name: /admin\.traceFilterRootSpan/ }))
+    expect(await screen.findByText('— · 1')).toBeDefined()
+
+    fireEvent.click(screen.getByText('— · 1'))
+    await waitFor(() => expect(screen.getByText('dddddddd…')).toBeDefined())
+  })
 })

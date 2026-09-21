@@ -10,10 +10,12 @@ import {
   getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
   type SpanNode,
 } from '@/lib/otlp-utils'
-import { SpanName } from '@/lib/observability-constants'
+import { SpanName, SERVICE_NAME_BACKEND } from '@/lib/observability-constants'
 import { StageCard } from './stage-card'
 import { HttpMethodBadge, splitMethodSpanName, DbSystemBadge } from './log-detail-dialog'
+import { FlameGraphDialog } from './flame-graph-dialog'
 import { cn } from '@/lib/utils'
+import { Activity } from 'lucide-react'
 
 // ── Waterfall row builder ─────────────────────────────────────────────────────
 
@@ -90,6 +92,11 @@ export function RunWaterfallDialog({
   // renders per-stage cards with, just standalone instead of chained. No percentile
   // thresholds fetched here yet (that's ArticleWorkflowDialog-only for now).
   const [selectedSpan, setSelectedSpan] = useState<OtlpSpan | null>(null)
+  // Profiling (Grafana Cloud Profiles / Pyroscope) only runs in backend/main.py's
+  // process (setup_profiling()) — the scraper is never profiled, so this button only
+  // makes sense for a backend trace. Root-level, not per-child-span: see
+  // flame-graph-dialog.tsx's own doc comment for why.
+  const [showFlameGraph, setShowFlameGraph] = useState(false)
 
   // Default: collapse spans at depth >= 1 (second level and deeper)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -139,10 +146,38 @@ export function RunWaterfallDialog({
 
   const environment = getResourceAttr(trace, 'deployment.environment')
     ?? getResourceAttr(trace, 'resource.deployment.environment')
+  const isBackendTrace = getResourceAttr(trace, 'service.name') === SERVICE_NAME_BACKEND
 
   const startDate = root
     ? new Date(Number(rootStart / 1_000_000n)).toLocaleString()
     : '—'
+  // unix seconds — Pyroscope's render API (backend/routers/grafana.py's /profile) takes
+  // start/end in seconds, not nanoseconds like the span timestamps here.
+  //
+  // Padded by FLAME_GRAPH_PADDING_SECONDS on both sides rather than using the request's
+  // own [start, end]: pyroscope-io uploads sampled profiles periodically (not one batch
+  // per request), and almost every request span is well under a second — dividing two
+  // sub-second nanosecond timestamps down to whole seconds collapses start and end to the
+  // *same* second for virtually every request, producing a zero-width from==until query
+  // Pyroscope has nothing to return for (confirmed: this is exactly what was happening —
+  // a real 12ms request produced start=1789896395&end=1789896395).
+  //
+  // 10s, not some much larger value — swept 0/1/2/3/5/8/10/12/15/20/30s against a real
+  // pushed profile: any non-zero width already returns data (the zero-width case is the
+  // only one that's actually empty), and pyroscope.configure()'s upload_interval default
+  // is 10s (backend/observability.py never overrides it), so ±10s (20s total) is the
+  // smallest padding that's still reliably wider than one full upload interval regardless
+  // of where the request falls inside it. Wider padding pulls in more samples (and a
+  // richer flame graph) but increasingly reflects "what the process was doing in this
+  // minute" rather than this specific request — 10s favors staying close to the request
+  // over sample density.
+  const FLAME_GRAPH_PADDING_SECONDS = 10
+  const flameGraphStart = root
+    ? Math.floor(Number(rootStart / 1_000_000_000n)) - FLAME_GRAPH_PADDING_SECONDS
+    : 0
+  const flameGraphEnd = root
+    ? Math.floor(Number((rootStart + rootDurationNs) / 1_000_000_000n)) + FLAME_GRAPH_PADDING_SECONDS
+    : 0
 
   function toggle(spanId: string) {
     setCollapsed(prev => {
@@ -158,6 +193,12 @@ export function RunWaterfallDialog({
 
   return (
     <>
+    <FlameGraphDialog
+      open={showFlameGraph}
+      onClose={() => setShowFlameGraph(false)}
+      start={flameGraphStart}
+      end={flameGraphEnd}
+    />
     {selectedSpan && (
       <Dialog open onOpenChange={v => { if (!v) setSelectedSpan(null) }}>
         <DialogContent className="max-w-md">
@@ -173,14 +214,27 @@ export function RunWaterfallDialog({
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
       <DialogContent className="max-w-[90vw] sm:max-w-[90vw] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="font-mono text-sm">
-            {t('admin.waterfallDialogTitle', { id: traceId.slice(0, 16) })}
-          </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            {startDate}
-            {root && <> · {formatDuration(spanDurationMs(root))}</>}
-            {environment && <> · {environment}</>}
-          </p>
+          <div className="flex items-start justify-between gap-3 pr-6">
+            <div>
+              <DialogTitle className="font-mono text-sm">
+                {t('admin.waterfallDialogTitle', { id: traceId.slice(0, 16) })}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground">
+                {startDate}
+                {root && <> · {formatDuration(spanDurationMs(root))}</>}
+                {environment && <> · {environment}</>}
+              </p>
+            </div>
+            {isBackendTrace && root && (
+              <button
+                onClick={() => setShowFlameGraph(true)}
+                className="shrink-0 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <Activity className="h-3 w-3" />
+                {t('admin.viewProfile')}
+              </button>
+            )}
+          </div>
         </DialogHeader>
 
         <div className="themed-scrollbar overflow-auto flex-1 min-h-0">

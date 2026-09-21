@@ -232,7 +232,11 @@ def main():
     print(f"Found {len(failures)} unresolved failure(s) — retrying...\n")
 
     from src.bootstrap import build_llm_service
-    llm_service = build_llm_service()
+    llm_svc_session = get_session()
+    try:
+        llm_service, _, _ = build_llm_service(llm_svc_session)
+    finally:
+        llm_svc_session.close()
 
     success = failed = skipped = 0
 

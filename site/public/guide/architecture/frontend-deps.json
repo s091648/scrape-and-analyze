@@ -657,18 +657,22 @@
     "lib/api/weekly-reports.ts"
   ],
   "lib/api/analytics.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/articles.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/auth.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/client.ts": [
     "lib/auth-token-store.ts",
     "lib/session-id.ts"
   ],
+  "lib/api/generated-types.ts": [],
   "lib/api/grafana.ts": [],
   "lib/api/graph.ts": [
     "lib/api/client.ts"
@@ -685,37 +689,46 @@
     "lib/api/topics.ts"
   ],
   "lib/api/llm-providers.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/metric-definitions.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/scraper-keywords.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/scraper-settings.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/search.ts": [
     "lib/api/articles.ts",
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/source-categories.ts": [
     "lib/api/client.ts"
   ],
   "lib/api/tags.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/topics.ts": [
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/user.ts": [
     "lib/api/auth.ts",
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/api/weekly-reports.ts": [
     "components/features/chat/types.ts",
-    "lib/api/client.ts"
+    "lib/api/client.ts",
+    "lib/api/generated-types.ts"
   ],
   "lib/auth-token-store.ts": [],
   "lib/auth.ts": [

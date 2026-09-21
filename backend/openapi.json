@@ -6693,6 +6693,71 @@
         ]
       }
     },
+    "/grafana/profile": {
+      "get": {
+        "description": "CPU flamebearer for the backend service over [start, end] (unix seconds) \u2014\nthe root span's own time window (RunWaterfallDialog), not a per-sub-span query:\nprofiling is CPU sampling, and a whole-request window has enough samples to be\nstatistically meaningful in a way a handful-of-milliseconds child span wouldn't.\nScraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),\nso this endpoint is backend-only \u2014 there's nothing to query for scraper traces.",
+        "operationId": "query_profile_grafana_profile_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "title": "Start",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "title": "End",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Query Profile",
+        "tags": [
+          "grafana"
+        ]
+      }
+    },
     "/grafana/traces": {
       "get": {
         "operationId": "query_traces_grafana_traces_get",

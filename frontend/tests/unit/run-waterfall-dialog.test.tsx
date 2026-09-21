@@ -24,6 +24,9 @@ vi.mock('@/components/ui/dialog', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
+  global.fetch = vi.fn().mockResolvedValue({
+    json: async () => ({ error: 'not_configured' }),
+  })
 })
 
 function makeSpan(overrides: Partial<OtlpSpan> = {}): OtlpSpan {
@@ -153,6 +156,127 @@ describe('RunWaterfallDialog header', () => {
       />
     )
     expect(screen.getByTestId('dialog').textContent).toContain('staging')
+  })
+
+  // Profiling (Grafana Cloud Profiles) only runs in backend/main.py's process — the
+  // "View Profile" button only makes sense, and only shows, for a backend trace.
+  it('shows the View Profile button for a backend trace', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    expect(screen.getByText('admin.viewProfile')).toBeTruthy()
+  })
+
+  it('hides the View Profile button for a scraper trace', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    )
+    expect(screen.queryByText('admin.viewProfile')).toBeNull()
+  })
+
+  // Regression test for a real production bug: a 12ms request's [start, end] both
+  // BigInt-divide down to the same whole second, producing a zero-width from==until
+  // query Pyroscope returns nothing for (confirmed against the real API — see
+  // flame-graph-dialog.tsx's git history). The padding must widen the window so
+  // start is strictly before end even for a span far under a second.
+  it('queries the profile with a padded (non-zero-width) time window for a sub-second span', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    // 12ms span, matching the exact reported bug scenario.
+    const span = makeSpan({
+      startTimeUnixNano: '1789896395000000000',
+      endTimeUnixNano: '1789896395012000000',
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [span],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('admin.viewProfile'))
+
+    // next-auth's real getSession() (unmocked here) fires its own fetch to
+    // /api/auth/session first — find the actual profile-query call, not just call #0.
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('/grafana/profile'))).toBe(true)
+    })
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+    const [url] = calls.find(([u]) => u.includes('/grafana/profile'))!
+    const params = new URL(url, 'http://localhost').searchParams
+    const start = Number(params.get('start'))
+    const end = Number(params.get('end'))
+    expect(end).toBeGreaterThan(start)
+    expect(start).toBe(1789896395 - 10)
+    expect(end).toBe(1789896395 + 10)
+  })
+
+  it('closes the flame graph dialog when dismissed', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('admin.viewProfile'))
+    // FlameGraphDialog renders first in JSX order, so its own Dialog/close-dialog
+    // button is the first of the two now mounted (main dialog is always open too).
+    expect(screen.getAllByTestId('dialog').length).toBe(2)
+    fireEvent.click(screen.getAllByTestId('close-dialog')[0])
+    expect(screen.getAllByTestId('dialog').length).toBe(1)
+  })
+
+  it('renders without crashing when the trace has no root span', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace([])}
+      />
+    )
+    // No root -> startDate falls back to '—', no View Profile button, no crash.
+    expect(screen.getByTestId('dialog')).toBeDefined()
+    expect(screen.queryByText('admin.viewProfile')).toBeNull()
   })
 })
 

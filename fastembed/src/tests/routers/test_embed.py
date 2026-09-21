@@ -2,7 +2,10 @@
 from unittest.mock import MagicMock
 
 import pytest
-from httpx import AsyncClient
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from fastembed_service.routers import embed_router
 
 
 @pytest.mark.asyncio
@@ -51,3 +54,18 @@ async def test_embed_503_when_no_models_loaded(client: AsyncClient, mock_embeddi
     resp = await client.post("/embed", json={"texts": ["hello"]})
 
     assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_health_503_when_embedding_service_not_initialized():
+    """No app.state.embedding_service set at all — the pre-lifespan-startup state,
+    or a health check that races ahead of it — not the same as "loaded with no
+    models", which is a different 503 asserted above."""
+    uninitialized_app = FastAPI()
+    uninitialized_app.include_router(embed_router)
+    transport = ASGITransport(app=uninitialized_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/health")
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Embedding service not initialized"

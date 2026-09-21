@@ -1,5 +1,31 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Added missing Research and Quick Start navigation links to the documentation site."
+      },
+      {
+        "type": "fix",
+        "description": "Resolved an issue in the monitoring UI where traces with a missing root name failed to display correctly."
+      },
+      {
+        "type": "feat",
+        "description": "Updated the database schema diagram to utilize standard crow's-foot notation and unique constraint markers."
+      },
+      {
+        "type": "feat",
+        "description": "Introduced a materialized view for tag article counts and fixed an associated production data error."
+      },
+      {
+        "type": "feat",
+        "description": "Integrated a CPU profiler featuring flame graphs and a real-time CPU usage monitoring panel."
+      }
+    ]
+  },
+  {
     "version": "v1.7.3",
     "date": "2026-09-17",
     "changes": [

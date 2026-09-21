@@ -22,6 +22,8 @@ from backend.config import (
     GRAFANA_LOKI_USER,
     GRAFANA_OTLP_ENDPOINT,
     GRAFANA_OTLP_USER,
+    GRAFANA_PROFILES_URL,
+    GRAFANA_PROFILES_USER,
 )
 
 
@@ -196,3 +198,34 @@ def setup_tracing(app_env: str):
     except Exception as e:
         print(f"[tracing] OTLP setup failed: {e}")
         return None
+
+
+def setup_profiling(app_env: str) -> None:
+    """Start pyroscope-io's background sampling profiler, pushing to Grafana Cloud
+    Profiles. No-op if GRAFANA_PROFILES_*/GRAFANA_API_KEY are absent (local dev).
+
+    Complements setup_tracing() above rather than overlapping it: OTel spans say
+    WHICH instrumented boundary (a DB call, a Redis call, an outbound httpx call)
+    took the time; this says what the CPU was actually doing for the *rest* of a
+    request's duration — including framework internals, serialization, and any
+    business logic no span was ever added for. Low-overhead enough (~1-5% CPU) to
+    run always-on in production rather than only when a problem is suspected, so
+    past time windows are already there to look at once one is."""
+    if not all([GRAFANA_PROFILES_URL, GRAFANA_PROFILES_USER, GRAFANA_API_KEY]):
+        print("[profiling] Skipping Pyroscope setup, missing GRAFANA_PROFILES_*/GRAFANA_API_KEY")
+        return
+
+    try:
+        import pyroscope
+        from shared.enums.observability import SERVICE_NAME_BACKEND
+
+        pyroscope.configure(
+            application_name=SERVICE_NAME_BACKEND,
+            server_address=GRAFANA_PROFILES_URL,
+            basic_auth_username=GRAFANA_PROFILES_USER,
+            basic_auth_password=GRAFANA_API_KEY,
+            tags={"env": app_env},
+        )
+        print("[profiling] Pyroscope setup successful")
+    except Exception as e:
+        print(f"[profiling] Pyroscope setup failed: {e}")

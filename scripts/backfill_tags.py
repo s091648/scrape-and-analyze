@@ -201,8 +201,8 @@ def main():
     from src.modules.intelligence.domain.value_objects import AnalysisPrompt
     prompt = AnalysisPrompt().content
 
-    llm_service = build_llm_service()
     session = get_session()
+    llm_service, _, _ = build_llm_service(session)
 
     try:
         stats = run_backfill(

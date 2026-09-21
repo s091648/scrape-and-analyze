@@ -350,7 +350,10 @@ export function TracesTable({
 
   const rootSpanOptions = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const trace of traces) counts.set(trace.rootTraceName, (counts.get(trace.rootTraceName) ?? 0) + 1)
+    for (const trace of traces) {
+      const name = trace.rootTraceName ?? '—'
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
     return Array.from(counts.entries())
       .sort(([, a], [, b]) => b - a)
       // Separator is " · " not " (N)" on purpose: Rethink Sans has a contextual
@@ -366,7 +369,7 @@ export function TracesTable({
 
   const visibleTraces = selectedRoots.length === 0
     ? traces
-    : traces.filter(trace => selectedRoots.includes(trace.rootTraceName))
+    : traces.filter(trace => selectedRoots.includes(trace.rootTraceName ?? '—'))
 
   const columns = [
     { key: 'expand',  label: '',                                      className: 'w-6' },
@@ -475,7 +478,7 @@ export function TracesTable({
                         <HttpMethodBadge method={methodSpan.method} />
                         <span className="font-mono text-[11px] truncate">{methodSpan.path}</span>
                       </span>
-                    ) : trace.rootTraceName}
+                    ) : (trace.rootTraceName ?? '—')}
                   </td>
                   <td className="px-2 py-1 text-muted-foreground truncate">{trace.rootServiceName}</td>
                   <td className="px-2 py-1 text-muted-foreground">{environment ?? '—'}</td>

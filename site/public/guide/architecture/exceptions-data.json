@@ -94,28 +94,28 @@
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 101,
+          "line": 102,
           "function": "register",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 112,
+          "line": 113,
           "function": "google_authorize",
           "snippet": "raise ConflictError(\"Google account not linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 149,
+          "line": 150,
           "function": "admin_create_user",
           "snippet": "raise ConflictError(\"Email or username already taken\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 226,
+          "line": 227,
           "function": "link_google",
           "snippet": "raise ConflictError(\"Google account already in use\")",
           "status_code": null
@@ -145,12 +145,12 @@
       "docstring": "Raised when a domain already returned 429 earlier in this run. External\nAPIs' 429s (daily/pool quota exhaustion) don't clear within a single run,\nso further requests are short-circuited locally instead of pacing out more\ndoomed calls — callers should treat this the same as a fresh 429.",
       "defined_at": {
         "file": "src/infrastructure/shared/http/rate_limiter.py",
-        "line": 48
+        "line": 63
       },
       "raise_sites": [
         {
           "file": "src/infrastructure/shared/http/rate_limiter.py",
-          "line": 153,
+          "line": 168,
           "function": "DomainRateLimiter._raise_if_tripped",
           "snippet": "raise DomainCircuitOpenError(domain)",
           "status_code": null
@@ -221,6 +221,13 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/collection/article_metrics_async_repo_impl.py",
+          "line": 57,
+          "function": "AsyncSqlAlchemyArticleMetricsRepository.upsert",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/collection/scraper_setting_repo_impl.py",
           "line": 73,
           "function": "SqlAlchemyScraperSettingRepository.mark_scraped",
@@ -229,7 +236,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/analyses_translation_async_repo_impl.py",
-          "line": 55,
+          "line": 62,
           "function": "AsyncSqlAlchemyAnalysesTranslationRepository.save",
           "snippet": "raise",
           "status_code": null
@@ -243,7 +250,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/analysis_async_repo_impl.py",
-          "line": 55,
+          "line": 62,
           "function": "AsyncSqlAlchemyAnalysisRepository.save",
           "snippet": "raise",
           "status_code": null
@@ -257,7 +264,7 @@
         },
         {
           "file": "src/infrastructure/persistence/intelligence/article_translation_async_repo_impl.py",
-          "line": 46,
+          "line": 52,
           "function": "AsyncSqlAlchemyArticleTranslationRepository.save",
           "snippet": "raise",
           "status_code": null
@@ -280,6 +287,13 @@
           "file": "src/infrastructure/persistence/intelligence/tag_async_repo_impl.py",
           "line": 159,
           "function": "AsyncSqlAlchemyTagRepository.commit",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/infrastructure/persistence/intelligence/tag_group_definition_async_repo_impl.py",
+          "line": 100,
+          "function": "AsyncSqlAlchemyTagGroupDefinitionRepository.upsert",
           "snippet": "raise",
           "status_code": null
         },
@@ -326,6 +340,13 @@
           "status_code": null
         },
         {
+          "file": "src/infrastructure/persistence/shared/article_async_repo_impl.py",
+          "line": 54,
+          "function": "AsyncSqlAlchemyArticleRepository.save",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
           "file": "src/infrastructure/persistence/shared/failed_task_async_repo_impl.py",
           "line": 43,
           "function": "AsyncSqlAlchemyFailedTaskRepository.save",
@@ -350,6 +371,13 @@
           "file": "src/modules/intelligence/application/event_handlers/rag_ingestion_handler.py",
           "line": 161,
           "function": "AsyncRagIngestionHandler.handle",
+          "snippet": "raise",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/normalize_tags.py",
+          "line": 64,
+          "function": "NormalizeTagsUseCase.execute",
           "snippet": "raise",
           "status_code": null
         }
@@ -397,14 +425,14 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 68,
+          "line": 69,
           "function": "verify_credentials",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 110,
+          "line": 111,
           "function": "google_authorize",
           "snippet": "raise ForbiddenError(\"Account disabled\")",
           "status_code": null
@@ -434,13 +462,6 @@
       "docstring": null,
       "defined_at": null,
       "raise_sites": [
-        {
-          "file": "backend/routers/chat.py",
-          "line": 83,
-          "function": "chat_completions",
-          "snippet": "raise HTTPException(",
-          "status_code": 429
-        },
         {
           "file": "backend/services/llm_provider_service.py",
           "line": 46,
@@ -485,14 +506,14 @@
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 283,
+          "line": 270,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=404, detail=\"Tag group not found\")",
           "status_code": 404
         },
         {
           "file": "backend/services/tag_service.py",
-          "line": 285,
+          "line": 272,
           "function": "merge_tag_groups",
           "snippet": "raise HTTPException(status_code=400, detail=\"Groups must belong to the same topic\")",
           "status_code": 400
@@ -639,6 +660,69 @@
       ]
     },
     {
+      "name": "LLMAnalysisError",
+      "category": "custom",
+      "bases": [
+        "ExternalDependencyError"
+      ],
+      "docstring": "Every configured LLM provider failed to produce an analysis.",
+      "defined_at": {
+        "file": "src/modules/intelligence/application/use_cases/exceptions.py",
+        "line": 4
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/application/use_cases/analyze_article.py",
+          "line": 63,
+          "function": "AnalyzeArticleUseCase.execute",
+          "snippet": "raise LLMAnalysisError(\"All LLM providers returned None\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
+      "name": "LLMTranslationError",
+      "category": "custom",
+      "bases": [
+        "ExternalDependencyError"
+      ],
+      "docstring": "Every configured LLM provider failed to produce a translation.",
+      "defined_at": {
+        "file": "src/modules/intelligence/application/use_cases/exceptions.py",
+        "line": 8
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article.py",
+          "line": 83,
+          "function": "TranslateArticleUseCase.execute",
+          "snippet": "raise LLMTranslationError(\"LLM returned no translation output\")",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article.py",
+          "line": 189,
+          "function": "AsyncTranslateArticleUseCase.execute",
+          "snippet": "raise LLMTranslationError(\"LLM returned no translation output\")",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article_body.py",
+          "line": 61,
+          "function": "TranslateArticleBodyUseCase.execute",
+          "snippet": "raise LLMTranslationError(\"LLM returned no translation output\")",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article_body.py",
+          "line": 126,
+          "function": "AsyncTranslateArticleBodyUseCase.execute",
+          "snippet": "raise LLMTranslationError(\"LLM returned no translation output\")",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "MissingDatabaseUrlError",
       "category": "custom",
       "bases": [
@@ -729,63 +813,63 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 108,
+          "line": 109,
           "function": "google_authorize",
           "snippet": "raise NotFoundError(\"Email not registered\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 157,
+          "line": 158,
           "function": "update_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 165,
+          "line": 166,
           "function": "delete_user_endpoint",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 174,
+          "line": 175,
           "function": "get_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 183,
+          "line": 184,
           "function": "update_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 197,
+          "line": 198,
           "function": "change_password",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 212,
+          "line": 213,
           "function": "delete_me",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 222,
+          "line": 223,
           "function": "link_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 235,
+          "line": 236,
           "function": "unlink_google",
           "snippet": "raise NotFoundError(\"User not found\")",
           "status_code": null
@@ -1026,6 +1110,34 @@
       ]
     },
     {
+      "name": "RateLimitExceededError",
+      "category": "custom",
+      "bases": [
+        "DomainError"
+      ],
+      "docstring": "The caller has exceeded an enforced rate limit for this capability (026-rate-limit-codegen).",
+      "defined_at": {
+        "file": "shared/domain/exceptions.py",
+        "line": 29
+      },
+      "raise_sites": [
+        {
+          "file": "backend/rate_limit/limiter.py",
+          "line": 70,
+          "function": "_check_policy",
+          "snippet": "raise RateLimitExceededError(",
+          "status_code": null
+        },
+        {
+          "file": "backend/routers/chat.py",
+          "line": 95,
+          "function": "chat_completions",
+          "snippet": "raise RateLimitExceededError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "RateLimitExhausted",
       "category": "custom",
       "bases": [
@@ -1240,6 +1352,41 @@
       ]
     },
     {
+      "name": "TranslationParseError",
+      "category": "custom",
+      "bases": [
+        "ExternalDependencyError"
+      ],
+      "docstring": "The LLM's translation response could not be parsed into the expected sections.",
+      "defined_at": {
+        "file": "src/modules/intelligence/application/use_cases/exceptions.py",
+        "line": 12
+      },
+      "raise_sites": [
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article.py",
+          "line": 113,
+          "function": "TranslateArticleUseCase._validate_parsed",
+          "snippet": "raise TranslationParseError(",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article_body.py",
+          "line": 66,
+          "function": "TranslateArticleBodyUseCase.execute",
+          "snippet": "raise TranslationParseError(",
+          "status_code": null
+        },
+        {
+          "file": "src/modules/intelligence/application/use_cases/translate_article_body.py",
+          "line": 131,
+          "function": "AsyncTranslateArticleBodyUseCase.execute",
+          "snippet": "raise TranslationParseError(",
+          "status_code": null
+        }
+      ]
+    },
+    {
       "name": "UnauthorizedError",
       "category": "custom",
       "bases": [
@@ -1372,77 +1519,77 @@
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 64,
+          "line": 65,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 66,
+          "line": 67,
           "function": "verify_credentials",
           "snippet": "raise UnauthorizedError(\"Invalid credentials\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 121,
+          "line": 122,
           "function": "refresh_user_token",
           "snippet": "raise UnauthorizedError(\"Invalid refresh token\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 116,
+          "line": 117,
           "function": "decode_user_refresh_token",
           "snippet": "raise UnauthorizedError(\"Invalid token\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 119,
+          "line": 120,
           "function": "decode_user_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 121,
+          "line": 122,
           "function": "decode_user_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token expired\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 123,
+          "line": 124,
           "function": "decode_user_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 173,
+          "line": 171,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Invalid token\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 176,
+          "line": 174,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token missing exp claim\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 178,
+          "line": 176,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token expired\")",
           "status_code": null
         },
         {
           "file": "backend/services/auth_service.py",
-          "line": 180,
+          "line": 178,
           "function": "decode_guest_refresh_token",
           "snippet": "raise UnauthorizedError(\"Token not accepted for this endpoint\")",
           "status_code": null
@@ -1485,42 +1632,42 @@
       "raise_sites": [
         {
           "file": "backend/routers/auth.py",
-          "line": 84,
+          "line": 85,
           "function": "register",
           "snippet": "raise ValidationError(str(e))",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 137,
+          "line": 138,
           "function": "admin_create_user",
           "snippet": "raise ValidationError(\"email or username required\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 199,
+          "line": 200,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Password change not available for this account\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 201,
+          "line": 202,
           "function": "change_password",
           "snippet": "raise ValidationError(\"Current password incorrect\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 224,
+          "line": 225,
           "function": "link_google",
           "snippet": "raise ValidationError(\"Google account already linked\")",
           "status_code": null
         },
         {
           "file": "backend/routers/auth.py",
-          "line": 237,
+          "line": 238,
           "function": "unlink_google",
           "snippet": "raise ValidationError(\"Cannot unlink Google from a Google-only account\")",
           "status_code": null
@@ -1534,14 +1681,14 @@
         },
         {
           "file": "backend/routers/search.py",
-          "line": 55,
+          "line": 57,
           "function": "search",
           "snippet": "raise ValidationError(\"q must not be empty\")",
           "status_code": null
         },
         {
           "file": "backend/routers/search.py",
-          "line": 77,
+          "line": 80,
           "function": "autocomplete",
           "snippet": "raise ValidationError(\"prefix must not be empty\")",
           "status_code": null
@@ -1584,6 +1731,13 @@
       "defined_at": null,
       "raise_sites": [
         {
+          "file": "backend/config.py",
+          "line": 30,
+          "function": "_positive_int",
+          "snippet": "raise ValueError(f\"{name} must be a positive integer, got {value}\")",
+          "status_code": null
+        },
+        {
           "file": "backend/schemas/metric_definition.py",
           "line": 51,
           "function": "MetricDefinitionAdminUpdate.validate_icon_name",
@@ -1613,7 +1767,7 @@
         },
         {
           "file": "src/bootstrap.py",
-          "line": 860,
+          "line": 876,
           "function": "build_weekly_pipeline",
           "snippet": "raise ValueError(\"No active multimodal provider found in DB — add one via the admin UI\")",
           "status_code": null

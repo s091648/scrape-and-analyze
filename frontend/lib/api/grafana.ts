@@ -55,8 +55,10 @@ export interface TempoSpanSet {
 
 export interface TempoTrace {
   traceID: string
-  rootServiceName: string
-  rootTraceName: string
+  // Tempo omits both when the root span hasn't been ingested (e.g. a partial/orphaned
+  // trace) — genuinely absent at runtime, not just a defensive TS annotation.
+  rootServiceName?: string
+  rootTraceName?: string
   startTimeUnixNano: string
   durationMs?: number
   spanSet?: TempoSpanSet
@@ -111,6 +113,48 @@ export interface OtlpResourceSpans {
 
 export interface OtlpTraceResponse {
   batches: OtlpResourceSpans[]
+}
+
+// ── Profiles (Pyroscope) response types ─────────────────────────────────────
+// Legacy Pyroscope HTTP API's "flamebearer" format (GET /grafana/profile ->
+// {url}/pyroscope/render?format=json on Grafana Cloud Profiles) — confirmed against a
+// real pushed sample, not from docs alone (fix/db_imprv spike). `levels[n]` is a flat
+// array of 4-number frames [offsetDelta, total, self, nameIndex] per stack depth n;
+// offsetDelta is relative to the END of the previous sibling at that depth, not an
+// absolute x position — see flame-graph-dialog.tsx's layout function for the running-sum
+// this requires.
+export interface Flamebearer {
+  names: string[]
+  levels: number[][]
+  numTicks: number
+  maxSelf: number
+}
+
+// Timeline is a genuine time series alongside the flamebearer, confirmed against a real
+// pushed burn/idle/burn profile (fix/db_imprv spike): startTime is a real unix-seconds
+// timestamp, durationDelta is each bucket's width in real seconds, and samples[i] is the
+// total ticks (same units/sampleRate as the flamebearer) accumulated within that bucket —
+// e.g. a bucket covering a 5s CPU burn within a 15s window read back as ~5.15e9 ns, matching
+// samples[i] / (durationDelta * sampleRate) as an average CPU-utilization fraction for that
+// bucket. This is what a real-timestamp/CPU% panel should be built from — the flamebearer's
+// own x/y axes (proportion of samples / stack depth) can't represent either quantity.
+export interface FlamebearerTimeline {
+  startTime: number
+  samples: number[]
+  durationDelta: number
+  watermarks?: unknown
+}
+
+export interface FlamebearerResponse {
+  version: number
+  flamebearer: Flamebearer
+  metadata: {
+    format: string
+    sampleRate: number
+    units: string
+    name: string
+  }
+  timeline?: FlamebearerTimeline
 }
 
 // ── Query parameter types ───────────────────────────────────────────────────
@@ -276,4 +320,21 @@ export async function queryTraceById(traceId: string): Promise<OtlpTraceResponse
     headers: await authHeaders(),
   })
   return res.json()
+}
+
+// start/end: unix seconds — same convention as TracesQueryParams, matching the root
+// span's own time window (RunWaterfallDialog calls this, not per-child-span).
+export async function queryProfile(params: { start: number; end: number }): Promise<FlamebearerResponse> {
+  const p = buildParams({ start: params.start, end: params.end })
+  const res = await fetch(`/api/proxy/grafana/profile?${p.toString()}`, {
+    headers: await authHeaders(),
+  })
+  const body = await res.json().catch(() => null)
+  // Pyroscope can fail with a non-2xx status whose JSON body has no `error` key
+  // (e.g. `{"msg": "..."}`) — normalize so FlameGraphDialog's `'error' in res`
+  // check always catches it instead of treating it as a flamebearer payload.
+  if (!res.ok && !(body && typeof body === 'object' && 'error' in body)) {
+    return { error: 'fetch_failed' } as unknown as FlamebearerResponse
+  }
+  return body
 }

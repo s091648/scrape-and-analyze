@@ -7,12 +7,23 @@ Unit tests mock all DB calls. These tests exercise real SQL:
   - batch-move tags
   - tag group reorder and merge
   - tag normalization suggestion list/approve/reject
+
+fix/db_imprv: GET /tag-groups's per-tag article_count now reads
+intelligence.tag_article_counts (a materialized view, backend/services/tag_service.py) via
+raw text() SQL — same caveat test_search.py's module docstring documents for
+core.articles/vectors.*: raw text() SQL is NOT rewritten by conftest.py's
+schema_translate_map, so it always targets the real intelligence/core schemas, never the
+per-test-isolated schema an ORM insert (_topic/_article/_tag/_link below) would land in.
+Any test asserting on `tags`/`article_count` in a GET /tag-groups response must seed via
+the _raw_* helpers below (real schema) and call _refresh_tag_article_counts(), not the
+ORM helpers — otherwise the MV never sees what the test just inserted.
 """
 import time
 import uuid
 
 import pytest
 from jose import jwt
+from sqlalchemy import text
 
 # Ensure these models are registered with Base.metadata before db_engine creates tables
 from models.tag_normalization_suggestion import TagNormalizationSuggestion  # noqa: F401
@@ -95,6 +106,74 @@ def _link(db_session, article, tag):
     from models.tag import article_tags
     db_session.execute(article_tags.insert().values(article_id=article.id, tag_id=tag.id))
     db_session.flush()
+
+
+# ---------------------------------------------------------------------------
+# Raw-SQL seed helpers — for tests that need intelligence.tag_article_counts (a
+# materialized view, real schema, not test-isolated) to see the data. See module
+# docstring.
+# ---------------------------------------------------------------------------
+
+def _raw_topic(db_session) -> uuid.UUID:
+    topic_id = uuid.uuid4()
+    db_session.execute(text(
+        "INSERT INTO core.topics (id, name, display_name, is_active, tag_mode) "
+        "VALUES (:id, :name, 'Test Topic', true, 'unsupervised')"
+    ), {"id": topic_id, "name": f"t-{topic_id.hex[:10]}"})
+    db_session.flush()
+    return topic_id
+
+
+def _raw_article(db_session, topic_id) -> uuid.UUID:
+    article_id = uuid.uuid4()
+    db_session.execute(text(
+        "INSERT INTO core.articles "
+        "(id, url, url_hash, source, title, content, correlation_id, topic_id) "
+        "VALUES (:id, :url, :url_hash, 'test', 'Test Article', 'body', :correlation_id, :topic_id)"
+    ), {
+        "id": article_id, "url": f"https://example.com/{uuid.uuid4().hex}",
+        "url_hash": uuid.uuid4().hex, "correlation_id": uuid.uuid4(), "topic_id": topic_id,
+    })
+    db_session.flush()
+    return article_id
+
+
+def _raw_tag(db_session, name=None, group_id=None) -> uuid.UUID:
+    tag_id = uuid.uuid4()
+    db_session.execute(text(
+        "INSERT INTO intelligence.tags (id, name, tag_group_id) VALUES (:id, :name, :group_id)"
+    ), {"id": tag_id, "name": name or f"tag-{uuid.uuid4().hex[:6]}", "group_id": group_id})
+    db_session.flush()
+    return tag_id
+
+
+def _raw_group(db_session, topic_id, name=None, display_name=None):
+    """Returns a lightweight object exposing just `.id` — tag_outs_for_groups() (the only
+    caller that takes ORM-shaped `groups`) only ever accesses `.id`, not a real
+    TagGroupDefinition. Row lives in the real intelligence schema (see module docstring),
+    same as _raw_tag/_raw_article."""
+    from types import SimpleNamespace
+    group_id = uuid.uuid4()
+    db_session.execute(text(
+        "INSERT INTO intelligence.tag_group_definitions (id, name, display_name, topic_id) "
+        "VALUES (:id, :name, :display_name, :topic_id)"
+    ), {
+        "id": group_id, "name": name or f"grp-{group_id.hex[:6]}",
+        "display_name": display_name or "Group", "topic_id": topic_id,
+    })
+    db_session.flush()
+    return SimpleNamespace(id=group_id, topic_id=topic_id)
+
+
+def _raw_link(db_session, article_id, tag_id) -> None:
+    db_session.execute(text(
+        "INSERT INTO intelligence.article_tags (article_id, tag_id) VALUES (:article_id, :tag_id)"
+    ), {"article_id": article_id, "tag_id": tag_id})
+    db_session.flush()
+
+
+def _refresh_tag_article_counts(db_session) -> None:
+    db_session.execute(text("REFRESH MATERIALIZED VIEW intelligence.tag_article_counts"))
 
 
 def _suggestion(db_session, new_tag, existing_tag, article=None):
@@ -191,12 +270,13 @@ def test_list_tag_groups_filtered_by_topic(api_client, db_session):
 
 
 def test_list_tag_groups_includes_ungrouped_when_topic_given(api_client, db_session):
-    topic = _topic(db_session)
-    art = _article(db_session, topic)
-    orphan = _tag(db_session, name="orphan-tag")
-    _link(db_session, art, orphan)
+    topic_id = _raw_topic(db_session)
+    article_id = _raw_article(db_session, topic_id)
+    orphan_id = _raw_tag(db_session, name="orphan-tag")
+    _raw_link(db_session, article_id, orphan_id)
+    _refresh_tag_article_counts(db_session)
 
-    r = api_client.get(f"/tag-groups?topic_id={topic.id}")
+    r = api_client.get(f"/tag-groups?topic_id={topic_id}")
     groups = r.json()
     ungrouped = next((g for g in groups if g["name"] == "ungrouped"), None)
     assert ungrouped is not None
@@ -512,16 +592,18 @@ def test_reorder_tag_groups_persists_sort_order(api_client, db_session):
 # ---------------------------------------------------------------------------
 
 def test_merge_creates_new_result_group(api_client, db_session):
+    # Asserts on Tag.tag_group_id directly rather than the response's `tags` field:
+    # merge_tag_groups() itself is ORM-only (isolated test schema), but that field is
+    # built from tag_outs_for_group(), which reads intelligence.tag_article_counts — a
+    # real-schema materialized view raw text() SQL can't route through
+    # schema_translate_map (see module docstring), so it can never see this ORM-only
+    # merge. Testing the ORM-level effect directly is what's actually reachable here.
     topic = _topic(db_session)
     # Use slug names (underscores) — schema validator converts hyphens to underscores
     grp_a = _group(db_session, topic, name="merge_a")
     grp_b = _group(db_session, topic, name="merge_b")
     tag_a = _tag(db_session, name="tag_from_a", group=grp_a)
     tag_b = _tag(db_session, name="tag_from_b", group=grp_b)
-    # tag_outs_for_group uses INNER JOIN on article_tags, so tags need article links to appear
-    art = _article(db_session, topic)
-    _link(db_session, art, tag_a)
-    _link(db_session, art, tag_b)
 
     r = api_client.post(
         "/tag-groups/merge",
@@ -538,9 +620,13 @@ def test_merge_creates_new_result_group(api_client, db_session):
     assert r.status_code == 200
     data = r.json()
     assert data["name"] == "merged_result"
-    tag_names = [t["name"] for t in data["tags"]]
-    assert "tag_from_a" in tag_names
-    assert "tag_from_b" in tag_names
+
+    from models.tag import Tag
+    db_session.expire_all()
+    tags = db_session.query(Tag).filter(Tag.id.in_([tag_a.id, tag_b.id])).all()
+    assert {t.name: str(t.tag_group_id) for t in tags} == {
+        "tag_from_a": data["id"], "tag_from_b": data["id"],
+    }
 
 
 def test_merge_into_group_a_keeps_a(api_client, db_session):
@@ -584,15 +670,13 @@ def test_merge_nonexistent_group_returns_404(api_client):
 
 
 def test_merge_deduplicates_tags_with_same_name(api_client, db_session):
+    # See test_merge_creates_new_result_group's comment on why this asserts via ORM
+    # (Tag rows) rather than the response's `tags` field.
     topic = _topic(db_session)
     grp_a = _group(db_session, topic, name="dedup_a")
     grp_b = _group(db_session, topic, name="dedup_b")
-    tag_a = _tag(db_session, name="shared_tag", group=grp_a)
-    tag_b = _tag(db_session, name="shared_tag", group=grp_b)
-    # Need article links so tag_outs_for_group (INNER JOIN) can return the tag
-    art = _article(db_session, topic)
-    _link(db_session, art, tag_a)
-    _link(db_session, art, tag_b)
+    _tag(db_session, name="shared_tag", group=grp_a)
+    _tag(db_session, name="shared_tag", group=grp_b)
 
     r = api_client.post(
         "/tag-groups/merge",
@@ -607,8 +691,13 @@ def test_merge_deduplicates_tags_with_same_name(api_client, db_session):
         headers=_ADMIN_HDR,
     )
     assert r.status_code == 200
-    tag_names = [t["name"] for t in r.json()["tags"]]
-    assert tag_names.count("shared_tag") == 1
+    result_group_id = r.json()["id"]
+
+    from models.tag import Tag
+    db_session.expire_all()
+    survivors = db_session.query(Tag).filter_by(name="shared_tag").all()
+    assert len(survivors) == 1
+    assert str(survivors[0].tag_group_id) == result_group_id
 
 
 def test_merge_absorbs_source_tag_into_existing_result_group_tag_of_same_name(api_client, db_session):
@@ -626,11 +715,7 @@ def test_merge_absorbs_source_tag_into_existing_result_group_tag_of_same_name(ap
     dup_in_a = _tag(db_session, name="dup_name", group=grp_a)
     dup_in_a_id = dup_in_a.id  # captured before merge deletes the row (id access after would re-fetch and 404)
     only_in_b = _tag(db_session, name="only_in_b", group=grp_b)
-    dup_in_existing = _tag(db_session, name="dup_name", group=grp_existing)
-
-    art = _article(db_session, topic)
-    _link(db_session, art, dup_in_existing)
-    _link(db_session, art, only_in_b)
+    _tag(db_session, name="dup_name", group=grp_existing)
 
     r = api_client.post(
         "/tag-groups/merge",
@@ -647,13 +732,16 @@ def test_merge_absorbs_source_tag_into_existing_result_group_tag_of_same_name(ap
     assert r.status_code == 200
     data = r.json()
     assert data["name"] == "reuse_dest"
-    tag_names = [t["name"] for t in data["tags"]]
-    assert tag_names.count("dup_name") == 1  # absorbed, not duplicated
-    assert "only_in_b" in tag_names
-
+    # See test_merge_creates_new_result_group's comment on why this asserts via ORM
+    # (Tag rows) rather than the response's `tags` field.
     from models.tag import Tag
-    db_session.expire_all()  # merge_tag_groups deleted the row via its own flush/commit
-    assert db_session.query(Tag).filter_by(id=dup_in_a_id).first() is None  # dropped
+    db_session.expire_all()  # merge_tag_groups deleted/moved rows via its own flush/commit
+    assert db_session.query(Tag).filter_by(id=dup_in_a_id).first() is None  # absorbed, dropped
+    dup_survivors = db_session.query(Tag).filter_by(name="dup_name").all()
+    assert len(dup_survivors) == 1  # not duplicated
+    assert str(dup_survivors[0].tag_group_id) == data["id"]
+    only_in_b_tag = db_session.query(Tag).filter_by(id=only_in_b.id).first()
+    assert str(only_in_b_tag.tag_group_id) == data["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -926,12 +1014,13 @@ def test_tag_outs_for_groups_batches_into_a_single_query(db_session):
     from sqlalchemy import event
     from backend.services import tag_service
 
-    topic = _topic(db_session)
-    groups = [_group(db_session, topic, name=f"g{i}") for i in range(3)]
+    topic_id = _raw_topic(db_session)
+    groups = [_raw_group(db_session, topic_id, name=f"g{i}") for i in range(3)]
     for i, grp in enumerate(groups):
-        tag = _tag(db_session, name=f"tag{i}", group=grp)
-        article = _article(db_session, topic=topic)
-        _link(db_session, article, tag)
+        tag_id = _raw_tag(db_session, name=f"tag{i}", group_id=grp.id)
+        article_id = _raw_article(db_session, topic_id)
+        _raw_link(db_session, article_id, tag_id)
+    _refresh_tag_article_counts(db_session)
 
     statements = []
 
@@ -960,22 +1049,23 @@ def test_tag_outs_for_groups_scopes_article_counts_by_each_groups_own_topic(db_s
     another group's list) via a different topic."""
     from backend.services import tag_service
 
-    topic_a = _topic(db_session, name="topic-a")
-    topic_b = _topic(db_session, name="topic-b")
-    group_a = _group(db_session, topic_a, name="group-a")
-    group_b = _group(db_session, topic_b, name="group-b")
+    topic_a = _raw_topic(db_session)
+    topic_b = _raw_topic(db_session)
+    group_a = _raw_group(db_session, topic_a, name="group-a")
+    group_b = _raw_group(db_session, topic_b, name="group-b")
 
-    tag_a = _tag(db_session, name="alpha", group=group_a)
-    tag_b = _tag(db_session, name="beta", group=group_b)
-    article_a = _article(db_session, topic=topic_a)
-    article_b = _article(db_session, topic=topic_b)
-    _link(db_session, article_a, tag_a)
-    _link(db_session, article_b, tag_b)
+    tag_a = _raw_tag(db_session, name="alpha", group_id=group_a.id)
+    tag_b = _raw_tag(db_session, name="beta", group_id=group_b.id)
+    article_a = _raw_article(db_session, topic_a)
+    article_b = _raw_article(db_session, topic_b)
+    _raw_link(db_session, article_a, tag_a)
+    _raw_link(db_session, article_b, tag_b)
 
     # Belongs to group_a (topic A) but only ever linked to an article from topic B —
     # should not appear for group_a at all, same as the unbatched function's behavior.
-    tag_cross_topic = _tag(db_session, name="cross-topic", group=group_a)
-    _link(db_session, article_b, tag_cross_topic)
+    tag_cross_topic = _raw_tag(db_session, name="cross-topic", group_id=group_a.id)
+    _raw_link(db_session, article_b, tag_cross_topic)
+    _refresh_tag_article_counts(db_session)
 
     result = tag_service.tag_outs_for_groups(db_session, [group_a, group_b])
 

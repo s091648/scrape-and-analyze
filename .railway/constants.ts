@@ -89,6 +89,15 @@ export const GRAFANA_BACKEND_ENV = {
   GRAFANA_TEMPO_USER: "1510333",
 } as const;
 
+// fix/db_imprv: Grafana Cloud Profiles (Pyroscope) push endpoint — dashboard-backend
+// only (backend/observability.py::setup_profiling). Uses the same GRAFANA_API_KEY as
+// GRAFANA_ENV/GRAFANA_BACKEND_ENV above (its Access Policy was extended with
+// profiles:write rather than minting a separate token).
+export const GRAFANA_PROFILES_ENV = {
+  GRAFANA_PROFILES_URL: "https://profiles-prod-019.grafana.net",
+  GRAFANA_PROFILES_USER: "1558239",
+} as const;
+
 // The public Grafana dashboard URL the frontend links to (GRAFANA_SA_TOKEN, the
 // paired service-account token, stays process.env → T6-08c).
 export const GRAFANA_URL = "https://s091648.grafana.net/";

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { parseLogFields, LogDetailDialog, DbSystemBadge } from '@/components/features/monitoring/log-detail-dialog'
+import { parseLogFields, LogDetailDialog, DbSystemBadge, splitMethodSpanName } from '@/components/features/monitoring/log-detail-dialog'
 import type { LogEntry } from '@/components/features/monitoring/log-detail-dialog'
 
 vi.mock('@/lib/providers', () => ({
@@ -192,5 +192,23 @@ describe('DbSystemBadge', () => {
   it('falls back to the raw system name when unmapped', () => {
     render(<DbSystemBadge system="cassandra" />)
     expect(screen.getByText('cassandra')).toBeDefined()
+  })
+})
+
+// ── splitMethodSpanName ──────────────────────────────────────────────────────
+
+describe('splitMethodSpanName', () => {
+  it('splits a FastAPIInstrumentor-style "METHOD /path" span name', () => {
+    expect(splitMethodSpanName('GET /tag-groups')).toEqual({ method: 'GET', path: '/tag-groups' })
+  })
+
+  it('returns null for a name that does not match the METHOD /path shape', () => {
+    expect(splitMethodSpanName('scraper.run')).toBeNull()
+  })
+
+  it('returns null without matching when name is undefined', () => {
+    // traces-table.tsx / run-waterfall-dialog.tsx call this with an optional
+    // rootTraceName/span.name that isn't guaranteed to be present.
+    expect(splitMethodSpanName(undefined)).toBeNull()
   })
 })
