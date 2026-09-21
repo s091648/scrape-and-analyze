@@ -228,10 +228,10 @@ class Analysis(Base):
 
 
 def test_render_dot_uses_crows_foot_notation_for_fk_cardinality(enum_members):
-    """FK end (the "many" side) is drawn as a crow's foot, PK end (the "one" side)
-    as a tee — real Graphviz ER arrow shapes, not the codebase's own notation.
-    A nullable FK column draws a hollow `ocrow` (zero-or-many); a required one
-    draws a solid `crow` (one-or-many)."""
+    """FK end (the "many" side) is always drawn as a crow's foot with a circle
+    (`crowodot`, zero-or-many) — real Graphviz ER arrow shapes, not the codebase's
+    own notation. The PK/parent end reflects the FK column's own nullability:
+    `teeodot` (zero-or-one) when nullable, `teetee` (exactly-one) when required."""
     _, models_dir = enum_members
     _write(models_dir, "article.py", '''
 from sqlalchemy import Column
@@ -260,11 +260,12 @@ class Analysis(Base):
     all_tables = collect_all_tables()
 
     dot = render_dot(all_tables)
-    assert 'arrowhead=tee' in dot
     required_line = next(l for l in dot.splitlines() if 'required_article_id' in l and '->' in l)
     optional_line = next(l for l in dot.splitlines() if 'optional_article_id' in l and '->' in l)
-    assert 'arrowtail="crow"' in required_line
-    assert 'arrowtail="ocrow"' in optional_line
+    assert 'arrowtail="crowodot"' in required_line
+    assert 'arrowtail="crowodot"' in optional_line
+    assert 'arrowhead=teetee' in required_line
+    assert 'arrowhead=teeodot' in optional_line
 
 
 def test_render_dot_marks_uq_for_every_unique_constraint_form(enum_members):

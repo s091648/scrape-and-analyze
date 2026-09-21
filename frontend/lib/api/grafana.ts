@@ -329,5 +329,12 @@ export async function queryProfile(params: { start: number; end: number }): Prom
   const res = await fetch(`/api/proxy/grafana/profile?${p.toString()}`, {
     headers: await authHeaders(),
   })
-  return res.json()
+  const body = await res.json().catch(() => null)
+  // Pyroscope can fail with a non-2xx status whose JSON body has no `error` key
+  // (e.g. `{"msg": "..."}`) — normalize so FlameGraphDialog's `'error' in res`
+  // check always catches it instead of treating it as a flamebearer payload.
+  if (!res.ok && !(body && typeof body === 'object' && 'error' in body)) {
+    return { error: 'fetch_failed' } as unknown as FlamebearerResponse
+  }
+  return body
 }

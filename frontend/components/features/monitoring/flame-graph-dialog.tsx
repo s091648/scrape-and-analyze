@@ -179,7 +179,7 @@ export function FlameGraphDialog({ open, onClose, start, end }: FlameGraphDialog
   const flamebearer = data?.flamebearer
   const frames = flamebearer ? layoutFlamebearer(flamebearer) : []
   const numTicks = flamebearer?.numTicks ?? 0
-  const sampleRate = data?.metadata.sampleRate || 1
+  const sampleRate = data?.metadata?.sampleRate || 1
   const maxDepth = frames.reduce((m, f) => Math.max(m, f.depth), 0)
   const toMs = (ticks: number) => (ticks / sampleRate) * 1000
   const timelinePoints = data?.timeline ? timelineToCpuSeries(data.timeline, sampleRate) : []

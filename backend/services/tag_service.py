@@ -49,12 +49,16 @@ def tag_outs_for_group(db: Session, grp) -> List[TagOut]:
     every completed scrape pipeline run (TagCountsRefreshHandler) — instead of
     live-joining tags/article_tags/articles on every call (fix/db_imprv). Raw
     text() SQL: the view isn't mapped as a Base ORM model, see
-    alembic/versions/28_add_tag_article_counts_mv.py for why."""
+    alembic/versions/28_add_tag_article_counts_mv.py for why. Filters on the
+    joined t.tag_group_id (live), not the view's own stored c.tag_group_id,
+    so a merge/move/ungroup is reflected immediately instead of only after the
+    view's next scrape-triggered refresh — the count itself can still lag, only
+    membership can't."""
     rows = db.execute(text("""
         SELECT c.tag_id, t.name, c.article_count
         FROM intelligence.tag_article_counts c
         JOIN intelligence.tags t ON t.id = c.tag_id
-        WHERE c.tag_group_id = :group_id AND c.topic_id = :topic_id
+        WHERE t.tag_group_id = :group_id AND c.topic_id = :topic_id
         ORDER BY t.name
     """), {"group_id": str(grp.id), "topic_id": str(grp.topic_id)}).fetchall()
     return [TagOut(id=tag_id, name=name, article_count=article_count) for tag_id, name, article_count in rows]
@@ -65,17 +69,17 @@ def tag_outs_for_groups(db: Session, groups: list) -> dict:
     single query for every group's tags instead of one query per group. Reads the same
     materialized view as tag_outs_for_group(); the join onto tag_group_definitions
     reproduces that function's `topic_id == grp.topic_id` scoping per-row instead of
-    per-group."""
+    per-group. Groups/filters on the joined t.tag_group_id — see tag_outs_for_group()."""
     result: dict = {grp.id: [] for grp in groups}
     if not groups:
         return result
 
     rows = db.execute(text("""
-        SELECT c.tag_group_id, c.tag_id, t.name, c.article_count
+        SELECT t.tag_group_id, c.tag_id, t.name, c.article_count
         FROM intelligence.tag_article_counts c
         JOIN intelligence.tags t ON t.id = c.tag_id
-        JOIN intelligence.tag_group_definitions g ON g.id = c.tag_group_id
-        WHERE c.tag_group_id = ANY(:group_ids ::uuid[]) AND c.topic_id = g.topic_id
+        JOIN intelligence.tag_group_definitions g ON g.id = t.tag_group_id
+        WHERE t.tag_group_id = ANY(:group_ids ::uuid[]) AND c.topic_id = g.topic_id
         ORDER BY t.name
     """), {"group_ids": [str(grp.id) for grp in groups]}).fetchall()
     for tag_group_id, tag_id, tag_name, article_count in rows:
@@ -89,7 +93,7 @@ def ungrouped_tag_outs(db: Session, topic_id: UUID) -> List[TagOut]:
         SELECT c.tag_id, t.name, c.article_count
         FROM intelligence.tag_article_counts c
         JOIN intelligence.tags t ON t.id = c.tag_id
-        WHERE c.tag_group_id IS NULL AND c.topic_id = :topic_id
+        WHERE t.tag_group_id IS NULL AND c.topic_id = :topic_id
         ORDER BY t.name
     """), {"topic_id": str(topic_id)}).fetchall()
     return [TagOut(id=tag_id, name=name, article_count=article_count) for tag_id, name, article_count in rows]

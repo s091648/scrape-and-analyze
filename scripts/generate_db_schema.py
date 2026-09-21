@@ -454,20 +454,24 @@ def render_dot(tables: list[TableInfo]) -> str:
 
             # Crow's-foot ERD cardinality, drawn with Graphviz's built-in ER arrow
             # shapes rather than switching renderers: `crow` ("many") sits at the
-            # FK/child end (tail), `tee` ("exactly one") at the referenced PK/parent
-            # end (head) — a FK row always references at most one parent row. An
-            # `o` prefix draws the shape hollow (zero-or-many) when the FK column
-            # itself is nullable, vs a solid crow (one-or-many) when it's required.
+            # FK/child end (tail) — always zero-or-many, since a parent row can be
+            # referenced by any number of child rows regardless of this column's own
+            # nullability, hence the constant "crowodot" (Graphviz combines shapes by
+            # concatenation; `o` is a suffix modifier, not a prefix — "ocrow" isn't a
+            # valid arrow shape). Nullability instead describes how many *parent* rows
+            # this FK references (always 0 or 1, never more) — "teeodot" (zero-or-one)
+            # when the FK column is nullable, "teetee" (exactly-one) when required.
             fk_col_nullable = next(
                 (c.nullable for c in t.columns if c.name == fk.column), True
             )
-            arrowtail = "ocrow" if fk_col_nullable else "crow"
+            arrowtail = "crowodot"
+            arrowhead = "teeodot" if fk_col_nullable else "teetee"
 
             cross_schema = fk.target_schema != t.schema
             style = 'color="#e94560", penwidth=1.5' if cross_schema else 'color="#888888"'
             lines.append(
                 f'  {src} -> {dst} [id="fkedge--{src_sig}--{dst_sig}", tooltip="{tooltip}", '
-                f'dir=both, arrowtail="{arrowtail}", arrowhead=tee, '
+                f'dir=both, arrowtail="{arrowtail}", arrowhead={arrowhead}, '
                 f'{style}, label="{fk.column}"];'
             )
 

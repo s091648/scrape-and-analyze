@@ -92,8 +92,8 @@ beforeEach(() => {
   global.fetch = vi.fn()
 })
 
-function mockFetchOnce(body: unknown) {
-  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ json: async () => body })
+function mockFetchOnce(body: unknown, ok = true) {
+  ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok, json: async () => body })
 }
 
 describe('FlameGraphDialog', () => {
@@ -108,6 +108,13 @@ describe('FlameGraphDialog', () => {
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
     render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
     await waitFor(() => expect(screen.getByText('admin.profileNotConfigured')).toBeTruthy())
+  })
+
+  it('shows the load-error message instead of throwing on a non-2xx response with no error field', async () => {
+    mockFetchOnce({ msg: 'bad request' }, false)
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    await waitFor(() => expect(screen.getByText('admin.profileLoadError')).toBeTruthy())
   })
 
   it('renders frame names from a successful flamebearer response', async () => {

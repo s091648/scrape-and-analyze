@@ -203,6 +203,7 @@ describe('queryTraceById', () => {
 describe('queryProfile', () => {
   it('calls /api/proxy/grafana/profile with start/end params', async () => {
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
       json: async () => ({
         version: 1,
         flamebearer: { names: ['total'], levels: [[0, 100, 0, 0]], numTicks: 100, maxSelf: 0 },
@@ -227,10 +228,34 @@ describe('queryProfile', () => {
       flamebearer: { names: ['total'], levels: [[0, 100, 0, 0]], numTicks: 100, maxSelf: 0 },
       metadata: { format: 'single', sampleRate: 1000000000, units: 'samples', name: 'cpu' },
     }
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ json: async () => body })
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, json: async () => body })
 
     const { queryProfile } = await import('@/lib/api/grafana')
     const result = await queryProfile({ start: 1000, end: 2000 })
     expect(result.flamebearer.names).toEqual(['total'])
+  })
+
+  it('normalizes a non-2xx response without an error field to {error}', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ msg: 'bad request' }),
+    })
+
+    const { queryProfile } = await import('@/lib/api/grafana')
+    const result = await queryProfile({ start: 1000, end: 2000 })
+    expect(result).toEqual({ error: 'fetch_failed' })
+  })
+
+  it('passes through a non-2xx response that already has an error field', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'not_configured' }),
+    })
+
+    const { queryProfile } = await import('@/lib/api/grafana')
+    const result = await queryProfile({ start: 1000, end: 2000 })
+    expect(result).toEqual({ error: 'not_configured' })
   })
 })
