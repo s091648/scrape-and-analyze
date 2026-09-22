@@ -104,9 +104,13 @@ export const GRAFANA_BACKEND_ENV = {
 } as const;
 
 // fix/db_imprv: Grafana Cloud Profiles (Pyroscope) push endpoint — dashboard-backend
-// only (backend/observability.py::setup_profiling). Uses the same GRAFANA_API_KEY as
-// GRAFANA_ENV/GRAFANA_BACKEND_ENV above (its Access Policy was extended with
-// profiles:write rather than minting a separate token).
+// (backend/observability.py::setup_profiling) and, as of fix/profiler_imprv,
+// scrape-and-analyze too (src/infrastructure/shared/observability/pyroscope_profiling.py's
+// setup_profiling, called from src/entrypoints/cli/main.py). Same endpoint/user for both —
+// they're told apart on the Pyroscope side by their own
+// pyroscope.configure(application_name=...) (SERVICE_NAME_BACKEND vs SERVICE_NAME). Uses the
+// same GRAFANA_API_KEY as GRAFANA_ENV/GRAFANA_BACKEND_ENV above (its Access Policy was
+// extended with profiles:write rather than minting a separate token).
 export const GRAFANA_PROFILES_ENV = {
   GRAFANA_PROFILES_URL: "https://profiles-prod-019.grafana.net",
   GRAFANA_PROFILES_USER: "1558239",
