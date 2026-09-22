@@ -10,7 +10,7 @@ import {
   getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
   type SpanNode,
 } from '@/lib/otlp-utils'
-import { SpanName, SERVICE_NAME_BACKEND } from '@/lib/observability-constants'
+import { SpanName, SERVICE_NAME, SERVICE_NAME_BACKEND } from '@/lib/observability-constants'
 import { StageCard } from './stage-card'
 import { HttpMethodBadge, splitMethodSpanName, DbSystemBadge } from './log-detail-dialog'
 import { FlameGraphDialog, timelineToOverlayBars, CpuUtilizationStrip } from './flame-graph-dialog'
@@ -92,12 +92,13 @@ export function RunWaterfallDialog({
   // renders per-stage cards with, just standalone instead of chained. No percentile
   // thresholds fetched here yet (that's ArticleWorkflowDialog-only for now).
   const [selectedSpan, setSelectedSpan] = useState<OtlpSpan | null>(null)
-  // Profiling (Grafana Cloud Profiles / Pyroscope) only runs in backend/main.py's
-  // process (setup_profiling()) — the scraper is never profiled, so this button only
-  // makes sense for a backend trace. `flameGraphSpanId` is undefined for the top-level
-  // "View Profile" button (whole padded window) and set when a row's own "view profile
-  // for this span" is clicked (StageCard's onViewProfile below) — see flame-graph-dialog.tsx's
-  // FlameGraphDialogProps.spanId doc comment for what scoping by span actually narrows.
+  // Both backend/main.py and src/entrypoints/cli/main.py run their own
+  // setup_profiling() (fix/profiler_imprv) — which one applies to a given trace is
+  // resolved below via isProfiledTrace/profileService. `flameGraphSpanId` is undefined
+  // for the top-level "View Profile" button (whole padded window) and set when a row's
+  // own "view profile for this span" is clicked (StageCard's onViewProfile below) — see
+  // flame-graph-dialog.tsx's FlameGraphDialogProps.spanId doc comment for what scoping
+  // by span actually narrows.
   const [showFlameGraph, setShowFlameGraph] = useState(false)
   const [flameGraphSpanId, setFlameGraphSpanId] = useState<string | undefined>(undefined)
   // Fetched unconditionally whenever a backend trace is open (not gated behind opening
@@ -155,7 +156,14 @@ export function RunWaterfallDialog({
 
   const environment = getResourceAttr(trace, 'deployment.environment')
     ?? getResourceAttr(trace, 'resource.deployment.environment')
-  const isBackendTrace = getResourceAttr(trace, 'service.name') === SERVICE_NAME_BACKEND
+  const traceServiceName = getResourceAttr(trace, 'service.name')
+  const isBackendTrace = traceServiceName === SERVICE_NAME_BACKEND
+  const isScraperTrace = traceServiceName === SERVICE_NAME
+  // Both apps are profiled as of fix/profiler_imprv (previously backend-only) — resolves
+  // which pyroscope.configure(application_name=...) to query (backend/routers/grafana.py's
+  // `service` param) for whichever kind of trace this is.
+  const isProfiledTrace = isBackendTrace || isScraperTrace
+  const profileService: 'backend' | 'scraper' = isBackendTrace ? 'backend' : 'scraper'
 
   const startDate = root
     ? new Date(Number(rootStart / 1_000_000n)).toLocaleString()
@@ -192,9 +200,9 @@ export function RunWaterfallDialog({
   // renders nothing for an empty bars array), same graceful-degradation contract every other
   // profiling touchpoint in this codebase already has.
   useEffect(() => {
-    if (!open || !isBackendTrace || !root) return
+    if (!open || !isProfiledTrace || !root) return
     let cancelled = false
-    queryProfile({ start: flameGraphStart, end: flameGraphEnd })
+    queryProfile({ start: flameGraphStart, end: flameGraphEnd, service: profileService })
       .then(res => {
         if (cancelled || 'error' in res) return
         setProfileTimeline(res.timeline ?? null)
@@ -203,7 +211,7 @@ export function RunWaterfallDialog({
       .catch(() => {})
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isBackendTrace, traceId])
+  }, [open, isProfiledTrace, profileService, traceId])
 
   // Plain derived value, not useMemo — matches flame-graph-dialog.tsx's own `frames`
   // (layoutFlamebearer's result), a similarly cheap per-render recompute over a small array.
@@ -230,6 +238,7 @@ export function RunWaterfallDialog({
       onClose={() => { setShowFlameGraph(false); setFlameGraphSpanId(undefined) }}
       start={flameGraphStart}
       end={flameGraphEnd}
+      service={profileService}
       spanId={flameGraphSpanId}
     />
     {selectedSpan && (
@@ -243,7 +252,7 @@ export function RunWaterfallDialog({
           <StageCard
             span={selectedSpan}
             className="w-full"
-            onViewProfile={isBackendTrace ? () => {
+            onViewProfile={isProfiledTrace ? () => {
               setFlameGraphSpanId(selectedSpan.spanId)
               setShowFlameGraph(true)
             } : undefined}
@@ -265,7 +274,7 @@ export function RunWaterfallDialog({
                 {environment && <> · {environment}</>}
               </p>
             </div>
-            {isBackendTrace && root && (
+            {isProfiledTrace && root && (
               <button
                 onClick={() => { setFlameGraphSpanId(undefined); setShowFlameGraph(true) }}
                 className="shrink-0 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors cursor-pointer"

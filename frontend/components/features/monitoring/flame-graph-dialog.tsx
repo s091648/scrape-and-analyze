@@ -17,10 +17,13 @@ interface FlameGraphDialogProps {
    * enough window to be statistically meaningful). */
   start: number
   end: number
+  /** Which app's profile to query — "backend" or "scraper" (both are profiled as of
+   * fix/profiler_imprv; see queryProfile's own doc comment). Defaults to "backend". */
+  service?: 'backend' | 'scraper'
   /** OTel span_id (16 lowercase hex chars) — when given, narrows the flamebearer to CPU
-   * samples backend/observability.py's to_thread_profiled() tagged with that specific span,
-   * instead of every sample in [start, end] (fix/profiler_imprv). `start`/`end` still need
-   * to be the padded window (unchanged) — this only narrows which samples within it count. */
+   * samples the matching app's tagging helper tagged with that specific span, instead of
+   * every sample in [start, end] (fix/profiler_imprv). `start`/`end` still need to be the
+   * padded window (unchanged) — this only narrows which samples within it count. */
   spanId?: string
 }
 
@@ -58,13 +61,103 @@ export function layoutFlamebearer(flamebearer: Flamebearer): LayoutFrame[] {
   return frames
 }
 
-/** Deterministic hue per function name — the same function always gets the same color
- * across renders, without maintaining a fixed palette for open-ended function names
- * (unlike e.g. CLIENT_TYPE_CHART_COLORS, whose value set is small and known upfront). */
-function nameColor(name: string): string {
+/** Best-effort "package" grouping key for a flamebearer frame name, so every function from
+ * the same module renders in the same hue instead of each function getting an independent
+ * random color (a full-name hash reads as confetti once a stack is more than a couple of
+ * frames deep — adjacent frames in the *same* module get unrelated hues purely because
+ * their names differ). Mirrors Grafana's own Flame Graph panel, which colors a single
+ * (non-diff) profile "by package" for the same reason: width already encodes "how much
+ * time" on this axis, so color's job is "where" (which module), not re-encoding time as a
+ * heatmap — that's reserved for diff/comparison flame graphs, which this isn't.
+ *
+ * Strips a trailing "(file.py:123)" suffix if pyroscope's Python profiler includes one,
+ * then groups on everything before the last '.'/'/' — a single-segment name (e.g.
+ * "<module>", a bare builtin) falls back to itself rather than an empty key. Not yet
+ * verified against a real captured profile's exact name format (unlike e.g.
+ * layoutFlamebearer's REAL_SAMPLE fixture) — if grouping looks off against a live flame
+ * graph, adjust the separator/suffix handling here first. */
+export function frameGroupKey(name: string): string {
+  const base = name.replace(/\s*\([^)]*\)\s*$/, '')
+  const parts = base.split(/[./]/).filter(Boolean)
+  return parts.length > 1 ? parts.slice(0, -1).join('.') : base
+}
+
+/** Deterministic hue per package key — NOT a fixed/enumerable palette: any package string
+ * hashes to *some* point in the full 360° hue range, so there's no finite legend of "every
+ * possible color" to print. What buildPackageLegend() below prints instead is the actual
+ * per-package colors for whatever's in the currently open flame graph. */
+function hueForGroupKey(key: string): number {
   let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
-  return `hsl(${hash % 360}, 55%, 55%)`
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  return hash % 360
+}
+
+/** Flat, fixed-S/L representative color for a package — what the legend swatch and every
+ * frame's own color used to be before frameColor() below added per-frame heat. Still what
+ * the legend uses: a legend entry represents the whole package's identity, not one specific
+ * block's weight (the ranking + percentage text next to it already carries that). */
+function colorForGroupKey(key: string): string {
+  return `hsl(${hueForGroupKey(key)}, 55%, 55%)`
+}
+
+// t (0..1, see frameColor) maps to this saturation/lightness range — pale+light at t=0
+// ("cold", barely any self time) to vivid+dark at t=1 ("fiery", a real hot spot).
+const FRAME_SATURATION_RANGE: [number, number] = [35, 85]
+const FRAME_LIGHTNESS_RANGE: [number, number] = [60, 42]
+// White label text stops reading clearly above this lightness — switch to dark text instead
+// of picking a narrower lightness range that would compress the "pale <-> fiery" contrast
+// the whole point of this scheme is to show.
+const FRAME_DARK_TEXT_LIGHTNESS_THRESHOLD = 58
+
+/** Per-frame color: hue is the package's (see colorForGroupKey — the same hue the legend
+ * swatch for this package uses), but saturation/lightness are modulated by *this specific
+ * frame's* own share of total sampled CPU time (self/numTicks) — heavier frames render more
+ * saturated and darker ("hotter"), lighter frames closer to a pale, washed-out version of the
+ * same hue. This is the middle ground between "hue = package" (this file's prior scheme,
+ * which reads as fairly flat/uniform) and a classic flame graph's warm palette (which reads
+ * as fire but compresses many distinct packages toward the same hue — see frameGroupKey's own
+ * comment for why hue was reserved for package identity): hue still answers "which package",
+ * saturation/lightness now also answers "how hot is this exact block", without re-encoding
+ * width/total as a second full color axis the way a diff/comparison flame graph's red/blue
+ * would.
+ *
+ * selfRatio is passed through Math.sqrt, not used linearly: most frames in a whole-program
+ * capture are a tiny fraction of numTicks, so a linear ramp would leave nearly every block
+ * bunched at the pale end — sqrt spreads realistic self-time shares out across the visible
+ * range instead. */
+export function frameColor(name: string, selfRatio: number): { background: string; textColor: string } {
+  const hue = hueForGroupKey(frameGroupKey(name))
+  const t = Math.sqrt(Math.max(0, Math.min(1, selfRatio)))
+  const saturation = FRAME_SATURATION_RANGE[0] + t * (FRAME_SATURATION_RANGE[1] - FRAME_SATURATION_RANGE[0])
+  const lightness = FRAME_LIGHTNESS_RANGE[0] + t * (FRAME_LIGHTNESS_RANGE[1] - FRAME_LIGHTNESS_RANGE[0])
+  return {
+    background: `hsl(${hue}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`,
+    textColor: lightness > FRAME_DARK_TEXT_LIGHTNESS_THRESHOLD ? '#1a1a1a' : '#ffffff',
+  }
+}
+
+export interface LegendEntry { key: string; color: string; selfTicks: number }
+
+/** One legend entry per distinct package (frameGroupKey) actually present in `flamebearer`,
+ * colored exactly as nameColor() colors that package's frames, ranked by total self time
+ * (summed across every frame in that package, not frame count) — the packages actually
+ * eating CPU sort first, same ranking principle as the flame graph itself. Reads raw
+ * `flamebearer.levels` directly rather than layoutFlamebearer()'s laid-out frames — legend
+ * totals don't need x/width, only which package each frame belongs to and its own self
+ * ticks. Not capped here — FlameGraphDialog caps how many entries it renders; this returns
+ * the full ranked list so the cap stays a presentation concern. */
+export function buildPackageLegend(flamebearer: Flamebearer): LegendEntry[] {
+  const totals = new Map<string, number>()
+  flamebearer.levels.forEach(level => {
+    for (let i = 0; i < level.length; i += 4) {
+      const self = level[i + 2]
+      const key = frameGroupKey(flamebearer.names[level[i + 3]])
+      totals.set(key, (totals.get(key) ?? 0) + self)
+    }
+  })
+  return Array.from(totals.entries())
+    .map(([key, selfTicks]) => ({ key, color: colorForGroupKey(key), selfTicks }))
+    .sort((a, b) => b.selfTicks - a.selfTicks)
 }
 
 const ROW_HEIGHT = 22
@@ -77,6 +170,12 @@ const MIN_WIDTH_PCT = 0.05
 const MIN_LABEL_PCT = 1.2
 // Below this, the name fits but "name (duration)" doesn't — show just the name.
 const MIN_LABEL_WITH_DURATION_PCT = 4
+
+// Legend entries are ranked by self time (buildPackageLegend) and cut off here — a profile
+// spanning many modules can have dozens of distinct packages, and a legend that long stops
+// being a quick-reference and starts being its own scroll region. The top ones by self time
+// are the ones worth naming; everything past this is summarized as "+N more" instead.
+const MAX_LEGEND_ENTRIES = 8
 
 // Time-ruler ticks along the top — evenly spaced fractions of the total profiled
 // duration, not wall-clock time within the query window (see AxisRuler's own comment).
@@ -207,7 +306,7 @@ function AxisRuler({ totalMs }: { totalMs: number }) {
   )
 }
 
-export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGraphDialogProps) {
+export function FlameGraphDialog({ open, onClose, start, end, service, spanId }: FlameGraphDialogProps) {
   const { t } = useI18n()
   const [data, setData] = useState<FlamebearerResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -219,7 +318,7 @@ export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGra
     setLoading(true)
     setErrorKey(null)
     setData(null)
-    queryProfile({ start, end, spanId })
+    queryProfile({ start, end, service, spanId })
       .then(res => {
         if (cancelled) return
         if ('error' in res) {
@@ -231,7 +330,7 @@ export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGra
       .catch(() => { if (!cancelled) setErrorKey('fetch_failed') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open, start, end, spanId])
+  }, [open, start, end, service, spanId])
 
   const flamebearer = data?.flamebearer
   const frames = flamebearer ? layoutFlamebearer(flamebearer) : []
@@ -240,6 +339,9 @@ export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGra
   const maxDepth = frames.reduce((m, f) => Math.max(m, f.depth), 0)
   const toMs = (ticks: number) => (ticks / sampleRate) * 1000
   const timelinePoints = data?.timeline ? timelineToCpuSeries(data.timeline, sampleRate) : []
+  const legend = flamebearer ? buildPackageLegend(flamebearer) : []
+  const shownLegend = legend.slice(0, MAX_LEGEND_ENTRIES)
+  const hiddenLegendCount = legend.length - shownLegend.length
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
@@ -280,10 +382,26 @@ export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGra
                   to the root's own total, same quantity the root block's own label shows.
                   Real wall-clock time / CPU% lives in the timeline chart above instead. */}
               <AxisRuler totalMs={toMs(numTicks)} />
-              <p className="text-[10px] text-muted-foreground px-1 py-1">
+              <p className="text-[10px] text-muted-foreground px-1 pt-1">
                 {t('admin.profileLegend')}
               </p>
-              <div className="relative" style={{ height: (maxDepth + 1) * ROW_HEIGHT }}>
+              {shownLegend.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5">
+                  {shownLegend.map(entry => (
+                    <span key={entry.key} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title={entry.key}>
+                      <span className="inline-block w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ backgroundColor: entry.color }} />
+                      <span className="max-w-[16rem] truncate">{entry.key}</span>
+                      <span className="tabular-nums">{Math.round((entry.selfTicks / numTicks) * 1000) / 10}%</span>
+                    </span>
+                  ))}
+                  {hiddenLegendCount > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {t('admin.profileLegendMore', { count: hiddenLegendCount })}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div data-testid="flame-graph-frames" className="relative" style={{ height: (maxDepth + 1) * ROW_HEIGHT }}>
                 {frames.map((f, i) => {
                   const widthPct = (f.width / numTicks) * 100
                   if (widthPct < MIN_WIDTH_PCT) return null
@@ -294,16 +412,18 @@ export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGra
                     : widthPct < MIN_LABEL_WITH_DURATION_PCT
                     ? name
                     : `${name} (${durationLabel})`
+                  const { background, textColor } = frameColor(name, f.self / numTicks)
                   return (
                     <div
                       key={i}
-                      className="absolute border border-background overflow-hidden text-[10px] leading-[21px] px-1 text-white whitespace-nowrap cursor-default rounded-[2px]"
+                      className="absolute border border-background overflow-hidden text-[10px] leading-[21px] px-1 whitespace-nowrap cursor-default rounded-[2px]"
                       style={{
                         left: `${(f.x / numTicks) * 100}%`,
                         width: `${widthPct}%`,
                         top: f.depth * ROW_HEIGHT,
                         height: ROW_HEIGHT - 1,
-                        backgroundColor: nameColor(name),
+                        backgroundColor: background,
+                        color: textColor,
                       }}
                       title={`${name}\nself: ${formatDuration(toMs(f.self))}\ntotal: ${durationLabel}`}
                     >

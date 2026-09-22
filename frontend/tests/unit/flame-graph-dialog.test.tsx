@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { layoutFlamebearer, timelineToCpuSeries, timelineToOverlayBars, renderCpuTooltip } from '@/components/features/monitoring/flame-graph-dialog'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { layoutFlamebearer, timelineToCpuSeries, timelineToOverlayBars, renderCpuTooltip, frameGroupKey, buildPackageLegend, frameColor } from '@/components/features/monitoring/flame-graph-dialog'
 import type { Flamebearer, FlamebearerResponse } from '@/lib/api/grafana'
 
 vi.mock('@/lib/providers', () => ({
@@ -37,6 +37,100 @@ const REAL_SAMPLE: Flamebearer = {
   numTicks: 12060000000,
   maxSelf: 8220000000,
 }
+
+// ── frameGroupKey: the color-grouping key nameColor() hashes — same package -> same hue.
+
+describe('frameGroupKey', () => {
+  it('groups sibling functions in the same package to the same key', () => {
+    expect(frameGroupKey('src.infrastructure.collection.parsers.html_parser.parse'))
+      .toBe('src.infrastructure.collection.parsers.html_parser')
+    expect(frameGroupKey('src.infrastructure.collection.parsers.html_parser.clean'))
+      .toBe('src.infrastructure.collection.parsers.html_parser')
+  })
+
+  it('strips a trailing "(file.py:line)" suffix before grouping', () => {
+    expect(frameGroupKey('a.b.c (file.py:123)')).toBe('a.b')
+  })
+
+  it('falls back to the whole name for a single-segment frame', () => {
+    expect(frameGroupKey('<module>')).toBe('<module>')
+    expect(frameGroupKey('total')).toBe('total')
+  })
+
+  it('groups on "/" the same way as "."', () => {
+    expect(frameGroupKey('path/to/module.func')).toBe('path.to.module')
+  })
+})
+
+// ── buildPackageLegend: per-package color legend, ranked by summed self time.
+
+describe('buildPackageLegend', () => {
+  const LEGEND_SAMPLE: Flamebearer = {
+    names: ['total', 'pkg.foo', 'pkg.bar', 'other.baz'],
+    levels: [
+      [0, 100, 0, 0],
+      [0, 60, 20, 1, 0, 40, 10, 2, 0, 5, 5, 3],
+    ],
+    numTicks: 100,
+    maxSelf: 20,
+  }
+
+  it('sums self time across frames that group to the same package', () => {
+    const legend = buildPackageLegend(LEGEND_SAMPLE)
+    const pkg = legend.find(e => e.key === 'pkg')
+    expect(pkg?.selfTicks).toBe(30) // pkg.foo (20) + pkg.bar (10)
+  })
+
+  it('ranks entries by self time descending', () => {
+    const legend = buildPackageLegend(LEGEND_SAMPLE)
+    expect(legend.map(e => e.key)).toEqual(['pkg', 'other', 'total'])
+  })
+
+  it('gives every entry a color, and the same key always the same color', () => {
+    const legend = buildPackageLegend(LEGEND_SAMPLE)
+    const pkg = legend.find(e => e.key === 'pkg')!
+    expect(pkg.color).toMatch(/^hsl\(\d+, 55%, 55%\)$/)
+    // Re-running on the same data must be deterministic (same hash every time).
+    const legend2 = buildPackageLegend(LEGEND_SAMPLE)
+    expect(legend2.find(e => e.key === 'pkg')!.color).toBe(pkg.color)
+  })
+})
+
+// ── frameColor: hue = package (same as buildPackageLegend/colorForGroupKey), but
+// saturation/lightness scale with the frame's own self-time share ("heat").
+
+function parseHsl(color: string): { h: number; s: number; l: number } {
+  const m = color.match(/^hsl\((\d+), (\d+)%, (\d+)%\)$/)
+  if (!m) throw new Error(`not an hsl() string: ${color}`)
+  return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) }
+}
+
+describe('frameColor', () => {
+  it('gives two frames in the same package the same hue regardless of self ratio', () => {
+    const cold = parseHsl(frameColor('pkg.foo', 0).background)
+    const hot = parseHsl(frameColor('pkg.bar', 1).background)
+    expect(cold.h).toBe(hot.h) // both group to "pkg"
+  })
+
+  it('a hotter frame (higher self ratio) is more saturated and darker than a colder one', () => {
+    const cold = parseHsl(frameColor('pkg.foo', 0.01).background)
+    const hot = parseHsl(frameColor('pkg.foo', 0.9).background)
+    expect(hot.s).toBeGreaterThan(cold.s)
+    expect(hot.l).toBeLessThan(cold.l)
+  })
+
+  it('clamps out-of-range self ratios instead of producing an invalid color', () => {
+    expect(() => parseHsl(frameColor('pkg.foo', -1).background)).not.toThrow()
+    expect(() => parseHsl(frameColor('pkg.foo', 5).background)).not.toThrow()
+  })
+
+  it('switches to dark text once the background gets light enough to need it', () => {
+    const paleFrame = frameColor('pkg.foo', 0)
+    const fieryFrame = frameColor('pkg.foo', 1)
+    expect(paleFrame.textColor).toBe('#1a1a1a')
+    expect(fieryFrame.textColor).toBe('#ffffff')
+  })
+})
 
 describe('layoutFlamebearer', () => {
   it('resolves single-frame levels to x=0', () => {
@@ -214,8 +308,12 @@ describe('FlameGraphDialog', () => {
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
     render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
     await waitFor(() => expect(screen.getByText(/^wide_fn \(/)).toBeTruthy())
-    expect(screen.getByText('narrow_fn')).toBeTruthy() // exact match — no "(duration)" suffix
-    expect(screen.queryByText(/sliver_fn/)).toBeNull() // rendered, but unlabelled
+    // Scoped to the frames area, not the whole screen — buildPackageLegend's own legend row
+    // (fix/profiler_imprv) also prints each package's bare name, which would otherwise
+    // collide with this exact-text match on the flame block itself.
+    const frames = within(screen.getByTestId('flame-graph-frames'))
+    expect(frames.getByText('narrow_fn')).toBeTruthy() // exact match — no "(duration)" suffix
+    expect(frames.queryByText(/sliver_fn/)).toBeNull() // rendered, but unlabelled
   })
 
   it('shows the CPU-over-time chart label when the response includes a timeline', async () => {
@@ -301,9 +399,14 @@ describe('FlameGraphDialog', () => {
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
     render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
-    await waitFor(() => expect(screen.getByText(/^visible_fn/)).toBeTruthy())
+    // Scoped to the frames area — buildPackageLegend's own legend row (fix/profiler_imprv)
+    // also lists invisible_fn (it's ranked by self time, not rendered width, so a dropped
+    // frame can still show up there) with a `title` of its own, which would otherwise
+    // collide with these queries.
+    const frames = within(await waitFor(() => screen.getByTestId('flame-graph-frames')))
+    expect(frames.getByText(/^visible_fn/)).toBeTruthy()
     // invisible_fn is 0.01% of total — below MIN_WIDTH_PCT (0.05%) — dropped entirely.
-    expect(screen.queryByTitle(/invisible_fn/)).toBeNull()
+    expect(frames.queryByTitle(/invisible_fn/)).toBeNull()
   })
 })
 

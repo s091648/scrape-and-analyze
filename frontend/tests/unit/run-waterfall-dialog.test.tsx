@@ -158,8 +158,9 @@ describe('RunWaterfallDialog header', () => {
     expect(screen.getByTestId('dialog').textContent).toContain('staging')
   })
 
-  // Profiling (Grafana Cloud Profiles) only runs in backend/main.py's process — the
-  // "View Profile" button only makes sense, and only shows, for a backend trace.
+  // Both backend/main.py and src/entrypoints/cli/main.py run setup_profiling() as of
+  // fix/profiler_imprv — the "View Profile" button shows for either app's trace, not
+  // backend-only anymore.
   it('shows the View Profile button for a backend trace', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
@@ -178,7 +179,7 @@ describe('RunWaterfallDialog header', () => {
     expect(screen.getByText('admin.viewProfile')).toBeTruthy()
   })
 
-  it('hides the View Profile button for a scraper trace', async () => {
+  it('shows the View Profile button for a scraper trace', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
     )
@@ -190,6 +191,24 @@ describe('RunWaterfallDialog header', () => {
         trace={makeTrace(
           [makeSpan()],
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    )
+    expect(screen.getByText('admin.viewProfile')).toBeTruthy()
+  })
+
+  it('hides the View Profile button for a trace from neither profiled app', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
         )}
       />
     )
@@ -506,10 +525,10 @@ describe('RunWaterfallDialog topic rows', () => {
   })
 })
 
-// fix/profiler_imprv: the CPU-utilization overlay row (always fetched for a backend trace,
-// not gated behind opening FlameGraphDialog) and the per-span "view profile for this span"
-// button (StageCard's onViewProfile), which scopes FlameGraphDialog's query to just that
-// span_id instead of the whole padded window.
+// fix/profiler_imprv: the CPU-utilization overlay row (always fetched for a profiled trace —
+// backend or scraper — not gated behind opening FlameGraphDialog) and the per-span "view
+// profile for this span" button (StageCard's onViewProfile), which scopes FlameGraphDialog's
+// query to just that span_id instead of the whole padded window.
 describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
   function mockFetchProfile(body: unknown) {
     global.fetch = vi.fn((url: unknown) => {
@@ -545,6 +564,33 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
     )
     await vi.waitFor(() => {
       expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
+    })
+  })
+
+  it('queries the scraper profile (service=scraper) for a scraper trace', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    )
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('/grafana/profile') && u.includes('service=scraper'))).toBe(true)
     })
   })
 
@@ -591,7 +637,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
     })
   })
 
-  it('does not show a per-span view-profile button for a scraper trace', async () => {
+  it('shows a per-span view-profile button for a scraper trace too', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
     )
@@ -608,6 +654,26 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
       />
     )
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    expect(screen.getByTitle('admin.viewSpanProfile')).toBeTruthy()
+  })
+
+  it('does not show a per-span view-profile button for a trace from neither profiled app', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root0001', name: 'other.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('other.run').closest('tr')!)
     expect(screen.queryByTitle('admin.viewSpanProfile')).toBeNull()
   })
 })

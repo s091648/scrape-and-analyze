@@ -326,11 +326,16 @@ export async function queryTraceById(traceId: string): Promise<OtlpTraceResponse
 // span's own (padded) time window (RunWaterfallDialog calls this, not a per-child-span
 // window — see its FLAME_GRAPH_PADDING_SECONDS comment for why span_id below narrows
 // *which* samples count within that window rather than shrinking the window itself).
+// service: which app's profile to query — "backend" (default, matches the backend route's
+// own default) or "scraper". Both push to the same Grafana Cloud Profiles instance,
+// distinguished by their own pyroscope.configure(application_name=...) — see
+// backend/observability.py's to_thread_profiled() / src/infrastructure/shared/observability's
+// run_tagged_for_profiling() (fix/profiler_imprv).
 // spanId: an OTel span_id (16 lowercase hex chars) — when given, scopes the flamebearer to
-// just the CPU samples backend/observability.py's to_thread_profiled() tagged with that
-// span (fix/profiler_imprv). Omit for the whole-window view FlameGraphDialog defaults to.
-export async function queryProfile(params: { start: number; end: number; spanId?: string }): Promise<FlamebearerResponse> {
-  const p = buildParams({ start: params.start, end: params.end, span_id: params.spanId })
+// just the CPU samples the matching app tagged with that span. Omit for the whole-window
+// view FlameGraphDialog defaults to.
+export async function queryProfile(params: { start: number; end: number; service?: 'backend' | 'scraper'; spanId?: string }): Promise<FlamebearerResponse> {
+  const p = buildParams({ start: params.start, end: params.end, service: params.service, span_id: params.spanId })
   const res = await fetch(`/api/proxy/grafana/profile?${p.toString()}`, {
     headers: await authHeaders(),
   })
