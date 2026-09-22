@@ -17,6 +17,11 @@ interface FlameGraphDialogProps {
    * enough window to be statistically meaningful). */
   start: number
   end: number
+  /** OTel span_id (16 lowercase hex chars) — when given, narrows the flamebearer to CPU
+   * samples backend/observability.py's to_thread_profiled() tagged with that specific span,
+   * instead of every sample in [start, end] (fix/profiler_imprv). `start`/`end` still need
+   * to be the padded window (unchanged) — this only narrows which samples within it count. */
+  spanId?: string
 }
 
 export interface LayoutFrame {
@@ -120,6 +125,58 @@ export function renderCpuTooltip(props: any) {
   )
 }
 
+export interface CpuOverlayBar { offsetPct: number; widthPct: number; cpuPct: number }
+
+/** Positions each timeline bucket against [rootStartNs, rootStartNs + rootDurationNs] — the
+ * exact same bigint coordinate space RunWaterfallDialog's SpanBar uses for its span rows —
+ * so a CPU-utilization strip built from these bars lines up pixel-for-pixel with the span
+ * bars beneath it. A bucket entirely outside that window is dropped; one straddling an edge
+ * is clamped, mirroring SpanBar's own clamping. Distinct from timelineToCpuSeries above:
+ * that one is for FlameGraphDialog's own standalone Recharts panel (categorical time-string
+ * x-axis, no alignment concerns); this one is for overlaying onto an existing bigint-ns
+ * coordinate space instead. */
+export function timelineToOverlayBars(
+  timeline: FlamebearerTimeline, sampleRate: number, rootStartNs: bigint, rootDurationNs: bigint,
+): CpuOverlayBar[] {
+  if (rootDurationNs <= 0n) return []
+  const bucketCapacity = timeline.durationDelta * sampleRate
+  if (bucketCapacity <= 0) return []
+  const rootEndNs = rootStartNs + rootDurationNs
+  const bucketDurationNs = BigInt(Math.round(timeline.durationDelta * 1_000_000_000))
+  const timelineStartNs = BigInt(Math.round(timeline.startTime * 1_000_000_000))
+  const bars: CpuOverlayBar[] = []
+  timeline.samples.forEach((value, i) => {
+    const bucketStartNs = timelineStartNs + BigInt(i) * bucketDurationNs
+    const bucketEndNs = bucketStartNs + bucketDurationNs
+    if (bucketEndNs <= rootStartNs || bucketStartNs >= rootEndNs) return
+    const clampedStart = bucketStartNs < rootStartNs ? rootStartNs : bucketStartNs
+    const clampedEnd = bucketEndNs > rootEndNs ? rootEndNs : bucketEndNs
+    const offsetPct = Math.max(0, Number((clampedStart - rootStartNs) * 10000n / rootDurationNs) / 100)
+    const widthPct = Math.max(0.3, Number((clampedEnd - clampedStart) * 10000n / rootDurationNs) / 100)
+    bars.push({ offsetPct, widthPct, cpuPct: Math.round((value / bucketCapacity) * 1000) / 10 })
+  })
+  return bars
+}
+
+/** Compact heat-strip for RunWaterfallDialog — same visual language as SpanBar (an
+ * absolutely-positioned row of blocks), opacity-coded by cpuPct instead of a second chart,
+ * so it reads as "part of the waterfall" rather than a separate panel. */
+export function CpuUtilizationStrip({ bars }: { bars: CpuOverlayBar[] }) {
+  if (bars.length === 0) return null
+  return (
+    <div className="relative h-3 bg-muted/40 rounded w-full min-w-[80px]">
+      {bars.map((bar, i) => (
+        <div
+          key={i}
+          className="absolute h-full bg-amber-500 rounded-[1px]"
+          style={{ left: `${bar.offsetPct}%`, width: `${bar.widthPct}%`, opacity: Math.max(0.12, bar.cpuPct / 100) }}
+          title={`${bar.cpuPct}% CPU`}
+        />
+      ))}
+    </div>
+  )
+}
+
 function CpuTimelineChart({ points }: { points: TimelinePoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={TIMELINE_CHART_HEIGHT}>
@@ -150,7 +207,7 @@ function AxisRuler({ totalMs }: { totalMs: number }) {
   )
 }
 
-export function FlameGraphDialog({ open, onClose, start, end }: FlameGraphDialogProps) {
+export function FlameGraphDialog({ open, onClose, start, end, spanId }: FlameGraphDialogProps) {
   const { t } = useI18n()
   const [data, setData] = useState<FlamebearerResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -162,7 +219,7 @@ export function FlameGraphDialog({ open, onClose, start, end }: FlameGraphDialog
     setLoading(true)
     setErrorKey(null)
     setData(null)
-    queryProfile({ start, end })
+    queryProfile({ start, end, spanId })
       .then(res => {
         if (cancelled) return
         if ('error' in res) {
@@ -174,7 +231,7 @@ export function FlameGraphDialog({ open, onClose, start, end }: FlameGraphDialog
       .catch(() => { if (!cancelled) setErrorKey('fetch_failed') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [open, start, end])
+  }, [open, start, end, spanId])
 
   const flamebearer = data?.flamebearer
   const frames = flamebearer ? layoutFlamebearer(flamebearer) : []
@@ -189,6 +246,11 @@ export function FlameGraphDialog({ open, onClose, start, end }: FlameGraphDialog
       <DialogContent className="max-w-[90vw] sm:max-w-[90vw] max-h-[85vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('admin.profileDialogTitle')}</DialogTitle>
+          {spanId && (
+            <p className="text-xs text-muted-foreground font-mono">
+              {t('admin.profileScopedToSpan', { id: spanId })}
+            </p>
+          )}
         </DialogHeader>
         <div className="themed-scrollbar overflow-auto flex-1 min-h-0">
           {loading && (

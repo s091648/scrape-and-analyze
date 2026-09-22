@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from typing import Optional
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from backend.auth.guards import require_admin
+from shared.domain.exceptions import ValidationError
 from backend.config import (
     GRAFANA_PROMETHEUS_URL,
     GRAFANA_PROMETHEUS_USER,
@@ -35,6 +37,14 @@ from shared.enums.observability import SERVICE_NAME_BACKEND
 # param — there's only ever one value, and it keeps Pyroscope's query-selector syntax
 # off the client entirely (this endpoint takes a time range, nothing else).
 _PROFILE_TYPE = "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+
+# fix/profiler_imprv: an OTel span_id, exactly as backend/observability.py's
+# to_thread_profiled() tags CPU samples with (format(ctx.span_id, "016x")) — 16 lowercase
+# hex chars. Validated before being interpolated into the Pyroscope query selector below
+# (query_profile is require_admin-gated, but the value is still caller-controlled input
+# flowing into a downstream query language, same reasoning as ssr-fetch.ts's
+# TOPIC_ID_PATTERN on the frontend).
+_SPAN_ID_PATTERN = re.compile(r"^[0-9a-f]{16}$")
 
 router = APIRouter(prefix="/grafana", tags=["grafana"])
 
@@ -237,6 +247,17 @@ async def get_trace_by_id(
 async def query_profile(
     start: int = Query(...),
     end: int = Query(...),
+    span_id: Optional[str] = Query(
+        default=None,
+        description="Narrows the flamebearer to CPU samples tagged with this OTel span_id "
+                     "by backend/observability.py's to_thread_profiled() — currently only "
+                     "search_service.py's sync-Session DB calls tag their samples this way, "
+                     "so any other span_id returns an empty (but successful) flamebearer, "
+                     "same as a time window with no samples. `start`/`end` still bound the "
+                     "query the same as without this filter (see the padding-window comment "
+                     "below) — this narrows *which* samples in that window count, not the "
+                     "window itself.",
+    ),
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
     """CPU flamebearer for the backend service over [start, end] (unix seconds) —
@@ -250,7 +271,12 @@ async def query_profile(
     api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
-    query = f'{_PROFILE_TYPE}{{service_name="{SERVICE_NAME_BACKEND}"}}'
+    selector = f'service_name="{SERVICE_NAME_BACKEND}"'
+    if span_id is not None:
+        if not _SPAN_ID_PATTERN.match(span_id):
+            raise ValidationError("span_id must be 16 lowercase hex characters")
+        selector += f',span_id="{span_id}"'
+    query = f'{_PROFILE_TYPE}{{{selector}}}'
     return await grafana_get(
         f"{url}/pyroscope/render",
         {"query": query, "from": start, "until": end, "format": "json"},

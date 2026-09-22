@@ -261,6 +261,41 @@ def test_profile_returns_flamebearer_body_with_correct_query_selector():
     assert call_kwargs["params"]["format"] == "json"
 
 
+def test_profile_with_span_id_adds_label_matcher_to_query_selector():
+    """fix/profiler_imprv: span_id narrows *which* samples in [start, end] count — appended
+    as a second label matcher on the same selector, not a separate query param Pyroscope
+    would understand."""
+    body = {
+        "version": 1,
+        "flamebearer": {"names": ["total"], "levels": [[0, 100, 0, 0]], "numTicks": 100, "maxSelf": 0},
+        "metadata": {"format": "single", "sampleRate": 1000000000, "units": "samples", "name": "cpu"},
+    }
+    mock_client = _mock_httpx(200, body)
+    with _grafana_env(_PROFILES_ENV) as app:
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            resp = TestClient(app).get(
+                "/grafana/profile",
+                params={"start": 1000, "end": 2000, "span_id": "0123456789abcdef"},
+                headers=auth(),
+            )
+    assert resp.status_code == 200
+    call_kwargs = mock_client.get.call_args.kwargs
+    assert call_kwargs["params"]["query"] == (
+        'process_cpu:cpu:nanoseconds:cpu:nanoseconds'
+        '{service_name="scrape-analyzer-backend",span_id="0123456789abcdef"}'
+    )
+
+
+def test_profile_rejects_malformed_span_id():
+    with _grafana_env(_PROFILES_ENV) as app:
+        resp = TestClient(app).get(
+            "/grafana/profile",
+            params={"start": 1000, "end": 2000, "span_id": "not-a-span-id"},
+            headers=auth(),
+        )
+    assert resp.status_code == 400
+
+
 def test_trace_by_id_normalises_resource_spans_to_batches():
     """Tempo OTLP JSON uses resourceSpans; backend normalises it to batches."""
     otlp_body = {"resourceSpans": [{"resource": {}, "scopeSpans": []}]}

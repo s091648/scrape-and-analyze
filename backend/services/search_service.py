@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from shared.domain.exceptions import ExternalDependencyError
 from shared.search_index.tokenizer import tokenize
+from backend.observability import to_thread_profiled
 from backend.config import (
     SEARCH_AUTOCOMPLETE_MAX_QUERY_LEN,
     RAG_DENSE_PROVIDER, RAG_DENSE_MODEL, RAG_DENSE_DIMENSION, RAG_DENSE_API_KEY_ENV,
@@ -506,18 +507,30 @@ async def search_articles_hybrid(
     a non-English query can only ever literally match the corresponding translation, never
     the English original — which language's terms `exact_match`/`exact_match_only` are
     checked against."""
-    filtered_ids = _filtered_article_ids(
+    # Every call below that touches `db` is a plain sync-Session DB round trip — routed
+    # through to_thread_profiled (not called directly) so it runs on its own worker thread
+    # instead of blocking this coroutine's event loop for the round trip's full duration
+    # (this function is a genuine `async def`, awaited directly from `async def search()` in
+    # backend/routers/search.py — unlike backend/routers/auth.py's plain `def` routes, which
+    # FastAPI already thread-pools on its own, nothing here was previously being offloaded).
+    # Calls stay sequential (never asyncio.gather'd) rather than run concurrently: `db` is a
+    # sync SQLAlchemy Session, not safe to use from two threads at once, so awaiting one
+    # to_thread call before starting the next — same execution order as before this change —
+    # is required for correctness, not just simplicity.
+    filtered_ids = await to_thread_profiled(
+        _filtered_article_ids,
         db, topic_id, aggregators, original_sources, tags, tag_groups,
         published_after, published_before, scraped_after, scraped_before,
     )
 
     if exact_match_only:
-        return _search_exact_match_only(
+        return await to_thread_profiled(
+            _search_exact_match_only,
             db, query, topic_id, page, size, lang,
             filtered_ids=filtered_ids, sort=sort, order=order,
         )
 
-    exact_match_ids = _exact_match_article_ids(db, query, topic_id, lang) or set()
+    exact_match_ids = await to_thread_profiled(_exact_match_article_ids, db, query, topic_id, lang) or set()
 
     candidate_k = size * _CANDIDATE_MULTIPLIER
 
@@ -526,14 +539,16 @@ async def search_articles_hybrid(
         raise ExternalDependencyError("Neither a dense nor a sparse embedding provider is configured")
 
     sparse_rows = (
-        _run_vector_query(
+        await to_thread_profiled(
+            _run_vector_query,
             db, "sparse_vector", "sparsevec", _sparse_vec_literal(sparse_weights), topic_id, candidate_k,
             filtered_ids=filtered_ids,
         )
         if sparse_weights is not None else []
     )
     dense_rows = (
-        _run_vector_query(
+        await to_thread_profiled(
+            _run_vector_query,
             db, "dense_vector", "vector", _dense_vec_literal(dense_values), topic_id, candidate_k,
             filtered_ids=filtered_ids,
         )
@@ -552,7 +567,9 @@ async def search_articles_hybrid(
     # purely a display concern (translated_title/translated_content).
     trans_map: dict = {}
     if lang != "en" and page_rows:
-        trans_map = _fetch_translations(db, [str(row["id"]) for row, _score in page_rows], lang)
+        trans_map = await to_thread_profiled(
+            _fetch_translations, db, [str(row["id"]) for row, _score in page_rows], lang,
+        )
 
     exact_match_str_ids = {str(article_id) for article_id in exact_match_ids}
     items = []

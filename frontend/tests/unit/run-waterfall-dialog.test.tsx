@@ -506,6 +506,112 @@ describe('RunWaterfallDialog topic rows', () => {
   })
 })
 
+// fix/profiler_imprv: the CPU-utilization overlay row (always fetched for a backend trace,
+// not gated behind opening FlameGraphDialog) and the per-span "view profile for this span"
+// button (StageCard's onViewProfile), which scopes FlameGraphDialog's query to just that
+// span_id instead of the whole padded window.
+describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
+  function mockFetchProfile(body: unknown) {
+    global.fetch = vi.fn((url: unknown) => {
+      if (typeof url === 'string' && url.includes('/grafana/profile')) {
+        return Promise.resolve({ ok: true, json: async () => body })
+      }
+      return Promise.resolve({ ok: false, json: async () => ({ error: 'not_configured' }) })
+    }) as unknown as typeof fetch
+  }
+
+  it('shows the CPU-utilization overlay row once profile timeline data loads', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    // Bucket [1700000000s, 1700000010s) exactly covers makeSpan()'s own [start, end) —
+    // lands fully inside the (unpadded) root window, so overlayBars comes back non-empty.
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
+    })
+  })
+
+  it('does not show the overlay row when the profile fetch returns no data', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    expect(screen.queryByText('admin.waterfallCpuRowLabel')).toBeNull()
+  })
+
+  it('opens the flame graph scoped to that span_id when its view-profile button is clicked', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root0001', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    fireEvent.click(screen.getByTitle('admin.viewSpanProfile'))
+
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('span_id=root0001'))).toBe(true)
+    })
+  })
+
+  it('does not show a per-span view-profile button for a scraper trace', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root0001', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    )
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    expect(screen.queryByTitle('admin.viewSpanProfile')).toBeNull()
+  })
+})
+
 describe('RunWaterfallDialog span detail preview', () => {
   it('opens a StageCard preview dialog when a non-pipeline/topic row is clicked', async () => {
     const { RunWaterfallDialog } = await import(

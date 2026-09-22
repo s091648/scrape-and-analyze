@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
-import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
+import { queryProfile, type OtlpTraceResponse, type OtlpSpan, type FlamebearerTimeline } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
   getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
@@ -13,7 +13,7 @@ import {
 import { SpanName, SERVICE_NAME_BACKEND } from '@/lib/observability-constants'
 import { StageCard } from './stage-card'
 import { HttpMethodBadge, splitMethodSpanName, DbSystemBadge } from './log-detail-dialog'
-import { FlameGraphDialog } from './flame-graph-dialog'
+import { FlameGraphDialog, timelineToOverlayBars, CpuUtilizationStrip } from './flame-graph-dialog'
 import { cn } from '@/lib/utils'
 import { Activity } from 'lucide-react'
 
@@ -94,9 +94,18 @@ export function RunWaterfallDialog({
   const [selectedSpan, setSelectedSpan] = useState<OtlpSpan | null>(null)
   // Profiling (Grafana Cloud Profiles / Pyroscope) only runs in backend/main.py's
   // process (setup_profiling()) — the scraper is never profiled, so this button only
-  // makes sense for a backend trace. Root-level, not per-child-span: see
-  // flame-graph-dialog.tsx's own doc comment for why.
+  // makes sense for a backend trace. `flameGraphSpanId` is undefined for the top-level
+  // "View Profile" button (whole padded window) and set when a row's own "view profile
+  // for this span" is clicked (StageCard's onViewProfile below) — see flame-graph-dialog.tsx's
+  // FlameGraphDialogProps.spanId doc comment for what scoping by span actually narrows.
   const [showFlameGraph, setShowFlameGraph] = useState(false)
+  const [flameGraphSpanId, setFlameGraphSpanId] = useState<string | undefined>(undefined)
+  // Fetched unconditionally whenever a backend trace is open (not gated behind opening
+  // FlameGraphDialog) — powers the always-visible CPU-utilization strip in the waterfall
+  // itself (see CpuUtilizationStrip usage below), so the "is this gap actually CPU-bound or
+  // just idle" question a span waterfall alone can't answer is visible without an extra click.
+  const [profileTimeline, setProfileTimeline] = useState<FlamebearerTimeline | null>(null)
+  const [profileSampleRate, setProfileSampleRate] = useState(1)
 
   // Default: collapse spans at depth >= 1 (second level and deeper)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -179,6 +188,29 @@ export function RunWaterfallDialog({
     ? Math.floor(Number((rootStart + rootDurationNs) / 1_000_000_000n)) + FLAME_GRAPH_PADDING_SECONDS
     : 0
 
+  // Best-effort — a failed/unconfigured fetch just leaves the strip absent (CpuUtilizationStrip
+  // renders nothing for an empty bars array), same graceful-degradation contract every other
+  // profiling touchpoint in this codebase already has.
+  useEffect(() => {
+    if (!open || !isBackendTrace || !root) return
+    let cancelled = false
+    queryProfile({ start: flameGraphStart, end: flameGraphEnd })
+      .then(res => {
+        if (cancelled || 'error' in res) return
+        setProfileTimeline(res.timeline ?? null)
+        setProfileSampleRate(res.metadata?.sampleRate || 1)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isBackendTrace, traceId])
+
+  // Plain derived value, not useMemo — matches flame-graph-dialog.tsx's own `frames`
+  // (layoutFlamebearer's result), a similarly cheap per-render recompute over a small array.
+  const overlayBars = profileTimeline
+    ? timelineToOverlayBars(profileTimeline, profileSampleRate, rootStart, rootDurationNs)
+    : []
+
   function toggle(spanId: string) {
     setCollapsed(prev => {
       const next = new Set(prev)
@@ -195,9 +227,10 @@ export function RunWaterfallDialog({
     <>
     <FlameGraphDialog
       open={showFlameGraph}
-      onClose={() => setShowFlameGraph(false)}
+      onClose={() => { setShowFlameGraph(false); setFlameGraphSpanId(undefined) }}
       start={flameGraphStart}
       end={flameGraphEnd}
+      spanId={flameGraphSpanId}
     />
     {selectedSpan && (
       <Dialog open onOpenChange={v => { if (!v) setSelectedSpan(null) }}>
@@ -207,7 +240,14 @@ export function RunWaterfallDialog({
               {selectedSpan.name.split('.').slice(-2).join('.')}
             </DialogTitle>
           </DialogHeader>
-          <StageCard span={selectedSpan} className="w-full" />
+          <StageCard
+            span={selectedSpan}
+            className="w-full"
+            onViewProfile={isBackendTrace ? () => {
+              setFlameGraphSpanId(selectedSpan.spanId)
+              setShowFlameGraph(true)
+            } : undefined}
+          />
         </DialogContent>
       </Dialog>
     )}
@@ -227,7 +267,7 @@ export function RunWaterfallDialog({
             </div>
             {isBackendTrace && root && (
               <button
-                onClick={() => setShowFlameGraph(true)}
+                onClick={() => { setFlameGraphSpanId(undefined); setShowFlameGraph(true) }}
                 className="shrink-0 inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border text-muted-foreground hover:border-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 <Activity className="h-3 w-3" />
@@ -245,6 +285,22 @@ export function RunWaterfallDialog({
                 <th className="text-right py-1.5 px-4 font-medium text-muted-foreground w-20">{t('admin.traceColumnDuration')}</th>
                 <th className="text-left py-1.5 pl-2 font-medium text-muted-foreground">{t('admin.waterfallColumnTimeline')}</th>
               </tr>
+              {/* CPU-utilization strip, aligned to the same rootStart/rootDurationNs coordinate
+                  space every SpanBar row below uses — so "was the CPU actually busy here" can
+                  be read directly against the span gaps beneath it, not just guessed from them.
+                  Absent entirely (not just empty) whenever profiling isn't configured or this
+                  window has no samples — overlayBars is [] in both cases. */}
+              {overlayBars.length > 0 && (
+                <tr className="border-b border-border/50">
+                  <th className="text-left py-1 pr-4 font-normal text-[10px] text-muted-foreground w-[40%]">
+                    {t('admin.waterfallCpuRowLabel')}
+                  </th>
+                  <th className="py-1 px-4 w-20" />
+                  <th className="text-left py-1 pl-2 font-normal">
+                    <CpuUtilizationStrip bars={overlayBars} />
+                  </th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {rows.map(({ span, depth, hasChildren }) => {

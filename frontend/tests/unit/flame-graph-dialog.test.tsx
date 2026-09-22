@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { layoutFlamebearer, timelineToCpuSeries, renderCpuTooltip } from '@/components/features/monitoring/flame-graph-dialog'
+import { layoutFlamebearer, timelineToCpuSeries, timelineToOverlayBars, renderCpuTooltip } from '@/components/features/monitoring/flame-graph-dialog'
 import type { Flamebearer, FlamebearerResponse } from '@/lib/api/grafana'
 
 vi.mock('@/lib/providers', () => ({
@@ -88,6 +88,47 @@ describe('timelineToCpuSeries', () => {
       1_000_000_000,
     )
     expect(points).toEqual([])
+  })
+})
+
+// ── timelineToOverlayBars: positions timeline buckets against RunWaterfallDialog's own
+// [rootStartNs, rootStartNs+rootDurationNs] bigint coordinate space (fix/profiler_imprv) —
+// window [5s, 8s]; bucket 0 ([0s,5s)) ends exactly at rootStart so is dropped entirely,
+// bucket 1 ([5s,10s)) straddles the window's own end and is clamped to it, bucket 2
+// ([10s,15s)) starts after the window ends so is dropped. ────────────────────────────────
+
+describe('timelineToOverlayBars', () => {
+  it('drops buckets outside the window and clamps one straddling its edge', () => {
+    const bars = timelineToOverlayBars(
+      { startTime: 0, samples: [0, 4_000_000_000, 3_000_000_000], durationDelta: 5, watermarks: null },
+      1_000_000_000,
+      5_000_000_000n,
+      3_000_000_000n,
+    )
+    expect(bars).toHaveLength(1)
+    expect(bars[0].offsetPct).toBeCloseTo(0, 5)
+    expect(bars[0].widthPct).toBeCloseTo(100, 5)
+    expect(bars[0].cpuPct).toBeCloseTo(80, 5)
+  })
+
+  it('returns no bars for a zero-width root window', () => {
+    const bars = timelineToOverlayBars(
+      { startTime: 0, samples: [1_000_000_000], durationDelta: 5, watermarks: null },
+      1_000_000_000,
+      0n,
+      0n,
+    )
+    expect(bars).toEqual([])
+  })
+
+  it('returns no bars for a zero-width timeline bucket instead of dividing by zero', () => {
+    const bars = timelineToOverlayBars(
+      { startTime: 0, samples: [1], durationDelta: 0, watermarks: null },
+      1_000_000_000,
+      0n,
+      10_000_000_000n,
+    )
+    expect(bars).toEqual([])
   })
 })
 
