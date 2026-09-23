@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo, Fragment } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
-import { queryTraces, queryTraceById, type TempoTrace, type TempoResponse, type OtlpTraceResponse, type OtlpSpan } from '@/lib/api/grafana'
+import { queryTraces, type TempoTrace, type TempoResponse, type OtlpTraceResponse, type OtlpSpan } from '@/lib/api/grafana'
+import { fetchTraceDetail } from '@/lib/api/trace-detail-cache'
 import { TablePanel } from '@/components/ui/table-panel'
 import { MultiSelectPopover } from '@/components/common/multi-select-popover'
 import { useI18n } from '@/lib/providers'
@@ -310,7 +311,7 @@ export function TracesTable({
     if (traceDetails.has(traceId)) return
     setLoadingTrace(prev => new Set([...prev, traceId]))
     try {
-      const data = await queryTraceById(traceId)
+      const data = await fetchTraceDetail(traceId)
       setDetails(prev => new Map([...prev, [traceId, data]]))
     } catch {
       // On fetch error, expanded row shows "No articles" fallback (detail map entry absent)
@@ -325,7 +326,7 @@ export function TracesTable({
     const data = traceDetails.get(trace.traceID)
     if (!data) {
       // If detail not loaded yet, load it then open
-      queryTraceById(trace.traceID).then(d => {
+      fetchTraceDetail(trace.traceID).then(d => {
         setDetails(prev => new Map([...prev, [trace.traceID, d]]))
         setWaterfallTarget({ traceId: trace.traceID, data: d })
       })
