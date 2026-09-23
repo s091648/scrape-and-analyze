@@ -247,7 +247,8 @@ test-src-integration-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/integration/ \
 		-v --tb=short -m integration \
-		--cov=src \
+		--cov=src --cov=shared \
+		--cov-config=src/tests/integration/.coveragerc \
 		--cov-report=html:src/tests/htmlcov-integration \
 		--cov-report=term
 

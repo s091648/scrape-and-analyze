@@ -69,6 +69,8 @@ def db_engine():
     from models.llm_provider import LlmProvider  # noqa: F401
     from models.metric_definition import MetricDefinition  # noqa: F401
     from models.metric_provider import MetricProvider  # noqa: F401
+    from models.search_term import SearchTerm  # noqa: F401
+    from models.search_term_article import SearchTermArticle  # noqa: F401
     from models.user_subscription import (  # noqa: F401
         UserTopicSubscription, UserNotificationSettings, UserArticleFavorite,
     )
@@ -135,6 +137,24 @@ async def async_db_session(db_engine):
         yield session
         await session.rollback()
 
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def test_async_sessionmaker(db_engine):
+    """An async_sessionmaker (not a single session) bound to the same isolated test
+    schema — for code that opens its own sessions per unit of work, e.g. what
+    build_collection_pipeline() / CollectionPipeline get in place of the app's
+    get_async_sessionmaker(). Function-scoped for the same event-loop reason as
+    async_db_session above."""
+    from src.infrastructure.persistence.database import _to_asyncpg_url
+
+    DDD_SCHEMAS = {"core", "collection", "intelligence", "ai_infra", "user_prefs"}
+    engine = create_async_engine(
+        _to_asyncpg_url(os.environ["DATABASE_URL"]),
+        connect_args={"server_settings": {"search_path": f"{TEST_SCHEMA},public"}},
+    ).execution_options(schema_translate_map={schema: TEST_SCHEMA for schema in DDD_SCHEMAS})
+    yield async_sessionmaker(bind=engine, expire_on_commit=False)
     await engine.dispose()
 
 
