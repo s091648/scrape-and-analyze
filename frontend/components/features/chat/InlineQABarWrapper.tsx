@@ -112,9 +112,11 @@ export function InlineQABarWrapper({ placeholder, className, onMessageSent, onCo
             {t('rag.dropToPin')}
           </div>
         )}
-        {quotaText && (
-          <p className="mt-1 text-right text-[11px] text-muted-foreground">{quotaText}</p>
-        )}
+        {/* Always rendered with a fixed line height, even before useChatQuota() resolves: the
+            quota is fetched client-side only, and this line appearing after hydration grew the
+            bar ~20px — on the home page that re-centered the weekly report widget's column and
+            shifted the report card down (the page's whole Lighthouse CLS). */}
+        <p className="mt-1 h-4 text-right text-[11px] leading-4 text-muted-foreground">{quotaText}</p>
         {(pinnedGroups.length > 0 || individualPills.length > 0) && (
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {pinnedGroups.map(group => {
