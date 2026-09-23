@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
@@ -67,7 +68,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByTestId('dialog')).toBeNull()
   })
 
@@ -82,7 +83,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTestId('dialog')).toBeDefined()
   })
 
@@ -98,7 +99,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByTestId('close-dialog'))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -116,7 +117,7 @@ describe('RunWaterfallDialog header', () => {
         traceId="abcdef1234567890xxxx"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const title = screen.getByTestId('dialog-title').textContent ?? ''
     expect(title).toContain('abcdef1234567890')
   })
@@ -135,7 +136,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'deployment.environment', value: { stringValue: 'production' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Environment is a text node inside a <p> with other content — check container
     expect(screen.getByTestId('dialog').textContent).toContain('production')
   })
@@ -154,7 +155,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'resource.deployment.environment', value: { stringValue: 'staging' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTestId('dialog').textContent).toContain('staging')
   })
 
@@ -175,7 +176,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('admin.viewProfile')).toBeTruthy()
   })
 
@@ -193,7 +194,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('admin.viewProfile')).toBeTruthy()
   })
 
@@ -211,7 +212,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByText('admin.viewProfile')).toBeNull()
   })
 
@@ -239,7 +240,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('admin.viewProfile'))
 
     // next-auth's real getSession() (unmocked here) fires its own fetch to
@@ -272,7 +273,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('admin.viewProfile'))
     // FlameGraphDialog renders first in JSX order, so its own Dialog/close-dialog
     // button is the first of the two now mounted (main dialog is always open too).
@@ -292,7 +293,7 @@ describe('RunWaterfallDialog header', () => {
         traceId="trace1"
         trace={makeTrace([])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // No root -> startDate falls back to '—', no View Profile button, no crash.
     expect(screen.getByTestId('dialog')).toBeDefined()
     expect(screen.queryByText('admin.viewProfile')).toBeNull()
@@ -311,7 +312,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([makeSpan({ name: 'scraper.run', spanId: 'root001' })])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('scraper.run')).toBeDefined()
   })
 
@@ -334,7 +335,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([root, child])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('scraper.run')).toBeDefined()
     expect(screen.getByText('pipeline.discover')).toBeDefined()
   })
@@ -361,7 +362,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([root, article])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Label shows last 2 path segments: "section/article-slug"
     expect(screen.getByText('↳ section/article-slug')).toBeDefined()
   })
@@ -390,7 +391,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         trace={makeTrace([root, article])}
         onSelectArticle={onSelectArticle}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const row = screen.getByText('↳ a/b').closest('tr')!
     fireEvent.click(row)
     expect(onSelectArticle).toHaveBeenCalledOnce()
@@ -411,7 +412,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         trace={makeTrace([root])}
         onSelectArticle={onSelectArticle}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     expect(onSelectArticle).not.toHaveBeenCalled()
   })
@@ -444,7 +445,7 @@ describe('RunWaterfallDialog collapse/expand', () => {
         traceId="trace1"
         trace={makeTrace([root, child, grandchild])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // child (depth 1) has children → initially collapsed
     // grandchild should not be visible initially
     expect(screen.queryByText('fetch.item')).toBeNull()
@@ -483,7 +484,7 @@ describe('RunWaterfallDialog collapse/expand', () => {
         traceId="trace1"
         trace={makeTrace([root, child, grandchild])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Initially: root has Collapse button (has children, not collapsed);
     // child (depth 1, has children) starts collapsed → its Expand button is visible
     const expandBtns = screen.getAllByLabelText('Expand')
@@ -517,7 +518,7 @@ describe('RunWaterfallDialog topic rows', () => {
         trace={makeTrace([root, topic])}
         onSelectTopic={onSelectTopic}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const row = screen.getByText('↳ AI News').closest('tr')!
     fireEvent.click(row)
     expect(onSelectTopic).toHaveBeenCalledOnce()
@@ -561,7 +562,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
     })
@@ -587,7 +588,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     await vi.waitFor(() => {
       const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
       expect(calls.some(([u]) => u.includes('/grafana/profile') && u.includes('service=scraper'))).toBe(true)
@@ -608,7 +609,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByText('admin.waterfallCpuRowLabel')).toBeNull()
   })
 
@@ -627,7 +628,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     fireEvent.click(screen.getByTitle('admin.viewSpanProfile'))
 
@@ -652,7 +653,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     expect(screen.getByTitle('admin.viewSpanProfile')).toBeTruthy()
   })
@@ -672,7 +673,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
           [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('other.run').closest('tr')!)
     expect(screen.queryByTitle('admin.viewSpanProfile')).toBeNull()
   })
@@ -691,7 +692,7 @@ describe('RunWaterfallDialog span detail preview', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     // Two dialogs are now mounted — the preview dialog's title is the same span name.
     expect(screen.getAllByTestId('dialog-title').length).toBe(2)
@@ -709,7 +710,7 @@ describe('RunWaterfallDialog span detail preview', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     expect(screen.getAllByTestId('dialog-title').length).toBe(2)
 
@@ -747,7 +748,7 @@ describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
         traceId="trace1"
         trace={makeTrace([root, later, earlier])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const rows = screen.getAllByRole('row').filter(r => r.querySelector('td'))
     const names = rows.map(r => r.textContent ?? '')
     expect(names.findIndex(n => n.includes('pipeline.discover')))
@@ -773,7 +774,7 @@ describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
         traceId="trace1"
         trace={makeTrace([root, child])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // root (depth 0) starts expanded — collapsing it hides its own children.
     expect(screen.getByText('pipeline.fetch')).toBeDefined()
     fireEvent.click(screen.getByLabelText('Collapse'))
@@ -812,7 +813,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan(), scraped])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const badge = screen.getByTitle('admin.articleStatusFailed')
     expect(badge.textContent).toBe('✗')
     // row picks up the error styling too
@@ -838,7 +839,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan(), analyze])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTitle('admin.articleStatusPartial').textContent).toBe('▲')
     expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
   })
@@ -854,7 +855,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
     expect(screen.queryByTitle('admin.articleStatusPartial')).toBeNull()
   })
@@ -877,7 +878,7 @@ describe('RunWaterfallDialog SpanBar', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // SpanBar renders a div with absolute-positioned fill
     const bars = container.querySelectorAll('.bg-primary\\/60, .bg-destructive\\/70')
     expect(bars.length).toBeGreaterThan(0)
@@ -898,7 +899,7 @@ describe('RunWaterfallDialog SpanBar', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const errorBar = container.querySelector('.bg-destructive\\/70')
     expect(errorBar).not.toBeNull()
   })

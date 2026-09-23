@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { layoutFlamebearer, timelineToCpuSeries, timelineToOverlayBars, renderCpuTooltip, frameGroupKey, buildPackageLegend, frameColor } from '@/components/features/monitoring/flame-graph-dialog'
 import type { Flamebearer, FlamebearerResponse } from '@/lib/api/grafana'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({ t: (k: string) => k }),
@@ -40,25 +41,33 @@ const REAL_SAMPLE: Flamebearer = {
 
 // ── frameGroupKey: the color-grouping key nameColor() hashes — same package -> same hue.
 
+// Every name.* case below is a real frame label from a live Grafana Cloud Profiles response
+// for this app's backend (fix/profiler_imprv) — pyroscope's Python sampler emits no module/
+// file path at all, just these three shapes (see frameGroupKey's own comment).
 describe('frameGroupKey', () => {
-  it('groups sibling functions in the same package to the same key', () => {
-    expect(frameGroupKey('src.infrastructure.collection.parsers.html_parser.parse'))
-      .toBe('src.infrastructure.collection.parsers.html_parser')
-    expect(frameGroupKey('src.infrastructure.collection.parsers.html_parser.clean'))
-      .toBe('src.infrastructure.collection.parsers.html_parser')
+  it('groups Class.method frames by the class name', () => {
+    expect(frameGroupKey('Session.execute')).toBe('Session')
+    expect(frameGroupKey('Session._execute_internal')).toBe('Session')
+    expect(frameGroupKey('RedisCacheGateway.get_or_set')).toBe('RedisCacheGateway')
+    expect(frameGroupKey('RedisCacheGateway._get_or_set')).toBe('RedisCacheGateway')
   })
 
-  it('strips a trailing "(file.py:line)" suffix before grouping', () => {
-    expect(frameGroupKey('a.b.c (file.py:123)')).toBe('a.b')
+  it('groups a nested class by its full ClassName.NestedClass path, not just the outer class', () => {
+    expect(frameGroupKey('TypeEngine.Comparator.operate')).toBe('TypeEngine.Comparator')
+    expect(frameGroupKey('ColumnProperty.Comparator.operate')).toBe('ColumnProperty.Comparator')
   })
 
-  it('falls back to the whole name for a single-segment frame', () => {
+  it('groups every closure of the same outer function under one key', () => {
+    expect(frameGroupKey('request_response.<locals>.app')).toBe('request_response.<locals>')
+    expect(frameGroupKey('request_response.<locals>.app.<locals>.app')).toBe('request_response.<locals>.app.<locals>')
+    expect(frameGroupKey('list_tag_groups.<locals>._load')).toBe('list_tag_groups.<locals>')
+  })
+
+  it('falls back to the whole name for a bare function with no dot at all', () => {
+    expect(frameGroupKey('list_articles')).toBe('list_articles')
+    expect(frameGroupKey('record_article_view')).toBe('record_article_view')
     expect(frameGroupKey('<module>')).toBe('<module>')
     expect(frameGroupKey('total')).toBe('total')
-  })
-
-  it('groups on "/" the same way as "."', () => {
-    expect(frameGroupKey('path/to/module.func')).toBe('path.to.module')
   })
 })
 
@@ -240,21 +249,39 @@ function mockFetchOnce(body: unknown, ok = true) {
 describe('FlameGraphDialog', () => {
   it('renders nothing when closed', async () => {
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={false} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={false} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     expect(screen.queryByTestId('dialog')).toBeNull()
+  })
+
+  it('shows the loading message while the fetch is in flight', async () => {
+    let resolveFetch: (value: unknown) => void
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(resolve => { resolveFetch = resolve })
+    )
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
+    await waitFor(() => expect(screen.getByText('common.loading')).toBeTruthy())
+    // Settle the pending fetch before the test ends: lib/api/grafana.ts's authHeaders()
+    // caches its own in-flight session-token fetch in a MODULE-level (not per-test)
+    // _tokenPromise — a permanently-pending mock here would leave that stuck forever and
+    // silently stall every later test's own session-token fetch too, since getSession()'s
+    // request goes through this same mocked global.fetch (mirrors why the unmount test
+    // below always eventually rejects its own pending promise instead of leaving it
+    // hanging).
+    resolveFetch!({ ok: true, json: async () => ({ error: 'not_configured' }) })
   })
 
   it('shows the not-configured message on a 503/not_configured response', async () => {
     mockFetchOnce({ error: 'not_configured' })
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileNotConfigured')).toBeTruthy())
   })
 
   it('shows the load-error message instead of throwing on a non-2xx response with no error field', async () => {
     mockFetchOnce({ msg: 'bad request' }, false)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileLoadError')).toBeTruthy())
   })
 
@@ -266,7 +293,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     // Wide-enough blocks label as "name (duration)", not just the bare name.
     await waitFor(() => expect(screen.getByText(/^func_a \(/)).toBeTruthy())
     expect(screen.getByText(/^func_b \(/)).toBeTruthy()
@@ -280,7 +307,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileLegend')).toBeTruthy())
     // Axis ruler ticks: 0% and 100% of the root's own total duration (12.06s here).
     // formatDuration(0) is "0 ms" (sub-second branch), not "0 s".
@@ -306,7 +333,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText(/^wide_fn \(/)).toBeTruthy())
     // Scoped to the frames area, not the whole screen — buildPackageLegend's own legend row
     // (fix/profiler_imprv) also prints each package's bare name, which would otherwise
@@ -325,7 +352,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileTimelineLabel')).toBeTruthy())
   })
 
@@ -337,7 +364,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileLegend')).toBeTruthy())
     expect(screen.queryByText('admin.profileTimelineLabel')).toBeNull()
   })
@@ -350,14 +377,14 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileNoData')).toBeTruthy())
   })
 
   it('shows the load-error message when the fetch itself rejects (network error)', async () => {
     ;(global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'))
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     await waitFor(() => expect(screen.getByText('admin.profileLoadError')).toBeTruthy())
   })
 
@@ -365,7 +392,7 @@ describe('FlameGraphDialog', () => {
     mockFetchOnce({ error: 'not_configured' })
     const onClose = vi.fn()
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={onClose} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={onClose} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByTestId('close-dialog'))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -376,11 +403,61 @@ describe('FlameGraphDialog', () => {
       new Promise((_resolve, rej) => { reject = rej })
     )
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    const { unmount } = render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    const { unmount } = render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     unmount()
     reject!(new Error('network down'))
     await Promise.resolve()
     await Promise.resolve() // no assertion needed — must simply not throw/warn after unmount
+  })
+
+  // ── fix/profiler_imprv: SWR caching — (start, end, service, spanId) is an already-resolved
+  // window into the past, so the same tuple must be served from cache on a reopen instead of
+  // round-tripping through the Grafana proxy again; a genuinely different window must not be.
+
+  function profileFetchCalls() {
+    return (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([u]) => typeof u === 'string' && u.includes('/grafana/profile'))
+  }
+
+  it('serves a reopen of the identical window from the SWR cache instead of refetching', async () => {
+    const body: FlamebearerResponse = {
+      version: 1,
+      flamebearer: REAL_SAMPLE,
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+    }
+    mockFetchOnce(body)
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    const { rerender } = render(
+      <FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />,
+      { wrapper: SWRTestWrapper },
+    )
+    await waitFor(() => expect(screen.getByText('admin.profileLegend')).toBeTruthy())
+    expect(profileFetchCalls()).toHaveLength(1)
+
+    rerender(<FlameGraphDialog open={false} onClose={vi.fn()} start={1000} end={1010} />)
+    rerender(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    await waitFor(() => expect(screen.getByText('admin.profileLegend')).toBeTruthy())
+    expect(profileFetchCalls()).toHaveLength(1) // still just the one call from the first open
+  })
+
+  it('fetches again when reopened with a different window (different spanId)', async () => {
+    const body: FlamebearerResponse = {
+      version: 1,
+      flamebearer: REAL_SAMPLE,
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+    }
+    mockFetchOnce(body)
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    const { rerender } = render(
+      <FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} spanId="0123456789abcdef" />,
+      { wrapper: SWRTestWrapper },
+    )
+    await waitFor(() => expect(screen.getByText('admin.profileLegend')).toBeTruthy())
+    expect(profileFetchCalls()).toHaveLength(1)
+
+    rerender(<FlameGraphDialog open={false} onClose={vi.fn()} start={1000} end={1010} spanId="0123456789abcdef" />)
+    rerender(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} spanId="fedcba9876543210" />)
+    await waitFor(() => expect(profileFetchCalls()).toHaveLength(2))
   })
 
   it('drops a frame narrower than the minimum renderable width instead of rendering an unreadable sliver', async () => {
@@ -398,7 +475,7 @@ describe('FlameGraphDialog', () => {
     }
     mockFetchOnce(body)
     const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
-    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />)
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
     // Scoped to the frames area — buildPackageLegend's own legend row (fix/profiler_imprv)
     // also lists invisible_fn (it's ranked by self time, not rendered width, so a dropped
     // frame can still show up there) with a `title` of its own, which would otherwise
@@ -407,6 +484,66 @@ describe('FlameGraphDialog', () => {
     expect(frames.getByText(/^visible_fn/)).toBeTruthy()
     // invisible_fn is 0.01% of total — below MIN_WIDTH_PCT (0.05%) — dropped entirely.
     expect(frames.queryByTitle(/invisible_fn/)).toBeNull()
+  })
+})
+
+// ── FlameGraphDialog package highlight (click-to-select) ─────────────────────
+
+describe('FlameGraphDialog package highlight (click-to-select)', () => {
+  const HIGHLIGHT_SAMPLE: Flamebearer = {
+    names: ['total', 'pkg.foo', 'other.baz'],
+    levels: [
+      [0, 100, 0, 0],
+      [0, 60, 60, 1, 0, 40, 40, 2],
+    ],
+    numTicks: 100,
+    maxSelf: 60,
+  }
+
+  function renderHighlightSample() {
+    const body: FlamebearerResponse = {
+      version: 1,
+      flamebearer: HIGHLIGHT_SAMPLE,
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+    }
+    mockFetchOnce(body)
+  }
+
+  it('clicking a legend entry dims every frame not in that package', async () => {
+    renderHighlightSample()
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
+    const frames = within(await waitFor(() => screen.getByTestId('flame-graph-frames')))
+    const pkgFrame = frames.getByTitle(/^pkg\.foo/)
+    const otherFrame = frames.getByTitle(/^other\.baz/)
+    expect(pkgFrame.style.opacity).toBe('1')
+    expect(otherFrame.style.opacity).toBe('1')
+
+    fireEvent.click(screen.getByText('pkg')) // legend entry's key label
+
+    expect(pkgFrame.style.opacity).toBe('1')
+    expect(otherFrame.style.opacity).toBe('0.25')
+
+    // Clicking the same legend entry again toggles the selection back off.
+    fireEvent.click(screen.getByText('pkg'))
+    expect(otherFrame.style.opacity).toBe('1')
+  })
+
+  it('clicking a frame block itself selects its package too, and "clear selection" resets it', async () => {
+    renderHighlightSample()
+    const { FlameGraphDialog } = await import('@/components/features/monitoring/flame-graph-dialog')
+    render(<FlameGraphDialog open={true} onClose={vi.fn()} start={1000} end={1010} />, { wrapper: SWRTestWrapper })
+    const frames = within(await waitFor(() => screen.getByTestId('flame-graph-frames')))
+    const pkgFrame = frames.getByTitle(/^pkg\.foo/)
+    const otherFrame = frames.getByTitle(/^other\.baz/)
+
+    fireEvent.click(pkgFrame)
+    expect(otherFrame.style.opacity).toBe('0.25')
+    expect(screen.getByText('admin.profileLegendClearSelection')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('admin.profileLegendClearSelection'))
+    expect(otherFrame.style.opacity).toBe('1')
+    expect(screen.queryByText('admin.profileLegendClearSelection')).toBeNull()
   })
 })
 
@@ -424,7 +561,7 @@ describe('renderCpuTooltip', () => {
   it('renders the label and CPU% when active with a payload', () => {
     const { container } = render(
       <>{renderCpuTooltip({ active: true, payload: [{ value: 42 }], label: '10:00:00' })}</>
-    )
+    , { wrapper: SWRTestWrapper })
     expect(container.textContent).toContain('10:00:00')
     expect(container.textContent).toContain('42%')
   })

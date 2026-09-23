@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
@@ -8,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useI18n } from '@/lib/providers'
 import { queryProfile, type FlamebearerResponse, type Flamebearer, type FlamebearerTimeline } from '@/lib/api/grafana'
 import { formatDuration } from '@/lib/otlp-utils'
+import { cn } from '@/lib/utils'
 
 interface FlameGraphDialogProps {
   open: boolean
@@ -62,24 +64,33 @@ export function layoutFlamebearer(flamebearer: Flamebearer): LayoutFrame[] {
 }
 
 /** Best-effort "package" grouping key for a flamebearer frame name, so every function from
- * the same module renders in the same hue instead of each function getting an independent
- * random color (a full-name hash reads as confetti once a stack is more than a couple of
- * frames deep — adjacent frames in the *same* module get unrelated hues purely because
- * their names differ). Mirrors Grafana's own Flame Graph panel, which colors a single
+ * the same class/closure renders in the same hue instead of each function getting an
+ * independent random color (a full-name hash reads as confetti once a stack is more than a
+ * couple of frames deep). Mirrors Grafana's own Flame Graph panel, which colors a single
  * (non-diff) profile "by package" for the same reason: width already encodes "how much
- * time" on this axis, so color's job is "where" (which module), not re-encoding time as a
- * heatmap — that's reserved for diff/comparison flame graphs, which this isn't.
+ * time" on this axis, so color's job is "where", not re-encoding time as a heatmap — that's
+ * reserved for diff/comparison flame graphs, which this isn't.
  *
- * Strips a trailing "(file.py:123)" suffix if pyroscope's Python profiler includes one,
- * then groups on everything before the last '.'/'/' — a single-segment name (e.g.
- * "<module>", a bare builtin) falls back to itself rather than an empty key. Not yet
- * verified against a real captured profile's exact name format (unlike e.g.
- * layoutFlamebearer's REAL_SAMPLE fixture) — if grouping looks off against a live flame
- * graph, adjust the separator/suffix handling here first. */
+ * Verified against a real Grafana Cloud Profiles response (fix/profiler_imprv): pyroscope's
+ * Python sampler's frame labels carry NO module/file path and no "(file.py:123)" suffix at
+ * all — every name is one of three shapes: a bare function (`sleep`, `list_articles`, no
+ * dot at all — nothing to group by, falls back to the whole name as its own key, same as
+ * before this scheme existed), `ClassName.method` (`Session.execute`,
+ * `RedisCacheGateway.get_or_set` — groups by `ClassName`), or a closure chain
+ * (`request_response.<locals>.app` — groups by `request_response.<locals>`, so every
+ * closure of the same outer function shares a hue). Splitting on the last `.` handles all
+ * three correctly, including nested classes (`TypeEngine.Comparator.operate` groups to
+ * `TypeEngine.Comparator`, distinct from `ColumnProperty.Comparator.operate`'s group).
+ *
+ * Known limitation, inherent to having no module info to disambiguate with: two different
+ * libraries' classes that happen to share a name collapse into one group — e.g. `Session`
+ * groups SQLAlchemy's Session.execute together with the unrelated `requests` library's
+ * Session.post/request/send, and `Span`/`Scope` mix sentry_sdk with opentelemetry. Accepted
+ * as-is rather than maintaining a hardcoded per-library class-name map, which would need
+ * upkeep every time a dependency's internals change. */
 export function frameGroupKey(name: string): string {
-  const base = name.replace(/\s*\([^)]*\)\s*$/, '')
-  const parts = base.split(/[./]/).filter(Boolean)
-  return parts.length > 1 ? parts.slice(0, -1).join('.') : base
+  const parts = name.split('.').filter(Boolean)
+  return parts.length > 1 ? parts.slice(0, -1).join('.') : name
 }
 
 /** Deterministic hue per package key — NOT a fixed/enumerable palette: any package string
@@ -308,28 +319,33 @@ function AxisRuler({ totalMs }: { totalMs: number }) {
 
 export function FlameGraphDialog({ open, onClose, start, end, service, spanId }: FlameGraphDialogProps) {
   const { t } = useI18n()
-  const [data, setData] = useState<FlamebearerResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [errorKey, setErrorKey] = useState<string | null>(null)
+  // fix/profiler_imprv: (start, end, service, spanId) is an already-resolved, fixed window
+  // into the PAST — unlike the Operations/Logs/Traces batch queries elsewhere in this
+  // dashboard (which mean "as of now", so the same time-range *selection* resolves to a
+  // different absolute [start, end] on every poll and genuinely needs a fresh fetch), the
+  // exact same tuple here always answers with the same historical CPU samples. That makes it
+  // a good fit for SWR's cache-by-key model where those live-window queries are not:
+  // revalidateOnFocus/revalidateIfStale are both off because there is nothing to revalidate
+  // — once fetched for a given key, reopening the same span's flame graph should be instant,
+  // not a second round trip through the Grafana proxy.
+  const key = open ? (['flame-profile', start, end, service ?? 'backend', spanId ?? null] as const) : null
+  const { data, isLoading } = useSWR<FlamebearerResponse>(
+    key,
+    () => queryProfile({ start, end, service, spanId }).catch(() => ({ error: 'fetch_failed' }) as unknown as FlamebearerResponse),
+    { revalidateOnFocus: false, revalidateIfStale: false },
+  )
+  const loading = open && isLoading
+  const errorKey = data && 'error' in data ? (data as unknown as { error: string }).error : null
+  // Clicking a legend entry (or a frame) toggles this — set, every OTHER package's frames
+  // dim instead of the selected one's getting some extra decoration, so the selected
+  // package's blocks (which can be scattered across many depths/x-positions, not one
+  // contiguous region) pop out across the whole graph at a glance.
+  const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
 
+  // Own effect, separate from data fetching (SWR owns that now) — selectedPackage is
+  // purely local UI state that must not carry over from a previously viewed flame graph.
   useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    setLoading(true)
-    setErrorKey(null)
-    setData(null)
-    queryProfile({ start, end, service, spanId })
-      .then(res => {
-        if (cancelled) return
-        if ('error' in res) {
-          setErrorKey((res as unknown as { error: string }).error)
-        } else {
-          setData(res)
-        }
-      })
-      .catch(() => { if (!cancelled) setErrorKey('fetch_failed') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    setSelectedPackage(null)
   }, [open, start, end, service, spanId])
 
   const flamebearer = data?.flamebearer
@@ -387,17 +403,38 @@ export function FlameGraphDialog({ open, onClose, start, end, service, spanId }:
               </p>
               {shownLegend.length > 0 && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1.5">
-                  {shownLegend.map(entry => (
-                    <span key={entry.key} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title={entry.key}>
-                      <span className="inline-block w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ backgroundColor: entry.color }} />
-                      <span className="max-w-[16rem] truncate">{entry.key}</span>
-                      <span className="tabular-nums">{Math.round((entry.selfTicks / numTicks) * 1000) / 10}%</span>
-                    </span>
-                  ))}
+                  {shownLegend.map(entry => {
+                    const isSelected = selectedPackage === entry.key
+                    return (
+                      <button
+                        key={entry.key}
+                        type="button"
+                        onClick={() => setSelectedPackage(sel => sel === entry.key ? null : entry.key)}
+                        title={entry.key}
+                        className={cn(
+                          'inline-flex items-center gap-1 text-[10px] rounded px-1 -mx-1 transition-colors cursor-pointer',
+                          isSelected ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <span className="inline-block w-2.5 h-2.5 rounded-[2px] shrink-0" style={{ backgroundColor: entry.color }} />
+                        <span className="max-w-[16rem] truncate">{entry.key}</span>
+                        <span className="tabular-nums">{Math.round((entry.selfTicks / numTicks) * 1000) / 10}%</span>
+                      </button>
+                    )
+                  })}
                   {hiddenLegendCount > 0 && (
                     <span className="text-[10px] text-muted-foreground">
                       {t('admin.profileLegendMore', { count: hiddenLegendCount })}
                     </span>
+                  )}
+                  {selectedPackage && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPackage(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer"
+                    >
+                      {t('admin.profileLegendClearSelection')}
+                    </button>
                   )}
                 </div>
               )}
@@ -413,10 +450,13 @@ export function FlameGraphDialog({ open, onClose, start, end, service, spanId }:
                     ? name
                     : `${name} (${durationLabel})`
                   const { background, textColor } = frameColor(name, f.self / numTicks)
+                  const groupKey = frameGroupKey(name)
+                  const isDimmed = selectedPackage !== null && selectedPackage !== groupKey
                   return (
                     <div
                       key={i}
-                      className="absolute border border-background overflow-hidden text-[10px] leading-[21px] px-1 whitespace-nowrap cursor-default rounded-[2px]"
+                      onClick={() => setSelectedPackage(sel => sel === groupKey ? null : groupKey)}
+                      className="absolute border border-background overflow-hidden text-[10px] leading-[21px] px-1 whitespace-nowrap cursor-pointer rounded-[2px] transition-opacity"
                       style={{
                         left: `${(f.x / numTicks) * 100}%`,
                         width: `${widthPct}%`,
@@ -424,6 +464,7 @@ export function FlameGraphDialog({ open, onClose, start, end, service, spanId }:
                         height: ROW_HEIGHT - 1,
                         backgroundColor: background,
                         color: textColor,
+                        opacity: isDimmed ? 0.25 : 1,
                       }}
                       title={`${name}\nself: ${formatDuration(toMs(f.self))}\ntotal: ${durationLabel}`}
                     >
