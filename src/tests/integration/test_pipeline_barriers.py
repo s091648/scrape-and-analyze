@@ -21,6 +21,11 @@ from src.modules.collection.application.use_cases import PipelineStats
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.modules.collection.application.events import ArticleScrapedEvent, TextPipelineCompletedEvent
 
+# Marked integration even though most of these need no real DB: CI's src-integration-test job
+# (and `make test-src-integration`) select with `-m integration`, and the unit job only runs
+# src/tests/unit/ — so an unmarked test here was silently run by nothing at all.
+pytestmark = pytest.mark.integration
+
 
 @asynccontextmanager
 async def _fake_session():
@@ -87,7 +92,7 @@ async def test_barrier_one_handlers_complete_before_slow_rag_task_resolves():
         await bus.subscribe(ArticleScrapedEvent, _on_scraped)
 
     class _SlowRagHandler:
-        async def handle(self, event):
+        async def handle(self, event, parent_span=None):
             await asyncio.sleep(RAG_DELAY)
             rag_done_at.append(time.monotonic())
 
@@ -146,7 +151,7 @@ async def test_barrier_one_waits_for_slow_translation_task():
         await bus.subscribe(ArticleScrapedEvent, _on_scraped)
 
     class _SlowTranslationHandler:
-        async def handle(self, event):
+        async def handle(self, event, parent_span=None):
             await asyncio.sleep(TRANSLATION_DELAY)
             translation_done_at.append(time.monotonic())
 
