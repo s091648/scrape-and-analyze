@@ -20,12 +20,17 @@ vi.mock('@/components/features/monitoring/article-workflow-dialog', () => ({
 // the real queryLogs / queryTraceById call global.fetch which is mocked in beforeEach.
 // Tests that need queryTraceById to return specific data must configure global.fetch accordingly.
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
   global.fetch = vi.fn().mockResolvedValue({
     json: async () => ({ streams: [] }),
   })
+  // fix/profiler_imprv: fetchTraceDetail's cache is a module-level singleton (shared with
+  // TracesTable on purpose) — reset it every test so an earlier test's cached trace can't
+  // leak into a later one that reuses the same literal trace ID.
+  const { __resetTraceDetailCacheForTests } = await import('@/lib/api/trace-detail-cache')
+  __resetTraceDetailCacheForTests()
 })
 
 // ── Tooltip tests (existing) ──────────────────────────────────────────────────

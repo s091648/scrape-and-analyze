@@ -1,5 +1,35 @@
 [
   {
+    "version": "{{NEWEST_VERSION}}",
+    "date": "{{RELEASE_DATE}}",
+    "changes": [
+      {
+        "type": "feat",
+        "description": "Interactive flame graphs now feature heat-scaled colors and click-to-highlight functionality for easier debugging."
+      },
+      {
+        "type": "feat",
+        "description": "Scraper profiles are now viewable directly from the dashboard with improved color readability."
+      },
+      {
+        "type": "feat",
+        "description": "Extended CPU profiling support to include the scraper's scheduled pipeline."
+      },
+      {
+        "type": "feat",
+        "description": "Backend CPU flame graphs can now be focused on a single span for granular analysis."
+      },
+      {
+        "type": "fix",
+        "description": "Improved dashboard performance by sharing data caches between the Traces and Logs views."
+      },
+      {
+        "type": "fix",
+        "description": "Enhanced reliability of RAG operations by automatically splitting large batches to prevent rate-limit errors."
+      }
+    ]
+  },
+  {
     "version": "v1.7.4",
     "date": "2026-09-21",
     "changes": [

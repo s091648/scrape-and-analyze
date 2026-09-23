@@ -9,6 +9,7 @@ backend/Dockerfile), so a shared implementation would not be deployable.
 Label/name constants are still shared via shared/enums/observability.py, which
 both services' Docker images do include.
 """
+import asyncio
 import base64
 import logging
 import sys
@@ -200,6 +201,13 @@ def setup_tracing(app_env: str):
         return None
 
 
+# Set only on setup_profiling()'s own successful pyroscope.configure() — to_thread_profiled()
+# checks this before ever touching pyroscope, so local dev / tests (GRAFANA_PROFILES_*
+# unset, setup_profiling() never called) skip straight to a plain asyncio.to_thread() with
+# no native-lib call at all, instead of relying on tag_wrapper() itself to fail gracefully.
+_profiling_enabled = False
+
+
 def setup_profiling(app_env: str) -> None:
     """Start pyroscope-io's background sampling profiler, pushing to Grafana Cloud
     Profiles. No-op if GRAFANA_PROFILES_*/GRAFANA_API_KEY are absent (local dev).
@@ -226,6 +234,73 @@ def setup_profiling(app_env: str) -> None:
             basic_auth_password=GRAFANA_API_KEY,
             tags={"env": app_env},
         )
+        global _profiling_enabled
+        _profiling_enabled = True
         print("[profiling] Pyroscope setup successful")
     except Exception as e:
         print(f"[profiling] Pyroscope setup failed: {e}")
+
+
+def _current_span_tags() -> dict:
+    """Best-effort `{"span_id": ...}` for the currently active OTel span — mirrors
+    `_add_otel_context`'s own `get_current_span()` pattern. Empty outside a request (no
+    active span) or if tracing itself never initialized; never raises."""
+    try:
+        from opentelemetry import trace as _otel_trace
+        ctx = _otel_trace.get_current_span().get_span_context()
+        if ctx.is_valid:
+            return {"span_id": format(ctx.span_id, "016x")}
+    except Exception:
+        pass
+    return {}
+
+
+def _run_tagged(tags: dict, func, args: tuple, kwargs: dict):
+    """Runs on its own dedicated to_thread() worker thread (see to_thread_profiled below) —
+    tags that thread with `tags` for pyroscope's native sampler before calling `func`, then
+    always untags it again, regardless of whether `func` raised. Tagging failure (e.g. the
+    native extension erroring) is swallowed so `func` still runs untagged rather than never
+    running at all — a profiling hiccup must never turn into a request failure."""
+    tag_cm = None
+    try:
+        import pyroscope
+        tag_cm = pyroscope.tag_wrapper(tags)
+        tag_cm.__enter__()
+    except Exception:
+        tag_cm = None
+    try:
+        return func(*args, **kwargs)
+    finally:
+        if tag_cm is not None:
+            try:
+                tag_cm.__exit__(None, None, None)
+            except Exception:
+                pass
+
+
+async def to_thread_profiled(func, *args, **kwargs):
+    """`asyncio.to_thread(func, *args, **kwargs)`, plus — when profiling is configured and
+    an OTel span is currently active — tagging the dedicated worker thread this dispatches
+    to with that span's `span_id` for the call's duration, so the CPU samples pyroscope
+    takes during it can later be queried scoped to exactly this span
+    (`GET /grafana/profile?span_id=...`) instead of only the whole padded request window
+    FlameGraphDialog otherwise falls back to (see run-waterfall-dialog.tsx's
+    FLAME_GRAPH_PADDING_SECONDS comment).
+
+    Only correct to use this way, never as a substitute for wrapping an entire async route
+    end-to-end: pyroscope's `tag_wrapper` tags the current OS *thread*, not the current
+    asyncio *task* — safe here because `asyncio.to_thread` gives this one call its own
+    dedicated thread for its whole duration with no `await` inside it, so no other
+    concurrently-running request's own tagged call can ever share that thread while this
+    tag is active. Tagging an entire `async def` route the same way would be wrong: two
+    requests interleaving on the shared event-loop thread across their own `await` points
+    would each have a tag "open" on that thread at the same time, mislabeling whichever
+    happened to be sampled next (fix/profiler_imprv discussion) — so this helper is meant
+    for wrapping individual synchronous, non-yielding, blocking calls (e.g. sync-Session DB
+    work inside an `async def`), not whole request lifecycles."""
+    if not _profiling_enabled:
+        return await asyncio.to_thread(func, *args, **kwargs)
+    tags = _current_span_tags()
+    if not tags:
+        return await asyncio.to_thread(func, *args, **kwargs)
+    return await asyncio.to_thread(_run_tagged, tags, func, args, kwargs)

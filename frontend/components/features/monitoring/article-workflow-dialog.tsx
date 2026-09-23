@@ -5,11 +5,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ArrowDown } from 'lucide-react'
 import { useI18n } from '@/lib/providers'
 import type { OtlpSpan } from '@/lib/api/grafana'
-import { queryTracesBatch, queryLogs, type LokiStreamResult } from '@/lib/api/grafana'
+import { queryLogs, type LokiStreamResult } from '@/lib/api/grafana'
 import type { SpanNode } from '@/lib/otlp-utils'
 import { getAttr, spanDurationMs, formatDuration, otlpIdToHex, articleRowStatus } from '@/lib/otlp-utils'
 import { lokiStreamSelector } from '@/lib/observability-constants'
-import { StageCard, type SpanPercentileThresholds } from './stage-card'
+import { useSpanPercentileThresholds } from '@/hooks/use-span-percentile-thresholds'
+import { StageCard } from './stage-card'
 import { LogDetailDialog, type LogEntry } from './log-detail-dialog'
 
 interface ArticleWorkflowDialogProps {
@@ -19,11 +20,6 @@ interface ArticleWorkflowDialogProps {
   stageSpans: SpanNode[]
   /** When set, the matching span card will be highlighted with a ring. */
   highlightedSpanId?: string
-}
-
-function computeThresholds(durations: number[]): SpanPercentileThresholds {
-  const avg = durations.reduce((sum, d) => sum + d, 0) / durations.length
-  return { avg, count: durations.length, durations }
 }
 
 function getLabelOverride(span: OtlpSpan, t: (k: string, p?: Record<string, string | number>) => string): string | undefined {
@@ -89,7 +85,7 @@ export function ArticleWorkflowDialog({
     .map(n => getAttr(n.span, 'article.title'))
     .find(v => v !== undefined) as string | undefined
 
-  const [percentileMap, setPercentileMap] = useState<Map<string, SpanPercentileThresholds>>(new Map())
+  const percentileMap = useSpanPercentileThresholds(open, stageSpans)
   // Empty set = all expanded (default B: expanded)
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set())
   const [logEntry, setLogEntry] = useState<LogEntry | null>(null)
@@ -131,37 +127,6 @@ export function ArticleWorkflowDialog({
       return next
     })
   }
-
-  useEffect(() => {
-    if (!open || stageSpans.length === 0) return
-    let cancelled = false
-    const spanNames = [...new Set(stageSpans.map(n => n.span.name))]
-    const now = Math.floor(Date.now() / 1000)
-    const queries = spanNames.map(name => ({
-      q: `{ name="${name}" }`,
-      start: now - 7 * 86400,
-      end: now,
-      limit: 200,
-    }))
-    queryTracesBatch(queries).then(responses => {
-      if (cancelled) return
-      const map = new Map<string, SpanPercentileThresholds>()
-      responses.forEach((res, i) => {
-        const durations: number[] = []
-        for (const trace of res.traces ?? []) {
-          const spanSets = trace.spanSets ?? (trace.spanSet ? [trace.spanSet] : [])
-          for (const ss of spanSets) {
-            for (const s of ss.spans ?? []) {
-              if (s.durationNanos) durations.push(Number(BigInt(s.durationNanos) / 1_000_000n))
-            }
-          }
-        }
-        if (durations.length >= 5) map.set(spanNames[i], computeThresholds(durations))
-      })
-      setPercentileMap(map)
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [open, stageSpans])
 
   // Build parent → children map for depth > 0 spans. Keyed by parentSpanId,
   // so it already holds every descendant level (grandchildren included) —

@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { ChevronRight, ChevronDown, ScrollText } from 'lucide-react'
+import { ChevronRight, ChevronDown, ScrollText, Activity } from 'lucide-react'
 import type { OtlpSpan, OtlpAttributeValue } from '@/lib/api/grafana'
 import { spanDurationMs, isErrorSpan, formatDuration } from '@/lib/otlp-utils'
 import { useI18n } from '@/lib/providers'
@@ -238,6 +238,7 @@ interface StageCardProps {
   onToggleCollapse?: () => void
   isHighlighted?: boolean
   onViewLogs?: () => void
+  onViewProfile?: () => void
 }
 
 function durationColor(ms: number, thresholds?: SpanPercentileThresholds): string {
@@ -249,7 +250,7 @@ function durationColor(ms: number, thresholds?: SpanPercentileThresholds): strin
   return 'text-foreground'
 }
 
-export function StageCard({ span, className, thresholds, labelOverride, collapsed, onToggleCollapse, isHighlighted, onViewLogs }: StageCardProps) {
+export function StageCard({ span, className, thresholds, labelOverride, collapsed, onToggleCollapse, isHighlighted, onViewLogs, onViewProfile }: StageCardProps) {
   const { t } = useI18n()
   const durationMs = spanDurationMs(span)
   const error = isErrorSpan(span)
@@ -335,6 +336,15 @@ export function StageCard({ span, className, thresholds, labelOverride, collapse
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {onViewProfile && (
+            <button
+              onClick={e => { e.stopPropagation(); onViewProfile() }}
+              className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title={t('admin.viewSpanProfile')}
+            >
+              <Activity className="h-3.5 w-3.5" />
+            </button>
+          )}
           {onViewLogs && (
             <button
               onClick={e => { e.stopPropagation(); onViewLogs() }}

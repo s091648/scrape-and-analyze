@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from typing import Optional
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from backend.auth.guards import require_admin
+from shared.domain.exceptions import ValidationError
 from backend.config import (
     GRAFANA_PROMETHEUS_URL,
     GRAFANA_PROMETHEUS_USER,
@@ -25,7 +27,13 @@ from backend.schemas.grafana import (
     TracesBatchItem,
 )
 from backend.services.grafana_service import auth_headers, grafana_get
-from shared.enums.observability import SERVICE_NAME_BACKEND
+from shared.enums.observability import SERVICE_NAME, SERVICE_NAME_BACKEND
+
+# fix/profiler_imprv: query_profile's `service` param — both apps push to the same Grafana
+# Cloud Profiles instance (GRAFANA_PROFILES_URL/USER/GRAFANA_API_KEY), distinguished only by
+# their own pyroscope.configure(application_name=...) (SERVICE_NAME for the scraper,
+# SERVICE_NAME_BACKEND here), so this just selects which one to query.
+_PROFILE_SERVICE_NAMES = {"backend": SERVICE_NAME_BACKEND, "scraper": SERVICE_NAME}
 
 # fix/db_imprv: the only profile type pyroscope.configure() (backend/observability.py)
 # ever pushes is CPU — this is Pyroscope's fixed type-id format
@@ -35,6 +43,14 @@ from shared.enums.observability import SERVICE_NAME_BACKEND
 # param — there's only ever one value, and it keeps Pyroscope's query-selector syntax
 # off the client entirely (this endpoint takes a time range, nothing else).
 _PROFILE_TYPE = "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+
+# fix/profiler_imprv: an OTel span_id, exactly as backend/observability.py's
+# to_thread_profiled() tags CPU samples with (format(ctx.span_id, "016x")) — 16 lowercase
+# hex chars. Validated before being interpolated into the Pyroscope query selector below
+# (query_profile is require_admin-gated, but the value is still caller-controlled input
+# flowing into a downstream query language, same reasoning as ssr-fetch.ts's
+# TOPIC_ID_PATTERN on the frontend).
+_SPAN_ID_PATTERN = re.compile(r"^[0-9a-f]{16}$")
 
 router = APIRouter(prefix="/grafana", tags=["grafana"])
 
@@ -237,20 +253,45 @@ async def get_trace_by_id(
 async def query_profile(
     start: int = Query(...),
     end: int = Query(...),
+    service: str = Query(
+        default="backend",
+        description="Which app's profile to query — \"backend\" (default, backward "
+                     "compatible with callers that never passed this) or \"scraper\". Both "
+                     "push to the same Grafana Cloud Profiles instance, distinguished by "
+                     "their own pyroscope.configure(application_name=...).",
+    ),
+    span_id: Optional[str] = Query(
+        default=None,
+        description="Narrows the flamebearer to CPU samples tagged with this OTel span_id "
+                     "by to_thread_profiled() (backend) / run_tagged_for_profiling() "
+                     "(scraper) — currently only search_service.py's sync-Session DB calls "
+                     "(backend) and ScrapeExecutor's fetch/discover tasks (scraper) tag "
+                     "their samples this way, so any other span_id returns an empty (but "
+                     "successful) flamebearer, same as a time window with no samples. "
+                     "`start`/`end` still bound the query the same as without this filter "
+                     "(see the padding-window comment below) — this narrows *which* samples "
+                     "in that window count, not the window itself.",
+    ),
     _: dict = Depends(require_admin),
 ) -> JSONResponse:
-    """CPU flamebearer for the backend service over [start, end] (unix seconds) —
-    the root span's own time window (RunWaterfallDialog), not a per-sub-span query:
-    profiling is CPU sampling, and a whole-request window has enough samples to be
-    statistically meaningful in a way a handful-of-milliseconds child span wouldn't.
-    Scraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),
-    so this endpoint is backend-only — there's nothing to query for scraper traces."""
+    """CPU flamebearer for one app (`service`) over [start, end] (unix seconds) — the root
+    span's own time window (RunWaterfallDialog), not a per-sub-span query: profiling is CPU
+    sampling, and a whole-request window has enough samples to be statistically meaningful in
+    a way a handful-of-milliseconds child span wouldn't."""
     url = GRAFANA_PROFILES_URL
     user = GRAFANA_PROFILES_USER
     api_key = GRAFANA_API_KEY
     if not url or not user or not api_key:
         return JSONResponse({"error": "not_configured"}, status_code=503)
-    query = f'{_PROFILE_TYPE}{{service_name="{SERVICE_NAME_BACKEND}"}}'
+    service_name = _PROFILE_SERVICE_NAMES.get(service)
+    if service_name is None:
+        raise ValidationError(f"service must be one of {sorted(_PROFILE_SERVICE_NAMES)}")
+    selector = f'service_name="{service_name}"'
+    if span_id is not None:
+        if not _SPAN_ID_PATTERN.match(span_id):
+            raise ValidationError("span_id must be 16 lowercase hex characters")
+        selector += f',span_id="{span_id}"'
+    query = f'{_PROFILE_TYPE}{{{selector}}}'
     return await grafana_get(
         f"{url}/pyroscope/render",
         {"query": query, "from": start, "until": end, "format": "json"},

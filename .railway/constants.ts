@@ -17,6 +17,19 @@
 
 // RAG dense-embedding tuning — provider is Gemini; the API key itself
 // (RAG_GEMINI_API_KEY) stays preserve() until T6-08c.
+//
+// fix/rag-quota-classification (2026-09-22 rag_ingest_failed/rag_ingest_timeout
+// incident, 12-article run took ~50min): Google AI Studio's live quota dashboard
+// for this project showed RPM 82/100 and RPD 490/1K both healthy, but TPM at
+// 29.6K/30K — i.e. the real bottleneck was TPM, not RPM, with almost no local
+// margin to absorb estimate_tokens()'s 4-chars≈1-token approximation error
+// before tipping over Google's actual enforcement point. RAG_DENSE_TPM lowered
+// from 30000 to leave real headroom; RAG_DENSE_SPLIT_BATCH_ON_TPM added so a
+// TPM 429 halves the batch instead of retrying the same oversized one unchanged
+// — only actually reachable now that chatbot-plugin-sdk's dimension classifier
+// (see its own fix, same date) can tell TPM apart from RPM even when Google's
+// 429 body carries no structured QuotaFailure detail at all, which is what this
+// account's responses actually look like.
 export const RAG_DENSE_ENV = {
   RAG_DENSE_API_KEY_ENV: "RAG_GEMINI_API_KEY", // the *name* of the key var, not a secret
   RAG_DENSE_DIMENSION: "768",
@@ -24,7 +37,8 @@ export const RAG_DENSE_ENV = {
   RAG_DENSE_PROVIDER: "gemini",
   RAG_DENSE_RPD: "1000",
   RAG_DENSE_RPM: "100",
-  RAG_DENSE_TPM: "30000",
+  RAG_DENSE_SPLIT_BATCH_ON_TPM: "true",
+  RAG_DENSE_TPM: "25000",
 } as const;
 
 // RAG sparse-embedding tuning — served by the in-project `fastembed` service.
@@ -90,9 +104,13 @@ export const GRAFANA_BACKEND_ENV = {
 } as const;
 
 // fix/db_imprv: Grafana Cloud Profiles (Pyroscope) push endpoint — dashboard-backend
-// only (backend/observability.py::setup_profiling). Uses the same GRAFANA_API_KEY as
-// GRAFANA_ENV/GRAFANA_BACKEND_ENV above (its Access Policy was extended with
-// profiles:write rather than minting a separate token).
+// (backend/observability.py::setup_profiling) and, as of fix/profiler_imprv,
+// scrape-and-analyze too (src/infrastructure/shared/observability/pyroscope_profiling.py's
+// setup_profiling, called from src/entrypoints/cli/main.py). Same endpoint/user for both —
+// they're told apart on the Pyroscope side by their own
+// pyroscope.configure(application_name=...) (SERVICE_NAME_BACKEND vs SERVICE_NAME). Uses the
+// same GRAFANA_API_KEY as GRAFANA_ENV/GRAFANA_BACKEND_ENV above (its Access Policy was
+// extended with profiles:write rather than minting a separate token).
 export const GRAFANA_PROFILES_ENV = {
   GRAFANA_PROFILES_URL: "https://profiles-prod-019.grafana.net",
   GRAFANA_PROFILES_USER: "1558239",

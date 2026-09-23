@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { queryLogs, queryTraceById, type LokiStreamResult, type LokiResponse, type OtlpSpan, type OtlpTraceResponse } from '@/lib/api/grafana'
+import { queryLogs, type LokiStreamResult, type LokiResponse, type OtlpSpan, type OtlpTraceResponse } from '@/lib/api/grafana'
+import { fetchTraceDetail } from '@/lib/api/trace-detail-cache'
 import { TablePanel } from '@/components/ui/table-panel'
 import { useI18n } from '@/lib/providers'
 import { LokiLabel } from '@/lib/observability-constants'
@@ -284,7 +285,7 @@ export function LogsTable({
 
   async function handleOpenTrace(traceId: string, spanId?: string) {
     try {
-      const data = await queryTraceById(traceId)
+      const data = await fetchTraceDetail(traceId)
       const spans = flattenSpans(data)
       const tree = buildSpanTree(spans)
       const pipelines = findArticlePipelineSpans(spans)

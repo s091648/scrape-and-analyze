@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from opentelemetry.trace import StatusCode
 
 from shared.enums.observability import SpanName
-from src.infrastructure.shared.observability import get_tracer
+from src.infrastructure.shared.observability import get_tracer, run_tagged_for_profiling
 from .discover_task import DiscoverTask
 from .fetch_task import FetchTask
 from .host_queue_map import HostQueueMap
@@ -214,7 +214,11 @@ class ScrapeExecutor:
                             span.set_attribute("discover.source", task.setting.source)
                             span.set_attribute("discover.host", host)
                             try:
-                                fetch_tasks = task.execute()
+                                # fix/profiler_imprv: tags this worker thread's CPU samples
+                                # with the DISCOVER_TASK span's own span_id for the call's
+                                # duration — see run_tagged_for_profiling's docstring for why
+                                # no asyncio.to_thread-style bridging is needed here.
+                                fetch_tasks = run_tagged_for_profiling(task.execute)
                                 discover_count += 1
                                 discovered_count = len(fetch_tasks) if fetch_tasks else 0
                                 span.set_attribute("discover.discovered_count", discovered_count)
@@ -331,7 +335,13 @@ class ScrapeExecutor:
                         if isinstance(task, FetchTask):
                             exec_start = time.monotonic()
                             try:
-                                result = task.execute()
+                                # fix/profiler_imprv: tags this worker thread's CPU samples
+                                # with the FETCH_TASK span's own span_id — this is where the
+                                # sync HTML parse/sanitize work actually happens (via
+                                # scraper.fetch(), called synchronously inside task.execute()),
+                                # not just the HTTP round trip, which gil_only sampling won't
+                                # pick up anyway.
+                                result = run_tagged_for_profiling(task.execute)
                                 span.set_attribute(
                                     "fetch.execute_seconds", round(time.monotonic() - exec_start, 3)
                                 )

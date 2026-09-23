@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
+import { SWRTestWrapper } from '@/tests/test-utils/swr'
 
 vi.mock('@/lib/providers', () => ({
   useI18n: () => ({
@@ -67,7 +68,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByTestId('dialog')).toBeNull()
   })
 
@@ -82,7 +83,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTestId('dialog')).toBeDefined()
   })
 
@@ -98,7 +99,7 @@ describe('RunWaterfallDialog visibility', () => {
         traceId="abc"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByTestId('close-dialog'))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -116,7 +117,7 @@ describe('RunWaterfallDialog header', () => {
         traceId="abcdef1234567890xxxx"
         trace={makeTrace([makeSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const title = screen.getByTestId('dialog-title').textContent ?? ''
     expect(title).toContain('abcdef1234567890')
   })
@@ -135,7 +136,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'deployment.environment', value: { stringValue: 'production' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Environment is a text node inside a <p> with other content — check container
     expect(screen.getByTestId('dialog').textContent).toContain('production')
   })
@@ -154,12 +155,13 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'resource.deployment.environment', value: { stringValue: 'staging' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTestId('dialog').textContent).toContain('staging')
   })
 
-  // Profiling (Grafana Cloud Profiles) only runs in backend/main.py's process — the
-  // "View Profile" button only makes sense, and only shows, for a backend trace.
+  // Both backend/main.py and src/entrypoints/cli/main.py run setup_profiling() as of
+  // fix/profiler_imprv — the "View Profile" button shows for either app's trace, not
+  // backend-only anymore.
   it('shows the View Profile button for a backend trace', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
@@ -174,11 +176,11 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('admin.viewProfile')).toBeTruthy()
   })
 
-  it('hides the View Profile button for a scraper trace', async () => {
+  it('shows the View Profile button for a scraper trace', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
     )
@@ -192,7 +194,25 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
         )}
       />
+    , { wrapper: SWRTestWrapper })
+    expect(screen.getByText('admin.viewProfile')).toBeTruthy()
+  })
+
+  it('hides the View Profile button for a trace from neither profiled app', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
     )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByText('admin.viewProfile')).toBeNull()
   })
 
@@ -220,7 +240,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('admin.viewProfile'))
 
     // next-auth's real getSession() (unmocked here) fires its own fetch to
@@ -253,7 +273,7 @@ describe('RunWaterfallDialog header', () => {
           [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
         )}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('admin.viewProfile'))
     // FlameGraphDialog renders first in JSX order, so its own Dialog/close-dialog
     // button is the first of the two now mounted (main dialog is always open too).
@@ -273,7 +293,7 @@ describe('RunWaterfallDialog header', () => {
         traceId="trace1"
         trace={makeTrace([])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // No root -> startDate falls back to '—', no View Profile button, no crash.
     expect(screen.getByTestId('dialog')).toBeDefined()
     expect(screen.queryByText('admin.viewProfile')).toBeNull()
@@ -292,7 +312,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([makeSpan({ name: 'scraper.run', spanId: 'root001' })])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('scraper.run')).toBeDefined()
   })
 
@@ -315,7 +335,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([root, child])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByText('scraper.run')).toBeDefined()
     expect(screen.getByText('pipeline.discover')).toBeDefined()
   })
@@ -342,7 +362,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         traceId="trace1"
         trace={makeTrace([root, article])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Label shows last 2 path segments: "section/article-slug"
     expect(screen.getByText('↳ section/article-slug')).toBeDefined()
   })
@@ -371,7 +391,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         trace={makeTrace([root, article])}
         onSelectArticle={onSelectArticle}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const row = screen.getByText('↳ a/b').closest('tr')!
     fireEvent.click(row)
     expect(onSelectArticle).toHaveBeenCalledOnce()
@@ -392,7 +412,7 @@ describe('RunWaterfallDialog waterfall rows', () => {
         trace={makeTrace([root])}
         onSelectArticle={onSelectArticle}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     expect(onSelectArticle).not.toHaveBeenCalled()
   })
@@ -425,7 +445,7 @@ describe('RunWaterfallDialog collapse/expand', () => {
         traceId="trace1"
         trace={makeTrace([root, child, grandchild])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // child (depth 1) has children → initially collapsed
     // grandchild should not be visible initially
     expect(screen.queryByText('fetch.item')).toBeNull()
@@ -464,7 +484,7 @@ describe('RunWaterfallDialog collapse/expand', () => {
         traceId="trace1"
         trace={makeTrace([root, child, grandchild])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // Initially: root has Collapse button (has children, not collapsed);
     // child (depth 1, has children) starts collapsed → its Expand button is visible
     const expandBtns = screen.getAllByLabelText('Expand')
@@ -498,11 +518,232 @@ describe('RunWaterfallDialog topic rows', () => {
         trace={makeTrace([root, topic])}
         onSelectTopic={onSelectTopic}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const row = screen.getByText('↳ AI News').closest('tr')!
     fireEvent.click(row)
     expect(onSelectTopic).toHaveBeenCalledOnce()
     expect(onSelectTopic.mock.calls[0][0].spanId).toBe('topic001')
+  })
+})
+
+// fix/profiler_imprv: the CPU-utilization overlay row (always fetched for a profiled trace —
+// backend or scraper — not gated behind opening FlameGraphDialog) and the per-span "view
+// profile for this span" button (StageCard's onViewProfile), which scopes FlameGraphDialog's
+// query to just that span_id instead of the whole padded window.
+describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
+  function mockFetchProfile(body: unknown) {
+    global.fetch = vi.fn((url: unknown) => {
+      if (typeof url === 'string' && url.includes('/grafana/profile')) {
+        return Promise.resolve({ ok: true, json: async () => body })
+      }
+      return Promise.resolve({ ok: false, json: async () => ({ error: 'not_configured' }) })
+    }) as unknown as typeof fetch
+  }
+
+  it('shows the CPU-utilization overlay row once profile timeline data loads', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    // Bucket [1700000000s, 1700000010s) exactly covers makeSpan()'s own [start, end) —
+    // lands fully inside the (unpadded) root window, so overlayBars comes back non-empty.
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
+    })
+  })
+
+  it('reuses the CPU-strip profile fetch when "View Profile" is then clicked for the same window', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+
+    // The always-on CPU-utilization strip fetches the whole-window profile as soon as the
+    // dialog opens.
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
+    })
+    const profileCalls = () => (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([u]) => typeof u === 'string' && u.includes('/grafana/profile'))
+    expect(profileCalls()).toHaveLength(1)
+
+    // The top-level "View Profile" button queries that exact same whole-window
+    // (start, end, service) tuple, no spanId — fix/profiler_imprv's shared useProfileQuery
+    // hook must serve this from the SWR cache the strip's own fetch already populated
+    // instead of firing a second request through the Grafana proxy.
+    fireEvent.click(screen.getByText('admin.viewProfile'))
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.profileDialogTitle')).toBeTruthy()
+    })
+    expect(profileCalls()).toHaveLength(1) // still just the one call from the strip
+  })
+
+  it('queries the scraper profile (service=scraper) for a scraper trace', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('/grafana/profile') && u.includes('service=scraper'))).toBe(true)
+    })
+  })
+
+  it('does not show the overlay row when the profile fetch returns no data', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    expect(screen.queryByText('admin.waterfallCpuRowLabel')).toBeNull()
+  })
+
+  it('opens the flame graph scoped to that span_id when its view-profile button is clicked', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: '0123456789abcdef', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    fireEvent.click(screen.getByTitle('admin.viewSpanProfile'))
+
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('span_id=0123456789abcdef'))).toBe(true)
+    })
+  })
+
+  it('normalizes a base64 OTLP span ID to hex before querying the per-span profile', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    // base64 of bytes 01 23 45 67 89 ab cd ef — the form Tempo's OTLP JSON can return.
+    const root = makeSpan({ spanId: 'ASNFZ4mrze8=', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    fireEvent.click(screen.getByTitle('admin.viewSpanProfile'))
+
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('span_id=0123456789abcdef'))).toBe(true)
+    })
+  })
+
+  it('shows a per-span view-profile button for a scraper trace too', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root0001', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    expect(screen.getByTitle('admin.viewSpanProfile')).toBeTruthy()
+  })
+
+  it('does not show a per-span view-profile button for a trace from neither profiled app', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    const root = makeSpan({ spanId: 'root0001', name: 'other.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'some-other-service' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    fireEvent.click(screen.getByText('other.run').closest('tr')!)
+    expect(screen.queryByTitle('admin.viewSpanProfile')).toBeNull()
   })
 })
 
@@ -519,7 +760,7 @@ describe('RunWaterfallDialog span detail preview', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     // Two dialogs are now mounted — the preview dialog's title is the same span name.
     expect(screen.getAllByTestId('dialog-title').length).toBe(2)
@@ -537,7 +778,7 @@ describe('RunWaterfallDialog span detail preview', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
     expect(screen.getAllByTestId('dialog-title').length).toBe(2)
 
@@ -575,7 +816,7 @@ describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
         traceId="trace1"
         trace={makeTrace([root, later, earlier])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const rows = screen.getAllByRole('row').filter(r => r.querySelector('td'))
     const names = rows.map(r => r.textContent ?? '')
     expect(names.findIndex(n => n.includes('pipeline.discover')))
@@ -601,7 +842,7 @@ describe('RunWaterfallDialog sibling ordering + collapse-again', () => {
         traceId="trace1"
         trace={makeTrace([root, child])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // root (depth 0) starts expanded — collapsing it hides its own children.
     expect(screen.getByText('pipeline.fetch')).toBeDefined()
     fireEvent.click(screen.getByLabelText('Collapse'))
@@ -640,7 +881,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan(), scraped])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const badge = screen.getByTitle('admin.articleStatusFailed')
     expect(badge.textContent).toBe('✗')
     // row picks up the error styling too
@@ -666,7 +907,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan(), analyze])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.getByTitle('admin.articleStatusPartial').textContent).toBe('▲')
     expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
   })
@@ -682,7 +923,7 @@ describe('RunWaterfallDialog article status indicator', () => {
         traceId="trace1"
         trace={makeTrace([rootSpan(), pipelineSpan()])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     expect(screen.queryByTitle('admin.articleStatusFailed')).toBeNull()
     expect(screen.queryByTitle('admin.articleStatusPartial')).toBeNull()
   })
@@ -705,7 +946,7 @@ describe('RunWaterfallDialog SpanBar', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     // SpanBar renders a div with absolute-positioned fill
     const bars = container.querySelectorAll('.bg-primary\\/60, .bg-destructive\\/70')
     expect(bars.length).toBeGreaterThan(0)
@@ -726,7 +967,7 @@ describe('RunWaterfallDialog SpanBar', () => {
         traceId="trace1"
         trace={makeTrace([root])}
       />
-    )
+    , { wrapper: SWRTestWrapper })
     const errorBar = container.querySelector('.bg-destructive\\/70')
     expect(errorBar).not.toBeNull()
   })

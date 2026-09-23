@@ -92,6 +92,15 @@ GRAFANA_API_KEY: Optional[str] = os.environ.get("GRAFANA_API_KEY") or None
 GRAFANA_OTLP_USER: str = os.environ.get("GRAFANA_OTLP_USER", "").strip()
 GRAFANA_OTLP_ENDPOINT: str = os.environ.get("GRAFANA_OTLP_ENDPOINT", "").strip()
 
+# Scraper's own continuous profiling (src/infrastructure/shared/observability's
+# pyroscope_profiling module) — same GRAFANA_API_KEY as above, a separate Grafana Cloud
+# Profiles (Pyroscope) push endpoint + instance user, mirroring backend/config.py's
+# GRAFANA_PROFILES_URL/USER (fix/profiler_imprv). Read once at process startup by
+# main.py's setup_profiling() call, never re-read mid-run, so frozen constants (unlike
+# get_grafana_loki_config()'s re-read-at-call-time pattern) are fine here.
+GRAFANA_PROFILES_URL: Optional[str] = os.environ.get("GRAFANA_PROFILES_URL") or None
+GRAFANA_PROFILES_USER: Optional[str] = os.environ.get("GRAFANA_PROFILES_USER") or None
+
 
 def get_grafana_loki_config() -> tuple[Optional[str], Optional[str], Optional[str]]:
     """Re-reads GRAFANA_LOKI_URL/GRAFANA_LOKI_USER/GRAFANA_API_KEY at call time instead of

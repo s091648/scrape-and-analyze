@@ -176,6 +176,7 @@ describe('queryLokiMetricsBatch', () => {
 describe('queryTraceById', () => {
   it('calls GET /api/proxy/grafana/traces/{id}', async () => {
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
       json: async () => ({ batches: [] }),
     })
 
@@ -191,12 +192,24 @@ describe('queryTraceById', () => {
 
   it('returns an OtlpTraceResponse with batches', async () => {
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
       json: async () => ({ batches: [{ resource: { attributes: [] }, scopeSpans: [] }] }),
     })
 
     const { queryTraceById } = await import('@/lib/api/grafana')
     const result = await queryTraceById('trace1')
     expect(Array.isArray(result.batches)).toBe(true)
+  })
+
+  it('rejects on a non-2xx response instead of resolving with the error body', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'upstream_failed' }),
+    })
+
+    const { queryTraceById } = await import('@/lib/api/grafana')
+    await expect(queryTraceById('trace1')).rejects.toThrow('502')
   })
 })
 

@@ -66,12 +66,19 @@ vi.mock('@/lib/api/grafana', async (importOriginal) => {
   }
 })
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
   vi.resetModules()
   global.fetch = vi.fn().mockResolvedValue({
     json: async () => ({ traces: [] }),
   })
+  // fix/profiler_imprv: fetchTraceDetail's cache is a module-level singleton (shared across
+  // TracesTable and LogsTable on purpose) — this suite reuses the same literal trace IDs
+  // (e.g. "trace001") across many unrelated tests, each mocking queryTraceById with its own
+  // response, so it must be reset every test or a later test can see an earlier one's cached
+  // trace leak through.
+  const { __resetTraceDetailCacheForTests } = await import('@/lib/api/trace-detail-cache')
+  __resetTraceDetailCacheForTests()
 })
 
 // ── Tooltip tests (existing) ──────────────────────────────────────────────────

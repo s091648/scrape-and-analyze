@@ -57,13 +57,19 @@ function withOverflow<T>(scrollHeight: number, clientHeight: number, fn: () => T
 }
 
 describe('WeeklyReportStepper — scroll fix (2026-07-14, US10)', () => {
-  it('does not show jump-to-top/bottom chevrons when the list fits', async () => {
+  it('keeps jump-to-top/bottom chevrons laid out but hidden when the list fits', async () => {
     const { WeeklyReportStepper } = await import('@/components/features/weekly-report/weekly-report-stepper')
     withOverflow(100, 100, () => {
       render(<WeeklyReportStepper reports={makeReports(3)} selectedId="report-0" onSelect={vi.fn()} />)
     })
-    expect(screen.queryByLabelText('Jump to newest week')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Jump to oldest week')).not.toBeInTheDocument()
+    // Always rendered (only toggled `invisible`) so isScrollable resolving after mount can't
+    // shift the SSR-rendered dot list — see the stepper's own comment.
+    for (const label of ['Jump to newest week', 'Jump to oldest week']) {
+      const btn = screen.getByLabelText(label)
+      expect(btn).toHaveClass('invisible')
+      expect(btn).toHaveAttribute('aria-hidden', 'true')
+      expect(btn).toHaveAttribute('tabindex', '-1')
+    }
   })
 
   it('shows jump-to-top/bottom chevrons when the list overflows, and they scroll the list', async () => {

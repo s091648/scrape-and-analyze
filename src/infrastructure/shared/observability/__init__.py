@@ -1,6 +1,7 @@
 from .run_context import init_run_context, get_run_id
 from .otel_tracing import get_tracer, shutdown_tracing
 from .job_execution import log_execution_started, log_execution_completed
+from .pyroscope_profiling import setup_profiling, shutdown_profiling, run_tagged_for_profiling
 
 
 __all__ = [
@@ -10,4 +11,7 @@ __all__ = [
     "shutdown_tracing",
     "log_execution_started",
     "log_execution_completed",
+    "setup_profiling",
+    "shutdown_profiling",
+    "run_tagged_for_profiling",
 ]

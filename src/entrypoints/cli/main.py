@@ -34,11 +34,20 @@ MAX_EXECUTION_TIME = 50 * 60  # 50 minutes — enforced by asyncio.timeout() in 
 def main() -> None:
     """Entry point: wires dependencies, applies startup jitter, runs the scrape pipeline, and flushes telemetry."""
     from opentelemetry import trace as otel_trace
-    from src.infrastructure.shared.observability import get_tracer, shutdown_tracing
+    from src.infrastructure.shared.observability import (
+        get_tracer, shutdown_tracing, setup_profiling, shutdown_profiling,
+    )
     from src.bootstrap import build_collection_pipeline
 
     validate_config()
     configure_logging()
+    # fix/profiler_imprv: only main.py (the scheduled pipeline, up to MAX_EXECUTION_TIME long)
+    # gets continuous profiling — the other CLI entrypoints (backfill_rag/dedup_reconcile/
+    # refresh_metrics/translate/weekly_report) are short, I/O-dominated one-off jobs where
+    # pyroscope's default gil_only sampling would see little to nothing (same reasoning as
+    # search_service.py's sync DB calls vs. an awaited network round trip), so profiling them
+    # wasn't wired up. No-op locally/in CI (GRAFANA_PROFILES_*/GRAFANA_API_KEY unset there).
+    setup_profiling(APP_ENV)
 
     # Randomise start time to avoid hitting arXiv at the top of the hour
     # alongside other cron jobs. Skipped when RUN_IMMEDIATELY is set (manual triggers).
@@ -143,6 +152,7 @@ def main() -> None:
         # with block exits here → span.end() is called → queued for export
     finally:
         shutdown_tracing()  # flush BatchSpanProcessor only after root span is queued
+        shutdown_profiling()  # flush any samples since the last periodic push before exit
 
 
 if __name__ == "__main__":

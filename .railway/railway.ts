@@ -233,6 +233,7 @@ export default defineRailway((ctx) => {
       ...databaseUrl,
       ...vectorDbRef,
       ...grafana,
+      ...GRAFANA_PROFILES_ENV,
       ...notifications,
       ...ragSecrets,
       ...RAG_DENSE_ENV,

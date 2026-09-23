@@ -331,7 +331,7 @@ jobs:
         if: always()
         env:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
-        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/write-coverage-summary.sh"
 
       - name: Update src unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -427,7 +427,7 @@ jobs:
         if: always()
         env:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
-        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/write-coverage-summary.sh"
 
       - name: Update backend unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -526,7 +526,7 @@ jobs:
         if: always()
         env:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
-        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/write-coverage-summary.sh"
 
       - name: Update backend integration pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -605,7 +605,7 @@ jobs:
         if: always()
         env:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
-        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/write-coverage-summary.sh"
 
       - name: Update fastembed unit pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -703,7 +703,7 @@ jobs:
         if: always()
         env:
           REPORT: ${{ steps.coverage.outputs.summaryReport }}
-        run: echo "$REPORT" >> $GITHUB_STEP_SUMMARY
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/write-coverage-summary.sh"
 
       - name: Update src integration pass rate badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'

@@ -14,9 +14,13 @@ interface HomePageContentProps {
    * topic resolution `app/page.tsx` used to fetch this, so they can't disagree within one
    * request (see lib/server/ssr-fetch.ts's module doc comment). */
   initialReport?: WeeklyReport | null
+  /** Server-rendered first page of reports + available weeks — seeded so the stepper's week
+   * dots are in the first paint instead of popping in (and shifting the card) after hydration. */
+  initialReports?: WeeklyReport[]
+  initialAvailableWeeks?: string[]
 }
 
-export default function HomePageContent({ initialReport }: HomePageContentProps) {
+export default function HomePageContent({ initialReport, initialReports, initialAvailableWeeks }: HomePageContentProps) {
   const { selectedTopicId } = useTopic()
   const searchParams = useSearchParams()
   // Captured once on mount: this is a one-time deep-link value (jump to a specific
@@ -27,6 +31,8 @@ export default function HomePageContent({ initialReport }: HomePageContentProps)
       topicId={selectedTopicId}
       initialWeek={initialWeek}
       initialReport={initialReport}
+      initialReports={initialReports}
+      initialAvailableWeeks={initialAvailableWeeks}
     >
       {({ onSend, onConversationChange }) => (
         <InlineQABarWrapper className="w-full" onMessageSent={onSend} onConversationChange={onConversationChange} />
