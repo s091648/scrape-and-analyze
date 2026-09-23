@@ -973,8 +973,18 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
+      # `--ci` (not `--detach`, unlike the other deploy-staging-* jobs): lighthouse-check
+      # `needs:` this job and audits the live staging frontend, so this has to block until
+      # *this* build is actually serving — with --detach the job returned right after the
+      # upload and Lighthouse measured the previous deployment (every report was one commit
+      # behind). --ci waits for the build; the wait script then waits for boot + healthcheck.
       - name: Deploy dashboard-frontend to Railway (staging)
-        run: railway up --detach --service ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }} --environment staging
+        run: railway up --ci --service ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }} --environment staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Wait for the new frontend deployment to go live
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/wait-railway-deployment.sh" "${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}" staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 

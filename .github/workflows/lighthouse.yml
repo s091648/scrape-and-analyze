@@ -129,8 +129,10 @@ jobs:
       # is *triggered*, not once it's live — so this job's `needs:` only guarantees a deploy
       # was kicked off, not that it has finished building/booting yet. Poll until the target
       # actually responds before handing it to Lighthouse, to avoid a false failure against a
-      # still-building deployment (does not guarantee it's *this* PR's build specifically vs.
-      # whatever was previously live — see the caveat in ci.yml's lighthouse-check job).
+      # still-building deployment. This probe alone can't tell *this* PR's build from whatever
+      # was previously live — ci.yml's deploy-staging-frontend now handles that by blocking
+      # (`railway up --ci` + wait-railway-deployment.sh) until the new deployment is SUCCESS.
+      # A workflow_dispatch run has no such guarantee; it audits whatever is live.
       - name: Wait for target to be reachable
         run: |
           URL="${{ steps.target.outputs.url }}"
