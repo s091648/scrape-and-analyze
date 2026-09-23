@@ -329,6 +329,9 @@ export function TracesTable({
       fetchTraceDetail(trace.traceID).then(d => {
         setDetails(prev => new Map([...prev, [trace.traceID, d]]))
         setWaterfallTarget({ traceId: trace.traceID, data: d })
+      }).catch(() => {
+        // Fetch failed (queryTraceById rejects on non-2xx) — nothing to open; not cached, so
+        // clicking again retries.
       })
       return
     }

@@ -27,10 +27,22 @@ interface UseProfileQueryArgs {
  * nothing to revalidate, a cache hit should be instant. */
 export function useProfileQuery({ enabled, start, end, service, spanId }: UseProfileQueryArgs) {
   const key = enabled ? (['flame-profile', start, end, service ?? 'backend', spanId ?? null] as const) : null
-  const { data, isLoading } = useSWR<FlamebearerResponse>(
+  const { data, error, isLoading } = useSWR<FlamebearerResponse>(
     key,
-    () => queryProfile({ start, end, service, spanId }).catch(() => ({ error: 'fetch_failed' }) as unknown as FlamebearerResponse),
-    { revalidateOnFocus: false, revalidateIfStale: false },
+    async () => {
+      const res = await queryProfile({ start, end, service, spanId })
+      // Only `not_configured` is a stable answer worth caching. Any other error (network blip,
+      // Pyroscope 5xx) is thrown so SWR tracks it as `error` rather than cached data — with
+      // revalidateIfStale off, a cached error would otherwise stick until a full page reload.
+      // Nothing is cached for an errored key, so the next mount (reopening the dialog) refetches.
+      const err = res && typeof res === 'object' && 'error' in res ? (res as { error: unknown }).error : undefined
+      if (err !== undefined && err !== 'not_configured') throw new Error(String(err))
+      return res
+    },
+    { revalidateOnFocus: false, revalidateIfStale: false, shouldRetryOnError: false },
   )
-  return { data, isLoading: enabled && isLoading }
+  // Consumers (FlameGraphDialog, the waterfall's CPU strip) only branch on `'error' in data`,
+  // so surface a thrown fetch as the same `fetch_failed` shape they already handle.
+  const shaped = error ? ({ error: 'fetch_failed' } as unknown as FlamebearerResponse) : data
+  return { data: shaped, isLoading: enabled && isLoading }
 }

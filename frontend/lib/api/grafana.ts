@@ -319,6 +319,10 @@ export async function queryTraceById(traceId: string): Promise<OtlpTraceResponse
   const res = await fetch(`/api/proxy/grafana/traces/${traceId}`, {
     headers: await authHeaders(),
   })
+  // Reject instead of resolving with the error body — fetchTraceDetail() caches whatever this
+  // resolves with for the page's lifetime, so a transient 401/404/5xx must not be stored as if
+  // it were the trace (it would block every later retry for that ID).
+  if (!res.ok) throw new Error(`queryTraceById failed: ${res.status}`)
   return res.json()
 }
 

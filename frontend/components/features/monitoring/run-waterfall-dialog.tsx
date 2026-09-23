@@ -8,7 +8,7 @@ import { useProfileQuery } from '@/hooks/use-profile-query'
 import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
-  getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
+  getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus, otlpIdToHex,
   type SpanNode,
 } from '@/lib/otlp-utils'
 import { SpanName, SERVICE_NAME, SERVICE_NAME_BACKEND } from '@/lib/observability-constants'
@@ -249,7 +249,9 @@ export function RunWaterfallDialog({
             span={selectedSpan}
             className="w-full"
             onViewProfile={isProfiledTrace ? () => {
-              setFlameGraphSpanId(selectedSpan.spanId)
+              // Tempo's OTLP JSON may carry base64 span IDs, but the profile endpoint only
+              // accepts 16-char lowercase hex (the tag value to_thread_profiled() writes).
+              setFlameGraphSpanId(otlpIdToHex(selectedSpan.spanId))
               setShowFlameGraph(true)
             } : undefined}
           />

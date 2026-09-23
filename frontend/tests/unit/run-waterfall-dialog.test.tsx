@@ -659,7 +659,7 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
     )
-    const root = makeSpan({ spanId: 'root0001', name: 'scraper.run' })
+    const root = makeSpan({ spanId: '0123456789abcdef', name: 'scraper.run' })
     render(
       <RunWaterfallDialog
         open={true}
@@ -676,7 +676,33 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
 
     await vi.waitFor(() => {
       const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
-      expect(calls.some(([u]) => u.includes('span_id=root0001'))).toBe(true)
+      expect(calls.some(([u]) => u.includes('span_id=0123456789abcdef'))).toBe(true)
+    })
+  })
+
+  it('normalizes a base64 OTLP span ID to hex before querying the per-span profile', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    // base64 of bytes 01 23 45 67 89 ab cd ef — the form Tempo's OTLP JSON can return.
+    const root = makeSpan({ spanId: 'ASNFZ4mrze8=', name: 'scraper.run' })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [root],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+    fireEvent.click(screen.getByText('scraper.run').closest('tr')!)
+    fireEvent.click(screen.getByTitle('admin.viewSpanProfile'))
+
+    await vi.waitFor(() => {
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [string][]
+      expect(calls.some(([u]) => u.includes('span_id=0123456789abcdef'))).toBe(true)
     })
   })
 
