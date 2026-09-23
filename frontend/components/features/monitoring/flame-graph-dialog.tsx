@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import useSWR from 'swr'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
-import { queryProfile, type FlamebearerResponse, type Flamebearer, type FlamebearerTimeline } from '@/lib/api/grafana'
+import type { Flamebearer, FlamebearerTimeline } from '@/lib/api/grafana'
+import { useProfileQuery } from '@/hooks/use-profile-query'
 import { formatDuration } from '@/lib/otlp-utils'
 import { cn } from '@/lib/utils'
 
@@ -319,21 +319,11 @@ function AxisRuler({ totalMs }: { totalMs: number }) {
 
 export function FlameGraphDialog({ open, onClose, start, end, service, spanId }: FlameGraphDialogProps) {
   const { t } = useI18n()
-  // fix/profiler_imprv: (start, end, service, spanId) is an already-resolved, fixed window
-  // into the PAST — unlike the Operations/Logs/Traces batch queries elsewhere in this
-  // dashboard (which mean "as of now", so the same time-range *selection* resolves to a
-  // different absolute [start, end] on every poll and genuinely needs a fresh fetch), the
-  // exact same tuple here always answers with the same historical CPU samples. That makes it
-  // a good fit for SWR's cache-by-key model where those live-window queries are not:
-  // revalidateOnFocus/revalidateIfStale are both off because there is nothing to revalidate
-  // — once fetched for a given key, reopening the same span's flame graph should be instant,
-  // not a second round trip through the Grafana proxy.
-  const key = open ? (['flame-profile', start, end, service ?? 'backend', spanId ?? null] as const) : null
-  const { data, isLoading } = useSWR<FlamebearerResponse>(
-    key,
-    () => queryProfile({ start, end, service, spanId }).catch(() => ({ error: 'fetch_failed' }) as unknown as FlamebearerResponse),
-    { revalidateOnFocus: false, revalidateIfStale: false },
-  )
+  // fix/profiler_imprv: shared with RunWaterfallDialog's own CPU-utilization strip fetch
+  // (same hook, useProfileQuery) — a top-level "View Profile" click (spanId omitted) queries
+  // the exact same whole-window tuple the strip already fetched on open, so sharing one SWR
+  // cache entry here means that click is served instantly instead of re-querying Pyroscope.
+  const { data, isLoading } = useProfileQuery({ enabled: open, start, end, service, spanId })
   const loading = open && isLoading
   const errorKey = data && 'error' in data ? (data as unknown as { error: string }).error : null
   // Clicking a legend entry (or a frame) toggles this — set, every OTHER package's frames

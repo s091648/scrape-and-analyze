@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useI18n } from '@/lib/providers'
-import { queryProfile, type OtlpTraceResponse, type OtlpSpan, type FlamebearerTimeline } from '@/lib/api/grafana'
+import { useProfileQuery } from '@/hooks/use-profile-query'
+import type { OtlpTraceResponse, OtlpSpan } from '@/lib/api/grafana'
 import {
   flattenSpans, buildSpanTree, spanDurationMs, isErrorSpan,
   getAttr, getResourceAttr, findStageSpans, formatDuration, articleRowStatus,
@@ -101,12 +102,6 @@ export function RunWaterfallDialog({
   // by span actually narrows.
   const [showFlameGraph, setShowFlameGraph] = useState(false)
   const [flameGraphSpanId, setFlameGraphSpanId] = useState<string | undefined>(undefined)
-  // Fetched unconditionally whenever a backend trace is open (not gated behind opening
-  // FlameGraphDialog) — powers the always-visible CPU-utilization strip in the waterfall
-  // itself (see CpuUtilizationStrip usage below), so the "is this gap actually CPU-bound or
-  // just idle" question a span waterfall alone can't answer is visible without an extra click.
-  const [profileTimeline, setProfileTimeline] = useState<FlamebearerTimeline | null>(null)
-  const [profileSampleRate, setProfileSampleRate] = useState(1)
 
   // Default: collapse spans at depth >= 1 (second level and deeper)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -196,22 +191,23 @@ export function RunWaterfallDialog({
     ? Math.floor(Number((rootStart + rootDurationNs) / 1_000_000_000n)) + FLAME_GRAPH_PADDING_SECONDS
     : 0
 
-  // Best-effort — a failed/unconfigured fetch just leaves the strip absent (CpuUtilizationStrip
-  // renders nothing for an empty bars array), same graceful-degradation contract every other
-  // profiling touchpoint in this codebase already has.
-  useEffect(() => {
-    if (!open || !isProfiledTrace || !root) return
-    let cancelled = false
-    queryProfile({ start: flameGraphStart, end: flameGraphEnd, service: profileService })
-      .then(res => {
-        if (cancelled || 'error' in res) return
-        setProfileTimeline(res.timeline ?? null)
-        setProfileSampleRate(res.metadata?.sampleRate || 1)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isProfiledTrace, profileService, traceId])
+  // Powers the always-visible CPU-utilization strip in the waterfall itself (see
+  // CpuUtilizationStrip usage below), so the "is this gap actually CPU-bound or just idle"
+  // question a span waterfall alone can't answer is visible without an extra click.
+  // spanId omitted — same whole-window key FlameGraphDialog's own top-level "View Profile"
+  // button queries, so useProfileQuery's shared SWR cache means that click is served
+  // instantly instead of re-fetching (fix/profiler_imprv). Best-effort — a failed/
+  // unconfigured fetch just leaves the strip absent (CpuUtilizationStrip renders nothing for
+  // an empty bars array), same graceful-degradation contract every other profiling
+  // touchpoint in this codebase already has.
+  const { data: profileData } = useProfileQuery({
+    enabled: open && isProfiledTrace && !!root,
+    start: flameGraphStart,
+    end: flameGraphEnd,
+    service: profileService,
+  })
+  const profileTimeline = profileData && !('error' in profileData) ? (profileData.timeline ?? null) : null
+  const profileSampleRate = profileData && !('error' in profileData) ? (profileData.metadata?.sampleRate || 1) : 1
 
   // Plain derived value, not useMemo — matches flame-graph-dialog.tsx's own `frames`
   // (layoutFlamebearer's result), a similarly cheap per-render recompute over a small array.

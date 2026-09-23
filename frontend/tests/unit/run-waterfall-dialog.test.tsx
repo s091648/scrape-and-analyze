@@ -568,6 +568,48 @@ describe('RunWaterfallDialog CPU overlay + per-span profile', () => {
     })
   })
 
+  it('reuses the CPU-strip profile fetch when "View Profile" is then clicked for the same window', async () => {
+    const { RunWaterfallDialog } = await import(
+      '@/components/features/monitoring/run-waterfall-dialog'
+    )
+    mockFetchProfile({
+      version: 1,
+      flamebearer: { names: ['total'], levels: [[0, 1, 0, 0]], numTicks: 1, maxSelf: 0 },
+      metadata: { format: 'single', sampleRate: 1_000_000_000, units: 'samples', name: 'cpu' },
+      timeline: { startTime: 1700000000, samples: [5_000_000_000], durationDelta: 10, watermarks: null },
+    })
+    render(
+      <RunWaterfallDialog
+        open={true}
+        onClose={vi.fn()}
+        traceId="trace1"
+        trace={makeTrace(
+          [makeSpan()],
+          [{ key: 'service.name', value: { stringValue: 'scrape-analyzer-backend' } }]
+        )}
+      />
+    , { wrapper: SWRTestWrapper })
+
+    // The always-on CPU-utilization strip fetches the whole-window profile as soon as the
+    // dialog opens.
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.waterfallCpuRowLabel')).toBeTruthy()
+    })
+    const profileCalls = () => (global.fetch as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([u]) => typeof u === 'string' && u.includes('/grafana/profile'))
+    expect(profileCalls()).toHaveLength(1)
+
+    // The top-level "View Profile" button queries that exact same whole-window
+    // (start, end, service) tuple, no spanId — fix/profiler_imprv's shared useProfileQuery
+    // hook must serve this from the SWR cache the strip's own fetch already populated
+    // instead of firing a second request through the Grafana proxy.
+    fireEvent.click(screen.getByText('admin.viewProfile'))
+    await vi.waitFor(() => {
+      expect(screen.getByText('admin.profileDialogTitle')).toBeTruthy()
+    })
+    expect(profileCalls()).toHaveLength(1) // still just the one call from the strip
+  })
+
   it('queries the scraper profile (service=scraper) for a scraper trace', async () => {
     const { RunWaterfallDialog } = await import(
       '@/components/features/monitoring/run-waterfall-dialog'
