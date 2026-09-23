@@ -19,6 +19,8 @@ import {
   fetchGraphSSR,
   fetchTagGroupsSSR,
   fetchWeeklyReportSSR,
+  fetchWeeklyReportListSSR,
+  fetchWeeklyReportWeeksSSR,
   __resetGuestTokenCacheForTests,
   type SsrContext,
 } from '@/lib/server/ssr-fetch'
@@ -403,5 +405,27 @@ describe('fetchXSSR helpers — null-credential and failure fallback (FR-007)', 
     fetchMock.mockResolvedValue(jsonResponse({ id: 'wr1' }, true, 'BYPASS'))
     const result = await fetchWeeklyReportSSR(withCredential)
     expect(result).toEqual({ value: { id: 'wr1' }, cacheStatus: 'BYPASS' })
+  })
+
+  it('fetchWeeklyReportListSSR returns the first page of items (limit 10, same as the client feed)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ items: [{ id: 'wr1' }, { id: 'wr2' }], total: 2, page: 1, size: 10 }, true, 'HIT'))
+    const result = await fetchWeeklyReportListSSR(withCredential)
+    expect(result).toEqual({ value: [{ id: 'wr1' }, { id: 'wr2' }], cacheStatus: 'HIT' })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('/weekly-reports?')
+    expect(url).toContain('limit=10')
+  })
+
+  it('fetchWeeklyReportListSSR returns null when there is no resolved topic', async () => {
+    const result = await fetchWeeklyReportListSSR({ ...withCredential, topicId: null })
+    expect(result).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fetchWeeklyReportWeeksSSR returns the weeks array, or null on a failed response', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ weeks: ['2026-08-31', '2026-08-03'] }))
+    expect(await fetchWeeklyReportWeeksSSR(withCredential)).toEqual(['2026-08-31', '2026-08-03'])
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, false))
+    expect(await fetchWeeklyReportWeeksSSR(withCredential)).toBeNull()
   })
 })

@@ -46,6 +46,13 @@ interface WeeklyReportWidgetProps {
    * avoids a loading flash for the one report that's already known. Ignored when `initialWeek`
    * requests a different, specific week. */
   initialReport?: WeeklyReport | null
+  /** Server-rendered first page of reports (same limit-10 page the client feed fetches) and the
+   * topic's available weeks, from `app/page.tsx`. Seeding these — not just `initialReport` —
+   * makes the first paint match the post-fetch one: with only one report the stepper hides its
+   * week dots, so the dots column used to appear after hydration, widen the stepper and shift
+   * the report card sideways (the home page's Lighthouse CLS). Only used with `initialReport`. */
+  initialReports?: WeeklyReport[]
+  initialAvailableWeeks?: string[]
   /** Render-prop rather than a plain node: the chat child needs to tell this widget when a
    * message is sent (to switch from the stacked layout into report/chat card-swap mode and
    * jump to the chat card) and report its live conversation state (so this widget can render
@@ -57,10 +64,18 @@ interface WeeklyReportWidgetProps {
   }) => ReactNode
 }
 
-export function WeeklyReportWidget({ topicId, initialWeek, initialReport, children }: WeeklyReportWidgetProps) {
+export function WeeklyReportWidget({
+  topicId, initialWeek, initialReport, initialReports, initialAvailableWeeks, children,
+}: WeeklyReportWidgetProps) {
   const { t, locale } = useI18n()
   const { pinArticles, pinGroup, removeGroup, areAllPinned } = usePinnedReport()
-  const [reports, setReports] = useState<WeeklyReport[]>(initialReport ? [initialReport] : [])
+  // mergeReport guarantees the seeded latest report is in the list (and sorted into place) even
+  // if the SSR list page somehow didn't include it — `selected` is looked up by id in `reports`.
+  const [seededReports] = useState<WeeklyReport[]>(() => {
+    if (!initialReport) return []
+    return initialReports ? mergeReport(initialReports, initialReport) : [initialReport]
+  })
+  const [reports, setReports] = useState<WeeklyReport[]>(seededReports)
   const [selectedId, setSelectedId] = useState<string | null>(initialReport?.id ?? null)
   const [loading, setLoading] = useState(false)
   // Mirrors `reports` for use inside the sync effect below without listing it as a dependency
@@ -75,7 +90,9 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
   // "panel opens" animation.
   const isFirstReportRender = useRef(true)
   useEffect(() => { isFirstReportRender.current = false }, [])
-  const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(new Set())
+  const [availableWeeks, setAvailableWeeks] = useState<Set<string>>(
+    () => new Set((initialReport ? initialAvailableWeeks ?? [] : []).map(w => w.slice(0, 10))),
+  )
   const [collapsed, setCollapsed] = useState(false)
   const [sourcesExpanded, setSourcesExpanded] = useState(false)
   // Card-swap mode only kicks in once the chat has an actual conversation — before that,
@@ -148,7 +165,7 @@ export function WeeklyReportWidget({ topicId, initialWeek, initialReport, childr
   // fetch resolved" — see the sync effect below.
   const [feedFallbackData] = useState<WeeklyReportFeedResult | undefined>(() => (
     initialReport && !initialWeek
-      ? { latest: initialReport, reports: [initialReport], availableWeeks: [], deepLinkedReport: null }
+      ? { latest: initialReport, reports: seededReports, availableWeeks: initialAvailableWeeks ?? [], deepLinkedReport: null }
       : undefined
   ))
 

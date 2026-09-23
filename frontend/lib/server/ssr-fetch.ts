@@ -39,7 +39,7 @@ import { TOPIC_COOKIE_NAME, LOCALE_COOKIE_NAME } from '@/lib/cookies/constants'
 import type { Article } from '@/lib/api/articles'
 import type { GraphData } from '@/lib/api/graph'
 import type { TagGroupOut } from '@/lib/api/tags'
-import type { WeeklyReport } from '@/lib/api/weekly-reports'
+import type { WeeklyReport, PaginatedWeeklyReports } from '@/lib/api/weekly-reports'
 import { BACKEND_URL as BACKEND_URL_ENV } from '@/lib/env.server'
 
 const BACKEND_URL = BACKEND_URL_ENV || 'http://localhost:8000'
@@ -369,6 +369,56 @@ export async function fetchWeeklyReportSSR(
     )
     if (!res?.ok) return null
     return { value: await res.json(), cacheStatus: res.headers.get('X-Cache') }
+  } catch {
+    return null
+  }
+}
+
+/** The same first page of reports `useWeeklyReportFeed` fetches client-side (limit 10) — seeded
+ * alongside `fetchWeeklyReportSSR`'s latest report so the stepper's week dots are already in the
+ * SSR HTML. Without it the first paint only has the one latest report (stepper hides its dots
+ * below 2), and the dots column popping in after hydration widens the stepper and pushes the
+ * report card sideways — the home page's only layout shift in Lighthouse. */
+export async function fetchWeeklyReportListSSR(
+  context: SsrContext,
+  topicIdOverride?: string | null,
+): Promise<SsrCachedResult<WeeklyReport[]> | null> {
+  const topicId = topicIdOverride ?? context.topicId
+  if (!context.credential || !topicId) return null
+  try {
+    const qs = new URLSearchParams({ topic_id: topicId, limit: '10', offset: '0', lang: context.locale })
+    const res = await ssrFetch(
+      `${BACKEND_URL}/weekly-reports?${qs.toString()}`,
+      {},
+      { credential: context.credential },
+    )
+    if (!res?.ok) return null
+    const body: PaginatedWeeklyReports = await res.json()
+    return { value: body.items ?? [], cacheStatus: res.headers.get('X-Cache') }
+  } catch {
+    return null
+  }
+}
+
+/** week_start_date of every completed report for the topic (the date picker's availability) —
+ * seeded for the same reason as `fetchWeeklyReportListSSR`, so the first paint matches the
+ * post-fetch one. */
+export async function fetchWeeklyReportWeeksSSR(
+  context: SsrContext,
+  topicIdOverride?: string | null,
+): Promise<string[] | null> {
+  const topicId = topicIdOverride ?? context.topicId
+  if (!context.credential || !topicId) return null
+  try {
+    const qs = new URLSearchParams({ topic_id: topicId })
+    const res = await ssrFetch(
+      `${BACKEND_URL}/weekly-reports/weeks?${qs.toString()}`,
+      {},
+      { credential: context.credential },
+    )
+    if (!res?.ok) return null
+    const body = await res.json()
+    return body?.weeks ?? []
   } catch {
     return null
   }

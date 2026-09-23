@@ -1,14 +1,23 @@
 import { Suspense } from 'react'
 import { preload } from 'react-dom'
 import HomePageContent from './home-page-content'
-import { resolveSsrContext, fetchWeeklyReportSSR } from '@/lib/server/ssr-fetch'
+import {
+  resolveSsrContext, fetchWeeklyReportSSR, fetchWeeklyReportListSSR, fetchWeeklyReportWeeksSSR,
+} from '@/lib/server/ssr-fetch'
 
 export default async function Page() {
   // Home has no paywall — weekly-report-widget.tsx shows the latest report to every visitor
   // regardless of auth state (unlike /articles, /graph, /tags) — so anonymous visitors get a
   // guest credential rather than being skipped entirely. See SsrContext's doc comment.
   const context = await resolveSsrContext({ allowGuestCredential: true })
-  const result = await fetchWeeklyReportSSR(context)
+  // The list + available weeks are fetched alongside the latest report (not left to the client
+  // feed) so the first paint already has the stepper's week dots — see fetchWeeklyReportListSSR's
+  // doc comment for the layout shift this avoids.
+  const [result, listResult, availableWeeks] = await Promise.all([
+    fetchWeeklyReportSSR(context),
+    fetchWeeklyReportListSSR(context),
+    fetchWeeklyReportWeeksSSR(context),
+  ])
 
   // The cover image renders as a CSS background-image (knowledge of its URL isn't visible to
   // the browser's preload scanner the way an <img src> tag would be) — this resource hint tells
@@ -20,7 +29,11 @@ export default async function Page() {
 
   return (
     <Suspense fallback={<div />}>
-      <HomePageContent initialReport={result?.value} />
+      <HomePageContent
+        initialReport={result?.value}
+        initialReports={listResult?.value}
+        initialAvailableWeeks={availableWeeks ?? undefined}
+      />
       {/* Debug aid (020-redis-caching-layer verification) — this fetch runs server-to-server, so
           the backend's X-Cache response header never reaches the browser; surfaced here instead so
           it's inspectable via view-source/DOM after a Lighthouse run. Safe to remove later. */}

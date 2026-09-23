@@ -66,20 +66,23 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
       {/* This flex-1 area keeps the date picker pinned to the bottom regardless of week count —
           when the list overflows it, the listbox scrolls internally instead of pushing/clipping the picker. */}
       <div className="flex min-h-0 flex-1 flex-col items-center">
+      {/* The chevrons below are always laid out and only toggled visible: isScrollable is measured
+          after mount, and the dots are already in the SSR HTML, so mounting the chevrons late
+          would push the whole dot list down (a post-hydration layout shift). */}
       {showDots && (
         <>
-          {isScrollable && (
-            <button
-              type="button"
-              onClick={() => scrollToEdge('top')}
-              onMouseEnter={() => startAutoScroll('up')}
-              onMouseLeave={stopAutoScroll}
-              aria-label={t('weeklyReport.jumpToNewest')}
-              className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
-            >
-              <ChevronUp className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => scrollToEdge('top')}
+            onMouseEnter={() => startAutoScroll('up')}
+            onMouseLeave={stopAutoScroll}
+            aria-label={t('weeklyReport.jumpToNewest')}
+            aria-hidden={!isScrollable}
+            tabIndex={isScrollable ? undefined : -1}
+            className={`shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white ${isScrollable ? '' : 'invisible'}`}
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
           <div
             ref={listRef}
             role="listbox"
@@ -127,18 +130,18 @@ export function WeeklyReportStepper({ reports, selectedId, onSelect, onJumpToWee
             )
           })}
           </div>
-          {isScrollable && (
-            <button
-              type="button"
-              onClick={() => scrollToEdge('bottom')}
-              onMouseEnter={() => startAutoScroll('down')}
-              onMouseLeave={stopAutoScroll}
-              aria-label={t('weeklyReport.jumpToOldest')}
-              className="shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white"
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => scrollToEdge('bottom')}
+            onMouseEnter={() => startAutoScroll('down')}
+            onMouseLeave={stopAutoScroll}
+            aria-label={t('weeklyReport.jumpToOldest')}
+            aria-hidden={!isScrollable}
+            tabIndex={isScrollable ? undefined : -1}
+            className={`shrink-0 cursor-pointer rounded-full p-0.5 text-white/70 hover:bg-white/20 hover:text-white ${isScrollable ? '' : 'invisible'}`}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
         </>
       )}
       </div>
