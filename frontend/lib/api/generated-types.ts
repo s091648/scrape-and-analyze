@@ -581,12 +581,10 @@ export interface paths {
         };
         /**
          * Query Profile
-         * @description CPU flamebearer for the backend service over [start, end] (unix seconds) —
-         *     the root span's own time window (RunWaterfallDialog), not a per-sub-span query:
-         *     profiling is CPU sampling, and a whole-request window has enough samples to be
-         *     statistically meaningful in a way a handful-of-milliseconds child span wouldn't.
-         *     Scraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),
-         *     so this endpoint is backend-only — there's nothing to query for scraper traces.
+         * @description CPU flamebearer for one app (`service`) over [start, end] (unix seconds) — the root
+         *     span's own time window (RunWaterfallDialog), not a per-sub-span query: profiling is CPU
+         *     sampling, and a whole-request window has enough samples to be statistically meaningful in
+         *     a way a handful-of-milliseconds child span wouldn't.
          */
         get: operations["query_profile_grafana_profile_get"];
         put?: never;
@@ -4484,6 +4482,10 @@ export interface operations {
             query: {
                 start: number;
                 end: number;
+                /** @description Which app's profile to query — "backend" (default, backward compatible with callers that never passed this) or "scraper". Both push to the same Grafana Cloud Profiles instance, distinguished by their own pyroscope.configure(application_name=...). */
+                service?: string;
+                /** @description Narrows the flamebearer to CPU samples tagged with this OTel span_id by to_thread_profiled() (backend) / run_tagged_for_profiling() (scraper) — currently only search_service.py's sync-Session DB calls (backend) and ScrapeExecutor's fetch/discover tasks (scraper) tag their samples this way, so any other span_id returns an empty (but successful) flamebearer, same as a time window with no samples. `start`/`end` still bound the query the same as without this filter (see the padding-window comment below) — this narrows *which* samples in that window count, not the window itself. */
+                span_id?: string | null;
             };
             header?: never;
             path?: never;

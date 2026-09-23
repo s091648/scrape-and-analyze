@@ -6695,7 +6695,7 @@
     },
     "/grafana/profile": {
       "get": {
-        "description": "CPU flamebearer for the backend service over [start, end] (unix seconds) \u2014\nthe root span's own time window (RunWaterfallDialog), not a per-sub-span query:\nprofiling is CPU sampling, and a whole-request window has enough samples to be\nstatistically meaningful in a way a handful-of-milliseconds child span wouldn't.\nScraper (src/) is never profiled (setup_profiling() only runs in backend/main.py),\nso this endpoint is backend-only \u2014 there's nothing to query for scraper traces.",
+        "description": "CPU flamebearer for one app (`service`) over [start, end] (unix seconds) \u2014 the root\nspan's own time window (RunWaterfallDialog), not a per-sub-span query: profiling is CPU\nsampling, and a whole-request window has enough samples to be statistically meaningful in\na way a handful-of-milliseconds child span wouldn't.",
         "operationId": "query_profile_grafana_profile_get",
         "parameters": [
           {
@@ -6714,6 +6714,36 @@
             "schema": {
               "title": "End",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Which app's profile to query \u2014 \"backend\" (default, backward compatible with callers that never passed this) or \"scraper\". Both push to the same Grafana Cloud Profiles instance, distinguished by their own pyroscope.configure(application_name=...).",
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "default": "backend",
+              "description": "Which app's profile to query \u2014 \"backend\" (default, backward compatible with callers that never passed this) or \"scraper\". Both push to the same Grafana Cloud Profiles instance, distinguished by their own pyroscope.configure(application_name=...).",
+              "title": "Service",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Narrows the flamebearer to CPU samples tagged with this OTel span_id by to_thread_profiled() (backend) / run_tagged_for_profiling() (scraper) \u2014 currently only search_service.py's sync-Session DB calls (backend) and ScrapeExecutor's fetch/discover tasks (scraper) tag their samples this way, so any other span_id returns an empty (but successful) flamebearer, same as a time window with no samples. `start`/`end` still bound the query the same as without this filter (see the padding-window comment below) \u2014 this narrows *which* samples in that window count, not the window itself.",
+            "in": "query",
+            "name": "span_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Narrows the flamebearer to CPU samples tagged with this OTel span_id by to_thread_profiled() (backend) / run_tagged_for_profiling() (scraper) \u2014 currently only search_service.py's sync-Session DB calls (backend) and ScrapeExecutor's fetch/discover tasks (scraper) tag their samples this way, so any other span_id returns an empty (but successful) flamebearer, same as a time window with no samples. `start`/`end` still bound the query the same as without this filter (see the padding-window comment below) \u2014 this narrows *which* samples in that window count, not the window itself.",
+              "title": "Span Id"
             }
           }
         ],
