@@ -80,6 +80,13 @@ python scripts/tfvars_to_env.py --env staging > .railway/.env.staging.generated
 node .railway/.plan-with-env.mjs .railway/.env.staging.generated plan --show-values
 ```
 
+`make railway-config-plan` / `make railway-config-apply` do exactly this: they
+generate `.railway/.env.<ENV>.generated` on the host, then run `railway config` in
+the container under `env -i` with only that file loaded. The scrubbed environment
+matters — the Makefile `include`s and exports the root **local-dev** `.env`, and
+without `env -i` railway.ts's `need()` would read those local values (e.g.
+`BACKEND_URL`, `NEXTAUTH_SECRET`) and `apply` would push them onto the live service.
+
 `.plan-with-env.mjs` just loads the `KEY=value` file into `process.env` (first
 `=` splits) and execs `railway config …` — `railway config` can't take an
 `--env-file` and `source`-ing the file mangles `${{ }}` / trailing `=`.

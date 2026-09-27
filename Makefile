@@ -539,19 +539,34 @@ _RC_EXEC := env _=/usr/local/bin/railway railway
 railway-cli:
 	@docker compose run --rm -it railway_cli bash
 
+# plan/apply evaluate railway.ts, whose need() reads secrets from process.env. Those
+# values must come from secrets/railway-<ENV>.tfvars (tfvars_to_env.py, exactly what
+# railway-config.yml feeds CI) — NOT from this Makefile's `include .env` + `export`,
+# which would hand railway.ts the LOCAL-dev .env values (BACKEND_URL, NEXTAUTH_SECRET,
+# ...) and make apply rewrite live variables with them. So: generate the env file on
+# the host (python is there, not in the CLI image), and in the container run with a
+# scrubbed environment (`env -i`) plus that file via .plan-with-env.mjs.
+PYTHON ?= python
+_RC_ENV_FILE = .railway/.env.$(ENV).generated
+_RC_GEN_ENV = $(PYTHON) scripts/tfvars_to_env.py --env $(ENV) > $(_RC_ENV_FILE)
+_RC_CLEAN_EXEC = env -i PATH="$$PATH" HOME="$$HOME" $${RAILWAY_TOKEN:+RAILWAY_TOKEN="$$RAILWAY_TOKEN"} \
+	node .railway/.plan-with-env.mjs $(_RC_ENV_FILE)
+
 railway-config-plan:
 	@$(_TF_ENV_GUARD)
 ifdef RAILWAY_CLI
-	@$(_RC_EXEC) config plan $(ARGS)
+	@$(_RC_CLEAN_EXEC) plan $(ARGS)
 else
+	@$(_RC_GEN_ENV)
 	@$(_RC_RUN) railway-config-plan ENV=$(ENV) ARGS='$(ARGS)'
 endif
 
 railway-config-apply:
 	@$(_TF_ENV_GUARD)
 ifdef RAILWAY_CLI
-	@$(_RC_EXEC) config apply $(ARGS)
+	@$(_RC_CLEAN_EXEC) apply $(ARGS)
 else
+	@$(_RC_GEN_ENV)
 	@$(_RC_RUN) railway-config-apply ENV=$(ENV) ARGS='$(ARGS)'
 endif
 
