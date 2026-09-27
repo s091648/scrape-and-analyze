@@ -94,11 +94,17 @@ export const GRAFANA_ENV = {
   GRAFANA_OTLP_USER: "1558239",
 } as const;
 
-// Extra Grafana endpoints only dashboard-backend reads (Prometheus + Tempo).
-export const GRAFANA_BACKEND_ENV = {
+// Grafana Cloud Prometheus — dashboard-backend queries it (/api/prom), alloy
+// remote-writes to it (/api/prom/push).
+export const GRAFANA_PROMETHEUS_ENV = {
   GRAFANA_PROMETHEUS_URL:
     "https://prometheus-prod-49-prod-ap-northeast-0.grafana.net/api/prom",
   GRAFANA_PROMETHEUS_USER: "3040706",
+} as const;
+
+// Extra Grafana endpoints only dashboard-backend reads (Prometheus + Tempo).
+export const GRAFANA_BACKEND_ENV = {
+  ...GRAFANA_PROMETHEUS_ENV,
   GRAFANA_TEMPO_URL: "https://tempo-prod-20-prod-ap-northeast-0.grafana.net/tempo",
   GRAFANA_TEMPO_USER: "1510333",
 } as const;

@@ -1,0 +1,66 @@
+// Grafana Alloy — Postgres metrics -> Grafana Cloud Prometheus.
+//
+// The embedded postgres_exporter (prometheus.exporter.postgres) reads Postgres's own
+// statistics views as the least-privileged `alloy_monitor` role (pg_monitor, read-only
+// — see alloy/README.md) and Alloy remote-writes the result to the same Grafana Cloud
+// Prometheus instance dashboard-backend already queries.
+//
+// Every value comes from the environment (.railway/railway.ts sets them):
+//   POSTGRES_EXPORTER_DSN    postgresql://alloy_monitor:...@<private host>:5432/<db>
+//   GRAFANA_PROMETHEUS_URL   https://prometheus-...grafana.net/api/prom
+//   GRAFANA_PROMETHEUS_USER  Grafana Cloud Prometheus instance ID
+//   GRAFANA_API_KEY          access-policy token with metrics:write
+//   APP_ENV                  staging | production — becomes the `env` label
+
+prometheus.exporter.postgres "db" {
+  data_source_names = [sys.env("POSTGRES_EXPORTER_DSN")]
+
+  // pg_settings is ~250 near-constant series per database — not worth their share of
+  // the Grafana Cloud active-series quota.
+  disable_settings_metrics = true
+
+  // Extra metrics the built-in collectors don't cover (per-index scan counts) — see
+  // queries.yaml.
+  custom_queries_config_path = "/etc/alloy/queries.yaml"
+
+  // The upstream defaults, plus the per-query / per-index / long-transaction views
+  // this deployment was added for (pg_stat_statements top queries, index usage).
+  enabled_collectors = [
+    "database",
+    "locks",
+    "replication",
+    "replication_slot",
+    "stat_bgwriter",
+    "stat_database",
+    "stat_progress_vacuum",
+    "stat_user_tables",
+    "statio_user_tables",
+    "wal",
+    "stat_statements",
+    "statio_user_indexes",
+    "long_running_transactions",
+  ]
+}
+
+prometheus.scrape "postgres" {
+  targets         = prometheus.exporter.postgres.db.targets
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "60s"
+  // The job label Grafana Cloud's PostgreSQL integration dashboards filter on.
+  job_name        = "integrations/postgres_exporter"
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = string.format("%s/push", sys.env("GRAFANA_PROMETHEUS_URL"))
+
+    basic_auth {
+      username = sys.env("GRAFANA_PROMETHEUS_USER")
+      password = sys.env("GRAFANA_API_KEY")
+    }
+  }
+
+  external_labels = {
+    env = sys.env("APP_ENV"),
+  }
+}

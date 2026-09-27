@@ -192,6 +192,8 @@ All models in `models/` use UUID primary keys and share a single `Base = declara
 
 All optional with graceful no-op fallback: OpenTelemetry metrics/traces to Grafana Cloud, structlog + Loki for logging, Sentry for errors, MaxMind GeoIP2 for IP-to-country resolution. `RequestLoggingMiddleware` on backend logs every request. Frontend proxy route also logs requests to Loki.
 
+Postgres metrics (`pg_stat_statements`, per-table/per-index stats, locks, DB size) come from a separate `alloy` Railway service (`alloy/`: Grafana Alloy's embedded postgres_exporter → Grafana Cloud Prometheus, labelled `env`), connecting as the read-only `alloy_monitor` role (`pg_monitor`, created by hand per environment — see `alloy/README.md`).
+
 ### i18n
 
 Custom `I18nProvider` context with locale files in `frontend/i18n/` (English + zh-TW). Auto-resolves language from IP via `/api/languages` endpoint. Translation is also done server-side via `TranslateArticleUseCase` and `TranslateTagsUseCase`.

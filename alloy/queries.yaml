@@ -1,0 +1,41 @@
+# postgres_exporter custom queries (prometheus.exporter.postgres's
+# custom_queries_config_path). Each top-level key becomes the metric-name prefix:
+# <key>_<column> for every COUNTER/GAUGE column, with the LABEL columns as labels.
+#
+# pg_stat_user_indexes: per-index usage. The built-in collectors only ship
+# pg_statio_user_indexes (block I/O), not the scan counts that say whether an index is
+# used at all — the idx_scan = 0 check that found the three dead HNSW indexes dropped
+# by migration 29_add_article_search_tokens. Scoped to the app's schemas.
+pg_stat_user_indexes:
+  query: |
+    SELECT schemaname,
+           relname,
+           indexrelname,
+           idx_scan,
+           idx_tup_read,
+           idx_tup_fetch,
+           pg_relation_size(indexrelid) AS size_bytes
+    FROM pg_stat_user_indexes
+    WHERE schemaname IN ('core', 'collection', 'intelligence', 'ai_infra', 'user_prefs', 'auth', 'vectors')
+  metrics:
+    - schemaname:
+        usage: "LABEL"
+        description: "Schema of the table the index belongs to"
+    - relname:
+        usage: "LABEL"
+        description: "Table the index belongs to"
+    - indexrelname:
+        usage: "LABEL"
+        description: "Index name"
+    - idx_scan:
+        usage: "COUNTER"
+        description: "Number of index scans initiated on this index"
+    - idx_tup_read:
+        usage: "COUNTER"
+        description: "Number of index entries returned by scans on this index"
+    - idx_tup_fetch:
+        usage: "COUNTER"
+        description: "Number of live table rows fetched by simple index scans using this index"
+    - size_bytes:
+        usage: "GAUGE"
+        description: "On-disk size of the index"
