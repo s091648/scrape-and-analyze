@@ -36,4 +36,11 @@ echo "Restoring $DUMP into $POSTGRES_USER@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRE
   | grep -v -e "already exists" -e "multiple primary keys" \
   || true
 
+# Refresh planner statistics for every table just loaded. Without them the planner
+# falls back to default selectivity guesses (e.g. `merged_into_id IS NULL` estimated at
+# 0.5% of rows instead of ~100%) and picks badly wrong plans until autovacuum happens to
+# analyze — which a freshly restored local DB may not trigger for a long time.
+echo "Analyzing restored tables"
+psql "$CONN" -c "ANALYZE"
+
 echo "Restore complete"
