@@ -751,6 +751,8 @@
     "typingAriaLabel": "Agent is typing",
     "inputAriaLabel": "Type a message",
     "sendAriaLabel": "Send message",
+    "stageAttr_searchIndexIndexedCount": "Re-indexed Sources",
+    "stageAttr_searchIndexDeletedCount": "Removed Index Rows",
     "agentInputAriaLabel": "Agent input",
     "agentSendAriaLabel": "Send",
     "agentSend": "Run",

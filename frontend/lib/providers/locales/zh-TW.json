@@ -751,6 +751,8 @@
     "typingAriaLabel": "助理正在輸入",
     "inputAriaLabel": "輸入訊息",
     "sendAriaLabel": "傳送訊息",
+    "stageAttr_searchIndexIndexedCount": "重新索引來源數",
+    "stageAttr_searchIndexDeletedCount": "移除索引列數",
     "agentInputAriaLabel": "輸入問題",
     "agentSendAriaLabel": "傳送",
     "agentSend": "執行",

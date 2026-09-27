@@ -216,9 +216,10 @@ backfill-rag-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python -m src.entrypoints.cli.backfill_rag $(_BACKFILL_RAG_ARGS)
 
-# optional: override with MIN_DOC_FREQ=1
+# optional: override with MIN_DOC_FREQ=1; FULL=1 re-tokenizes every article (after a tokenizer change)
 MIN_DOC_FREQ ?=
-_REBUILD_SEARCH_INDEX_ARGS := $(if $(MIN_DOC_FREQ),--min-doc-freq $(MIN_DOC_FREQ),)
+FULL ?=
+_REBUILD_SEARCH_INDEX_ARGS := $(if $(MIN_DOC_FREQ),--min-doc-freq $(MIN_DOC_FREQ),) $(if $(FULL),--full,)
 
 rebuild-search-index:
 	docker compose run --rm job_service python /app/scripts/rebuild_search_index.py $(_REBUILD_SEARCH_INDEX_ARGS)

@@ -21,8 +21,7 @@ from models.auth import AuthBase, User
 from models.scraper_setting import ScraperBase, ScraperSetting
 from models.tag_normalization_suggestion import TagNormalizationSuggestion  # noqa: F401
 from models.article_translation import ArticleTranslation  # noqa: F401 — registers Article.article_translations backref
-from models.search_term import SearchTerm  # noqa: F401
-from models.search_term_article import SearchTermArticle  # noqa: F401 — registers Article.search_term_articles / SearchTerm.articles backrefs
+from models.article_search_token import ArticleSearchToken  # noqa: F401
 from models.user_subscription import UserTopicSubscription, UserNotificationSettings, UserArticleFavorite  # noqa: F401
 from models.weekly_report import WeeklyReport  # noqa: F401
 from models.weekly_report_translation import WeeklyReportTranslation  # noqa: F401 — registers WeeklyReport.translations backref

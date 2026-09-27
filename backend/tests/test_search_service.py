@@ -2,9 +2,8 @@
 Unit tests for backend/services/search_service.py.
 
 Query-builder SQL shape and the _rrf_merge helper are tested here with a mocked
-DB session — real pgvector cosine-distance behavior and the real term->article
-inverted index (intelligence.search_terms/search_term_articles) are covered by the
-integration test in backend/tests/integration/test_search.py.
+DB session — real pgvector cosine-distance behavior and real `tokens @>` matching over
+intelligence.article_search_tokens are covered by the integration test in backend/tests/integration/test_search.py.
 """
 import uuid
 from unittest.mock import MagicMock, patch
@@ -174,42 +173,48 @@ def test_dense_vec_literal_formats_pgvector_wire_format():
 # ---------------------------------------------------------------------------
 
 def test_run_vector_query_uses_cosine_operator_not_inner_product():
-    """Critical operator-class pitfall (research.md) — both this repo's HNSW indexes
-    use sparsevec_cosine_ops/vector_cosine_ops, so the query MUST use `<=>`, never `<#>`."""
+    """Critical operator-class pitfall (research.md) — cosine distance is the metric the
+    stored embeddings are compared by (and the one any future HNSW index would be built
+    with, sparsevec_cosine_ops/vector_cosine_ops), so the query MUST use `<=>`, never `<#>`."""
     from backend.services.search_service import _run_vector_query
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
 
-    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", topic_id=None, candidate_k=30)
+    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", candidate_k=30, filters=("", {}, []))
 
     sql_text = str(db.execute.call_args[0][0])
     assert "<=>" in sql_text
     assert "<#>" not in sql_text
 
 
-def test_run_vector_query_includes_topic_filter_when_topic_id_given():
-    from backend.services.search_service import _run_vector_query
+def test_run_vector_query_inlines_filter_sql_and_params():
+    from backend.services.search_service import _article_filter_sql, _run_vector_query
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
     topic_id = uuid.uuid4()
+    filters = _article_filter_sql(topic_id, ["techcrunch"], None, None, None, None, None, None, None)
 
-    _run_vector_query(db, "dense_vector", "vector", "[0.1]", topic_id=topic_id, candidate_k=30)
+    _run_vector_query(db, "dense_vector", "vector", "[0.1]", candidate_k=30, filters=filters)
 
     sql_text = str(db.execute.call_args[0][0])
     params = db.execute.call_args[0][1]
     assert "a.topic_id = :topic_id" in sql_text
+    assert "a.source IN" in sql_text
     assert params["topic_id"] == str(topic_id)
+    assert params["aggregators"] == ["techcrunch"]
+    assert params["candidate_k"] == 30
 
 
-def test_run_vector_query_omits_topic_filter_when_topic_id_none():
+def test_run_vector_query_has_no_filter_clause_when_unfiltered():
     from backend.services.search_service import _run_vector_query
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
 
-    _run_vector_query(db, "dense_vector", "vector", "[0.1]", topic_id=None, candidate_k=30)
+    _run_vector_query(db, "dense_vector", "vector", "[0.1]", candidate_k=30, filters=("", {}, []))
 
     sql_text = str(db.execute.call_args[0][0])
     assert "topic_id" not in sql_text
+    assert " IN " not in sql_text
 
 
 def test_run_vector_query_excludes_tombstoned_and_null_vector_rows():
@@ -217,7 +222,7 @@ def test_run_vector_query_excludes_tombstoned_and_null_vector_rows():
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
 
-    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", topic_id=None, candidate_k=30)
+    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", candidate_k=30, filters=("", {}, []))
 
     sql_text = str(db.execute.call_args[0][0])
     assert "a.merged_into_id IS NULL" in sql_text
@@ -229,7 +234,7 @@ def test_run_vector_query_dedups_per_article_via_group_by_min_distance():
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
 
-    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", topic_id=None, candidate_k=30)
+    _run_vector_query(db, "sparse_vector", "sparsevec", "{0:1.0}/30522", candidate_k=30, filters=("", {}, []))
 
     sql_text = str(db.execute.call_args[0][0])
     assert "GROUP BY a.id" in sql_text
@@ -282,129 +287,131 @@ def test_rrf_merge_term_only_in_one_list_still_included():
 
 
 # ---------------------------------------------------------------------------
-# _exact_match_article_ids — the term->article inverted index AND-intersection lookup
-# (023-article-search follow-up). Mocks the ORM query chain (db.query(...).join(...)
-# .filter(...).group_by(...).having(...).all()) rather than hitting a real Postgres —
-# real AND-intersection semantics over real rows are covered by the integration test.
+# _exact_match_among — the RRF path's per-page exact_match annotation, a `tokens @>`
+# lookup over intelligence.article_search_tokens. Real matching semantics over real rows
+# are covered by the integration test; these pin the SQL shape.
 # ---------------------------------------------------------------------------
 
-def _mock_query_chain(db, rows):
-    """Configures a MagicMock db so db.query(...).join(...).filter(...).filter(...)
-    .group_by(...).having(...).all() (and every prefix of that chain) returns `rows`."""
-    chain = db.query.return_value
-    for attr in ("join", "filter", "group_by", "having"):
-        getattr(chain, attr).return_value = chain
-    chain.all.return_value = rows
-
-
-def test_exact_match_article_ids_returns_none_when_query_tokenizes_to_nothing():
-    from backend.services.search_service import _exact_match_article_ids
+def test_exact_match_among_skips_db_when_no_tokens_or_ids():
+    from backend.services.search_service import _exact_match_among
     db = MagicMock()
 
-    result = _exact_match_article_ids(db, "a an the", topic_id=uuid.uuid4(), lang="en")
-
-    assert result is None
-    db.query.assert_not_called()  # short-circuits before touching the DB at all
-
-
-def test_exact_match_article_ids_returns_article_ids_from_query(monkeypatch):
-    from backend.services import search_service
-    a, b = uuid.uuid4(), uuid.uuid4()
-    monkeypatch.setattr(search_service, "tokenize", lambda q: {"cyberattacks"})
-    db = MagicMock()
-    _mock_query_chain(db, [MagicMock(article_id=a), MagicMock(article_id=b)])
-
-    result = search_service._exact_match_article_ids(db, "cyberattacks", topic_id=uuid.uuid4(), lang="en")
-
-    assert result == {a, b}
-
-
-def test_exact_match_article_ids_filters_by_language(monkeypatch):
-    from backend.services import search_service
-    monkeypatch.setattr(search_service, "tokenize", lambda q: {"機器學習"})
-    db = MagicMock()
-    _mock_query_chain(db, [])
-
-    search_service._exact_match_article_ids(db, "機器學習", topic_id=uuid.uuid4(), lang="zh-TW")
-
-    filter_calls = [str(call) for call in db.query.return_value.filter.call_args_list]
-    assert any("zh-TW" in c or "language" in c for c in filter_calls) or db.query.return_value.filter.called
-
-
-def test_exact_match_article_ids_omits_topic_filter_when_topic_id_none(monkeypatch):
-    """Mirrors _run_vector_query's own topic_id=None behavior — a global (cross-topic)
-    query must not be silently scoped to nothing."""
-    from backend.services import search_service
-    monkeypatch.setattr(search_service, "tokenize", lambda q: {"learning"})
-    db = MagicMock()
-    chain = db.query.return_value
-    filter_call_count = {"n": 0}
-
-    def _filter(*args, **kwargs):
-        filter_call_count["n"] += 1
-        return chain
-    chain.join.return_value = chain
-    chain.filter.side_effect = _filter
-    chain.group_by.return_value = chain
-    chain.having.return_value = chain
-    chain.all.return_value = []
-
-    search_service._exact_match_article_ids(db, "learning", topic_id=None, lang="en")
-
-    # Exactly one .filter() call (language + term) — no second call adding a topic_id filter.
-    assert filter_call_count["n"] == 1
-
-
-# ---------------------------------------------------------------------------
-# _fetch_articles_by_ids — raw SQL against core.articles (not the ORM — matches this
-# file's existing convention for every other core.articles/vectors.* query, and avoids
-# a schema_translate_map mismatch against intelligence.search_term_articles' ORM-sourced
-# article_ids in the integration test harness — see the function's own docstring).
-# ---------------------------------------------------------------------------
-
-def test_fetch_articles_by_ids_returns_empty_list_for_empty_ids():
-    from backend.services.search_service import _fetch_articles_by_ids
-    db = MagicMock()
-
-    result = _fetch_articles_by_ids(db, set(), topic_id=None)
-
-    assert result == []
+    assert _exact_match_among(db, [], "en", [uuid.uuid4()]) == set()
+    assert _exact_match_among(db, ["learning"], "en", []) == set()
     db.execute.assert_not_called()
 
 
-def test_fetch_articles_by_ids_orders_by_published_at_desc():
-    from backend.services.search_service import _fetch_articles_by_ids
+def test_exact_match_among_checks_only_given_ids_in_given_language():
+    from backend.services.search_service import _exact_match_among
+    a, b = uuid.uuid4(), uuid.uuid4()
     db = MagicMock()
-    db.execute.return_value.mappings.return_value.all.return_value = []
+    db.execute.return_value = [MagicMock(article_id=a)]
 
-    _fetch_articles_by_ids(db, {uuid.uuid4()}, topic_id=None)
+    result = _exact_match_among(db, ["機器學習"], "zh-TW", [a, b])
 
-    sql_text = str(db.execute.call_args[0][0])
-    assert "ORDER BY published_at DESC" in sql_text
-    assert "merged_into_id IS NULL" in sql_text
-
-
-def test_fetch_articles_by_ids_includes_topic_filter_when_given():
-    from backend.services.search_service import _fetch_articles_by_ids
-    db = MagicMock()
-    db.execute.return_value.mappings.return_value.all.return_value = []
-    topic_id = uuid.uuid4()
-
-    _fetch_articles_by_ids(db, {uuid.uuid4()}, topic_id=topic_id)
-
+    assert result == {a}
     sql_text = str(db.execute.call_args[0][0])
     params = db.execute.call_args[0][1]
-    assert "topic_id = :topic_id" in sql_text
-    assert params["topic_id"] == str(topic_id)
+    assert "tokens @> CAST(:tokens AS text[])" in sql_text
+    assert params["lang"] == "zh-TW"
+    assert params["tokens"] == ["機器學習"]
+    assert params["article_ids"] == [a, b]
+
+
+# ---------------------------------------------------------------------------
+# _search_exact_match_only — one paginated page query over
+# intelligence.article_search_tokens JOIN core.articles carrying the total via
+# COUNT(*) OVER (); a separate COUNT only when a page past the end comes back empty.
+# ---------------------------------------------------------------------------
+
+def _mock_exact_match_db(page_rows, fallback_count=None):
+    """First db.execute() is the page query (.mappings().all()); the second, only set up
+    when `fallback_count` is given, is the past-the-end COUNT (.scalar_one())."""
+    db = MagicMock()
+    page_result = MagicMock()
+    page_result.mappings.return_value.all.return_value = page_rows
+    results = [page_result]
+    if fallback_count is not None:
+        count_result = MagicMock()
+        count_result.scalar_one.return_value = fallback_count
+        results.append(count_result)
+    db.execute.side_effect = results
+    return db
+
+
+def test_search_exact_match_only_returns_empty_without_db_when_query_tokenizes_to_nothing():
+    from backend.services.search_service import _search_exact_match_only
+    db = MagicMock()
+
+    result = _search_exact_match_only(db, "a an the", None, 1, 10, "en", filters=("", {}, []))
+
+    assert result.total == 0 and result.items == []
+    db.execute.assert_not_called()
+
+
+def test_search_exact_match_only_first_page_with_no_matches_is_one_query():
+    from backend.services.search_service import _search_exact_match_only
+    db = _mock_exact_match_db([])
+
+    result = _search_exact_match_only(db, "cyberattacks", None, 1, 10, "en", filters=("", {}, []))
+
+    assert result.total == 0
+    assert db.execute.call_count == 1
+
+
+def test_search_exact_match_only_paginates_and_filters_in_one_query(monkeypatch):
+    from backend.services import search_service
+    monkeypatch.setattr(search_service, "tokenize", lambda q: {"infrastructure", "cyberattacks"})
+    a = uuid.uuid4()
+    topic_id = uuid.uuid4()
+    db = _mock_exact_match_db([{**_article_row(a), "total": 3}])
+    filters = search_service._article_filter_sql(topic_id, ["techcrunch"], None, None, None, None, None, None, None)
+
+    result = search_service._search_exact_match_only(db, "q", topic_id, 2, 1, "en", filters=filters)
+
+    assert result.total == 3  # from the window column, not a second query
+    assert db.execute.call_count == 1
+    assert [item.id for item in result.items] == [a]
+    assert result.items[0].exact_match is True
+    page_sql = str(db.execute.call_args[0][0])
+    page_params = db.execute.call_args[0][1]
+    assert "COUNT(*) OVER () AS total" in page_sql
+    assert "ast.tokens @> CAST(:tokens AS text[])" in page_sql
+    assert "ast.topic_id = :topic_id" in page_sql
+    assert "a.source IN" in page_sql
+    assert "a.merged_into_id IS NULL" in page_sql
+    assert "ORDER BY a.published_at DESC NULLS LAST, a.id" in page_sql
+    assert page_params["tokens"] == ["cyberattacks", "infrastructure"]  # sorted, deterministic
+    assert page_params["limit"] == 1 and page_params["offset"] == 1
+
+
+def test_search_exact_match_only_counts_separately_past_the_last_page():
+    from backend.services.search_service import _search_exact_match_only
+    db = _mock_exact_match_db([], fallback_count=3)
+
+    result = _search_exact_match_only(db, "cyberattacks", None, 5, 10, "en", filters=("", {}, []))
+
+    assert result.items == []
+    assert result.total == 3
+    assert "SELECT COUNT(*)" in str(db.execute.call_args_list[1][0][0])
+
+
+def test_exact_match_order_by_honors_whitelisted_sort_only():
+    from backend.services.search_service import _exact_match_order_by
+    assert _exact_match_order_by("title", "asc") == "a.title ASC NULLS LAST, a.id"
+    assert _exact_match_order_by("scraped_at", "desc") == "a.scraped_at DESC NULLS LAST, a.id"
+    # Anything outside _SORTABLE_ROW_FIELDS falls back to the default — never interpolated.
+    assert _exact_match_order_by("view_count; DROP TABLE x", "asc") == "a.published_at DESC NULLS LAST, a.id"
+    assert _exact_match_order_by(None, "desc") == "a.published_at DESC NULLS LAST, a.id"
 
 
 # ---------------------------------------------------------------------------
 # search_articles_hybrid — orchestration (mocked embed + query calls). Results are
 # ordered purely by RRF score (023-article-search follow-up: an earlier revision added
 # literal-match candidate injection + a boost_exact_match reorder step on top of RRF —
-# both deliberately reverted). `exact_match` is annotated via the term->article inverted
-# index (_exact_match_article_ids), monkeypatched directly in these tests so they don't
-# need a real Postgres round trip.
+# both deliberately reverted). `exact_match` is annotated per page via
+# _exact_match_among, monkeypatched directly in these tests so they don't need a real
+# Postgres round trip.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -413,10 +420,10 @@ async def test_search_articles_hybrid_paginates_merged_results(monkeypatch):
 
     a, b = uuid.uuid4(), uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed({1: 1.0}, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: set())
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *a, **k: set())
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [_row(a)] if column == "sparse_vector" else [_row(b)],
+        lambda db, column, cast, vec, candidate_k, filters: [_row(a)] if column == "sparse_vector" else [_row(b)],
     )
 
     db = MagicMock()
@@ -434,10 +441,10 @@ async def test_search_articles_hybrid_keeps_pure_rrf_order(monkeypatch):
 
     a, b = uuid.uuid4(), uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: {a})
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *args, **kwargs: {a})
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [
+        lambda db, column, cast, vec, candidate_k, filters: [
             _row(b, title="semantic neighbor"), _row(a, title="cyberattacks explained"),
         ],
     )
@@ -457,10 +464,10 @@ async def test_search_articles_hybrid_sets_exact_match_flag_from_inverted_index(
 
     a, b = uuid.uuid4(), uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed({1: 1.0}, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: {a})
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *args, **kwargs: {a})
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [
+        lambda db, column, cast, vec, candidate_k, filters: [
             _row(a, title="Cyberattacks on IoT"), _row(b, title="unrelated semantic neighbor"),
         ],
     )
@@ -474,23 +481,28 @@ async def test_search_articles_hybrid_sets_exact_match_flag_from_inverted_index(
 
 
 @pytest.mark.asyncio
-async def test_search_articles_hybrid_treats_none_exact_match_ids_as_empty(monkeypatch):
-    """_exact_match_article_ids returns None when the query tokenizes to nothing — must
-    not crash the RRF path, and every item's exact_match must come back False."""
+async def test_search_articles_hybrid_annotates_exact_match_for_current_page_only(monkeypatch):
+    """_exact_match_among is asked only about the page being returned, not every RRF
+    candidate."""
     from backend.services import search_service
 
-    a = uuid.uuid4()
-    monkeypatch.setattr(search_service, "embed_query", _fake_embed({1: 1.0}, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: None)
+    a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    asked = {}
+
+    def _capture(db, tokens, lang, article_ids):
+        asked["ids"] = list(article_ids)
+        return set()
+    monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
+    monkeypatch.setattr(search_service, "_exact_match_among", _capture)
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [_row(a)],
+        lambda db, column, cast, vec, candidate_k, filters: [_row(a), _row(b), _row(c)],
     )
 
     db = MagicMock()
-    result = await search_service.search_articles_hybrid(db, query="a an the", topic_id=None, page=1, size=10)
+    await search_service.search_articles_hybrid(db, query="cyberattacks", topic_id=None, page=2, size=1)
 
-    assert result.items[0].exact_match is False
+    assert asked["ids"] == [b]
 
 
 # ---------------------------------------------------------------------------
@@ -513,9 +525,8 @@ async def test_search_articles_hybrid_exact_match_only_does_not_call_embed_query
         embed_called["n"] += 1
         return None, [0.1]
     monkeypatch.setattr(search_service, "embed_query", _tracking_embed)
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: set())
 
-    db = MagicMock()
+    db = _mock_exact_match_db([])
     await search_service.search_articles_hybrid(
         db, query="cyberattacks", topic_id=None, page=1, size=10, exact_match_only=True,
     )
@@ -523,22 +534,8 @@ async def test_search_articles_hybrid_exact_match_only_does_not_call_embed_query
     assert embed_called["n"] == 0
 
 
-@pytest.mark.asyncio
-async def test_search_articles_hybrid_exact_match_only_returns_empty_when_no_candidates(monkeypatch):
-    from backend.services import search_service
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: set())
-
-    db = MagicMock()
-    result = await search_service.search_articles_hybrid(
-        db, query="cyberattacks", topic_id=None, page=1, size=10, exact_match_only=True,
-    )
-
-    assert result.items == []
-    assert result.total == 0
-
-
 def _article_row(article_id, title="Cyberattacks Explained"):
-    """Stand-in for one row of _fetch_articles_by_ids' raw-SQL .mappings() result."""
+    """Stand-in for one row of _search_exact_match_only's page query .mappings() result."""
     return {
         "id": article_id, "url": "https://example.com/a", "source": "techcrunch",
         "title": title, "content": "an article about cyberattacks",
@@ -547,24 +544,26 @@ def _article_row(article_id, title="Cyberattacks Explained"):
 
 
 @pytest.mark.asyncio
-async def test_search_articles_hybrid_exact_match_only_paginates_over_inverted_index_candidates(monkeypatch):
+async def test_search_articles_hybrid_exact_match_only_passes_filters_through(monkeypatch):
     from backend.services import search_service
 
-    a, b, c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: {a, b, c})
-    monkeypatch.setattr(
-        search_service, "_fetch_articles_by_ids",
-        lambda db, ids, topic_id: [_article_row(a), _article_row(b), _article_row(c)],
-    )
+    captured = {}
+
+    def _capture(db, query, topic_id, page, size, lang, filters, sort=None, order="desc"):
+        captured["filters"] = filters
+        return search_service.PaginatedArticles(items=[], total=0, page=page, size=size)
+    monkeypatch.setattr(search_service, "_search_exact_match_only", _capture)
 
     db = MagicMock()
-    result = await search_service.search_articles_hybrid(
-        db, query="cyberattacks", topic_id=None, page=1, size=2, exact_match_only=True,
+    await search_service.search_articles_hybrid(
+        db, query="cyberattacks", topic_id=None, page=1, size=10,
+        exact_match_only=True, aggregators=["techcrunch"],
     )
 
-    assert result.total == 3
-    assert len(result.items) == 2  # page size 2
-    assert all(item.exact_match is True for item in result.items)
+    sql, params, expanding = captured["filters"]
+    assert "a.source IN" in sql
+    assert params["aggregators"] == ["techcrunch"]
+    assert expanding == ["aggregators"]
 
 
 @pytest.mark.asyncio
@@ -575,10 +574,10 @@ async def test_search_articles_hybrid_exact_match_only_false_uses_rrf_path(monke
 
     a, b = uuid.uuid4(), uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: {a})
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *args, **kwargs: {a})
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [
+        lambda db, column, cast, vec, candidate_k, filters: [
             _row(a, title="cyberattacks explained"), _row(b, title="semantic neighbor"),
         ],
     )
@@ -590,131 +589,60 @@ async def test_search_articles_hybrid_exact_match_only_false_uses_rrf_path(monke
 
 
 # ---------------------------------------------------------------------------
-# _filtered_article_ids — aggregator/original_source/tag/tag_group/date-range filters,
+# _article_filter_sql — aggregator/original_source/tag/tag_group/date-range filters,
 # the search endpoint's own counterpart to get_articles_paginated's filter-building block
 # (backend/services/article_service.py) — added because GET /search silently ignored every
-# filter/sort param the frontend already sent (023-article-search follow-up regression:
-# filters/sort applied while browsing were dropped entirely the moment a search was active).
+# filter/sort param the frontend already sent (023-article-search follow-up regression).
+# Pure SQL building: spliced into the ranking/pagination queries, no DB round trip of its own.
 # ---------------------------------------------------------------------------
 
-def _mock_id_execute(db, ids):
-    """db.execute(text(...), params).mappings().all() -> rows with an "id" key — matches
-    _fetch_articles_by_ids' own raw-SQL mocking style in this file."""
-    db.execute.return_value.mappings.return_value.all.return_value = [{"id": i} for i in ids]
+def test_article_filter_sql_is_empty_when_nothing_filtered():
+    from backend.services.search_service import _article_filter_sql
+
+    assert _article_filter_sql(None, None, None, None, None, None, None, None, None) == ("", {}, [])
 
 
-def test_filtered_article_ids_returns_none_when_no_filters_given():
-    from backend.services.search_service import _filtered_article_ids
-    db = MagicMock()
+def test_article_filter_sql_filters_by_aggregator():
+    from backend.services.search_service import _article_filter_sql
 
-    result = _filtered_article_ids(db, None, None, None, None, None, None, None, None, None)
+    sql, params, expanding = _article_filter_sql(None, ["techcrunch"], None, None, None, None, None, None, None)
 
-    assert result is None
-    db.execute.assert_not_called()
-
-
-def test_filtered_article_ids_filters_by_aggregator():
-    from backend.services.search_service import _filtered_article_ids
-    a, b = uuid.uuid4(), uuid.uuid4()
-    db = MagicMock()
-    _mock_id_execute(db, [a, b])
-
-    result = _filtered_article_ids(db, None, ["techcrunch"], None, None, None, None, None, None, None)
-
-    assert result == {a, b}
-    sql_text = str(db.execute.call_args[0][0])
-    assert "a.source IN" in sql_text
-    assert db.execute.call_args[0][1]["aggregators"] == ["techcrunch"]
+    assert "a.source IN :aggregators" in sql
+    assert params["aggregators"] == ["techcrunch"]
+    assert expanding == ["aggregators"]
 
 
-def test_filtered_article_ids_filters_by_date_range():
-    from backend.services.search_service import _filtered_article_ids
+def test_article_filter_sql_filters_by_date_range():
+    from backend.services.search_service import _article_filter_sql
     import datetime
-    a = uuid.uuid4()
-    db = MagicMock()
-    _mock_id_execute(db, [a])
 
-    result = _filtered_article_ids(
-        db, None, None, None, None, None,
-        datetime.date(2026, 1, 1), None, None, None,
+    sql, params, _ = _article_filter_sql(
+        None, None, None, None, None, datetime.date(2026, 1, 1), None, None, None,
     )
 
-    assert result == {a}
-    sql_text = str(db.execute.call_args[0][0])
-    assert "a.published_at >=" in sql_text
+    assert "a.published_at >= :published_after" in sql
+    assert params["published_after"] == datetime.date(2026, 1, 1)
 
 
-def test_filtered_article_ids_filters_by_tags_and_tag_groups():
-    from backend.services.search_service import _filtered_article_ids
-    a = uuid.uuid4()
-    db = MagicMock()
-    _mock_id_execute(db, [a])
+def test_article_filter_sql_filters_by_tags_and_tag_groups():
+    from backend.services.search_service import _article_filter_sql
 
-    result = _filtered_article_ids(db, None, None, None, ["AI", "ML"], ["research"], None, None, None, None)
+    sql, params, _ = _article_filter_sql(None, None, None, ["AI", "ML"], ["research"], None, None, None, None)
 
-    assert result == {a}
-    sql_text = str(db.execute.call_args[0][0])
-    params = db.execute.call_args[0][1]
-    assert sql_text.count("intelligence.article_tags") == 3  # 2 tags + 1 tag_group
+    assert sql.count("intelligence.article_tags") == 3  # 2 tags + 1 tag_group
     assert params["tag_0"] == "AI"
     assert params["tag_1"] == "ML"
     assert params["tag_group_0"] == "research"
 
 
-def test_filtered_article_ids_returns_empty_set_when_nothing_matches():
-    from backend.services.search_service import _filtered_article_ids
-    db = MagicMock()
-    _mock_id_execute(db, [])
-
-    result = _filtered_article_ids(db, None, ["nonexistent-source"], None, None, None, None, None, None, None)
-
-    assert result == set()  # distinct from None ("no filter requested")
-
-
-def test_filtered_article_ids_scopes_by_topic_when_given():
-    from backend.services.search_service import _filtered_article_ids
-    a = uuid.uuid4()
+def test_article_filter_sql_scopes_by_topic_when_given():
+    from backend.services.search_service import _article_filter_sql
     topic_id = uuid.uuid4()
-    db = MagicMock()
-    _mock_id_execute(db, [a])
 
-    _filtered_article_ids(db, topic_id, ["techcrunch"], None, None, None, None, None, None, None)
+    sql, params, _ = _article_filter_sql(topic_id, None, None, None, None, None, None, None, None)
 
-    sql_text = str(db.execute.call_args[0][0])
-    params = db.execute.call_args[0][1]
-    assert "a.topic_id = :topic_id" in sql_text
+    assert sql == " AND a.topic_id = :topic_id"
     assert params["topic_id"] == str(topic_id)
-
-
-# ---------------------------------------------------------------------------
-# _run_vector_query — id_filter (filtered_ids) SQL shape
-# ---------------------------------------------------------------------------
-
-def test_run_vector_query_includes_id_filter_when_filtered_ids_given():
-    from backend.services.search_service import _run_vector_query
-    db = MagicMock()
-    db.execute.return_value.mappings.return_value.all.return_value = []
-    a, b = uuid.uuid4(), uuid.uuid4()
-
-    _run_vector_query(db, "dense_vector", "vector", "[0.1]", topic_id=None, candidate_k=30, filtered_ids={a, b})
-
-    sql_text = str(db.execute.call_args[0][0])
-    params = db.execute.call_args[0][1]
-    # bindparams(expanding=True) renders as a POSTCOMPILE placeholder, not literally ":filtered_ids"
-    assert "a.id IN" in sql_text
-    assert "filtered_ids" in sql_text
-    assert set(params["filtered_ids"]) == {a, b}
-
-
-def test_run_vector_query_omits_id_filter_when_filtered_ids_none():
-    from backend.services.search_service import _run_vector_query
-    db = MagicMock()
-    db.execute.return_value.mappings.return_value.all.return_value = []
-
-    _run_vector_query(db, "dense_vector", "vector", "[0.1]", topic_id=None, candidate_k=30)
-
-    sql_text = str(db.execute.call_args[0][0])
-    assert "filtered_ids" not in sql_text
 
 
 # ---------------------------------------------------------------------------
@@ -763,18 +691,16 @@ def test_reorder_by_field_sorts_nulls_last_regardless_of_direction():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_search_articles_hybrid_passes_filtered_ids_to_run_vector_query(monkeypatch):
+async def test_search_articles_hybrid_passes_filters_to_run_vector_query(monkeypatch):
     from backend.services import search_service
 
-    filtered = {uuid.uuid4()}
-    monkeypatch.setattr(search_service, "_filtered_article_ids", lambda *a, **k: filtered)
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: set())
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *a, **k: set())
 
     captured = {}
 
-    def _capture_run_vector_query(db, column, cast, vec, topic_id, candidate_k, filtered_ids=None):
-        captured["filtered_ids"] = filtered_ids
+    def _capture_run_vector_query(db, column, cast, vec, candidate_k, filters):
+        captured["filters"] = filters
         return []
     monkeypatch.setattr(search_service, "_run_vector_query", _capture_run_vector_query)
 
@@ -783,7 +709,8 @@ async def test_search_articles_hybrid_passes_filtered_ids_to_run_vector_query(mo
         db, query="test", topic_id=None, page=1, size=10, aggregators=["techcrunch"],
     )
 
-    assert captured["filtered_ids"] == filtered
+    assert "a.source IN" in captured["filters"][0]
+    assert captured["filters"][1]["aggregators"] == ["techcrunch"]
 
 
 @pytest.mark.asyncio
@@ -791,12 +718,11 @@ async def test_search_articles_hybrid_reorders_rrf_results_when_sort_given(monke
     from backend.services import search_service
 
     a, b = uuid.uuid4(), uuid.uuid4()
-    monkeypatch.setattr(search_service, "_filtered_article_ids", lambda *a, **k: None)
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *a, **k: set())
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *a, **k: set())
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, filtered_ids=None: [
+        lambda db, column, cast, vec, candidate_k, filters: [
             _row(a, title="z-title"), _row(b, title="a-title"),
         ],
     )
@@ -809,31 +735,10 @@ async def test_search_articles_hybrid_reorders_rrf_results_when_sort_given(monke
     assert [item.title for item in result.items] == ["a-title", "z-title"]
 
 
-@pytest.mark.asyncio
-async def test_search_articles_hybrid_exact_match_only_applies_filtered_ids(monkeypatch):
-    from backend.services import search_service
-
-    a, b = uuid.uuid4(), uuid.uuid4()
-    monkeypatch.setattr(search_service, "_filtered_article_ids", lambda *args, **kwargs: {a})
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: {a, b})
-    monkeypatch.setattr(
-        search_service, "_fetch_articles_by_ids",
-        lambda db, ids, topic_id: [_article_row(i) for i in ids],
-    )
-
-    db = MagicMock()
-    result = await search_service.search_articles_hybrid(
-        db, query="cyberattacks", topic_id=None, page=1, size=10,
-        exact_match_only=True, aggregators=["techcrunch"],
-    )
-
-    assert result.total == 1  # b excluded — not in the filtered set
-
-
 # ---------------------------------------------------------------------------
 # search_articles_hybrid — translation-aware (non-English `lang`) — display only.
-# exact_match is no longer translation-substring-based (that's _exact_match_article_ids'
-# job now, gated by `lang` at the inverted-index level instead) — these tests only cover
+# exact_match is no longer translation-substring-based (that's _exact_match_among's job
+# now, gated by `lang` at the token level instead) — these tests only cover
 # translated_title/translated_content surfacing.
 # ---------------------------------------------------------------------------
 
@@ -851,10 +756,10 @@ async def test_search_articles_hybrid_returns_translated_title_and_content_for_n
 
     a = uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: set())
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *args, **kwargs: set())
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [_row(a, title="English Title", content="English content")],
+        lambda db, column, cast, vec, candidate_k, filters: [_row(a, title="English Title", content="English content")],
     )
     db = _mock_db_with_translations([{"article_id": str(a), "title": "中文標題", "content": "中文內容"}])
 
@@ -867,17 +772,17 @@ async def test_search_articles_hybrid_returns_translated_title_and_content_for_n
 @pytest.mark.asyncio
 async def test_search_articles_hybrid_does_not_query_translations_for_english_lang(monkeypatch):
     """lang='en' (the default) must skip the translation lookup entirely — a zero-behavior-
-    change guarantee for every existing English-only caller. Note db.query() (the ORM,
-    used by _exact_match_article_ids) is monkeypatched away here; only db.execute()
-    (_fetch_translations' raw SQL) is asserted on."""
+    change guarantee for every existing English-only caller. _exact_match_among (its own
+    db.execute()) is monkeypatched away here, so any remaining db.execute() call would be
+    _fetch_translations'."""
     from backend.services import search_service
 
     a = uuid.uuid4()
     monkeypatch.setattr(search_service, "embed_query", _fake_embed(None, [0.1]))
-    monkeypatch.setattr(search_service, "_exact_match_article_ids", lambda *args, **kwargs: set())
+    monkeypatch.setattr(search_service, "_exact_match_among", lambda *args, **kwargs: set())
     monkeypatch.setattr(
         search_service, "_run_vector_query",
-        lambda db, column, cast, vec, topic_id, candidate_k, **kwargs: [_row(a)],
+        lambda db, column, cast, vec, candidate_k, filters: [_row(a)],
     )
     db = MagicMock()
 
@@ -951,9 +856,8 @@ def test_suggest_terms_does_not_gate_non_cjk_prefix_in_chinese_lang():
 
 
 # ---------------------------------------------------------------------------
-# _find_matching_terms — Postgres autocomplete fallback (023-article-search follow-up:
-# replaced the raw-SQL SqlAlchemySearchTermRepository with a direct ORM query so it can
-# filter by `language` now that intelligence.search_terms splits terms by language).
+# _find_matching_terms — Postgres autocomplete fallback over the intelligence.search_terms
+# materialized view (raw SQL — a materialized view isn't an ORM model).
 # ---------------------------------------------------------------------------
 
 def test_find_matching_terms_returns_empty_when_topic_id_none():
@@ -963,24 +867,35 @@ def test_find_matching_terms_returns_empty_when_topic_id_none():
     result = _find_matching_terms(db, topic_id=None, prefix="lear", lang="en", limit=10)
 
     assert result == []
-    db.query.assert_not_called()
+    db.execute.assert_not_called()
 
 
 def test_find_matching_terms_filters_by_topic_and_language():
     from backend.services.search_service import _find_matching_terms
     topic_id = uuid.uuid4()
     db = MagicMock()
-    chain = db.query.return_value
-    chain.filter.return_value = chain
-    chain.order_by.return_value = chain
-    chain.limit.return_value = chain
-    chain.all.return_value = [MagicMock(term="learning", occurrence_count=42)]
+    db.execute.return_value.all.return_value = [MagicMock(term="learning", occurrence_count=42)]
 
     result = _find_matching_terms(db, topic_id=topic_id, prefix="lear", lang="zh-TW", limit=10)
 
-    assert chain.filter.called
+    sql_text = str(db.execute.call_args[0][0])
+    params = db.execute.call_args[0][1]
+    assert "intelligence.search_terms" in sql_text
+    assert params["topic_id"] == str(topic_id)
+    assert params["lang"] == "zh-TW"
+    assert params["pattern"] == "%lear%"
     assert result[0].term == "learning"
     assert result[0].occurrence_count == 42
+
+
+def test_find_matching_terms_escapes_like_wildcards():
+    from backend.services.search_service import _find_matching_terms
+    db = MagicMock()
+    db.execute.return_value.all.return_value = []
+
+    _find_matching_terms(db, topic_id=uuid.uuid4(), prefix="50%_o\\ff", lang="en", limit=10)
+
+    assert db.execute.call_args[0][1]["pattern"] == "%50\\%\\_o\\\\ff%"
 
 
 def test_suggest_terms_postgres_fallback_uses_find_matching_terms(monkeypatch):

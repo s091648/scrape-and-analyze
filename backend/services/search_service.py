@@ -8,7 +8,7 @@ from typing import Optional
 from uuid import UUID
 
 import structlog
-from sqlalchemy import bindparam, func, text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from shared.domain.exceptions import ExternalDependencyError
@@ -117,36 +117,32 @@ _BASE_QUERY = """
     JOIN core.articles a ON a.id = va.public_article_id
     WHERE ac.{column} IS NOT NULL
       AND a.merged_into_id IS NULL
-      {topic_filter}
-      {id_filter}
+      {filters}
     GROUP BY a.id, a.url, a.source, a.title, a.content, a.published_at, a.scraped_at
     ORDER BY best_distance
     LIMIT :candidate_k
 """
 
 
-def _run_vector_query(
-    db: Session, column: str, cast: str, query_vec: str, topic_id: Optional[UUID], candidate_k: int,
-    filtered_ids: Optional[set] = None,
-):
-    """`filtered_ids` (from `_filtered_article_ids`) narrows the candidate pool to articles
-    matching the aggregator/original_source/tag/tag_group/date-range filters *before*
-    vector ranking/LIMIT — same reasoning as `topic_filter`: applying a filter after RRF
-    merge (a post-hoc filter on already-limited candidates) could disagree with total/
-    pagination the same way `exact_match_only` deliberately avoids (see that flag's own
-    docstring). `None` (the default) means "no filter requested" and omits the clause
-    entirely — zero behavior change for every existing caller."""
-    topic_filter = "AND a.topic_id = :topic_id" if topic_id is not None else ""
-    id_filter = "AND a.id IN :filtered_ids" if filtered_ids is not None else ""
-    sql = _BASE_QUERY.format(column=column, op="<=>", cast=cast, topic_filter=topic_filter, id_filter=id_filter)
+def _bind_expanding(sql: str, expanding: list):
     stmt = text(sql)
-    params = {"query_vec": query_vec, "candidate_k": candidate_k}
-    if topic_id is not None:
-        params["topic_id"] = str(topic_id)
-    if filtered_ids is not None:
-        stmt = stmt.bindparams(bindparam("filtered_ids", expanding=True))
-        params["filtered_ids"] = list(filtered_ids)
-    return db.execute(stmt, params).mappings().all()
+    if expanding:
+        stmt = stmt.bindparams(*(bindparam(name, expanding=True) for name in expanding))
+    return stmt
+
+
+def _run_vector_query(
+    db: Session, column: str, cast: str, query_vec: str, candidate_k: int, filters: tuple,
+):
+    """`filters` (from `_article_filter_sql`) is inlined into the WHERE clause, narrowing
+    the candidate pool to the topic/aggregator/original_source/tag/tag_group/date-range
+    filters *before* vector ranking/LIMIT — applying them after RRF merge (a post-hoc
+    filter on already-limited candidates) could disagree with total/pagination the same
+    way `exact_match_only` deliberately avoids (see that flag's own docstring)."""
+    filter_sql, filter_params, expanding = filters
+    sql = _BASE_QUERY.format(column=column, op="<=>", cast=cast, filters=filter_sql)
+    params = {"query_vec": query_vec, "candidate_k": candidate_k, **filter_params}
+    return db.execute(_bind_expanding(sql, expanding), params).mappings().all()
 
 
 def _rrf_merge(dense_rows, sparse_rows, k: int = _RRF_K) -> list[tuple]:
@@ -174,8 +170,7 @@ def _rrf_merge(dense_rows, sparse_rows, k: int = _RRF_K) -> list[tuple]:
     return [(rows[article_id], scores[article_id]) for article_id in ordered]
 
 
-def _filtered_article_ids(
-    db: Session,
+def _article_filter_sql(
     topic_id: Optional[UUID],
     aggregators: Optional[list],
     original_sources: Optional[list],
@@ -185,7 +180,7 @@ def _filtered_article_ids(
     published_before: Optional[date],
     scraped_after: Optional[date],
     scraped_before: Optional[date],
-) -> Optional[set]:
+) -> tuple[str, dict, list]:
     """The search endpoint's counterpart to `get_articles_paginated`'s (backend/services/
     article_service.py) filter-building block — same filter semantics (`aggregators`
     filters `Article.source`, `original_sources` filters `Article.original_source`,
@@ -193,32 +188,20 @@ def _filtered_article_ids(
     directly since that function also handles pagination/sorting/favorites this endpoint
     doesn't need.
 
-    Returns `None` (not an empty set) when no filter arg is given at all — "no filter
-    requested," distinct from "filters given but nothing matched" (empty set) — callers
-    must treat `None` as "don't restrict the candidate pool," the same convention
-    `_exact_match_article_ids` already uses. This also avoids `_run_vector_query` adding a
-    pointless `id IN (...)` clause (with every article's UUID as a bind param) to the
-    overwhelmingly common case of a search with no filters active at all.
+    Returns `(sql, params, expanding)`: `sql` is a string of ` AND ...` conditions on the
+    `a` (core.articles) alias — empty when nothing is filtered — for callers to splice
+    straight into their own WHERE clause, so the filtering happens inside the one query
+    that also ranks/paginates, instead of materializing every matching article id in
+    Python and sending it back as an `IN (...)` list. `expanding` names the params that
+    need `bindparam(..., expanding=True)` (see `_bind_expanding`).
 
-    Raw SQL against `core.articles`/`intelligence.article_tags`/`intelligence.tags`/
-    `intelligence.tag_group_definitions` — matches this file's real-schema convention for
-    every other `core.articles`/`vectors.*` query (see this module's own top-level design
-    docstrings and backend/tests/integration/test_search.py's module docstring): raw
-    text() SQL is NOT rewritten by conftest.py's schema_translate_map, so, like
-    `_run_vector_query`/`_fetch_articles_by_ids`, this always targets the same real
-    `core.articles` rows those do. An ORM query here (`models.Article`) WOULD be rewritten
-    to the isolated test schema and silently miss the raw-SQL-seeded rows those functions
-    read, unlike `_exact_match_article_ids`'s ORM query, whose only inputs
-    (intelligence.search_terms/search_term_articles) don't have that constraint."""
-    if not any([
-        aggregators, original_sources, tags, tag_groups,
-        published_after, published_before, scraped_after, scraped_before,
-    ]):
-        return None
-
-    conditions = ["a.merged_into_id IS NULL"]
+    Written against real-schema names (`intelligence.article_tags`, ...) because every
+    query it's spliced into is raw text() SQL over `core.articles` — see
+    backend/tests/integration/test_search.py's module docstring on why those reads
+    bypass conftest.py's schema_translate_map."""
+    conditions: list = []
     params: dict = {}
-    expanding_params: list = []
+    expanding: list = []
 
     if topic_id is not None:
         conditions.append("a.topic_id = :topic_id")
@@ -226,11 +209,11 @@ def _filtered_article_ids(
     if aggregators:
         conditions.append("a.source IN :aggregators")
         params["aggregators"] = list(aggregators)
-        expanding_params.append("aggregators")
+        expanding.append("aggregators")
     if original_sources:
         conditions.append("a.original_source IN :original_sources")
         params["original_sources"] = list(original_sources)
-        expanding_params.append("original_sources")
+        expanding.append("original_sources")
     if published_after:
         conditions.append("a.published_at >= :published_after")
         params["published_after"] = published_after
@@ -263,15 +246,11 @@ def _filtered_article_ids(
         )
         params[key] = group_name
 
-    sql = "SELECT a.id FROM core.articles a WHERE " + " AND ".join(conditions)
-    stmt = text(sql)
-    if expanding_params:
-        stmt = stmt.bindparams(*(bindparam(name, expanding=True) for name in expanding_params))
-    return {row["id"] for row in db.execute(stmt, params).mappings().all()}
+    return "".join(f" AND {c}" for c in conditions), params, expanding
 
 
 # Fields available on both the RRF path's rows (_BASE_QUERY's SELECT) and the exact-match
-# path's rows (_fetch_articles_by_ids' SELECT) — an explicit `sort` naming anything else
+# path's rows (_search_exact_match_only's SELECT) — an explicit `sort` naming anything else
 # (view_count, a catalog metric_key) has no column to reorder by here and is left a no-op,
 # the same graceful degradation article_service.py's own unrecognized-sort fallback uses.
 _SORTABLE_ROW_FIELDS = {"published_at", "scraped_at", "source", "title"}
@@ -311,81 +290,27 @@ def _reorder_by_field(items: list, sort: Optional[str], order: str, key_fn) -> l
     return sorted(items, key=functools.cmp_to_key(_cmp))
 
 
-def _exact_match_article_ids(db: Session, query: str, topic_id: Optional[UUID], lang: str) -> Optional[set]:
-    """AND-intersection of every query token's article set, via the term->article
-    inverted index (intelligence.search_terms + intelligence.search_term_articles —
-    023-article-search follow-up). Independent of RRF/vector retrieval's candidate_k
-    bound entirely — this is `exact_match_only`'s sole candidate source, and also what
-    every RRF result's per-item `exact_match` flag is checked against (replacing an
-    earlier plain substring `_is_exact_match` check: that approach could disagree with
-    autocomplete's occurrence_count whenever jieba's tokenizer folded a query into a
-    larger compound term, e.g. "遊戲" vs "遊戲化" — using the exact same tokenize() +
-    inverted index both autocomplete and this now share closes that gap by construction).
+def _exact_match_among(db: Session, tokens: list, lang: str, article_ids: list) -> set:
+    """Which of `article_ids` contain every one of `tokens` in `lang` — the per-item
+    `exact_match` flag on the hybrid (RRF) path. Only ever asked about the one page being
+    returned, not the whole candidate pool.
 
-    `query` is tokenized with the identical algorithm RebuildSearchIndexUseCase used to
-    build the index — a token that doesn't match how the corresponding article text was
-    tokenized at index-build time can never be found here, by design (same reasoning as
-    autocomplete's occurrence_count). `lang` scopes which language's terms are searched:
-    "en" only ever matches original-language text, anything else only ever matches that
-    language's ArticleTranslation — mirrors every other lang-aware endpoint's convention.
-
-    Returns `None` when `query` tokenizes to nothing (e.g. entirely stopwords/too-short
-    tokens) or `topic_id` isn't resolvable — callers must treat that as "no signal",
-    distinct from an empty set ("tokenized fine, but no single article contains every
-    token"). Returns a `set[UUID]` of article_ids otherwise."""
-    from models.search_term import SearchTerm as SearchTermModel
-    from models.search_term_article import SearchTermArticle
-
-    tokens = tokenize(query)
-    if not tokens:
-        return None
-
-    q = (
-        db.query(SearchTermArticle.article_id)
-        .join(SearchTermModel, SearchTermModel.id == SearchTermArticle.search_term_id)
-        .filter(SearchTermModel.language == lang, SearchTermModel.term.in_(tokens))
-    )
-    if topic_id is not None:
-        q = q.filter(SearchTermModel.topic_id == topic_id)
-    q = (
-        q.group_by(SearchTermArticle.article_id)
-        .having(func.count(func.distinct(SearchTermModel.term)) == len(tokens))
-    )
-    return {row.article_id for row in q.all()}
-
-
-def _fetch_articles_by_ids(db: Session, article_ids: set, topic_id: Optional[UUID]) -> list:
-    """Full article rows for `exact_match_only`'s candidate pool, newest-first. Raw SQL
-    against core.articles, not the ORM — matches this file's existing convention for
-    every other core.articles/vectors.* query (see backend/tests/integration/
-    test_search.py's module docstring: an ORM query here would be schema_translate_map-
-    rewritten to the isolated test schema in the integration test harness, while
-    intelligence.search_terms/search_term_articles' rows — this function's only input —
-    correctly go through that same translation, so mixing the two would silently see two
-    different `core.articles`/`intelligence.search_terms` in tests even though there's
-    only one of each in production).
-
-    Re-checks `merged_into_id IS NULL`/`topic_id` at request time (not just relying on
-    RebuildSearchIndexUseCase's own filtering) — the inverted index is rebuilt at most
-    once a day, so an article tombstoned since the last rebuild would otherwise still
-    surface here until the next cycle, same staleness guard `_BASE_QUERY` already applies
-    to the RRF path."""
-    if not article_ids:
-        return []
-    topic_filter = "AND topic_id = :topic_id" if topic_id is not None else ""
-    sql = (
-        "SELECT id, url, source, title, content, published_at, scraped_at "
-        "FROM core.articles "
-        "WHERE id IN :article_ids AND merged_into_id IS NULL "
-        f"{topic_filter} "
-        "ORDER BY published_at DESC NULLS LAST"
-    )
-    params = {"article_ids": list(article_ids)}
-    if topic_id is not None:
-        params["topic_id"] = str(topic_id)
-    return db.execute(
-        text(sql).bindparams(bindparam("article_ids", expanding=True)), params,
-    ).mappings().all()
+    Same lookup `exact_match_only` retrieves by (`tokens @>` over
+    intelligence.article_search_tokens' GIN index), so the flag can never disagree with
+    it — nor with autocomplete's occurrence_count, since all three share tokenize() and
+    the same table (the original bug this design fixed: a plain substring check
+    disagreed whenever jieba folded a query into a larger compound term, e.g. "遊戲" vs
+    "遊戲化"). `lang` scopes which language's tokens are checked: "en" only ever matches
+    original-language text, anything else only ever matches that language's
+    ArticleTranslation — mirrors every other lang-aware endpoint's convention."""
+    if not tokens or not article_ids:
+        return set()
+    stmt = text(
+        "SELECT article_id FROM intelligence.article_search_tokens "
+        "WHERE language = :lang AND tokens @> CAST(:tokens AS text[]) AND article_id IN :article_ids"
+    ).bindparams(bindparam("article_ids", expanding=True))
+    rows = db.execute(stmt, {"lang": lang, "tokens": tokens, "article_ids": list(article_ids)})
+    return {row.article_id for row in rows}
 
 
 def _fetch_translations(db: Session, article_ids: list[str], lang: str) -> dict:
@@ -406,34 +331,79 @@ def _fetch_translations(db: Session, article_ids: list[str], lang: str) -> dict:
     return {str(row["article_id"]): row for row in rows}
 
 
+_EXACT_MATCH_FROM = """
+    FROM intelligence.article_search_tokens ast
+    JOIN core.articles a ON a.id = ast.article_id
+    WHERE ast.language = :lang
+      AND ast.tokens @> CAST(:tokens AS text[])
+      AND a.merged_into_id IS NULL
+      {topic_filter}
+      {filters}
+"""
+
+
+def _exact_match_order_by(sort: Optional[str], order: str) -> str:
+    """SQL counterpart of `_reorder_by_field` for the exact-match path: newest-first by
+    default (no relevance score to order by), overridden by an explicit whitelisted
+    `sort`. NULLS LAST either way, and `a.id` as a tie-breaker so LIMIT/OFFSET pages
+    are stable."""
+    if sort in _SORTABLE_ROW_FIELDS:
+        direction = "ASC" if order == "asc" else "DESC"
+        return f"a.{sort} {direction} NULLS LAST, a.id"
+    return "a.published_at DESC NULLS LAST, a.id"
+
+
 def _search_exact_match_only(
     db: Session, query: str, topic_id: Optional[UUID], page: int, size: int, lang: str,
-    filtered_ids: Optional[set] = None, sort: Optional[str] = None, order: str = "desc",
+    filters: tuple, sort: Optional[str] = None, order: str = "desc",
 ) -> PaginatedArticles:
-    """`exact_match_only=True`'s entire retrieval path — a fully separate, precision-based
-    lookup over the term->article inverted index, completely bypassing RRF/vector
-    retrieval (023-article-search follow-up: RRF's candidate_k bound and embedding-space
-    ranking give no guarantee a literal match is even in the candidate set, let alone
-    ranked highly — see `_exact_match_article_ids`'s docstring). Ordered newest-first
-    (`_fetch_articles_by_ids`) by default, since there's no RRF score here to order by —
-    `sort`/`order` (see `_reorder_by_field`) can override that when the visitor picked an
-    explicit sort. `filtered_ids` (see `_filtered_article_ids`) is AND-intersected with the
-    inverted-index candidates before fetching full rows, same "narrow before pagination"
-    reasoning as the RRF path."""
-    exact_match_ids = _exact_match_article_ids(db, query, topic_id, lang)
-    if not exact_match_ids:
-        return PaginatedArticles(items=[], total=0, page=page, size=size)
-    if filtered_ids is not None:
-        exact_match_ids = exact_match_ids & filtered_ids
-    if not exact_match_ids:
+    """`exact_match_only=True`'s entire retrieval path — a precision-based lookup over
+    intelligence.article_search_tokens, completely bypassing RRF/vector retrieval
+    (023-article-search follow-up: RRF's candidate_k bound and embedding-space ranking
+    give no guarantee a literal match is even in the candidate set, let alone ranked
+    highly).
+
+    `query` is tokenized with the identical algorithm RebuildSearchIndexUseCase indexes
+    with, and an article matches only when its `lang` row contains every query token
+    (`tokens @>`, answered by the GIN index) — a token that doesn't match how the article
+    text was tokenized can never be found, by design. `filters`, ordering and
+    pagination all run in the database, so only the requested page's rows are fetched;
+    `total` rides along on each row via a COUNT(*) OVER () window.
+
+    Re-checks `merged_into_id IS NULL` at request time rather than relying only on
+    RebuildSearchIndexUseCase's eligibility sync — the token table is synced once per
+    scrape cycle, so an article tombstoned since then would otherwise still surface."""
+    tokens = sorted(tokenize(query))
+    if not tokens:
         return PaginatedArticles(items=[], total=0, page=page, size=size)
 
-    rows = _fetch_articles_by_ids(db, exact_match_ids, topic_id)
-    rows = _reorder_by_field(rows, sort, order, key_fn=lambda row: row[sort] if sort else None)
-    total = len(rows)
+    filter_sql, filter_params, expanding = filters
+    from_sql = _EXACT_MATCH_FROM.format(
+        # Redundant with filter_sql's a.topic_id condition, but lets the planner use
+        # idx_article_search_tokens_topic_language alongside the GIN index.
+        topic_filter="AND ast.topic_id = :topic_id" if topic_id is not None else "",
+        filters=filter_sql,
+    )
+    params = {"lang": lang, "tokens": tokens, **filter_params}
 
-    offset = (page - 1) * size
-    page_rows = rows[offset:offset + size]
+    # One round trip: COUNT(*) OVER () is evaluated over every matching row before
+    # ORDER BY/LIMIT trim them to the page, so each returned row carries the full total.
+    page_sql = (
+        "SELECT a.id, a.url, a.source, a.title, a.content, a.published_at, a.scraped_at, "
+        f"COUNT(*) OVER () AS total {from_sql} "
+        f"ORDER BY {_exact_match_order_by(sort, order)} LIMIT :limit OFFSET :offset"
+    )
+    page_rows = db.execute(
+        _bind_expanding(page_sql, expanding), {**params, "limit": size, "offset": (page - 1) * size},
+    ).mappings().all()
+    if page_rows:
+        total = page_rows[0]["total"]
+    elif page > 1:
+        # Past the last page there are no rows to carry the window total, so count
+        # separately — only this edge case pays for a second query.
+        total = db.execute(_bind_expanding(f"SELECT COUNT(*) {from_sql}", expanding), params).scalar_one()
+    else:
+        total = 0
 
     trans_map: dict = {}
     if lang != "en" and page_rows:
@@ -468,7 +438,7 @@ async def search_articles_hybrid(
     sort: Optional[str] = None, order: str = "desc",
 ) -> PaginatedArticles:
     """`aggregators`/`original_sources`/`tags`/`tag_groups`/`published_*`/`scraped_*` mirror
-    `GET /articles`' own filter params exactly (see `_filtered_article_ids`) — narrowing
+    `GET /articles`' own filter params exactly (see `_article_filter_sql`) — narrowing
     the candidate pool *before* RRF/exact-match ranking and pagination, not filtering the
     page of already-ranked results after the fact, for the same "total/pagination must
     agree with what's shown" reasoning `exact_match_only` already established.
@@ -481,20 +451,20 @@ async def search_articles_hybrid(
     is a deliberate zero-behavior-change no-op, not "sort by nothing."
 
     `exact_match_only=True` delegates entirely to `_search_exact_match_only` — a
-    separate, precision-based retrieval path over the term->article inverted index, not a
-    post-hoc filter on top of RRF (023-article-search follow-up: RRF's candidate_k bound
+    separate, precision-based retrieval path over intelligence.article_search_tokens, not
+    a post-hoc filter on top of RRF (023-article-search follow-up: RRF's candidate_k bound
     and embedding-space ranking give no guarantee a literal match even appears in RRF's
-    candidates, let alone ranks highly there — see `_exact_match_article_ids`'s docstring
-    for the full reasoning "why doesn't exact match just rank first").
+    candidates, let alone ranks highly there).
 
     Otherwise (default), hybrid sparse+dense search over vectors.article_chunks, merged
     via RRF — results are ordered purely by RRF score, no re-ranking or candidate
     injection on top of it (an earlier revision added both — literal-match ILIKE
     candidate injection and a boost_exact_match reorder step — deliberately reverted in
-    favor of this simpler design). Each item's `exact_match` flag is still annotated, via
-    the exact same inverted-index lookup `exact_match_only` uses as its sole candidate
-    source — not a plain substring check — so the flag can never disagree with what
-    autocomplete's occurrence_count promises (the original bug this whole redesign fixed).
+    favor of this simpler design). Each returned item's `exact_match` flag is still
+    annotated, via the same token lookup `exact_match_only` retrieves by
+    (`_exact_match_among`) — not a plain substring check — so the flag can never disagree
+    with what autocomplete's occurrence_count promises (the original bug this whole
+    redesign fixed).
 
     Degrades to whichever of sparse/dense is actually configured (RAG_DENSE_PROVIDER/
     RAG_SPARSE_PROVIDER empty means that provider is skipped — see `embed_query`) —
@@ -517,9 +487,8 @@ async def search_articles_hybrid(
     # sync SQLAlchemy Session, not safe to use from two threads at once, so awaiting one
     # to_thread call before starting the next — same execution order as before this change —
     # is required for correctness, not just simplicity.
-    filtered_ids = await to_thread_profiled(
-        _filtered_article_ids,
-        db, topic_id, aggregators, original_sources, tags, tag_groups,
+    filters = _article_filter_sql(
+        topic_id, aggregators, original_sources, tags, tag_groups,
         published_after, published_before, scraped_after, scraped_before,
     )
 
@@ -527,10 +496,8 @@ async def search_articles_hybrid(
         return await to_thread_profiled(
             _search_exact_match_only,
             db, query, topic_id, page, size, lang,
-            filtered_ids=filtered_ids, sort=sort, order=order,
+            filters=filters, sort=sort, order=order,
         )
-
-    exact_match_ids = await to_thread_profiled(_exact_match_article_ids, db, query, topic_id, lang) or set()
 
     candidate_k = size * _CANDIDATE_MULTIPLIER
 
@@ -541,16 +508,14 @@ async def search_articles_hybrid(
     sparse_rows = (
         await to_thread_profiled(
             _run_vector_query,
-            db, "sparse_vector", "sparsevec", _sparse_vec_literal(sparse_weights), topic_id, candidate_k,
-            filtered_ids=filtered_ids,
+            db, "sparse_vector", "sparsevec", _sparse_vec_literal(sparse_weights), candidate_k, filters,
         )
         if sparse_weights is not None else []
     )
     dense_rows = (
         await to_thread_profiled(
             _run_vector_query,
-            db, "dense_vector", "vector", _dense_vec_literal(dense_values), topic_id, candidate_k,
-            filtered_ids=filtered_ids,
+            db, "dense_vector", "vector", _dense_vec_literal(dense_values), candidate_k, filters,
         )
         if dense_values is not None else []
     )
@@ -561,10 +526,10 @@ async def search_articles_hybrid(
     offset = (page - 1) * size
     page_rows = merged[offset:offset + size]
 
-    # Fetched only for the final page, not the full pre-pagination candidate set — unlike
-    # the old substring `_is_exact_match` check, the inverted-index-based `exact_match`
-    # annotation above no longer depends on translation text, so translations are now
-    # purely a display concern (translated_title/translated_content).
+    # Both only for the final page, not the full pre-pagination candidate set.
+    exact_match_ids = await to_thread_profiled(
+        _exact_match_among, db, sorted(tokenize(query)), lang, [row["id"] for row, _score in page_rows],
+    )
     trans_map: dict = {}
     if lang != "en" and page_rows:
         trans_map = await to_thread_profiled(
@@ -597,10 +562,10 @@ _CJK_CHAR = re.compile(r"[一-鿿]")  # same range as src/modules/search/domain/
 
 def _prefix_suggestable_for_lang(prefix: str, lang: str) -> bool:
     """False for a CJK prefix when `lang` isn't a Chinese locale — suggesting it would be
-    a dead end, since _exact_match_article_ids' inverted-index lookup (and therefore the
+    a dead end, since _search_exact_match_only's token lookup (and therefore the
     only way a CJK query can ever literally match anything) is itself gated on `lang`. A
     non-CJK prefix is always suggestable regardless of `lang`, since it can still match
-    the "en"-language index unconditionally — mirrors _exact_match_article_ids' own
+    the "en"-language index unconditionally — mirrors _exact_match_among's own
     asymmetry (original/"en" terms always searchable, a translation's terms only when
     `lang` selects that language)."""
     if not _CJK_CHAR.search(prefix):
@@ -608,34 +573,36 @@ def _prefix_suggestable_for_lang(prefix: str, lang: str) -> bool:
     return lang.lower().startswith("zh")
 
 
+def _escape_like(value: str) -> str:
+    """Escape LIKE/ILIKE wildcards so a visitor's `%`/`_` match literally (Postgres's
+    default LIKE escape character is the backslash)."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _find_matching_terms(db: Session, topic_id: Optional[UUID], prefix: str, lang: str, limit: int) -> list:
     """Postgres fallback for autocomplete when Redis is unavailable or the key was never
-    built — direct ORM query against models.SearchTerm (023-article-search follow-up:
-    replaced the raw-SQL SqlAlchemySearchTermRepository so this lookup is consistent with
-    the rest of backend/'s ORM+injected-Session convention, and so it can filter by
-    `language` now that intelligence.search_terms splits terms by language).
+    built — a contains-anywhere `ILIKE '%prefix%'` over intelligence.search_terms, served
+    by its pg_trgm GIN index. search_terms is a materialized view (derived from
+    intelligence.article_search_tokens — see alembic 29_add_article_search_tokens), so
+    this is raw text() SQL, same as tag_service.py's read of tag_article_counts.
 
     Unlike the Redis trie (which stays language-blind — see RebuildSearchIndexUseCase),
     this fallback filters on `language == lang`: it's rare (Redis miss/outage only), so
     there's no existing UX consistency guarantee to preserve, and filtering here is what
     keeps a zh-TW suggestion from being offered in an English UI (dead end once submitted,
     same reasoning as `_prefix_suggestable_for_lang`)."""
-    from models.search_term import SearchTerm as SearchTermModel
     from shared.search_index.search_term import SearchTerm as SearchTermDTO
 
     if topic_id is None:
         return []
-    rows = (
-        db.query(SearchTermModel.term, SearchTermModel.occurrence_count)
-        .filter(
-            SearchTermModel.topic_id == topic_id,
-            SearchTermModel.language == lang,
-            SearchTermModel.term.ilike(f"%{prefix}%"),
-        )
-        .order_by(SearchTermModel.occurrence_count.desc())
-        .limit(limit)
-        .all()
-    )
+    rows = db.execute(
+        text(
+            "SELECT term, occurrence_count FROM intelligence.search_terms "
+            "WHERE topic_id = :topic_id AND language = :lang AND term ILIKE :pattern "
+            "ORDER BY occurrence_count DESC, term LIMIT :limit"
+        ),
+        {"topic_id": str(topic_id), "lang": lang, "pattern": f"%{_escape_like(prefix)}%", "limit": limit},
+    ).all()
     return [SearchTermDTO(term=row.term, occurrence_count=row.occurrence_count) for row in rows]
 
 

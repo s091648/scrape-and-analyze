@@ -240,7 +240,7 @@ class TestRedisCacheGateway:
 @pytest.fixture
 def indexed_topic(db_engine):
     """A fresh topic with three articles, committed (the use case's repository commits
-    its own transaction, so the source rows must be visible outside db_session):
+    its own transactions, so the source rows must be committed too):
       - two analyzed articles sharing the term "quasicrystal" (doc freq 2), one of them
         with a zh-TW translation;
       - one article with no Analysis, which must be excluded from the index entirely.
@@ -249,7 +249,7 @@ def indexed_topic(db_engine):
     from models.analysis import Analysis
     from models.article import Article
     from models.article_translation import ArticleTranslation
-    from models.search_term import SearchTerm as SearchTermModel
+    from models.article_search_token import ArticleSearchToken
     from models.topic import Topic
     from src.modules.collection.domain.value_objects import UrlHash
 
@@ -276,8 +276,9 @@ def indexed_topic(db_engine):
 
     yield topic.id, unanalyzed.id
 
-    session.query(SearchTermModel).filter(SearchTermModel.topic_id == topic.id).delete(synchronize_session=False)
     article_ids = [a.id for a in session.query(Article).filter(Article.topic_id == topic.id)]
+    session.query(ArticleSearchToken).filter(ArticleSearchToken.article_id.in_(article_ids)).delete(synchronize_session=False)
+    session.query(Article).filter(Article.id.in_(article_ids)).update({Article.merged_into_id: None}, synchronize_session=False)
     session.query(ArticleTranslation).filter(ArticleTranslation.article_id.in_(article_ids)).delete(synchronize_session=False)
     session.query(Analysis).filter(Analysis.article_id.in_(article_ids)).delete(synchronize_session=False)
     session.query(Article).filter(Article.id.in_(article_ids)).delete(synchronize_session=False)
@@ -286,37 +287,59 @@ def indexed_topic(db_engine):
     session.close()
 
 
-def test_rebuild_search_index_use_case_writes_postgres_and_redis(db_session, indexed_topic, index_url):
-    from models.search_term import SearchTerm as SearchTermModel
-    from models.search_term_article import SearchTermArticle
-    from src.infrastructure.persistence.intelligence import SqlAlchemySearchTermRepository
+def test_rebuild_search_index_use_case_syncs_tokens_incrementally(db_session, indexed_topic, index_url):
+    from datetime import datetime, timezone
+    from models.article import Article
+    from models.article_search_token import ArticleSearchToken
+    from models.article_translation import ArticleTranslation
+    from src.infrastructure.persistence.intelligence import SqlAlchemyArticleSearchTokenRepository
     from src.modules.search.application.use_cases import RebuildSearchIndexUseCase
 
     topic_id, unanalyzed_id = indexed_topic
     gateway = RedisSearchIndexGateway(redis_url=index_url)
     use_case = RebuildSearchIndexUseCase(
-        session=db_session,
-        search_term_repo=SqlAlchemySearchTermRepository(db_session),
+        search_token_repo=SqlAlchemyArticleSearchTokenRepository(db_session),
         search_index_gateway=gateway,
         min_doc_freq=2,
     )
 
-    stats = use_case.execute()
+    def _rows():
+        db_session.expire_all()
+        return {
+            (r.article_id, r.language): r
+            for r in db_session.query(ArticleSearchToken).filter(ArticleSearchToken.topic_id == topic_id)
+        }
 
-    assert stats["article_count"] >= 2
-    # Postgres: unfiltered by doc freq, split by language.
-    rows = db_session.query(SearchTermModel).filter(SearchTermModel.topic_id == topic_id).all()
-    by_key = {(r.term, r.language): r for r in rows}
-    assert by_key[("quasicrystal", "en")].occurrence_count == 2
-    assert ("lattices", "en") in by_key  # doc freq 1 — still exact-match findable
-    assert any(lang == "zh-TW" for _, lang in by_key)
-    assert not any(term == "zeolite" for term, _ in by_key), "un-analyzed articles must be excluded"
-    linked_articles = {
-        link.article_id for link in db_session.query(SearchTermArticle)
-        .filter(SearchTermArticle.search_term_id.in_([r.id for r in rows]))
-    }
-    assert unanalyzed_id not in linked_articles
+    first_stats = use_case.execute()
 
+    rows = _rows()
+    assert first_stats["indexed_count"] >= 3  # 2 originals + 1 translation (other topics may add more)
+    assert {lang for _, lang in rows} == {"en", "zh-TW"}
+    assert all(article_id != unanalyzed_id for article_id, _ in rows), "un-analyzed articles must be excluded"
+    en_tokens = [set(r.tokens) for (_, lang), r in rows.items() if lang == "en"]
+    assert all("quasicrystal" in tokens for tokens in en_tokens)
+    assert any("lattices" in tokens for tokens in en_tokens)  # doc freq 1 — still indexed
     # Redis: only terms meeting min_doc_freq are suggested.
     assert [t.term for t in gateway.suggest(topic_id, "quasi")] == ["quasicrystal"]
     assert gateway.suggest(topic_id, "lattic") is None
+
+    # Nothing changed -> nothing re-tokenized.
+    assert use_case.execute()["indexed_count"] == 0
+
+    # An updated translation is re-tokenized; a merged-away article's rows are removed.
+    translation = db_session.query(ArticleTranslation).join(Article).filter(Article.topic_id == topic_id).one()
+    translation.content = "準晶體 光子"
+    translation.updated_at = datetime.now(timezone.utc)
+    merged = db_session.query(Article).filter(
+        Article.topic_id == topic_id, Article.id != translation.article_id, Article.id != unanalyzed_id,
+    ).one()
+    merged.merged_into_id = translation.article_id
+    db_session.commit()
+
+    third_stats = use_case.execute()
+
+    rows = _rows()
+    assert third_stats["indexed_count"] == 1
+    assert third_stats["deleted_count"] >= 1
+    assert "光子" in rows[(translation.article_id, "zh-TW")].tokens
+    assert all(article_id != merged.id for article_id, _ in rows)

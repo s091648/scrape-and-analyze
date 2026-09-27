@@ -69,8 +69,7 @@ def db_engine():
     from models.llm_provider import LlmProvider  # noqa: F401
     from models.metric_definition import MetricDefinition  # noqa: F401
     from models.metric_provider import MetricProvider  # noqa: F401
-    from models.search_term import SearchTerm  # noqa: F401
-    from models.search_term_article import SearchTermArticle  # noqa: F401
+    from models.article_search_token import ArticleSearchToken  # noqa: F401
     from models.user_subscription import (  # noqa: F401
         UserTopicSubscription, UserNotificationSettings, UserArticleFavorite,
     )

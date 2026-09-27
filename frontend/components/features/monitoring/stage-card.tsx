@@ -115,7 +115,9 @@ const ATTR_I18N_KEYS: Record<string, string> = {
   'discover.discovered_count':            'admin.stageAttr_discoverDiscoveredCount',
   'discover.new_count':                   'admin.stageAttr_discoverNewCount',
   'discover.duplicate_count':             'admin.stageAttr_discoverDuplicateCount',
-  'search_index.article_count':           'admin.stageAttr_searchIndexArticleCount',
+  'search_index.article_count':           'admin.stageAttr_searchIndexArticleCount', // pre-incremental-sync runs
+  'search_index.indexed_count':           'admin.stageAttr_searchIndexIndexedCount',
+  'search_index.deleted_count':           'admin.stageAttr_searchIndexDeletedCount',
   'search_index.topic_count':             'admin.stageAttr_searchIndexTopicCount',
   'search_index.term_count':              'admin.stageAttr_searchIndexTermCount',
   'cache.namespaces':                     'admin.stageAttr_cacheNamespaces',
