@@ -52,31 +52,27 @@ def test_intelligence_schema_tables():
     from models.tag_normalization_suggestion import TagNormalizationSuggestion
     from models.weekly_report import WeeklyReport
     from models.weekly_report_translation import WeeklyReportTranslation
-    from models.search_term import SearchTerm
-    from models.search_term_article import SearchTermArticle
+    from models.article_search_token import ArticleSearchToken
     for model in (
         Analysis, AnalysesTranslation, Tag, TagGroupDefinition,
         TagGroupDefinitionsTranslation, TagsTranslation,
         TagNormalizationSuggestion, WeeklyReport, WeeklyReportTranslation,
-        SearchTerm, SearchTermArticle,
+        ArticleSearchToken,
     ):
         assert model.__table__.schema == DbSchema.INTELLIGENCE.value, model.__tablename__
     assert article_tags.schema == DbSchema.INTELLIGENCE.value
 
 
-def test_search_term_model_columns():
-    from models.search_term import SearchTerm
-    cols = {c.name for c in SearchTerm.__table__.columns}
-    assert cols == {"id", "topic_id", "term", "language", "occurrence_count"}
-
-
-def test_search_term_article_model_columns_and_fks():
-    from models.search_term_article import SearchTermArticle
-    cols = {c.name for c in SearchTermArticle.__table__.columns}
-    assert cols == {"id", "search_term_id", "article_id"}
-    fk_targets = {fk.target_fullname for fk in SearchTermArticle.__table__.foreign_keys}
-    assert "intelligence.search_terms.id" in fk_targets
-    assert "core.articles.id" in fk_targets
+def test_article_search_token_model_columns_keys_and_indexes():
+    from models.article_search_token import ArticleSearchToken
+    table = ArticleSearchToken.__table__
+    assert {c.name for c in table.columns} == {
+        "article_id", "language", "topic_id", "tokens", "source_updated_at", "indexed_at",
+    }
+    assert {c.name for c in table.primary_key.columns} == {"article_id", "language"}
+    assert {fk.target_fullname for fk in table.foreign_keys} == {"core.articles.id"}
+    gin = next(i for i in table.indexes if i.name == "idx_article_search_tokens_tokens")
+    assert gin.dialect_options["postgresql"]["using"] == "gin"
 
 
 def test_ai_infra_schema_tables():

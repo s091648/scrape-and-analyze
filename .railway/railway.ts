@@ -40,6 +40,7 @@ import {
   CONTACT_EMAIL,
   GRAFANA_BACKEND_ENV,
   GRAFANA_ENV,
+  GRAFANA_PROMETHEUS_ENV,
   GRAFANA_PROFILES_ENV,
   GRAFANA_URL,
   RAG_CHUNKING_ENV,
@@ -374,12 +375,32 @@ export default defineRailway((ctx) => {
     },
   });
 
+  // Grafana Alloy: embedded postgres_exporter -> Grafana Cloud Prometheus (see
+  // alloy/README.md). Connects as the read-only `alloy_monitor` role (pg_monitor),
+  // created by hand per environment. The DSN is assembled by Railway from this
+  // service's own ALLOY_PG_PASSWORD plus the Postgres service's private domain /
+  // database name, so the host never has to live in the tfvars. The password is
+  // spliced in unencoded — keep it URL-safe (hex).
+  const alloy = service("alloy", {
+    source: srcRepo,
+    build: df("alloy/Dockerfile"),
+    replicas,
+    env: {
+      ...appEnv,
+      ...GRAFANA_PROMETHEUS_ENV,
+      ...needAll("GRAFANA_API_KEY", "ALLOY_PG_PASSWORD"),
+      POSTGRES_EXPORTER_DSN:
+        "postgresql://alloy_monitor:${{ALLOY_PG_PASSWORD}}" +
+        "@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}?sslmode=disable",
+    },
+  });
+
   return project("scraper", {
     resources: [
       Redis, Postgres, redisVolume, postgresVolume,
       weeklyReport, dedupReconcile, storybookUI, dashboardFrontend,
       scrapeAndAnalyze, refreshMetrics, fastembed, dashboardBackend,
-      chatbotPlugin, backfillRag,
+      chatbotPlugin, backfillRag, alloy,
     ],
   });
 });

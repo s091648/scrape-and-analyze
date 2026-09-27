@@ -9,7 +9,7 @@ async def test_handle_invokes_the_use_case():
     # RebuildSearchIndexUseCase.execute() stays a plain sync bulk query
     # (see handler docstring) — plain MagicMock, not AsyncMock.
     use_case = MagicMock()
-    use_case.execute.return_value = {"article_count": 1, "topic_count": 1, "term_count": 2}
+    use_case.execute.return_value = {"indexed_count": 1, "deleted_count": 0, "topic_count": 1, "term_count": 2}
     handler = SearchIndexRebuildHandler(use_case)
 
     await handler.handle(event=AsyncMock())

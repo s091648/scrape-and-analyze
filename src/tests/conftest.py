@@ -82,20 +82,26 @@ def fast_scrape_executor(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fast_llm_retry(monkeypatch):
-    """Replace wait_exponential(min=4, max=60) on BaseProvider._retry and
-    _translate_retry with wait_none() so LLM retry tests don't wait 4-60 s
-    between attempts."""
+    """Replace wait_exponential(min=4, max=60) on BaseProvider's and
+    AsyncBaseProvider's _retry and _translate_retry with wait_none() so LLM
+    retry tests don't wait 4-60 s between attempts."""
     try:
         import tenacity as _ten
         import src.infrastructure.intelligence.llm.providers.base_provider as _bp
-        _orig_init = _bp.BaseProvider.__init__
+        import src.infrastructure.intelligence.llm.providers.async_base_provider as _abp
 
-        def _fast_init(self, model: str) -> None:
-            _orig_init(self, model)
-            self._retry.wait = _ten.wait_none()
-            self._translate_retry.wait = _ten.wait_none()
+        def _patch(cls) -> None:
+            _orig_init = cls.__init__
 
-        monkeypatch.setattr(_bp.BaseProvider, '__init__', _fast_init)
+            def _fast_init(self, model: str) -> None:
+                _orig_init(self, model)
+                self._retry.wait = _ten.wait_none()
+                self._translate_retry.wait = _ten.wait_none()
+
+            monkeypatch.setattr(cls, '__init__', _fast_init)
+
+        _patch(_bp.BaseProvider)
+        _patch(_abp.AsyncBaseProvider)
     except (ImportError, AttributeError):
         pass
 

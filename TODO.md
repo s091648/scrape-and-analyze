@@ -214,15 +214,12 @@ expected data volumes), but worth asking whether `LIMIT 5` was meant to support
 a multi-candidate suggestion flow that never got built, or should just be
 `LIMIT 1` to match what's actually consumed.
 
-**Also worth noting while in this query**: `tags.embedding` has an HNSW index
-(`idx_tags_embedding`, migration `17_add_vector_failed_task_and_auto_tag.py`)
-built for approximate nearest-neighbor search, but it's a *global* index — it
-has no awareness of the `topic_id`/`group_name` filter this query also applies.
-At the tag counts one topic+group is expected to hold (dozens to low hundreds,
-not millions), an exact scan of the filtered subset is almost certainly both
-correct and fast enough, so this likely doesn't matter in practice — but it
-means the HNSW index's approximate-search benefit may not actually be
-exercised the way its presence might suggest. Not urgent, purely informational.
+**Also worth noting while in this query** (resolved): `tags.embedding` used to
+have a global HNSW index (`idx_tags_embedding`) with no awareness of the
+`topic_id`/`group_name` filter this query applies. Production's
+`pg_stat_user_indexes` confirmed it was never used (`idx_scan = 0` over ~34 days)
+while every tag embedding write paid to maintain it, so migration
+`29_add_article_search_tokens` dropped it.
 
 **Why it hasn't mattered yet**: neither point is a functional bug — found
 during an architecture walkthrough of the tag-similarity query.

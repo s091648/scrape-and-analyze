@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.modules.intelligence.domain.repositories import AsyncTagTranslationRepository
 from src.shared.logging import get_logger
@@ -48,22 +47,26 @@ class AsyncSqlAlchemyTagTranslationRepository(AsyncTagTranslationRepository):
     async def find_tags_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
-        """Return tags that lack a translation row for the specified language."""
+        """Return tags that lack a translation row for the specified language.
+
+        Selects just the columns needed (group name joined in) rather than whole
+        Tag rows, which dragged every 768-dim embedding along for nothing.
+        """
         from models.tag import Tag as TagModel
+        from models.tag_group import TagGroupDefinition
         from models.tag_translation import TagsTranslation as TagsTranslationModel
 
         result = await self._session.execute(
-            select(TagModel)
-            .options(selectinload(TagModel.group_def))
+            select(TagModel.id, TagModel.name, TagGroupDefinition.name.label("group_name"))
+            .outerjoin(TagGroupDefinition, TagModel.tag_group_id == TagGroupDefinition.id)
             .filter(~TagModel.translations.any(TagsTranslationModel.language == language))
             .order_by(TagModel.name)
             .limit(limit)
         )
-        rows = result.scalars().all()
 
         return [
-            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_def.name if row.group_def else "ungrouped"}
-            for row in rows
+            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_name or "ungrouped"}
+            for row in result.all()
         ]
 
     async def save_group_translation(

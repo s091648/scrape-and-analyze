@@ -1,5 +1,5 @@
 """
-Integration tests for GET /failed-tasks.
+Integration tests for GET /failed-tasks and GET /db/query-texts.
 
 This endpoint had zero test coverage at the HTTP/router level before this file
 (only the underlying get_failed_tasks_paginated() service function was
@@ -90,3 +90,30 @@ def test_list_failed_tasks_paginates(api_client, db_session):
     assert data["total"] >= 5
     assert data["page"] == 1
     assert data["size"] == 2
+
+
+# ---------------------------------------------------------------------------
+# GET /db/query-texts
+# ---------------------------------------------------------------------------
+
+def test_query_texts_requires_admin_role(api_client):
+    r = api_client.get("/db/query-texts?queryid=1")
+    assert r.status_code == 403
+
+
+def test_query_texts_validates_queryid_list(api_client):
+    assert api_client.get("/db/query-texts", headers=_ADMIN_HDR).status_code == 422
+    too_many = "&".join(f"queryid={i}" for i in range(51))
+    assert api_client.get(f"/db/query-texts?{too_many}", headers=_ADMIN_HDR).status_code == 422
+
+
+def test_query_texts_returns_well_formed_response_with_or_without_extension(api_client):
+    """The test Postgres may or may not preload pg_stat_statements — either way the
+    endpoint must answer 200, and an unavailable extension means no items."""
+    r = api_client.get("/db/query-texts?queryid=-1&queryid=2", headers=_ADMIN_HDR)
+
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"available", "items"}
+    if not body["available"]:
+        assert body["items"] == []

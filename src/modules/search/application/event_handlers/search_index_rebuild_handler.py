@@ -7,15 +7,15 @@ logger = get_logger(__name__)
 
 
 class SearchIndexRebuildHandler:
-    """Rebuilds the autocomplete term index once per completed scrape pipeline run
-    (FR-008) — mirrors CacheInvalidationHandler/CacheWarmupHandler's subscription
+    """Syncs the search read models once per completed scrape pipeline run
+    (FR-008 — see RebuildSearchIndexUseCase) — mirrors CacheInvalidationHandler/CacheWarmupHandler's subscription
     pattern.
 
     024-async-pipeline-refactor: now subscribed to TextPipelineCompletedEvent
     (not PipelineCompletedEvent) — the index only depends on article/analysis
     text content, not RAG vectors. `handle()` is `async def` for the EventBus
     Protocol, but RebuildSearchIndexUseCase.execute() itself stays a plain
-    synchronous bulk query (SearchTermRepository is intentionally not async —
+    synchronous bulk operation (ArticleSearchTokenRepository is intentionally not async —
     see contracts/async-repository-ports.md — this is a once-per-run bulk
     operation, not part of the per-article concurrent path)."""
 
@@ -27,7 +27,8 @@ class SearchIndexRebuildHandler:
             logger.info("search_index_rebuild_started")
             try:
                 stats = self._use_case.execute()
-                span.set_attribute("search_index.article_count", stats["article_count"])
+                span.set_attribute("search_index.indexed_count", stats["indexed_count"])
+                span.set_attribute("search_index.deleted_count", stats["deleted_count"])
                 span.set_attribute("search_index.topic_count", stats["topic_count"])
                 span.set_attribute("search_index.term_count", stats["term_count"])
                 logger.info("search_index_rebuild_completed", **stats)

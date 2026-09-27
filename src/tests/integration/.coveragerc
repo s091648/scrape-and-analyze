@@ -1,0 +1,27 @@
+# Coverage scope for the src integration suite only (ci.yml's src-integration-test job and
+# `make test-src-integration-cov` pass --cov-config=src/tests/integration/.coveragerc).
+#
+# Beyond the repo-wide omits (see /.coveragerc), this leaves out the adapters whose only job
+# is talking to an external service — LLM/embedding vendor SDKs, the arXiv/OpenAlex/Semantic
+# Scholar/RSS clients and the scrapers built on them, HTML/PDF parsing, and the shared HTTP
+# client stack. Exercising those for real here would mean live third-party calls (slow,
+# flaky, quota-burning), so they're covered by src/tests/unit with mocked transports
+# instead. Omitting them keeps this report measuring what integration tests are actually
+# responsible for: persistence, the Postgres/Redis read models, bootstrap wiring and the
+# pipeline orchestration. Codecov still merges this flag with the unit flag, so the
+# combined per-file view of these adapters is unaffected.
+[run]
+omit =
+    */tests/*
+    */conftest.py
+    */src/infrastructure/intelligence/llm/providers/*
+    */src/infrastructure/intelligence/llm/embedding/*
+    */src/infrastructure/collection/clients/*
+    */src/infrastructure/collection/scrapers/arxiv_scraper.py
+    */src/infrastructure/collection/scrapers/base_scraper.py
+    */src/infrastructure/collection/scrapers/blog_scraper.py
+    */src/infrastructure/collection/scrapers/openalex_scraper.py
+    */src/infrastructure/collection/scrapers/rss_scraper.py
+    */src/infrastructure/collection/scrapers/semantic_scholar_scraper.py
+    */src/infrastructure/collection/parsers/*
+    */src/infrastructure/shared/http/*

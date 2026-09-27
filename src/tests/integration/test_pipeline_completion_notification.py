@@ -26,6 +26,11 @@ from src.modules.collection.application.use_cases import PipelineStats, ArticleO
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.modules.collection.application.events import ArticleScrapedEvent, PipelineCompletedEvent
 
+# Marked integration even though most of these need no real DB: CI's src-integration-test job
+# (and `make test-src-integration`) select with `-m integration`, and the unit job only runs
+# src/tests/unit/ — so an unmarked test here was silently run by nothing at all.
+pytestmark = pytest.mark.integration
+
 
 @asynccontextmanager
 async def _fake_session():
@@ -75,7 +80,7 @@ async def test_completion_notification_accurate_after_rag_failure_and_llm_rate_l
         await bus.subscribe(ArticleScrapedEvent, _on_scraped)
 
     class _FailingRagHandler:
-        async def handle(self, event):
+        async def handle(self, event, parent_span=None):
             await asyncio.sleep(RAG_DELAY)
             raise RuntimeError("RAG ingestion failed")
 

@@ -14,14 +14,12 @@ embed_query_sparse/embed_query_dense are monkeypatched to deterministic vectors
 (rather than hitting a real fastembed service) so cosine-distance ordering is exact
 and reproducible.
 
-intelligence.search_terms/search_term_articles (the term->article inverted index
-backing exact_match/exact_match_only — 023-article-search follow-up) are the one
-exception to the raw-SQL-everywhere rule above: search_service.py queries them via the
-ORM (models.SearchTerm/SearchTermArticle), which IS schema_translate_map-rewritten to
-the isolated test schema, and they don't need to join against the FIXED, non-isolated
-vectors.* schema the way core.articles does — so `_seed_search_term` below seeds them
-via `db_session.add(...)`, not raw SQL, to land in the same (rewritten) schema that ORM
-query reads.
+intelligence.article_search_tokens (backing exact_match/exact_match_only) and the
+intelligence.search_terms materialized view derived from it (autocomplete's Postgres
+fallback) follow the same rule: search_service.py reads both via raw SQL joined against
+the real core.articles, so `_seed_tokens` writes the real table via raw SQL too, and
+`_refresh_search_terms` refreshes the real view (non-CONCURRENTLY, which — unlike
+CONCURRENTLY — can run inside db_session's transaction and rolls back with it).
 """
 import uuid
 
@@ -88,53 +86,19 @@ def _seed_chunk(db_session, article_id, dense_vec=None, sparse_weights=None):
     db_session.flush()
 
 
-def _seed_search_term(db_session, topic_id, article_id, term, language="en", occurrence_count=1):
-    """Seeds one intelligence.search_terms row (or reuses one already inserted for the
-    same topic/term/language within this test) plus a search_term_articles link, as
-    RebuildSearchIndexUseCase would have built them.
+def _seed_tokens(db_session, topic_id, article_id, tokens, language="en"):
+    """One intelligence.article_search_tokens row, as RebuildSearchIndexUseCase would
+    have written it for `article_id`'s `language` text. `article_id` must be a real
+    core.articles row (_core_article) — the table FKs to it."""
+    db_session.execute(text(
+        "INSERT INTO intelligence.article_search_tokens (article_id, language, topic_id, tokens) "
+        "VALUES (:article_id, :language, :topic_id, CAST(:tokens AS text[]))"
+    ), {"article_id": article_id, "language": language, "topic_id": topic_id, "tokens": sorted(tokens)})
+    db_session.flush()
 
-    ORM (db_session.add(...)), not raw SQL — the opposite of _core_article/_seed_chunk
-    above. Unlike core.articles/vectors.article_chunks (module docstring: raw SQL there
-    to bypass conftest.py's schema_translate_map and hit the real schema, since
-    vectors.article_chunks is a FIXED, non-isolated schema that must join against the
-    same real core.articles row), intelligence.search_terms/search_term_articles are
-    both ordinary per-test-isolated DDD schemas with no such join constraint — and
-    backend/services/search_service.py's _exact_match_article_ids/_find_matching_terms
-    query them via the ORM (models.SearchTerm/SearchTermArticle), which IS
-    schema_translate_map-rewritten. Seeding via raw SQL here would land in the real
-    `intelligence` schema and never be seen by that ORM query in this test harness.
 
-    search_term_articles.article_id FKs to core.articles.id, itself translated to the
-    isolated test schema for this ORM insert — but _core_article() above seeds the REAL
-    core.articles via raw SQL (needed for vectors.article_chunks' join), so that FK's
-    actual target row wouldn't exist in the test schema without also creating a minimal,
-    same-id ORM Article row here purely to satisfy the constraint (harmless duplication:
-    production only ever has the one real core.articles)."""
-    from models.article import Article
-    from models.search_term import SearchTerm
-    from models.search_term_article import SearchTermArticle
-
-    if db_session.get(Article, article_id) is None:
-        # topic_id deliberately omitted (nullable on Article) — backend_test.topics has
-        # no matching row for `topic_id` either (_fresh_topic seeds the REAL core.topics
-        # via raw SQL, same as _core_article), and this stub row only needs to satisfy
-        # search_term_articles' article_id FK, not carry a real topic association.
-        db_session.add(Article(
-            id=article_id, url=f"https://example.com/{article_id}", url_hash=article_id.hex,
-            source="techcrunch", title="seed", content="seed", correlation_id=uuid.uuid4(),
-        ))
-        db_session.flush()
-
-    existing = (
-        db_session.query(SearchTerm)
-        .filter_by(topic_id=topic_id, term=term, language=language)
-        .first()
-    )
-    if existing is None:
-        existing = SearchTerm(topic_id=topic_id, term=term, language=language, occurrence_count=occurrence_count)
-        db_session.add(existing)
-        db_session.flush()
-    db_session.add(SearchTermArticle(search_term_id=existing.id, article_id=article_id))
+def _refresh_search_terms(db_session):
+    db_session.execute(text("REFRESH MATERIALIZED VIEW intelligence.search_terms"))
     db_session.flush()
 
 
@@ -230,14 +194,13 @@ def test_search_lang_returns_translated_fields_and_exact_match_from_inverted_ind
     """Regression: a non-English query can only ever literally match the translated text,
     never core.articles' English original — translated_title/content still come from
     core.articles_translation (raw SQL, seeded via raw SQL to match), while exact_match
-    now comes from the term->article inverted index (intelligence.search_terms/
-    search_term_articles — 023-article-search follow-up), seeded via _seed_search_term
-    with language='zh-TW' so the lang-scoped lookup finds it.
+    now comes from intelligence.article_search_tokens, seeded via _seed_tokens with
+    language='zh-TW' so the lang-scoped lookup finds it.
 
     Seeds every token tokenize("機器學習") actually produces (rather than assuming the
     whole 4-char string is one token) — jieba may segment it into "機器"+"學習" depending
     on dict version (see shared/search_index/tokenizer.py's own test caveat), and
-    _exact_match_article_ids requires ALL of the query's tokens to be linked, so seeding
+    exact matching requires ALL of the query's tokens to be present, so seeding
     fewer than the real tokenizer produces would make this test flaky/wrong regardless of
     which way jieba happens to split it."""
     from shared.search_index.tokenizer import tokenize
@@ -250,8 +213,7 @@ def test_search_lang_returns_translated_fields_and_exact_match_from_inverted_ind
         "VALUES (gen_random_uuid(), :article_id, 'zh-TW', :title, :content)"
     ), {"article_id": article_id, "title": "機器學習基礎", "content": "一篇關於機器學習的文章。"})
     db_session.flush()
-    for token in tokenize("機器學習"):
-        _seed_search_term(db_session, topic_id, article_id, token, language="zh-TW")
+    _seed_tokens(db_session, topic_id, article_id, tokenize("機器學習"), language="zh-TW")
     _patch_embeddings(monkeypatch)
 
     r = api_client.get(f"/search?q=%E6%A9%9F%E5%99%A8%E5%AD%B8%E7%BF%92&topic_id={topic_id}&lang=zh-TW")  # q=機器學習
@@ -266,8 +228,8 @@ def test_search_lang_returns_translated_fields_and_exact_match_from_inverted_ind
 
 
 def test_search_exact_match_flag_false_when_not_in_inverted_index(api_client, db_session, monkeypatch):
-    """A semantic-only RRF neighbor (no intelligence.search_term_articles link for the
-    query's tokens) must come back exact_match=False, not raise or default to True."""
+    """A semantic-only RRF neighbor (no intelligence.article_search_tokens row containing
+    the query's tokens) must come back exact_match=False, not raise or default to True."""
     topic_id = _fresh_topic(db_session)
     article_id = _core_article(db_session, topic_id, title="Unrelated Semantic Neighbor", content="something else entirely")
     _seed_chunk(db_session, article_id)
@@ -341,9 +303,9 @@ def test_search_sort_overrides_default_rrf_relevance_order(api_client, db_sessio
 def test_search_exact_match_only_respects_aggregator_filter(api_client, db_session, monkeypatch):
     topic_id = _fresh_topic(db_session)
     match_id = _core_article(db_session, topic_id, title="Cyberattacks Explained", content="an article about cyberattacks", source="techcrunch")
-    _seed_search_term(db_session, topic_id, match_id, "cyberattacks")
+    _seed_tokens(db_session, topic_id, match_id, ["cyberattacks"])
     other_id = _core_article(db_session, topic_id, title="Cyberattacks Elsewhere", content="an article about cyberattacks", source="arxiv")
-    _seed_search_term(db_session, topic_id, other_id, "cyberattacks")
+    _seed_tokens(db_session, topic_id, other_id, ["cyberattacks"])
     _patch_embeddings(monkeypatch)
 
     r = api_client.get(f"/search?q=cyberattacks&topic_id={topic_id}&exact_match_only=true&aggregator=techcrunch")
@@ -356,13 +318,13 @@ def test_search_exact_match_only_respects_aggregator_filter(api_client, db_sessi
 
 def test_search_exact_match_only_uses_inverted_index_not_rrf(api_client, db_session, monkeypatch):
     """Regression: exact_match_only=True is a fully separate retrieval path over the
-    term->article inverted index (023-article-search follow-up) — it must find an exact
+    article_search_tokens (023-article-search follow-up) — it must find an exact
     match even when that article has NO vectors.article_chunks row at all (so RRF could
     never have surfaced it), and must exclude an RRF-only semantic neighbor that has no
-    inverted-index link for the query's tokens."""
+    token row containing the query's tokens."""
     topic_id = _fresh_topic(db_session)
     exact_id = _core_article(db_session, topic_id, title="Cyberattacks Explained", content="an article about cyberattacks")
-    _seed_search_term(db_session, topic_id, exact_id, "cyberattacks")
+    _seed_tokens(db_session, topic_id, exact_id, ["cyberattacks"])
     # Deliberately no _seed_chunk(exact_id) — proves this path doesn't depend on RRF/vectors.
     semantic_id = _core_article(db_session, topic_id, title="Unrelated Semantic Neighbor", content="something else entirely")
     _seed_chunk(db_session, semantic_id)
@@ -384,10 +346,9 @@ def test_search_exact_match_only_requires_all_query_tokens_and_semantics(api_cli
     articles that are merely related, not this exact-match path."""
     topic_id = _fresh_topic(db_session)
     both_id = _core_article(db_session, topic_id, title="Cyberattacks on Critical Infrastructure")
-    _seed_search_term(db_session, topic_id, both_id, "cyberattacks")
-    _seed_search_term(db_session, topic_id, both_id, "infrastructure")
+    _seed_tokens(db_session, topic_id, both_id, ["cyberattacks", "infrastructure", "critical"])
     only_one_id = _core_article(db_session, topic_id, title="Cyberattacks on Retailers")
-    _seed_search_term(db_session, topic_id, only_one_id, "cyberattacks")
+    _seed_tokens(db_session, topic_id, only_one_id, ["cyberattacks", "retailers"])
     _patch_embeddings(monkeypatch)
 
     r = api_client.get(f"/search?q=cyberattacks%20infrastructure&topic_id={topic_id}&exact_match_only=true")
@@ -400,12 +361,12 @@ def test_search_exact_match_only_requires_all_query_tokens_and_semantics(api_cli
 
 def test_search_exact_match_only_updates_total_for_correct_pagination(api_client, db_session, monkeypatch):
     """Regression: total (and therefore the frontend's pagination) must reflect the
-    inverted-index-matched count, not any unfiltered candidate set — a client-side
-    per-page filter would leave totalPages computed from the wrong total, so later pages
-    could show zero results despite pagination claiming more existed."""
+    exact-match count, not any unfiltered candidate set — a client-side per-page filter
+    would leave totalPages computed from the wrong total, so later pages could show zero
+    results despite pagination claiming more existed."""
     topic_id = _fresh_topic(db_session)
     exact_id = _core_article(db_session, topic_id, title="Cyberattacks Explained")
-    _seed_search_term(db_session, topic_id, exact_id, "cyberattacks")
+    _seed_tokens(db_session, topic_id, exact_id, ["cyberattacks"])
     for _ in range(7):
         semantic_id = _core_article(db_session, topic_id, title="Unrelated Semantic Neighbor")
         _seed_chunk(db_session, semantic_id)
@@ -414,7 +375,37 @@ def test_search_exact_match_only_updates_total_for_correct_pagination(api_client
     r = api_client.get(f"/search?q=cyberattacks&topic_id={topic_id}&exact_match_only=true")
 
     assert r.status_code == 200
-    assert r.json()["total"] == 1  # not 8 — the semantic-only neighbors never linked "cyberattacks"
+    assert r.json()["total"] == 1  # not 8 — the semantic-only neighbors have no "cyberattacks" token
+
+
+def test_search_exact_match_only_paginates_newest_first_in_sql(api_client, db_session, monkeypatch):
+    import datetime
+    topic_id = _fresh_topic(db_session)
+    ids_newest_first = []
+    for year in (2026, 2025, 2024):
+        article_id = _core_article(db_session, topic_id, title=f"Cyberattacks {year}", published_at=datetime.date(year, 1, 1))
+        _seed_tokens(db_session, topic_id, article_id, ["cyberattacks"])
+        ids_newest_first.append(str(article_id))
+    _patch_embeddings(monkeypatch)
+
+    page_2 = api_client.get(f"/search?q=cyberattacks&topic_id={topic_id}&exact_match_only=true&page=2&size=2").json()
+
+    assert page_2["total"] == 3
+    assert [item["id"] for item in page_2["items"]] == ids_newest_first[2:]
+
+
+def test_search_exact_match_only_excludes_article_merged_since_last_sync(api_client, db_session, monkeypatch):
+    """The token row still exists (sync runs once per scrape cycle), but the request-time
+    merged_into_id check must hide the tombstoned article anyway."""
+    topic_id = _fresh_topic(db_session)
+    survivor_id = _core_article(db_session, topic_id, title="Survivor")
+    loser_id = _core_article(db_session, topic_id, title="Loser", merged_into_id=survivor_id)
+    _seed_tokens(db_session, topic_id, loser_id, ["cyberattacks"])
+    _patch_embeddings(monkeypatch)
+
+    r = api_client.get(f"/search?q=cyberattacks&topic_id={topic_id}&exact_match_only=true")
+
+    assert r.json()["total"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -500,16 +491,35 @@ def test_autocomplete_falls_back_to_postgres_when_redis_index_never_built(api_cl
 def test_autocomplete_falls_back_to_postgres_when_redis_unavailable(api_client, db_session, monkeypatch):
     from shared.search_index.redis_gateway import RedisSearchIndexGateway
 
-    topic_id = uuid.uuid4()
-    article_id = uuid.uuid4()
-    _seed_search_term(db_session, topic_id, article_id, "learning", occurrence_count=42)
+    topic_id = _fresh_topic(db_session)
+    for _ in range(2):
+        article_id = _core_article(db_session, topic_id)
+        _seed_tokens(db_session, topic_id, article_id, ["learning", "machine"])
+    zh_article_id = _core_article(db_session, topic_id)
+    _seed_tokens(db_session, topic_id, zh_article_id, ["learning"], language="zh-TW")
+    _refresh_search_terms(db_session)
 
     monkeypatch.setattr(RedisSearchIndexGateway, "suggest", lambda self, topic_id, prefix, limit=10: None)
 
     r = api_client.get(f"/search/autocomplete?prefix=lear&topic_id={topic_id}")
 
     assert r.status_code == 200
-    assert r.json()["suggestions"] == [{"term": "learning", "occurrence_count": 42}]
+    # Counted per language: the zh-TW row isn't folded into the "en" count.
+    assert r.json()["suggestions"] == [{"term": "learning", "occurrence_count": 2}]
+
+
+def test_autocomplete_postgres_fallback_treats_like_wildcards_literally(api_client, db_session, monkeypatch):
+    from shared.search_index.redis_gateway import RedisSearchIndexGateway
+
+    topic_id = _fresh_topic(db_session)
+    article_id = _core_article(db_session, topic_id)
+    _seed_tokens(db_session, topic_id, article_id, ["learning"])
+    _refresh_search_terms(db_session)
+    monkeypatch.setattr(RedisSearchIndexGateway, "suggest", lambda self, topic_id, prefix, limit=10: None)
+
+    r = api_client.get(f"/search/autocomplete?prefix=l_arn&topic_id={topic_id}")
+
+    assert r.json()["suggestions"] == []  # "_" must not act as a single-character wildcard
 
 
 def test_autocomplete_empty_prefix_returns_400(api_client):

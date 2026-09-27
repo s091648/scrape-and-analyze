@@ -10,6 +10,7 @@ import { CountryPanel } from '@/components/features/monitoring/country-panel'
 import { LogsTable, type LogFilter } from '@/components/features/monitoring/logs-table'
 import { LogFilterChip } from '@/components/features/monitoring/log-filter-chip'
 import { TracesTable } from '@/components/features/monitoring/traces-table'
+import { DatabaseTables } from '@/components/features/monitoring/database-tables'
 import {
   queryMetricsBatch, queryLokiMetricsBatch, queryLogsBatch,
   queryTracesBatch,
@@ -30,8 +31,9 @@ function toNs(sec: number): string {
 import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   LogLevel, LokiLabel, LokiAppValue, SERVICE_NAME, SERVICE_NAME_BACKEND,
-  lokiStreamSelector, traceQLServiceMatch,
+  lokiStreamSelector, traceQLServiceMatch, traceQLSlowDbSpans,
 } from '@/lib/observability-constants'
+import { pgSelector, PG_APP_DATABASE_MATCHER } from '@/lib/postgres-metrics'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dropdown } from '@/components/ui/dropdown'
@@ -41,7 +43,12 @@ import { RotateCw } from 'lucide-react'
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Environment = 'all' | 'local' | 'production' | string
-type AppValue = typeof LokiAppValue[keyof typeof LokiAppValue]
+/** Postgres, as seen through the `alloy` service's metrics (alloy/), the apps' own
+ * DB-related log lines, and the backend's SQLAlchemy statement spans. Not a Loki `app`
+ * label value — its log panels widen the stream to both apps instead (see
+ * applyDatabaseLogScope). */
+const DATABASE_APP = 'database' as const
+type AppValue = typeof LokiAppValue[keyof typeof LokiAppValue] | typeof DATABASE_APP
 type TimeRange = '6h' | '24h' | '3d' | '7d'
 
 interface MonitoringFilters {
@@ -55,10 +62,14 @@ interface MonitoringFilters {
   showBotTraffic: boolean
 }
 
-/** Resource service.name to filter Tempo traces by, per selected app. */
-const APP_SERVICE_NAME: Record<AppValue, string> = {
-  [LokiAppValue.SCRAPER]: SERVICE_NAME,
-  [LokiAppValue.BACKEND]: SERVICE_NAME_BACKEND,
+/** Traces shown under a statement span slower than this, for the Database app. */
+const DB_SLOW_SPAN_MS = 100
+
+/** TraceQL for the Traces tab's table, per selected app: every trace of that service for
+ * scraper/backend, traces containing a slow Postgres statement span for database. */
+function traceQueryForApp(app: AppValue): string {
+  if (app === DATABASE_APP) return traceQLSlowDbSpans(DB_SLOW_SPAN_MS)
+  return traceQLServiceMatch(undefined, app === LokiAppValue.BACKEND ? SERVICE_NAME_BACKEND : SERVICE_NAME)
 }
 
 const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
@@ -191,11 +202,29 @@ function applyInternalPathExclusion(query: string): string {
     : `${query} ${stage}`
 }
 
+/** Log lines from either app that mention the database layer — driver/ORM names, the
+ * common SQLAlchemy/psycopg exception classes, pool and lock trouble. Railway's managed
+ * Postgres doesn't ship its own server log anywhere Loki can read, so this is the closest
+ * "database logs" signal available. */
+const DATABASE_LOG_LINE_FILTER =
+  '|~ "(?i)(sqlalchemy|psycopg|asyncpg|postgres|operationalerror|integrityerror|deadlock|queuepool|statement timeout|connection pool)"'
+
+/** For the Database app: widen every `{app="scraper", ...}` stream selector to both apps and
+ * narrow it to DB-related lines. Runs after applyEnvToLokiQuery (whose patterns expect the
+ * plain `app="..."` form). */
+function applyDatabaseLogScope(query: string): string {
+  return query.replace(
+    /\{app="scraper"([^}]*)\}/g,
+    (_m, rest: string) => `{app=~"${LokiAppValue.SCRAPER}|${LokiAppValue.BACKEND}"${rest}} ${DATABASE_LOG_LINE_FILTER}`,
+  )
+}
+
 /** Swap in the selected app, layer the environment filter, then for the backend app strip the
  * dashboard's own /grafana/* traffic and (toggle off) bot / synthetic request traffic. */
 function applyLokiFilters(
   query: string, app: AppValue, environment: Environment, showBotTraffic: boolean,
 ): string {
+  if (app === DATABASE_APP) return applyDatabaseLogScope(applyEnvToLokiQuery(query, environment))
   let q = applyEnvToLokiQuery(applyAppToLokiQuery(query, app), environment)
   if (app !== LokiAppValue.BACKEND) return q
   q = applyInternalPathExclusion(q)
@@ -369,6 +398,45 @@ const OPS_BACKEND_CHARTS: ChartPanelDef[] = [
   { queryType: 'loki', titleKey: 'admin.requestsByClientTypeChart',     buildQuery: rv => `sum by (client_type) (count_over_time(${lokiStreamSelector()} | json | event="request" [${rv}]))`,                              step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.requestsByClientTypeChartTooltip', seriesColors: CLIENT_TYPE_CHART_COLORS },
 ]
 
+// Database app — Prometheus (no queryType), fed by the `alloy` service's embedded
+// postgres_exporter (alloy/config.alloy). `env` is the Prometheus `env` label (undefined for
+// the "all environments" filter). Per-database sums skip Postgres's own template/maintenance
+// databases (PG_APP_DATABASE_MATCHER). Counters (xact_*, blks_*, deadlocks, pg_stat_statements_*)
+// go through increase() over the stat's full window / each chart's hourly tile.
+const pgDb = (env?: string) => pgSelector(env, PG_APP_DATABASE_MATCHER)
+const pgCacheHitRatio = (rv: string, env?: string) =>
+  `sum(increase(pg_stat_database_blks_hit${pgDb(env)}[${rv}])) / (sum(increase(pg_stat_database_blks_hit${pgDb(env)}[${rv}])) + sum(increase(pg_stat_database_blks_read${pgDb(env)}[${rv}]))) * 100`
+
+const OPS_DATABASE_STATS: StatPanelDef[] = [
+  { titleKey: 'admin.dbUp',              buildQuery: (_rv, env) => `min(pg_up${pgSelector(env)})`,                                                          step: '3600', tooltipKey: 'admin.dbUpTooltip' },
+  { titleKey: 'admin.dbSize',            buildQuery: (_rv, env) => `sum(pg_database_size_bytes${pgDb(env)}) / 1048576`,                                      step: '3600', unit: 'MB', tooltipKey: 'admin.dbSizeTooltip' },
+  { titleKey: 'admin.dbConnections',     buildQuery: (_rv, env) => `sum(pg_stat_database_numbackends${pgDb(env)})`,                                          step: '3600', tooltipKey: 'admin.dbConnectionsTooltip' },
+  { titleKey: 'admin.dbCacheHitRatio',   buildQuery: (rv, env) => pgCacheHitRatio(rv, env),                                                                   step: '3600', unit: '%', tooltipKey: 'admin.dbCacheHitRatioTooltip' },
+  { titleKey: 'admin.dbQueryCount',      buildQuery: (rv, env) => `sum(increase(pg_stat_statements_calls_total${pgDb(env)}[${rv}]))`,                        step: '3600', tooltipKey: 'admin.dbQueryCountTooltip' },
+  { titleKey: 'admin.dbRollbackRate',    buildQuery: (rv, env) => `sum(increase(pg_stat_database_xact_rollback${pgDb(env)}[${rv}])) / (sum(increase(pg_stat_database_xact_commit${pgDb(env)}[${rv}])) + sum(increase(pg_stat_database_xact_rollback${pgDb(env)}[${rv}]))) * 100`, step: '3600', unit: '%', tooltipKey: 'admin.dbRollbackRateTooltip' },
+  { titleKey: 'admin.dbDeadlocks',       buildQuery: (rv, env) => `sum(increase(pg_stat_database_deadlocks${pgDb(env)}[${rv}]))`,                            step: '3600', tooltipKey: 'admin.dbDeadlocksTooltip' },
+  { titleKey: 'admin.dbLongRunningTx',   buildQuery: (_rv, env) => `max(pg_long_running_transactions${pgSelector(env)})`,                                    step: '3600', tooltipKey: 'admin.dbLongRunningTxTooltip' },
+]
+
+const OPS_DATABASE_CHARTS: ChartPanelDef[] = [
+  { titleKey: 'admin.dbExecTimeChart',          buildQuery: (rv, env) => `sum(increase(pg_stat_statements_seconds_total${pgDb(env)}[${rv}]))`,                                                                  step: '3600', height: 240, tooltipKey: 'admin.dbExecTimeChartTooltip' },
+  { titleKey: 'admin.dbConnectionsByStateChart', buildQuery: (_rv, env) => `sum by (state) (pg_stat_activity_count${pgSelector(env, PG_APP_DATABASE_MATCHER, 'state=~"active|idle|idle in transaction.*"')})`, step: '3600', height: 240, tooltipKey: 'admin.dbConnectionsByStateChartTooltip' },
+  { titleKey: 'admin.dbCacheHitRatioChart',     buildQuery: (rv, env) => pgCacheHitRatio(rv, env),                                                                                                                step: '3600', height: 240, tooltipKey: 'admin.dbCacheHitRatioChartTooltip' },
+  // Same label_replace + `or` idiom as requestDurationTrendChart, to keep two series apart.
+  { titleKey: 'admin.dbTransactionsChart',      buildQuery: (rv, env) => `label_replace(sum(increase(pg_stat_database_xact_commit${pgDb(env)}[${rv}])), "kind", "commit", "", "") or label_replace(sum(increase(pg_stat_database_xact_rollback${pgDb(env)}[${rv}])), "kind", "rollback", "", "")`, step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.dbTransactionsChartTooltip', seriesColors: { commit: 'hsl(217,91%,60%)', rollback: 'hsl(347,74%,55%)' } },
+  // Grouped by schema too — core.articles and vectors.articles share a relname.
+  { titleKey: 'admin.dbSeqScanRowsChart',       buildQuery: (rv, env) => `topk(10, sum by (schemaname, relname) (increase(pg_stat_user_tables_seq_tup_read${pgSelector(env)}[${rv}])))`,                      step: '3600', height: 240, chartType: 'bar', tooltipKey: 'admin.dbSeqScanRowsChartTooltip' },
+  { titleKey: 'admin.dbDeadTuplesChart',        buildQuery: (_rv, env) => `topk(10, sum by (schemaname, relname) (pg_stat_user_tables_n_dead_tup${pgSelector(env)}))`,                                         step: '3600', height: 240, tooltipKey: 'admin.dbDeadTuplesChartTooltip' },
+  { titleKey: 'admin.dbLocksByModeChart',       buildQuery: (_rv, env) => `sum by (mode) (pg_locks_count${pgDb(env)})`,                                                                                          step: '3600', height: 240, tooltipKey: 'admin.dbLocksByModeChartTooltip' },
+  { titleKey: 'admin.dbSizeChart',              buildQuery: (_rv, env) => `sum(pg_database_size_bytes${pgDb(env)}) / 1048576`,                                                                                   step: '3600', height: 240, tooltipKey: 'admin.dbSizeChartTooltip' },
+]
+
+const OPS_PANELS: Record<AppValue, { stats: StatPanelDef[]; charts: ChartPanelDef[] }> = {
+  [LokiAppValue.SCRAPER]: { stats: OPS_SCRAPER_STATS, charts: OPS_SCRAPER_CHARTS },
+  [LokiAppValue.BACKEND]: { stats: OPS_BACKEND_STATS, charts: OPS_BACKEND_CHARTS },
+  [DATABASE_APP]: { stats: OPS_DATABASE_STATS, charts: OPS_DATABASE_CHARTS },
+}
+
 // ── Logs panel descriptors ─────────────────────────────────────────────────
 
 const LOG_LEVEL_CHART_COLORS: Record<string, string> = {
@@ -452,6 +520,34 @@ const TRACES_TABLE_PANEL: TracesTablePanelDef = {
   titleKey: 'admin.recentTraces',
   height: 400,
   tooltipKey: 'admin.recentTracesTooltip',
+}
+
+// Database app — the stats/chart come from pg_stat_statements (Prometheus), the table from
+// Tempo (traceQueryForApp: traces with a statement span slower than DB_SLOW_SPAN_MS).
+const TRACES_DATABASE_STATS: StatPanelDef[] = [
+  { titleKey: 'admin.dbQueryCount',   buildQuery: (rv, env) => `sum(increase(pg_stat_statements_calls_total${pgDb(env)}[${rv}]))`,   step: '3600', tooltipKey: 'admin.dbQueryCountTooltip' },
+  { titleKey: 'admin.dbTotalExecTime', buildQuery: (rv, env) => `sum(increase(pg_stat_statements_seconds_total${pgDb(env)}[${rv}]))`, step: '3600', unit: 's', tooltipKey: 'admin.dbTotalExecTimeTooltip' },
+  { titleKey: 'admin.dbMeanExecTime', buildQuery: (rv, env) => `sum(increase(pg_stat_statements_seconds_total${pgDb(env)}[${rv}])) / sum(increase(pg_stat_statements_calls_total${pgDb(env)}[${rv}])) * 1000`, step: '3600', unit: 'ms', tooltipKey: 'admin.dbMeanExecTimeTooltip' },
+]
+
+const TRACES_DATABASE_SPAN_CHART: ChartPanelDef = {
+  titleKey: 'admin.dbQueriesPerHourChart',
+  buildQuery: (rv, env) => `sum(increase(pg_stat_statements_calls_total${pgDb(env)}[${rv}]))`,
+  step: '3600',
+  height: 240,
+  tooltipKey: 'admin.dbQueriesPerHourChartTooltip',
+}
+
+const TRACES_DATABASE_TABLE_PANEL: TracesTablePanelDef = {
+  titleKey: 'admin.dbSlowSpanTraces',
+  height: 400,
+  tooltipKey: 'admin.dbSlowSpanTracesTooltip',
+}
+
+const TRACES_PANELS: Record<AppValue, { stats: StatPanelDef[]; spanChart: ChartPanelDef; table: TracesTablePanelDef }> = {
+  [LokiAppValue.SCRAPER]: { stats: TRACES_SCRAPER_STATS, spanChart: TRACES_SCRAPER_SPAN_CHART, table: TRACES_TABLE_PANEL },
+  [LokiAppValue.BACKEND]: { stats: TRACES_BACKEND_STATS, spanChart: TRACES_BACKEND_SPAN_CHART, table: TRACES_TABLE_PANEL },
+  [DATABASE_APP]: { stats: TRACES_DATABASE_STATS, spanChart: TRACES_DATABASE_SPAN_CHART, table: TRACES_DATABASE_TABLE_PANEL },
 }
 
 // ── Shared helper ──────────────────────────────────────────────────────────
@@ -615,6 +711,7 @@ function useTracesBatch(
   startSec: number, endSec: number, environment: Environment, app: AppValue, enabled: boolean,
   stats: StatPanelDef[], spanChart: ChartPanelDef, showBotTraffic: boolean,
 ) {
+  const env = environment === 'all' ? undefined : environment
   const rangeVec = fullRangeVec(endSec - startSec)
   // Tempo can't filter on span.client_type reliably in a live-block search (same staleness
   // caveat as the environment attribute below), so bot / synthetic traces are dropped
@@ -636,7 +733,7 @@ function useTracesBatch(
   // specific environment is selected, over-fetch more candidates than the eventual display
   // count — a single environment's traffic can be a small fraction of "all environments"
   // recent traces once fetched unfiltered-by-env.
-  const traceQuery = traceQLServiceMatch(undefined, APP_SERVICE_NAME[app])
+  const traceQuery = traceQueryForApp(app)
   // Over-fetch whenever results get filtered down client-side (by environment and/or by
   // client_type) so the display list isn't starved.
   const traceFetchLimit = environment === 'all' && !filterBotTraces ? 20 : 100
@@ -646,13 +743,21 @@ function useTracesBatch(
     setLoading(Array(stats.length + 2).fill(true))
     try {
       // spanChart is a trend chart (unlike `stats`) — same clamp-and-shift as OPS_*_CHARTS.
+      // Stats + span chart are fetched as one ordered batch from whichever backend they
+      // target: all Loki for scraper/backend, all Prometheus for database.
       const spanParams = chartFetchParams(spanChart, startSec, endSec, rangeVec)
-      const lokiItems = [
-        ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment, showBotTraffic), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
-        { query: applyLokiFilters(spanChart.buildQuery(spanParams.rangeVec), app, environment, showBotTraffic), step: String(spanParams.step), start: toNs(spanParams.start), end: toNs(spanParams.end) },
-      ]
+      const metricsFromLoki = spanChart.queryType === 'loki'
+      const metricResultsPromise = metricsFromLoki
+        ? queryLokiMetricsBatch([
+          ...stats.map(s => ({ query: applyLokiFilters(s.buildQuery(rangeVec), app, environment, showBotTraffic), step: s.step, start: toNs(startSec), end: toNs(endSec) })),
+          { query: applyLokiFilters(spanChart.buildQuery(spanParams.rangeVec), app, environment, showBotTraffic), step: String(spanParams.step), start: toNs(spanParams.start), end: toNs(spanParams.end) },
+        ])
+        : queryMetricsBatch([
+          ...stats.map(s => ({ query: s.buildQuery(rangeVec, env), step: s.step, start: startSec, end: endSec })),
+          { query: spanChart.buildQuery(spanParams.rangeVec, env), step: String(spanParams.step), start: spanParams.start, end: spanParams.end },
+        ])
       const [lokiResults, tracesResults] = await Promise.all([
-        queryLokiMetricsBatch(lokiItems),
+        metricResultsPromise,
         queryTracesBatch([{ q: traceQuery, start: startSec, end: endSec, limit: traceFetchLimit }]),
       ])
       if ('error' in lokiResults[0] && (lokiResults[0] as { error: string }).error === 'not_configured') {
@@ -685,7 +790,7 @@ function useTracesBatch(
     } catch { /* keep previous data */ } finally {
       setLoading(Array(stats.length + 2).fill(false))
     }
-  }, [startSec, endSec, rangeVec, environment, app, traceQuery, traceFetchLimit, traceDisplayLimit, stats, spanChart, showBotTraffic, filterBotTraces])
+  }, [startSec, endSec, rangeVec, env, environment, app, traceQuery, traceFetchLimit, traceDisplayLimit, stats, spanChart, showBotTraffic, filterBotTraces])
 
   useFetchOnceWhenActive(fetchAll, enabled)
 
@@ -743,7 +848,7 @@ function OpsStatsChartsGrid({
  * drives Logs/Traces (FilterBar's `app`) — one uniform "which app am I looking at" control
  * across all three tabs, instead of a separate selector just for Operations. */
 function OperationsTab({
-  app, statValues, chartData, loading, timeRangeSeconds, rangeLabel,
+  app, statValues, chartData, loading, timeRangeSeconds, rangeLabel, startSec, endSec, environment, active,
 }: {
   app: AppValue
   statValues: (string | undefined)[]
@@ -751,14 +856,25 @@ function OperationsTab({
   loading: boolean[]
   timeRangeSeconds: number
   rangeLabel: string
+  startSec: number
+  endSec: number
+  environment: Environment
+  active: boolean
 }) {
-  const isBackend = app === LokiAppValue.BACKEND
+  const { stats, charts } = OPS_PANELS[app]
+  const isDatabase = app === DATABASE_APP
   return (
-    <OpsStatsChartsGrid
-      stats={isBackend ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS}
-      charts={isBackend ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS}
-      statValues={statValues} chartData={chartData} loading={loading}
-      timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
+    <div className="space-y-3">
+      <OpsStatsChartsGrid
+        stats={stats} charts={charts}
+        statValues={statValues} chartData={chartData} loading={loading}
+        timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
+      {isDatabase && (
+        <DatabaseTables startSec={startSec} endSec={endSec}
+          env={environment === 'all' ? undefined : environment}
+          rangeVec={fullRangeVec(endSec - startSec)} rangeLabel={rangeLabel} enabled={active} />
+      )}
+    </div>
   )
 }
 
@@ -826,9 +942,7 @@ function TracesTab({
   rangeLabel: string
 }) {
   const { t } = useI18n()
-  const isBackend = app === LokiAppValue.BACKEND
-  const stats = isBackend ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS
-  const spanChart = isBackend ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART
+  const { stats, spanChart, table } = TRACES_PANELS[app]
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3 mt-4">
@@ -841,9 +955,9 @@ function TracesTab({
         height={spanChart.height} timeRangeSeconds={timeRangeSeconds}
         externalData={cd} externalLoading={loading[stats.length]}
         tooltip={t(spanChart.tooltipKey, { range: rangeLabel })} />
-      <TracesTable title={t(TRACES_TABLE_PANEL.titleKey, { range: rangeLabel })} query="unused" height={TRACES_TABLE_PANEL.height}
+      <TracesTable title={t(table.titleKey, { range: rangeLabel, ms: DB_SLOW_SPAN_MS })} query="unused" height={table.height}
         grafanaUrl={grafanaUrl} externalData={td}
-        tooltip={t(TRACES_TABLE_PANEL.tooltipKey, { range: rangeLabel })} />
+        tooltip={t(table.tooltipKey, { range: rangeLabel, ms: DB_SLOW_SPAN_MS })} />
     </div>
   )
 }
@@ -888,6 +1002,7 @@ function FilterBar({
           options={[
             { value: LokiAppValue.SCRAPER, label: 'Scraper' },
             { value: LokiAppValue.BACKEND, label: 'Backend' },
+            { value: DATABASE_APP, label: 'Database' },
           ]}
         />
       </div>
@@ -964,13 +1079,15 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
   // Only the backend app has a client_type field to filter on; force "show all" for the
   // scraper so its panels are never silently narrowed by a leftover toggle state.
   const showBotTraffic = !isBackendApp || filters.showBotTraffic
+  const opsPanels = OPS_PANELS[filters.app]
+  const tracesPanels = TRACES_PANELS[filters.app]
   const { statValues: opsSV, chartData: opsCd, loading: opsLoading } = useOperationsBatch(
     startSec, endSec, effectiveEnv, filters.app, activeTab === 'operations',
-    isBackendApp ? OPS_BACKEND_STATS : OPS_SCRAPER_STATS, isBackendApp ? OPS_BACKEND_CHARTS : OPS_SCRAPER_CHARTS, showBotTraffic)
+    opsPanels.stats, opsPanels.charts, showBotTraffic)
   const { metricData: logsMd, logsData: logsLd, loading: logsLoading } = useLogsBatch(startSec, endSec, effectiveEnv, filters.app, activeTab === 'logs', showBotTraffic)
   const { statValues: tracesSV, chartData: tracesCd, tracesData: tracesTd, loading: tracesLoading } = useTracesBatch(
     startSec, endSec, effectiveEnv, filters.app, activeTab === 'traces',
-    isBackendApp ? TRACES_BACKEND_STATS : TRACES_SCRAPER_STATS, isBackendApp ? TRACES_BACKEND_SPAN_CHART : TRACES_SCRAPER_SPAN_CHART, showBotTraffic)
+    tracesPanels.stats, tracesPanels.spanChart, showBotTraffic)
 
   const activeLoading = activeTab === 'operations' ? opsLoading : activeTab === 'logs' ? logsLoading : tracesLoading
   const isLoading = activeLoading.some(Boolean)
@@ -1003,7 +1120,9 @@ export function MonitoringContent({ grafanaUrl, appEnv }: MonitoringContentProps
 
           <TabsContent value="operations">
             <OperationsTab app={filters.app} statValues={opsSV} chartData={opsCd} loading={opsLoading}
-              timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel} />
+              timeRangeSeconds={timeRangeSeconds} rangeLabel={rangeLabel}
+              startSec={startSec} endSec={endSec} environment={effectiveEnv}
+              active={activeTab === 'operations'} />
           </TabsContent>
           <TabsContent value="logs">
             <LogsTab app={filters.app} metricData={logsMd} logsData={logsLd} loading={logsLoading}

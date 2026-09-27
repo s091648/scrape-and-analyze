@@ -5,7 +5,7 @@ from .tag_repo_impl import SqlAlchemyTagRepository
 from .article_translation_repo_impl import SqlAlchemyArticleTranslationRepository
 from .weekly_report_repo_impl import WeeklyReportRepoImpl
 from .weekly_report_translation_repo_impl import SqlAlchemyWeeklyReportTranslationRepository
-from .search_term_repo_impl import SqlAlchemySearchTermRepository
+from .article_search_token_repo_impl import SqlAlchemyArticleSearchTokenRepository
 
 __all__ = [
     "SqlAlchemyAnalysisRepository",
@@ -15,5 +15,5 @@ __all__ = [
     "SqlAlchemyArticleTranslationRepository",
     "WeeklyReportRepoImpl",
     "SqlAlchemyWeeklyReportTranslationRepository",
-    "SqlAlchemySearchTermRepository",
+    "SqlAlchemyArticleSearchTokenRepository",
 ]

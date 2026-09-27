@@ -170,9 +170,7 @@ export default function ArticlesPageContent({ initialArticles, initialTotal }: A
 
   // exact_match_only is applied server-side (backend/services/search_service.py) so
   // total/pagination stay consistent with what's actually returned — a client-side
-  // per-page filter here would disagree with totalPages once boost_exact_match sorts
-  // every exact match onto page 1, leaving later pages showing zero results despite
-  // pagination still claiming more existed (023-article-search follow-up regression).
+  // per-page filter here would leave totalPages computed from the unfiltered total.
   // Favorites-only stays a pure client-side display filter — it's unrelated to search.
   const displayedArticles = favoritesOnly ? articles.filter(a => a.is_favorited) : articles
 

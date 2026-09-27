@@ -30,6 +30,12 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        # (group_name, topic_id) -> TagGroupDefinition.id. NormalizeTagsUseCase
+        # calls save() once per tag, and an article's tags cluster in a handful of
+        # groups — without this every tag re-SELECTed the same group row. Safe to
+        # keep for the instance's lifetime: it's built per article session
+        # (bootstrap.py's article_downstream_builder), so it lives for one batch.
+        self._group_ids: dict[tuple[str, UUID], UUID] = {}
 
     async def find_similar(
         self, embedding: List[float], group_name: str, topic_id: Optional[UUID], threshold: float
@@ -78,16 +84,20 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
         if topic_id is None:
             raise ValidationError("topic_id is required to save a tag")
 
-        result = await self._session.execute(
-            select(TagGroupDefinition).filter_by(name=tag_group_name, topic_id=topic_id)
-        )
-        group = result.scalars().first()
-        if not group:
-            raise NotFoundError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
+        group_id = self._group_ids.get((tag_group_name, topic_id))
+        if group_id is None:
+            group_id = (
+                await self._session.execute(
+                    select(TagGroupDefinition.id).filter_by(name=tag_group_name, topic_id=topic_id)
+                )
+            ).scalars().first()
+            if group_id is None:
+                raise NotFoundError(f"Tag group '{tag_group_name}' not found for topic {topic_id}")
+            self._group_ids[(tag_group_name, topic_id)] = group_id
 
         insert_stmt = (
             pg_insert(Tag)
-            .values(name=name, tag_group_id=group.id)
+            .values(name=name, tag_group_id=group_id)
             .on_conflict_do_nothing(
                 index_elements=[Tag.name, Tag.tag_group_id],
                 # Must match uq_tag_name_group's partial predicate exactly
@@ -116,7 +126,7 @@ class AsyncSqlAlchemyTagRepository(AsyncTagRepository):
             # embedding column, ordinarily caught by `make backfill` instead).
             existing = (
                 await self._session.execute(
-                    select(Tag.id, Tag.embedding).filter_by(name=name, tag_group_id=group.id)
+                    select(Tag.id, Tag.embedding).filter_by(name=name, tag_group_id=group_id)
                 )
             ).one()
             tag_id = existing.id

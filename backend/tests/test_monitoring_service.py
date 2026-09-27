@@ -78,3 +78,42 @@ def test_get_failed_tasks_multiple_pages():
     assert total == 13
     assert items == tasks
     q.offset.assert_called_with(10)  # (2-1)*10
+
+
+def _mock_db_with_savepoint():
+    db = MagicMock()
+    # MagicMock's default __exit__ returns a truthy mock, which would swallow exceptions
+    # raised inside `with db.begin_nested():` — make it propagate them like the real one.
+    db.begin_nested.return_value.__exit__.return_value = False
+    return db
+
+
+def test_get_query_texts_returns_rows_scoped_to_current_database():
+    from backend.services.monitoring_service import get_query_texts
+
+    db = _mock_db_with_savepoint()
+    db.execute.return_value.all.return_value = [MagicMock(queryid=-42, query="SELECT 1")]
+
+    available, rows = get_query_texts(db, [-42, 7])
+
+    assert available is True
+    assert rows == [(-42, "SELECT 1")]
+    sql = str(db.execute.call_args[0][0])
+    params = db.execute.call_args[0][1]
+    assert "FROM pg_stat_statements" in sql
+    assert "current_database()" in sql
+    assert params["queryids"] == [-42, 7]
+
+
+def test_get_query_texts_reports_unavailable_when_extension_missing():
+    from sqlalchemy.exc import ProgrammingError
+    from backend.services.monitoring_service import get_query_texts
+
+    db = _mock_db_with_savepoint()
+    db.execute.side_effect = ProgrammingError("SELECT ...", {}, Exception('relation "pg_stat_statements" does not exist'))
+
+    available, rows = get_query_texts(db, [1])
+
+    assert (available, rows) == (False, [])
+    db.begin_nested.assert_called_once()  # the failure is contained to a SAVEPOINT
+    db.rollback.assert_not_called()

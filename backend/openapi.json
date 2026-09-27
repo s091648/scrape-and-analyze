@@ -1986,6 +1986,45 @@
         "title": "ProviderReorderItem",
         "type": "object"
       },
+      "QueryTextOut": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "queryid": {
+            "title": "Queryid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "queryid",
+          "query"
+        ],
+        "title": "QueryTextOut",
+        "type": "object"
+      },
+      "QueryTextsResponse": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueryTextOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "items"
+        ],
+        "title": "QueryTextsResponse",
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -6221,6 +6260,91 @@
         "summary": "Chat Quota",
         "tags": [
           "chat"
+        ]
+      }
+    },
+    "/db/query-texts": {
+      "get": {
+        "description": "Resolve the `queryid` label on the monitoring dashboard's pg_stat_statements\nmetrics (Database app) to the statement text.",
+        "operationId": "list_query_texts_db_query_texts_get",
+        "parameters": [
+          {
+            "description": "pg_stat_statements query ids (repeat the param per id)",
+            "in": "query",
+            "name": "queryid",
+            "required": true,
+            "schema": {
+              "description": "pg_stat_statements query ids (repeat the param per id)",
+              "items": {
+                "type": "integer"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "title": "Queryid",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryTextsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Query Texts",
+        "tags": [
+          "monitoring"
         ]
       }
     },

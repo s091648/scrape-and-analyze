@@ -316,6 +316,64 @@ def test_graph_group_filters_by_aggregator(api_client, db_session):
 
 
 # ---------------------------------------------------------------------------
+# graph_service.query_analyses / query_group_articles — called directly
+# ---------------------------------------------------------------------------
+
+def test_query_analyses_filters_by_original_source_and_tag(db_session):
+    from backend.services.graph_service import query_analyses
+
+    topic = _topic(db_session)
+    grp = _group(db_session, topic)
+    wanted_tag = _tag(db_session, name=f"want-{uuid.uuid4().hex[:6]}", group=grp)
+    other_tag = _tag(db_session, name=f"other-{uuid.uuid4().hex[:6]}", group=grp)
+    match = _article(db_session, topic)
+    wrong_source = _article(db_session, topic)
+    wrong_tag = _article(db_session, topic)
+    match.original_source = wrong_tag.original_source = "nature.com"
+    wrong_source.original_source = "example.org"
+    for art, tag in ((match, wanted_tag), (wrong_source, wanted_tag), (wrong_tag, other_tag)):
+        _analysis(db_session, art)
+        _link(db_session, art, tag)
+    db_session.flush()
+
+    rows = query_analyses(
+        db_session, topic_id=topic.id, original_sources=["nature.com"], tags=[wanted_tag.name],
+    )
+
+    assert [a.article_id for a in rows] == [match.id]
+
+
+@pytest.mark.parametrize("query_fn", ["query_analyses", "query_group_articles"])
+def test_graph_queries_eager_load_tags_without_their_embeddings(db_session, query_fn):
+    """The graph never reads Tag.embedding (768 floats per tag) — both queries defer it,
+    while still eager-loading article.tags so the graph build doesn't lazy-load per row."""
+    from sqlalchemy import inspect
+    from backend.services import graph_service
+
+    topic = _topic(db_session)
+    grp = _group(db_session, topic)
+    tag = _tag(db_session, group=grp)
+    tag.embedding = [0.1] * 768
+    art = _article(db_session, topic)
+    _analysis(db_session, art)
+    _link(db_session, art, tag)
+    db_session.flush()
+    db_session.expire_all()  # drop the identity map's already-loaded attributes
+
+    if query_fn == "query_analyses":
+        rows = graph_service.query_analyses(db_session, topic_id=topic.id)
+    else:
+        rows = graph_service.query_group_articles(db_session, grp.name, topic_id=topic.id)
+
+    assert len(rows) == 1
+    article_state = inspect(rows[0].article)
+    assert "tags" not in article_state.unloaded
+    loaded_tag = rows[0].article.tags[0]
+    assert loaded_tag.name == tag.name
+    assert "embedding" in inspect(loaded_tag).unloaded
+
+
+# ---------------------------------------------------------------------------
 # graph_service — pure function unit tests (no DB)
 # ---------------------------------------------------------------------------
 

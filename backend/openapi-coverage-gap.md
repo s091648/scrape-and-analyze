@@ -18,6 +18,7 @@ Endpoints listed here are excluded from frontend type generation (specs/026-rate
 - `POST /grafana/loki-metrics/batch` — response body has no defined schema
 - `GET /grafana/metrics` — response body has no defined schema
 - `POST /grafana/metrics/batch` — response body has no defined schema
+- `GET /grafana/profile` — response body has no defined schema
 - `GET /grafana/traces` — response body has no defined schema
 - `POST /grafana/traces/batch` — response body has no defined schema
 - `GET /grafana/traces/{trace_id}` — response body has no defined schema

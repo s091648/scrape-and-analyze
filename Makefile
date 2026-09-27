@@ -43,7 +43,7 @@ _BACKFILL_ARGS := $(if $(LIMIT),--limit $(LIMIT),)
 UPGRADE_REV ?=
 
 migrate:
-	@echo "Using REMOTE_URL=$(REMOTE_URL)"
+	@echo "Running alembic upgrade $(or $(UPGRADE_REV),head) against the local DB..."
 	docker compose run --rm job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 migrate-remote:
@@ -65,14 +65,14 @@ migrate-remote-down:
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
 dump:
-	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
+	@echo "Dumping Railway $(ENV) DB into $(DUMP_FILE)..."
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set"; exit 1)
 	docker compose run --rm -e RAILWAY_DATABASE_URL="$(REMOTE_URL)" \
 		job_service /app/scripts/dump_remote.sh "$(REMOTE_URL)" "$(DUMP_FILE)"
 
 # restore last dump file into local postgres
 sync:
-	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
+	@echo "Restoring $(DUMP_FILE) into the local DB..."
 	docker compose run --rm \
 		-e PGPASSWORD=$${POSTGRES_PASSWORD:-postgres} \
 		job_service /app/scripts/sync_db.sh "$(DUMP_FILE)"
@@ -216,9 +216,10 @@ backfill-rag-remote:
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set (check REMOTE_RAILWAY_DB_URL in .env)"; exit 1)
 	docker compose run --rm -e DATABASE_URL="$(REMOTE_URL)" job_service python -m src.entrypoints.cli.backfill_rag $(_BACKFILL_RAG_ARGS)
 
-# optional: override with MIN_DOC_FREQ=1
+# optional: override with MIN_DOC_FREQ=1; FULL=1 re-tokenizes every article (after a tokenizer change)
 MIN_DOC_FREQ ?=
-_REBUILD_SEARCH_INDEX_ARGS := $(if $(MIN_DOC_FREQ),--min-doc-freq $(MIN_DOC_FREQ),)
+FULL ?=
+_REBUILD_SEARCH_INDEX_ARGS := $(if $(MIN_DOC_FREQ),--min-doc-freq $(MIN_DOC_FREQ),) $(if $(FULL),--full,)
 
 rebuild-search-index:
 	docker compose run --rm job_service python /app/scripts/rebuild_search_index.py $(_REBUILD_SEARCH_INDEX_ARGS)
@@ -247,7 +248,8 @@ test-src-integration-cov:
 	docker compose run --rm test_service python -m pytest \
 		src/tests/integration/ \
 		-v --tb=short -m integration \
-		--cov=src \
+		--cov=src --cov=shared \
+		--cov-config=src/tests/integration/.coveragerc \
 		--cov-report=html:src/tests/htmlcov-integration \
 		--cov-report=term
 
@@ -537,19 +539,34 @@ _RC_EXEC := env _=/usr/local/bin/railway railway
 railway-cli:
 	@docker compose run --rm -it railway_cli bash
 
+# plan/apply evaluate railway.ts, whose need() reads secrets from process.env. Those
+# values must come from secrets/railway-<ENV>.tfvars (tfvars_to_env.py, exactly what
+# railway-config.yml feeds CI) — NOT from this Makefile's `include .env` + `export`,
+# which would hand railway.ts the LOCAL-dev .env values (BACKEND_URL, NEXTAUTH_SECRET,
+# ...) and make apply rewrite live variables with them. So: generate the env file on
+# the host (python is there, not in the CLI image), and in the container run with a
+# scrubbed environment (`env -i`) plus that file via .plan-with-env.mjs.
+PYTHON ?= python
+_RC_ENV_FILE = .railway/.env.$(ENV).generated
+_RC_GEN_ENV = $(PYTHON) scripts/tfvars_to_env.py --env $(ENV) > $(_RC_ENV_FILE)
+_RC_CLEAN_EXEC = env -i PATH="$$PATH" HOME="$$HOME" $${RAILWAY_TOKEN:+RAILWAY_TOKEN="$$RAILWAY_TOKEN"} \
+	node .railway/.plan-with-env.mjs $(_RC_ENV_FILE)
+
 railway-config-plan:
 	@$(_TF_ENV_GUARD)
 ifdef RAILWAY_CLI
-	@$(_RC_EXEC) config plan $(ARGS)
+	@$(_RC_CLEAN_EXEC) plan $(ARGS)
 else
+	@$(_RC_GEN_ENV)
 	@$(_RC_RUN) railway-config-plan ENV=$(ENV) ARGS='$(ARGS)'
 endif
 
 railway-config-apply:
 	@$(_TF_ENV_GUARD)
 ifdef RAILWAY_CLI
-	@$(_RC_EXEC) config apply $(ARGS)
+	@$(_RC_CLEAN_EXEC) apply $(ARGS)
 else
+	@$(_RC_GEN_ENV)
 	@$(_RC_RUN) railway-config-apply ENV=$(ENV) ARGS='$(ARGS)'
 endif
 

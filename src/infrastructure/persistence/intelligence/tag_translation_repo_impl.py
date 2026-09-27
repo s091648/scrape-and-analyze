@@ -38,12 +38,19 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
     def find_tags_without_translation(
         self, language: str, limit: int
     ) -> List[dict]:
-        """Return tags that lack a translation row for the specified language."""
+        """Return tags that lack a translation row for the specified language.
+
+        Selects just the columns needed, with the group name joined in: loading
+        whole Tag rows lazy-loaded each row's group_def in the loop below (one
+        SELECT per tag) and dragged every 768-dim embedding along for nothing.
+        """
         from models.tag import Tag as TagModel
+        from models.tag_group import TagGroupDefinition
         from models.tag_translation import TagsTranslation as TagsTranslationModel
 
         rows = (
-            self._session.query(TagModel)
+            self._session.query(TagModel.id, TagModel.name, TagGroupDefinition.name.label("group_name"))
+            .outerjoin(TagGroupDefinition, TagModel.tag_group_id == TagGroupDefinition.id)
             .filter(~TagModel.translations.any(TagsTranslationModel.language == language))
             .order_by(TagModel.name)
             .limit(limit)
@@ -51,7 +58,7 @@ class SqlAlchemyTagTranslationRepository(TagTranslationRepository):
         )
 
         return [
-            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_def.name if row.group_def else "ungrouped"}
+            {"tag_id": row.id, "name": row.name, "tag_group_name": row.group_name or "ungrouped"}
             for row in rows
         ]
 

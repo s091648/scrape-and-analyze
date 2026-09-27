@@ -489,7 +489,7 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     from src.config.settings import CACHE_REDIS_URL, APP_ENV
     from src.config.settings import SEARCH_INDEX_REDIS_URL, SEARCH_MIN_DOC_FREQ
     from shared.search_index import RedisSearchIndexGateway
-    from src.infrastructure.persistence.intelligence import SqlAlchemySearchTermRepository
+    from src.infrastructure.persistence.intelligence import SqlAlchemyArticleSearchTokenRepository
     from src.modules.search.application.use_cases import RebuildSearchIndexUseCase
     from src.modules.search.application.event_handlers import SearchIndexRebuildHandler
     from src.modules.intelligence.application.use_cases import RefreshTagArticleCountsUseCase
@@ -725,10 +725,9 @@ async def build_collection_pipeline(jitter_seconds: float | None = None):
     # depend on article/analysis text content, not RAG vectors, so they fire
     # as soon as the text stage settles rather than waiting on RAG.
     search_index_gateway = RedisSearchIndexGateway(redis_url=SEARCH_INDEX_REDIS_URL)
-    search_term_repo = SqlAlchemySearchTermRepository(session)
+    search_token_repo = SqlAlchemyArticleSearchTokenRepository(session)
     rebuild_search_index_uc = RebuildSearchIndexUseCase(
-        session=session,
-        search_term_repo=search_term_repo,
+        search_token_repo=search_token_repo,
         search_index_gateway=search_index_gateway,
         min_doc_freq=SEARCH_MIN_DOC_FREQ,
     )

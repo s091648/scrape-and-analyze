@@ -147,6 +147,17 @@ export function traceQLServiceMatch(env?: string, serviceName: string = SERVICE_
   return `{ ${TraceQLResource.SERVICE_NAME} = "${serviceName}"${envClause} } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT}, span.${SpanAttribute.CLIENT_TYPE})`
 }
 
+/**
+ * TraceQL for traces containing a slow Postgres statement span — the SQLAlchemy
+ * instrumentation (backend/observability.py; the scraper doesn't instrument SQLAlchemy)
+ * tags every statement span with `db.system = "postgresql"`. Selects the environment
+ * attribute so results can be environment-filtered client-side, same as
+ * traceQLServiceMatch().
+ */
+export function traceQLSlowDbSpans(minDurationMs: number): string {
+  return `{ span.db.system = "postgresql" && duration > ${minDurationMs}ms } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`
+}
+
 /** Build a PromQL increase expression with optional by clause */
 export function promqlIncrease(metric: string, range: string, byLabel?: string): string {
   const byClause = byLabel ? ` by (${byLabel})` : ''

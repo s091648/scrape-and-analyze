@@ -49,11 +49,14 @@ def query_analyses(
 ) -> list:
     from models.analysis import Analysis
     from models.article import Article
+    from models.tag import Tag
     query = (
         db.query(Analysis)
         # build_graph() walks analysis.article + analysis.article.tags for every
         # row — eager-load both here so an N-analysis graph costs 3 queries, not 1 + 2N.
-        .options(selectinload(Analysis.article).selectinload(Article.tags))
+        # Tag.embedding (768 floats) is never read here; deferring it keeps it out of
+        # what is otherwise one of the heaviest reads in pg_stat_statements.
+        .options(selectinload(Analysis.article).selectinload(Article.tags).defer(Tag.embedding))
         .join(Article, Article.id == Analysis.article_id)
         .filter(Article.merged_into_id.is_(None))
     )
@@ -72,7 +75,7 @@ def query_analyses(
     if original_sources:
         query = query.filter(Article.original_source.in_(original_sources))
     if tags:
-        from models.tag import Tag, article_tags as at
+        from models.tag import article_tags as at
         query = (
             query
             .join(at, at.c.article_id == Article.id)
@@ -102,7 +105,8 @@ def query_group_articles(
     query = (
         db.query(Analysis)
         # Callers (graph.py get_group, build_graph) walk analysis.article + .article.tags.
-        .options(selectinload(Analysis.article).selectinload(Article.tags))
+        # Tag.embedding is never read — see query_analyses.
+        .options(selectinload(Analysis.article).selectinload(Article.tags).defer(Tag.embedding))
         .join(Article, Article.id == Analysis.article_id)
         .join(at, at.c.article_id == Article.id)
         .join(Tag, Tag.id == at.c.tag_id)

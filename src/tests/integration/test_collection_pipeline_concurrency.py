@@ -2,9 +2,10 @@
 
 These exercise CollectionPipeline's own orchestration logic (per-article
 asyncio.Task fan-out, RAG detachment) using fake session/downstream builders —
-no real Postgres connection needed, so these do not use @pytest.mark.integration
-or the db_session/async_db_session fixtures, matching the "no autouse DB
-fixture" convention in src/tests/integration/conftest.py.
+no real Postgres connection needed, so these don't use the db_session/
+async_db_session fixtures, matching the "no autouse DB fixture" convention in
+src/tests/integration/conftest.py. Still marked integration (see pytestmark
+below) — that's what selects them in CI.
 
 T037: a batch of N articles' downstream processing overlaps in wall-clock time.
 T038: one article's artificially-slowed RAG ingestion does not delay Barrier 1
@@ -22,6 +23,11 @@ from src.infrastructure.shared.events.in_memory_event_bus import AsyncInMemoryEv
 from src.modules.collection.application.use_cases import PipelineStats
 from src.modules.collection.domain.value_objects import ScrapedArticle
 from src.modules.collection.application.events import ArticleScrapedEvent, TextPipelineCompletedEvent
+
+# Marked integration even though most of these need no real DB: CI's src-integration-test job
+# (and `make test-src-integration`) select with `-m integration`, and the unit job only runs
+# src/tests/unit/ — so an unmarked test here was silently run by nothing at all.
+pytestmark = pytest.mark.integration
 
 
 @asynccontextmanager
@@ -118,7 +124,7 @@ async def test_slow_rag_ingestion_does_not_delay_barrier_one_or_other_articles()
         await bus.subscribe(ArticleScrapedEvent, _on_scraped)
 
     class _SlowRagHandler:
-        async def handle(self, event):
+        async def handle(self, event, parent_span=None):
             await asyncio.sleep(RAG_DELAY)
             rag_done_times.append((event.url, time.monotonic()))
 

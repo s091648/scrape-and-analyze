@@ -292,6 +292,16 @@
         "OPENROUTER_API_KEY"
       ],
       "redeploy": false
+    },
+    "alloy": {
+      "service_id_key": "service_id_alloy",
+      "groups": [
+        "app_env"
+      ],
+      "own": {
+        "ALLOY_PG_PASSWORD": "alloy_pg_password",
+        "GRAFANA_API_KEY": "grafana_api_key"
+      }
     }
   }
 }

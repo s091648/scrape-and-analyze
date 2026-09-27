@@ -1,182 +1,143 @@
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from src.modules.search.application.use_cases.rebuild_search_index_use_case import RebuildSearchIndexUseCase
+from src.modules.search.domain.repositories.article_search_token_repository import TokenSource
 
 
-def _mock_session(rows):
-    """`rows` are (topic_id, title, content) tuples — an article_id, no translation
-    (t_language/t_title/t_content all None), are filled in automatically since most
-    tests don't care about either."""
-    session = MagicMock()
-    full_rows = [
-        (uuid.uuid4(), topic_id, title, content, None, None, None)
-        for topic_id, title, content in rows
-    ]
-    session.query.return_value.outerjoin.return_value.filter.return_value.filter.return_value.all.return_value = full_rows
-    return session
+def _source(title, content="", language="en", topic_id=None, updated_at=None):
+    return TokenSource(
+        article_id=uuid.uuid4(), language=language, topic_id=topic_id or uuid.uuid4(),
+        title=title, content=content, source_updated_at=updated_at,
+    )
 
 
-def _mock_session_with_translations(rows):
-    """`rows` are (article_id, topic_id, title, content, t_language, t_title, t_content)
-    tuples, for tests that need to control the translation columns directly."""
-    session = MagicMock()
-    session.query.return_value.outerjoin.return_value.filter.return_value.filter.return_value.all.return_value = rows
-    return session
+def _repo(sources, deleted=0, term_counts=None):
+    """Repository mock whose stale keys are exactly `sources`, served by load_sources()
+    for whichever slice of keys is asked for."""
+    repo = MagicMock()
+    by_key = {(s.article_id, s.language): s for s in sources}
+    repo.delete_ineligible.return_value = deleted
+    repo.find_stale_keys.return_value = list(by_key)
+    repo.load_sources.side_effect = lambda keys: [by_key[k] for k in keys]
+    repo.term_counts_by_topic.return_value = term_counts or {}
+    return repo
+
+
+def _upserted(repo):
+    return [row for call in repo.upsert.call_args_list for row in call.args[0]]
+
+
+def test_execute_only_tokenizes_stale_sources():
+    source = _source("Machine Learning", "an article about deep learning")
+    repo = _repo([source])
+
+    RebuildSearchIndexUseCase(repo, MagicMock()).execute()
+
+    repo.find_stale_keys.assert_called_once_with(include_fresh=False)
+    [row] = _upserted(repo)
+    assert (row.article_id, row.language, row.topic_id) == (source.article_id, "en", source.topic_id)
+    assert {"machine", "learning"} <= set(row.tokens)
+    assert "an" not in row.tokens  # stopword
+    assert row.tokens == sorted(set(row.tokens))  # deduped, deterministic order
+
+
+def test_execute_full_asks_for_every_eligible_source():
+    repo = _repo([])
+
+    RebuildSearchIndexUseCase(repo, MagicMock()).execute(full=True)
+
+    repo.find_stale_keys.assert_called_once_with(include_fresh=True)
+
+
+def test_execute_deletes_ineligible_rows_before_indexing():
+    repo = _repo([_source("Quantum")])
+    call_order = []
+    repo.delete_ineligible.side_effect = lambda: call_order.append("delete") or 0
+    repo.upsert.side_effect = lambda rows: call_order.append("upsert")
+
+    RebuildSearchIndexUseCase(repo, MagicMock()).execute()
+
+    assert call_order == ["delete", "upsert"]
+
+
+def test_execute_carries_translation_language_and_updated_at():
+    updated_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    repo = _repo([_source("準晶體", "準晶體 晶格", language="zh-TW", updated_at=updated_at)])
+
+    RebuildSearchIndexUseCase(repo, MagicMock()).execute()
+
+    [row] = _upserted(repo)
+    assert row.language == "zh-TW"
+    assert row.source_updated_at == updated_at
+    assert "準晶體" in row.tokens
+
+
+def test_execute_upserts_sources_in_batches():
+    repo = _repo([_source(f"term{i}") for i in range(5)])
+
+    RebuildSearchIndexUseCase(repo, MagicMock(), batch_size=2).execute()
+
+    assert [len(call.args[0]) for call in repo.upsert.call_args_list] == [2, 2, 1]
+    assert len(_upserted(repo)) == 5
+
+
+def test_execute_stores_an_empty_token_list_rather_than_skipping():
+    """A source whose text is all stopwords still gets a row — otherwise it would be
+    'missing' and re-tokenized on every run forever."""
+    repo = _repo([_source("the a an", "of")])
+
+    RebuildSearchIndexUseCase(repo, MagicMock()).execute()
+
+    [row] = _upserted(repo)
+    assert row.tokens == []
 
 
 def test_execute_writes_postgres_before_redis():
-    topic_id = uuid.uuid4()
-    session = _mock_session([(topic_id, "Machine Learning", "an article about machine learning and deep learning")])
-    repo = MagicMock()
+    repo = _repo([_source("Quantum")])
     gateway = MagicMock()
     call_order = []
-    repo.replace_all.side_effect = lambda *a: call_order.append("postgres")
+    repo.upsert.side_effect = lambda rows: call_order.append("upsert")
+    repo.refresh_term_counts.side_effect = lambda: call_order.append("refresh")
     gateway.rebuild.side_effect = lambda *a: call_order.append("redis")
 
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
+    RebuildSearchIndexUseCase(repo, gateway).execute()
 
-    assert call_order == ["postgres", "redis"]
+    assert call_order == ["upsert", "refresh", "redis"]
 
 
-def test_execute_counts_document_frequency_not_raw_occurrence():
+def test_execute_rebuilds_redis_from_repo_term_counts_with_min_doc_freq():
     topic_id = uuid.uuid4()
-    # "learning" appears 3x within ONE article — must count once (document frequency).
-    session = _mock_session([(topic_id, "learning learning learning", "")])
-    repo = MagicMock()
+    term_counts = {topic_id: {"quantum": 3}}
+    repo = _repo([], term_counts=term_counts)
     gateway = MagicMock()
 
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
+    RebuildSearchIndexUseCase(repo, gateway, min_doc_freq=3).execute()
 
-    written = repo.replace_all.call_args.args[0]
-    assert len(written[(topic_id, "learning", "en")]) == 1
-
-
-def test_execute_redis_input_filters_terms_below_min_doc_freq():
-    """min_doc_freq gates the Redis autocomplete trie's input (suggestion quality) —
-    see the next test for confirmation it does NOT also gate the Postgres inverted
-    index (that would break exact-match completeness for low-frequency terms)."""
-    topic_a = uuid.uuid4()
-    session = _mock_session([
-        (topic_a, "rare term appears once", ""),
-        (topic_a, "common term appears twice", ""),
-        (topic_a, "another common mention", ""),
-    ])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=2).execute()
-
-    redis_written = gateway.rebuild.call_args.args[0]
-    assert "common" in redis_written[topic_a]
-    assert "rare" not in redis_written[topic_a]
-
-
-def test_execute_postgres_input_is_not_filtered_by_min_doc_freq():
-    """023-article-search follow-up: intelligence.search_terms/search_term_articles back
-    exact-match retrieval's completeness guarantee, not just autocomplete suggestion
-    quality — a term used in only one article must still be written there even though
-    min_doc_freq=2 would exclude it from the Redis trie."""
-    topic_a = uuid.uuid4()
-    session = _mock_session([(topic_a, "rare term appears once", "")])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=2).execute()
-
-    postgres_written = repo.replace_all.call_args.args[0]
-    assert (topic_a, "rare", "en") in postgres_written
-
-    redis_written = gateway.rebuild.call_args.args[0]
-    assert "rare" not in redis_written.get(topic_a, {})
+    repo.term_counts_by_topic.assert_called_once_with(3)
+    gateway.rebuild.assert_called_once_with(term_counts)
 
 
 def test_execute_returns_summary_stats():
     topic_id = uuid.uuid4()
-    session = _mock_session([(topic_id, "machine learning", "")])
-    repo = MagicMock()
+    repo = _repo(
+        [_source("Quantum"), _source("Lattice")], deleted=4,
+        term_counts={topic_id: {"quantum": 2, "lattice": 2}},
+    )
+
+    stats = RebuildSearchIndexUseCase(repo, MagicMock()).execute()
+
+    assert stats == {"indexed_count": 2, "deleted_count": 4, "topic_count": 1, "term_count": 2}
+
+
+def test_execute_with_nothing_stale_still_refreshes_read_models():
+    repo = _repo([])
     gateway = MagicMock()
 
-    stats = RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
+    RebuildSearchIndexUseCase(repo, gateway).execute()
 
-    assert stats["article_count"] == 1
-    assert stats["topic_count"] == 1
-    assert stats["term_count"] == 2  # "machine", "learning"
-
-
-def test_execute_indexes_translated_title_and_content():
-    """Root-cause regression test: a zh-TW ArticleTranslation row must feed the same
-    term extraction as the original title/content, or autocomplete/search never surfaces
-    any Traditional Chinese terms regardless of the tokenizer's jieba support."""
-    topic_id = uuid.uuid4()
-    article_id = uuid.uuid4()
-    session = _mock_session_with_translations([
-        (article_id, topic_id, "Machine Learning", "", "zh-TW", "機器學習", "深度學習技術"),
-    ])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
-
-    redis_written = gateway.rebuild.call_args.args[0]
-    assert "機器學習" in redis_written[topic_id] or "學習" in redis_written[topic_id]
-
-
-def test_execute_tags_translated_terms_with_their_own_language_not_en():
-    """023-article-search follow-up: intelligence.search_terms splits terms by language
-    (unlike the Redis trie) — a translated term must be written under its own
-    ArticleTranslation.language, not lumped in with the original's "en"."""
-    topic_id = uuid.uuid4()
-    article_id = uuid.uuid4()
-    session = _mock_session_with_translations([
-        (article_id, topic_id, "Machine Learning", "", "zh-TW", "機器學習", "深度學習技術"),
-    ])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
-
-    postgres_written = repo.replace_all.call_args.args[0]
-    zh_keys = [key for key in postgres_written if key[0] == topic_id and key[2] == "zh-TW"]
-    en_keys = [key for key in postgres_written if key[0] == topic_id and key[2] == "en"]
-    assert any(key[1] in ("機器學習", "機器", "學習") for key in zh_keys)
-    assert any(key[1] in ("machine", "learning") for key in en_keys)
-    # No cross-contamination: the English terms must not also appear tagged zh-TW.
-    assert not any(key[1] in ("machine", "learning") for key in zh_keys)
-
-
-def test_execute_does_not_double_count_article_with_translation():
-    """An article joined with exactly one translation row must still count as one
-    article for document frequency — not two."""
-    topic_id = uuid.uuid4()
-    article_id = uuid.uuid4()
-    session = _mock_session_with_translations([
-        (article_id, topic_id, "machine learning", "", "zh-TW", "translated title", None),
-    ])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    stats = RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
-
-    assert stats["article_count"] == 1
-    postgres_written = repo.replace_all.call_args.args[0]
-    assert len(postgres_written[(topic_id, "machine", "en")]) == 1
-
-
-def test_execute_postgres_input_maps_term_to_the_set_of_article_ids():
-    """repo.replace_all's contract: value is the *set of distinct article_ids* a term
-    occurs in (not a count) — occurrence_count is derived from len() by the repository."""
-    topic_id = uuid.uuid4()
-    article_a = uuid.uuid4()
-    article_b = uuid.uuid4()
-    session = _mock_session_with_translations([
-        (article_a, topic_id, "machine learning", "", None, None, None),
-        (article_b, topic_id, "machine learning basics", "", None, None, None),
-    ])
-    repo = MagicMock()
-    gateway = MagicMock()
-
-    RebuildSearchIndexUseCase(session, repo, gateway, min_doc_freq=1).execute()
-
-    postgres_written = repo.replace_all.call_args.args[0]
-    assert postgres_written[(topic_id, "machine", "en")] == {article_a, article_b}
+    repo.load_sources.assert_not_called()
+    repo.upsert.assert_not_called()
+    repo.refresh_term_counts.assert_called_once()
+    gateway.rebuild.assert_called_once()
