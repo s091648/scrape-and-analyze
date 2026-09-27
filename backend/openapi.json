@@ -6122,7 +6122,7 @@
     },
     "/chat/completions": {
       "post": {
-        "description": "Proxies to the chatbot-plugin service's own OpenAI-compatible `POST /v1/chat/completions`.\n\nchatbot-plugin's own Swagger UI: [http://chatbot_plugin:8000/docs](http://chatbot_plugin:8000/docs) (only reachable from the same internal network as this backend, not from a public browser).",
+        "description": "Proxies to the chatbot-plugin service's own OpenAI-compatible `POST /v1/chat/completions`.\n\nchatbot-plugin's own Swagger UI is unavailable \u2014 `CHAT_SERVICE_URL` is not configured.",
         "operationId": "chat_completions_chat_completions_post",
         "parameters": [
           {

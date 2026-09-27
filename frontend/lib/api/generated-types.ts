@@ -444,7 +444,7 @@ export interface paths {
          * Chat Completions
          * @description Proxies to the chatbot-plugin service's own OpenAI-compatible `POST /v1/chat/completions`.
          *
-         *     chatbot-plugin's own Swagger UI: [http://chatbot_plugin:8000/docs](http://chatbot_plugin:8000/docs) (only reachable from the same internal network as this backend, not from a public browser).
+         *     chatbot-plugin's own Swagger UI is unavailable — `CHAT_SERVICE_URL` is not configured.
          */
         post: operations["chat_completions_chat_completions_post"];
         delete?: never;
