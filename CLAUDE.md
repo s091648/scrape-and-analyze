@@ -117,7 +117,7 @@ Routes needing neither (no `useSearchParams`, no server-only session/env fetch) 
 | `weekly_reports.py` | `/weekly-reports` | `require_any_token` |
 | `tags.py` | `/` | `GET /tag-groups`, `GET /tag-groups/{group_id}` require_any_token; all other (write) endpoints require_admin |
 | `chat.py` | `/chat` | `require_any_token` on `/chat/completions` and `/chat/quota` |
-| `monitoring.py` | `/` | `GET /failed-tasks` require_admin |
+| `monitoring.py` | `/` | `GET /failed-tasks`, `GET /db/query-texts` (pg_stat_statements queryid → SQL text, for the monitoring page's Database app) require_admin |
 | `search.py` | `/` | `require_any_token` on `GET /search` and `GET /search/autocomplete` |
 
 `require_any_token` (`backend/auth/guards.py`, `018-public-api-auth`) accepts any real user/admin JWT or a guest access token (obtained via `POST /auth/guest`, no credentials required); it never accepts a guest *refresh* token. It is the floor auth requirement for every endpoint above that isn't already gated by `require_admin`/`require_user` — see `site/guide/architecture/exception-handling.md`'s sibling doc for the full guest-token contract in `specs/018-public-api-auth/contracts/guest-token.md`.

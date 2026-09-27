@@ -444,7 +444,7 @@ export interface paths {
          * Chat Completions
          * @description Proxies to the chatbot-plugin service's own OpenAI-compatible `POST /v1/chat/completions`.
          *
-         *     chatbot-plugin's own Swagger UI is unavailable — `CHAT_SERVICE_URL` is not configured.
+         *     chatbot-plugin's own Swagger UI: [http://chatbot_plugin:8000/docs](http://chatbot_plugin:8000/docs) (only reachable from the same internal network as this backend, not from a public browser).
          */
         post: operations["chat_completions_chat_completions_post"];
         delete?: never;
@@ -462,6 +462,27 @@ export interface paths {
         };
         /** Chat Quota */
         get: operations["chat_quota_chat_quota_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/db/query-texts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Query Texts
+         * @description Resolve the `queryid` label on the monitoring dashboard's pg_stat_statements
+         *     metrics (Database app) to the statement text.
+         */
+        get: operations["list_query_texts_db_query_texts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1928,6 +1949,20 @@ export interface components {
             id: string;
             /** Priority */
             priority: number;
+        };
+        /** QueryTextOut */
+        QueryTextOut: {
+            /** Query */
+            query: string;
+            /** Queryid */
+            queryid: string;
+        };
+        /** QueryTextsResponse */
+        QueryTextsResponse: {
+            /** Available */
+            available: boolean;
+            /** Items */
+            items: components["schemas"]["QueryTextOut"][];
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -4192,6 +4227,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_query_texts_db_query_texts_get: {
+        parameters: {
+            query: {
+                /** @description pg_stat_statements query ids (repeat the param per id) */
+                queryid: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueryTextsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
             /** @description Internal Server Error */

@@ -21,3 +21,18 @@ class PaginatedFailedTasks(BaseModel):
     total: int
     page: int
     size: int
+
+
+class QueryTextOut(BaseModel):
+    # String, not int: pg_stat_statements.queryid is a signed 64-bit value, beyond
+    # JavaScript's safe-integer range — and Prometheus already hands the frontend the
+    # same id as a string label.
+    queryid: str
+    query: str
+
+
+class QueryTextsResponse(BaseModel):
+    # False when pg_stat_statements isn't installed/loaded in this database (e.g. the
+    # local dev Postgres) — distinct from "installed, but none of these ids are present".
+    available: bool
+    items: list[QueryTextOut]

@@ -272,3 +272,32 @@ describe('queryProfile', () => {
     expect(result).toEqual({ error: 'not_configured' })
   })
 })
+describe('fetchQueryTexts', () => {
+  it('sends one repeated queryid param per id with the auth header', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ available: true, items: [{ queryid: '-42', query: 'SELECT 1' }] }),
+    })
+
+    const { fetchQueryTexts } = await import('@/lib/api/grafana')
+    const res = await fetchQueryTexts(['-42', '7'])
+
+    const [url, options] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/proxy/db/query-texts?queryid=-42&queryid=7')
+    expect((options?.headers as Record<string, string>)?.Authorization).toBe('Bearer test-token')
+    expect(res.items[0].query).toBe('SELECT 1')
+  })
+
+  it('skips the request entirely for an empty id list', async () => {
+    const { fetchQueryTexts } = await import('@/lib/api/grafana')
+    expect(await fetchQueryTexts([])).toEqual({ available: true, items: [] })
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('degrades to unavailable on a non-2xx response instead of throwing', async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, json: async () => ({}) })
+
+    const { fetchQueryTexts } = await import('@/lib/api/grafana')
+    expect(await fetchQueryTexts(['1'])).toEqual({ available: false, items: [] })
+  })
+})

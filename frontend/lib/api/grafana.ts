@@ -1,4 +1,5 @@
 import { getSession } from 'next-auth/react'
+import type { components } from './generated-types'
 
 // ── Prometheus / Mimir response types ──────────────────────────────────────
 
@@ -351,4 +352,20 @@ export async function queryProfile(params: { start: number; end: number; service
     return { error: 'fetch_failed' } as unknown as FlamebearerResponse
   }
   return body
+}
+// ── Postgres query text (GET /db/query-texts) ───────────────────────────────
+// The pg_stat_statements metrics Alloy ships to Prometheus only carry `queryid` as a label;
+// the backend resolves ids to statement text from its own database's pg_stat_statements.
+
+export type QueryTextsResponse = components['schemas']['QueryTextsResponse']
+
+export async function fetchQueryTexts(queryids: string[]): Promise<QueryTextsResponse> {
+  if (queryids.length === 0) return { available: true, items: [] }
+  const p = new URLSearchParams()
+  for (const id of queryids) p.append('queryid', id)
+  const res = await fetch(`/api/proxy/db/query-texts?${p.toString()}`, {
+    headers: await authHeaders(),
+  })
+  if (!res.ok) return { available: false, items: [] }
+  return res.json()
 }

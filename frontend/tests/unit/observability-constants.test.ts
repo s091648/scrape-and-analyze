@@ -92,3 +92,12 @@ describe('promqlEnvMatcher', () => {
     expect(result).toBe(`{${MetricLabelKey.DEPLOYMENT_ENVIRONMENT}="local"}`)
   })
 })
+
+describe('traceQLSlowDbSpans', () => {
+  it('matches Postgres statement spans above the threshold and selects the environment', async () => {
+    const { traceQLSlowDbSpans } = await import('@/lib/observability-constants')
+    expect(traceQLSlowDbSpans(100)).toBe(
+      `{ span.db.system = "postgresql" && duration > 100ms } | select(${TraceQLResource.DEPLOYMENT_ENVIRONMENT})`,
+    )
+  })
+})
