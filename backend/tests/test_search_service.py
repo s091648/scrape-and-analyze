@@ -612,6 +612,16 @@ def test_article_filter_sql_filters_by_aggregator():
     assert expanding == ["aggregators"]
 
 
+def test_article_filter_sql_filters_by_original_source():
+    from backend.services.search_service import _article_filter_sql
+
+    sql, params, expanding = _article_filter_sql(None, None, ["nature.com"], None, None, None, None, None, None)
+
+    assert "a.original_source IN :original_sources" in sql
+    assert params["original_sources"] == ["nature.com"]
+    assert expanding == ["original_sources"]
+
+
 def test_article_filter_sql_filters_by_date_range():
     from backend.services.search_service import _article_filter_sql
     import datetime
