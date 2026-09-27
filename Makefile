@@ -43,7 +43,7 @@ _BACKFILL_ARGS := $(if $(LIMIT),--limit $(LIMIT),)
 UPGRADE_REV ?=
 
 migrate:
-	@echo "Using REMOTE_URL=$(REMOTE_URL)"
+	@echo "Running alembic upgrade $(or $(UPGRADE_REV),head) against the local DB..."
 	docker compose run --rm job_service /app/scripts/db_migrate.sh upgrade $(UPGRADE_REV)
 
 migrate-remote:
@@ -65,14 +65,14 @@ migrate-remote-down:
 
 # dump the remote database into the shared volume (default /app/db_dumps/railway_dump.sql)
 dump:
-	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
+	@echo "Dumping Railway $(ENV) DB into $(DUMP_FILE)..."
 	@test -n "$(REMOTE_URL)" || (echo "REMOTE_URL must be set"; exit 1)
 	docker compose run --rm -e RAILWAY_DATABASE_URL="$(REMOTE_URL)" \
 		job_service /app/scripts/dump_remote.sh "$(REMOTE_URL)" "$(DUMP_FILE)"
 
 # restore last dump file into local postgres
 sync:
-	@echo "Using REMOTE_URL=$(REMOTE_URL) and DUMP_FILE=$(DUMP_FILE)"
+	@echo "Restoring $(DUMP_FILE) into the local DB..."
 	docker compose run --rm \
 		-e PGPASSWORD=$${POSTGRES_PASSWORD:-postgres} \
 		job_service /app/scripts/sync_db.sh "$(DUMP_FILE)"
