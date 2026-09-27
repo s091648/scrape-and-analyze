@@ -150,7 +150,7 @@ def pipeline_env(monkeypatch, seeded_providers, test_async_sessionmaker):
 
     seeded_providers.rollback()
     seeded_providers.query(FailedTaskModel).filter(
-        (FailedTaskModel.exception_message.contains(marker)) | (FailedTaskModel.task_type == "wiringsrc_discover")
+        FailedTaskModel.exception_message.contains(marker)
     ).delete(synchronize_session=False)
     seeded_providers.commit()
 
@@ -167,8 +167,12 @@ async def test_build_collection_pipeline_subscribes_barrier_handlers(pipeline_en
     assert pipeline._jitter_seconds == 1.5
     assert pipeline._rag_downstream_builder is None  # RAG disabled
     handlers = pipeline._event_bus._handlers
-    # search index rebuild, tag-count refresh, cache invalidation, cache warmup — in that order
-    assert len(handlers[TextPipelineCompletedEvent]) == 4
+    # search index rebuild, tag-count refresh, cache invalidation, cache warmup — in that
+    # order (warmup must run after invalidation bumps the cache namespace version)
+    assert [type(h.__self__).__name__ for h in handlers[TextPipelineCompletedEvent]] == [
+        "SearchIndexRebuildHandler", "TagCountsRefreshHandler",
+        "CacheInvalidationHandler", "CacheWarmupHandler",
+    ]
     # OTel metrics + notification
     assert len(handlers[PipelineCompletedEvent]) == 2
     assert stats is pipeline._pipeline_stats
@@ -231,7 +235,10 @@ async def test_discover_failure_callback_records_failed_task(pipeline_env):
 
     pipeline._executor._on_discover_failed(task, RuntimeError(f"feed down {pipeline_env.marker}"))
 
-    row = pipeline_env.session.query(FailedTaskModel).filter_by(task_type="wiringsrc_discover").one()
+    row = pipeline_env.session.query(FailedTaskModel).filter(
+        FailedTaskModel.task_type == "wiringsrc_discover",
+        FailedTaskModel.exception_message.contains(pipeline_env.marker),
+    ).one()
     assert row.exception_type == "RuntimeError"
 
 

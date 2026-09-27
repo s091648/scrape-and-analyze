@@ -994,13 +994,20 @@ jobs:
       # *this* build is actually serving — with --detach the job returned right after the
       # upload and Lighthouse measured the previous deployment (every report was one commit
       # behind). --ci waits for the build; the wait script then waits for boot + healthcheck.
+      # The pre-deploy ID lets the wait script ignore the old deployment's SUCCESS.
+      - name: Record the frontend's current deployment
+        id: previous-deployment
+        run: echo "id=$(bash "$GITHUB_WORKSPACE/.github/scripts/wait-railway-deployment.sh" --latest-id "${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}" staging)" >> "$GITHUB_OUTPUT"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
       - name: Deploy dashboard-frontend to Railway (staging)
         run: railway up --ci --service ${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }} --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Wait for the new frontend deployment to go live
-        run: bash "$GITHUB_WORKSPACE/.github/scripts/wait-railway-deployment.sh" "${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}" staging
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/wait-railway-deployment.sh" "${{ vars.RAILWAY_SERVICE_ID_DASHBOARD_FRONTEND }}" staging "${{ steps.previous-deployment.outputs.id }}"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 

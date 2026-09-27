@@ -10,9 +10,11 @@ labelled `env="staging|production"`, `job="integrations/postgres_exporter"`.
 - `queries.yaml` — custom exporter queries for what the built-in collectors miss:
   `pg_stat_user_indexes_{idx_scan,idx_tup_read,idx_tup_fetch,size_bytes}` per index
   (e.g. `pg_stat_user_indexes_idx_scan == 0` finds indexes nothing ever uses)
-- `Dockerfile` — `grafana/alloy` pinned, config baked in
+- `Dockerfile` — `grafana/alloy` pinned, config baked in, runs as the image's
+  unprivileged `alloy` user
 - Deployed as the `alloy` Railway service (`.railway/railway.ts`), both environments.
-  No public domain; its debug UI listens on `:12345` on the private network only.
+  No public domain; its (unauthenticated) debug UI listens on `127.0.0.1:12345` only,
+  so not even other services on the private network can reach it.
 
 ## Database role
 
@@ -51,7 +53,11 @@ docker build -f alloy/Dockerfile -t alloy-local .
 docker run --rm --network scrape-analyzer_default -p 12345:12345 \
   -e POSTGRES_EXPORTER_DSN="postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable" \
   -e GRAFANA_PROMETHEUS_URL=http://127.0.0.1:1/api/prom -e GRAFANA_PROMETHEUS_USER=x \
-  -e GRAFANA_API_KEY=x -e APP_ENV=local alloy-local
+  -e GRAFANA_API_KEY=x -e APP_ENV=local alloy-local \
+  run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data \
+  --disable-reporting /etc/alloy/config.alloy
+# The trailing args replace the image's CMD so the debug UI binds 0.0.0.0 (the image
+# default is 127.0.0.1, unreachable through -p).
 # http://localhost:12345 — component health; the exporter's raw metrics at
 # /api/v0/component/prometheus.exporter.postgres.db/metrics
 ```

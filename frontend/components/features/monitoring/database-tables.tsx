@@ -81,6 +81,7 @@ export function DatabaseTables({
     const at = { start: endSec, end: endSec, step: '60' }
 
     let cancelled = false
+    let done = false
     async function load() {
       setLoading(true)
       setFailed(false)
@@ -126,11 +127,17 @@ export function DatabaseTables({
       } catch {
         if (!cancelled) setFailed(true)
       } finally {
+        done = true
         if (!cancelled) setLoading(false)
       }
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // A load cancelled mid-flight (tab switch, StrictMode remount) never landed its
+      // results — forget the key so the next run refetches instead of spinning forever.
+      if (!done && fetchedForRef.current === key) fetchedForRef.current = null
+    }
   }, [startSec, endSec, env, rangeVec, enabled])
 
   const queryColumns: ColumnDef[] = [

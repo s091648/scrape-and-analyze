@@ -8,24 +8,48 @@
 # upload is accepted) and lighthouse.yml's reachability probe was satisfied immediately by the
 # old deployment — every Lighthouse report measured the previous commit's frontend.
 #
-# Usage: wait-railway-deployment.sh <service_id> <environment> [timeout_seconds]
-# Requires RAILWAY_TOKEN. Status parsing reuses lib/find-status.js (first `status` field in
-# `railway deployment list --json`, i.e. the most recent deployment).
+# `railway up` doesn't report the ID of the deployment it creates, so the caller records the
+# latest deployment ID *before* `railway up` (`--latest-id`) and passes it back in: until a
+# deployment with a different ID tops the list, the listed SUCCESS is the old deployment and
+# doesn't count.
+#
+# Usage: wait-railway-deployment.sh --latest-id <service_id> <environment>
+#        wait-railway-deployment.sh <service_id> <environment> [previous_deployment_id] [timeout_seconds]
+# Requires RAILWAY_TOKEN. Parsing lives in lib/latest-deployment.js (first object with both
+# `id` and `status` in `railway deployment list --json`, i.e. the most recent deployment).
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+latest() {  # prints "<id> <status>" of the service's most recent deployment
+  local json
+  if json=$(railway deployment list --service "$1" --environment "$2" --json 2>&1); then
+    node "$SCRIPT_DIR/lib/latest-deployment.js" "$json"
+  else
+    echo "UNKNOWN UNKNOWN"
+  fi
+}
+
+if [ "${1:-}" = "--latest-id" ]; then
+  read -r ID _ <<< "$(latest "$2" "$3")"
+  echo "$ID"
+  exit 0
+fi
 
 SERVICE_ID="$1"
 ENVIRONMENT="$2"
-TIMEOUT="${3:-600}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PREVIOUS_ID="${3:-}"
+TIMEOUT="${4:-600}"
 DEADLINE=$(( $(date +%s) + TIMEOUT ))
 
 while true; do
-  if JSON=$(railway deployment list --service "$SERVICE_ID" --environment "$ENVIRONMENT" --json 2>&1); then
-    STATUS=$(node "$SCRIPT_DIR/lib/find-status.js" "$JSON")
+  read -r ID STATUS <<< "$(latest "$SERVICE_ID" "$ENVIRONMENT")"
+  if [ -n "$PREVIOUS_ID" ] && [ "$PREVIOUS_ID" != "UNKNOWN" ] && [ "$ID" = "$PREVIOUS_ID" ]; then
+    echo "Latest deployment is still the pre-existing $ID ($STATUS); waiting for the new one"
+    STATUS="PENDING_NEW"
   else
-    STATUS="UNKNOWN"
+    echo "Latest deployment $ID status: $STATUS"
   fi
-  echo "Latest deployment status: $STATUS"
   case "$STATUS" in
     SUCCESS) exit 0 ;;
     FAILED|CRASHED|REMOVED)
